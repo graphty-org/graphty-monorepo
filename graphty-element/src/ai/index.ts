@@ -9,10 +9,14 @@ export { AiStatusManager } from "./AiStatus";
 
 // Controller
 export type {
+    AiApprovalAnswer,
+    AiApprovalsSetting,
+    AiApprovalVerdict,
     AiCommandOptions,
     AiControllerOptions,
     AiEventEmitter,
     AiHistoryOptions,
+    AiToolCallFacts,
     ExecutionResult,
 } from "./AiController";
 export { AiController } from "./AiController";

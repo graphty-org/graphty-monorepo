@@ -75,6 +75,7 @@ describe("the published list of the assistant's tools", () => {
             "AI_TOOL_INVALID_ARGUMENTS",
             "AI_TOOL_FAILED",
             "AI_TOOL_THREW",
+            "AI_TOOL_DENIED_BY_POLICY",
         ]);
         const unpublished = [...used].filter(
             (code) => !reader.has(code) && !(AI_TOOL_CAUSE_CODES as readonly string[]).includes(code),

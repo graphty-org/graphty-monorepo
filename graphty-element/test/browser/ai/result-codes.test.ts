@@ -192,6 +192,22 @@ describe("AI command result codes", () => {
         assert.strictEqual(session.status.counts.nodes, 3);
     });
 
+    it("AI_TOOL_DENIED_BY_POLICY when the host's approval policy refuses a call", async () => {
+        await session.data.addNodes([{ id: "a" }]);
+        installAssistantTools(registry, session);
+        mock.setResponse("empty", call("edit_data", { action: "delete_all" }));
+        const controller = new AiController({
+            provider: mock,
+            commandRegistry: registry,
+            graph: { getSession: () => session } as unknown as CommandContext["graph"],
+            approvals: { policy: (facts) => (facts.effect === "write" ? "deny" : "allow") },
+        });
+        const denied = seen(await controller.execute("empty it"));
+        assert.strictEqual(denied.code, "AI_TOOL_DENIED_BY_POLICY");
+        assert.strictEqual(denied.params?.tool, "edit_data");
+        assert.strictEqual(session.status.counts.nodes, 1);
+    });
+
     it("AI_ROLLBACK_PARTIAL when taking a failed message back stops at the reader's own edit", async () => {
         let asks = 0;
         let markAsked: () => void = () => undefined;

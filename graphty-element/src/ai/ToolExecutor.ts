@@ -146,12 +146,6 @@ export interface ToolBatch {
     readonly abort: AbortController;
     readonly sink: ConversationSink;
     readonly host: ToolHost;
-    /**
-     * Whether the batch's last call may finish its wait after the commit (true when absent). An
-     * approved batch finishes inside its transaction instead: nothing after it in its message could
-     * take back a half it left committed.
-     */
-    readonly settleAfterCommit?: boolean;
 }
 
 /**
@@ -302,6 +296,11 @@ export async function runToolBatch(batch: ToolBatch): Promise<BatchOutcome> {
     }
 
     const ready = prepared as PreparedCall[];
+    const judged = judge(batch, ready, writes);
+    if (judged !== undefined) {
+        return judged;
+    }
+
     const undoAt = ready.findIndex((call) => call.command.name === UNDO_TOOL && call.checked !== undefined);
     if (undoAt !== -1) {
         if (ready.length > 1) {
@@ -373,6 +372,50 @@ export async function runToolBatch(batch: ToolBatch): Promise<BatchOutcome> {
 
         throw error;
     }
+}
+
+/**
+ * The host's approval policy on a batch whose structure passed, before any call runs: any `deny`
+ * refuses the whole batch, any `ask` holds it (gate `"policy"`). A policy that throws, or answers
+ * anything but the three verdicts, refuses or asks: it fails closed.
+ * @param batch - The batch.
+ * @param ready - Its calls.
+ * @param writes - Whether any call writes.
+ * @returns The refused or held batch, or undefined when every call is allowed.
+ */
+function judge(batch: ToolBatch, ready: readonly PreparedCall[], writes: boolean): BatchOutcome | undefined {
+    const { policy, approved } = batch.message;
+    // A batch the reader approved is not asked about again.
+    if (policy === undefined || approved !== undefined) {
+        return undefined;
+    }
+
+    const verdicts = ready.map((call) => {
+        try {
+            return policy({
+                command: call.command.name,
+                ...(call.checked === undefined ? {} : { action: call.checked.action.name }),
+                arguments: call.args,
+                effect: call.checked?.action.effect ?? call.command.effect ?? "write",
+            });
+        } catch {
+            return "deny";
+        }
+    });
+    const deniedAt = verdicts.indexOf("deny");
+    if (deniedAt !== -1) {
+        const tool = ready[deniedAt].command.name;
+        const result = refused("AI_TOOL_DENIED_BY_POLICY", { tool }, false);
+        finished(batch, ready[deniedAt].request, result);
+        // Not a failed write: the message's earlier writes stand.
+        return {
+            results: ready.map((_, index) => (index === deniedAt ? result : undefined)),
+            failure: { code: "AI_TOOL_DENIED_BY_POLICY", params: { tool } },
+            writes: false,
+        };
+    }
+
+    return verdicts.every((verdict) => verdict === "allow") ? undefined : held("policy", {}, batch, ready, writes);
 }
 
 /**
@@ -481,7 +524,7 @@ async function runInTransaction(
         batch.abort.signal.throwIfAborted();
         let result: CallResult;
         try {
-            result = await runOne(batch, call, tx, index === ready.length - 1 && batch.settleAfterCommit !== false);
+            result = await runOne(batch, call, tx, index === ready.length - 1);
         } catch (error) {
             if (error instanceof GateHold) {
                 throw new RollBack(held(error.gate, error.preview, batch, ready, writes));

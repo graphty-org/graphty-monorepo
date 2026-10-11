@@ -80,6 +80,7 @@ export interface GraphtyElementJSXProps {
     "onai-command-start"?: (event: CustomEvent<EventOfType<"ai-command-start">>) => void;
     "onai-conversation-changed"?: (event: CustomEvent<EventOfType<"ai-conversation-changed">>) => void;
     "onai-export-ready"?: (event: CustomEvent<EventOfType<"ai-export-ready">>) => void;
+    "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
     "onai-status-change"?: (event: CustomEvent<EventOfType<"ai-status-change">>) => void;
     "onai-stream-chunk"?: (event: CustomEvent<EventOfType<"ai-stream-chunk">>) => void;
     "onai-stream-tool-call"?: (event: CustomEvent<EventOfType<"ai-stream-tool-call">>) => void;

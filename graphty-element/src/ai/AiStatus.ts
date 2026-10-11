@@ -61,6 +61,9 @@ export interface AiStatus {
     // Control
     /** Whether the current operation can be cancelled */
     canCancel: boolean;
+
+    /** What waits on the reader: open approval requests. Absent when nothing does. */
+    pending?: { approvals: number };
 }
 
 /** Callback type for status change subscriptions */
@@ -117,7 +120,18 @@ export class AiStatusManager {
             state: "submitted",
             startTime: Date.now(),
             canCancel: true,
+            ...(this.status.pending && { pending: this.status.pending }),
         };
+        this.notify();
+    }
+
+    /**
+     * Set how many approval requests wait on the reader.
+     * @param approvals - The open requests.
+     */
+    setPendingApprovals(approvals: number): void {
+        const { pending: _was, ...rest } = this.status;
+        this.status = approvals > 0 ? { ...rest, pending: { approvals } } : rest;
         this.notify();
     }
 

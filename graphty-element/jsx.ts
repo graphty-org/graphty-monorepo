@@ -331,6 +331,10 @@ export interface GraphtyElementJSXProps {
      */
     "onai-export-ready"?: (event: CustomEvent<EventOfType<"ai-export-ready">>) => void;
     /**
+     * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message (`AI_APPROVAL_STALE` with `reason: "superseded"`), cancelled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
+     */
+    "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
+    /**
      * Main event for UI binding - single source of truth for AI status
      */
     "onai-status-change"?: (event: CustomEvent<EventOfType<"ai-status-change">>) => void;

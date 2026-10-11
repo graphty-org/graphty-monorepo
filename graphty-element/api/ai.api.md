@@ -52,6 +52,14 @@ import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
 
 // @public
+export interface AiApprovalAnswer {
+    readonly approve: boolean;
+    readonly calls?: readonly {
+        readonly arguments?: Readonly<Record<string, unknown>>;
+    }[];
+}
+
+// @public
 export interface AiApprovalPreview {
     readonly algorithm?: string;
     readonly changedValues?: number;
@@ -76,8 +84,11 @@ export interface AiApprovalRequest {
         readonly tool: string;
         readonly arguments: Readonly<Record<string, unknown>>;
     }[];
-    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | (string & {});
+    readonly conversationId?: string;
+    readonly createdAt?: string;
+    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | (string & {});
     readonly id: string;
+    readonly messageId?: string;
     readonly preview: AiApprovalPreview;
 }
 
@@ -86,6 +97,16 @@ export interface AiApprovalRequestedEvent {
     request: AiApprovalRequest;
     type: "ai-approval-requested";
 }
+
+// @public
+export type AiApprovalsSetting = "none" | "writes" | {
+    readonly ask: readonly string[];
+} | {
+    readonly policy: (call: AiToolCallFacts) => AiApprovalVerdict;
+};
+
+// @public
+export type AiApprovalVerdict = "allow" | "ask" | "deny";
 
 // @public
 export interface AiCallRecord {
@@ -121,14 +142,13 @@ export class AiController {
     onStatusChange(callback: StatusChangeCallback): () => void;
     openConversation(id: string): Promise<AiConversationSnapshot | null>;
     ready(): Promise<void>;
-    resolveAiApproval(id: string, answer: {
-        readonly approve: boolean;
-    }): Promise<ExecutionResult>;
+    resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;
 }
 
 // @public
 export interface AiControllerOptions {
     allowImportUrl?: (url: URL) => boolean;
+    approvals?: AiApprovalsSetting;
     commandRegistry: CommandRegistry;
     emitEvent?: AiEventEmitter;
     gate?: Partial<AssistantGateLimits> | false;
@@ -229,9 +249,7 @@ export class AiManager {
     openConversation(id: string): Promise<AiConversationSnapshot | null>;
     ready(): Promise<void>;
     registerCommand(command: Parameters<CommandRegistry["register"]>[0]): void;
-    resolveAiApproval(id: string, answer: {
-        readonly approve: boolean;
-    }): Promise<ExecutionResult>;
+    resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;
     retry(): Promise<ExecutionResult>;
     setApiKey(provider: ProviderType, key: string): void;
 }
@@ -240,6 +258,7 @@ export class AiManager {
 export interface AiManagerConfig {
     allowImportUrl?: (url: URL) => boolean;
     apiKey?: string;
+    approvals?: AiApprovalsSetting;
     gate?: Partial<AssistantGateLimits> | false;
     history?: "none" | "memory" | "browser" | AiHistoryOptions;
     keyPersistence?: KeyPersistenceConfig;
@@ -248,6 +267,15 @@ export interface AiManagerConfig {
     providerInstance?: LlmProvider;
     registerBuiltinCommands?: boolean;
     toolProfile?: "standard" | "small" | "auto";
+}
+
+// @public
+export interface AiPendingResolvedEvent {
+    code: AiResultCode;
+    id: string;
+    kind: "approval" | (string & {});
+    params: AiResultParams;
+    type: "ai-pending-resolved";
 }
 
 // @public
@@ -262,6 +290,9 @@ export interface AiStatus {
     canRetry?: boolean;
     elapsed?: number;
     error?: Error;
+    pending?: {
+        approvals: number;
+    };
     stage?: AiStage;
     stageMessage?: string;
     startTime?: number;
@@ -280,6 +311,7 @@ export class AiStatusManager {
     getSnapshot(): AiStatus;
     reset(): void;
     setError(error: Error, canRetry: boolean): void;
+    setPendingApprovals(approvals: number): void;
     setStage(stage: AiStage, message: string): void;
     startExecuting(): void;
     startStreaming(): void;
@@ -287,6 +319,14 @@ export class AiStatusManager {
     subscribe(callback: StatusChangeCallback): () => void;
     updateElapsed(): void;
     updateToolCallStatus(name: string, status: ToolCallStatusType, result?: unknown): void;
+}
+
+// @public
+export interface AiToolCallFacts {
+    readonly action?: string;
+    readonly arguments: Readonly<Record<string, unknown>>;
+    readonly command: string;
+    readonly effect: ActionEffect;
 }
 
 // @public

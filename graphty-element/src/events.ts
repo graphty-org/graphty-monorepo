@@ -737,7 +737,8 @@ export type AiEvent =
     | AiVoiceEndEvent
     | AiApprovalRequestedEvent
     | AiExportReadyEvent
-    | AiConversationChangedEvent;
+    | AiConversationChangedEvent
+    | AiPendingResolvedEvent;
 
 /** Main event for UI binding - single source of truth for AI status */
 export interface AiStatusChangeEvent {
@@ -831,12 +832,39 @@ export interface AiApprovalRequestedEvent {
 export interface AiApprovalRequest {
     /** The single-use id `resolveAiApproval` takes. */
     readonly id: string;
-    /** Why it was held. OPEN UNION. */
-    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | (string & {}); // NOSONAR(S4335): the open-union idiom
+    /** Why it was held; `"policy"` when the host's approval policy asked. OPEN UNION. */
+    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | (string & {}); // NOSONAR(S4335): the open-union idiom
     /** The tool calls held, as the model made them. */
     readonly calls: readonly { readonly tool: string; readonly arguments: Readonly<Record<string, unknown>> }[];
-    /** What the reader is shown before approving. */
+    /** What the reader is shown before approving; empty for a `"policy"` hold. */
     readonly preview: AiApprovalPreview;
+    /** The saved conversation it belongs to, when the assistant keeps `history`. */
+    readonly conversationId?: string;
+    /** The conversation message whose calls are held. */
+    readonly messageId?: string;
+    /** When it was held, as an ISO 8601 time. */
+    readonly createdAt?: string;
+}
+
+/**
+ * Something the assistant waited on the reader for ended: an approval was answered, superseded
+ * by a new message (`AI_APPROVAL_STALE` with `reason: "superseded"`), cancelled (`AI_CANCELLED`)
+ * or undone (`AI_UNDONE`). Remove what was drawn for it.
+ */
+export interface AiPendingResolvedEvent {
+    /** The event's name. */
+    type: "ai-pending-resolved";
+    /** The request's id, as `ai-approval-requested` gave it. */
+    id: string;
+    /** What was waiting. OPEN UNION. */
+    kind: "approval" | (string & {}); // NOSONAR(S4335): the open-union idiom
+    /**
+     * How it ended: `AI_COMPLETED` (approved), `AI_APPROVAL_DENIED`, `AI_APPROVAL_STALE`,
+     * `AI_CANCELLED` or `AI_UNDONE`.
+     */
+    code: AiResultCode;
+    /** The facts behind `code` (`reason` for a stale request). */
+    params: AiResultParams;
 }
 
 /**

@@ -46,7 +46,7 @@ import { MAX_LOADED_TOOLS, PROFILE_TOOLS } from "./tools/install";
 import type { ToolProfile } from "./tools/prompt";
 import { resultText } from "./tools/shape";
 import { isAssistantTool } from "./tools/toolset";
-import { DEFAULT_ASSISTANT_GATE_LIMITS, type MessageState, type ToolHost } from "./tools/types";
+import { DEFAULT_ASSISTANT_GATE_LIMITS, type GateKind, type MessageState, type ToolHost } from "./tools/types";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
 
@@ -101,15 +101,34 @@ export interface ConversationRun {
     /** Where export payloads go, the reader's text, the URL policy. */
     readonly host?: ToolHost;
     /**
-     * Store a held batch for the host's approval.
+     * Store a held batch for the host's approval. The conversation then ends in the assistant
+     * message holding its calls, whose results the decision adds.
      * @returns The approval request's id, or undefined when nothing can approve it.
      */
-    readonly hold?: (held: HeldBatch) => string | undefined;
+    readonly hold?: (held: HeldBatch, messageId: string) => string | undefined;
+    /**
+     * A held batch the reader decided, which the run starts with: its results answer the calls
+     * the conversation ends in, and ordinary turns follow until the model answers.
+     */
+    readonly decided?: DecidedBatch;
     /**
      * Ids for the messages the loop adds; `m<n>` (the message's place) when absent. A saved
      * conversation passes unique ones, so two copies merged by id keep both.
      */
     readonly newId?: () => string;
+}
+
+/** A held batch, decided. */
+export interface DecidedBatch {
+    /** The calls to run, with any arguments the reader edited. */
+    readonly calls: readonly ToolCallRequest[];
+    /**
+     * Absent to run them; otherwise what every call reports instead (`AI_APPROVAL_DENIED`,
+     * `AI_APPROVAL_STALE`), which is also the message's result unless a later batch runs.
+     */
+    readonly outcome?: Outcome;
+    /** The hold the reader approved, which this batch alone is let through. */
+    readonly approved?: GateKind;
 }
 
 /** The model's turn failed: the provider refused or failed, or the turn was cancelled. */
@@ -281,6 +300,8 @@ interface MessageTally {
     committed: number;
     /** The approval request a held batch made, and its gate. */
     held?: { readonly request: string | undefined; readonly gate: string };
+    /** The reader's decision the run started with, until a batch runs after it. */
+    decision?: Outcome;
 }
 
 /**
@@ -412,25 +433,17 @@ function partOutcome(call: ToolCallRequest, result: CallResult | undefined, batc
 }
 
 /**
- * Add one round to the conversation: the model's text and calls, then each call's result.
+ * Add the model's turn to the conversation: its text and the calls it made.
  * @param conversation - The conversation.
  * @param text - The model's text this turn.
  * @param calls - The calls it made.
- * @param batch - What running them did.
- * @param cap - The most characters one result may take.
- * @param newId - Makes each new message's id.
+ * @param newId - Makes the message's id.
+ * @returns The message's id.
  */
-function appendRound(
-    conversation: Conversation,
-    text: string,
-    calls: ToolCallRequest[],
-    batch: BatchOutcome,
-    cap: number,
-    newId: () => string,
-): void {
-    const { messages } = conversation;
-    messages.push({
-        id: newId(),
+function appendCalls(conversation: Conversation, text: string, calls: ToolCallRequest[], newId: () => string): string {
+    const id = newId();
+    conversation.messages.push({
+        id,
         role: "assistant",
         parts: [
             ...(text ? [{ type: "text" as const, origin: "model" as const, text }] : []),
@@ -446,7 +459,26 @@ function appendRound(
             })),
         ],
     });
-    messages.push({
+    return id;
+}
+
+/**
+ * Add each call's result to the conversation.
+ * @param conversation - The conversation.
+ * @param calls - The calls.
+ * @param batch - What running them did.
+ * @param cap - The most characters one result may take.
+ * @param newId - Makes the message's id.
+ * @returns The message added.
+ */
+function appendResults(
+    conversation: Conversation,
+    calls: readonly ToolCallRequest[],
+    batch: BatchOutcome,
+    cap: number,
+    newId: () => string,
+): SavedMessage {
+    const message: SavedMessage = {
         id: newId(),
         role: "tool",
         parts: calls.map((call, index) => {
@@ -464,7 +496,34 @@ function appendRound(
                 content: resultText(view, cap),
             };
         }),
-    });
+    };
+    conversation.messages.push(message);
+    return message;
+}
+
+/**
+ * The results a held batch's calls get when they do not run: each reports why.
+ * @param calls - The calls.
+ * @param outcome - Why they did not run.
+ * @param id - The message's id.
+ * @returns The tool message.
+ */
+export function closingResults(calls: readonly ToolCallRequest[], outcome: Outcome, id: string): SavedMessage {
+    return {
+        id,
+        role: "tool",
+        parts: calls.map((call) => {
+            const params = { ...outcome.params, tool: call.name };
+            return {
+                type: "tool-result" as const,
+                origin: "graph-data" as const,
+                callId: call.id,
+                code: outcome.code,
+                params,
+                content: resultText({ code: outcome.code, params }, RESULT_CAP.small),
+            };
+        }),
+    };
 }
 
 /**
@@ -515,11 +574,13 @@ async function runBatch(
  * @param tally - The tally.
  * @param batch - The batch.
  * @param run - The loop's run, for its approval store.
+ * @param messageId - The assistant message holding the batch's calls.
  */
-function tallyBatch(tally: MessageTally, batch: BatchOutcome, run: ConversationRun): void {
+function tallyBatch(tally: MessageTally, batch: BatchOutcome, run: ConversationRun, messageId: string): void {
     tally.results.push(...batch.results.filter((result): result is CallResult => result !== undefined));
+    tally.decision = undefined;
     if (batch.held !== undefined) {
-        tally.held = { request: run.hold?.(batch.held), gate: batch.held.gate };
+        tally.held = { request: run.hold?.(batch.held, messageId), gate: batch.held.gate };
         return;
     }
 
@@ -571,6 +632,32 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
     const tally: MessageTally = { results: [], committed: 0 };
     const texts: string[] = [];
     const newId = run.newId ?? ((): string => `m${String(conversation.messages.length + 1)}`);
+    const cap = RESULT_CAP[profile];
+    // The held batch's results, shown to the model for its answer only: the decision adds the real ones.
+    let heldResults: SavedMessage | undefined;
+    const resultOf = (threw: BatchOutcome): ExecutionResult => {
+        tally.results.push(...threw.results.filter((result): result is CallResult => result !== undefined));
+        tally.failure ??= threw.failure;
+        return combineResults(tally, joinTexts(texts));
+    };
+
+    if (run.decided !== undefined) {
+        const { calls, outcome } = run.decided;
+        const callsMessage = conversation.messages.at(-1)?.id ?? "";
+        if (outcome === undefined) {
+            sink.status.startExecuting();
+            // Only the hold the reader approved is let through, and only for this batch; every
+            // other limit still holds, counted on from what the message did before it.
+            const approved = run.decided.approved === undefined ? state : { ...state, approved: run.decided.approved };
+            const batch = await runBatch(run, [...calls], approved, resultOf);
+            tallyBatch(tally, batch, run, callsMessage);
+            const added = appendResults(conversation, calls, batch, cap, newId);
+            heldResults = batch.held === undefined ? undefined : added;
+        } else {
+            tally.decision = outcome;
+            conversation.messages.push(closingResults(calls, outcome, newId()));
+        }
+    }
 
     for (let turn = 1; ; turn++) {
         // Past the tool turns, a text answer only: a model that spent every turn looking and never
@@ -609,7 +696,11 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
 
         // A provider that ignores toolMode may still call tools on the answer-only ask: they do not run.
         if (answerOnly || calls.length === 0) {
-            if (text) {
+            if (heldResults !== undefined) {
+                // Waiting on the reader: the conversation ends in the held calls, and the answer
+                // about them is the reader's alone, so it never sits between a call and its result.
+                conversation.messages.splice(conversation.messages.indexOf(heldResults), 1);
+            } else if (text) {
                 // The answer stays in the conversation, for a host that keeps it.
                 conversation.messages.push({
                     id: newId(),
@@ -623,16 +714,20 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
 
         sink.status.startExecuting();
 
-        const batch = await runBatch(run, calls, state, (threw) => {
-            tally.results.push(...threw.results.filter((result): result is CallResult => result !== undefined));
-            tally.failure ??= threw.failure;
-            return combineResults(tally, joinTexts(texts));
-        });
-        tallyBatch(tally, batch, run);
-        appendRound(conversation, text, calls, batch, RESULT_CAP[profile], newId);
+        const callsMessage = appendCalls(conversation, text, calls, newId);
+        const batch = await runBatch(run, calls, state, resultOf);
+        tallyBatch(tally, batch, run, callsMessage);
+        const added = appendResults(conversation, calls, batch, cap, newId);
+        if (batch.held !== undefined) {
+            heldResults = added;
+        }
     }
 
-    const result = combineResults(tally, joinTexts(texts));
+    let result = combineResults(tally, joinTexts(texts));
+    if (tally.decision !== undefined) {
+        result = { ...result, success: tally.decision.code !== "AI_APPROVAL_STALE", ...tally.decision };
+    }
+
     if (tally.pending !== undefined && tally.held === undefined && tally.committed > 0) {
         // The last write batch failed and nothing fixed it: the message's writes are taken back.
         throw new MessageRolledBack({

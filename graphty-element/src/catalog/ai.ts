@@ -243,11 +243,17 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *   `{ request }` from `resolveAiApproval`.
  * - `AI_CONFIRMATION_NEEDED` -- a change was held for the reader's approval and nothing of it
  *   happened. `{ gate, request }`: answer with `resolveAiApproval(request, { approve })`, which
- *   returns this code again, with a new request, when the batch is held for another reason.
+ *   continues the message and resolves with its final result -- this code again, with a new
+ *   request, when the change is held for another reason.
  * - `AI_ROLLBACK_PARTIAL` -- taking the message back stopped at someone else's step. `{ steps }`.
- * - `AI_APPROVAL_STALE` -- an approval answered after the graph changed, or after it expired.
+ * - `AI_APPROVAL_STALE` -- a held change was not run because its request ended without a
+ *   decision. `{ request, reason }`: `"graph-changed"` (answered after the graph changed; the
+ *   model is told and answers), `"superseded"` (a new message came first), or `"expired"` (no
+ *   such request is open).
+ * - `AI_APPROVAL_DENIED` -- the reader declined a held change; the model is told and answers.
  *   `{ request }`.
- * - `AI_APPROVAL_DENIED` -- the reader declined a held change. `{ request }`.
+ * - `AI_TOOL_DENIED_BY_POLICY` -- the host's approval policy refused a call, so none of its batch
+ *   ran. `{ tool }`.
  * - `AI_FAILED` -- anything else went wrong while the command ran.
  *
  * Carried by saved conversations and the conversation events rather than ending a command:
@@ -285,6 +291,7 @@ export const AI_RESULT_CODES = Object.freeze([
     "AI_ROLLBACK_PARTIAL",
     "AI_APPROVAL_STALE",
     "AI_APPROVAL_DENIED",
+    "AI_TOOL_DENIED_BY_POLICY",
     "AI_TOOL_NOT_RUN",
     "AI_HISTORY_UNAVAILABLE",
     "AI_HISTORY_NEWER_FORMAT",

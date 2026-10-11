@@ -31,14 +31,29 @@ import {
 import { ENGINE_OVERRIDE, engineFor } from "./engine/load";
 import type { AiEngine, SavedMessage } from "./engine/types";
 import type { LlmProvider } from "./providers/types";
-import { type Conversation, latestStepOf, MessageRolledBack, runConversation, TurnFailed } from "./runConversation";
+import {
+    closingResults,
+    type Conversation,
+    type DecidedBatch,
+    MessageRolledBack,
+    runConversation,
+    TurnFailed,
+} from "./runConversation";
 import { toSafeError } from "./safeError";
 import type { SchemaManager } from "./schema";
-import { type BatchOutcome, type HeldBatch, type Outcome, runToolBatch } from "./ToolExecutor";
+import type { HeldBatch, Outcome, ToolCallRequest } from "./ToolExecutor";
 import { hasAssistantTools, installAssistantTools } from "./tools/install";
 import { assistantInstructions, factsBlock } from "./tools/prompt";
 import { isAssistantTool } from "./tools/toolset";
-import { type AssistantGateLimits, DEFAULT_ASSISTANT_GATE_LIMITS } from "./tools/types";
+import {
+    type AiApprovalVerdict,
+    type AiToolCallFacts,
+    type AssistantGateLimits,
+    DEFAULT_ASSISTANT_GATE_LIMITS,
+    type MessageState,
+} from "./tools/types";
+
+export type { AiApprovalVerdict, AiToolCallFacts } from "./tools/types";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
 
@@ -53,9 +68,6 @@ function uniqueId(prefix: string): string {
     const bytes = crypto.getRandomValues(new Uint8Array(16));
     return prefix + Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
-
-/** Numbers each approval request. */
-let approvalCount = 0;
 
 /**
  * Whether one of a message's steps has been undone.
@@ -88,13 +100,92 @@ async function revertMessage(session: GraphSession, message: string): Promise<nu
     }
 }
 
-/** A batch held for the host's approval, until the reader's next message. */
+/**
+ * A batch held for the host's approval. Its message waits, holding no transaction, until an event
+ * ends the request: a decision, a new message, a cancel, or an undo of the message's step.
+ */
 interface PendingApproval {
+    /** The message's id, its steps' provenance. */
     readonly message: string;
+    /** The reader's request: the message's undo label and the text an import URL must appear in. */
     readonly label: string;
     readonly held: HeldBatch;
-    readonly revision: string;
-    readonly readerText: string;
+    /** Set when the history changed the graph since the hold: the request is stale. */
+    readonly changed: { value: boolean };
+    /** The conversation, ending in the held calls, which the decision continues. */
+    readonly conversation: Conversation;
+    /** The saved conversation it belongs to, with history. */
+    readonly conversationId: string | undefined;
+    readonly stopWatching: () => void;
+}
+
+/** Which of the assistant's calls the reader is asked about before they run. */
+export type AiApprovalsSetting =
+    | "none"
+    | "writes"
+    | { readonly ask: readonly string[] }
+    | { readonly policy: (call: AiToolCallFacts) => AiApprovalVerdict };
+
+/** The reader's answer to an approval request. */
+export interface AiApprovalAnswer {
+    /** True to run the held calls. */
+    readonly approve: boolean;
+    /**
+     * The calls as the reader edited them, by position; a call left out, or without `arguments`,
+     * runs as the model made it. Edited arguments are checked as the model's are: invalid ones
+     * run nothing (`AI_TOOL_INVALID_ARGUMENTS`).
+     */
+    readonly calls?: readonly { readonly arguments?: Readonly<Record<string, unknown>> }[];
+}
+
+/**
+ * The policy a setting stands for.
+ * @param approvals - The setting.
+ * @returns The policy, or undefined for none.
+ */
+function policyOf(approvals: AiApprovalsSetting | undefined): MessageState["policy"] {
+    if (approvals === undefined || approvals === "none") {
+        return undefined;
+    }
+
+    if (approvals === "writes") {
+        return (call) => (call.effect === "write" ? "ask" : "allow");
+    }
+
+    if ("ask" in approvals) {
+        const ask = new Set(approvals.ask);
+        return (call) => (ask.has(call.command) ? "ask" : "allow");
+    }
+
+    return approvals.policy;
+}
+
+/**
+ * Held calls with the reader's edits applied.
+ * @param calls - The calls as the model made them.
+ * @param edits - The reader's edits, by position.
+ * @returns The calls to run.
+ */
+function edited(calls: readonly ToolCallRequest[], edits: AiApprovalAnswer["calls"]): ToolCallRequest[] {
+    return calls.map((call, index) => {
+        const args = edits?.[index]?.arguments;
+        return args === undefined ? call : { ...call, arguments: args };
+    });
+}
+
+/** How a message is run: a new one, or a held one continued after the reader's decision. */
+interface MessageRun {
+    readonly input: string;
+    readonly message: string;
+    readonly abortController: AbortController;
+    readonly conversation: (session: GraphSession) => Conversation;
+    /** The saved conversation it belongs to, with history. */
+    readonly conversationId: string | undefined;
+    /** For a continuation: the decided batch, and the message's totals before it. */
+    readonly decided?: DecidedBatch;
+    readonly totals?: MessageState["totals"];
+    /** For a continuation: the request it answers, which its result names unless it names a newer one. */
+    readonly request?: string;
 }
 
 /**
@@ -106,16 +197,12 @@ function settled(): undefined {
 }
 
 /**
- * What a held change was measured against: the history, which moves on every change a project
- * saves and on every undo. (The input tick moves on every frame of a live layout, which would make
- * every approval on a rendered graph stale.)
- * @param session - The session.
- * @returns The revision.
+ * The history changes that change what a held batch was measured against: a step recorded,
+ * merged, undone, redone or restored, or the history cleared. A live layout's pending work and the
+ * history's own memory upkeep (`pending`, `size`, `evict`) change no part of the graph a project
+ * saves, so they leave a request fresh.
  */
-function revisionOf(session: GraphSession): string {
-    const { history } = session;
-    return `${String(history.version)}:${String(history.position)}`;
-}
+const GRAPH_CHANGES: ReadonlySet<string> = new Set(["record", "merge", "undo", "redo", "restore", "clear"]);
 
 /** Event emitter callback type */
 export type AiEventEmitter = (event: AiEvent) => void;
@@ -211,6 +298,13 @@ export interface AiControllerOptions {
     history?: "none" | "memory" | "browser" | AiHistoryOptions;
     /** The configured API keys, kept out of every saved or exported conversation. */
     secrets?: () => readonly string[];
+    /**
+     * Which calls the reader is asked about before they run: `"none"` (the default), `"writes"`
+     * (every call that changes the project), `{ ask }` (calls to these tools) or `{ policy }`
+     * (`"allow"`, `"ask"` or `"deny"` per call). An ask holds the batch (`ai-approval-requested`,
+     * gate `"policy"`); a deny refuses it (`AI_TOOL_DENIED_BY_POLICY`). The gate's limits apply too.
+     */
+    approvals?: AiApprovalsSetting;
 }
 
 /** Combined result from execution */
@@ -244,8 +338,9 @@ export class AiController {
     private lastError: Error | null = null;
     /** The messages `cancel()` ended, so their results say cancelled, not undone. */
     private readonly cancelled = new WeakSet<AbortController>();
-    /** Batches held for approval, by request id, until the reader's next message. */
+    /** Batches held for approval, by request id, until an event ends each. */
     private readonly approvals = new Map<string, PendingApproval>();
+    private readonly policy: MessageState["policy"];
     private readonly profile: "standard" | "small";
     private readonly gate: Readonly<AssistantGateLimits> | false;
     private readonly allowImportUrl: ((url: URL) => boolean) | undefined;
@@ -284,6 +379,7 @@ export class AiController {
         this.profile = options.toolProfile ?? "standard";
         this.gate = options.gate === false ? false : { ...DEFAULT_ASSISTANT_GATE_LIMITS, ...options.gate };
         this.allowImportUrl = options.allowImportUrl;
+        this.policy = policyOf(options.approvals);
         this.history = historyOptionsOf(options.history);
         this.secrets = options.secrets ?? ((): readonly string[] => []);
         this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history);
@@ -360,21 +456,38 @@ export class AiController {
     }
 
     /**
-     * Run one message, its turn come.
+     * Run one message, its turn come. A new message ends every request still waiting: the message
+     * that made it ends there, without another model turn.
      * @param input - The reader's request.
      * @param abortController - The message's controller, which `cancel()` aborts.
      * @returns The message's result.
      */
     private async executeNow(input: string, abortController: AbortController): Promise<ExecutionResult> {
+        for (const id of [...this.approvals.keys()]) {
+            await this.saveClosed(
+                this.closePending(id, { code: "AI_APPROVAL_STALE", params: { request: id, reason: "superseded" } }),
+            );
+        }
+
+        this.emitAiEvent({ type: "ai-command-start", input, timestamp: Date.now() });
+        return this.runMessage({
+            input,
+            message: uniqueId("msg_"),
+            abortController,
+            conversation: (session) => this.startConversation(input, session),
+            conversationId: this.current?.id,
+        });
+    }
+
+    /**
+     * Run a message: a new one, or one continued after a decision.
+     * @param run - What to run.
+     * @returns The message's result.
+     */
+    private async runMessage(run: MessageRun): Promise<ExecutionResult> {
+        const { input, message, abortController, decided } = run;
         const startTime = Date.now();
         this.lastError = null;
-
-        // Emit command start event
-        this.emitAiEvent({
-            type: "ai-command-start",
-            input,
-            timestamp: startTime,
-        });
 
         // Transition to submitted state
         this.statusManager.submit();
@@ -384,10 +497,9 @@ export class AiController {
         // nothing is held while the model thinks and the person's own edits go through. Every
         // batch after the first continues the message's step (`after`), merging into it while it
         // is the newest step. An undo of one of its steps while the message is going ends it.
-        const message = uniqueId("msg_");
-        // A held batch's approval expires when the reader says something new.
-        this.approvals.clear();
         let stopWatching = (): void => undefined;
+        let conversation: Conversation | undefined;
+        let base = 0;
         try {
             const session = this.graph.getSession();
             if (hasAssistantTools(this.commandRegistry)) {
@@ -400,7 +512,9 @@ export class AiController {
                 }
             });
 
-            const conversation = this.startConversation(input, session);
+            conversation = run.conversation(session);
+            base = conversation.messages.length;
+            const running = conversation;
             // A message taken back is not kept, so the conversation never holds changes the graph does not.
             let keep = true;
             let result: ExecutionResult;
@@ -409,7 +523,7 @@ export class AiController {
                     this.emitAiEvent(event);
                 };
                 result = await runConversation({
-                    conversation,
+                    conversation: running,
                     engine: this.engine,
                     tools: this.commandRegistry,
                     graph: this.graph,
@@ -422,24 +536,31 @@ export class AiController {
                     state: {
                         id: message,
                         gate: this.gate,
+                        ...(this.policy === undefined ? {} : { policy: this.policy }),
                         runs: this.assistantRuns,
                         undoCalls: 0,
-                        totals: { removeNodes: 0, removeEdges: 0, changedValues: 0 },
+                        totals: { ...(run.totals ?? { removeNodes: 0, removeEdges: 0, changedValues: 0 }) },
                     },
                     host: {
                         emit,
                         readerText: input,
                         ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
                     },
-                    hold: (held) => this.hold(held, message, input, session),
-                    ...(this.history === undefined
+                    hold: (held, messageId) =>
+                        this.hold({
+                            held,
+                            message,
+                            label: input,
+                            session,
+                            conversation: running,
+                            messageId,
+                            conversationId: run.conversationId,
+                        }),
+                    ...(decided === undefined ? {} : { decided }),
+                    newId: () => this.newMessageId(running),
+                    ...(this.history?.budgetTokens === undefined
                         ? {}
-                        : {
-                              newId: () => uniqueId("m_"),
-                              ...(this.history.budgetTokens === undefined
-                                  ? {}
-                                  : { historyBudgetTokens: this.history.budgetTokens }),
-                          }),
+                        : { historyBudgetTokens: this.history.budgetTokens }),
                 });
             } catch (error) {
                 // A tool threw, the message was cancelled or undone, or the model failed: what the
@@ -467,7 +588,13 @@ export class AiController {
 
             // Saved once, when the message ends: never per streamed piece of text.
             if (keep) {
-                await this.save(conversation.messages);
+                await this.saveInto(run.conversationId, running.messages);
+            } else {
+                await this.saveUnkept(run, running, base, result);
+            }
+
+            if (run.request !== undefined) {
+                result = { ...result, params: { request: run.request, ...result.params } };
             }
 
             // Complete
@@ -500,15 +627,48 @@ export class AiController {
                 canRetry: true,
             });
 
-            return {
+            const { code, params } = this.failureOutcome(error, abortController);
+            const failed: ExecutionResult = {
                 success: false,
                 message: `Error: ${errorMessage}`,
-                ...this.failureOutcome(error, abortController),
+                code,
+                params: run.request === undefined ? params : { request: run.request, ...params },
             };
+            if (conversation !== undefined) {
+                await this.saveUnkept(run, conversation, base, failed);
+            }
+
+            return failed;
         } finally {
             stopWatching();
             this.running.delete(abortController);
         }
+    }
+
+    /**
+     * A continued message that was taken back still answers its held calls in the saved
+     * conversation, so the record never ends in calls without results.
+     * @param run - The message.
+     * @param conversation - Its conversation.
+     * @param base - How many messages it had before this run.
+     * @param result - How the run ended.
+     */
+    private async saveUnkept(
+        run: MessageRun,
+        conversation: Conversation,
+        base: number,
+        result: ExecutionResult,
+    ): Promise<void> {
+        if (run.decided === undefined) {
+            return;
+        }
+
+        const kept = conversation.messages.slice(0, base);
+        const outcome = { code: result.code ?? "AI_FAILED", params: {} };
+        await this.saveInto(run.conversationId, [
+            ...kept,
+            closingResults(run.decided.calls, outcome, this.newMessageId(conversation)),
+        ]);
     }
 
     /**
@@ -540,16 +700,47 @@ export class AiController {
     }
 
     /**
-     * Store a held batch and ask the host about it.
-     * @param held - The batch.
-     * @param message - The message that made it.
-     * @param label - The message's text, its step's label.
-     * @param session - The session, for its revision.
+     * Store a held batch and ask the host about it. The request stays open until an event ends it;
+     * an undo of the message's step is one.
+     * @param hold - The batch and the message it belongs to.
+     * @param hold.held - The batch.
+     * @param hold.message - The message's id.
+     * @param hold.label - The message's text, its step's label.
+     * @param hold.session - The session, whose history changes make the request stale.
+     * @param hold.conversation - The conversation, ending in the held calls.
+     * @param hold.messageId - The conversation message holding the calls.
+     * @param hold.conversationId - The saved conversation, with history.
      * @returns The request's id.
      */
-    private hold(held: HeldBatch, message: string, label: string, session: GraphSession): string {
-        const id = `approval-${String(++approvalCount)}`;
-        this.approvals.set(id, { message, label, held, revision: revisionOf(session), readerText: label });
+    private hold(hold: {
+        held: HeldBatch;
+        message: string;
+        label: string;
+        session: GraphSession;
+        conversation: Conversation;
+        messageId: string;
+        conversationId: string | undefined;
+    }): string {
+        const { held, message, session, conversationId } = hold;
+        const id = uniqueId("approval_");
+        const changed = { value: false };
+        const stopWatching = session.on("history:changed", ({ reason }) => {
+            changed.value ||= GRAPH_CHANGES.has(reason);
+            if (undoneStepOf(session, message)) {
+                const pending = this.closePending(id, { code: "AI_UNDONE", params: {} });
+                void this.enqueue(() => this.saveClosed(pending));
+            }
+        });
+        this.approvals.set(id, {
+            message,
+            label: hold.label,
+            held,
+            changed,
+            conversation: hold.conversation,
+            conversationId,
+            stopWatching,
+        });
+        this.statusManager.setPendingApprovals(this.approvals.size);
         this.emitAiEvent({
             type: "ai-approval-requested",
             request: {
@@ -557,22 +748,79 @@ export class AiController {
                 gate: held.gate,
                 calls: held.calls.map((call) => ({ tool: call.name, arguments: call.arguments })),
                 preview: held.preview,
+                ...(conversationId === undefined ? {} : { conversationId }),
+                messageId: hold.messageId,
+                createdAt: new Date().toISOString(),
             },
         });
         return id;
     }
 
     /**
-     * Answer an approval request: approve runs the held change as one more step of its message;
-     * deny drops it. A request expires at the reader's next message, and one answered after the
-     * graph changed is refused as stale.
-     * @param id - The request's id, from `ai-approval-requested`.
-     * @param answer - Whether the reader approves.
-     * @param answer.approve - True to run the change.
-     * @returns What happened: the batch's result, `AI_CONFIRMATION_NEEDED` when another limit holds
-     *     it again, `AI_APPROVAL_DENIED` or `AI_APPROVAL_STALE`.
+     * End an open request: it is no longer pending, and the host hears how it ended.
+     * @param id - The request's id.
+     * @param outcome - How it ended.
+     * @returns The request, or undefined when none is open under that id.
      */
-    resolveAiApproval(id: string, answer: { readonly approve: boolean }): Promise<ExecutionResult> {
+    private endPending(id: string, outcome: Outcome): PendingApproval | undefined {
+        const pending = this.approvals.get(id);
+        if (pending === undefined) {
+            return undefined;
+        }
+
+        this.approvals.delete(id);
+        pending.stopWatching();
+        this.statusManager.setPendingApprovals(this.approvals.size);
+        this.emitAiEvent({
+            type: "ai-pending-resolved",
+            id,
+            kind: "approval",
+            code: outcome.code,
+            params: outcome.params,
+        });
+        return pending;
+    }
+
+    /**
+     * End an open request without a decision: its held calls are answered with why they did not
+     * run, and its message ends there, with no further model turn.
+     * @param id - The request's id.
+     * @param outcome - Why it ended.
+     * @returns The request, its conversation closed, or undefined when none is open.
+     */
+    private closePending(id: string, outcome: Outcome): PendingApproval | undefined {
+        const pending = this.endPending(id, outcome);
+        if (pending !== undefined) {
+            const { conversation, held } = pending;
+            conversation.messages.push(closingResults(held.calls, outcome, this.newMessageId(conversation)));
+        }
+
+        return pending;
+    }
+
+    /**
+     * Save a closed request's conversation, with history.
+     * @param pending - The request, or undefined for none.
+     * @returns When saved.
+     */
+    private async saveClosed(pending: PendingApproval | undefined): Promise<void> {
+        if (pending !== undefined) {
+            await this.saveInto(pending.conversationId, pending.conversation.messages);
+        }
+    }
+
+    /**
+     * Answer an approval request. The message that made it continues: approve runs the held calls
+     * (as edited) as one more batch of its undo step; deny, or an answer after the graph changed,
+     * tells the model why they did not run. Either way the model then answers, as in any message.
+     * @param id - The request's id, from `ai-approval-requested`.
+     * @param answer - The reader's answer.
+     * @returns The message's final result: `AI_COMPLETED`, `AI_APPROVAL_DENIED` or
+     *     `AI_APPROVAL_STALE` (with the model's answer in `llmText`), `AI_CONFIRMATION_NEEDED` when
+     *     another limit holds the calls again, or a failure; `AI_APPROVAL_STALE` with
+     *     `reason: "expired"` when no such request is open.
+     */
+    resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult> {
         // An answer given while its message still runs (from inside the listener) waits for it.
         return this.enqueue(() => this.resolveNow(id, answer));
     }
@@ -580,93 +828,46 @@ export class AiController {
     /**
      * Answer an approval request, its turn come.
      * @param id - The request's id.
-     * @param answer - Whether the reader approves.
-     * @param answer.approve - True to run the change.
-     * @returns What happened.
+     * @param answer - The reader's answer.
+     * @returns The message's final result.
      */
-    private async resolveNow(id: string, answer: { readonly approve: boolean }): Promise<ExecutionResult> {
+    private async resolveNow(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult> {
         const pending = this.approvals.get(id);
-        this.approvals.delete(id);
-        const session = this.graph.getSession();
-        if (pending?.revision !== revisionOf(session)) {
-            return { success: false, message: "", code: "AI_APPROVAL_STALE", params: { request: id } };
-        }
-
-        if (!answer.approve) {
-            return { success: true, message: "", code: "AI_APPROVAL_DENIED", params: { request: id } };
-        }
-
-        const abort = new AbortController();
-        this.running.set(abort, pending.label);
-        const emit = (event: AiEvent): void => {
-            this.emitAiEvent(event);
-        };
-        let batch: BatchOutcome;
-        try {
-            batch = await runToolBatch({
-                calls: pending.held.calls,
-                registry: this.commandRegistry,
-                graph: this.graph,
-                session,
-                label: pending.label,
-                // Only the hold the reader approved is let through; every other limit still holds,
-                // counted on from what the message had done before the held batch.
-                message: {
-                    id: pending.message,
-                    gate: this.gate,
-                    approved: pending.held.gate,
-                    runs: this.assistantRuns,
-                    undoCalls: 0,
-                    totals: { ...pending.held.totals },
-                },
-                after: latestStepOf(session, pending.message),
-                abort,
-                sink: { emit, status: this.statusManager },
-                host: {
-                    emit,
-                    readerText: pending.readerText,
-                    ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
-                },
-                settleAfterCommit: false,
-            });
-        } catch {
-            // A call threw (a bug, or the batch was cancelled): its transaction rolled back.
+        if (pending === undefined) {
             return {
                 success: false,
                 message: "",
-                code: abort.signal.aborted && this.cancelled.has(abort) ? "AI_CANCELLED" : "AI_TOOL_THREW",
-                params: { request: id },
-            };
-        } finally {
-            this.running.delete(abort);
-        }
-
-        if (batch.held !== undefined) {
-            // Another limit held the batch: the reader is asked again, about that one.
-            const request = this.hold(batch.held, pending.message, pending.label, session);
-            return {
-                success: true,
-                message: "",
-                code: "AI_CONFIRMATION_NEEDED",
-                params: { gate: batch.held.gate, request },
+                code: "AI_APPROVAL_STALE",
+                params: { request: id, reason: "expired" },
             };
         }
 
-        const results = batch.results.filter((result) => result !== undefined);
-        return batch.failure === undefined
-            ? {
-                  success: true,
-                  message: "",
-                  data: results.at(-1)?.data,
-                  code: "AI_COMPLETED",
-                  params: { request: id, toolCalls: results.length },
-              }
-            : {
-                  success: false,
-                  message: "",
-                  code: batch.failure.code,
-                  params: { ...batch.failure.params, request: id },
-              };
+        let decided: DecidedBatch;
+        if (pending.changed.value) {
+            const outcome = { code: "AI_APPROVAL_STALE" as const, params: { request: id, reason: "graph-changed" } };
+            this.endPending(id, outcome);
+            decided = { calls: pending.held.calls, outcome };
+        } else if (answer.approve) {
+            this.endPending(id, { code: "AI_COMPLETED", params: { request: id } });
+            decided = { calls: edited(pending.held.calls, answer.calls), approved: pending.held.gate };
+        } else {
+            const outcome = { code: "AI_APPROVAL_DENIED" as const, params: { request: id } };
+            this.endPending(id, outcome);
+            decided = { calls: pending.held.calls, outcome };
+        }
+
+        const abortController = new AbortController();
+        this.running.set(abortController, pending.label);
+        return this.runMessage({
+            input: pending.label,
+            message: pending.message,
+            abortController,
+            conversation: () => pending.conversation,
+            conversationId: pending.conversationId,
+            decided,
+            totals: pending.held.totals,
+            request: id,
+        });
     }
 
     /**
@@ -773,6 +974,16 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      */
     private firstMessageId(): string {
         return this.history === undefined ? "m1" : uniqueId("m_");
+    }
+
+    /**
+     * The id of the next message of a conversation: its place when every message starts afresh,
+     * unique when conversations are saved, so two copies merged by id keep both.
+     * @param conversation - The conversation.
+     * @returns The id.
+     */
+    private newMessageId(conversation: Conversation): string {
+        return this.history === undefined ? `m${String(conversation.messages.length + 1)}` : uniqueId("m_");
     }
 
     /**
@@ -884,12 +1095,14 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     }
 
     /**
-     * Save the open conversation with these messages, at the end of a turn.
+     * Save a conversation with these messages, at the end of a turn: only while it is the open one.
+     * @param id - The conversation's id.
      * @param messages - Its messages now.
      */
-    private async save(messages: readonly SavedMessage[]): Promise<void> {
+    private async saveInto(id: string | undefined, messages: readonly SavedMessage[]): Promise<void> {
         const { store, current } = this;
-        if (store === undefined || current === undefined) {
+        // ponytail: a conversation switched away from while a request waited is not saved; save it by id if a host needs that.
+        if (store === undefined || current === undefined || current.id !== id) {
             return;
         }
 
@@ -1048,6 +1261,12 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      * Cancel every message that is running.
      */
     cancel(): void {
+        // Every request still waiting ends too, its message with it.
+        for (const id of [...this.approvals.keys()]) {
+            const pending = this.closePending(id, { code: "AI_CANCELLED", params: {} });
+            void this.enqueue(() => this.saveClosed(pending));
+        }
+
         for (const [abortController, input] of this.running) {
             if (abortController.signal.aborted) {
                 continue;

@@ -8,6 +8,8 @@ import debounce from "lodash/debounce.js";
 
 import type { Graph } from "../Graph";
 import {
+    type AiApprovalAnswer,
+    type AiApprovalsSetting,
     type AiCommandOptions,
     AiController,
     type AiControllerOptions,
@@ -91,6 +93,15 @@ export interface AiManagerConfig {
      * conversations stay on the reader's device, unencrypted; no API key is saved.
      */
     history?: "none" | "memory" | "browser" | AiHistoryOptions;
+    /**
+     * Which of the assistant's calls the reader is asked about before they run: `"none"` (the
+     * default), `"writes"` (every call that changes the project), `{ ask: ["style"] }` (calls to
+     * these tools) or `{ policy(call) { return "allow" | "ask" | "deny"; } }`, decided per call
+     * from its tool, action, arguments and effect. An ask holds the batch (`ai-approval-requested`
+     * with gate `"policy"`); a deny refuses it (`AI_TOOL_DENIED_BY_POLICY`). The `gate` limits
+     * still apply.
+     */
+    approvals?: AiApprovalsSetting;
 }
 
 /**
@@ -222,6 +233,7 @@ export class AiManager {
             toolProfile: profile === "auto" ? toolProfileFor(smallModel) : profile,
             ...(config.gate === undefined ? {} : { gate: config.gate }),
             ...(config.allowImportUrl === undefined ? {} : { allowImportUrl: config.allowImportUrl }),
+            ...(config.approvals === undefined ? {} : { approvals: config.approvals }),
             ...(history === undefined
                 ? {}
                 : {
@@ -302,16 +314,17 @@ export class AiManager {
     }
 
     /**
-     * Answer a request the assistant made for the reader's approval (`ai-approval-requested`):
-     * approve runs the held change as one more step of its message; deny drops it. A request
-     * expires at the reader's next message.
+     * Answer a request the assistant made for the reader's approval (`ai-approval-requested`).
+     * The message that made it continues: approve runs the held calls (with any `calls[].arguments`
+     * the reader edited) as one more step of its message; deny drops them. The model hears the
+     * decision and answers. A new message, a cancel or an undo of the message ends the request.
      * @param id - The request's id.
      * @param answer - The reader's answer.
-     * @param answer.approve - True to run the change.
-     * @returns The change's result (`AI_CONFIRMATION_NEEDED` when another limit holds it again),
-     *     `AI_APPROVAL_DENIED` or `AI_APPROVAL_STALE`.
+     * @returns The message's final result (`ai-command-complete` fires again with it):
+     *     `AI_COMPLETED`, `AI_APPROVAL_DENIED`, `AI_APPROVAL_STALE`, or `AI_CONFIRMATION_NEEDED`
+     *     when another limit holds the calls again.
      */
-    async resolveAiApproval(id: string, answer: { readonly approve: boolean }): Promise<ExecutionResult> {
+    async resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult> {
         if (!this.controller) {
             return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
         }

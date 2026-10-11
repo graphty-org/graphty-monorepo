@@ -136,6 +136,7 @@ export class ScriptedAssistant {
      * @param options.graph - A graph to stand behind the session (a renderer stub).
      * @param options.allowImportUrl - URLs the reader did not type that an import may still ask about.
      * @param options.history - Where conversations are kept; none when absent.
+     * @param options.approvals - Which calls the reader is asked about; none when absent.
      */
     constructor(
         readonly session: GraphSession,
@@ -145,6 +146,7 @@ export class ScriptedAssistant {
             graph?: object;
             allowImportUrl?: (url: URL) => boolean;
             history?: AiControllerOptions["history"];
+            approvals?: AiControllerOptions["approvals"];
         } = {},
     ) {
         installAssistantTools(this.registry, session);
@@ -158,6 +160,7 @@ export class ScriptedAssistant {
             ...(options.toolProfile === undefined ? {} : { toolProfile: options.toolProfile }),
             ...(options.allowImportUrl === undefined ? {} : { allowImportUrl: options.allowImportUrl }),
             ...(options.history === undefined ? {} : { history: options.history }),
+            ...(options.approvals === undefined ? {} : { approvals: options.approvals }),
             [ENGINE_OVERRIDE]: this.engine,
         } as never);
     }

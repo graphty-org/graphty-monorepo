@@ -34,10 +34,14 @@ export { AiStatusManager } from "./src/ai/index";
 
 // AI Controller
 export type {
+    AiApprovalAnswer,
+    AiApprovalsSetting,
+    AiApprovalVerdict,
     AiCommandOptions,
     AiControllerOptions,
     AiEventEmitter,
     AiHistoryOptions,
+    AiToolCallFacts,
     ExecutionResult,
 } from "./src/ai/index";
 
@@ -64,6 +68,7 @@ export type {
     AiApprovalRequestedEvent,
     AiConversationChangedEvent,
     AiExportReadyEvent,
+    AiPendingResolvedEvent,
 } from "./src/events";
 
 // AI Commands

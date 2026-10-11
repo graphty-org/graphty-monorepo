@@ -6433,21 +6433,24 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Answer a request the assistant made for the reader's approval: a change it held because it
-     * was large, slow, replaced the graph, could not be undone or fetched a URL the reader did not
-     * give (the `ai-approval-requested` event). Approve runs it as one more step of its message;
-     * deny drops it. A request expires at the reader's next message.
+     * Answer a request the assistant made for the reader's approval (`ai-approval-requested`): a
+     * change it held because it was large, slow, replaced the graph, could not be undone, fetched a
+     * URL the reader did not give, or the `approvals` policy asked. The message that made it
+     * continues: approve runs the held calls (with any `calls[].arguments` the reader edited) as
+     * one more step of the message; deny drops them; either way the model hears the decision and
+     * answers. A new message, `cancelAiCommand()` or an undo of the message ends the request
+     * instead (`ai-pending-resolved`).
      * @param id - The request's id, from the event.
-     * @param answer - The reader's answer.
-     * @param answer.approve - True to run the change.
-     * @returns The change's result (`AI_CONFIRMATION_NEEDED`, with a new request, when another
-     *     limit holds it again), `AI_APPROVAL_DENIED`, `AI_APPROVAL_STALE` or `AI_NOT_ENABLED`. An
-     *     answer given while its message is still running waits for the message to end.
+     * @param answer - The reader's answer: `{ approve }`, and optionally `calls` with edited arguments.
+     * @returns The message's final result, which `ai-command-complete` also carries:
+     *     `AI_COMPLETED`, `AI_APPROVAL_DENIED` or `AI_APPROVAL_STALE` with the model's answer,
+     *     `AI_CONFIRMATION_NEEDED` with a new request when another limit holds the calls again, or
+     *     `AI_NOT_ENABLED`. An answer given while its message is still running waits for it.
      * @since 4.0.0
      */
     async resolveAiApproval(
         id: string,
-        answer: { readonly approve: boolean },
+        answer: import("./ai/AiController").AiApprovalAnswer,
     ): Promise<import("./ai/AiController").ExecutionResult> {
         if (!this.aiManager) {
             return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };

@@ -130,8 +130,26 @@ export interface ToolHost {
     readonly allowImportUrl?: (url: URL) => boolean;
 }
 
-/** Why a batch is held for the reader's approval. */
-export type GateKind = "slow" | "large" | "replaces" | "irreversible" | "network";
+/**
+ * Why a batch is held for the reader's approval: a measured limit, or `"policy"` when the host's
+ * approval policy asked about one of its calls.
+ */
+export type GateKind = "slow" | "large" | "replaces" | "irreversible" | "network" | "policy";
+
+/** One call the model made, as an approval policy judges it before anything runs. */
+export interface AiToolCallFacts {
+    /** The tool's name (for `call`, the tool it stands for). */
+    readonly command: string;
+    /** The action, for a tool generated from the catalog. */
+    readonly action?: string;
+    /** The arguments, as checked. */
+    readonly arguments: Readonly<Record<string, unknown>>;
+    /** What the call does: `read` changes nothing, `write` changes the project, `exempt` changes only the view. */
+    readonly effect: ActionEffect;
+}
+
+/** What an approval policy says about one call: run it, ask the reader first, or refuse it. */
+export type AiApprovalVerdict = "allow" | "ask" | "deny";
 
 /**
  * The limits past which the assistant's changes are held for the reader's approval, by the
@@ -186,6 +204,11 @@ export interface MessageState {
      * through, and every other limit still holds.
      */
     readonly approved?: GateKind;
+    /**
+     * The host's approval policy, judged per call before a batch runs; absent, every call is
+     * allowed. Not consulted again for a batch the reader already approved.
+     */
+    readonly policy?: (call: AiToolCallFacts) => AiApprovalVerdict;
     /** The message's id, its steps' `provenance.message`. */
     readonly id: string;
     /** Runs the assistant started in this conversation, which it may cancel without asking. */

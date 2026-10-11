@@ -13,7 +13,12 @@ import { Color3 } from "@babylonjs/core";
 import { assert, expect } from "vitest";
 
 import type { GraphSession } from "../../session";
-import { AiController, type AiControllerOptions, type ExecutionResult } from "../../src/ai/AiController";
+import {
+    type AiApprovalAnswer,
+    AiController,
+    type AiControllerOptions,
+    type ExecutionResult,
+} from "../../src/ai/AiController";
 import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandResult } from "../../src/ai/commands/types";
 import { ENGINE_OVERRIDE, engineFor } from "../../src/ai/engine/load";
@@ -87,6 +92,8 @@ export interface LlmRegressionResult {
     lastRequest?: TurnRequest | null;
     /** The message's result code. */
     code?: string;
+    /** The facts behind the code (the approval request of a held message). */
+    params?: ExecutionResult["params"];
 }
 
 /**
@@ -199,6 +206,8 @@ export interface LlmRegressionTestHarnessOptions {
     session?: GraphSession;
     /** Whether the assistant keeps one conversation across prompts; none, as the element's default, when absent. */
     history?: AiControllerOptions["history"];
+    /** Which calls wait for an approval; none, as the element's default, when absent. */
+    approvals?: AiControllerOptions["approvals"];
 }
 
 /**
@@ -411,6 +420,7 @@ export class LlmRegressionTestHarness {
             graph,
             toolProfile: process.env.LLM_REGRESSION_TOOL_PROFILE === "small" ? "small" : "standard",
             ...(options.history === undefined ? {} : { history: options.history }),
+            ...(options.approvals === undefined ? {} : { approvals: options.approvals }),
             [ENGINE_OVERRIDE]: engine,
         };
         const controller = new AiController(controllerOptions);
@@ -525,6 +535,7 @@ export class LlmRegressionTestHarness {
                 turns: this.engine.capturedTurns.length,
                 lastRequest: this.engine.lastRequest,
                 code: executionResult.code,
+                params: executionResult.params,
             };
 
             if (expectations) {
@@ -533,6 +544,21 @@ export class LlmRegressionTestHarness {
 
             return result;
         }
+    }
+
+    /**
+     * Answer an approval request, as a reader would, and let the message continue.
+     * @param id - The request's id (`params.request` of an `AI_CONFIRMATION_NEEDED` result).
+     * @param answer - The answer.
+     * @returns The message's final result and the calls the model made after the answer.
+     */
+    async resolveApproval(
+        id: string,
+        answer: AiApprovalAnswer,
+    ): Promise<{ result: ExecutionResult; toolCalls: CapturedToolCall[] }> {
+        this.engine.clearCaptured();
+        const result = await this.controller.resolveAiApproval(id, answer);
+        return { result, toolCalls: [...this.engine.capturedToolCalls] };
     }
 
     /**

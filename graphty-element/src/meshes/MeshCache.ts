@@ -10,6 +10,23 @@ import { EdgeLineBatch } from "./EdgeLineBatch";
 type MeshCreatorFn = () => Mesh;
 
 /**
+ * One instance of a cached template, at the origin.
+ *
+ * Babylon copies the source's transform into a new instance, and the template is parked out of
+ * sight at y = -10000. A node mesh then sat there until the first frame placed it, so
+ * `node.getPosition()` read before that frame answered the parking spot as the node's position.
+ * The origin is what the layout itself answers for a node nothing has placed yet.
+ * @param mesh - The template.
+ * @param name - The instance's name.
+ * @returns The instance.
+ */
+function instanceOf(mesh: Mesh, name: string): InstancedMesh {
+    const instance = mesh.createInstance(name);
+    instance.position.setAll(0);
+    return instance;
+}
+
+/**
  * Cache for mesh instances to improve rendering performance
  *
  * Stores base meshes and creates instances on demand to avoid recreating
@@ -40,7 +57,7 @@ export class MeshCache {
         let mesh = this.meshCacheMap.get(name);
         if (mesh) {
             this.hits++;
-            return mesh.createInstance(name);
+            return instanceOf(mesh, name);
         }
 
         this.misses++;
@@ -55,7 +72,7 @@ export class MeshCache {
 
         mesh.freezeWorldMatrix();
         this.meshCacheMap.set(name, mesh);
-        return mesh.createInstance(name);
+        return instanceOf(mesh, name);
     }
 
     /**

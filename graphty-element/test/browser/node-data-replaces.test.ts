@@ -68,13 +68,15 @@ describe("nodeData", () => {
         const painters = (): string[] => session.styles.explain({ node: "a" }).contributions.map((c) => c.name);
         assert.notInclude(painters(), "hot nodes");
         const at = (): string => JSON.stringify(dm.nodes.get("a")?.getPosition());
+        // The layout places a node in a drawn frame, which nothing above waits for.
+        await graph.waitForStableFrame();
         const before = at();
         const edgeIds = [...dm.edges.keys()];
         const steps = session.history.steps.length;
 
         element.nodeData = [{ id: "a", hot: true }, { id: "b" }];
         await operationQueueOf(graph).waitForCompletion();
-        await graph.waitForSettled();
+        await graph.waitForStableFrame();
 
         assert.deepStrictEqual({ ...dm.nodes.get("a")?.data }, { id: "a", hot: true }, "the record it was just given");
         assert.include(painters(), "hot nodes", "the layer reading the field repainted");
@@ -86,5 +88,24 @@ describe("nodeData", () => {
         await graph.waitForSettled();
         assert.deepStrictEqual({ ...dm.nodes.get("a")?.data }, { id: "a", hot: false, stale: 1 });
         assert.notInclude(painters(), "hot nodes");
+    });
+
+    test("a node the layout has not placed yet reads as the origin, not where the hidden template is parked", async () => {
+        const element = document.createElement("graphty-element");
+        element.style.width = "400px";
+        element.style.height = "300px";
+        element.style.display = "block";
+        document.body.appendChild(element);
+        mounted = element;
+        await element.updateComplete;
+
+        const { graph } = element;
+        const frame = graph.scene.getRenderId();
+        element.nodeData = [{ id: "a" }];
+        await operationQueueOf(graph).waitForCompletion();
+
+        // Read in the same turn as the load: no frame has placed the node yet.
+        assert.strictEqual(graph.scene.getRenderId(), frame, "no frame was drawn in between");
+        assert.deepStrictEqual(graph.getDataManager().nodes.get("a")?.getPosition(), { x: 0, y: 0, z: 0 });
     });
 });

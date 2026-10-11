@@ -17,6 +17,7 @@ import * as QueryCommands from "../../../src/ai/commands/QueryCommands";
 import * as SchemaCommands from "../../../src/ai/commands/SchemaCommands";
 import * as StyleCommands from "../../../src/ai/commands/StyleCommands";
 import type { GraphCommand } from "../../../src/ai/commands/types";
+import { toolJsonSchema } from "../../../src/ai/engine/jsonSchema";
 
 const modules = [
     AlgorithmCommands,
@@ -48,17 +49,28 @@ function sortKeys(value: unknown): unknown {
     return value;
 }
 
+const commands = modules
+    .flatMap((m) => Object.values(m))
+    .filter((v): v is GraphCommand => typeof v === "object" && v !== null && "parameters" in v && "name" in v)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
 describe("AI command JSON Schemas", () => {
     it("match the committed schemas", async () => {
-        const commands = modules
-            .flatMap((m) => Object.values(m))
-            .filter((v): v is GraphCommand => typeof v === "object" && v !== null && "parameters" in v && "name" in v)
-            .sort((a, b) => a.name.localeCompare(b.name));
         const schemas = Object.fromEntries(commands.map((c) => [c.name, sortKeys(asSchema(c.parameters).jsonSchema)]));
 
         expect(commands.length).toBeGreaterThan(10);
         await expect(`${JSON.stringify(schemas, null, 4)}\n`).toMatchFileSnapshot(
             "./__snapshots__/command-json-schemas.json",
         );
+    });
+
+    // The engine seam's own conversion, which the provider-API engine declares tools with, tells
+    // the model exactly what the AI SDK tells it today.
+    it("are what graphty's own conversion makes, for every command", () => {
+        for (const command of commands) {
+            expect(toolJsonSchema(command.parameters), command.name).toStrictEqual(
+                asSchema(command.parameters).jsonSchema,
+            );
+        }
     });
 });

@@ -191,6 +191,11 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-10-11 Round 5 walk asked for a second time on the same frozen build (8c015b806). Worked:
+  checking the round folder and git log first; the committed walk (39 findings, 0 at severity 3)
+  was returned as is, with no new browser slots taken. Lesson: before a walk, check whether this
+  build already has one; a repeat on an unchanged build only costs slots other studies need.
+
 - 2026-10-11 Round 5 walk. Worked: re-walking last round's routes with the same scripts
   confirmed seven fixes and two claims in under 120 steps; opening each control from a second
   state (Follow then Escape, To at 1280 x 800, a column word plus a number) found all six new

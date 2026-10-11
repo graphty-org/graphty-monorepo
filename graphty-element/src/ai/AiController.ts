@@ -6,12 +6,14 @@
 import {
     AI_CONVERSATION_FORMAT,
     AI_CONVERSATION_FORMAT_VERSION,
+    type AiProviderId,
     type AiResultCode,
     type AiResultParams,
 } from "../catalog/ai";
 import type { AiApprovalRequest, AiEvent, AiQuestionRequest } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession } from "../session/types";
+import { type AiAgentRole, type AiAgentsSetting, rolesOf } from "./agents";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, CommandResult } from "./commands/types";
@@ -45,6 +47,7 @@ import {
     closingResults,
     type Conversation,
     type DecidedBatch,
+    type Delegation,
     MessageRolledBack,
     runConversation,
     TurnFailed,
@@ -406,6 +409,14 @@ export interface AiControllerOptions {
      * answered with `answerAiQuestion`). Default false: the model is offered no such tool.
      */
     questions?: boolean;
+    /**
+     * Helpers the model may hand tasks to with a `delegate` tool, each with its own commands and,
+     * optionally, its own provider or model. Default none: no `delegate` tool. Checked by
+     * `enableAiControl`, which rejects a configuration that cannot run with an `AiConfigError`.
+     */
+    agents?: AiAgentsSetting;
+    /** API keys for the providers helpers run on, beside the main provider's own. */
+    apiKeys?: Partial<Record<AiProviderId, string>>;
 }
 
 /** Combined result from execution */
@@ -445,6 +456,10 @@ export class AiController {
     private readonly questions = new Map<string, PendingQuestion>();
     /** Whether the model may ask the reader questions. */
     private readonly asks: boolean;
+    /** The helpers the model may hand tasks to; none without `agents`. */
+    private readonly roles: readonly AiAgentRole[];
+    private readonly provider: LlmProvider;
+    private readonly apiKeys: Partial<Record<AiProviderId, string>>;
     private readonly policy: MessageState["policy"];
     private readonly profile: "standard" | "small";
     private readonly gate: Readonly<AssistantGateLimits> | false;
@@ -490,6 +505,9 @@ export class AiController {
         this.allowImportUrl = options.allowImportUrl;
         this.policy = policyOf(options.approvals);
         this.asks = options.questions === true;
+        this.roles = options.agents === undefined ? [] : rolesOf(options.agents);
+        this.provider = options.provider;
+        this.apiKeys = options.apiKeys ?? {};
         this.history = historyOptionsOf(options.history);
         this.secrets = options.secrets ?? ((): readonly string[] => []);
         this.storeOverride = (options as AiControllerOptions & { [STORE_OVERRIDE]?: ConversationStore })[
@@ -553,8 +571,39 @@ export class AiController {
                 return UNKNOWN_CONVERSATION;
             }
 
+            // A helper's provider with no key fails the message before anything is sent.
+            const missing =
+                this.roles.length === 0
+                    ? undefined
+                    : (await this.delegationModule()).missingKey(this.delegationOptions());
+            if (missing !== undefined) {
+                this.running.delete(abortController);
+                return { success: false, message: "", code: "AI_KEY_MISSING", params: { provider: missing } };
+            }
+
             return this.executeNow(input, abortController, options.via);
         });
+    }
+
+    /**
+     * The helpers' module, loaded only when helpers are configured.
+     * @returns The module.
+     */
+    private delegationModule(): Promise<typeof import("./plans/delegate")> {
+        return import("./plans/delegate");
+    }
+
+    /**
+     * What helpers run with.
+     * @returns The roles, the main engine and provider, and the keys.
+     */
+    private delegationOptions(): import("./plans/delegate").DelegationOptions {
+        return {
+            roles: this.roles,
+            engine: this.engine,
+            provider: this.provider,
+            keyFor: (provider) => this.apiKeys[provider],
+        };
     }
 
     /**
@@ -626,6 +675,10 @@ export class AiController {
                 }
             });
 
+            const delegation: Delegation | undefined =
+                this.roles.length === 0
+                    ? undefined
+                    : (await this.delegationModule()).delegation(this.delegationOptions());
             conversation = run.conversation(session);
             base = conversation.messages.length;
             const running = conversation;
@@ -691,6 +744,7 @@ export class AiController {
                           }
                         : {}),
                     ...(answer === undefined ? {} : { answer: { callId: answer.call.id, values: answer.values } }),
+                    ...(delegation === undefined ? {} : { delegation }),
                     newId: () => this.newMessageId(running),
                     ...(this.history?.budgetTokens === undefined
                         ? {}
@@ -1414,7 +1468,11 @@ export class AiController {
             const consumer = this.commandRegistry
                 .getAll()
                 .filter((command) => !isAssistantTool(command) && (command.load ?? "always") === "always");
-            return assistantInstructions(this.profile, consumer);
+            const instructions = assistantInstructions(this.profile, consumer);
+            // Helpers: the main model is told to use them, or it does everything itself.
+            return this.roles.length === 0
+                ? instructions
+                : `${instructions}\nYou have helpers (delegate): hand each part of a request that a helper's purpose covers to that helper, then answer from what they report.`;
         }
 
         const commands = this.commandRegistry.getAll();

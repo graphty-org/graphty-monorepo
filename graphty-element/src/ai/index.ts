@@ -30,7 +30,7 @@ export type {
 } from "./conversation/snapshot";
 
 // Helpers, plans and their configuration errors
-export type { AiAgentRole, AiPlan, AiRouter } from "./agents";
+export type { AiAgentRole, AiAgentsSetting, AiPlan, AiRouter } from "./agents";
 export { AiConfigError } from "./agents";
 
 // Manager (Phase 3)

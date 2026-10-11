@@ -6,8 +6,10 @@
 
 import debounce from "lodash/debounce.js";
 
+import { AI_PROVIDER_IDS, type AiProviderId } from "../catalog/ai";
 import type { AiApprovalRequest, AiQuestionRequest } from "../events";
 import type { Graph } from "../Graph";
+import type { AiAgentsSetting } from "./agents";
 import {
     type AiApprovalAnswer,
     type AiApprovalsSetting,
@@ -110,6 +112,20 @@ export interface AiManagerConfig {
      * that draws no question: the model is offered no such tool.
      */
     questions?: boolean;
+    /**
+     * Helpers the main model may hand parts of a message to: `[{ name, purpose, commands }]`, or
+     * `{ roles }`. The model is offered a `delegate` tool naming them; each helper runs with only
+     * its own commands (the assistant's tool names), on the assistant's provider or on its own
+     * `provider` and `model`. Helpers that run at once may only read. `ai-agent-start` and
+     * `ai-agent-end` report each. Default none: no `delegate` tool. `enableAiControl` rejects a
+     * configuration that cannot run with an `AiConfigError` naming the helper and field.
+     */
+    agents?: AiAgentsSetting;
+    /**
+     * API keys for the providers helpers run on, beside `apiKey` (`{ anthropic: key }`); a provider
+     * without one here uses the key manager's.
+     */
+    apiKeys?: Partial<Record<AiProviderId, string>>;
 }
 
 /**
@@ -249,6 +265,7 @@ export class AiManager {
             ...(config.allowImportUrl === undefined ? {} : { allowImportUrl: config.allowImportUrl }),
             ...(config.approvals === undefined ? {} : { approvals: config.approvals }),
             ...(config.questions === undefined ? {} : { questions: config.questions }),
+            ...(config.agents === undefined ? {} : { agents: config.agents, apiKeys: this.helperKeys(config) }),
             ...(history === undefined
                 ? {}
                 : {
@@ -270,6 +287,29 @@ export class AiManager {
         });
 
         this.initialized = true;
+    }
+
+    /**
+     * The keys helpers' providers run with, read when a message runs: `apiKeys`, else the key
+     * manager's (a key set later with `setApiKey` counts).
+     * @param config - The configuration.
+     * @returns The keys, by provider.
+     */
+    private helperKeys(config: AiManagerConfig): Partial<Record<AiProviderId, string>> {
+        const keys: Partial<Record<AiProviderId, string>> = {};
+        for (const id of AI_PROVIDER_IDS) {
+            const given = config.apiKeys?.[id];
+            if (given !== undefined) {
+                this.keysSeen.add(given);
+            }
+
+            Object.defineProperty(keys, id, {
+                enumerable: true,
+                get: () => given ?? this.apiKeyManager.getKey(id),
+            });
+        }
+
+        return keys;
     }
 
     /**

@@ -69,6 +69,12 @@ export interface AiAgentRole {
 }
 
 // @public
+export type AiAgentsSetting = readonly AiAgentRole[] | {
+    readonly roles: readonly AiAgentRole[];
+    readonly router?: "model";
+};
+
+// @public
 export interface AiAgentStartEvent {
     agent: string;
     task: string;
@@ -184,7 +190,9 @@ export class AiController {
 
 // @public
 export interface AiControllerOptions {
+    agents?: AiAgentsSetting;
     allowImportUrl?: (url: URL) => boolean;
+    apiKeys?: Partial<Record<AiProviderId, string>>;
     approvals?: AiApprovalsSetting;
     commandRegistry: CommandRegistry;
     emitEvent?: AiEventEmitter;
@@ -221,6 +229,7 @@ export type AiConversationMessage = {
         readonly code: AiResultCode;
         readonly params: AiResultParams;
     };
+    readonly agent?: string;
 };
 
 // @public
@@ -299,8 +308,10 @@ export class AiManager {
 
 // @public
 export interface AiManagerConfig {
+    agents?: AiAgentsSetting;
     allowImportUrl?: (url: URL) => boolean;
     apiKey?: string;
+    apiKeys?: Partial<Record<AiProviderId, string>>;
     approvals?: AiApprovalsSetting;
     gate?: Partial<AssistantGateLimits> | false;
     history?: "none" | "memory" | "browser" | AiHistoryOptions;

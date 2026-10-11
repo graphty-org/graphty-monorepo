@@ -42,6 +42,29 @@ export interface AiPlan {
 export type AiRouter = "model" | "classifier" | ((input: string) => AiPlan);
 
 /**
+ * The helpers of `AiManagerConfig.agents`: the roles alone, or the roles with how a message is
+ * handed to them. With `router: "model"` (the default) the main model is offered a `delegate` tool
+ * naming the roles, and hands each a task as it chooses.
+ */
+export type AiAgentsSetting =
+    | readonly AiAgentRole[]
+    | {
+          /** The helpers. */
+          readonly roles: readonly AiAgentRole[];
+          /** How a message is handed to them. Default `"model"`. */
+          readonly router?: "model";
+      };
+
+/**
+ * The roles a setting names.
+ * @param setting - The setting.
+ * @returns Its roles.
+ */
+export function rolesOf(setting: AiAgentsSetting): readonly AiAgentRole[] {
+    return "roles" in setting ? setting.roles : setting;
+}
+
+/**
  * The assistant's configuration names something it cannot use: an unknown command or helper, a
  * duplicate or reserved name, an empty purpose. `enableAiControl` rejects with it and builds
  * nothing. `message` is the code, for a log; read `code` and `params`.

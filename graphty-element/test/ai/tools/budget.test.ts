@@ -11,6 +11,10 @@ import { afterEach, assert, describe, it } from "vitest";
 import { defineAlgorithm, defineLayout } from "../../../extend";
 import { createGraphSession } from "../../../session";
 import { CommandRegistry } from "../../../src/ai/commands";
+import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
+import type { ToolSpec } from "../../../src/ai/engine/types";
+import { delegation } from "../../../src/ai/plans/delegate";
+import { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
 import { ASK_READER_TOOL, turnTools } from "../../../src/ai/runConversation";
 import { installAssistantTools } from "../../../src/ai/tools/install";
 import { isAssistantTool } from "../../../src/ai/tools/toolset";
@@ -20,24 +24,39 @@ import { clearRegisteredAlgorithmsForTesting } from "../../../src/catalog/regist
 /** Characters to tokens, for JSON Schema. */
 const CHARS_PER_TOKEN = 3;
 
+/** The `delegate` tool for the design's two helpers. */
+const DELEGATE_TOOL = delegation({
+    roles: [
+        { name: "counter", purpose: "Count and read nodes; never changes anything.", commands: ["query"] },
+        { name: "stylist", purpose: "Color and size nodes.", commands: ["style"] },
+    ],
+    engine: new FakeEngine(),
+    provider: new MockLlmProvider(),
+    keyFor: () => undefined,
+}).tool;
+
 /**
  * The tokens one profile's first turn declares.
  * @param profile - The profile.
+ * @param questions - Whether `ask_reader` is offered.
+ * @param helpers - Whether `delegate` is offered, for two helpers.
  * @returns The tool count and the estimated tokens.
  */
 function declared(
     profile: "standard" | "small",
     questions = false,
+    helpers = false,
 ): { tools: string[]; tokens: number; enumNames: boolean } {
     const registry = new CommandRegistry();
     installAssistantTools(registry, createGraphSession());
     const offered = turnTools(registry, profile, []);
-    // The loop's own question tool, when questions are switched on.
-    let chars = questions
-        ? ASK_READER_TOOL.name.length +
-          ASK_READER_TOOL.description.length +
-          JSON.stringify(ASK_READER_TOOL.jsonSchema).length
-        : 0;
+    // The loop's own tools, when helpers or questions are switched on.
+    const loopTools: ToolSpec[] = [...(helpers ? [DELEGATE_TOOL] : []), ...(questions ? [ASK_READER_TOOL] : [])];
+    let chars = 0;
+    for (const tool of loopTools) {
+        chars += tool.name.length + tool.description.length + JSON.stringify(tool.jsonSchema).length;
+    }
+
     for (const tool of offered) {
         assert.isTrue(isAssistantTool(tool));
         chars +=
@@ -51,7 +70,7 @@ function declared(
         ? (run.jsonSchema as { properties: { name: { enum?: unknown } } }).properties.name
         : undefined;
     return {
-        tools: [...offered.map((tool) => tool.name), ...(questions ? [ASK_READER_TOOL.name] : [])],
+        tools: [...offered.map((tool) => tool.name), ...loopTools.map((tool) => tool.name)],
         tokens: Math.ceil(chars / CHARS_PER_TOKEN),
         enumNames: name?.enum !== undefined,
     };
@@ -82,6 +101,15 @@ describe("the always-loaded tools fit a model's budget", () => {
         assert.isAtMost(standard.tokens, 5000);
         const small = declared("small", true);
         assert.lengthOf(small.tools, 5);
+        assert.isAtMost(small.tokens, 1500);
+    });
+
+    it("stays within both budgets with two helpers and questions on: delegate and ask_reader follow", () => {
+        const standard = declared("standard", true, true);
+        assert.lengthOf(standard.tools, 13);
+        assert.isAtMost(standard.tokens, 5000);
+        const small = declared("small", true, true);
+        assert.lengthOf(small.tools, 6);
         assert.isAtMost(small.tokens, 1500);
     });
 

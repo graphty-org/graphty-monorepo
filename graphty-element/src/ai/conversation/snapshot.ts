@@ -51,6 +51,8 @@ export type AiConversationMessage =
            * the code (and facts) `aiCommand` resolved with. Absent on an answer.
            */
           readonly outcome?: { readonly code: AiResultCode; readonly params: AiResultParams };
+          /** The helper (`AiAgentRole.name`) that said it, when a helper did; absent for the assistant itself. */
+          readonly agent?: string;
       };
 
 /** A conversation, as an application draws it. */
@@ -129,7 +131,14 @@ function snapshotMessages(
     for (const message of messages) {
         if (message.role === "tool") {
             for (const part of message.parts) {
-                if (part.type === "tool-result" && part.origin === "reader") {
+                if (part.type === "agent-ref") {
+                    // A helper's words and calls, under its name.
+                    for (const said of snapshotMessages(part.messages)) {
+                        if (said.role === "assistant") {
+                            out.push({ ...said, agent: part.agent });
+                        }
+                    }
+                } else if (part.type === "tool-result" && part.origin === "reader") {
                     out.push({
                         id: message.id,
                         role: "reader",

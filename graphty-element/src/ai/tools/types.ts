@@ -211,6 +211,11 @@ export interface MessageState {
      * arguments cannot get past it.
      */
     readonly policy?: (call: AiToolCallFacts) => AiApprovalVerdict;
+    /**
+     * Set while a helper runs beside others (`"parallel-helper"`): every write call is refused
+     * (`AI_TOOL_DENIED_BY_POLICY` with this as `reason`), before the policy is asked.
+     */
+    readonly readOnly?: "parallel-helper";
     /** The message's id, its steps' `provenance.message`. */
     readonly id: string;
     /** Runs the assistant started in this conversation, which it may cancel without asking. */

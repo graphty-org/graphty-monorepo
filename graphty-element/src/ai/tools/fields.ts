@@ -20,14 +20,23 @@ export const MAX_SELECTOR = 500;
 /** The longest other string. */
 export const MAX_STRING = 1000;
 
-/** How a selector is written, said once for every field that takes one. */
+/** How a selector is written, as a refused selector's result says it. */
 export const SELECTOR_HELP = "Selector: data.type == 'server', data.weight > `0.5`; \"all\" = all.";
 
+/**
+ * A selector field's description, sent with every tool that takes one: short, since the
+ * instructions say how a selector is written ("all" included) and every tool turn pays for it.
+ */
+export const WHERE_HELP = "Selector, e.g. data.weight > `0.5`";
+
 /** A selector. */
-export const whereField = z.string().max(MAX_SELECTOR).describe(SELECTOR_HELP);
+export const whereField = z.string().max(MAX_SELECTOR).describe(WHERE_HELP);
+
+/** What an ids field holds. */
+const IDS_HELP = "Ids or labels.";
 
 /** Element ids. */
-export const idsField = z.array(z.string().max(MAX_STRING)).max(MAX_ITEMS).describe("Node ids or unique labels.");
+export const idsField = z.array(z.string().max(MAX_STRING)).max(MAX_ITEMS).describe(IDS_HELP);
 
 /** The comparison operators a `result` target takes. */
 const RESULT_OPS = ["==", "!=", "<", "<=", ">", ">=", "in"] as const;
@@ -47,8 +56,8 @@ export const resultField = z
 
 /** The three ways to name a target. */
 export const targetFields = {
-    where: whereField.optional().describe(SELECTOR_HELP),
-    ids: idsField.optional().describe("Node ids or unique labels."),
+    where: whereField.optional().describe(WHERE_HELP),
+    ids: idsField.optional().describe(IDS_HELP),
     result: resultField.optional().describe(resultField.description ?? ""),
 };
 

@@ -55,7 +55,7 @@ export type {
 export { AiController } from "./src/ai/index";
 
 // Helpers the assistant hands tasks to, the plans that order them, and a configuration error
-export type { AiAgentRole, AiPlan, AiRouter } from "./src/ai/index";
+export type { AiAgentRole, AiAgentsSetting, AiPlan, AiRouter } from "./src/ai/index";
 export { AiConfigError } from "./src/ai/index";
 
 // AI Manager

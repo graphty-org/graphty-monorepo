@@ -10,7 +10,7 @@ import { algorithmByLegacyKey } from "../../../catalog/algorithms";
 import type { AlgorithmDescriptor } from "../../../catalog/types";
 import type { Run } from "../../../session/runs/types";
 import type { TransactionScope } from "../../../session/types";
-import { MAX_SELECTOR, resolveRun, SELECTOR_HELP, text } from "../fields";
+import { resolveRun, text, WHERE_HELP, whereField } from "../fields";
 import { checkOptions } from "../optionSchema";
 import { suggest } from "../search";
 import { limitOf, offsetOf, pageOf, summarizeRun, toJson } from "../shape";
@@ -232,7 +232,7 @@ export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
                     scope: z
                         .strictObject({
                             set: z.string().max(200).optional(),
-                            where: z.string().max(MAX_SELECTOR).optional().describe(SELECTOR_HELP),
+                            where: whereField.optional().describe(WHERE_HELP),
                         })
                         .optional()
                         .describe("Run on a set or a selector's nodes only."),

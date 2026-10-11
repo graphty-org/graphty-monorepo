@@ -69,7 +69,7 @@ const ANSWER_NOW: SavedMessage = {
 };
 
 /** How much of one tool result is handed back to the model, by profile. */
-const RESULT_CAP: Readonly<Record<ToolProfile, number>> = { standard: 8000, small: 1500 };
+export const RESULT_CAP: Readonly<Record<ToolProfile, number>> = { standard: 8000, small: 1500 };
 
 /** The loop's own tool for a question to the reader, offered only when questions are switched on. */
 export const ASK_READER = "ask_reader";
@@ -100,6 +100,37 @@ export const ASK_READER_TOOL: ToolSpec = {
     schema: askReaderSchema,
     jsonSchema: askReaderJson,
 };
+
+/** The loop's own tool for handing a task to a helper, offered only when helpers are configured. */
+export const DELEGATE = "delegate";
+
+/** Tokens a model used. */
+export interface TokenUsage {
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+}
+
+/**
+ * Helpers the model may hand tasks to (`delegate`), run by the plans module, which is loaded only
+ * when helpers are configured.
+ */
+export interface Delegation {
+    /** The `delegate` tool, its `agent` an enum of the role names. */
+    readonly tool: ToolSpec;
+    /**
+     * Run one turn's `delegate` calls, after the turn's other calls committed.
+     * @param calls - The calls.
+     * @param parent - The run that made them, whose message, session and abort the helpers share.
+     * @param state - The message's state.
+     * @returns The parts the calls' tool message gets (each call's result and its helper's
+     *     conversation), and the tokens the helpers used.
+     */
+    run(
+        calls: readonly ToolCallRequest[],
+        parent: ConversationRun,
+        state: MessageState,
+    ): Promise<{ readonly parts: readonly SavedPart[]; readonly usage: TokenUsage }>;
+}
 
 /** A conversation: the instructions and the messages so far. The loop appends to `messages`. */
 export interface Conversation {
@@ -157,6 +188,12 @@ export interface ConversationRun {
     readonly ask?: (question: AskedQuestion, messageId: string) => Promise<string>;
     /** The reader's answer to a question, which the run starts with: the result of its call. */
     readonly answer?: ReaderAnswer;
+    /** Helpers the model may hand tasks to; the loop offers `delegate` only when this is set. */
+    readonly delegation?: Delegation;
+    /** Offer every command of `tools` each turn, not the profile's: a helper gets exactly its own. */
+    readonly allTools?: boolean;
+    /** Told each turn's token usage. */
+    readonly onUsage?: (usage: TokenUsage) => void;
 }
 
 /** The reader's answer to a question. */
@@ -431,6 +468,8 @@ interface MessageTally {
     decision?: Outcome;
     /** The question the message asked, which it now waits on. */
     asked?: string;
+    /** The tokens the message's helpers used, once one ran. */
+    helpers?: TokenUsage;
 }
 
 /**
@@ -528,6 +567,8 @@ async function modelTurn(
                 ...(event.invalidArguments && { invalidArguments: true }),
                 ...(event.providerState && { providerState: event.providerState }),
             });
+        } else if (event.type === "usage") {
+            run.onUsage?.({ inputTokens: event.inputTokens, outputTokens: event.outputTokens });
         } else if (event.type === "error") {
             throw new TurnFailed(event);
         } else if (event.type === "finish") {
@@ -773,6 +814,47 @@ async function tallyBatch(
 }
 
 /**
+ * Run one turn's `delegate` calls once the turn's other calls committed, and add their results to
+ * the turn's tool message. When those calls failed, the helpers do not run.
+ * @param run - The loop's run, with its delegation.
+ * @param calls - The `delegate` calls.
+ * @param batch - What the turn's other calls did.
+ * @param state - The message's state.
+ * @param tally - The message's tally, which sums the helpers' tokens.
+ * @param added - The turn's tool message, when its other calls had one.
+ * @param newId - Makes a message's id.
+ */
+async function runDelegated(
+    run: ConversationRun,
+    calls: readonly ToolCallRequest[],
+    batch: BatchOutcome,
+    state: MessageState,
+    tally: MessageTally,
+    added: SavedMessage | undefined,
+    newId: () => string,
+): Promise<void> {
+    let parts: readonly SavedPart[];
+    if (batch.failure === undefined && run.delegation !== undefined) {
+        const ran = await run.delegation.run(calls, run, state);
+        ({ parts } = ran);
+        tally.helpers = {
+            inputTokens: (tally.helpers?.inputTokens ?? 0) + ran.usage.inputTokens,
+            outputTokens: (tally.helpers?.outputTokens ?? 0) + ran.usage.outputTokens,
+        };
+    } else {
+        ({ parts } = closingResults(calls, { code: "AI_TOOL_NOT_RUN", params: {} }, ""));
+    }
+
+    if (added === undefined) {
+        run.conversation.messages.push({ id: newId(), role: "tool", parts: [...parts] });
+    } else {
+        // The turn's one tool message answers every call of the turn.
+        const at = run.conversation.messages.indexOf(added);
+        run.conversation.messages[at] = { ...added, parts: [...added.parts, ...parts] };
+    }
+}
+
+/**
  * Run the loop for one message: ask the model, then run the tools it calls, each batch in a short
  * transaction that joins the message's one undo step.
  * @param run - What to run, and where.
@@ -846,7 +928,7 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
         // says, in words, that it is time to answer. A held batch ends the tool turns too: a later
         // write would move the history under the request and make the reader's approval stale.
         const answerOnly = turn > MAX_ASSISTANT_TOOL_TURNS || tally.held !== undefined;
-        const offered = turnTools(tools, profile, conversation.messages);
+        const offered = run.allTools === true ? tools.getAll() : turnTools(tools, profile, conversation.messages);
         const shown = historyWindow(
             pairedForModel(conversation.messages),
             run.historyBudgetTokens ?? DEFAULT_HISTORY_BUDGET_TOKENS[profile],
@@ -858,7 +940,11 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
                 model: run.model,
                 system: conversation.system,
                 messages: answerOnly ? [...history, ANSWER_NOW] : history,
-                tools: run.ask === undefined ? offered.map(toolSpec) : [...offered.map(toolSpec), ASK_READER_TOOL],
+                tools: [
+                    ...offered.map(toolSpec),
+                    ...(run.delegation === undefined ? [] : [run.delegation.tool]),
+                    ...(run.ask === undefined ? [] : [ASK_READER_TOOL]),
+                ],
                 toolMode: answerOnly ? "none" : "auto",
             },
             texts,
@@ -894,23 +980,34 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
 
         sink.status.startExecuting();
 
-        // A question ends the batch: the calls before it run first, and none after it.
+        // A question ends the batch: the calls before it run first, and none after it. `delegate`
+        // calls run after the batch commits, outside any transaction.
         const at = run.ask === undefined ? -1 : calls.findIndex((call) => call.name === ASK_READER);
-        const kept = at === -1 ? calls : calls.slice(0, at + 1);
-        const before = at === -1 ? calls : calls.slice(0, at);
-        const callsMessage = appendCalls(conversation, text, kept, newId);
+        const upTo = at === -1 ? calls : calls.slice(0, at);
+        const delegated = run.delegation === undefined ? [] : upTo.filter((call) => call.name === DELEGATE);
+        const before = delegated.length === 0 ? upTo : upTo.filter((call) => call.name !== DELEGATE);
+        const asking = at === -1 ? undefined : calls[at];
+        const callsMessage = appendCalls(
+            conversation,
+            text,
+            [...before, ...delegated, ...(asking === undefined ? [] : [asking])],
+            newId,
+        );
         const batch: BatchOutcome =
             before.length === 0 ? { results: [], writes: false } : await runBatch(run, before, state, resultOf);
         await tallyBatch(tally, batch, run, callsMessage);
         const added = before.length === 0 ? undefined : appendResults(conversation, before, batch, cap, newId);
         if (batch.held !== undefined) {
-            // Held: the question is not asked, and the model reads it did not run.
+            // Held: the question is not asked, the helpers do not run, and the model reads it.
             heldResults = added;
             continue;
         }
 
-        if (at !== -1 && run.ask !== undefined && batch.failure === undefined) {
-            const asking = kept[at];
+        if (delegated.length > 0) {
+            await runDelegated(run, delegated, batch, state, tally, added, newId);
+        }
+
+        if (asking !== undefined && run.ask !== undefined && batch.failure === undefined) {
             const parsed = askReaderSchema.safeParse(asking.arguments);
             if (parsed.success && asking.invalidArguments !== true) {
                 tally.asked = await run.ask(
@@ -932,6 +1029,11 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
     let result = combineResults(tally, joinTexts(texts));
     if (tally.decision !== undefined) {
         result = { ...result, success: tally.decision.code !== "AI_APPROVAL_STALE", ...tally.decision };
+    }
+
+    if (tally.helpers !== undefined) {
+        // What the message's helpers cost, beside the main conversation's own facts.
+        result = { ...result, params: { ...result.params, ...tally.helpers } };
     }
 
     if (tally.pending !== undefined && tally.held === undefined && tally.asked === undefined && tally.committed > 0) {

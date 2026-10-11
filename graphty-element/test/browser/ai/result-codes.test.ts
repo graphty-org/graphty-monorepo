@@ -13,6 +13,7 @@ import { z } from "zod";
 
 import { AI_RESULT_CODES } from "../../../catalog";
 import { createGraphSession, type GraphSession } from "../../../session";
+import { AiConfigError } from "../../../src/ai/agents";
 import { AiController, type ExecutionResult } from "../../../src/ai/AiController";
 import { AiManager } from "../../../src/ai/AiManager";
 import { CommandRegistry } from "../../../src/ai/commands";
@@ -21,6 +22,7 @@ import { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
 import type { LlmProvider, LlmResponse } from "../../../src/ai/providers/types";
 import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
 import { installAssistantTools } from "../../../src/ai/tools/install";
+import { Graph } from "../../../src/Graph";
 
 const reached = new Set<string>();
 
@@ -33,9 +35,6 @@ const NOT_COMMAND_RESULTS = [
     "AI_HISTORY_UNAVAILABLE",
     "AI_HISTORY_NEWER_FORMAT",
     "AI_STORAGE_FAILED",
-    // An AiConfigError's code: helpers (`agents`) are configured by the next unit of milestone 4,
-    // which reaches it from enableAiControl and from a router's plan, and takes it off this list.
-    "AI_CONFIG_INVALID",
 ];
 
 /**
@@ -329,6 +328,23 @@ describe("AI command result codes", () => {
         assert.strictEqual(seen(await manager.execute("hello")).code, "AI_NOT_ENABLED");
         manager.dispose();
         assert.strictEqual(seen(await manager.execute("hello")).code, "AI_DISPOSED");
+    });
+
+    it("AI_CONFIG_INVALID: enableAiControl rejects helpers that cannot run, and builds no assistant", async () => {
+        const graph = { aiManager: null } as unknown as Graph;
+
+        const error: unknown = await Graph.prototype.enableAiControl
+            .call(graph, {
+                provider: "mock",
+                agents: [{ name: "counter", purpose: "Count nodes.", commands: ["paint"] }],
+            })
+            .catch((caught: unknown) => caught);
+
+        assert.instanceOf(error, AiConfigError);
+        const { code, params } = error;
+        reached.add(code);
+        assert.deepInclude(params, { agent: "counter", field: "commands", reason: "unknown-command" });
+        assert.isNull((graph as unknown as { aiManager: unknown }).aiManager);
     });
 
     afterAll(() => {

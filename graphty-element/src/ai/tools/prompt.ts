@@ -28,15 +28,26 @@ const ON_DEMAND = [
  * The assistant's instructions.
  * @param profile - The tool profile.
  * @param consumer - The consumer's own commands that are always offered.
+ * @param only - The only tools offered, for a helper that gets exactly these; absent, the profile's.
  * @returns The system prompt.
  */
-export function assistantInstructions(profile: ToolProfile, consumer: readonly GraphCommand[]): string {
+export function assistantInstructions(
+    profile: ToolProfile,
+    consumer: readonly GraphCommand[],
+    only?: readonly string[],
+): string {
+    const tools =
+        only === undefined
+            ? [
+                  profile === "small"
+                      ? "Tools: catalog (find capabilities and their arguments), query (read the data), call (call any other tool by name), undo."
+                      : "Core tools: catalog (find algorithms, layouts, formats, palettes, channels, cameras, settings, tools), query (read data), select, run_algorithm, results, style, filter, layout, view, edit_data, undo.",
+                  `More tools, offered once catalog search names them: ${ON_DEMAND.join("; ")}.`,
+              ]
+            : [`Your tools: ${only.join(", ")}.`];
     const lines = [
         "You are the assistant of a graph visualization: turn the reader's request about the graph on screen into tool calls, then answer briefly.",
-        profile === "small"
-            ? "Tools: catalog (find capabilities and their arguments), query (read the data), call (call any other tool by name), undo."
-            : "Core tools: catalog (find algorithms, layouts, formats, palettes, channels, cameras, settings, tools), query (read data), select, run_algorithm, results, style, filter, layout, view, edit_data, undo.",
-        `More tools, offered once catalog search names them: ${ON_DEMAND.join("; ")}.`,
+        ...tools,
         "Name the elements an action works on with exactly one of: where (a selector over fields under data., numbers in backticks: data.type == 'server', data.weight > `0.5`; \"all\" for everything), ids (node ids or unique labels), or result ({run, field, op, value}). To combine conditions on runs, a where reads a run's values as results.<run>.<field>: results.degree.value > `20` && results.pagerank.value < `0.01`.",
         "Style channels include node.color, node.size, node.shape, node.label, edge.color, edge.width (catalog search kind channel lists the rest).",
         "Every call is checked first. A failure comes back as {code, params} saying what to fix: fix it and call again once.",

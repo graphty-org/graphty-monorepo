@@ -160,6 +160,27 @@ describe("AI chunks load lazily", () => {
         }
     });
 
+    it("keeps helpers (src/ai/plans/) out of every chunk an entry loads up front", () => {
+        const { chunks } = JSON.parse(readFileSync(META, "utf8")) as { chunks: Chunk[] };
+        const byFile = new Map(chunks.map((c) => [c.fileName, c]));
+        const plans = chunks.filter((c) => c.modules.some((id) => id.startsWith("src/ai/plans/")));
+        assert.isNotEmpty(plans, "a chunk holds the plans modules");
+        for (const entry of exportedEntries()) {
+            const reached = new Set<string>();
+            const queue = [entry];
+            for (let file = queue.pop(); file !== undefined; file = queue.pop()) {
+                if (!reached.has(file)) {
+                    reached.add(file);
+                    queue.push(...(byFile.get(file)?.imports ?? []).filter((i) => byFile.has(i)));
+                }
+            }
+
+            for (const chunk of plans) {
+                assert.notInclude([...reached], chunk.fileName, `${entry} loads ${chunk.fileName} up front`);
+            }
+        }
+    });
+
     it("refuses each planted violation", () => {
         const chunk = (fileName: string, over: Partial<Chunk>): Chunk => ({
             fileName,

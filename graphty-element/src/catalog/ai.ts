@@ -255,7 +255,8 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *   code of an `AiConfigError` from `enableAiControl`), or a router's plan names an unknown
  *   helper; nothing was sent. `{ agent, field, reason }`: the helper, the field
  *   (`"name"`, `"purpose"`, `"commands"`, `"provider"`, `"router"`) and why (`"unknown-command"`,
- *   `"unknown-agent"`, `"duplicate"`, `"reserved"`, `"empty"`).
+ *   `"unknown-agent"`, `"duplicate"`, `"reserved"`, `"empty"`, `"unsupported"`), and for an
+ *   unknown command, `command`.
  * - `AI_ROLLBACK_PARTIAL` -- taking the message back stopped at someone else's step. `{ steps }`.
  * - `AI_APPROVAL_STALE` -- a held change was not run because its request ended without a
  *   decision. `{ request, reason }`: `"graph-changed"` (answered after the graph changed; the
@@ -264,7 +265,8 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_APPROVAL_DENIED` -- the reader declined a held change; the model is told and answers.
  *   `{ request }`.
  * - `AI_TOOL_DENIED_BY_POLICY` -- the host's approval policy refused a call, so none of its batch
- *   ran. `{ tool }`.
+ *   ran. `{ tool }`, and `reason: "parallel-helper"` for a write a helper tried while other helpers
+ *   ran beside it (helpers that run at once may only read).
  * - `AI_FAILED` -- anything else went wrong while the command ran.
  *
  * Carried by saved conversations and the conversation events rather than ending a command:

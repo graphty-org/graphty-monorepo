@@ -6237,6 +6237,12 @@ export class Graph implements GraphContext {
      * ```
      */
     async enableAiControl(config: import("./ai/AiManager").AiManagerConfig): Promise<void> {
+        // Helpers that cannot run reject before anything is built.
+        if (config.agents !== undefined) {
+            const { checkAgents } = await import("./ai/plans/roles");
+            checkAgents(config.agents);
+        }
+
         // Dynamically import to avoid loading AI code when not needed
         const { AiManager } = await import("./ai/AiManager");
 

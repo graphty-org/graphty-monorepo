@@ -27,7 +27,7 @@ import type { AiEngine, EngineCapabilities, EngineOutcome, TurnEvent, TurnReques
 import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
 import { installAssistantTools } from "../../src/ai/tools/install";
 import type { AiResultCode, AiResultParams } from "../../src/catalog/ai";
-import type { AiQuestionRequest } from "../../src/events";
+import type { AiEvent, AiQuestionRequest } from "../../src/events";
 import type { Graph } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { assistantSession } from "./assistant";
@@ -212,6 +212,10 @@ export interface LlmRegressionTestHarnessOptions {
     approvals?: AiControllerOptions["approvals"];
     /** Whether the model may ask the reader a question; off, as the element's default, when absent. */
     questions?: boolean;
+    /** Helpers the model may hand tasks to; none, as the element's default, when absent. */
+    agents?: AiControllerOptions["agents"];
+    /** Told every AI event the assistant emits. */
+    onEvent?: (event: AiEvent) => void;
     /** The store conversations are kept in, instead of the one `history` names: a reload's. */
     store?: ConversationStore;
 }
@@ -431,6 +435,8 @@ export class LlmRegressionTestHarness {
             ...(options.history === undefined ? {} : { history: options.history }),
             ...(options.approvals === undefined ? {} : { approvals: options.approvals }),
             ...(options.questions === undefined ? {} : { questions: options.questions }),
+            ...(options.agents === undefined ? {} : { agents: options.agents }),
+            ...(options.onEvent === undefined ? {} : { emitEvent: options.onEvent }),
             [ENGINE_OVERRIDE]: engine,
             ...(options.store === undefined ? {} : { [STORE_OVERRIDE]: options.store }),
         };

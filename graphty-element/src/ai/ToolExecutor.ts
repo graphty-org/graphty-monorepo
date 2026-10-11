@@ -29,6 +29,7 @@ import { toJson } from "./tools/shape";
 import { type AssistantTool, type CheckedCall, isAssistantTool } from "./tools/toolset";
 import {
     type ActionResult,
+    type AiToolCallFacts,
     gated,
     GateHold,
     type GateKind,
@@ -376,43 +377,77 @@ export async function runToolBatch(batch: ToolBatch): Promise<BatchOutcome> {
 }
 
 /**
+ * The facts a policy judges one call by.
+ * @param call - The call.
+ * @returns Its facts.
+ */
+function callFacts(call: PreparedCall): AiToolCallFacts {
+    return {
+        command: call.command.name,
+        ...(call.checked === undefined ? {} : { action: call.checked.action.name }),
+        arguments: call.args,
+        effect: call.checked?.action.effect ?? call.command.effect ?? "write",
+    };
+}
+
+/**
+ * Refuse a whole batch for one call: none of it runs.
+ * @param batch - The batch.
+ * @param ready - Its calls.
+ * @param at - The call refused.
+ * @param extra - Facts beside the tool, such as why.
+ * @returns The refused batch.
+ */
+function deniedBatch(
+    batch: ToolBatch,
+    ready: readonly PreparedCall[],
+    at: number,
+    extra: Readonly<Record<string, string>> = {},
+): BatchOutcome {
+    const params = { tool: ready[at].command.name, ...extra };
+    const result = refused("AI_TOOL_DENIED_BY_POLICY", params, false);
+    finished(batch, ready[at].request, result);
+    // Not a failed write: the message's earlier writes stand.
+    return {
+        results: ready.map((_, index) => (index === at ? result : undefined)),
+        failure: { code: "AI_TOOL_DENIED_BY_POLICY", params },
+        writes: false,
+    };
+}
+
+/**
  * The host's approval policy on a batch whose structure passed, before any call runs: any `deny`
  * refuses the whole batch, any `ask` holds it (gate `"policy"`). A policy that throws, or answers
- * anything but the three verdicts, refuses or asks: it fails closed.
+ * anything but the three verdicts, refuses or asks: it fails closed. A read-only message (a helper
+ * running beside others) refuses any write first.
  * @param batch - The batch.
  * @param ready - Its calls.
  * @param writes - Whether any call writes.
  * @returns The refused or held batch, or undefined when every call is allowed.
  */
 function judge(batch: ToolBatch, ready: readonly PreparedCall[], writes: boolean): BatchOutcome | undefined {
-    const { policy, approved } = batch.message;
+    const { policy, approved, readOnly } = batch.message;
+    if (readOnly !== undefined) {
+        const at = ready.findIndex((call) => callFacts(call).effect === "write");
+        if (at !== -1) {
+            return deniedBatch(batch, ready, at, { reason: readOnly });
+        }
+    }
+
     if (policy === undefined) {
         return undefined;
     }
 
     const verdicts = ready.map((call) => {
         try {
-            return policy({
-                command: call.command.name,
-                ...(call.checked === undefined ? {} : { action: call.checked.action.name }),
-                arguments: call.args,
-                effect: call.checked?.action.effect ?? call.command.effect ?? "write",
-            });
+            return policy(callFacts(call));
         } catch {
             return "deny";
         }
     });
     const deniedAt = verdicts.indexOf("deny");
     if (deniedAt !== -1) {
-        const tool = ready[deniedAt].command.name;
-        const result = refused("AI_TOOL_DENIED_BY_POLICY", { tool }, false);
-        finished(batch, ready[deniedAt].request, result);
-        // Not a failed write: the message's earlier writes stand.
-        return {
-            results: ready.map((_, index) => (index === deniedAt ? result : undefined)),
-            failure: { code: "AI_TOOL_DENIED_BY_POLICY", params: { tool } },
-            writes: false,
-        };
+        return deniedBatch(batch, ready, deniedAt);
     }
 
     // A batch the reader approved is not asked about again; a deny of its (edited) calls still stands.

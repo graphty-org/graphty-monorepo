@@ -54,13 +54,18 @@ export interface StyleImportOptions {
 export interface ExtractStylesOptions extends StyleImportOptions {
     /** Cancels the extraction. */
     readonly signal?: AbortSignal | null;
+    /**
+     * The counted work budget to spend (and read back after: `budget.used("node")`); a new one of
+     * `STYLE_WORK_BUDGET` operations per target when absent.
+     */
+    readonly budget?: StyleBudget;
 }
 
 const TARGETS: readonly StyleTarget[] = ["node", "edge"];
 const ENUM_KINDS: ReadonlySet<string> = new Set(["shape", "borderStyle", "lineStyle", "arrow", "weight", "position"]);
 
 /** What the readers here produce before planning: canonical values and the data columns they came from. */
-interface Canonical {
+interface StyleTruth {
     readonly dialect: StyleDialect | null;
     readonly tool: StyleTool | null;
     readonly units: "px" | "relative";
@@ -91,17 +96,9 @@ export function extractStyles(
     options: ExtractStylesOptions = {},
 ): ExtractedStyles | null {
     const signal = options.signal ?? undefined;
-    signal?.throwIfAborted();
     const notes = new StyleNotes();
-    const budget = new StyleBudget();
-    let canonical: Canonical | null;
-    if (importer.styles === undefined) {
-        canonical = roleStyles(snapshot, importer.format, notes, budget);
-    } else {
-        const got = importer.styles(snapshot, { signal, budget, kept: keptForStyles(report) });
-        canonical = got === null ? null : canonicalOf(got, snapshot, notes, budget, signal);
-    }
-    signal?.throwIfAborted();
+    const budget = options.budget ?? new StyleBudget();
+    const canonical = readStyleValues(importer, snapshot, report, { notes, budget, signal });
     const fingerprint = styleFingerprint(snapshot);
     const blockText = graphValue(snapshot, STYLE_BLOCK_NAME);
     if (blockText !== undefined) {
@@ -150,6 +147,38 @@ export function extractStyles(
         return planned;
     }
     return { ...planned, styles: { ...planned.styles, notes: [...canonical.notes, ...planned.styles.notes] } };
+}
+
+/**
+ * What a file's styles are before planning: each element's canonical value per property, as the importer's own
+ * `styles()` gives them (the simple path canonicalized) or, for an importer without one, as the generic reader reads
+ * the columns with a style role. The truth the planned rules must reproduce; not part of the published entry.
+ * @param importer - the importer that read the file
+ * @param snapshot - the graph it built
+ * @param report - the report its `import()` returned
+ * @param context - where problems are noted, the work budget and a cancel signal
+ * @param context.notes - where problems are noted
+ * @param context.budget - the work budget
+ * @param context.signal - cancels the work
+ * @returns the canonical values, or null when the file has no styles
+ */
+export function readStyleValues(
+    importer: GraphImporter,
+    snapshot: GraphSnapshot,
+    report: ImportReport,
+    context: { readonly notes: StyleNotes; readonly budget: StyleBudget; readonly signal?: AbortSignal | undefined },
+): StyleTruth | null {
+    const { notes, budget, signal } = context;
+    signal?.throwIfAborted();
+    let canonical: StyleTruth | null;
+    if (importer.styles === undefined) {
+        canonical = roleStyles(snapshot, importer.format, notes, budget);
+    } else {
+        const got = importer.styles(snapshot, { signal, budget, kept: keptForStyles(report) });
+        canonical = got === null ? null : canonicalOf(got, snapshot, notes, budget, signal);
+    }
+    signal?.throwIfAborted();
+    return canonical;
 }
 
 /**
@@ -206,7 +235,7 @@ function canonicalOf(
     notes: StyleNotes,
     budget: StyleBudget,
     signal: AbortSignal | undefined,
-): Canonical {
+): StyleTruth {
     if ("canonical" in got) {
         return {
             dialect: got.dialect ?? null,
@@ -318,7 +347,8 @@ function canonicalize(
     notes: StyleNotes,
     budget: StyleBudget,
 ): Record<string, StyleColumn> {
-    const out: Record<string, (StyleValue | null)[]> = {};
+    // keyed by the importer's property names: no prototype, so `__proto__` is a property like any other
+    const out: Record<string, (StyleValue | null)[]> = Object.create(null) as Record<string, (StyleValue | null)[]>;
     const alphas = new Map<string, (number | null)[]>();
     for (const [property, raws] of columns) {
         const kind = STYLE_PROPERTIES[target].get(property);
@@ -469,7 +499,7 @@ function roleStyles(
     dialect: StyleDialect,
     notes: StyleNotes,
     budget: StyleBudget,
-): Canonical | null {
+): StyleTruth | null {
     const raw = { node: [] as string[], edge: [] as string[] };
     const out = { node: { values: {} } as ReaderOutput, edge: { values: {} } as ReaderOutput };
     for (const target of TARGETS) {

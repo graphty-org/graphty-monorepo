@@ -490,21 +490,26 @@ function evalMapping(
 }
 
 /**
- * A rule's constant values by property name.
+ * A rule's constant value of a property: its own member only, so a property named like a built-in object member
+ * (`constructor`, `toString`) is never found on the prototype.
  * @param rule - the rule
- * @returns its `set`, or an empty record
+ * @param property - the property
+ * @returns the value, or undefined
  */
-function setOf(rule: StyleRule): Readonly<Record<string, StyleValue | undefined>> {
-    return rule.set ?? {};
+function setOf(rule: StyleRule, property: string): StyleValue | undefined {
+    const set: Readonly<Record<string, StyleValue | undefined>> = rule.set ?? {};
+    return Object.hasOwn(set, property) ? set[property] : undefined;
 }
 
 /**
- * A rule's mappings by property name.
+ * A rule's mapping of a property: its own member only.
  * @param rule - the rule
- * @returns its `map`, or an empty record
+ * @param property - the property
+ * @returns the mapping, or undefined
  */
-function mapOf(rule: StyleRule): Readonly<Record<string, Mapping | undefined>> {
-    return rule.map ?? {};
+function mapOf(rule: StyleRule, property: string): Mapping | undefined {
+    const map: Readonly<Record<string, Mapping | undefined>> = rule.map ?? {};
+    return Object.hasOwn(map, property) ? map[property] : undefined;
 }
 
 /**
@@ -529,7 +534,7 @@ export function resolveRules(
         if (rule.target !== target) {
             continue;
         }
-        if (setOf(rule)[property] !== undefined || mapOf(rule)[property] !== undefined) {
+        if (setOf(rule, property) !== undefined || mapOf(rule, property) !== undefined) {
             writers.push(rule);
         }
     }
@@ -542,8 +547,8 @@ export function resolveRules(
             if (!matches(rule.where, src, i)) {
                 continue;
             }
-            const set = setOf(rule)[property];
-            const mapping = mapOf(rule)[property];
+            const set = setOf(rule, property);
+            const mapping = mapOf(rule, property);
             let v: StyleValue | null = null;
             if (set !== undefined) {
                 v = set;

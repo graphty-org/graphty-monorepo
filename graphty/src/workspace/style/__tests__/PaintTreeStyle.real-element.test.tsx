@@ -10,6 +10,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { runName } from "../../runWords";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -45,7 +46,10 @@ describe("a run row from the paint tree", () => {
         ]);
         const { runId } = await session.runs.start("pagerank");
         await session.styles.settled();
-        const label = session.runs.get(runId)?.label ?? "";
+        const run = session.runs.get(runId);
+        assert.isDefined(run);
+        // The tree names a run in the app's words ("PageRank"), not the element's label ("Influence").
+        const label = run === undefined ? "" : runName(session, run);
 
         // The reader's path: the run's row in the paint tree, then the inspector's Style tab.
         const tree = await screen.findByRole("tree", { name: "Paint tree" }, { timeout: TIMEOUT_MS });
@@ -55,11 +59,12 @@ describe("a run row from the paint tree", () => {
             await userEvent.click(styleChoice);
         }
 
-        // The run's own Color line, bound to its result, on the Nodes side it paints.
+        // The run's own Color line, bound to its result, on the Nodes side it paints: the run
+        // paints nodes only, so no Nodes / Edges picker is drawn.
         const tab = await screen.findByTestId("style-tab");
         await waitFor(() => {
             assert.isNotNull(within(tab).getByRole("button", { name: /Detach Color/ }));
-            assert.isNotNull(within(tab).getByRole("radio", { name: "Nodes, set" }));
         });
+        assert.isNull(within(tab).queryByRole("radiogroup", { name: "Paints" }));
     });
 });

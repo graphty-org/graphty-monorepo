@@ -229,6 +229,7 @@ export const NOT_YET_COVERED: readonly string[] = [
     "RunsApi.batch",
     "RunsApi.move",
     "RunsApi.remove",
+    "SelectionManager.add",
     "SelectionManager.bindSelection",
     "SelectionManager.deselect",
     "SelectionManager.dispose",

@@ -191,6 +191,7 @@ export const MUTATING: readonly string[] = [
     "SelectionApi.apply",
     "SelectionApi.clear",
     "SelectionApi.promote",
+    "SelectionManager.add",
     "SelectionManager.bindSelection",
     "SelectionManager.deselect",
     "SelectionManager.dispose",

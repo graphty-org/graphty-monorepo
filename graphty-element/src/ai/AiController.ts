@@ -506,11 +506,7 @@ export class AiController {
      * @returns The message's result.
      */
     private async executeNow(input: string, abortController: AbortController): Promise<ExecutionResult> {
-        for (const id of [...this.approvals.keys()]) {
-            await this.saveClosed(
-                this.closePending(id, { code: "AI_APPROVAL_STALE", params: { request: id, reason: "superseded" } }),
-            );
-        }
+        await this.supersedePending(true);
 
         this.emitAiEvent({ type: "ai-command-start", input, timestamp: Date.now() });
         return this.runMessage({
@@ -1394,17 +1390,38 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     }
 
     /**
-     * Start a new conversation; the one open stays saved and listed. It is saved with its first message.
+     * Start a new conversation; the one open stays saved and listed. It is saved with its first
+     * message. Every request still waiting ends (`AI_APPROVAL_STALE`, `reason: "superseded"`).
      * @returns Its snapshot, or null without history.
      */
     newConversation(): Promise<AiConversationSnapshot | null> {
-        return this.enqueue(() => {
+        return this.enqueue(async () => {
             if (this.store !== undefined) {
+                // The old conversation's requests end with it, as a new message would end them.
+                await this.supersedePending(true);
                 this.current = this.freshRecord();
+                this.emitChanged();
             }
 
-            return Promise.resolve(this.getConversation());
+            return this.getConversation();
         });
+    }
+
+    /**
+     * End every request still waiting: something newer came first.
+     * @param save - Whether to save each closed request's conversation; not when it is being deleted.
+     * @returns When done.
+     */
+    private async supersedePending(save: boolean): Promise<void> {
+        for (const id of [...this.approvals.keys()]) {
+            const pending = this.closePending(id, {
+                code: "AI_APPROVAL_STALE",
+                params: { request: id, reason: "superseded" },
+            });
+            if (save) {
+                await this.saveClosed(pending);
+            }
+        }
     }
 
     /**
@@ -1416,14 +1433,16 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         return this.enqueue(async () => {
             await this.store?.delete(id);
             if (this.current?.id === id) {
+                await this.supersedePending(false);
                 this.current = this.freshRecord();
+                this.emitChanged();
             }
         });
     }
 
     /**
      * Delete every saved conversation, of every scope, and start a new one: for a shared device's
-     * "end session".
+     * "end session". Every request still waiting ends (`AI_APPROVAL_STALE`, `reason: "superseded"`).
      * @returns When done.
      */
     clearHistory(): Promise<void> {
@@ -1432,8 +1451,10 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 return;
             }
 
+            await this.supersedePending(false);
             await this.store.clear();
             this.current = this.freshRecord();
+            this.emitChanged();
         });
     }
 

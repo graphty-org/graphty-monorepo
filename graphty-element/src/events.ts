@@ -853,8 +853,8 @@ export interface AiApprovalRequest {
 
 /**
  * Something the assistant waited on the reader for ended: an approval was answered, superseded
- * by a new message (`AI_APPROVAL_STALE` with `reason: "superseded"`), cancelled (`AI_CANCELLED`)
- * or undone (`AI_UNDONE`). Remove what was drawn for it.
+ * by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`),
+ * cancelled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
  */
 export interface AiPendingResolvedEvent {
     /** The event's name. */
@@ -921,8 +921,9 @@ export interface AiExportReadyEvent {
 }
 
 /**
- * The open conversation changed: it was saved, reopened, switched to or changed by another tab,
- * or its store failed. Read it again with `getAiConversation()`. Only with `history` set.
+ * The open conversation changed: it was saved, reopened, switched to, started anew
+ * (`newAiConversation`, `clearAiHistory`) or changed by another tab, or its store failed. Read it
+ * again with `getAiConversation()`. Only with `history` set.
  */
 export interface AiConversationChangedEvent {
     /** The event's name. */

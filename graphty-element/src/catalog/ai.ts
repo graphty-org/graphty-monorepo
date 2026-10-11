@@ -248,8 +248,8 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_ROLLBACK_PARTIAL` -- taking the message back stopped at someone else's step. `{ steps }`.
  * - `AI_APPROVAL_STALE` -- a held change was not run because its request ended without a
  *   decision. `{ request, reason }`: `"graph-changed"` (answered after the graph changed; the
- *   model is told and answers), `"superseded"` (a new message came first), or `"expired"` (no
- *   such request is open).
+ *   model is told and answers), `"superseded"` (a new message or a new conversation came
+ *   first), or `"expired"` (no such request is open).
  * - `AI_APPROVAL_DENIED` -- the reader declined a held change; the model is told and answers.
  *   `{ request }`.
  * - `AI_TOOL_DENIED_BY_POLICY` -- the host's approval policy refused a call, so none of its batch

@@ -259,4 +259,38 @@ describe("approvals that survive a reload", () => {
 
         assert.deepStrictEqual(two.controller.getPendingApprovals(), []);
     });
+
+    for (const action of ["newConversation", "clearHistory"] as const) {
+        it(`${action} ends the requests still waiting and says the open conversation changed`, async () => {
+            const store = new MemoryStore();
+            const assistant = new ScriptedAssistant(await assistantSession(), {
+                history: "memory",
+                approvals: "writes",
+                store,
+            });
+            const { result } = await assistant.say("add f", [ADD_F]);
+            const request = String(result.params?.request);
+            const before = assistant.events.length;
+            const old = assistant.controller.getConversation()?.id;
+
+            await assistant.controller[action]();
+
+            const after = assistant.events.slice(before);
+            const resolved = after.filter(
+                (event): event is AiPendingResolvedEvent => event.type === "ai-pending-resolved",
+            );
+            assert.deepStrictEqual(
+                resolved.map((event) => [event.id, event.code, event.params.reason]),
+                [[request, "AI_APPROVAL_STALE", "superseded"]],
+            );
+            assert.deepStrictEqual(assistant.controller.getPendingApprovals(), []);
+            const open = assistant.controller.getConversation();
+            const changed = after.filter((event) => event.type === "ai-conversation-changed");
+            assert.notStrictEqual(open?.id, old, "a new conversation is open");
+            assert.deepInclude(changed.at(-1), { type: "ai-conversation-changed", conversationId: open?.id });
+            assert.deepStrictEqual(open?.messages, []);
+            assert.deepStrictEqual(open?.pending, []);
+            assert.notExists(assistant.session.data.node("f"), "the held change never ran");
+        });
+    }
 });

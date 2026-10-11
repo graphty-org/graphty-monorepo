@@ -10,35 +10,35 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-10 -- Round 3 is SCORED (`tier2/rounds/round-3/scores.md`, rows in
-  `tmp/researcher/t2r3/score.py`): 54 of 56, core four 32 of 32. Fails: bar 1 and bar 6 (both T24),
-  bars 8 (find results' scroll area, axe), 9 (b) (edge inspector 31 vs 30) and 10. Bars 7 (a) and
-  11 hold (T18 7 against 8). I ran `bars.mjs` on the build for scoring (`t2r3/bars/`).
-- 2026-10-10 -- The leak check read ZERO logs in all 56 sessions (`leaks.json` transcripts [] calls 0) and every grader wrote "no leaks". The runner's prompt named the round's `sessions/<id>`, the
-  check looks for the participant's `tmp/studio-sessions/` folder. Re-run by hand (`leaks.py`): 55
-  clean, r3-s10 read `with-browser.sh` (kept). Fix the tool: an empty check must FAIL.
-- 2026-10-10 -- `--end` (`copyBack`) deletes the round's `sessions/<id>` before copying, so step
-  notes written there are lost (r3-s03, s10, s13, s44, s45, s48). Runner and tool disagree on the
-  folder; fix one of them before round 4.
-- 2026-10-10 -- T24's two F's: Shift-click on a node replaces the selection (element; edges add)
-  AND the reworded "point out" prompt is met by a path drawn between the two, while the key wants
-  a selection. Predicted on 2026-10-09 and left as "reported, not done". Fix prompt or key next.
-- 2026-10-10 -- Round 3's gate was skipped: no `preflight.md`, no `prompt-pilots/`, no bars on the
-  build before sessions. T24's key still named routes from an older build. A plan's gate is not a
-  gate unless the runner refuses to start without its evidence.
-- 2026-10-10 -- Round 3 credits the routes (T20 load-time 8/8, T21 Replace 8/8, T22 hints 8/8) and
-  the second-time measure (16 of 16 within, 0 wrong turns). Add page's Replace used 0 of 8.
-- 2026-10-10 -- T22 B: 4 of 4 typed "10" first; the box offers only "is 10" (cut off). Confirmed
-  sev 3. "=" typed unprompted 0 of 16 across rounds 2 and 3.
+- 2026-10-10 -- Round 3 CLOSED (`tier2/rounds/round-3/insights.md`). After the verdicts the one real
+  app-caused failure is Shift/Ctrl-click on a node replacing the selection (graphty-element,
+  `NodeBehavior.handleClick`; edges add). Fix it in the element with a real-input test.
+- 2026-10-10 -- T24's prompt ("point out ... on the drawing") and key (a selection) measure
+  different things; bar 6 dropped by both skeptics, bar 1 fails only by the key's letter. Fix the
+  prompt or the key and walk every key route on the build before T24 runs again.
+- 2026-10-10 -- Bar 10 now fails on ONE confirmed sev 3 (drawn names, owner's list); second path
+  and the Add page warning are sev 2. Bar 8's axe hit is likely a false positive (combobox with
+  `aria-activedescendant`); bar 9 (b) fails by one word that is a data name the counter should skip.
+- 2026-10-10 -- Study tool before round 4: an empty leak check must FAIL; `--end` must not delete
+  in-session notes; the bar 9 counter must leave out data names; the runner must refuse to start
+  without gate evidence (round 3 skipped prompt pilots and bars).
+- 2026-10-10 -- Sev 2 app work left: bare number offers only "is equal to" (row cut); filtering not
+  reachable from the Graph place (5 of 8); Shortest path ranked under Betweenness; Hops 2 list
+  without distances; second path unannounced.
+- 2026-10-10 -- "=" typed unprompted 0 of 16 across rounds 2 and 3: the rule language is copied,
+  not discovered. Readers type the prompt's most prominent data word first (column or number).
+- 2026-10-10 -- Follow-up "second time" measures are memory, not the app: only the Recent entry
+  (6 of 7) is creditable. Seven identical asides are one model's template, not seven people.
 - 2026-10-10 -- Still open, owner items: drawn names covering each other, bare numbers in rules,
   edge width units. Cite as known; never score their recurrence as new.
-- 2026-10-10 -- Briefing check: `tmp/researcher/t2r3/brief-all.py <scratch dir>`; the words kept
-  on purpose are T20 "longer", T18 "from"/"to", T21 "updated list", T23 "change the drawing so it
-  has only".
+- 2026-10-10 -- Briefing check: `tmp/researcher/t2r3/brief-all.py <scratch dir>`; words kept on
+  purpose: T20 "longer", T18 "from"/"to", T21 "updated list", T23 "change the drawing so it has
+  only".
 - 2026-10-10 -- A check that inspects zero items must fail: grep every "no leaks"/"0 found" for its
-  denominator before trusting it (again: preflight "built" in round 2, `leaks.json` in round 3).
+  denominator before trusting it (preflight "built" in round 2, `leaks.json` in round 3).
 - 2026-10-09 -- A leak voids passes, not problems: a problem found anyway is robust.
-- 2026-10-09 -- Prompt words make findings; check every candidate insight against the prompt.
+- 2026-10-09 -- Prompt words make findings; when a prompt changes, re-read the key's S line against
+  the new words and pilot it.
 - 2026-10-09 -- Hold opinion-only problems one level down at SCORING time, not at the verdicts.
 - 2026-10-09 -- Histories steer first moves; the SECOND place looked is the real signal.
 - 2026-10-06 -- All participants are one model: failure strong, pass weak.
@@ -82,6 +82,19 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-10 (researcher, tier 2 round 3 skeptic verdicts) -- Wrote `rounds/round-3/insights.md`.
+  Applied: two drops = dropped (bar 6's false "done"; the T24 "path used to mark the two" problem);
+  one drop or weaken = weakened unless the other answered with evidence (bare number 3 to 2, Add
+  page warning 3 to 2, second path 2 and out of the fault list, Replace/out-of-date/T4/T19/T12R to
+  sev 1, insights 2 to 7). Kept: Shift-click sev 3, the prompt/key mismatch, drawn names sev 3,
+  Filters sev 2, Hops 2 distances sev 2, Shortest path rank sev 2. Rewrote insight 2 (one drop) as
+  "readers type the prompt's most prominent data word", which both skeptics' evidence supports.
+  Checked myself: `FindBox.tsx` at 26f3bb968 is a combobox with `aria-activedescendant` and
+  scrollIntoView (so axe's hit is likely false); `NodeBehavior.handleClick` line 637 always
+  `select`s; r3-s10 only hovered the "is 10" row (grade lines 37-42), only r3-s16 selected; viewed
+  `r3-s41/05`, `r3-s43/01`, `r3-s43/13`, `r3-s10/02`, `r3-s33/03`. Rejected: dropping "no names
+  drawn" (it is the app's default) -- weakened to sev 1 instead.
+
 - 2026-10-10 (researcher, tier 2 round 3 scored) -- Wrote `rounds/round-3/scores.md` from the 56
   grades, the four expert reports, and a `bars.mjs` run I made for scoring (none existed on
   26f3bb968e43). Re-ran the leak check myself against each participant's own log, because the
@@ -94,30 +107,12 @@ reasons, in short:
   totals (124 to 139), because no confirmed count exists for round 2. Steps on T17/T18 counted by
   screenshot mtimes in the participant's own folder (the round copy's mtimes are copy times).
 
-- 2026-10-10 (researcher, tier 2 round 3 plan) -- Wrote `rounds/round-3/plan.md` with
-  `sessions.py` (asserted: 56, sizes, halves, per-persona 6/7, 37 graduates, no Ruth on T19,
-  r2-s05 re-run first, exactly two repeats of a round 2 half, halves alternating). Sizes: the
-  touched-at-4 rule needs 62, so the cap holds by cutting the two tasks that met every bar and
-  changed only off-path (T4, T19 to 3), keeping T23 and T24 at 4 (their paths changed; T24 and
-  T22 missed the steps target). Run order puts the three uncredited routes first. Fixed one study
-  tool fault on the way (Dana's refused briefings) because six sessions could not start otherwise;
-  a one-paragraph filter, no persona file touched (it lives in another worktree). Reported, not
-  done: the throwaway briefed pilots of the reworded prompts (gate item 1), which no one has run.
-  Kept round 2's step counts (T12R 5 though its path is 4 now) so the rounds compare; report both.
-
-- 2026-10-10 (researcher, tier 2 round 2 closed) -- Read `insights.md` and `decisions.md`.
-  Taught: the dry run worked where it walked (about 30 build faults of 355 problems, none above
-  sev 2, none decided a grade), but the walk list is always one round behind -- 12 of the 30 faults
-  sat on styling a selection, which nobody walked; and the study's own leak hurt more than the
-  build. Decided (director): study tool first (leak, pilot-seeded dry run, every named script
-  real, each sev 4), then one change per confirmed problem in its owning package: find box hint
-  plus Enter (T22), element repeat-edge count plus Replace on the Add page (T21), three keyboard
-  focus faults, selection styles start at the element's `highlightStyle()`, rule-named layers,
-  words at rest cut, compact-mantine 24 px checkbox target, path aliases, weighted path totals,
-  "Filter to neighbors" as a command, repeated status announced. Held: label placement, bare
-  numbers, edge width units (owner); "Select where..." unless 3+ of 8 still stall; neighbor
-  distance grouping (needs the element fact). My part done: T22/T24 prompts reworded, re-run list
-  in criteria.md. Nothing new for the owner from me.
+- 2026-10-10 (round 3 plan and round 2 close, folded) -- Plan: 56 sessions at the cap, `sessions.py`
+  asserted (sizes, halves, 37 graduates, r2-s05 re-run first); T4 and T19 cut to 3 to hold the cap.
+  Fixed Dana's refused briefings in the tool. Prompt pilots (gate item 1) left "reported, not
+  done" -- which round 3 paid for on T24. Round 2 closed: study tool first, then one change per
+  confirmed problem in its owning package; held label placement, bare numbers, edge width units
+  for the owner.
 
 - 2026-10-10 (researcher, keys for 26f3bb968e43, 897d9aed9ffe and b6d932823642, folded) -- Each a
   build section plus in-place fixes with the old wording as a parenthetical; a missed overlap (Jada
@@ -205,6 +200,12 @@ reasons, in short:
   the app; personas validate, never generate features.
 
 ## Tried: worked / did not work
+
+- 2026-10-10 (round 3 verdicts, after a token-limit stop) -- Worked: `git status`, `git log` and a
+  listing of `round-3/` first; no `insights.md` and no uncommitted edits existed, so nothing was
+  half-done. Worked: checking each skeptic's code claim at the build commit (`git show
+  26f3bb968:<file>`) and each disputed session claim in its `grade.md` before ruling a split.
+  Worked: viewing every screenshot cited to the owner.
 
 - 2026-10-10 (round 3 scoring, after a token-limit stop) -- Worked: `git status` and a listing
   of `round-3/` first; no `scores.md` and no scoring script in `t2r3/` existed, so nothing was half-done.

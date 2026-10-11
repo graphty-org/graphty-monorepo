@@ -100,18 +100,19 @@ landing page and in the gear panel's title bar helps if you used more than one s
 
 The sandbox was run on emulated headsets (Meta's IWER emulator in headless Chromium): Quest 3
 with controllers and with hands, and a Galaxy XR approximation with hands, with controllers and
-with no hand tracking. Every preset, and every technique on its own, was entered in VR on all five.
-Nothing catastrophic or blocking remains.
+with no hand tracking. Every preset, and every technique on its own, was entered in VR on all five:
+145 of 145 runs pass on the build the headset address serves. Nothing catastrophic or blocking
+remains.
 
 - **Steadiness:** with the head still, nothing moved (0.0000 mm, 0.00000 degrees per frame), and
   no panel or label redrew itself.
-- **Frame time:** the page's JavaScript took 1.7 to 3.6 ms per frame at the 95th percentile, on
+- **Frame time:** the page's JavaScript took 1.5 to 3.6 ms per frame at the 95th percentile, on
   the Florentine graph and the 480-node graph.
 - **Controllers and hands:** trigger and pinch select the node under the ray on every preset; the
   gear panel opens by ray and by stick click; each technique's own check passes, including voice
   failing politely with no microphone or no speech support.
-- **A task list:** the 11-step journey completed in the Baseline and Figma presets on two
-  headset profiles each.
+- **A task list:** the 11-step journey completes in Baseline. In Figma it completes except where
+  a panel is in the way of the family a step names (below).
 - **Logs** reached the log server on every run.
 - **Fixed before you try it:** the slab in the dense presets turned the whole view white; a
   journey step could ask for a note on a family the previous step had hidden.
@@ -124,6 +125,9 @@ Things you will probably notice:
 - The undo strip sits above the graph and can block a chest-height ray to the top families, such
   as Castellani; raise your hand or move. In the dense presets it also covers the bottom row of the
   hint-tag keyboard.
+- In Figma, the small popover beside the selected family can cover its neighbors: with the
+  Albizzi and their in-laws selected, a ray toward the Guadagni or the Tornabuoni hits the
+  popover. Point from another angle.
 - In Everything, panels overlap above the graph, and the slab's plate can hang over the Gear
   button when the off hand rests low.
 - Some journey steps have no way to do them in some mixes (Baseline cannot size by a result or

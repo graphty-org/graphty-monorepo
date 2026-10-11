@@ -97,9 +97,20 @@ const runMix = async (preset, profile) => {
         await ev(page, (n) => globalThis.__sandbox.aim("right", n), name);
         await frames(page, 12);
         const hover = await ev(page, () => globalThis.__sandbox.hover("right"));
-        await ev(page, (k) => globalThis.__sandbox.press("right", k, true), kind);
-        await frames(page, 2);
-        await ev(page, (k) => globalThis.__sandbox.press("right", k, false), kind);
+        // Timed in the page, as in run.mjs: held across round trips it could read as a hold.
+        await ev(
+            page,
+            async ([h, k]) => {
+                const s = globalThis.__sandbox;
+                const f = s.xrFrames();
+                s.press(h, k, true);
+                while (s.xrFrames() < f + 2) {
+                    await new Promise((r) => setTimeout(r, 1));
+                }
+                s.press(h, k, false);
+            },
+            ["right", kind],
+        );
         await frames(page, 10);
         return { context: hover.context, uiMesh: hover.uiMesh, node: hover.node };
     };

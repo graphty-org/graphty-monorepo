@@ -53,9 +53,21 @@ const pressAt = async (page, target, kind) => {
     await sb(page, (t) => globalThis.__sandbox.aim("right", t), target);
     await frames(page, 15);
     const hover = await sb(page, () => globalThis.__sandbox.hover("right"));
-    await sb(page, (k) => globalThis.__sandbox.press("right", k, true), kind);
-    await frames(page, 1);
-    await sb(page, (k) => globalThis.__sandbox.press("right", k, false), kind);
+    // Timed in the page: held across Playwright round trips, a tap on slow headless frames outlasted
+    // the 300 ms hold and opened the node menu instead (as in run.mjs).
+    await sb(
+        page,
+        async ([h, k]) => {
+            const s = globalThis.__sandbox;
+            const f = s.xrFrames();
+            s.press(h, k, true);
+            while (s.xrFrames() < f + 2) {
+                await new Promise((r) => setTimeout(r, 1));
+            }
+            s.press(h, k, false);
+        },
+        ["right", kind],
+    );
     await frames(page, 10);
     return { context: hover.context, uiMesh: hover.uiMesh };
 };

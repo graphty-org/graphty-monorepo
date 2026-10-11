@@ -37,6 +37,7 @@ import type {
     LayoutId,
     MeasurementDeclaration,
     Path,
+    Query,
     RunId,
     Scope,
     ScopeInput,
@@ -219,6 +220,18 @@ export interface RecordPageOptions {
      * ```
      */
     readonly matching?: { readonly text: string; readonly mode?: SelectionTextMode };
+    /**
+     * Only the records an expression matches, read the way a style layer's selector reads it: a
+     * node page tests each node, an edge page each edge, so `data.weight > \`0.5\`` pages the
+     * heavy edges where `scope: { where }` names nodes only. Combines with every other option;
+     * `total` counts the matches. Selects nothing. An expression that does not parse is refused
+     * with `E_BAD_SELECTOR`.
+     *
+     * ```ts
+     * session.data.edgePage({ where: "data.weight > `0.5`", limit: 0 }).total; // how many heavy edges
+     * ```
+     */
+    readonly where?: Query;
 }
 
 /** Which edges a page holds: {@link RecordPageOptions}, plus the edges at one node. */

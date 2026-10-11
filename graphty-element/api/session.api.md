@@ -2229,6 +2229,7 @@ export interface RecordPageOptions {
     readonly offset?: number;
     readonly scope?: ScopeInput;
     readonly sort?: RecordSort | ResultSort;
+    readonly where?: Query;
 }
 
 // @public

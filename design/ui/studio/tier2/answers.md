@@ -1192,7 +1192,9 @@ rounds 1 and 2 asked to make them "the ones that stand out on the drawing" (`tas
 grading below is unchanged and credits only the two ends selected: a participant who instead
 colors or sizes the two is graded by the F rule, with the route recorded (no round 2 session
 ended that way: all four selected the ends, then added a color). Round 3
-is compared with round 2 on the grade and the number only, not on steps.
+is compared with round 2 on the grade and the number only, not on steps. From round 4 the
+second half reads "point out ... so that whatever you do next applies only to those two"
+(`tasks.md`, T24), which asks for the outcome the key credits; the grading is unchanged.
 
 - **A (running club): Gus and Ivan ran together once (1).** Screen: a click on the line opens the
   edge inspector titled "Gus -> Ivan" (subtitle "Edge", Values tab) with From Gus, To Ivan, weight
@@ -1244,8 +1246,11 @@ is compared with round 2 on the grade and the number only, not on steps.
   B, "4" lists the four ties of 4 minutes (Depot -> Market, Park -> Clinic, Station -> Stadium,
   Museum -> Library), each with "minutes: 4", and "Select where minutes is 4 (4)" (`08.png`).
   Tie titles in the list use "->", as the inspector does. A tie opened from there shows the same
-  inspector, and is not a detour. Selecting Gus and then Ivan with Shift held is another
-  route (S if both and only both are selected).
+  inspector, and is not a detour. Selecting the two nodes one after the other with Shift
+  held is not named as a route yet: on 26f3bb968e43 a Shift-click on a node replaces the
+  selection instead of adding to it. It is named here only once the element change that makes
+  it add is on the frozen round 4 build and the route has been walked there. Until then a
+  participant who tries it is graded by the end state like any other route.
 - **Known on this build:** the title's arrow is the file's direction, not a fact about the bus.
   The app's words here are "Edge", "Select endpoints" and "Edges joining these nodes", which the
   prompt avoids on purpose; record how the participant got from "the two on this tie" to "Select

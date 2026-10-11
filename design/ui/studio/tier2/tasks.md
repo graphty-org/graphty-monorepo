@@ -260,11 +260,12 @@ changes:
 - **Prompt A (running club):** "You have used this program a few times. Your running club's list,
   friends.csv, is already open, with everyone's name on the drawing. On the drawing you notice the
   tie between Gus and Ivan. How many runs did they do together? Then point out Gus and Ivan, and
-  nobody else, on the drawing."
+  nobody else, so that whatever you do next applies only to those two."
 - **Prompt B (bus stops):** "You have used this program a few times. A colleague's list of bus
   links, bus-stops.csv, is already open, with every stop's name on the drawing. On the drawing you
   notice the link between Station and Stadium. How many minutes does that link take? Then point
-  out Station and Stadium, and no other stop, on the drawing."
+  out Station and Stadium, and no other stop, so that whatever you do next applies only to
+  those two."
 - **Start:** setup `friends-ranked-names.txt` (A), `bus-stops-ranked-names.txt` (B). **Files:**
   none to open.
 - **Suits:** everyone (Tom, Dev, Dana, Alex).
@@ -279,6 +280,11 @@ changes:
   selected, which is what T24 measures. The prompt now asks to "point out" the two "on the
   drawing", with no word for how, and not "show" (a View menu word). Round 3 is compared with
   round 2 on the outcome only, not on the steps.
+- **Words changed before round 4 (2026-10-10):** round 3's "point out ... on the drawing" could
+  be met by marking the two in a way that is not a selection (a one-hop path that marks only
+  the two was a fair answer to it), while T24 measures the two ends selected so that a next
+  action applies to them. The prompt now names that outcome, "so that whatever you do next
+  applies only to those two", and still names no control. What the key measures is unchanged.
 
 ### T12R. One person and who they are tied to, for a returning user (two datasets)
 

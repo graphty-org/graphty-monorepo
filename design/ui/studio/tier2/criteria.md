@@ -824,3 +824,16 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   both halves, not only on B, and B is now matched (T21); the lone "=" list's "Columns" heading
   (T22). T4, T17, T19, T22 B, T23 and T24 keep 897d9aed9ffe's notes until they are matched. No
   prompt was wrong, so `tasks.md` is unchanged. No bar, floor, step limit or success path changed.
+
+- **2026-10-10, before round 4: T24's prompt asks for the outcome its key credits.** Round 3's
+  second half, "point out Gus and Ivan, and nobody else, on the drawing" (B: Station and Stadium),
+  could be met by marking the two another way, such as a one-hop path that marks only them, while
+  the key credits only the two ends selected. The prompt now ends "so that whatever you do next
+  applies only to those two" (`tasks.md`, T24, words-changed log); the key and what it measures
+  are unchanged. The key keeps "Select endpoints" in the tie's "..." menu as a route and no
+  longer names selecting the two nodes with Shift held: on 26f3bb968e43 a Shift-click on a node
+  replaces the selection. That route is named only once the element change that makes it add is
+  on the frozen round 4 build and has been walked there. Before round 4's first session, the new
+  prompt is piloted twice on each half (A, B) on the frozen round 4 build, each pilot graded by the
+  key, and every route the key names for T24 is walked on that build, with the results listed in
+  the round 4 plan. No bar, floor, target or step limit changed.

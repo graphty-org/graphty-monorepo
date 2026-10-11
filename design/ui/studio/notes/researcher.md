@@ -18,9 +18,10 @@ made and evidence comes in.
 - 2026-10-10 -- Round 3 CLOSED (`tier2/rounds/round-3/insights.md`). After the verdicts the one real
   app-caused failure is Shift/Ctrl-click on a node replacing the selection (graphty-element,
   `NodeBehavior.handleClick`; edges add). Fix it in the element with a real-input test.
-- 2026-10-10 -- T24's prompt ("point out ... on the drawing") and key (a selection) measure
-  different things; bar 6 dropped by both skeptics, bar 1 fails only by the key's letter. Fix the
-  prompt or the key and walk every key route on the build before T24 runs again.
+- 2026-10-10 -- T24 prompt now ends "so that whatever you do next applies only to those
+  two" (tasks, key, criteria log done). OWED before round 4's first session: 2 prompt pilots per
+  half on the frozen round 4 build graded by the key, every key route walked there, results in
+  the round 4 plan. Name the Shift route in the key only after it adds on that build.
 - 2026-10-10 -- Bar 10 now fails on ONE confirmed sev 3 (drawn names, owner's list); second path
   and the Add page warning are sev 2. Bar 8's axe hit is likely a false positive (combobox with
   `aria-activedescendant`); bar 9 (b) fails by one word that is a data name the counter should skip.
@@ -86,6 +87,13 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-10 (researcher, T24 wording before round 4) -- Changed the prompt, not the key: both
+  halves end "so that whatever you do next applies only to those two"; words-changed log in
+  `tasks.md`; criteria log entry. Removed the key's Shift route rather than leaving it: on
+  26f3bb968e43 Shift-click on a node replaces, so the key named a route that fails (a grader
+  would credit an attempt the app cannot finish). Pilots not run: no round 4 build is frozen yet
+  (latest is tier2-r3d2-26f3bb968), and piloting the new words on the round 3 build would not
+  meet the acceptance; recorded as owed in criteria.md instead of claimed. No bar changed.
 - 2026-10-10 (researcher, tier 2 round 3 critique) -- Proposed six changes, one per verified
   problem, each the smallest in its owning package. (1) graphty-element `NodeBehavior.handleClick`:
   with Shift, `session.selection.applyNow({ nodes: [id] }, "add", "user")`, the edge branch's own
@@ -117,17 +125,10 @@ reasons, in short:
   `r3-s41/05`, `r3-s43/01`, `r3-s43/13`, `r3-s10/02`, `r3-s33/03`. Rejected: dropping "no names
   drawn" (it is the app's default) -- weakened to sev 1 instead.
 
-- 2026-10-10 (researcher, tier 2 round 3 scored) -- Wrote `rounds/round-3/scores.md` from the 56
-  grades, the four expert reports, and a `bars.mjs` run I made for scoring (none existed on
-  26f3bb968e43). Re-ran the leak check myself against each participant's own log, because the
-  tool's copy read none; kept r3-s10 (it read the tool's `with-browser.sh`, no task, control or
-  answer) and said so, rather than voiding by the tool's letter. Scored bars 1 and 6 as the graders
-  ruled (T24 F's), but wrote a check naming the three causes (Shift defect, hidden "Select
-  endpoints", prompt not asking what the key measures) for the skeptics. Kept round 2's readings
-  of bars 2 and 4 on the second path run, and round 2's bar 10 confirmation rule (a specialist plus
-  a session counts), so the rounds compare. Bar 10's "never rises" scored on the specialists' own
-  totals (124 to 139), because no confirmed count exists for round 2. Steps on T17/T18 counted by
-  screenshot mtimes in the participant's own folder (the round copy's mtimes are copy times).
+- 2026-10-10 (researcher, tier 2 round 3 scored, folded) -- `rounds/round-3/scores.md` from 56
+  grades, four expert reports and my own `bars.mjs` run; leak check re-run per participant log
+  (tool's copy read none); kept round 2's readings so rounds compare; steps by screenshot mtimes
+  in the participant's own folder.
 
 - 2026-10-10 (round 3 plan and round 2 close, folded) -- Plan: 56 sessions at the cap, `sessions.py`
   asserted (sizes, halves, 37 graduates, r2-s05 re-run first); T4 and T19 cut to 3 to hold the cap.
@@ -223,6 +224,10 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-10 (T24 wording, after a token-limit stop) -- Worked: checked `git status`/`git log`
+  and grepped for the new wording first; nothing of the change had landed, so it was applied
+  whole. Worked: grepping the studio for copies of the old prompt outside `rounds/` (none; the
+  tool reads prompts from `tasks.md`).
 - 2026-10-10 (round 3 critique, after a token-limit stop) -- Worked: `git status`, `git log`
   and a listing of `round-3/` first; insights were committed (465f688f7), no critique file or note
   entry existed, so nothing was half-done and the critique started clean. Worked: reading each fix's

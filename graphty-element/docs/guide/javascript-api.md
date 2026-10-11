@@ -488,6 +488,35 @@ One message is one undoable step. A command you register with
 `graph.getAiManager()?.registerCommand(...)` joins that step only through `ctx.tx`; see
 [Undo and History](./undo#commands-you-register-with-the-ai-assistant).
 
+`ai-stream-chunk` is sent once for each piece of text the provider streams: `text` is that piece
+and `accumulated` is the message's text so far. OpenAI and Anthropic stream in small pieces, so a
+long answer sends many of these events, each with an `ai-status-change`; render on
+`accumulated`, and throttle your own rendering if you need to.
+
+An answer the provider cuts off at its output limit (`maxTokens`, or a thinking model's own
+limit) still ends as `AI_COMPLETED`, with the text it had and the tool calls it finished. A tool
+call whose arguments were cut off, or are not valid JSON, does not run: it ends as
+`AI_TOOL_INVALID_ARGUMENTS`, and the model is told why.
+
+#### What the built-in providers broadcast on the page
+
+The OpenAI, Anthropic and Google providers run on TanStack AI, which graphty-element builds in.
+On every model turn TanStack AI broadcasts the turn as `tanstack-dispatch-event` events on
+`window`: the system prompt (which describes your graph's columns), every message of the
+conversation, the tool calls and their arguments, the tool results (which hold graph data), the
+streamed text and the model options. The API key is not in them. A script on the page receives
+them after answering TanStack's `tanstack-connect` handshake, which TanStack Devtools does: an app
+that ships TanStack Devtools shows the assistant's conversation in its AI panel. graphty-element
+cannot turn this off.
+
+TanStack AI also stores its event client on `globalThis` (under
+`Symbol.for("tanstack.ai.devtools.eventClient")`) when it loads: on the first turn, or when the
+page loads with the single-file `./bundle`, which carries TanStack AI and the three provider SDKs
+inline. On the first turn, when nothing answers the handshake, it asks five times, 300 ms apart,
+and then stops for the life of the page. That timer is TanStack's and is not stopped by
+`disableAiControl()`. WebLLM and your own `LlmProvider` do not run on TanStack AI and broadcast
+nothing.
+
 ### Building an AI Settings Screen
 
 `@graphty/graphty-element/catalog` describes the providers as plain data, without loading an LLM
@@ -539,7 +568,7 @@ show(result.success ? (result.llmText ?? "Done.") : (words[result.code] ?? "Some
 | `AI_NOT_ENABLED`            | false     |                       | `enableAiControl()` was not called                       |
 | `AI_DISPOSED`               | false     |                       | The assistant was shut down                              |
 | `AI_KEY_MISSING`            | false     | `provider`            | The provider needs an API key and has none               |
-| `AI_KEY_REJECTED`           | false     | `provider`, `status`  | The provider refused the key (HTTP 401 or 403)           |
+| `AI_KEY_REJECTED`           | false     | `provider`, `status`  | The provider refused the key (HTTP 401, 403; Google 400) |
 | `AI_PROVIDER_ERROR`         | false     | `provider`, `status`? | The provider or the network failed                       |
 | `AI_CANCELLED`              | false     |                       | `cancelAiCommand()` ended it; its changes are taken back |
 | `AI_UNDONE`                 | false     |                       | It was undone while it ran; its changes are taken back   |

@@ -57,7 +57,7 @@ export function flipY(y: number): number {
 }
 
 /** Reads a CSS color as RGBA channels in 0..1, or undefined when it cannot. */
-export type ColorParser = (text: string) => [number, number, number, number] | undefined;
+type ColorParser = (text: string) => [number, number, number, number] | undefined;
 
 /** A column that arrives under another data field name, because Cytoscape reserves its own. */
 interface RenamedColumn {

@@ -67,13 +67,20 @@ interface ElementHostProps {
 export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
     // Labels that would land on each other are thinned out until the reader turns on Show all
-    // labels (tier1-design.md section 2.7). A view setting written on the tag; it records no step.
+    // labels (tier1-design.md section 2.7), and a still graph is not drawn again on every animation
+    // frame: the workspace never changes the Babylon scene behind the element's back, so nothing it
+    // shows needs those frames, and on a software GPU each one holds the page's main thread for
+    // tens of milliseconds (issue #1943). View settings written on the tag; they record no step.
     const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
     // A size bound to data is compared across nodes, so in 3D every node is drawn at one depth's
     // scale: otherwise perspective draws a nearer, smaller value larger than a farther, larger one.
     const sizeBound = useSizeBound(useWorkspace().session);
     const layoutBehavior = useMemo(
-        () => ({ labels: { declutter: !allLabelsShown }, node: { depthIndependentSize: sizeBound } }),
+        () => ({
+            labels: { declutter: !allLabelsShown },
+            node: { depthIndependentSize: sizeBound },
+            rendering: { onDemand: true },
+        }),
         [allLabelsShown, sizeBound],
     );
     // The legend card's margins: the element keeps every fit clear of them.

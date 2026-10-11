@@ -1,3 +1,19 @@
+## 0.8.64 (2026-10-11)
+
+### 🚀 Features
+
+- **graphty:** draw the graph only when it changes ([#1824](https://github.com/graphty-org/graphty-monorepo/issues/1824))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.44
+- Updated graphty-element to 3.24.0
+- Updated graph-io to 0.3.34
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.63 (2026-10-10)
 
 ### 🧱 Updated Dependencies

@@ -1,3 +1,10 @@
+## 0.6.44 (2026-10-11)
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.4.1
+- Updated layout to 2.3.1
+
 ## 0.6.43 (2026-10-10)
 
 ### 🩹 Fixes

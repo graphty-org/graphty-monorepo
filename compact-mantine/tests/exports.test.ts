@@ -335,6 +335,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "PopoutRegion",
     "StyleNumberInput",
     "StyleSelect",
+    "ScrollArea",
     "SegmentedControl",
     "ToggleWithContent",
 
@@ -526,6 +527,10 @@ describe("Package exports", () => {
 
             it("exports StyleNumberInput", () => {
                 expect(mainExports.StyleNumberInput).toBeDefined();
+            });
+
+            it("exports ScrollArea", () => {
+                expect(mainExports.ScrollArea).toBeDefined();
             });
 
             it("exports SegmentedControl", () => {

@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vitest/config";
 
-import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 
 const src = fileURLToPath(new URL("./src/", import.meta.url));
 
@@ -27,7 +27,7 @@ export default defineConfig({
         testTimeout: 30000,
         include: ["test/**/*.test.ts"],
         // verbose prints a line per test: useful locally, needless noise in CI.
-        reporters: [...(process.env.CI ? ["default"] : ["verbose"]), ...ciJunitReporter()],
+        reporters: [...(process.env.CI ? ["default"] : ["verbose"]), ...ciReporters()],
         // see test/setup/yield-to-event-loop.ts -- without it one audit file holds the worker
         // past birpc's hardcoded 60 s RPC timeout on a CI runner and fails a green run
         setupFiles: ["./test/setup/yield-to-event-loop.ts"],

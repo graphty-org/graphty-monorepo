@@ -1,9 +1,9 @@
 import { defineConfig } from "vitest/config";
-import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 
 export default defineConfig({
     test: {
-        reporters: ["default", ...ciJunitReporter()],
+        reporters: ["default", ...ciReporters()],
         environment: "node",
         include: ["test/**/*.test.mjs"],
         // The suite's own limit, as the other packages' browser suites have: a hang detector, not a

@@ -4597,7 +4597,8 @@ export class Graph implements GraphContext {
      * @param options - How the wait is bounded.
      * @param options.timeoutMs - How long to wait before giving up; 30 seconds by default.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
-     * @throws Error when the picture is still changing when the timeout expires.
+     * @throws Error when the picture is still changing when the timeout expires; the message names
+     *   what was still unfinished and how many frames were drawn while it waited.
      * @since 2.0.0
      * @example
      * ```typescript
@@ -4609,6 +4610,10 @@ export class Graph implements GraphContext {
      */
     async waitForStableFrame(options: { timeoutMs?: number } = {}): Promise<void> {
         const timeoutMs = options.timeoutMs ?? DEFAULT_STABLE_FRAME_TIMEOUT_MS;
+        // Counted so a timeout can tell a picture that kept changing from a page that stopped
+        // drawing: a GPU far behind blocks the page for seconds per frame, and whatever the last
+        // frame left unfinished is then all the reason names.
+        const firstFrame = this.scene.getRenderId();
         let listenerId: symbol | undefined;
         let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -4619,10 +4624,12 @@ export class Graph implements GraphContext {
                 }),
                 new Promise<never>((_resolve, reject) => {
                     timer = setTimeout(() => {
+                        const frames = this.scene.getRenderId() - firstFrame;
                         reject(
                             new Error(
                                 `The graph was still changing ${String(timeoutMs)} ms after ` +
-                                    `waitForStableFrame() was called: ${this.whyTheFrameIsNotStable()}.`,
+                                    `waitForStableFrame() was called: ${this.whyTheFrameIsNotStable()}; ` +
+                                    `${String(frames)} ${frames === 1 ? "frame was" : "frames were"} drawn while it waited.`,
                             ),
                         );
                     }, timeoutMs);

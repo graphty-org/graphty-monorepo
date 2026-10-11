@@ -149,7 +149,10 @@ column with role `color` (or `size`, `shape`, `thickness`, `hidden`) and writes 
 gets file styles with no further code. The roles stay; what changes is who reads them. Today the
 GEXF importer's role columns are copied into node data by graphty-element and by
 cytoscape-extensions, each in its own way; after this work the style reader is the only consumer
-that turns them into drawing, and the copies are deprecated or removed (section 12).
+that turns them into drawing, and the copies are deprecated or removed (section 12). On export the
+same holds: when `styles` are given, the format's style writer is the only thing that writes the
+format's style slots, and a column with a style role is neither written into a slot nor reported
+as `W_VIZ_DROPPED`; without `styles`, role columns are exported exactly as today.
 
 ### 2.2 How it travels with an import
 
@@ -167,6 +170,7 @@ export interface ExtractedStyles {
     readonly styles: FileStyles; // the small, JSON-serializable description
     readonly columns: StyleColumns; // per-element value arrays the description refers to
     readonly features: StyleFeatures; // candidate explaining columns (attributes, degree), for re-planning
+    readonly fingerprint: StyleFingerprint; // node and edge counts and a hash of the node ids, in snapshot order
 }
 export function planStyles(values: StyleValues, features: StyleFeatures, options?: PlanOptions): ExtractedStyles;
 export function featuresOf(snapshot: GraphSnapshot, target: "node" | "edge"): StyleFeatures;
@@ -190,13 +194,19 @@ export function resolveStyles(
         // ...existing members...
         styles?(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles | null;
     }
+    interface StyleReadContext {
+        readonly signal?: AbortSignal;
+        readonly budget: StyleBudget;
+        // what this import's import() passed to report.keepForStyles(value): a stylesheet, a groups
+        // object, a legend; undefined when it kept nothing. Per import, so concurrent imports never mix.
+        readonly kept: unknown;
+    }
     type ImporterStyles =
         // simple: raw per-element values keyed by neutral property, plus the dialect their spelling uses
         | {
               readonly dialect: StyleDialect;
               readonly node?: RawStyleValues;
               readonly edge?: RawStyleValues;
-              readonly rawColumns?: readonly string[];
           }
         // advanced: canonical values, declared rules and extra features, for formats that store rules
         | {
@@ -213,8 +223,28 @@ export function resolveStyles(
     spellings on 300 nodes):
 
     ```js
-    styles: (s) => ({ dialect: "css", rawColumns: ["color"], node: { fill: valuesOf(s.nodes.get("color")) } });
+    styles: () => ({ dialect: "css", node: { fill: { data: "color" } } });
     ```
+
+    `RawStyleValues` maps a neutral property either to a column of the snapshot by name
+    (`{ data: "color" }`, read by graph-io, list values flattened) or to an array of raw values by
+    element index. A column named this way stays in the data and is not offered to the planner as
+    an explaining feature (it would explain itself). `StyleDialect` is an exported, documented
+    literal union, one line per value (`"css"`, `"x11"`, `"graphviz"`, `"java"`, `"dvips"`,
+    `"yfiles3"`, `"cytoscape"`, `"cytoscape-js"`, ...), and open like every union here.
+
+- **Style data that is not per element reaches `styles()` through `context.kept`.** A file may hold
+  a stylesheet, groups, a legend or defaults outside its elements. The importer's `import()` hands
+  such data to `report.keepForStyles(value)`; the finished report carries it, and graph-io (or
+  `DataSource.fromImporter`) passes it back as `context.kept` to the same import's `styles()`
+  call. It is never kept on the importer object, so two imports running at once each get their
+  own. The built-in readers use the same route (a session's vizmap, vis.js `options` and `groups`,
+  a Cytoscape.js stylesheet).
+- **Styles belong to the graph they describe.** `ExtractedStyles.fingerprint` records the snapshot
+  it was read from or built for. `exportGraph` and `checkExport` compare it with the snapshot being
+  written and fail with `E_STYLES_MISMATCH` before writing anything when they differ (a node added
+  or removed since): style values are indexed by element, and shifting them onto other elements
+  would be silent. graphty-element always builds them from the snapshot it exports.
 
 - **Nothing about an import changes unless a caller asks**: the snapshot, the import report and
   every export are what they are today. Style columns are never written into the snapshot.
@@ -280,8 +310,12 @@ type Mapping =
 // above the last `above`; exactly at a point `value`. Uneven spacing and jumps are allowed.
 
 type ColumnRef =
+    // OPEN union
     | { readonly data: string } // an attribute column of the snapshot, by name
-    | { readonly style: string }; // a column in ExtractedStyles.columns, by key
+    | { readonly style: string } // a column in ExtractedStyles.columns, by key
+    // a value computed from the graph itself, live: graphty-element reads it from its own
+    // graphty.degree, graphty.indegree and graphty.outdegree paths, so it follows later edits
+    | { readonly computed: "degree" | "indegree" | "outdegree" };
 
 interface StyleNote {
     readonly code: StyleNoteCode; // W_STYLE_* only, exported as a STYLE_ISSUE constant like GEXF_ISSUE
@@ -413,7 +447,7 @@ per-element values; declared rules are never re-inferred.
 | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | CX2                                              | defaults; `nodeMapping` / `edgeMapping` to mappings (discrete keys by the attribute's type, continuous intervals to points); dependencies applied (`nodeSizeLocked`, `arrowColorMatchesEdge`); network background | Cytoscape's resolution: bypass over mapping over default                                                                                             | a discrete mapping over a list attribute takes the first item with an entry                                                                                |
 | CX (version 1)                                   | the first view's `cyVisualProperties`, the definition strings parsed into Maps keyed by index (an index never becomes an array length; one beyond the definition is ignored and noted)                            | as CX2                                                                                                                                               | 5 views in one file: graph-io imports the first, the others are noted                                                                                      |
-| Cytoscape session                                | the style named by the imported view, from `session_vizmap.xml`                                                                                                                                                   | as CX2                                                                                                                                               | graph-io keeps the vizmap text in `meta.extra.cys` (an importer addition)                                                                                  |
+| Cytoscape session                                | the style named by the imported view, from `session_vizmap.xml`                                                                                                                                                   | as CX2                                                                                                                                               | the importer hands the vizmap text to the style reader through `context.kept` (2.2)                                                                        |
 | XGMML                                            | none (Cytoscape writes resolved values)                                                                                                                                                                           | every leaf of `<graphics>`, walked with an explicit stack and a depth limit                                                                          |                                                                                                                                                            |
 | Cytoscape.js JSON                                | the stylesheet, in order (below)                                                                                                                                                                                  | Cytoscape.js's cascade over the RAW element JSON                                                                                                     | the element `style` field is a bypass over every rule                                                                                                      |
 | DOT                                              | none (defaults are flattened by graph-io; scopes are not tracked)                                                                                                                                                 | the flattened attributes read with Graphviz's rules (below)                                                                                          | cluster membership is offered to the planner as a feature                                                                                                  |
@@ -518,12 +552,18 @@ and how each writer is recognized are in Appendix A and `style-tool-defaults.md`
   `origin: "tool"`, id `<kind>.tool-defaults`, below every declared and inferred rule. The truth
   the planner explains stays the file's own values; the replay compares the resolved stack with the
   file's value where the file has one and with the tool's default where it has none.
-- **Only when the writer is identified.** A format only one tool writes (CX, CX2, XGMML and .cys
-  for Cytoscape desktop; DOT for Graphviz; GEXF for Gephi) always gets its defaults. A format many
-  programs write (GraphML, GML, JSON) gets them only when the file names its writer (the `y:`
-  namespace, `Creator "yFiles"`, `generated_by: "cytoscape-..."`, Cytoscape's `SUID` key, and the
-  other signatures in Appendix A). An unknown writer, and every format with no drawing tool (CSV,
-  Neo4j CSV, OBO, d3 and NetworkX node-link, JGF), gets none.
+- **Per format, then per writer.** A format with one canonical drawing program always gets that
+  program's defaults, whoever wrote the file: CX, CX2, XGMML and .cys get Cytoscape desktop's, DOT
+  Graphviz's, GEXF Gephi's, Pajek Pajek's. A JSON dialect names its tool by being that dialect
+  (Cytoscape.js JSON gets Cytoscape.js's, vis.js JSON vis-network's, graphology JSON sigma's). A
+  format many programs write (GraphML, GML) gets defaults only when the file names its writer (the
+  `y:` namespace, `Creator "yFiles"`, `generated_by: "cytoscape-..."`, Cytoscape's `SUID` key, and
+  the other signatures in Appendix A). Programs that draw but have no row in Appendix A yet
+  (NetworkX's `draw_networkx`, igraph's `plot`) get a row only from a primary source and only where
+  the writer is reliably recognized (igraph's GML `Creator` line, NetworkX's node-link JSON keys);
+  `style-tool-defaults.md` records each one left out and why (Neo4j Browser colors by label in
+  the order labels appear, which is not a fixed default). An unknown writer, and every format with
+  no drawing tool (CSV, Neo4j CSV, OBO, JGF), gets none.
 - **Cytoscape has two sets.** CX, CX2, XGMML and Cytoscape's GraphML and GML start from Cytoscape's
   "default" style (light blue `#89D0F5` round rectangles 75 x 35, gray `#848484` edges 2 wide, node
   labels from the `name` column). A session starts empty and falls back to Cytoscape's renderer
@@ -537,7 +577,11 @@ and how each writer is recognized are in Appendix A and `style-tool-defaults.md`
 - **Defaults that are rules.** Gephi and vis-network color an edge that has no color from its
   source node. The reader keeps every edge color the file gives and, for edges with none, writes the
   source node's resolved fill into a style column bound by the defaults rule; the value is fixed at
-  import and does not follow later recoloring, which a note on the rule says. Arrows follow
+  import and does not follow later recoloring. This is a temporary measure for an element gap (an
+  edge color bound to its source node's drawn color), tracked by its own issue: the rule's facts
+  carry the reason `SOURCE_NODE_COLOR`, and the column is replaced by a binding once the element
+  has one. Degree-based groups do not have this problem: they read the live `computed` degree
+  (section 2.3), never a frozen copy. Arrows follow
   direction in Graphviz, Gephi and Pajek: their default target arrow is a group rule on the
   directed edges only (the style column `directed`), never on undirected ones.
 - **Units.** A default is converted like the file's own values (Graphviz inches and points to
@@ -717,8 +761,23 @@ interface LoadReport { readonly styles: { readonly layers: readonly LayerId[]; r
   (`read`) and what its writer keeps (`"rules"`: the layers come back as layers; `"values"`: only
   per-element values; `"none"`). An application shows a styles choice for exactly the formats with
   `read: true` without keeping a format list of its own, and can warn before a lossy export
-  (section 11). A data source registered by a third party declares it like any other descriptor
-  field; absent means `{ read: false, write: "none" }`.
+  (section 11). It is derived, not copied by hand: `DataSource.fromImporter` sets `read` from
+  whether the wrapped importer has a `styles` member, and `registerFormatWriter` sets `write` from
+  the exporter's `styles` capabilities (10.2), whenever the descriptor leaves them out. A value the
+  descriptor states wins. A data source that is its own class declares it like any other
+  descriptor field; absent with nothing to derive from means `{ read: false, write: "none" }`.
+- **The simple load calls take the same choice.** `element.loadFromUrl(url, options)`,
+  `element.loadFromFile(file, options)` and the `dataSourceConfig` attribute accept `styles` and
+  `styleOptions` and pass them on as load choices, so the first example of the guide is
+  `await el.loadFromUrl(url, { styles: "file" })` and nobody has to reach for the session API to
+  see a file's colors.
+- **Where the facts are exported.** `fileStyleOf`, `FileStyleOrigin`, the code unions
+  `FileStyleNoteCode` (every code a load's style notes carry: graph-io's `W_STYLE_*` import codes
+  plus the element's own translation codes) and `FileStyleReason`, and a runtime list of every
+  style code, import and export, come from `@graphty/graphty-element/session`, which stays free of
+  Babylon.js, Lit and the DOM. An application enumerates the codes from the element alone and
+  never imports graph-io for them; the note and reason fields are typed by those unions, never
+  plain `string`.
 
 ### 5.3 The path through the element
 
@@ -730,9 +789,10 @@ interface LoadReport { readonly styles: { readonly layers: readonly LayerId[]; r
    resolved through the same `columnsMapping` that produced the records (a helper beside
    `toRecords` in `graph-io-import.ts`), never assumed to be `data.<column name>`: the GraphML reader
    renames `yfiles.*` columns and graphology attributes arrive nested.
-3. Inside the `data.import` command, after the records are written, the style columns the rules
-   refer to are written onto the records (indexed by node index and by logical edge, so mixed and
-   undirected edges the element expands get their own row), the rules are translated, folded to the
+3. Inside the `data.import` command, after the records are written, the per-element style values
+   the rules refer to are written to the session's file-style store (5.4), never onto the records
+   (keyed by load and element id, by node index and by logical edge, so mixed and undirected edges
+   the element expands get their own entry), the rules are translated, folded to the
    bound, validated layer by layer (a refused layer is left out with a note; `applyTemplate` is
    atomic), and applied. One load is one undo step, and redo does not read the source again.
 4. In replace mode the previous file's layers are swept in the same step. In merge mode each load
@@ -741,6 +801,10 @@ interface LoadReport { readonly styles: { readonly layers: readonly LayerId[]; r
    never repaint file A's nodes.
 5. `visible: false` goes to the session's visibility mask, `graph.background` to the background
    configuration; neither is a layer.
+6. With `styles: "file"`, the readers stop copying style values into records themselves: the GEXF
+   reader no longer writes viz `color` and `size` record keys and the GraphML reader no longer
+   builds its `yfiles` record keys, because the file's layers carry those values. With `"none"`
+   (the default) both stay exactly as today, deprecated (section 12).
 
 ### 5.4 Translation rules
 
@@ -812,7 +876,9 @@ Neutral property to channel, with the approximations the element reports as `{ c
 Required before file styles ship:
 
 1. **`styles.explain()` must merge label styles field by field**, as the repaint does.
-2. **`validate()` and `add()` must refuse a binding on a whole label-style channel.**
+2. **`validate()` reports a binding on a whole label-style channel with a coded warning.** `add()`
+   keeps accepting it: refusing would reject stacks that load today, saved projects among them.
+   The translation never emits such a binding (it uses the label sub-channels of item 6).
 3. **`unmapped: "skip"` on a binding** (approved by the owner, 2026-10-11): an element whose key
    the binding's `map` does not hold is left to the layers beneath, instead of today's behavior,
    where with `scale: "passthrough"` an unmapped key that is a valid color name ("green") is
@@ -834,15 +900,24 @@ Required before file styles ship:
    element. This is the main remaining approximation: 1,230 label values in the real-file corpus
    (12,800 over all corpora with the mutants), almost all label sizes from Cytoscape continuous
    mappings.
-7. **Numbers out of a channel's range are counted, not silently clamped**, and node color alpha is
-   honored or refused, not dropped.
+7. **Numbers out of a channel's range are still clamped, and now counted** and reported as
+   `{ code, params }`; node color alpha the element does not draw is reported with a code instead
+   of dropped silently. What is drawn does not change. The import never relies on node color alpha:
+   the canonical values move a file's alpha into the opacity property (2.4).
 8. **`TemplateOptions.at`** (5.5) and the typed **`FileStyleOrigin`** (5.5).
 9. **The file-style store and its `graphty.style.` paths** (5.4), saved in the project file.
 10. **Layers to neutral styles** for export (section 10): the inverse of the translation.
+11. **Live degree paths**: `graphty.degree`, `graphty.indegree` and `graphty.outdegree`, read by
+    selectors and bindings like the other `graphty.` paths, so a degree-based group or mapping
+    from a file (a Cytoscape.js `[[degree > 2]]` rule, a recovered degree table) follows later
+    edits instead of freezing the degrees of the import. They are built by the same kind of single
+    helper as `fileStylePath()`, so issue #2029 moves them with the rest.
 
 Later, for fewer approximations: node width and height, outline width, flat 2D node shapes, a
-`graphty.degree` path, a class-membership operator in the expression language (a `.class` test
-without a column), and edge colors derived from the endpoints (Gephi's mixed edge colors).
+class-membership operator in the expression language (a `.class` test without a column), and edge
+colors derived from the endpoints (Gephi's and vis-network's edge color from the source node, and
+Gephi's mixed edge colors). Until that last one exists, the import writes the source node's color
+into a style column, a temporary measure tracked by its own issue (section 3).
 
 ### 5.7 Editing afterward
 
@@ -918,7 +993,7 @@ graph-io, each confirmed against its current source:
 - **Numeric endpoint ids**: in NetworkX's Cytoscape JSON, edges name endpoints as numbers (`0`)
   while node ids are strings (`"0"`); Cytoscape.js joins them, graph-io creates a second node per id
   (karate: 68 nodes instead of 34).
-- A session's `session_vizmap.xml` is not kept (the style reader needs it in `meta.extra.cys`).
+- A session's `session_vizmap.xml` is not kept (the style reader needs it, through `context.kept`).
 
 graphty-element's own readers (found by loading every input through `session.data.import`;
 requirement 1 applies to them too):
@@ -930,7 +1005,11 @@ requirement 1 applies to them too):
 - a Pajek file keeps 132 of its 207 edges; Cytoscape 2.x sessions and a multi-network session load
   a different network than graph-io;
 - GraphML `yfiles.*` columns and `parent`, GEXF `label` and suffixed attributes, and CX2 attributes
-  named `type` or `color` do not arrive under graph-io's names, so layers reading them are unbound;
+  named `type` or `color` do not arrive under graph-io's names, so layers reading them would be
+  unbound. The fix is NOT to rename them (the record keys are published, and renaming them would
+  break existing layers, filters and saved projects): every `ColumnRef.data` is resolved through
+  the reader's own `columnsMapping` (5.3 step 2), so a layer binds to whatever key the reader
+  produced;
 - the 7 yFiles 3 files and Gephi's diseasome fail with `E_PARSE_FAILED`;
 - two DOT gallery files lose nodes (28 become 24; 2 become 1).
 
@@ -1008,7 +1087,11 @@ layer the element draws differently, never a translation that is wrong; that is 
   color lists, and Cytoscape.js `mapData` with zero or reversed ranges.
 - Synthetic worst cases up to 1,000,000 nodes, and series that grow one graph from 50 to 6,000 or
   more nodes to show the layer count does not grow with it.
-- Each file in its own process under a time limit.
+- Each file in its own process under a time limit, locally. In CI, a small generated hostile
+  subset (deep XML nesting, a cyclic `SharedData` file, a 10,000-key table with one key uncovered,
+  100,000 class tests, a 5,000-character value, `__proto__` keys) runs in graph-io's normal suite
+  in a forked worker pool, with assertions on counted budget operations rather than on time; only
+  the 300,000- to 1,000,000-node synthetic inputs stay local.
 
 ### 7.5 What counts as done
 
@@ -1141,10 +1224,35 @@ run before anything is written (10.5).
     - the two base layers become the defaults of the writing tool: `source.tool` is `"graphty"` and
       the block records the base values, so the file says what graphty drew where no layer applies;
     - the picture of 10.1 item 1 is what the element draws per element, base layers included.
-2. **graph-io's style writer for the format** (one per format, beside its exporter) writes the
-   picture with `resolveStyles`, translates the rules where the format has a style language, and
-   writes the block and the per-element style values (10.3). The writers are graph-io's: the
-   element never writes a file.
+2. **The format's exporter writes the styles, through a public contract** that built-in and
+   third-party exporters share. `GraphExporter` gains an optional member:
+
+    ```ts
+    interface GraphExporter {
+        // ...existing members...
+        readonly styles?: {
+            // per target, the properties written natively, and where the block and the tagged
+            // values go: "native" (the exporter places them itself), "attributes" (graph-io adds
+            // them to the snapshot as a graph attribute and element attributes before export())
+            readonly capabilities: StyleWriteCapabilities;
+        };
+    }
+    // export() receives options.styles: { picture(target, property), block, tags, rules } when
+    // styles are being written: picture() is resolveStyles over this snapshot, block the
+    // graphty.styles JSON, tags the per-element tagged columns, rules the ExtractedStyles.
+    ```
+
+    The simple path for a third-party format that writes attributes is one line,
+    `styles: { capabilities: { node: [], edge: [], block: "attributes" } }`: graph-io carries the
+    block and the tagged values as ordinary attributes, so graphty gets the same layers back, and
+    reports every property as `W_STYLE_NOT_WRITTEN` for other programs. An exporter with no `styles`
+    member gets `W_STYLE_NOT_WRITTEN` for every property and `W_STYLE_RULES_NOT_KEPT` from
+    `exportGraph` and `checkExport`, so no format, built-in or not, loses styles silently. The
+    built-in writers use the same contract: they write the picture with `picture()`, translate the
+    rules where the format has a style language, and place the block and tagged values natively
+    (10.3). The writers are graph-io's: the element never writes a file. The internal per-format
+    code is free to share helpers, but there is no second, private contract.
+
 3. **The block** is JSON: the rules (with `ext`), `units`, `graph`, `source` with the tool's
    defaults, the keys of the style columns, and a fingerprint of the graph it describes (node and
    edge counts and a hash of the node ids in file order). Notes are not written. Its name in every
@@ -1190,7 +1298,11 @@ with native slots only), and `"none"` for CSV, Neo4j CSV and OBO.
   property whose recorded base value differs from its own base layers.
 - **graphty-element** rebuilds each layer from `ext["@graphty/graphty-element"]` when it is present
   and passes the same `validate()` as any layer; otherwise, or when refused (with a note), from the
-  neutral rule as in section 5.4.
+  neutral rule as in section 5.4. A rebuilt layer goes through the same post-processing as a
+  translated one, because the spec is file input like any other: its `graphty.style.` paths are
+  rewritten into this load's namespace by `fileStylePath()`, its selector is ANDed with the load's
+  scope in merge mode, and a spec whose selector has more than 8 terms or reads a `graphty.style.`
+  path the file does not hold falls back to the neutral rule with a note.
 - **A block that does not parse or whose fingerprint does not match** (a program rewrote the file
   and added or removed elements) is ignored with `W_STYLE_BLOCK_IGNORED` and a reason code, and the
   file is read like any other file of its format.
@@ -1209,15 +1321,25 @@ graph-io's export result and its dry run (`checkExport` with `styles` given) rep
   style language); a re-import infers them again.
 - From graphty-element: `W_STYLE_LAYER_FLATTENED` (10.2).
 
+- `W_STYLES_NOT_EXPORTED`: styles exist but were not asked for. graphty-element reports it when
+  its stack has any layer above the base layers and the export did not pass `styles: true`;
+  cytoscape-extensions when the core's stylesheet differs from a new core's and `styles` was not
+  passed. The file is byte-identical to today's; the note tells the consumer the option exists.
+- `E_STYLES_MISMATCH` (an error, before writing): the styles were read from or built for a
+  different graph (2.2).
+
 All are added to graphty-element's `ExportLossCode`. The existing `W_VIZ_DROPPED` stays for role
-columns exported without styles.
+columns exported without styles; with styles, role columns never reach a style slot and are never
+reported as `W_VIZ_DROPPED` (2.1), and graphty-element leaves its `style.*` role columns out of the
+export, so a re-import does not see them as data columns beside the block.
 
 ### 10.6 Switching it on
 
-graphty-element's export takes an additive `styles: true` option; the default keeps today's output,
-and the graphty app and cytoscape-extensions turn it on. graph-io's `exportGraph` takes
+graphty-element's export takes an additive `styles: true` option; the default keeps today's output
+(with the `W_STYLES_NOT_EXPORTED` note of 10.5), and the graphty app turns it on. graph-io's `exportGraph` takes
 `{ styles: ExtractedStyles }`. `ExportCapabilities.styles` (additive) lists, per target, the
-properties the format's writer can hold natively and whether it keeps rules. Writing styles by
+properties the format's writer can hold natively and whether it keeps rules: it is the exporter's
+own `styles.capabilities` (10.2), surfaced where callers already read capabilities. Writing styles by
 default is a changed default, so it is the owner's call for a major release.
 
 ### 10.7 The exactness check
@@ -1237,6 +1359,33 @@ assert:
    a stale layer;
 5. a block with a wrong fingerprint, a truncated block and a hostile block (the adversarial inputs
    of 7.4) are ignored with a note and never throw.
+
+### 10.8 Cytoscape.js through cytoscape-extensions
+
+cytoscape-extensions puts graph-io's styles into a live Cytoscape.js core and takes them out of
+one. Both directions are opt-in (`styles: true`), because `graphtyImport` and `graphtyExport` are
+published and turning styles on by default would change what they return and write.
+
+- **Import.** `cy.graphtyImport(input, format, { styles: true })` imports with styles and returns
+  `stylesheet` on its result. graph-io's `toCytoscapeStylesheet(extracted, { importId })` returns
+  `{ stylesheet, elementData }`: the rules as a Cytoscape.js stylesheet, and the per-element values
+  those rules read. Cytoscape.js reads a dot in a data selector as a nested path, so every style
+  column is written into element `data` under one flat key with no dots, built by one graph-io
+  helper, `cytoscapeStyleKey(key)` (`graphty_style_member_3`), used by both sides. Every element of
+  the import also gets `graphty_import: <importId>`, and every emitted selector is scoped to it, so
+  a second import into the same core never repaints the first one's elements. The stylesheet is
+  returned, not applied: `applyStyles: true` appends it to the core's stylesheet
+  (`cy.style().fromJson([...cy.style().json(), ...stylesheet]).update()`), and replacing the
+  consumer's own stylesheet is never done for them.
+- **Export.** `cy.graphtyExport(format, { styles: true })` takes the rules from `cy.style().json()`
+  and the per-element truth from the live core (`ele.style()` for each neutral property), through
+  graph-io's `readCytoscapeStyles({ elements, style, rendered })`. The live values are the truth
+  the planner and the replay explain, as an outside edit is handled on re-import (10.4), so a
+  property whose stylesheet value is a function (which `cy.style().json()` cannot serialize) is
+  still written exactly, per element, and reported as `W_STYLE_LAYER_FLATTENED` with the reason
+  `FUNCTION`. Losses pass through `lostForCytoscape` like every other loss.
+- **Without `styles`**, both behave as today, and `graphtyExport` reports `W_STYLES_NOT_EXPORTED`
+  when the core's stylesheet differs from a new core's.
 
 ---
 
@@ -1267,30 +1416,33 @@ Before this work several places read or wrote styles on their own, each differen
 style readers and writers of section 3 and 10 are the only path; the rest is removed where nothing
 published depends on it, and deprecated where something does.
 
-| Place                                                                                                                                                     | Today                                                                                                                                                                                      | After                                                                                                                                                                                                     | Breaking to remove?                                                                  |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| graph-io GEXF viz role columns (`color`, `size`, `shape`, `shape.uri`, `thickness`) and the rename of a declared attribute titled like one (`color#<id>`) | the only source of GEXF styles; copied into data by graphty-element and cytoscape-extensions                                                                                               | read by the GEXF style reader and by nothing else that draws; documented as deprecated                                                                                                                    | yes: they are the import result. Removed in the next major                           |
-| graph-io GEXF hex color parser                                                                                                                            | 6-digit only; alpha never clamped                                                                                                                                                          | the shared canonical parser (`#rgb` and `#rrggbbaa` accepted, alpha clamped with a note)                                                                                                                  | no: a value that was a warning now parses                                            |
-| graph-io GraphML `yfiles.*` typed columns                                                                                                                 | built only for graphty-element's GraphML reader; ShapeNode and PolyLineEdge only; the first label even when invisible; a target arrow sets `directed`; `yfiles.label` takes the label role | the yEd and yFiles 3 style readers read the kept graphics tree; the columns are deprecated and frozen, not fixed                                                                                          | yes. Removed, with the arrow-as-direction rule and the label role, in the next major |
-| graph-io `ExportCapabilities.viz`                                                                                                                         | "can hold color, size, shape, thickness"                                                                                                                                                   | kept with that meaning and deprecated; `ExportCapabilities.styles` is the new fact                                                                                                                        | yes. Removed in the next major                                                       |
-| graph-io `W_VIZ_DROPPED` message                                                                                                                          | says the value "cannot be written" in JSON and Neo4j CSV, which do write it as a plain attribute                                                                                           | the message says the role is lost and the value is kept; the code is unchanged                                                                                                                            | no                                                                                   |
-| graph-io JSON and Neo4j CSV writing role columns as plain attributes, CSV skipping them                                                                   | inconsistent                                                                                                                                                                               | unchanged and documented; one rule (style goes only into style slots) in the next major                                                                                                                   | yes. Next major                                                                      |
-| graph-io Pajek `shape` column without the shape role (GEXF's has it)                                                                                      | inconsistent                                                                                                                                                                               | the Pajek style reader reads the column; the role is unchanged                                                                                                                                            | yes. Next major                                                                      |
-| graph-io `W_STYLES_NOT_IMPORTED` (CX, CX2, sessions)                                                                                                      | always emitted                                                                                                                                                                             | emitted only when styles are not asked for, or for what a reader cannot translate                                                                                                                         | no                                                                                   |
-| graph-io session vizmap                                                                                                                                   | not kept                                                                                                                                                                                   | its text kept in `meta.extra.cys` and read by the session reader                                                                                                                                          | no (additive)                                                                        |
-| graph-io vis.js `options` and `groups`                                                                                                                    | dropped with a warning                                                                                                                                                                     | kept in `meta.extra` and read as defaults and group rules; the warning stays when styles are not asked for                                                                                                | no (additive)                                                                        |
-| graph-io GML, XGMML, CX, CX2 and Cytoscape.js stored style data; DOT and Pajek plain attribute columns                                                    | stored raw                                                                                                                                                                                 | the style readers' input and the style writers' target                                                                                                                                                    | no                                                                                   |
-| graphty-element GEXF reader's `color` and `size` record keys                                                                                              | viz color and size copied into node data (documented)                                                                                                                                      | kept, documented as deprecated; file styles never read them                                                                                                                                               | yes. Removed in the next major                                                       |
-| graphty-element GraphML reader's `yfiles` record keys and its private 2D-to-3D shape table                                                                | records rebuilt from graph-io's `yfiles.*` columns                                                                                                                                         | kept frozen and deprecated; the one shape table is the translation's `styleOptions.shapes`                                                                                                                | yes. Removed in the next major                                                       |
-| graphty-element export's `style.*` role columns                                                                                                           | each element's drawn color, size, shape, width                                                                                                                                             | kept: third-party writers read them; the layers now also travel as `styles`                                                                                                                               | no                                                                                   |
-| graphty-element JSON reader                                                                                                                               | builds a stub snapshot, so a Cytoscape.js stylesheet never reaches graph-io                                                                                                                | routes Cytoscape.js, graphology and vis.js through graph-io (6.4), same record keys                                                                                                                       | no                                                                                   |
-| cytoscape-extensions `graphtyImport` (GEXF `viz:color` to `data.color`) and `graphtyExport` (`data.color` to `viz:color`), with its own CSS color parser  | GEXF and color only, a field named `color` only, `cy.style()` ignored                                                                                                                      | replaced outright: import returns the file's styles as a Cytoscape.js stylesheet built by graph-io; export writes `cy.style()` through graph-io's Cytoscape.js style reader and the format's style writer | no: added after cytoscape-extensions 0.0.9 and never released                        |
+| Place                                                                                                                                                     | Today                                                                                                                                                                                      | After                                                                                                                                                                                                                                              | Breaking to remove?                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| graph-io GEXF viz role columns (`color`, `size`, `shape`, `shape.uri`, `thickness`) and the rename of a declared attribute titled like one (`color#<id>`) | the only source of GEXF styles; copied into data by graphty-element and cytoscape-extensions                                                                                               | read by the GEXF style reader and by nothing else that draws; documented as deprecated                                                                                                                                                             | yes: they are the import result. Removed in the next major                                                                                                |
+| graph-io GEXF hex color parser                                                                                                                            | 6-digit only; alpha never clamped                                                                                                                                                          | the shared canonical parser (`#rgb` and `#rrggbbaa` accepted, alpha clamped with a note)                                                                                                                                                           | no: a value that was a warning now parses                                                                                                                 |
+| graph-io GraphML `yfiles.*` typed columns                                                                                                                 | built only for graphty-element's GraphML reader; ShapeNode and PolyLineEdge only; the first label even when invisible; a target arrow sets `directed`; `yfiles.label` takes the label role | the yEd and yFiles 3 style readers read the kept graphics tree; the columns are deprecated and frozen, not fixed                                                                                                                                   | yes. Removed, with the arrow-as-direction rule and the label role, in the next major                                                                      |
+| graph-io `ExportCapabilities.viz`                                                                                                                         | "can hold color, size, shape, thickness"                                                                                                                                                   | kept with that meaning and deprecated; `ExportCapabilities.styles` is the new fact                                                                                                                                                                 | yes. Removed in the next major                                                                                                                            |
+| graph-io `W_VIZ_DROPPED` message                                                                                                                          | says the value "cannot be written" in JSON and Neo4j CSV, which do write it as a plain attribute                                                                                           | the message says the role is lost and the value is kept; the code is unchanged                                                                                                                                                                     | no                                                                                                                                                        |
+| graph-io exporters writing role columns (`color`, `size`, `shape`, `thickness`) into the format's style slots (GEXF `viz:*`)                              | the only way a style reached a file                                                                                                                                                        | unchanged without `styles`, and deprecated; with `styles`, the style writer is the only path: role columns are neither written into a slot nor reported as `W_VIZ_DROPPED` (2.1)                                                                   | yes. Next major                                                                                                                                           |
+| graph-io JSON and Neo4j CSV writing role columns as plain attributes, CSV skipping them                                                                   | inconsistent                                                                                                                                                                               | unchanged and documented; one rule (style goes only into style slots) in the next major                                                                                                                                                            | yes. Next major                                                                                                                                           |
+| graph-io Pajek `shape` column without the shape role (GEXF's has it)                                                                                      | inconsistent                                                                                                                                                                               | the Pajek style reader reads the column; the role is unchanged                                                                                                                                                                                     | yes. Next major                                                                                                                                           |
+| graph-io `W_STYLES_NOT_IMPORTED` (CX, CX2, sessions)                                                                                                      | always emitted                                                                                                                                                                             | emitted only when styles are not asked for, or for what a reader cannot translate                                                                                                                                                                  | no                                                                                                                                                        |
+| graph-io session vizmap                                                                                                                                   | not kept                                                                                                                                                                                   | its text handed to the session's style reader through `context.kept` (2.2)                                                                                                                                                                         | no (additive)                                                                                                                                             |
+| graph-io vis.js `options` and `groups`                                                                                                                    | dropped with a warning                                                                                                                                                                     | handed to the style reader through `context.kept` and read as defaults and group rules; the warning stays when styles are not asked for                                                                                                            | no (additive)                                                                                                                                             |
+| graph-io GML, XGMML, CX, CX2 and Cytoscape.js stored style data; DOT and Pajek plain attribute columns                                                    | stored raw                                                                                                                                                                                 | the style readers' input and the style writers' target                                                                                                                                                                                             | no                                                                                                                                                        |
+| graphty-element GEXF reader's `color` and `size` record keys                                                                                              | viz color and size copied into node data (documented)                                                                                                                                      | kept with `styles: "none"` (the default), documented as deprecated; not written with `styles: "file"`, where the file's layers carry the values (5.3 step 6); file styles never read them                                                          | yes. Removed in the next major                                                                                                                            |
+| graphty-element GraphML reader's `yfiles` record keys and its private 2D-to-3D shape table                                                                | records rebuilt from graph-io's `yfiles.*` columns                                                                                                                                         | kept frozen and deprecated with `styles: "none"`; not built with `styles: "file"`; the one shape table is the translation's `styleOptions.shapes`                                                                                                  | yes. Removed in the next major                                                                                                                            |
+| graphty-element export's `style.*` role columns                                                                                                           | each element's drawn color, size, shape, width                                                                                                                                             | kept when styles are not written (third-party writers read them); left out with `styles: true`, where the style writer is the only path (10.5)                                                                                                     | no                                                                                                                                                        |
+| graphty-element JSON reader                                                                                                                               | builds a stub snapshot, so a Cytoscape.js stylesheet never reaches graph-io                                                                                                                | routes Cytoscape.js, graphology and vis.js through graph-io (6.4), same record keys                                                                                                                                                                | no                                                                                                                                                        |
+| cytoscape-extensions `graphtyImport` (GEXF `viz:color` to `data.color`) and `graphtyExport` (`data.color` to `viz:color`), with its own CSS color parser  | GEXF and color only, a field named `color` only, `cy.style()` ignored                                                                                                                      | reverted on master before any release could publish it, then replaced: with `styles: true`, import returns the file's styles as a Cytoscape.js stylesheet built by graph-io and export writes `cy.style()` with the live per-element values (10.8) | no: added after cytoscape-extensions 0.0.9 and never released (if a release publishes it before the revert lands, it is deprecated like the rest instead) |
 
 **Why deprecation and not removal.** graph-io (0.3) and cytoscape-extensions (0.0) are below 1.0,
 where semantic versioning allows a minor release to break. graph-io still deprecates: its import
 results are published, graphty-element and third parties read them, and a `!` commit would publish
 a major-numbered release the owner has put on hold. cytoscape-extensions replaces outright only
-because the behavior never shipped. graphty-element (3.x) deprecates everything it published.
+because the behavior never shipped, and it is reverted on master first so that no release train
+publishes it while this work is in progress. graphty-element (3.x) deprecates everything it
+published.
 
 **Deferred to the next major** (each is also added to the issues that track the held major):
 
@@ -1299,11 +1451,12 @@ because the behavior never shipped. graphty-element (3.x) deprecates everything 
    `yfiles.label`'s label role.
 3. graph-io: drop `ExportCapabilities.viz`.
 4. graph-io: give Pajek's `shape` column the shape role.
-5. graph-io: JSON and Neo4j CSV stop writing role columns as plain attributes.
+5. graph-io: JSON and Neo4j CSV stop writing role columns as plain attributes, and exporters stop
+   writing role columns into style slots when no styles are given.
 6. graphty-element: drop the GEXF reader's `color` and `size` record keys, the GraphML reader's
    `yfiles` record keys and its private shape table.
 7. Owner decisions, not deferred removals: whether file styles are imported, and styles exported,
-   by default in graphty-element.
+   by default in graphty-element and cytoscape-extensions.
 
 ---
 
@@ -1330,33 +1483,36 @@ a rule of the implementation with the final check's inputs as its regression tes
 
 ## Decisions
 
-| Decision                      | Choice                                                                                                                                                                                                                                                                  | Reason                                                                                                                                          |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Where the common format lives | graph-io: types, canonicalizers, planner and resolver in `@graphty/graph-io/styles`; each format's style reader on its importer                                                                                                                                         | parsing and dialects live there; graphty-element and cytoscape-extensions both consume it; graph-format stays a stable zero-dependency snapshot |
-| How it travels                | `importGraph(input, { styles: true })` returns the styles of the importer that read the file; `fromImporter` calls `importer.styles` directly                                                                                                                           | works for any registry and any wrapped importer; no dispatch on an optional string                                                              |
-| Importer contract             | `styles?(snapshot, context)` with a simple path (raw values plus a dialect) and an advanced path (canonical values and declared rules)                                                                                                                                  | a third-party format gets styles in one line                                                                                                    |
-| Shape of the format           | ordered rules over a neutral vocabulary; predicates over data columns; discrete, continuous and passthrough mappings; per-element values in columns; notes that name their elements; every union open                                                                   | one model covers declared and inferred styles; its semantics match graphty's stack one to one                                                   |
-| Canonical values              | `#rrggbb` with alpha moved to opacity or noted; 6 significant digits; per-dialect namespaces; open enumerations; 256-character parse limit                                                                                                                              | grouping and verification compare one spelling                                                                                                  |
-| Truth                         | what the writing tool draws, modeled per tool (Graphviz's color, label and size rules; Cytoscape.js's comparisons, cascade and mapper resets; Cytoscape's list matching)                                                                                                | requirement 2 is about the tool's drawing, not the file's text                                                                                  |
-| Inference                     | families; discrete (degree included, 20% exceptions, a missing-key bucket), continuous (exact, else within the tool's rounding, noted), existing columns, joint style classes, copies; cost by description length                                                       | measured files are explained by one column, degree or a few classes; NP-hard alternatives buy little                                            |
-| Exactness                     | replay against the reference resolver; one sparse exceptions layer; never paint the unstyled                                                                                                                                                                            | exact by construction                                                                                                                           |
-| Layer bound                   | 16 per kind in the element, labels included, enforced by the planner's cap and the element's exact fold                                                                                                                                                                 | independent of graph size, by construction                                                                                                      |
-| DOT scopes                    | not tracked; cluster membership is a feature                                                                                                                                                                                                                            | inference reproduces every DOT file; a scope column would change every export                                                                   |
-| Style columns                 | groups and per-element values become short values on the elements: graph-io style columns; in graphty-element the path `graphty.style.<namespace>.<kind>.<key>`, built by one helper, kept in a per-load store saved with the project                                   | no giant selectors (owner, 2026-10-11); issue #2029 may move the root and changes only the helper                                               |
-| Element switch                | `LoadChoices.styles: "file" \| "none"`, default `"none"`; `LoadReport.styles`; `LoadDraft` summary; `styleOptions` with neutral defaults                                                                                                                                | reaches every data source; notes have a home; today's behavior kept                                                                             |
-| Element hand-off              | extraction on the element reader's snapshot, columns resolved through `columnsMapping`; apply inside `data.import` (one undo step), per-load import id and scoped selectors, `TemplateOptions.at`                                                                       | the import path the app uses, made exact for merge and reload                                                                                   |
-| Layer facts                   | typed `FileStyleOrigin` read with `fileStyleOf()`; names are rule ids                                                                                                                                                                                                   | the app never duck-types; the element stays neutral about presentation                                                                          |
-| Element prerequisites         | explain label merge, refuse label-style bindings, `unmapped: "skip"` (approved), `stops` scales, bindable label sub-channels, honest clamping and alpha, `TemplateOptions.at`, `FileStyleOrigin`, the file-style store, layers to neutral styles; no long-selector work | each is an element defect or gap a file import or export exposes, fixed in the element for every consumer                                       |
-| Robustness first              | fix the valid files that fail in graph-io and in the element's readers before shipping styles; follow the coding rules of 6.2                                                                                                                                           | requirement 1 fails without it                                                                                                                  |
-| Tool defaults                 | each reader adds the writing tool's defaults as one `origin: "tool"` rule at the bottom, only when the writer is identified; values in Appendix A; `toolDefaults: false` leaves them out                                                                                | the graph looks as it does in the program that made it (owner, 2026-10-11)                                                                      |
-| Defaults that are rules       | Gephi and vis edge color from the source node, resolved at import into a style column for edges with no color; arrows on directed edges only for Graphviz, Gephi and Pajek; unverified defaults left out                                                                | a constant cannot express them; file values always win                                                                                          |
-| Short selectors               | at most 8 terms from graph-io; anything wider becomes a style column at import                                                                                                                                                                                          | a selector of thousands of terms means the import failed to name the group                                                                      |
-| Export                        | layers to neutral rules in graphty-element; graph-io writes the picture, the rules in the format's own language, and a `graphty.styles` block plus tagged per-element values                                                                                            | other programs see the picture; graphty gets the same layers back                                                                               |
-| Re-import of a graphty file   | the block's rules are the declared rules, the native values the truth; a fingerprint mismatch ignores the block                                                                                                                                                         | exact after an outside edit; same layers without one                                                                                            |
-| Export losses                 | `W_STYLE_NOT_WRITTEN`, `W_STYLE_APPROXIMATED`, `W_STYLE_RULES_NOT_KEPT`, `W_STYLE_LAYER_FLATTENED`, reported by the dry run before writing                                                                                                                              | the app warns before anything is lost                                                                                                           |
-| Export switch                 | graphty-element `styles: true` on export, default off; graph-io `{ styles }`; `FormatDescriptor.styles` and `ExportCapabilities.styles` facts                                                                                                                           | additive; changing the default is the owner's call                                                                                              |
-| App option                    | one "import styles from files" preference, shown for formats whose catalog entry can carry styles, passed on every load path; a warning before a lossy export                                                                                                           | the app consumes element facts and keeps no format list                                                                                         |
-| Old style paths               | the style readers and writers are the only path; published copies deprecated, unreleased cytoscape-extensions handling replaced outright; removals listed for the next major                                                                                            | no breaking change while the major is held                                                                                                      |
+| Decision                      | Choice                                                                                                                                                                                                                                                                                                                                                        | Reason                                                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Where the common format lives | graph-io: types, canonicalizers, planner and resolver in `@graphty/graph-io/styles`; each format's style reader on its importer                                                                                                                                                                                                                               | parsing and dialects live there; graphty-element and cytoscape-extensions both consume it; graph-format stays a stable zero-dependency snapshot      |
+| How it travels                | `importGraph(input, { styles: true })` returns the styles of the importer that read the file; `fromImporter` calls `importer.styles` directly                                                                                                                                                                                                                 | works for any registry and any wrapped importer; no dispatch on an optional string                                                                   |
+| Importer contract             | `styles?(snapshot, context)` with a simple path (a dialect plus columns by name, `{ data: "color" }`, or raw arrays) and an advanced path (canonical values and declared rules); non-element style data reaches `styles()` as `context.kept`, which `import()` handed to `report.keepForStyles()`                                                             | a third-party format gets styles in one line with no helper; per-import data survives concurrent imports                                             |
+| Exporter contract             | one public optional `styles` member on `GraphExporter` for built-in and third-party exporters; `block: "attributes"` carries the block and tagged values as attributes; no member means every property is reported lost                                                                                                                                       | a third-party format can write styles or report their loss; extension-point parity                                                                   |
+| Styles follow their graph     | `ExtractedStyles.fingerprint`; `exportGraph` fails with `E_STYLES_MISMATCH` when it differs from the snapshot written                                                                                                                                                                                                                                         | per-element values never shift silently onto other elements                                                                                          |
+| Shape of the format           | ordered rules over a neutral vocabulary; predicates over data columns; discrete, continuous and passthrough mappings; per-element values in columns; notes that name their elements; every union open                                                                                                                                                         | one model covers declared and inferred styles; its semantics match graphty's stack one to one                                                        |
+| Canonical values              | `#rrggbb` with alpha moved to opacity or noted; 6 significant digits; per-dialect namespaces; open enumerations; 256-character parse limit                                                                                                                                                                                                                    | grouping and verification compare one spelling                                                                                                       |
+| Truth                         | what the writing tool draws, modeled per tool (Graphviz's color, label and size rules; Cytoscape.js's comparisons, cascade and mapper resets; Cytoscape's list matching)                                                                                                                                                                                      | requirement 2 is about the tool's drawing, not the file's text                                                                                       |
+| Inference                     | families; discrete (degree included, 20% exceptions, a missing-key bucket), continuous (exact, else within the tool's rounding, noted), existing columns, joint style classes, copies; cost by description length                                                                                                                                             | measured files are explained by one column, degree or a few classes; NP-hard alternatives buy little                                                 |
+| Exactness                     | replay against the reference resolver; one sparse exceptions layer; never paint the unstyled                                                                                                                                                                                                                                                                  | exact by construction                                                                                                                                |
+| Layer bound                   | 16 per kind in the element, labels included, enforced by the planner's cap and the element's exact fold                                                                                                                                                                                                                                                       | independent of graph size, by construction                                                                                                           |
+| DOT scopes                    | not tracked; cluster membership is a feature                                                                                                                                                                                                                                                                                                                  | inference reproduces every DOT file; a scope column would change every export                                                                        |
+| Style columns                 | groups and per-element values become short values on the elements: graph-io style columns; in graphty-element the path `graphty.style.<namespace>.<kind>.<key>`, built by one helper, kept in a per-load store saved with the project                                                                                                                         | no giant selectors (owner, 2026-10-11); issue #2029 may move the root and changes only the helper                                                    |
+| Element switch                | `LoadChoices.styles: "file" \| "none"`, default `"none"`, also on `loadFromUrl`, `loadFromFile` and `dataSourceConfig`; `LoadReport.styles`; `LoadDraft` summary; `styleOptions` with neutral defaults; `FormatDescriptor.styles` derived from the wrapped importer and exporter when not stated                                                              | reaches every data source and every load call; notes have a home; today's behavior kept                                                              | reaches every data source; notes have a home; today's behavior kept |
+| Element hand-off              | extraction on the element reader's snapshot, columns resolved through `columnsMapping`; apply inside `data.import` (one undo step), per-load import id and scoped selectors, `TemplateOptions.at`                                                                                                                                                             | the import path the app uses, made exact for merge and reload                                                                                        |
+| Layer facts                   | typed `FileStyleOrigin` read with `fileStyleOf()`; names are rule ids; `FileStyleNoteCode`, `FileStyleReason` and a runtime list of every style code from the Node-safe `./session` entry                                                                                                                                                                     | the app never duck-types; the element stays neutral about presentation                                                                               |
+| Element prerequisites         | explain label merge, a coded warning (not a refusal) for whole-label bindings, `unmapped: "skip"` (approved), `stops` scales, bindable label sub-channels, counted clamping and reported alpha (drawing unchanged), `TemplateOptions.at`, `FileStyleOrigin`, the file-style store, live degree paths, layers to neutral styles; no long-selector work         | each is an element defect or gap a file import or export exposes, fixed in the element for every consumer, and none changes what existing input does |
+| Robustness first              | fix the valid files that fail in graph-io and in the element's readers before shipping styles; follow the coding rules of 6.2                                                                                                                                                                                                                                 | requirement 1 fails without it                                                                                                                       |
+| Tool defaults                 | each reader adds the writing tool's defaults as one `origin: "tool"` rule at the bottom: always for a format with one canonical program (GEXF, DOT, Pajek, the Cytoscape formats) and for a JSON dialect (its tool), only when the writer is recognized for GraphML and GML; values from primary sources in Appendix A; `toolDefaults: false` leaves them out | the graph looks as it does in the program that made it (owner, 2026-10-11)                                                                           |
+| Defaults that are rules       | Gephi and vis edge color from the source node, resolved at import into a style column for edges with no color, as a temporary measure with a tracking issue until the element can bind an edge to its source node's color; degree groups read live degree paths; arrows on directed edges only for Graphviz, Gephi and Pajek; unverified defaults left out    | a constant cannot express them; file values always win                                                                                               |
+| Short selectors               | at most 8 terms from graph-io; anything wider becomes a style column at import                                                                                                                                                                                                                                                                                | a selector of thousands of terms means the import failed to name the group                                                                           |
+| Export                        | layers to neutral rules in graphty-element; graph-io writes the picture, the rules in the format's own language, and a `graphty.styles` block plus tagged per-element values                                                                                                                                                                                  | other programs see the picture; graphty gets the same layers back                                                                                    |
+| Re-import of a graphty file   | the block's rules are the declared rules, the native values the truth; a fingerprint mismatch ignores the block                                                                                                                                                                                                                                               | exact after an outside edit; same layers without one                                                                                                 |
+| Export losses                 | `W_STYLE_NOT_WRITTEN`, `W_STYLE_APPROXIMATED`, `W_STYLE_RULES_NOT_KEPT`, `W_STYLE_LAYER_FLATTENED`, and `W_STYLES_NOT_EXPORTED` when styles exist but were not asked for, reported by the dry run before writing; with styles, role columns never reach a style slot                                                                                          | the app warns before anything is lost                                                                                                                |
+| Export switch                 | graphty-element `styles: true` on export, default off; graph-io `{ styles }`; cytoscape-extensions `styles: true` on import and export; `FormatDescriptor.styles` and `ExportCapabilities.styles` facts                                                                                                                                                       | additive; changing a published default is the owner's call, and the not-exported note advertises the option                                          |
+| Cytoscape.js                  | `toCytoscapeStylesheet` returns the stylesheet and the element data it reads under flat keys, scoped per import; returned, applied only with `applyStyles: true`; export takes the live per-element values as the truth                                                                                                                                       | selectors match, imports do not collide, the consumer's stylesheet is never replaced, function-valued styles are written exactly                     |
+| App option                    | one "import styles from files" preference, shown for formats whose catalog entry can carry styles, passed on every load path; a warning before a lossy export                                                                                                                                                                                                 | the app consumes element facts and keeps no format list                                                                                              |
+| Old style paths               | the style readers and writers are the only path; with styles on, the element's readers stop copying style values into records; published copies deprecated; unreleased cytoscape-extensions handling reverted first, then replaced; element record keys never renamed; removals listed for the next major                                                     | no breaking change while the major is held                                                                                                           |
 
 ---
 
@@ -1366,18 +1522,18 @@ The values each style reader adds for what a file leaves unset (section 3, "Defa
 writing tool"). Every value, its source and the tool version are in `style-tool-defaults.md`;
 values no primary source states are marked there and are not added.
 
-| Tool                                  | Formats, and how the writer is recognized                                                                                                                        | Nodes                                                        | Edges                                                                            | Labels                                                   | Background  |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------- |
-| Cytoscape desktop, "default" style    | CX, CX2, XGMML (always); GraphML with Cytoscape's `SUID` and `shared name` keys; GML `Creator "Cytoscape"`; JSON `generated_by: "cytoscape-..."` with no `style` | fill `#89d0f5`, round rectangle 75 x 35, no border           | `#848484`, width 2, solid, no arrows, curved                                     | nodes from the `name` column; black, 12                  | `#ffffff`   |
-| Cytoscape desktop, renderer fallbacks | .cys sessions                                                                                                                                                    | fill `#c80000`, ellipse 60 x 40, black border 2              | `#404040`, width 1, solid, no arrows                                             | none; black, 12                                          | `#ffffff`   |
-| Cytoscape.js 3.x                      | JSON with `elements` (and a `style`, for Cytoscape desktop's export)                                                                                             | fill `#999999`, ellipse 30 x 30, no border                   | `#999999`, width 3, solid, no arrows                                             | none; black, 16, above the node                          | none        |
-| Graphviz                              | DOT (always)                                                                                                                                                     | unfilled ellipse, black outline 1, 54 x 36 (0.75 x 0.5 inch) | black, width 1, solid; a target arrow on directed edges                          | every node by its name; black, 14, Times-Roman, centered | none        |
-| yEd, yFiles 2                         | GraphML with the `y:` namespace; GML `Creator "yFiles"`                                                                                                          | fill `#ffcc00`, rectangle, black border 1                    | black, width 1, solid; arrows as the file's `y:Arrows`, none when absent         | black, 12, Dialog, centered                              | not added   |
-| yFiles 3                              | GraphML with the yFiles 3 namespaces                                                                                                                             | fill `#ffffff`, rectangle, black stroke 1                    | black, width 1, no arrows                                                        | black, 12, Arial                                         | not added   |
-| Gephi                                 | GEXF (always); GraphML with `r`, `g`, `b` keys; GML `Creator "Gephi"`                                                                                            | black when no color, size 10, disc                           | the source node's color when the edge has none; a target arrow on directed edges | hidden (no label rule)                                   | `#ffffff`   |
-| vis-network                           | JSON with `nodes[].id` and `edges[].from`                                                                                                                        | fill `#97c2fc`, border `#2b7ce9` 1, ellipse                  | the from-node's color when the edge has none, width 1, no arrows                 | the `label` field only; `#343434`, 14                    | none        |
-| sigma (graphology files)              | JSON with `nodes[].key` and `attributes`                                                                                                                         | `#999999`, circle, size 2                                    | `#cccccc`, size 0.5, no arrows                                                   | the `label` attribute; black, 14                         | none        |
-| Pajek                                 | Pajek (always)                                                                                                                                                   | ellipse                                                      | black, solid; a target arrow on arcs                                             | not added                                                | not added   |
-| OGDF                                  | GML `Creator "ogdf::..."`                                                                                                                                        | fill white, rectangle 20 x 20, black stroke 1                | black, width 1                                                                   | not added                                                | not added   |
-| graphty                               | any file holding a `graphty.styles` block                                                                                                                        | the block's recorded base values                             | the block's recorded base values                                                 | the block's                                              | the block's |
-| none                                  | CSV, Neo4j CSV, OBO, d3 and NetworkX node-link, JGF; GraphML and GML from NetworkX, igraph, SNDlib or an unknown writer                                          | none                                                         | none                                                                             | none                                                     | none        |
+| Tool                                  | Formats, and how the writer is recognized                                                                                                                                                                           | Nodes                                                        | Edges                                                                            | Labels                                                   | Background  |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------- |
+| Cytoscape desktop, "default" style    | CX, CX2, XGMML (always); GraphML with Cytoscape's `SUID` and `shared name` keys; GML `Creator "Cytoscape"`; JSON `generated_by: "cytoscape-..."` with no `style`                                                    | fill `#89d0f5`, round rectangle 75 x 35, no border           | `#848484`, width 2, solid, no arrows, curved                                     | nodes from the `name` column; black, 12                  | `#ffffff`   |
+| Cytoscape desktop, renderer fallbacks | .cys sessions                                                                                                                                                                                                       | fill `#c80000`, ellipse 60 x 40, black border 2              | `#404040`, width 1, solid, no arrows                                             | none; black, 12                                          | `#ffffff`   |
+| Cytoscape.js 3.x                      | JSON with `elements` (and a `style`, for Cytoscape desktop's export)                                                                                                                                                | fill `#999999`, ellipse 30 x 30, no border                   | `#999999`, width 3, solid, no arrows                                             | none; black, 16, above the node                          | none        |
+| Graphviz                              | DOT (always)                                                                                                                                                                                                        | unfilled ellipse, black outline 1, 54 x 36 (0.75 x 0.5 inch) | black, width 1, solid; a target arrow on directed edges                          | every node by its name; black, 14, Times-Roman, centered | none        |
+| yEd, yFiles 2                         | GraphML with the `y:` namespace; GML `Creator "yFiles"`                                                                                                                                                             | fill `#ffcc00`, rectangle, black border 1                    | black, width 1, solid; arrows as the file's `y:Arrows`, none when absent         | black, 12, Dialog, centered                              | not added   |
+| yFiles 3                              | GraphML with the yFiles 3 namespaces                                                                                                                                                                                | fill `#ffffff`, rectangle, black stroke 1                    | black, width 1, no arrows                                                        | black, 12, Arial                                         | not added   |
+| Gephi                                 | GEXF (always); GraphML with `r`, `g`, `b` keys; GML `Creator "Gephi"`                                                                                                                                               | black when no color, size 10, disc                           | the source node's color when the edge has none; a target arrow on directed edges | hidden (no label rule)                                   | `#ffffff`   |
+| vis-network                           | JSON with `nodes[].id` and `edges[].from`                                                                                                                                                                           | fill `#97c2fc`, border `#2b7ce9` 1, ellipse                  | the from-node's color when the edge has none, width 1, no arrows                 | the `label` field only; `#343434`, 14                    | none        |
+| sigma (graphology files)              | JSON with `nodes[].key` and `attributes`                                                                                                                                                                            | `#999999`, circle, size 2                                    | `#cccccc`, size 0.5, no arrows                                                   | the `label` attribute; black, 14                         | none        |
+| Pajek                                 | Pajek (always)                                                                                                                                                                                                      | ellipse                                                      | black, solid; a target arrow on arcs                                             | not added                                                | not added   |
+| OGDF                                  | GML `Creator "ogdf::..."`                                                                                                                                                                                           | fill white, rectangle 20 x 20, black stroke 1                | black, width 1                                                                   | not added                                                | not added   |
+| graphty                               | any file holding a `graphty.styles` block                                                                                                                                                                           | the block's recorded base values                             | the block's recorded base values                                                 | the block's                                              | the block's |
+| none                                  | CSV, Neo4j CSV, OBO, d3 node-link, JGF; GraphML and GML from SNDlib or an unknown writer; NetworkX and igraph until a primary source gives their drawing defaults and the writer is reliably recognized (section 3) | none                                                         | none                                                                             | none                                                     | none        |

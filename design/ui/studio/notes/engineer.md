@@ -11,6 +11,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Round 3 screenshot audit done: 38 findings, 0 at severity 4, 2 at 3 (both
+  element label placement), 12 at 2.** `tier2/rounds/round-3/expert/engineer.md`. New this round
+  and mine to fix in the app: the disabled "Filter to neighbors" shows no reason to the person who
+  just pressed it (tooltip opens on pointer entry only) and looks like an empty text field
+  (compact-mantine's disabled Button); the repeated-ties warning on "Add to" is plain text with Load
+  still primary; Escape does nothing on the Data pages. New for the element: sized nodes drawn
+  inside each other (layout spaces centers, not sizes) -- the cause under "Farah under Chloe".
 - (2026-10-10) **Round 2 closed; its lesson for me: a study that leaks proves only failures.**
   Participants read the facilitator's task file, so the three routes added for round 2 (weight
   meaning at load, Replace in the source's "..." menu, the find box's rule hint) are NOT credited
@@ -22,13 +29,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   throwaway pilots per task on the candidate build, script their routes, walk them plus round 2's
   detours, keyboard-press every control on each screen, and FIX before freeze -- never hand a
   found fault to a later pass (the find box's second Escape slipped through that way).
-- (2026-10-10) **Unfinished, uncommitted: the round 3 dry run from real routes.** In the worktree:
-  `real.mjs` (Tab after a setup starts at Main menu; `REAL_MISS_FAILS=1` exits 2 on a scripted
-  miss; self-test checks both), `detours.sh` (R2-* detours, KS-* keyboard sweeps), `rewalk.sh`
-  (`routes:<round>`), README, the `canvas:empty-click` owner-decisions entry. To do: build,
-  `--prove`, `detours.sh all`, `rewalk.sh routes:tier2/rounds/round-2`, fix, write the round 3
-  preflight walk table (every route and detour, 0 known faults, script results for the two
-  disputed behaviors: half-made step on another selection, empty-canvas click during a run), commit.
 - (2026-10-10) **Round 3 changes, built (verify on the next frozen build):** find box offers a
   typed condition as a rule Enter runs, with the "=" kept; Add warns on repeated ties with Replace
   beside Load; three focus faults (second Escape, Hops/Follow arrows, Tab out of the step editor
@@ -53,11 +53,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (r3 pilot `T19A/11.png`, route `--reopen`). Eleven walks showed it; suspect the open finishing
   late (an element question). No code without a mechanism. Evidence
   `tmp/r3-dry1-reopen-shows-opened-notice/`.
-- (2026-10-10) **Under a filter step, the whole graph's rows are a "Full graph" `ControlSection`**
-  (commit 997395818), checked on graphty/dist, not yet frozen.
-- (2026-10-09) **Open from the round 2 audit:** two-table source has no Edit/Replace and no reason;
-  "Edit source..." lands on "Replace: ..."; neighbor Back row scrolls the inspector sideways; the
-  neighbor list cannot say 1 step vs 2 until the element reports distance.
+- (2026-10-10) **Still open from the round 2 audit, confirmed on r3d2:** two-table source has no
+  actions and no reason; "Edit source..." lands on "Replace: ..."; neighbor Back row scrolls the
+  inspector sideways; path popover covers the nodes it asks for; 900 x 700 canvas is 363 px. The
+  "Full graph" section under a filter is frozen and reads right at both sizes.
 - (2026-10-09) Script before calling it a defect (two round 2 "app faults" were the study tool's
   click by name landing on a same-named control); every study-tool change gets a planted-failure
   check.
@@ -134,22 +133,12 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   inspector still shows it, so a click that opened something else is never overridden by the
   async write. An incomplete rule still waits as the "+" draft (the a97eb3b67 behavior, kept for
   that case only).
-- (2026-10-10) **Hops/Follow focus: the effect's deps were never the cause.** `showNeighborhood`
-  reselects, the selection change closes the inspector row and `store.set` opens it again, so
-  `NeighborList` mounts fresh and its focus-on-open effect sends focus to Hops. Fix: the control's
-  `onChange` sets `refocusControl` to its label id and the effect focuses that group's checked
-  radio (ids hold quotes from `nodeKey`: `CSS.escape`). App only; no element change.
-- (2026-10-10) **Bar 10 counts visually hidden text as off screen, and a copy on screen as
-  readable.** The first run reported every Mantine VisuallyHidden status line (1 px box) as cut;
-  the same rule `wordsOnScreen` uses now skips them. A node's title cut while its id row shows it
-  whole is readable (criteria: "a wider view"). Raw refusal text and raw file statements have no
-  fixed shape: left to the experts. Counts are findings, not a failing exit.
-- (2026-10-10) **A command and a toggle on one button was the defect, not the words.** Participants
-  pressed "Filter to neighbors" twice and lost the step they had made; the pressed look and "Press
-  again to show every node" only explained the trap. One place turns a step off (its checkbox), as
-  for every other step. Kept: one step per center (a press at other hops moves that step rather
-  than stacking a second, which would intersect to the nearer reach). App only: the element's
-  `visibility.setSteps` already does all of it.
+- (2026-10-10, condensed) **Hops/Follow focus:** `NeighborList` remounts on reselect, so the
+  control's `onChange` sets `refocusControl` and the effect focuses that group's checked radio
+  (`CSS.escape` the ids). **Bar 10** skips VisuallyHidden lines and counts a title cut while its id
+  row shows it whole as readable. **Filter to neighbors is a command, not a toggle:** a second press
+  lost the step; one place turns a step off (its checkbox); one step per center, moved by a press at
+  other hops (the element's `visibility.setSteps` does it all).
 - (2026-10-10) **A path's length words come from one function.** The row and the status line both
   said "N hops" from two copies; a weighted path's answer is its total, so both now call
   `pathLengthWords`, with the inspector's distance-only rule for "Total <column>". Unweighted (or a
@@ -217,6 +206,14 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
 
 ## Tried: worked / did not work
 
+- (2026-10-10) **Round 3 audit method.** Worked: every walk as one data line (`engineer/walks.txt`:
+  name|start|step|step...) read by an inline loop in one background Bash command, each walk its own
+  session folder calling real.mjs directly; all 34 walks queued at once and waited on the shared
+  slots (other agents held all four for about 20 minutes). Did not work: `--click "weight#1"` with
+  the list open (refused as ambiguous: use `role=option:weight`), `--click "Graph"` (rail button and
+  heading share it), plain `--rclick` on a source row (row and heading share the name: `#1`). Sources
+  has no Add control; Control+O with the loaded file reaches "Add to <graph>". A hover right after
+  the click that disabled a button reads `tooltip: null`; hover elsewhere, then back.
 - (2026-10-10, condensed) **Real.mjs and probe lessons.** A missed notice did not reproduce by
   route (11 walks); probing worked: copy the frozen build, `chmod -R u+w`, add `console.error`
   probes in the bundle (real.mjs prints them with page times). Read the pilot agent's own commands
@@ -246,19 +243,14 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   backtick-typed condition failed only there (edge column counted as a node scope). Did not work:
   running vitest while another agent rebuilt the shared dists (graph-io chunks missing, "Failed to
   import test file"); wait until its `nx run graphty:build` exits, then rerun.
-- (2026-10-10) Resuming after an interrupted session: check `git log` and `tmp/<session>/` before
-  redoing a task. Focus after actions (inspector title after a run or find pick, Degree after
-  Back, no canvas ring after a pointer click) was already on the branch (c9430b8d7, refined in
-  7f61a2ab2); its re-pilot shots still hold (`tmp/r1-dry2-focus-after-actions/T12RA/09.png`
-  Degree focused, `T24A/02.png` no canvas outline). Worked: nothing to redo.
+- (2026-10-10) Resuming after an interrupted session: check `git log`, the round folder and
+  `tmp/<session>/` before redoing a task (focus-after-actions was already on the branch, 7f61a2ab2).
 - (2026-10-10) Did not work: running `bars.mjs` on `graphty/dist` of the shared worktree; another
   agent rebuilt it mid-run (ENOENT on index.html). Copy the dist into the task folder and pass
   `--dist`. Seen, not mine: tier 1's "a node's Values with its neighbors" step misses (click on
   "Degree" times out) on 7fe0a48412cc.
-- (2026-10-10) Did not work: a Python heredoc with `\\'` inside a single-quoted string (syntax
-  error); write the edit script to a file with the Write tool. Worked: `openKarate("data")` (the
-  Workspace's `initialState.place`) puts Filters beside the inspector in a real-element test, so the
-  step's checkbox is clicked by its name "Apply step: within 2 hops of <name>".
+- (2026-10-10) Write Python edit scripts to a file (heredoc quoting breaks). `openKarate("data")`
+  puts Filters beside the inspector in a real-element test.
 - (2026-10-10) Did not work: a Python `str.replace` to add an assertion after a line two tests
   shared put it in both (the unweighted test then failed on "minutes 14"); anchor test edits on a
   line unique to the test. Worked: proving the row test fails without the fix by writing

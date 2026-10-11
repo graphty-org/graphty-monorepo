@@ -350,4 +350,31 @@ describe("every generated action", () => {
             );
         }
     });
+
+    it("reads a channel spelled 'Node Color' or nodesize as the channel it names", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        await assistant.say("paint", [
+            {
+                tool: "style",
+                args: { action: "add", where: "all", values: { "Node Color": "#ff0000", nodesize: 2 } },
+            },
+        ]);
+        const [read] = assistant.lastResults();
+        assert.strictEqual(read.code, "style.add-layer", JSON.stringify(read));
+        const layer = session.styles.list().at(-1);
+        assert.include(JSON.stringify(layer), "#ff0000");
+    });
+
+    it("describes an entry by its name alone when only one kind has it", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        await assistant.say("describe", [{ tool: "catalog", args: { action: "describe", name: "pagerank" } }]);
+        const [read] = assistant.lastResults();
+        assert.strictEqual(read.code, "AI_OK", JSON.stringify(read));
+        await assistant.say("describe", [{ tool: "catalog", args: { action: "describe", name: "no-such-entry" } }]);
+        const [refused] = assistant.lastResults();
+        assert.strictEqual(refused.code, "AI_ARG_INVALID");
+        assert.strictEqual(refused.params.path, "kind");
+    });
 });

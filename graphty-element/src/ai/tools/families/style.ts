@@ -86,6 +86,23 @@ function channelValue(descriptor: ChannelDescriptor): z.ZodType {
 }
 
 /**
+ * A channel name as a model may misspell it: `node_size` or `nodeSize` for `node.size`, any case.
+ * An unambiguous spelling becomes the channel's own; anything else is left for the refusal.
+ * @param written - The key as written.
+ * @param names - The channels.
+ * @returns The channel's name, or the key as written.
+ */
+function channelSpelling(written: string, names: readonly string[]): string {
+    if (names.includes(written)) {
+        return written;
+    }
+
+    const flat = (name: string): string => name.replace(/[._\s-]/g, "").toLowerCase();
+    const matches = names.filter((name) => flat(name) === flat(written));
+    return matches.length === 1 ? matches[0] : written;
+}
+
+/**
  * Flatten `{ node: { color: "red" } }` to `{ "node.color": "red" }`, and check each channel.
  * @param values - The values as written.
  * @param channels - The channel table.
@@ -115,7 +132,8 @@ export function checkValues(
     const names = channels.map((channel) => channel.channel);
     const set: Partial<Record<Channel, unknown>> = {};
     const targets = new Set<"node" | "edge">();
-    for (const [key, value] of Object.entries(flat)) {
+    for (const [written, value] of Object.entries(flat)) {
+        const key = channelSpelling(written, names);
         const descriptor = channels.find((channel) => channel.channel === key);
         if (descriptor === undefined) {
             throw new ToolRefusal("AI_UNKNOWN_ENTRY", { kind: "channel", name: key, didYouMean: suggest(key, names) });

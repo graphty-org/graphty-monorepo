@@ -249,13 +249,15 @@ export function catalogTool(sources: CatalogSources): ToolDefinition {
             name: "describe",
             summary: "options and an example",
             fields: {
-                kind: z.enum(CATALOG_KINDS).describe("The entry's kind."),
+                kind: z.enum(CATALOG_KINDS).optional().describe("The entry's kind; needed only when a name has two."),
                 name: z.string().min(1).max(200).describe("The entry's name, as search returned it."),
             },
             effect: "read",
             reaches: [{ door: "GraphSession.estimate" }],
             run: async ({ tx }, args) => {
-                const { data, tool } = await describe(tx, sources, args.kind as CatalogKind, text(args.name));
+                const name = text(args.name);
+                const kind = (args.kind as CatalogKind | undefined) ?? kindOf(sources, name);
+                const { data, tool } = await describe(tx, sources, kind, name);
                 const load = sources.onDemand(tool) ? [tool] : [];
                 return { ...ok(data, load.length === 0 ? {} : { load }), load };
             },
@@ -270,6 +272,34 @@ export function catalogTool(sources: CatalogSources): ToolDefinition {
         example: { action: "search", text: "find communities" },
         actions,
     };
+}
+
+/**
+ * The kind of the one entry a name names.
+ * @param sources - The catalog and the index.
+ * @param name - The name.
+ * @returns The kind.
+ * @throws {ToolRefusal} `AI_ARG_INVALID` when no entry or several have the name.
+ */
+function kindOf(sources: CatalogSources, name: string): CatalogKind {
+    const kinds = [
+        ...new Set(
+            sources
+                .index()
+                .entries()
+                .filter((entry) => entry.name === name)
+                .map((entry) => entry.kind),
+        ),
+    ];
+    if (kinds.length !== 1) {
+        throw new ToolRefusal("AI_ARG_INVALID", {
+            path: "kind",
+            expected: "the entry's kind",
+            allowed: kinds.length === 0 ? [...CATALOG_KINDS] : kinds,
+        });
+    }
+
+    return kinds[0];
 }
 
 /**

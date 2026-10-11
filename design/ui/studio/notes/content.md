@@ -7,36 +7,33 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- 2026-10-10 Round 2 closed. Adopted from my proposals: find "No match" plus the example rule
-  (change 4a), "=" back in the suggestion (4b), a rule-made layer named by its rule (8), path
-  row "<column> <total>" (12), key scope only when drawing and run differ (9), shorter unweighted
-  note (9). NOT adopted: naming 2 to 3 picked nodes by their names -- only rule selections change.
-- 2026-10-10 Round 3 words budget is mine: bar 9 (b) must fall to round 1's counts on four
-  screens (rest 55 -> <=53, path inspector 70 -> <=66, neighbor list 38 -> <=36, edge inspector
-  34 -> <=30). Every word fix names what it deletes; "no new word anywhere".
-- 2026-10-10 Key scope wording to write: no filter + whole graph = "PageRank"; under a filter
-  "PageRank, full graph"; narrower run keeps "on N nodes". Unweighted note: `Each edge counts as
-1; "weight" has no meaning set.` Neighbor list: cut two words at rest.
-- 2026-10-10 Round 2 credits nothing it measured as "worked": participants read the facilitator
-  tasks.md. A problem found anyway is robust; a route that worked is weak. Re-run before crediting
-  Higher means at load, Replace in "...", the find rule hint.
-- 2026-10-10 Prompts are words too: "stand out", "who was first before", "make sure" each produced
-  behavior read as user need. T22/T24 lose "stand out". Grade against the prompt's own words.
-- 2026-10-10 Watch in round 3: does "No match" + example rule get 3+ of 8 to a rule (else "Select
-  where..." comes next)? Does "minutes 14" end the weight doubt? Does the rule-named layer make the
-  key readable? Does "PageRank" without scope cause anyone to misread a filtered drawing?
+- 2026-10-10 Round 3 (build 26f3bb968): 54 of 56 succeeded; no confirmed failure is a word
+  failure. The one real app failure is Shift/Ctrl-click on a node (element). Words did their job.
+- 2026-10-10 Round 3 proposals (below, under Decisions): value row without "Select where" plus an
+  "N or more" row; backtick refusal replaced by the existing "Rule: press Enter to select matches";
+  path row "4 edges" not "4 hops"; Hops 2 list grouped "1 hop" / "2 hops"; shorter disabled reason.
+- 2026-10-10 Readers type the prompt's most prominent data word first (column name or bare
+  number), so the find box must turn BOTH into a working rule. 0 of 16 typed "=" in two rounds:
+  the rule language is copied from hints, never discovered -- hints must be runnable, not taught.
+- 2026-10-10 Do NOT reword: "PageRank, full graph" (read right, called helpful); the repeated-ties
+  sentence (its fault is focus and button weight); "Higher means: Not set" on Replace; Hops,
+  Degree (field terms, sev 1).
+- 2026-10-10 Bar 9 (b): the edge inspector is 31 vs 30 only because the counter counts data names
+  ("friends", "team.csv"). Fix the counter; never cut a needed word to pass a broken count.
+- 2026-10-10 Backticks in layer names and the key ("minutes >= `10`") stay until the element
+  takes bare numbers (owner list). Stripping them in the app would be a workaround; the clean
+  route is an element fact (parsed rule: column, comparison, value) the app words.
+- 2026-10-10 Prompts are words too, again: T24 "point out" vs a key that credits only a selection
+  failed two valid answers. A prompt names the measured outcome in the field's word.
+- 2026-10-10 A word proposal ships with its bars.mjs count before and after, per screen.
 - 2026-10-10 Owner list, unchanged: bare numbers in rules (element), what edge width measures.
-  Until then "backtick" stays out of reader words; the "=" form carries it.
-- 2026-10-10 Escape in the step editor will say "cancelled" in the status line (change 6) and a
-  repeated status is re-announced (change 14) -- word those lines short, subject first.
 - 2026-10-09 Find hint: the ELEMENT decides if text is a rule; the app reads no syntax.
-- 2026-10-09 Word faults hide on detours: every preflight styles a selection and reads the key.
-- 2026-10-09 Deferred, mine to re-raise only on evidence: Hops, Select endpoints, Capacity, Leave
-  out preselected, "Edit source..." vs "Replace: team.csv" (sev 1), "Components 1" under a filter.
+- 2026-10-09 Deferred, mine to re-raise only on evidence: Select endpoints, Capacity, Leave out
+  preselected, "Edit source..." vs "Replace: team.csv", "Components 1" under a filter.
 - 2026-10-07 Element English leaks are element defects (code + params); CSV export headers may be
   a format contract -- one-way door.
-- 2026-10-06 Words cannot fix a missing route; a word never promises what the screen does not do;
-  task wording never echoes a fix.
+- 2026-10-06 Words cannot fix a missing route (Filters from the Graph place is a route); a word
+  never promises what the screen does not do; task wording never echoes a fix.
 - 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40). Simulated: fail strong, pass weak.
 
 ## Priorities and values
@@ -132,36 +129,11 @@ I read this file at the start of every session and update it as I decide and lea
   rejected for round 2 (two changes at once); "Show all labels" beside the hidden count deferred
   behind wheel zoom; at-rest wording ("directed 0", "Edges per n...") deferred to bar 9's count.
 
-- 2026-10-09 Tier 2 round 1 proposals (mine, to the studio, reversible, untested): (1) find box,
-  text with a comparison sign and no match: second line "Rules start with =, such as <rule>",
-  the rule from the typed column when it is one (`graph-place/FindBox.tsx` exampleRule);
-  (2) "Total <weight column>" for "Total distance" (`inspector/RunValues.tsx`); (3) unweighted
-  path note "Each edge counts as 1. <column>'s meaning is not set" (`analyze/words.ts`
-  weightRead); (4) key title ", out of date" from the staleness fact; "N runs out of date"
-  (`data-page/words.ts` replacedWords); (5) load status uses the header's name and adds
-  "N rows left out"; (6) Replace page button "Replace" not "Load" (`DataPage.tsx`); (7) Shortest
-  path: aliases chain, quickest, link, between; its line says "path", not "route". Kept as is:
-  hops, Select endpoints, Dijkstra, Higher means, the Replace report, "N of M nodes" chip.
-  Reason: each fixes a confirmed finding with the fewest words; none adds text at rest.
-
 - 2026-10-09 Round 1 closed (tier 2 decisions.md): my seven proposals adopted as changes 4, 8,
   10 and 14, with one correction I accept -- the find hint fires when the element says the text
   is a rule, not when the app sees a comparison sign (the app must read no rule syntax). Reason:
   each fixes a confirmed finding with the fewest words and nothing new at rest. "Select where"
   routes held back so the words' effect is measured alone. Studio, reversible.
-
-- 2026-10-09 Tier 2 round 2 proposals (mine, to the studio, reversible, untested): (1)
-  `graph-place/FindBox.tsx`: a no-match that is not a rule adds "To select by a value, type a
-  rule, such as =<exampleRule>" (reuses `exampleRule`; reason: 6 of 8 met bare "No match", sev
-  3); (2) `ruleRefusalWords`: put "=" before the suggestion (engineer 5: typed as shown it is a
-  plain search); (3) `style/StyleTab.tsx selectionName`: a rule-made selection is named by its
-  rule (`selection.origin.text`), 2 to 3 nodes by their names, else the count (sev 2, 7
-  sessions); (4) path run row: weighted total "<column> <total>" in place of "4 hops" (sev 2;
-  same form as "value 17"); (5) `analyze/words.ts weightRead`: `Each edge counts as 1;
-"<column>" has no meaning set.` (-4 words, read as a warning in r2-s28, s29); (6)
-  `canvas/legendWords.ts rowName`: "PageRank, full graph" when the run covered the full graph,
-  else keep "on N nodes" (sev 2, eight sessions; glossary state word). Reason: each fixes a
-  confirmed finding and the set lowers words at rest.
 
 - 2026-10-10 Round 2 closed (tier2/rounds/round-2/decisions.md, Design Director). Adopted:
   changes 4 (a: example rule after a non-rule "No match", once, never at rest; b: suggestion
@@ -174,7 +146,30 @@ I read this file at the start of every session and update it as I decide and lea
   off-rest, above the buttons, count against incoming edges; mine to word with the fewest words,
   e.g. "41 of 41 edges are already loaded" + "Replace friends". Studio, reversible.
 
+- 2026-10-10 Tier 2 round 3 proposals (mine, to the studio, reversible, untested). (1)
+  `graph-place/FindBox.tsx` value row: visible text "<column> is 10 (2)" without "Select where"
+  (the Values heading and filter glyph say it; accessible name keeps the verb) -- the row was cut
+  in 4 sessions; plus, for a numeric column, a row "<column> 10 or more (N)", which needs an
+  additive element fact (at-least count and its rule on find's value rows). (2) `ruleRefusal`
+  backtick case: "Put numbers in backticks:" in red -> the existing "Rule: press Enter to select
+  matches" in the hint color (r3-s09, s11, s13; figma 9; zero new words). (3) A condition with no
+  column (">=10"): element offers the rewrite per numeric column, worded as (2). (4)
+  `analyze/words.ts hopWords`: "4 hops" -> "4 edges", the Summary's own term (engineer 28). (5)
+  Neighbor list at Hops > 1: subheadings "1 hop (N)", "2 hops (M)" from an element depth fact
+  (figma 18, r3-s48). (6) `inspector/words.ts` disabled reason: "Already on. Turn it off in
+  Filters", tied by aria-describedby (a11y 4). Reason: each fixes a confirmed sev 2 (6: sev 1)
+  with fewer words; none adds words at rest.
+
 ## Tried: worked / did not work
+
+- 2026-10-10 WORKED (round 3): "minutes 14" / "km 7.5" on weighted path rows (no weight doubt in
+  T20, 8 of 8); the rule-named layer (r3-s15); "No match" plus example rule led to rules with no
+  dead end (T22 8 of 8, steps 16 -> 5); dropping "stand out" cut styling the selection from 5 of 8
+  to 1 of 8; "PageRank, full graph" under a filter read correctly (r3-s33, s34). All weak passes.
+- 2026-10-10 DID NOT WORK (round 3): "Select where shared_chapters is 1..." cut at the panel edge
+  and offering only equality (4 of 4 typed "10"); "Put numbers in backticks:" read as a refusal
+  in programmer words; the generic example after ">=10"; "4 hops" beside "5 nodes, 4 edges";
+  the Hops 2 list with no distance per name; T24's "point out" prompt against a selection key.
 
 - 2026-10-10 LEARNED (round 2 close): my proposal set was meant to lower words at rest, but the
   Director wrote the deletions as a separate change (9) with a count acceptance. Lesson: a word
@@ -284,6 +279,9 @@ I read this file at the start of every session and update it as I decide and lea
   1000 ms is compact-mantine's.
 
 ## Sources
+
+- `design/ui/studio/tier2/rounds/round-3/insights.md`, `scores.md`, `expert/` (figma 8-18, engineer
+  28, a11y 4, 9, 16; visual); screenshots `sessions/r3-s10/02.png`, `expert/figma/find/02.png` (2026-10-10)
 
 - `design/ui/studio/tier2/rounds/round-2/decisions.md` changes 4, 5, 8, 9, 11, 12, 15 and
   "Not changed" (2026-10-10)

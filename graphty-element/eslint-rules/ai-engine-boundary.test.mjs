@@ -92,7 +92,7 @@ describe("allowed", () => {
             "the adapter's named TanStack imports and a vendor SDK",
             "src/ai/engine/tanstack/openai.ts",
             [
-                'import { chat, generateSpeech, generateTranscription, type ModelMessage, type StreamChunk } from "@tanstack/ai";',
+                'import { chat, EventType, generateSpeech, generateTranscription, type ModelMessage, type StreamChunk } from "@tanstack/ai";',
                 'import { createOpenaiChat, type OpenAITextConfig } from "@tanstack/ai-openai";',
                 'import OpenAI from "openai";',
                 'import { other } from "./mapping.js";',

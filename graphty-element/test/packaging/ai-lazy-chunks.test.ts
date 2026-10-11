@@ -155,6 +155,23 @@ describe("AI chunks load lazily", () => {
         assert.deepEqual(lazyChunkProblems(chunks, entries), []);
     });
 
+    it("builds each provider into its own chunk, with its SDK, reached only by import()", () => {
+        const { chunks } = JSON.parse(readFileSync(META, "utf8")) as { chunks: Chunk[] };
+        for (const [provider, sdk] of [
+            ["openai", "openai"],
+            ["anthropic", "@anthropic-ai/sdk"],
+            ["google", "@google/genai"],
+        ] as const) {
+            const own = chunks.find((c) => c.modules.includes(`src/ai/engine/tanstack/${provider}.ts`));
+            assert.ok(own, `a chunk holds the ${provider} module`);
+            assert.include(own.modules.map(moduleOwner), sdk, `the ${provider} chunk holds ${sdk}`);
+            assert.ok(
+                chunks.every((c) => !c.imports.includes(own.fileName)),
+                `nothing imports the ${provider} chunk statically`,
+            );
+        }
+    });
+
     it("refuses each planted violation", () => {
         const chunk = (fileName: string, over: Partial<Chunk>): Chunk => ({
             fileName,

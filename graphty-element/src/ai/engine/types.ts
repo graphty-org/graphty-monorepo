@@ -11,7 +11,7 @@
 
 import type { z } from "zod";
 
-import type { AiResultCode, AiResultParams } from "../../catalog/ai";
+import type { AiProviderId, AiResultCode, AiResultParams } from "../../catalog/ai";
 
 /** A JSON Schema object, as a provider's tool declaration takes it. */
 export type JsonSchema = Readonly<Record<string, unknown>>;
@@ -117,6 +117,10 @@ export type TurnEvent =
            * removed (`toSafeError`), plus the HTTP status. `AI_CANCELLED` means the turn's signal fired.
            */
           readonly cause: Error;
+          /** Whether asking again may succeed: a rate limit, a server error, a lost connection. */
+          readonly retryable?: boolean;
+          /** How long the provider asked to wait before asking again, when it said. */
+          readonly retryAfterMs?: number;
       };
 
 /** A turn's error event. */
@@ -135,6 +139,33 @@ export interface EngineOutcome {
     readonly code: AiResultCode;
     readonly params: AiResultParams;
 }
+
+/** The providers whose APIs the provider-API engine calls from the page. */
+export type ProviderApiId = Exclude<AiProviderId, "webllm" | "mock">;
+
+/**
+ * What the provider-API engine reads before every turn: the provider's configuration as it is
+ * now, so a `configure()` after the first turn reaches the next one.
+ */
+export interface ProviderApiSettings {
+    readonly provider: ProviderApiId;
+    readonly apiKey?: string;
+    readonly model: string;
+    /** The AI SDK's meaning: the API's base URL, its version path included. */
+    readonly baseUrl?: string;
+    readonly maxTokens?: number;
+    readonly temperature?: number;
+}
+
+/**
+ * The adapter folder's one entry: one turn, one request, no retry (retries are the engine's).
+ * Ends with a `finish` or an `error`, like `AiEngine.turn`.
+ */
+export type ProviderApiTurn = (
+    settings: ProviderApiSettings,
+    request: TurnRequest,
+    signal: AbortSignal,
+) => AsyncIterable<TurnEvent>;
 
 /** Talks to a model, one turn per call. */
 export interface AiEngine {

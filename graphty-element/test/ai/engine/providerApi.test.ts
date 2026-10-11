@@ -1,0 +1,337 @@
+/**
+ * The provider-API engine beyond the common contract: graphty's retry schedule, where each request
+ * goes and with which key, the consumer's base URL, the options each provider names its own way,
+ * and Gemini's thought signatures, against each provider's HTTP API faked at `fetch`.
+ * @module test/ai/engine/providerApi.test
+ */
+
+import { afterEach, assert, describe, it, vi } from "vitest";
+import { z } from "zod";
+
+import { toolJsonSchema } from "../../../src/ai/engine/jsonSchema";
+import { ProviderApiEngine } from "../../../src/ai/engine/ProviderApiEngine";
+import type { ProviderState, SavedMessage, TurnEvent, TurnRequest } from "../../../src/ai/engine/types";
+import { HOSTS, KEYS, providerApiFixture } from "./providerApiFixtures";
+
+const PROVIDERS = ["openai", "anthropic", "google"] as const;
+
+const FIND = z.object({ selector: z.string() });
+
+/** A turn with one user message and one tool. */
+function request(overrides: Partial<TurnRequest> = {}): TurnRequest {
+    return {
+        system: "You drive a graph.",
+        messages: [{ id: "m1", role: "user", parts: [{ type: "text", origin: "reader", text: "find the servers" }] }],
+        tools: [{ name: "findNodes", description: "Find nodes", schema: FIND, jsonSchema: toolJsonSchema(FIND) }],
+        toolMode: "auto",
+        ...overrides,
+    };
+}
+
+/** Every event of one turn. */
+async function events(
+    engine: ProviderApiEngine,
+    turn: TurnRequest,
+    signal = new AbortController().signal,
+): Promise<TurnEvent[]> {
+    const out: TurnEvent[] = [];
+    for await (const event of engine.turn(turn, signal)) {
+        out.push(event);
+    }
+
+    return out;
+}
+
+/** The turn's error, which a failed turn ends with. */
+function lastError(out: TurnEvent[]): Extract<TurnEvent, { type: "error" }> {
+    const last = out.at(-1);
+    assert.strictEqual(last?.type, "error");
+    return last as Extract<TurnEvent, { type: "error" }>;
+}
+
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
+
+describe.each(PROVIDERS)("provider-API engine: %s", (provider) => {
+    describe("retries, on graphty's schedule", () => {
+        it("asks again after a 429 and answers: two requests, the provider's wait honored", async () => {
+            const { engine, failOnce, requests, waits } = providerApiFixture(provider);
+            failOnce(429, 250);
+            const out = await events(engine, request());
+            assert.strictEqual(requests.length, 2);
+            assert.deepStrictEqual(waits, [250]);
+            assert.deepStrictEqual(out.at(-1), { type: "finish", reason: "stop" });
+            assert.notOk(out.some((e) => e.type === "error"));
+        });
+
+        it("gives up after three 500s: three requests, the backoff doubling, the status in the code", async () => {
+            const { engine, failOnce, requests, waits } = providerApiFixture(provider);
+            failOnce(500, Number.NaN);
+            failOnce(500, Number.NaN);
+            failOnce(500, Number.NaN);
+            const error = lastError(await events(engine, request()));
+            assert.strictEqual(requests.length, 3);
+            assert.deepStrictEqual(waits, [2000, 4000]);
+            assert.strictEqual(error.code, "AI_PROVIDER_ERROR");
+            assert.strictEqual(error.params.status, 500);
+        });
+
+        it("waits the backoff when the provider asks for more than a minute", async () => {
+            const { engine, failOnce, waits } = providerApiFixture(provider);
+            failOnce(503, 120_000);
+            await events(engine, request());
+            assert.deepStrictEqual(waits, [2000]);
+        });
+
+        it("asks again after a dropped connection", async () => {
+            const { engine, dropConnection, requests } = providerApiFixture(provider);
+            dropConnection();
+            const out = await events(engine, request());
+            assert.strictEqual(requests.length, 2);
+            assert.strictEqual(out.at(-1)?.type, "finish");
+        });
+
+        it("never asks again after a refused key", async () => {
+            const { engine, failOnce, requests } = providerApiFixture(provider);
+            failOnce(401);
+            assert.strictEqual(lastError(await events(engine, request())).code, "AI_KEY_REJECTED");
+            assert.strictEqual(requests.length, 1);
+        });
+
+        it("stops waiting when the turn is cancelled during the wait", async () => {
+            const { failOnce, requests } = providerApiFixture(provider);
+            const settings = { provider, apiKey: KEYS[provider], model: "m" } as const;
+            const controller = new AbortController();
+            // The real wait, with the backoff (2 s): the cancel must end it, not the clock.
+            const engine = new ProviderApiEngine(() => settings);
+            failOnce(500, Number.NaN);
+            const pending = events(engine, request(), controller.signal);
+            await vi.waitFor(() => {
+                assert.strictEqual(requests.length, 1);
+            });
+            controller.abort();
+            const out = await pending;
+            assert.strictEqual(lastError(out).code, "AI_CANCELLED");
+            assert.strictEqual(requests.length, 1);
+        });
+    });
+
+    it("refuses a turn with no key before loading the adapter or sending anything", async () => {
+        const { requests } = providerApiFixture(provider);
+        let loads = 0;
+        const engine = new ProviderApiEngine(() => ({ provider, model: "m" }), {
+            load: () => {
+                loads++;
+                return Promise.reject(new Error("not loaded"));
+            },
+        });
+        const error = lastError(await events(engine, request()));
+        assert.strictEqual(error.code, "AI_KEY_MISSING");
+        assert.deepStrictEqual(error.params, { provider });
+        assert.strictEqual(loads, 0);
+        assert.strictEqual(requests.length, 0);
+    });
+
+    it("sends the key only to the provider's own host, and contacts no other", async () => {
+        const { engine, requests } = providerApiFixture(provider);
+        await events(engine, request());
+        assert.strictEqual(requests.length, 1);
+        const [sent] = requests;
+        assert.strictEqual(new URL(sent.url).host, HOSTS[provider]);
+        const others = Object.entries(KEYS).filter(([p]) => p !== provider);
+        const all = `${sent.url}\n${JSON.stringify(sent.headers)}\n${JSON.stringify(sent.body)}`;
+        assert.include(JSON.stringify(sent.headers), KEYS[provider]);
+        for (const [, key] of others) {
+            assert.notInclude(all, key);
+        }
+
+        assert.notInclude(`${sent.url}\n${JSON.stringify(sent.body)}`, KEYS[provider], "the key is in a header only");
+    });
+
+    it("keeps the key out of every error, even when the provider echoes it", async () => {
+        const { engine } = providerApiFixture(provider);
+        vi.stubGlobal("fetch", () =>
+            Promise.resolve(
+                new Response(JSON.stringify({ error: { message: `bad key ${KEYS[provider]}` } }), {
+                    status: 401,
+                    headers: { "content-type": "application/json" },
+                }),
+            ),
+        );
+        const error = lastError(await events(engine, request()));
+        assert.strictEqual(error.code, "AI_KEY_REJECTED");
+        assert.notInclude(
+            `${error.cause.message}\n${error.cause.stack}\n${JSON.stringify(error.params)}`,
+            KEYS[provider],
+        );
+    });
+
+    it("takes a model id no table lists, and asks the API for it", async () => {
+        const { engine, requests, settings } = providerApiFixture(provider);
+        settings.model = "not-a-listed-model";
+        const out = await events(engine, request());
+        assert.strictEqual(out.at(-1)?.type, "finish");
+        assert.include(`${requests[0].url} ${JSON.stringify(requests[0].body)}`, "not-a-listed-model");
+    });
+});
+
+describe("the consumer's baseUrl keeps the AI SDK's meaning, version path included", () => {
+    it.each([
+        ["openai", undefined, "https://api.openai.com/v1/responses"],
+        ["openai", "https://proxy.example/openai/v1", "https://proxy.example/openai/v1/responses"],
+        ["anthropic", undefined, "https://api.anthropic.com/v1/messages?beta=true"],
+        ["anthropic", "https://proxy.example/anthropic/v1", "https://proxy.example/anthropic/v1/messages?beta=true"],
+        ["anthropic", "https://proxy.example/anthropic/v1/", "https://proxy.example/anthropic/v1/messages?beta=true"],
+        [
+            "google",
+            undefined,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse",
+        ],
+        [
+            "google",
+            "https://proxy.example/google/v1beta",
+            "https://proxy.example/google/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse",
+        ],
+        [
+            "google",
+            "https://proxy.example/google/v1",
+            "https://proxy.example/google/v1/models/gemini-3.8-flash:streamGenerateContent?alt=sse",
+        ],
+        [
+            "google",
+            "https://proxy.example/google",
+            "https://proxy.example/google/models/gemini-3.8-flash:streamGenerateContent?alt=sse",
+        ],
+    ] as const)("%s with base URL %s asks %s", async (provider, baseUrl, url) => {
+        const { engine, requests, settings } = providerApiFixture(provider);
+        settings.baseUrl = baseUrl;
+        await events(engine, request());
+        assert.strictEqual(requests[0].url, url);
+    });
+});
+
+describe("each provider gets the turn's options under its own names", () => {
+    it.each([
+        ["openai", (b: Record<string, unknown>) => [b.max_output_tokens, b.temperature, b.tool_choice]],
+        [
+            "anthropic",
+            (b: Record<string, unknown>) => [b.max_tokens, b.temperature, (b.tool_choice as { type: string }).type],
+        ],
+        [
+            "google",
+            (b: Record<string, unknown>) => {
+                const config = b.generationConfig as Record<string, unknown>;
+                const { mode } = (b.toolConfig as { functionCallingConfig: { mode: string } }).functionCallingConfig;
+                return [config.maxOutputTokens, config.temperature, mode];
+            },
+        ],
+    ] as const)("%s", async (provider, read) => {
+        const { engine, requests, settings } = providerApiFixture(provider);
+        settings.maxTokens = 300;
+        settings.temperature = 0.25;
+        await events(engine, request({ toolMode: "none" }));
+        assert.deepStrictEqual(read(requests[0].body), [300, 0.25, provider === "google" ? "NONE" : "none"]);
+    });
+
+    it("sends no tool choice with no tools, as a key check has none", async () => {
+        for (const provider of PROVIDERS) {
+            const { engine, requests } = providerApiFixture(provider);
+            await events(engine, request({ tools: [] }));
+            const { body } = requests[0];
+            assert.notProperty(body, "tool_choice", provider);
+            assert.notProperty(body, "toolConfig", provider);
+            vi.unstubAllGlobals();
+        }
+    });
+});
+
+describe("Gemini thought signatures", () => {
+    /**
+     * A history whose assistant message made two calls, each with the given provider state.
+     * @param states - Each call's state.
+     * @returns The messages.
+     */
+    function history(states: readonly (ProviderState | undefined)[]): SavedMessage[] {
+        return [
+            ...request().messages,
+            {
+                id: "m2",
+                role: "assistant",
+                parts: states.map((state, index) => ({
+                    type: "tool-call" as const,
+                    origin: "model" as const,
+                    callId: `t${index + 1}`,
+                    command: "findNodes",
+                    arguments: { selector: String(index) },
+                    ...(state && { providerState: state }),
+                })),
+            },
+            {
+                id: "m3",
+                role: "tool",
+                parts: states.map((_, index) => ({
+                    type: "tool-result" as const,
+                    origin: "graph-data" as const,
+                    callId: `t${index + 1}`,
+                    code: "AI_COMPLETED" as const,
+                    params: {},
+                    content: "{}",
+                })),
+            },
+        ];
+    }
+
+    /** Each function call's signature in the request's history. */
+    function signatures(body: Record<string, unknown>): (string | undefined)[] {
+        return (body.contents as { parts: { functionCall?: unknown; thoughtSignature?: string }[] }[]).flatMap((c) =>
+            c.parts.flatMap((p) => (p.functionCall ? [p.thoughtSignature] : [])),
+        );
+    }
+
+    it("hands back the signature a call came with, as provider state, and sends it back with the call", async () => {
+        const { engine, reply, requests } = providerApiFixture("google");
+        reply({
+            toolCalls: [
+                { id: "t1", name: "findNodes", arguments: { selector: "a" }, signature: "c2lnLTE=" },
+                { id: "t2", name: "findNodes", arguments: { selector: "b" } },
+            ],
+        });
+        const out = await events(engine, request());
+        const states = out.flatMap((e) => (e.type === "tool-call" ? [e.providerState] : []));
+        assert.deepStrictEqual(states[0], {
+            engine: "provider-api",
+            provider: "google",
+            model: "gemini-3.8-flash",
+            data: { thoughtSignature: "c2lnLTE=" },
+        });
+        assert.isUndefined(states[1]);
+
+        await events(engine, request({ messages: history(states) }));
+        // The second call is not signed, and needs no placeholder: Gemini signs the first of a batch.
+        assert.deepStrictEqual(signatures(requests[1].body), ["c2lnLTE=", undefined]);
+    });
+
+    it("sends the documented placeholder for calls another engine, provider or model made", async () => {
+        const { engine, requests } = providerApiFixture("google");
+        const foreign: ProviderState = { engine: "provider-api", provider: "anthropic", model: "claude", data: {} };
+        const otherModel: ProviderState = {
+            engine: "provider-api",
+            provider: "google",
+            model: "gemini-older",
+            data: { thoughtSignature: "old" },
+        };
+        await events(engine, request({ messages: history([foreign, otherModel]) }));
+        assert.deepStrictEqual(signatures(requests[0].body), [
+            "skip_thought_signature_validator",
+            "skip_thought_signature_validator",
+        ]);
+    });
+
+    it("sends no placeholder to a model that does not check signatures", async () => {
+        const { engine, requests, settings } = providerApiFixture("google");
+        settings.model = "gemini-2.5-flash";
+        await events(engine, request({ messages: history([undefined]) }));
+        assert.deepStrictEqual(signatures(requests[0].body), [undefined]);
+    });
+});

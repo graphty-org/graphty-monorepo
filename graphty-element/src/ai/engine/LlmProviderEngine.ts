@@ -20,10 +20,16 @@ import type {
  * @param error - What it threw.
  * @param provider - The provider's name, a fact of the code.
  * @param signal - The turn's signal: when it fired, the turn was cancelled whatever was thrown.
+ * @param secrets - Values scrubbed from the message and stack, such as the configured key.
  * @returns The error event.
  */
-export function providerFailure(error: unknown, provider: string, signal: AbortSignal): TurnError {
-    const cause = toSafeError(error);
+export function providerFailure(
+    error: unknown,
+    provider: string,
+    signal: AbortSignal,
+    secrets: readonly (string | undefined)[] = [],
+): TurnError {
+    const cause = toSafeError(error, secrets);
     if (signal.aborted) {
         return { type: "error", code: "AI_CANCELLED", params: {}, cause };
     }

@@ -230,7 +230,12 @@ async function modelTurn(
             sink.status.appendStreamedText(event.delta);
             sink.emit({ type: "ai-stream-chunk", text: event.delta, accumulated: [...earlier, text].join("\n") });
         } else if (event.type === "tool-call") {
-            calls.push({ id: event.id, name: event.name, arguments: event.arguments });
+            calls.push({
+                id: event.id,
+                name: event.name,
+                arguments: event.arguments,
+                ...(event.providerState && { providerState: event.providerState }),
+            });
         } else if (event.type === "error") {
             throw new TurnFailed(event);
         } else if (event.type === "finish") {
@@ -272,6 +277,9 @@ function appendRound(conversation: Conversation, text: string, calls: ToolCallRe
                     callId: call.id,
                     command: call.name,
                     arguments: call.arguments,
+                    // Opaque round-trip data (Gemini's thought signature): the engine that wrote it
+                    // sends it back with the call; any other engine ignores it.
+                    ...(call.providerState && { providerState: call.providerState }),
                 })),
             ],
         },

@@ -13,6 +13,7 @@ import type { GraphSession, HistoryStepId, TransactionScope } from "../session/t
 import type { AiStatusManager } from "./AiStatus";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, CommandResult } from "./commands/types";
+import type { ProviderState } from "./engine/types";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
 
@@ -21,6 +22,8 @@ export interface ToolCallRequest {
     readonly id: string;
     readonly name: string;
     readonly arguments: Readonly<Record<string, unknown>>;
+    /** The engine's opaque round-trip data for this call, kept with it in the conversation. */
+    readonly providerState?: ProviderState;
 }
 
 /** Where a conversation reports what it does: its events and the status a reader sees. */

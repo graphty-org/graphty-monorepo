@@ -118,6 +118,26 @@ function chunkMeta(): Plugin {
     };
 }
 
+/**
+ * Stubs the Anthropic SDK's Node-only agent toolset. `@anthropic-ai/sdk` (0.97.1, and still 0.133.0)
+ * loads it with `import()` from its environment code, and its named imports from `node:crypto`,
+ * `node:child_process` and `node:stream` fail a browser build. A page never reaches it (it runs
+ * only for the SDK's own agent tools), so the stub is an empty module. graphty-element builds the
+ * SDK into its own chunks, which is why a consumer's build never needs this
+ * (design/ai/tanstack-ai-harness-design.md, section 3.2). The library build, the `./bundle` build
+ * and the browser test projects all apply it.
+ * @returns The plugin.
+ */
+export function stubAnthropicNodeToolset(): Plugin {
+    const stub = "\0graphty-empty-anthropic-toolset";
+    return {
+        name: "graphty-stub-anthropic-node-toolset",
+        enforce: "pre",
+        resolveId: (id) => (id.endsWith("/tools/agent-toolset/node.mjs") ? stub : null),
+        load: (id) => (id === stub ? "export {};" : null),
+    };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
     // Load env file from monorepo root (one level up from this package).
@@ -132,6 +152,7 @@ export default defineConfig(({ mode }) => {
                 lit: true,
             }),
             chunkMeta(),
+            stubAnthropicNodeToolset(),
         ],
         define: {
             // Disable Lit dev mode warning

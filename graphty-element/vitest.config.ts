@@ -76,8 +76,15 @@ const LODASH_FUNCTIONS = [
  */
 const WORKSPACE_DIST = /\/(graph-format|graph-io|graph-samples|algorithms|layout|webgpu-graph-algorithms)\/dist\//;
 
+/**
+ * The AI adapter's frameworks, which the element loads with `import()` on an assistant's first
+ * turn. Pre-bundled for the same reason: found mid-run, they would make Vite re-optimize and reload
+ * the page under the test that is running.
+ */
+const AI_FRAMEWORKS = ["@tanstack/ai", "@tanstack/ai-openai", "@tanstack/ai-anthropic", "@tanstack/ai-gemini"];
+
 /** Everything the browser projects pre-bundle up front. */
-const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS];
+const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...AI_FRAMEWORKS];
 
 /** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
 const XR_BROWSER_TESTS = [

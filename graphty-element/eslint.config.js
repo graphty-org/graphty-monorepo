@@ -64,6 +64,16 @@ export default tseslint.config(
     // Each block of the boundary repeats the layers guard, since ESLint keeps one setting per rule.
     ...aiEngineBoundary(rootConfig, [LAYERS_MUTATION]),
 
+    // The AI adapter and its fake provider APIs speak each provider's own wire vocabulary
+    // (tool_choice, max_output_tokens, stop_reason), whose quotes Prettier removes. Names graphty
+    // declares itself are still checked.
+    {
+        files: ["src/ai/engine/tanstack/**/*.ts", "test/ai/engine/providerApiFixtures.ts"],
+        rules: {
+            camelcase: ["error", { properties: "never" }],
+        },
+    },
+
     // ============================================
     // NODE MESHES MOVE ONLY THROUGH THE POSITION FUNNEL
     // ============================================

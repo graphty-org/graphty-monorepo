@@ -127,6 +127,33 @@ describe("runConversation", () => {
         assert.strictEqual(result.params?.toolCalls, 5);
     });
 
+    it("keeps a call's provider state with it, so the next turn can send it back", async () => {
+        const registry = new CommandRegistry();
+        registry.register({
+            name: "look",
+            description: "look",
+            parameters: z.object({}),
+            examples: [],
+            execute: () => Promise.resolve({ success: true, message: "looked" }),
+        });
+        const providerState = {
+            engine: "provider-api",
+            provider: "google",
+            model: "m",
+            data: { thoughtSignature: "s" },
+        };
+        const engine = new FakeEngine([
+            [
+                { type: "tool-call", id: "t1", name: "look", arguments: {}, providerState },
+                { type: "finish", reason: "tool-calls" },
+            ],
+            textTurn("Done."),
+        ]);
+        await run(engine, "look", registry);
+        const call = engine.requests[1].messages.flatMap((m) => m.parts).find((part) => part.type === "tool-call");
+        assert.deepStrictEqual(call?.type === "tool-call" ? call.providerState : undefined, providerState);
+    });
+
     it("records each call's own outcome: the one that failed, and the one that did not run after it", async () => {
         const registry = new CommandRegistry();
         for (const [name, success] of [

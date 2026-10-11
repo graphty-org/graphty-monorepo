@@ -8,7 +8,8 @@
  *   `import("x").T` types and `vi.mock`/`vi.doMock` of them are refused everywhere but
  *   src/ai/engine/tanstack/ and test/ai/engine/tanstack/.
  * - Inside the adapter, TanStack is imported by name only: `chat`, `generateTranscription`,
- *   `generateSpeech`, the adapter factories, and message and event types. Middleware, agents,
+ *   `generateSpeech`, the adapter factories, and message and event types (the `EventType` enum
+ *   among them). Middleware, agents,
  *   persistence and every other TanStack package are refused, so the loop, policies and plans stay
  *   graphty code.
  * - The adapter folder is imported only by load.ts, and under src/ai/ every `import()` names a
@@ -109,7 +110,7 @@ function rules({ allow = [], loader = false, anyImport = true, named = false }, 
         patterns.push(
             {
                 regex: String.raw`^@tanstack\/ai$`,
-                allowImportNamePattern: String.raw`^(?:chat|generateTranscription|generateSpeech|[A-Z]\w*(?:Message|Chunk|Event)(?:Type)?)$`,
+                allowImportNamePattern: String.raw`^(?:chat|generateTranscription|generateSpeech|EventType|[A-Z]\w*(?:Message|Chunk|Event)(?:Type)?)$`,
                 message,
             },
             {

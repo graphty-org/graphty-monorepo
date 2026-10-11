@@ -10,35 +10,37 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-10 -- Round 3 is PLANNED (`tier2/rounds/round-3/plan.md`, `sessions.py` asserts it):
-  56 sessions on 26f3bb968e43; core four and T22 at 8, T23 and T24 at 4, T4 and T19 at 3, T12R at 2. r3-s01 is r2-s05's re-run (T20 A, Nadia, empty). Two forced repeats of a round 2 half: Nadia
-  T20 A, Dana T20 B. No saved-project starts (frozen `tasks.md`).
-- 2026-10-10 -- Round 3's gate item 1 is OPEN: no briefed session has ever run with the leak
-  closed (no `tmp/studio-sessions/` existed); the r3 dry runs are scripted answer-key walks. The
-  reworded T22/T24 prompts need two throwaway briefed pilots each, in `round-3/prompt-pilots/`.
-- 2026-10-10 -- Dana's briefings were refused (persona intro names "Facilitator notes"); fixed in
-  `real.mjs` personaText (drops any paragraph matching the facilitator words). 56 of 56 now brief.
-  `--prove` must pass 5x with that tool commit before T19/T21.
-- 2026-10-10 -- Watch in round 3, by change: T22 -- example line after "No match" plus Enter gets
-  3+ of 8 past the dead end (else "Select where..." next); rule-named layer reads in the key. T21 --
-  repeat-count line seen, Replace from the Add page. Styling a selection draws a visible mark after
-  clearing. T18 -- cost at or under 8 with the aliases; weighted run row shows the total. T23 --
-  "Filter to neighbors" doubt gone. Bar 9 (b) back at or under round 1 on all four screens.
-- 2026-10-10 -- Credit T20, T21, T22 routes and the T17/T18 second-time measure on round 3 only;
-  count follow-up work only after the tool's `followUp` time.
-- 2026-10-10 -- Still open, not fixed by the app: drawn names cover each other, bare numbers in
-  rules, edge width units (owner). Cite as known; never score their recurrence as new.
-- 2026-10-10 -- Answer key matched to 26f3bb968e43 for T12R, T18, T20, T21, T22 A; T4, T17, T19,
-  T22 B, T23, T24 still on 897d9aed9ffe's notes. Traps: T18 A's Ivan-Kofi tie runs through Jada;
-  after a tie is picked "/" no longer types into the find box; T12R's keyboard route is 4 Tabs.
-- 2026-10-10 -- Briefing check: `tmp/researcher/t2r3/brief-all.py <scratch dir>` -- briefs every row with
-  `--task/--persona` into scratch, grep each prompt for its task's avoided words; the hits left
-  are the words `tasks.md` keeps on purpose (T20 "longer", T18 "from"/"to", T21 "updated list",
-  T23 "change the drawing so it has only").
+- 2026-10-10 -- Round 3 is SCORED (`tier2/rounds/round-3/scores.md`, rows in
+  `tmp/researcher/t2r3/score.py`): 54 of 56, core four 32 of 32. Fails: bar 1 and bar 6 (both T24),
+  bars 8 (find results' scroll area, axe), 9 (b) (edge inspector 31 vs 30) and 10. Bars 7 (a) and
+  11 hold (T18 7 against 8). I ran `bars.mjs` on the build for scoring (`t2r3/bars/`).
+- 2026-10-10 -- The leak check read ZERO logs in all 56 sessions (`leaks.json` transcripts [] calls
+  0) and every grader wrote "no leaks". The runner's prompt named the round's `sessions/<id>`, the
+  check looks for the participant's `tmp/studio-sessions/` folder. Re-run by hand (`leaks.py`): 55
+  clean, r3-s10 read `with-browser.sh` (kept). Fix the tool: an empty check must FAIL.
+- 2026-10-10 -- `--end` (`copyBack`) deletes the round's `sessions/<id>` before copying, so step
+  notes written there are lost (r3-s03, s10, s13, s44, s45, s48). Runner and tool disagree on the
+  folder; fix one of them before round 4.
+- 2026-10-10 -- T24's two F's: Shift-click on a node replaces the selection (element; edges add)
+  AND the reworded "point out" prompt is met by a path drawn between the two, while the key wants
+  a selection. Predicted on 2026-10-09 and left as "reported, not done". Fix prompt or key next.
+- 2026-10-10 -- Round 3's gate was skipped: no `preflight.md`, no `prompt-pilots/`, no bars on the
+  build before sessions. T24's key still named routes from an older build. A plan's gate is not a
+  gate unless the runner refuses to start without its evidence.
+- 2026-10-10 -- Round 3 credits the routes (T20 load-time 8/8, T21 Replace 8/8, T22 hints 8/8) and
+  the second-time measure (16 of 16 within, 0 wrong turns). Add page's Replace used 0 of 8.
+- 2026-10-10 -- T22 B: 4 of 4 typed "10" first; the box offers only "is 10" (cut off). Confirmed
+  sev 3. "=" typed unprompted 0 of 16 across rounds 2 and 3.
+- 2026-10-10 -- Still open, owner items: drawn names covering each other, bare numbers in rules,
+  edge width units. Cite as known; never score their recurrence as new.
+- 2026-10-10 -- Briefing check: `tmp/researcher/t2r3/brief-all.py <scratch dir>`; the words kept
+  on purpose are T20 "longer", T18 "from"/"to", T21 "updated list", T23 "change the drawing so it
+  has only".
+- 2026-10-10 -- A check that inspects zero items must fail: grep every "no leaks"/"0 found" for its
+  denominator before trusting it (again: preflight "built" in round 2, `leaks.json` in round 3).
 - 2026-10-09 -- A leak voids passes, not problems: a problem found anyway is robust.
 - 2026-10-09 -- Prompt words make findings; check every candidate insight against the prompt.
 - 2026-10-09 -- Hold opinion-only problems one level down at SCORING time, not at the verdicts.
-- 2026-10-09 -- Grep the tool for each check a bar names before trusting a preflight's "built".
 - 2026-10-09 -- Histories steer first moves; the SECOND place looked is the real signal.
 - 2026-10-06 -- All participants are one model: failure strong, pass weak.
 
@@ -81,6 +83,18 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-10 (researcher, tier 2 round 3 scored) -- Wrote `rounds/round-3/scores.md` from the 56
+  grades, the four expert reports, and a `bars.mjs` run I made for scoring (none existed on
+  26f3bb968e43). Re-ran the leak check myself against each participant's own log, because the
+  tool's copy read none; kept r3-s10 (it read the tool's `with-browser.sh`, no task, control or
+  answer) and said so, rather than voiding by the tool's letter. Scored bars 1 and 6 as the graders
+  ruled (T24 F's), but wrote a check naming the three causes (Shift defect, hidden "Select
+  endpoints", prompt not asking what the key measures) for the skeptics. Kept round 2's readings
+  of bars 2 and 4 on the second path run, and round 2's bar 10 confirmation rule (a specialist plus
+  a session counts), so the rounds compare. Bar 10's "never rises" scored on the specialists' own
+  totals (124 to 139), because no confirmed count exists for round 2. Steps on T17/T18 counted by
+  screenshot mtimes in the participant's own folder (the round copy's mtimes are copy times).
+
 - 2026-10-10 (researcher, tier 2 round 3 plan) -- Wrote `rounds/round-3/plan.md` with
   `sessions.py` (asserted: 56, sizes, halves, per-persona 6/7, 37 graduates, no Ruth on T19,
   r2-s05 re-run first, exactly two repeats of a round 2 half, halves alternating). Sizes: the
@@ -106,18 +120,10 @@ reasons, in short:
   distance grouping (needs the element fact). My part done: T22/T24 prompts reworded, re-run list
   in criteria.md. Nothing new for the owner from me.
 
-- 2026-10-10 (researcher, 26f3bb968e43 key) -- Same shape as before: a build section listing only
-  what changed, each stale claim fixed in its task entry with the old build's screen kept as a
-  parenthetical. Added a missed overlap (Jada on T18 A's main chain) as a grader instruction, not a
-  defect claim, after viewing `r3d2/pilot/T18A/10.png` myself. Kept tier 1's frozen key untouched
-  and recorded T12R's 4-Tab count in tier 2's entry instead. Wrote "an earlier note said" where a
-  pilot contradicted the key but no older screenshot was re-checked (T18 B, T20 To lists). No
-  prompt, bar or step count changed; `tasks.md` untouched.
-
-- 2026-10-10 (researcher, b6d932823642 and 897d9aed9ffe keys, folded) -- A build section plus
-  in-place fixes, old wording as a parenthetical, because graders read the task entry. Bar 11 step
-  counts never moved. Took a pilot claim on its measurement, not its echo of the key; checked the
-  T18 arrow fix against friends.csv. The T19 A missing toast recorded as untraced.
+- 2026-10-10 (researcher, keys for 26f3bb968e43, 897d9aed9ffe and b6d932823642, folded) -- Each a
+  build section plus in-place fixes with the old wording as a parenthetical; a missed overlap (Jada
+  on T18 A) added as a grader instruction; tier 1's frozen key untouched. T24's key was NOT
+  re-walked on 26f3bb968e43, which round 3 paid for (its Shift route does not exist).
 
 - 2026-10-09 (researcher, round 3 prompts and re-runs) -- Reworded the second half of T22 and
   T24 to "point out on the drawing" (T24: "point out Gus and Ivan, and nobody else, on the
@@ -201,24 +207,18 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
-- 2026-10-10 (round 3 plan, after a token-limit stop) -- Worked: `git status`, a listing of
-  `tier2/rounds/` and of `tmp/studio-sessions/` first; nothing half-done (no round-3 folder).
-  Worked: briefing EVERY planned row in scratch with `--task/--persona` before writing the plan --
-  it found Dana's refusal, which my notes had flagged and nobody had fixed. Worked: reusing round
-  2's `sessions.py` with new asserts, including one that names the only allowed repeats. Worked:
-  briefing one real plan row after prettier to prove `real.mjs` still parses the padded table, then
-  deleting the scratch folder it made. Did not work: assuming the r3 dry runs were the briefed
-  throwaway pilots the round 2 decision asked for -- their `session.json` has no task.
+- 2026-10-10 (round 3 scoring, after a token-limit stop) -- Worked: `git status` and a listing
+  of `round-3/` first; no `scores.md` and no scoring script in `t2r3/` existed, so nothing was half-done.
+  Worked: reading `leaks.json` for its counts, not its verdict -- all 56 read zero logs. Worked:
+  finding the participants' logs by the folder their prompt names and feeding them to `real.mjs
+  --leaks <own> <log>`. Worked: reading the code before calling Shift-click a defect
+  (`NodeBehavior.handleClick` vs the edge branch in `Graph.ts`). Did not work: trusting graders'
+  "leaks.json shows no leaks", and the plan's gate, which nobody enforced.
 
-- 2026-10-10 (26f3bb968e43 key, after a token-limit stop) -- Worked: `git status` and a grep of
-  the key for the new build id (none), and of `r3d2/pilot/` for which folders hold screenshots,
-  before editing; nothing was half-applied. Worked: one asserted (old, new) script in the
-  scratchpad. Noted: `answers.md` at HEAD is not prettier-clean; the pre-commit hook formats it.
-  Noted: a pilot report can be stale about its siblings (T21 B said T21 A had no screenshots; it
-  had 7 by the time I looked) -- list the folders, do not trust the report.
-
-- 2026-10-10 (round 3 and 897d9aed9ffe keys, folded) -- Worked: exact-match (old, new) scripts,
-  spot-checking cited screenshots, and checking `git status` first after a token-limit stop.
+- 2026-10-10 (round 3 plan and keys, after token-limit stops, folded) -- Worked: `git status`
+  and listings first; briefing EVERY planned row in scratch before writing a plan (found Dana's
+  refusal); asserted (old, new) edit scripts; listing pilot folders instead of trusting a pilot
+  report about its siblings. Did not work: assuming the r3 dry runs were briefed pilots.
 
 - 2026-10-09 (round 3 prompts) -- Worked: writing each half's real briefing with `real.mjs
 --brief <scratch dir> --task T22A --persona <name>` and checking the prompt text the participant
@@ -244,6 +244,12 @@ reasons, in short:
   once; editing a script while it runs; a harness that exits 0 printing nothing; mocks.
 
 ## Thinking
+
+- 2026-10-10 -- A reworded prompt can stop one unwanted route and open another: "point out"
+  ended the styling detour on T22 (5 of 8 to 1 of 8) and let T24 participants mark two people with
+  a path. When a prompt changes, re-read the key's S line against the new words, and pilot it.
+- 2026-10-10 -- Recent is the only place the app remembers what a user did, and the follow-ups
+  used it 6 of 7. Cheap repeat work may come from memory in the UI more than from new doors.
 
 - 2026-10-09 -- A leaked facilitator file biases one way: it can only make routes look easier. So
   a leak does not void problems, it voids passes. Score with that asymmetry instead of voiding all.
@@ -289,5 +295,6 @@ reasons, in short:
 - Earlier rounds: `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/`.
 - Tier 1 spec: `.worktrees/feat-tier1-real-app/design/ui/tier1-real-app/`.
 - Scripts: `design/ui/studio/tmp/researcher/` (`r1-score.py`, `r1-ease.py`, `scan.py`,
-  `full_at.py`, `sessions.py`); round 3 preflight: `tmp/researcher/r3/` (`walk.sh`, `keypaths.mjs`,
+  `full_at.py`, `sessions.py`); tier 2 round 3 scoring: `tmp/researcher/t2r3/` (`score.py`,
+  `leaks.py`, `work.py`, `concurrency.py`, `bars/`); round 3 preflight: `tmp/researcher/r3/` (`walk.sh`, `keypaths.mjs`,
   `ranks.mjs`, `wording-dump.mjs`, `wording-check.py`, `edit-answers.py`).

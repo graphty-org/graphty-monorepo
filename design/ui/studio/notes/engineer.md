@@ -17,8 +17,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   it. Shift-click carried T24 from 2 of 4 to 7 of 7. Three sessions void (runner start on a full
   browser slot); the briefings' file table leaked answers.
 - (2026-10-11) **Round 4 critique, six changes proposed, each with its mechanism read in source:**
-  (1) element `suggestBackticks` (`session/styles/predicate.ts`) offers a rewrite that only
-  parses; a lone literal parses but is no rule, so suggest only a rewrite the rule check accepts.
+  (1) DONE 2026-10-11: element `suggestBackticks` now suggests only a rewrite that parses AND
+  reads an attribute; a lone `10` gets no suggestion, so the find box shows "No match" + example.
   (2) element find: an "or more" answer for a typed number inside a quantitative column's range
   that is not a value (additive field), so bus stops' "10" gets "minutes is 10 or more".
   (3) app `FindBox.tsx`: Values section before the record sections when the text is a number.
@@ -90,18 +90,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-09) Script before calling it a defect (two round 2 "app faults" were the study tool's
   click by name landing on a same-named control); every study-tool change gets a planted-failure
   check.
-- (2026-10-10) **Typed filter: the badge stays on a marked entry, never moves to an unmarked first
-  result.** "Start here" is the studio's recommendation; drawing it on Betweenness because "brokers"
-  found it would invent a recommendation. So "brokers" shows no badge, "linked" one (Shortest
-  path). Nothing is hidden: description-only matches stay listed after the name matches, because
-  hiding them would stop line words finding anything once any name matched.
-- (2026-10-10) **Bar 9's data names are matched as written; ids and values stay case-blind.** The
-  column "weight" and the app's "Weight" label differ only in case, and the label is the app's word.
-  Known ceiling: an app word spelled exactly like a data name ("Loaded weight") is left out too.
-  Result columns ("PageRank") count: their names are the app's or the catalog's, not the file's.
-  The limits were re-measured on round 1's build rather than kept, so every round is counted by one
-  rule. The axe exception is code, not a note: excused only while the scroll check holds and only
-  on the find list's viewport, so a regression in the list's scrolling brings the hit back.
+- (2026-10-10, condensed 2026-10-11) **Typed filter: the badge stays on a marked entry**, never on
+  an unmarked first result (it would invent a recommendation); description-only matches stay listed.
+  **Bar 9 matches data names as written; ids and values case-blind** (ceiling: an app word spelled
+  exactly like a data name). The axe exception is code, excused only while the scroll check holds.
 - (2026-10-10) **A warning that changes what Load does is part of Load's description, and the
   warning glyph marks it.** One `aria-describedby` list built from the ids that show (blocked
   reason, repeats), so a screen reader on Load hears why the button may surprise; the glyph is
@@ -233,6 +225,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   is "replace"); weigh those findings up, not down.
 
 ## Tried: worked / did not work
+
+- (2026-10-11) WORKED: the bare-number suggestion fix belonged in the element, not the app. The
+  selector's acceptance test is "parses and reads at least one attribute" (compileExpressionPredicate);
+  `suggestBackticks` now applies the same test via `collectPaths`. Unit test in
+  `test/session/styles/selector.test.ts` fails without it. On a fresh build, typing "10" on bus
+  stops shows "No match ... type a rule such as =minutes > `9`"; "=minutes > 9" still offers
+  "=minutes > `9`" (`tmp/t2r4-3/bus10/02.png`, `03.png`). No app guard needed.
 
 - (2026-10-11) Worked: reading each round 4 finding's mechanism in source before proposing a fix
   (grep the refusal reason, the leave handler's `unchanged`, the table's scope). Two of six fixes

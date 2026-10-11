@@ -547,10 +547,11 @@ function tokenEnd(where: Query, at: number): number {
 }
 
 /**
- * The `number-needs-backticks` refusal's suggestion, offered only when the rewrite parses: a
- * suggestion the selector would refuse in turn (`x >= 10x` becomes `` x >= `10`x ``) is no help.
+ * The `number-needs-backticks` refusal's suggestion, offered only when the selector would accept
+ * the rewrite: a suggestion it would refuse in turn (`x >= 10x` becomes `` x >= `10`x ``, and `10`
+ * becomes a lone `` `10` `` that reads no attribute) is no help.
  * @param where - The refused expression.
- * @returns `{ suggestion }`, or nothing when the rewrite does not parse.
+ * @returns `{ suggestion }`, or nothing when the rewrite does not parse or reads no attribute.
  */
 function suggestBackticks(where: Query): { readonly suggestion?: string } {
     const suggestion = backtickNumbers(where);
@@ -559,8 +560,11 @@ function suggestBackticks(where: Query): { readonly suggestion?: string } {
         return {};
     }
     try {
-        parseExpression(suggestion);
-        return { suggestion };
+        // The selector's own acceptance test: it parses and reads an attribute. A lone `10`
+        // parses, but compileExpressionPredicate refuses it as reading no attribute.
+        const paths: Path[] = [];
+        collectPaths(parseExpression(suggestion), paths);
+        return paths.length > 0 ? { suggestion } : {};
     } catch {
         return {};
     }
@@ -1298,6 +1302,28 @@ export function quotePath(path: Path): Query {
         .split(".")
         .map((segment) => (isUnquotedName(segment) ? segment : JSON.stringify(segment)))
         .join(".");
+}
+
+/**
+ * Write a column key as the shortest text a rule reads back as that column.
+ *
+ * A rule reads a bare name as a file column -- `minutes` is the column `data.minutes` -- so a
+ * data column whose name needs no quotes comes back as that bare name. Anything else (a name
+ * with a dot, a hyphen or a space, or a key outside `data.`, such as a run's result) comes back
+ * as {@link quotePath} writes it, so the rule still names exactly that column.
+ *
+ * ```ts
+ * import { rulePath } from "@graphty/graphty-element/session";
+ *
+ * rulePath("data.minutes"); // "minutes"
+ * rulePath("data.min-cut"); // 'data."min-cut"'
+ * ```
+ * @param path - The column key.
+ * @returns Expression source naming the same column.
+ */
+export function rulePath(path: Path): Query {
+    const bare = path.startsWith("data.") ? path.slice("data.".length) : "";
+    return isUnquotedName(bare) ? bare : quotePath(path);
 }
 
 /**

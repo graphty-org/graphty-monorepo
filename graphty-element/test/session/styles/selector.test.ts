@@ -588,6 +588,14 @@ describe("every selector refusal says why, as a code", () => {
         // `x >= \`10\`x` would be refused in turn, so nothing is suggested.
         assert.strictEqual(suggestionOf("x >= 10x"), undefined);
         assert.strictEqual(suggestionOf("x >= 10"), "x >= `10`");
+        assert.strictEqual(suggestionOf("weight > 3"), "weight > `3`");
+        // A lone `10` parses but reads no attribute, so the selector would refuse it in turn.
+        assert.strictEqual(suggestionOf("10"), undefined);
+        assert.strictEqual(suggestionOf("(10)"), undefined);
+        assert.strictEqual(
+            refusalOf(() => compileSelector({ match: "expression", where: "10" }, "node", harness.source)).details.reason,
+            "number-needs-backticks",
+        );
     });
 
     it("gives each expression mistake its own reason", () => {

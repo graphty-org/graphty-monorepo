@@ -184,4 +184,15 @@ export const LabelBound: Story = styleStory(async (canvasElement, element) => {
     await userEvent.click(tab(canvasElement).getByRole("button", { name: "Add label line" }));
     await userEvent.click(await body().findByRole("option", { name: "name" }));
     await element.waitForStableFrame();
+    // Picking the column leaves focus on the new line's position button, whose tooltip opens after
+    // the cold delay. Wait for it, so the story ends settled: a screenshot taken while that timer
+    // runs shows the tooltip or not depending on how long the capture took.
+    await waitFor(
+        () => {
+            const tip = body().getByRole("tooltip");
+            expect(tip).toHaveTextContent("Label position");
+            expect(tip).toBeVisible();
+        },
+        { timeout: 2000 },
+    );
 });

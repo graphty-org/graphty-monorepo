@@ -7,7 +7,7 @@
  */
 
 import type { AiResultCode, AiResultParams } from "../../catalog/ai";
-import type { AiApprovalRequest } from "../../events";
+import type { AiApprovalRequest, AiQuestionRequest } from "../../events";
 import type { ConversationRecord } from "./formats";
 import type { SavedMessage, SavedPending } from "./formats/v1";
 
@@ -86,12 +86,37 @@ export interface AiConversationSummary {
 }
 
 /**
+ * The choices a reader's answer picked, as its tool result records them.
+ * @param content - The result's text.
+ * @returns The choices.
+ */
+function answerValues(content: string): string[] {
+    try {
+        const { data } = JSON.parse(content) as { data?: { answer?: unknown } };
+        return Array.isArray(data?.answer) ? data.answer.filter((value) => typeof value === "string") : [];
+    } catch {
+        return [];
+    }
+}
+
+/**
  * The messages of a record, as a reader sees them.
  * @param messages - The saved messages.
- * @returns The reader's and the assistant's messages; tool messages fold into the calls.
+ * @param pending - The record's waiting entries: an unanswered question's call reads as asked.
+ * @returns The reader's and the assistant's messages; tool messages fold into the calls, and a
+ *     reader's answer to a question is the reader's message.
  */
-function snapshotMessages(messages: readonly SavedMessage[]): AiConversationMessage[] {
+function snapshotMessages(
+    messages: readonly SavedMessage[],
+    pending: readonly SavedPending[] = [],
+): AiConversationMessage[] {
     const outcomes = new Map<string, { code: AiResultCode; params: AiResultParams }>();
+    for (const entry of pending) {
+        if (entry.kind === "question") {
+            outcomes.set(entry.callId, { code: "AI_QUESTION_ASKED", params: { request: entry.id } });
+        }
+    }
+
     for (const message of messages) {
         for (const part of message.parts) {
             if (part.type === "tool-result") {
@@ -102,7 +127,18 @@ function snapshotMessages(messages: readonly SavedMessage[]): AiConversationMess
 
     const out: AiConversationMessage[] = [];
     for (const message of messages) {
-        if (message.role === "user") {
+        if (message.role === "tool") {
+            for (const part of message.parts) {
+                if (part.type === "tool-result" && part.origin === "reader") {
+                    out.push({
+                        id: message.id,
+                        role: "reader",
+                        text: answerValues(part.content).join("\n"),
+                        via: "text",
+                    });
+                }
+            }
+        } else if (message.role === "user") {
             const said = message.parts.filter((part) => part.type === "text" && part.origin === "reader");
             if (said.length > 0) {
                 out.push({
@@ -165,6 +201,36 @@ export function approvalRequest(entry: SavedApproval, conversationId: string): A
     };
 }
 
+/** A saved question entry. */
+export type SavedQuestion = Extract<SavedPending, { kind: "question" }>;
+
+/**
+ * A saved question entry as the request `ai-question-asked` carries.
+ * @param entry - The entry.
+ * @param conversationId - Its conversation.
+ * @returns The request.
+ */
+export function questionRequest(entry: SavedQuestion, conversationId: string): AiQuestionRequest {
+    return {
+        id: entry.id,
+        question: entry.question,
+        choices: [...entry.choices],
+        multiple: entry.multiple,
+        conversationId,
+        messageId: entry.messageId,
+        createdAt: entry.createdAt,
+    };
+}
+
+/**
+ * The questions of a record still waiting: unclaimed.
+ * @param record - The saved conversation.
+ * @returns The entries.
+ */
+export function waitingQuestions(record: ConversationRecord): SavedQuestion[] {
+    return record.pending.filter((entry): entry is SavedQuestion => entry.kind === "question" && entry.claim === null);
+}
+
 /**
  * The approvals of a record still waiting: unclaimed. A claimed one is being resolved, here or in
  * another tab, and is never asked about again.
@@ -185,7 +251,7 @@ export function conversationSnapshot(record: ConversationRecord): AiConversation
         id: record.id,
         key: record.key,
         formatVersion: record.version,
-        messages: snapshotMessages(record.messages),
+        messages: snapshotMessages(record.messages, record.pending),
         pending: waitingApprovals(record).map((entry) => approvalRequest(entry, record.id)),
     };
 }

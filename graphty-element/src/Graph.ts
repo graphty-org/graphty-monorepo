@@ -6330,6 +6330,17 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The questions the model asked the reader and waits on (`ai-question-asked` asked, nothing
+     * ended yet): asked in this page, or reopened from the saved conversation after a reload. Read
+     * it any time to draw questions, whether or not the replayed events were heard.
+     * @returns The questions, oldest first; none before AI is enabled.
+     * @since 4.0.0
+     */
+    getPendingAiQuestions(): readonly import("./events").AiQuestionRequest[] {
+        return this.aiManager?.getPendingQuestions() ?? [];
+    }
+
+    /**
      * The assistant's saved conversations, newest first: this element's scope, or every scope.
      * @param options - Which.
      * @param options.allKeys - True for every scope's.
@@ -6469,6 +6480,29 @@ export class Graph implements GraphContext {
         }
 
         return this.aiManager.resolveAiApproval(id, answer);
+    }
+
+    /**
+     * Answer a question the model asked the reader (`ai-question-asked`, with `questions: true`).
+     * The message that asked continues: the answer is its question's result, and the model goes
+     * on. A new message, `cancelAiCommand()` or an undo of the message ends the question instead
+     * (`ai-pending-resolved`).
+     * @param id - The question's id, from the event.
+     * @param answer - One of its choices, by value; or several, for a question that takes several.
+     * @returns The message's final result, which `ai-command-complete` also carries;
+     *     `AI_ANSWER_INVALID` when the answer is not among the choices (the question stays open);
+     *     `AI_APPROVAL_STALE` when the question is no longer open; or `AI_NOT_ENABLED`.
+     * @since 4.0.0
+     */
+    async answerAiQuestion(
+        id: string,
+        answer: string | readonly string[],
+    ): Promise<import("./ai/AiController").ExecutionResult> {
+        if (!this.aiManager) {
+            return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
+        }
+
+        return this.aiManager.answerQuestion(id, answer);
     }
 
     /**

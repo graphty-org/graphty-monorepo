@@ -6,7 +6,7 @@
 
 import debounce from "lodash/debounce.js";
 
-import type { AiApprovalRequest } from "../events";
+import type { AiApprovalRequest, AiQuestionRequest } from "../events";
 import type { Graph } from "../Graph";
 import {
     type AiApprovalAnswer,
@@ -104,6 +104,12 @@ export interface AiManagerConfig {
      * still apply.
      */
     approvals?: AiApprovalsSetting;
+    /**
+     * Whether the model may ask the reader a question with a few choices when a request is
+     * ambiguous: `ai-question-asked`, answered with `answerAiQuestion`. Default false, for a host
+     * that draws no question: the model is offered no such tool.
+     */
+    questions?: boolean;
 }
 
 /**
@@ -242,6 +248,7 @@ export class AiManager {
             ...(config.gate === undefined ? {} : { gate: config.gate }),
             ...(config.allowImportUrl === undefined ? {} : { allowImportUrl: config.allowImportUrl }),
             ...(config.approvals === undefined ? {} : { approvals: config.approvals }),
+            ...(config.questions === undefined ? {} : { questions: config.questions }),
             ...(history === undefined
                 ? {}
                 : {
@@ -342,6 +349,33 @@ export class AiManager {
         }
 
         return this.controller.resolveAiApproval(id, answer);
+    }
+
+    /**
+     * Answer a question the model asked the reader (`ai-question-asked`). The message that asked
+     * continues with the answer as its question's result. A new message, a cancel or an undo of
+     * the message ends the question instead.
+     * @param id - The question's id.
+     * @param answer - One of its choices, by value; or several, for a question that takes several.
+     * @returns The message's final result (`ai-command-complete` fires again with it);
+     *     `AI_ANSWER_INVALID` when the answer is not among the choices, and the question stays open;
+     *     `AI_APPROVAL_STALE` when the question is no longer open.
+     */
+    async answerQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult> {
+        if (!this.controller) {
+            return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
+        }
+
+        return this.controller.answerQuestion(id, answer);
+    }
+
+    /**
+     * The questions waiting on the reader: asked in this page, or reopened from the saved
+     * conversation after a reload. Authoritative at any time, the replayed events or not.
+     * @returns The questions, oldest first; none before the assistant is enabled.
+     */
+    getPendingQuestions(): readonly AiQuestionRequest[] {
+        return this.controller?.getPendingQuestions() ?? [];
     }
 
     /**

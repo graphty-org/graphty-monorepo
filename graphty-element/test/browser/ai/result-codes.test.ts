@@ -33,6 +33,9 @@ const NOT_COMMAND_RESULTS = [
     "AI_HISTORY_UNAVAILABLE",
     "AI_HISTORY_NEWER_FORMAT",
     "AI_STORAGE_FAILED",
+    // An AiConfigError's code: helpers (`agents`) are configured by the next unit of milestone 4,
+    // which reaches it from enableAiControl and from a router's plan, and takes it off this list.
+    "AI_CONFIG_INVALID",
 ];
 
 /**
@@ -190,6 +193,23 @@ describe("AI command result codes", () => {
         const again = seen(await controller.resolveAiApproval(String(held.params?.request), { approve: true }));
         assert.strictEqual(again.code, "AI_APPROVAL_STALE");
         assert.strictEqual(session.status.counts.nodes, 3);
+    });
+
+    it("AI_QUESTION_ASKED for a question to the reader; AI_ANSWER_INVALID for an answer not among its choices", async () => {
+        mock.setResponse("which", call("ask_reader", { question: "Which?", choices: ["a", "b"] }));
+        const controller = new AiController({
+            provider: mock,
+            commandRegistry: registry,
+            graph: { getSession: () => session } as unknown as CommandContext["graph"],
+            questions: true,
+        });
+        const asked = seen(await controller.execute("which one"));
+        assert.isTrue(asked.success);
+        assert.strictEqual(asked.code, "AI_QUESTION_ASKED");
+        const invalid = seen(await controller.answerQuestion(String(asked.params?.request), "c"));
+        assert.isFalse(invalid.success);
+        assert.strictEqual(invalid.code, "AI_ANSWER_INVALID");
+        assert.deepEqual(invalid.params, { request: String(asked.params?.request) });
     });
 
     it("AI_TOOL_DENIED_BY_POLICY when the host's approval policy refuses a call", async () => {

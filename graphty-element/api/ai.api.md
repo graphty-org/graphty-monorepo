@@ -158,6 +158,7 @@ export class AiConfigError extends Error {
 // @public
 export class AiController {
     constructor(options: AiControllerOptions);
+    answerQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult>;
     cancel(): void;
     clearHistory(): Promise<void>;
     clearLastError(): void;
@@ -169,6 +170,7 @@ export class AiController {
     getLastError(): Error | null;
     getLastInput(): string | null;
     getPendingApprovals(): readonly AiApprovalRequest[];
+    getPendingQuestions(): readonly AiQuestionRequest[];
     getStatus(): AiStatus;
     listConversations(options?: {
         readonly allKeys?: boolean;
@@ -190,6 +192,7 @@ export interface AiControllerOptions {
     graph: CommandContext["graph"];
     history?: "none" | "memory" | "browser" | AiHistoryOptions;
     provider: LlmProvider;
+    questions?: boolean;
     schemaManager?: SchemaManager | null;
     secrets?: () => readonly string[];
     toolProfile?: "standard" | "small";
@@ -263,6 +266,7 @@ export interface AiHistoryOptions {
 // @public
 export class AiManager {
     constructor();
+    answerQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult>;
     cancel(): void;
     clearHistory(): Promise<void>;
     deleteConversation(id: string): Promise<void>;
@@ -274,6 +278,7 @@ export class AiManager {
     getController(): AiController | null;
     getConversation(): AiConversationSnapshot | null;
     getPendingAiApprovals(): readonly AiApprovalRequest[];
+    getPendingQuestions(): readonly AiQuestionRequest[];
     getProvider(): LlmProvider | null;
     getRegisteredCommands(): string[];
     getSchemaManager(): SchemaManager | null;
@@ -303,6 +308,7 @@ export interface AiManagerConfig {
     model?: string;
     provider: ProviderType;
     providerInstance?: LlmProvider;
+    questions?: boolean;
     registerBuiltinCommands?: boolean;
     toolProfile?: "standard" | "small" | "auto";
 }
@@ -379,6 +385,7 @@ export class AiStatusManager {
     getSnapshot(): AiStatus;
     reset(): void;
     setError(error: Error, canRetry: boolean): void;
+    setPending(approvals: number, questions: number): void;
     setPendingApprovals(approvals: number): void;
     setStage(stage: AiStage, message: string): void;
     startExecuting(): void;

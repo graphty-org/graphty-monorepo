@@ -12,13 +12,15 @@
  * so it works on every engine.
  */
 
+import { z } from "zod";
+
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession, HistoryStepId } from "../session/types";
 import type { ExecutionResult } from "./AiController";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, GraphCommand } from "./commands/types";
 import { DEFAULT_HISTORY_BUDGET_TOKENS, historyWindow } from "./conversation/Conversation";
-import { toolJsonSchema } from "./engine/jsonSchema";
+import { compactSchema, toolJsonSchema } from "./engine/jsonSchema";
 import { providerFailure } from "./engine/LlmProviderEngine";
 import type {
     AiEngine,
@@ -69,6 +71,36 @@ const ANSWER_NOW: SavedMessage = {
 /** How much of one tool result is handed back to the model, by profile. */
 const RESULT_CAP: Readonly<Record<ToolProfile, number>> = { standard: 8000, small: 1500 };
 
+/** The loop's own tool for a question to the reader, offered only when questions are switched on. */
+export const ASK_READER = "ask_reader";
+
+const askReaderSchema = z.strictObject({
+    question: z.string().min(1),
+    choices: z.array(z.string().min(1)).min(2).max(10),
+    multiple: z.boolean().optional(),
+});
+
+/** A question the model asked, its arguments checked. */
+export interface AskedQuestion {
+    /** The `ask_reader` call. */
+    readonly call: ToolCallRequest;
+    readonly question: string;
+    readonly choices: readonly string[];
+    readonly multiple: boolean;
+}
+
+// Compact, as the generated tools' are, and open: every tool turn declares it, within the standard
+// profile's 5,000 tokens. The strict check still refuses an unknown field.
+const { additionalProperties: _open, ...askReaderJson } = compactSchema(toolJsonSchema(askReaderSchema)) as JsonSchema;
+
+/** `ask_reader` as a tool the model may call. Its description is for the model only. */
+export const ASK_READER_TOOL: ToolSpec = {
+    name: ASK_READER,
+    description: "Ask me to pick from 2-10 choices when my request is unclear. Call it last.",
+    schema: askReaderSchema,
+    jsonSchema: askReaderJson,
+};
+
 /** A conversation: the instructions and the messages so far. The loop appends to `messages`. */
 export interface Conversation {
     readonly system: string;
@@ -117,6 +149,22 @@ export interface ConversationRun {
      * conversation passes unique ones, so two copies merged by id keep both.
      */
     readonly newId?: () => string;
+    /**
+     * Store a question the model asked (`ask_reader`), which the loop offers only when this is set.
+     * The conversation then ends in the call, whose result the reader's answer adds.
+     * @returns The question's id, once it is saved and the host told.
+     */
+    readonly ask?: (question: AskedQuestion, messageId: string) => Promise<string>;
+    /** The reader's answer to a question, which the run starts with: the result of its call. */
+    readonly answer?: ReaderAnswer;
+}
+
+/** The reader's answer to a question. */
+export interface ReaderAnswer {
+    /** The `ask_reader` call it answers. */
+    readonly callId: string;
+    /** The choices picked, by value. */
+    readonly values: readonly string[];
 }
 
 /** A held batch, decided. */
@@ -381,6 +429,8 @@ interface MessageTally {
     held?: { readonly request: string | undefined; readonly gate: string };
     /** The reader's decision the run started with, until a batch runs after it. */
     decision?: Outcome;
+    /** The question the message asked, which it now waits on. */
+    asked?: string;
 }
 
 /**
@@ -390,7 +440,17 @@ interface MessageTally {
  * @returns Combined execution result
  */
 function combineResults(tally: MessageTally, llmText?: string): ExecutionResult {
-    const { results, failure, held } = tally;
+    const { results, failure, held, asked } = tally;
+    if (asked !== undefined) {
+        return {
+            success: true,
+            message: llmText ?? "",
+            llmText,
+            code: "AI_QUESTION_ASKED",
+            params: { request: asked },
+        };
+    }
+
     if (held !== undefined) {
         return {
             success: true,
@@ -606,6 +666,37 @@ export function closingResults(calls: readonly ToolCallRequest[], outcome: Outco
 }
 
 /**
+ * Why a question's call did not ask anything: its arguments do not fit `ask_reader`.
+ * @returns The outcome.
+ */
+function invalidQuestion(): Outcome {
+    return { code: "AI_TOOL_INVALID_ARGUMENTS", params: {} };
+}
+
+/**
+ * The reader's answer as the result of the question's call.
+ * @param answer - The answer.
+ * @param id - The message's id.
+ * @returns The tool message.
+ */
+function answerResult(answer: ReaderAnswer, id: string): SavedMessage {
+    return {
+        id,
+        role: "tool",
+        parts: [
+            {
+                type: "tool-result",
+                origin: "reader",
+                callId: answer.callId,
+                code: "AI_COMPLETED",
+                params: {},
+                content: resultText({ code: "AI_COMPLETED", data: { answer: [...answer.values] } }, RESULT_CAP.small),
+            },
+        ],
+    };
+}
+
+/**
  * Run one batch of calls in its transaction.
  * @param run - The loop's run.
  * @param calls - The calls.
@@ -726,6 +817,10 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
         return combineResults(tally, joinTexts(texts));
     };
 
+    if (run.answer !== undefined) {
+        conversation.messages.push(answerResult(run.answer, newId()));
+    }
+
     if (run.decided !== undefined) {
         const { calls, outcome } = run.decided;
         const callsMessage = conversation.messages.at(-1)?.id ?? "";
@@ -763,7 +858,7 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
                 model: run.model,
                 system: conversation.system,
                 messages: answerOnly ? [...history, ANSWER_NOW] : history,
-                tools: offered.map(toolSpec),
+                tools: run.ask === undefined ? offered.map(toolSpec) : [...offered.map(toolSpec), ASK_READER_TOOL],
                 toolMode: answerOnly ? "none" : "auto",
             },
             texts,
@@ -799,12 +894,38 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
 
         sink.status.startExecuting();
 
-        const callsMessage = appendCalls(conversation, text, calls, newId);
-        const batch = await runBatch(run, calls, state, resultOf);
+        // A question ends the batch: the calls before it run first, and none after it.
+        const at = run.ask === undefined ? -1 : calls.findIndex((call) => call.name === ASK_READER);
+        const kept = at === -1 ? calls : calls.slice(0, at + 1);
+        const before = at === -1 ? calls : calls.slice(0, at);
+        const callsMessage = appendCalls(conversation, text, kept, newId);
+        const batch: BatchOutcome =
+            before.length === 0 ? { results: [], writes: false } : await runBatch(run, before, state, resultOf);
         await tallyBatch(tally, batch, run, callsMessage);
-        const added = appendResults(conversation, calls, batch, cap, newId);
+        const added = before.length === 0 ? undefined : appendResults(conversation, before, batch, cap, newId);
         if (batch.held !== undefined) {
+            // Held: the question is not asked, and the model reads it did not run.
             heldResults = added;
+            continue;
+        }
+
+        if (at !== -1 && run.ask !== undefined && batch.failure === undefined) {
+            const asking = kept[at];
+            const parsed = askReaderSchema.safeParse(asking.arguments);
+            if (parsed.success && asking.invalidArguments !== true) {
+                tally.asked = await run.ask(
+                    {
+                        call: asking,
+                        question: parsed.data.question,
+                        choices: parsed.data.choices,
+                        multiple: parsed.data.multiple ?? false,
+                    },
+                    callsMessage,
+                );
+                break;
+            }
+
+            conversation.messages.push(closingResults([asking], invalidQuestion(), newId()));
         }
     }
 
@@ -813,7 +934,7 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
         result = { ...result, success: tally.decision.code !== "AI_APPROVAL_STALE", ...tally.decision };
     }
 
-    if (tally.pending !== undefined && tally.held === undefined && tally.committed > 0) {
+    if (tally.pending !== undefined && tally.held === undefined && tally.asked === undefined && tally.committed > 0) {
         // The last write batch failed and nothing fixed it: the message's writes are taken back.
         throw new MessageRolledBack({
             ...result,

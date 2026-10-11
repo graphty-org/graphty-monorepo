@@ -9,7 +9,7 @@ import {
     type AiResultCode,
     type AiResultParams,
 } from "../catalog/ai";
-import type { AiApprovalRequest, AiEvent } from "../events";
+import type { AiApprovalRequest, AiEvent, AiQuestionRequest } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession } from "../session/types";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
@@ -30,13 +30,18 @@ import {
     approvalRequest,
     conversationSnapshot,
     conversationSummary,
+    questionRequest,
     type SavedApproval,
+    type SavedQuestion,
     waitingApprovals,
+    waitingQuestions,
 } from "./conversation/snapshot";
 import { ENGINE_OVERRIDE, engineFor } from "./engine/load";
 import type { AiEngine, SavedMessage } from "./engine/types";
 import type { LlmProvider } from "./providers/types";
 import {
+    ASK_READER,
+    type AskedQuestion,
     closingResults,
     type Conversation,
     type DecidedBatch,
@@ -132,6 +137,54 @@ interface PendingApproval {
     readonly replayed: boolean;
 }
 
+/**
+ * A question the model asked the reader. Its message waits, holding no transaction, until an event
+ * ends it: an answer, a new message, a cancel, or an undo of the message's step.
+ */
+interface PendingQuestion {
+    /** The message's id, its steps' provenance. */
+    readonly message: string;
+    /** The reader's request: the message's undo label. */
+    readonly label: string;
+    /** The `ask_reader` call the answer becomes the result of. */
+    readonly call: ToolCallRequest;
+    /** The conversation, ending in the call, which the answer continues. */
+    readonly conversation: Conversation;
+    /** The saved conversation it belongs to, with history. */
+    readonly conversationId: string | undefined;
+    readonly stopWatching: () => void;
+    /** What the host was asked, as `getPendingAiQuestions` returns it. */
+    readonly request: AiQuestionRequest;
+}
+
+/** Whatever waits on the reader: an approval request or a question. */
+type OpenPending = PendingApproval | PendingQuestion;
+
+/**
+ * The calls an open request's message ends in, which its ending answers.
+ * @param pending - The request.
+ * @returns The calls.
+ */
+function waitingCalls(pending: OpenPending): readonly ToolCallRequest[] {
+    return "held" in pending ? pending.held.calls : [pending.call];
+}
+
+/**
+ * The choices an answer picks, when they are among the question's.
+ * @param request - The question.
+ * @param answer - The answer: one choice, or several for a question that takes several.
+ * @returns The choices, or undefined when the answer is not one of them.
+ */
+function pickedChoices(request: AiQuestionRequest, answer: string | readonly string[]): string[] | undefined {
+    const values = typeof answer === "string" ? [answer] : [...answer];
+    const valid =
+        values.length > 0 &&
+        (request.multiple || values.length === 1) &&
+        new Set(values).size === values.length &&
+        values.every((value) => request.choices.includes(value));
+    return valid ? values : undefined;
+}
+
 /** The graph a request was held against, as its saved entry records it. */
 type HeldGraph = SavedApproval["graph"];
 
@@ -225,6 +278,8 @@ interface MessageRun {
     readonly totals?: MessageState["totals"];
     /** For a continuation: the request it answers, which its result names unless it names a newer one. */
     readonly request?: string;
+    /** For an answered question: its call, and the choices the reader picked. */
+    readonly answer?: { readonly call: ToolCallRequest; readonly values: readonly string[] };
 }
 
 /**
@@ -346,6 +401,11 @@ export interface AiControllerOptions {
      * gate `"policy"`); a deny refuses it (`AI_TOOL_DENIED_BY_POLICY`). The gate's limits apply too.
      */
     approvals?: AiApprovalsSetting;
+    /**
+     * Whether the model may ask the reader a question with a few choices (`ai-question-asked`,
+     * answered with `answerAiQuestion`). Default false: the model is offered no such tool.
+     */
+    questions?: boolean;
 }
 
 /** Combined result from execution */
@@ -381,6 +441,10 @@ export class AiController {
     private readonly cancelled = new WeakSet<AbortController>();
     /** Batches held for approval, by request id, until an event ends each. */
     private readonly approvals = new Map<string, PendingApproval>();
+    /** Questions asked of the reader, by id, until an event ends each. */
+    private readonly questions = new Map<string, PendingQuestion>();
+    /** Whether the model may ask the reader questions. */
+    private readonly asks: boolean;
     private readonly policy: MessageState["policy"];
     private readonly profile: "standard" | "small";
     private readonly gate: Readonly<AssistantGateLimits> | false;
@@ -425,6 +489,7 @@ export class AiController {
         this.gate = options.gate === false ? false : { ...DEFAULT_ASSISTANT_GATE_LIMITS, ...options.gate };
         this.allowImportUrl = options.allowImportUrl;
         this.policy = policyOf(options.approvals);
+        this.asks = options.questions === true;
         this.history = historyOptionsOf(options.history);
         this.secrets = options.secrets ?? ((): readonly string[] => []);
         this.storeOverride = (options as AiControllerOptions & { [STORE_OVERRIDE]?: ConversationStore })[
@@ -534,7 +599,7 @@ export class AiController {
      * @returns The message's result.
      */
     private async runMessage(run: MessageRun): Promise<ExecutionResult> {
-        const { input, message, abortController, decided } = run;
+        const { input, message, abortController, decided, answer } = run;
         const startTime = Date.now();
         this.lastError = null;
 
@@ -564,7 +629,7 @@ export class AiController {
             conversation = run.conversation(session);
             base = conversation.messages.length;
             const running = conversation;
-            if (decided === undefined) {
+            if (decided === undefined && answer === undefined) {
                 // The reader's words are saved as the message starts, so a transcript shows them at once.
                 await this.saveInto(run.conversationId, running.messages);
             }
@@ -611,6 +676,21 @@ export class AiController {
                             conversationId: run.conversationId,
                         }),
                     ...(decided === undefined ? {} : { decided }),
+                    ...(this.asks
+                        ? {
+                              ask: (question: AskedQuestion, messageId: string) =>
+                                  this.ask({
+                                      question,
+                                      message,
+                                      label: input,
+                                      session,
+                                      conversation: running,
+                                      messageId,
+                                      conversationId: run.conversationId,
+                                  }),
+                          }
+                        : {}),
+                    ...(answer === undefined ? {} : { answer: { callId: answer.call.id, values: answer.values } }),
                     newId: () => this.newMessageId(running),
                     ...(this.history?.budgetTokens === undefined
                         ? {}
@@ -715,10 +795,9 @@ export class AiController {
         result: ExecutionResult,
     ): Promise<void> {
         const code = result.code ?? "AI_FAILED";
+        const calls = run.decided?.calls ?? (run.answer === undefined ? [] : [run.answer.call]);
         const closing =
-            run.decided === undefined
-                ? []
-                : [closingResults(run.decided.calls, { code, params: {} }, this.newMessageId(conversation))];
+            calls.length === 0 ? [] : [closingResults(calls, { code, params: {} }, this.newMessageId(conversation))];
         await this.saveInto(run.conversationId, [
             ...conversation.messages.slice(0, base),
             ...closing,
@@ -813,7 +892,7 @@ export class AiController {
             graph,
             replayed: false,
         });
-        this.statusManager.setPendingApprovals(this.approvals.size);
+        this.updatePending();
         // The message holding the calls and the request are saved together, before the host hears
         // of it: a reload after the event always finds the request.
         const entry: SavedPending = {
@@ -834,6 +913,74 @@ export class AiController {
     }
 
     /**
+     * Store a question the model asked and ask the host it. The question stays open until an event
+     * ends it; an undo of the message's step is one.
+     * @param ask - The question and the message it belongs to.
+     * @param ask.question - The question.
+     * @param ask.message - The message's id.
+     * @param ask.label - The message's text, its step's label.
+     * @param ask.session - The session, whose undo of the message ends the question.
+     * @param ask.conversation - The conversation, ending in the question's call.
+     * @param ask.messageId - The conversation message holding the call.
+     * @param ask.conversationId - The saved conversation, with history.
+     * @returns The question's id, once the conversation holding it is saved and the host told.
+     */
+    private async ask(ask: {
+        question: AskedQuestion;
+        message: string;
+        label: string;
+        session: GraphSession;
+        conversation: Conversation;
+        messageId: string;
+        conversationId: string | undefined;
+    }): Promise<string> {
+        const { question, message, session, conversationId } = ask;
+        const id = uniqueId("question_");
+        const stopWatching = session.on("history:changed", () => {
+            if (undoneStepOf(session, message)) {
+                const pending = this.closePending(id, { code: "AI_UNDONE", params: {} });
+                void this.enqueue(() => this.saveClosed(pending));
+            }
+        });
+        const createdAt = new Date().toISOString();
+        const entry: SavedQuestion = {
+            kind: "question",
+            id,
+            messageId: ask.messageId,
+            callId: question.call.id,
+            question: question.question,
+            choices: [...question.choices],
+            multiple: question.multiple,
+            claim: null,
+            createdAt,
+        };
+        const { conversationId: _none, ...unsaved } = questionRequest(entry, "");
+        const request = conversationId === undefined ? unsaved : questionRequest(entry, conversationId);
+
+        this.questions.set(id, {
+            message,
+            label: ask.label,
+            call: question.call,
+            conversation: ask.conversation,
+            conversationId,
+            stopWatching,
+            request,
+        });
+        this.updatePending();
+        // Saved before the host hears of it: a reload after the event always finds the question.
+        await this.saveInto(conversationId, ask.conversation.messages, (pending) => [...pending, entry]);
+        this.emitAiEvent({ type: "ai-question-asked", request, replayed: false });
+        return id;
+    }
+
+    /**
+     * Tell the status how many requests and questions wait on the reader.
+     */
+    private updatePending(): void {
+        this.statusManager.setPending(this.approvals.size, this.questions.size);
+    }
+
+    /**
      * The loaded graph, as a held request records it.
      * @returns Its data key, fingerprint and counts.
      */
@@ -850,19 +997,54 @@ export class AiController {
      */
     private reopenPending(record: ConversationRecord): void {
         const reopened = waitingApprovals(record).map((entry) => this.reopenOne(record, entry));
-        if (reopened.length === 0) {
+        const asked = waitingQuestions(record).map((entry) => this.reopenQuestion(record, entry));
+        if (reopened.length + asked.length === 0) {
             return;
         }
 
-        this.statusManager.setPendingApprovals(this.approvals.size);
+        this.updatePending();
         setTimeout(() => {
+            // Answered, or ended, before the host was told again: nothing to ask.
             for (const pending of reopened) {
-                // Answered, or ended, before the host was told again: nothing to ask.
                 if (this.approvals.get(pending.request.id) === pending) {
                     this.emitAiEvent({ type: "ai-approval-requested", request: pending.request, replayed: true });
                 }
             }
+
+            for (const pending of asked) {
+                if (this.questions.get(pending.request.id) === pending) {
+                    this.emitAiEvent({ type: "ai-question-asked", request: pending.request, replayed: true });
+                }
+            }
         }, 0);
+    }
+
+    /**
+     * One saved question, open again.
+     * @param record - Its conversation.
+     * @param entry - The question.
+     * @returns The open question.
+     */
+    private reopenQuestion(record: ConversationRecord, entry: SavedQuestion): PendingQuestion {
+        const messages = [...record.messages];
+        const call = messages
+            .flatMap((message) => message.parts)
+            .find((part) => part.type === "tool-call" && part.callId === entry.callId);
+        const pending: PendingQuestion = {
+            message: entry.messageId,
+            label: readerTextBefore(messages, entry.messageId),
+            call: {
+                id: entry.callId,
+                name: ASK_READER,
+                arguments: call?.type === "tool-call" ? call.arguments : {},
+            },
+            conversation: { system: this.systemPrompt(), messages },
+            conversationId: record.id,
+            stopWatching: () => undefined,
+            request: questionRequest(entry, record.id),
+        };
+        this.questions.set(entry.id, pending);
+        return pending;
     }
 
     /**
@@ -901,7 +1083,7 @@ export class AiController {
      * @param pending - The request.
      * @returns `"lost"` when another instance claimed it first, `"failed"` when the store could not say.
      */
-    private async claim(id: string, pending: PendingApproval): Promise<"won" | "lost" | "failed"> {
+    private async claim(id: string, pending: OpenPending): Promise<"won" | "lost" | "failed"> {
         const { store } = this;
         if (store === undefined || pending.conversationId === undefined) {
             return "won";
@@ -946,13 +1128,15 @@ export class AiController {
      * @param outcome - How it ended.
      * @returns The request, or undefined when none is open under that id.
      */
-    private endPending(id: string, outcome: Outcome): PendingApproval | undefined {
-        const pending = this.approvals.get(id);
+    private endPending(id: string, outcome: Outcome): OpenPending | undefined {
+        const kind = this.questions.has(id) ? "question" : "approval";
+        const pending = this.approvals.get(id) ?? this.questions.get(id);
         if (pending === undefined) {
             return undefined;
         }
 
         this.approvals.delete(id);
+        this.questions.delete(id);
         pending.stopWatching();
         const { current } = this;
         if (current !== undefined && current.id === pending.conversationId) {
@@ -960,11 +1144,11 @@ export class AiController {
             this.current = { ...current, pending: current.pending.filter((entry) => entry.id !== id) };
         }
 
-        this.statusManager.setPendingApprovals(this.approvals.size);
+        this.updatePending();
         this.emitAiEvent({
             type: "ai-pending-resolved",
             id,
-            kind: "approval",
+            kind,
             code: outcome.code,
             params: outcome.params,
         });
@@ -978,11 +1162,11 @@ export class AiController {
      * @param outcome - Why it ended.
      * @returns The request, its conversation closed, or undefined when none is open.
      */
-    private closePending(id: string, outcome: Outcome): PendingApproval | undefined {
+    private closePending(id: string, outcome: Outcome): OpenPending | undefined {
         const pending = this.endPending(id, outcome);
         if (pending !== undefined) {
-            const { conversation, held } = pending;
-            conversation.messages.push(closingResults(held.calls, outcome, this.newMessageId(conversation)));
+            const { conversation } = pending;
+            conversation.messages.push(closingResults(waitingCalls(pending), outcome, this.newMessageId(conversation)));
         }
 
         return pending;
@@ -994,7 +1178,7 @@ export class AiController {
      * @param pending - The request, or undefined for none.
      * @returns When saved.
      */
-    private async saveClosed(pending: PendingApproval | undefined): Promise<void> {
+    private async saveClosed(pending: OpenPending | undefined): Promise<void> {
         if (pending === undefined) {
             return;
         }
@@ -1094,6 +1278,74 @@ export class AiController {
             decided,
             totals: pending.held.totals,
             request: id,
+        });
+    }
+
+    /**
+     * Answer a question the model asked (`ai-question-asked`). The message that asked continues:
+     * the answer is the result of its question, and the model goes on as in any message.
+     * @param id - The question's id.
+     * @param answer - One of its choices, by value; or several, for a question that takes several.
+     * @returns The message's final result; `AI_ANSWER_INVALID` when the answer is not among the
+     *     choices (nothing continues, and the question stays open); `AI_APPROVAL_STALE` with
+     *     `reason: "expired"` when no such question is open, or `"resolved-elsewhere"` when another
+     *     instance answered it first.
+     */
+    answerQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult> {
+        return this.enqueue(() => this.answerNow(id, answer));
+    }
+
+    /**
+     * Answer a question, its turn come.
+     * @param id - The question's id.
+     * @param answer - The answer.
+     * @returns The message's final result.
+     */
+    private async answerNow(id: string, answer: string | readonly string[]): Promise<ExecutionResult> {
+        const expired: ExecutionResult = {
+            success: false,
+            message: "",
+            code: "AI_APPROVAL_STALE",
+            params: { request: id, reason: "expired" },
+        };
+        const pending = this.questions.get(id);
+        if (pending === undefined) {
+            return expired;
+        }
+
+        const values = pickedChoices(pending.request, answer);
+        if (values === undefined) {
+            return { success: false, message: "", code: "AI_ANSWER_INVALID", params: { request: id } };
+        }
+
+        // Claimed first: of several tabs answering one question, one continues it.
+        const claimed = await this.claim(id, pending);
+        if (claimed === "failed") {
+            return { success: false, message: "", code: "AI_STORAGE_FAILED", params: { request: id } };
+        }
+
+        if (claimed === "lost") {
+            const params = { request: id, reason: "resolved-elsewhere" };
+            this.endPending(id, { code: "AI_APPROVAL_STALE", params });
+            return { success: false, message: "", code: "AI_APPROVAL_STALE", params };
+        }
+
+        if (this.questions.get(id) !== pending) {
+            // A cancel ended it while the claim was written.
+            return expired;
+        }
+
+        this.endPending(id, { code: "AI_COMPLETED", params: { request: id } });
+        const abortController = new AbortController();
+        this.running.set(abortController, pending.label);
+        return this.runMessage({
+            input: pending.label,
+            message: pending.message,
+            abortController,
+            conversation: () => pending.conversation,
+            conversationId: pending.conversationId,
+            request: id,
+            answer: { call: pending.call, values },
         });
     }
 
@@ -1472,7 +1724,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      * @returns When done.
      */
     private async supersedePending(save: boolean): Promise<void> {
-        for (const id of [...this.approvals.keys()]) {
+        for (const id of [...this.approvals.keys(), ...this.questions.keys()]) {
             const pending = this.closePending(id, {
                 code: "AI_APPROVAL_STALE",
                 params: { request: id, reason: "superseded" },
@@ -1543,6 +1795,15 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     }
 
     /**
+     * The questions waiting on the reader, asked here or reopened from the saved conversation:
+     * what `ai-question-asked` asked and nothing has ended yet.
+     * @returns The questions, oldest first.
+     */
+    getPendingQuestions(): readonly AiQuestionRequest[] {
+        return [...this.questions.values()].map((pending) => pending.request);
+    }
+
+    /**
      * Get the current status snapshot.
      * @returns Current AI status
      */
@@ -1563,8 +1824,8 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      * Cancel every message that is running.
      */
     cancel(): void {
-        // Every request still waiting ends too, its message with it.
-        for (const id of [...this.approvals.keys()]) {
+        // Every request and question still waiting ends too, its message with it.
+        for (const id of [...this.approvals.keys(), ...this.questions.keys()]) {
             const pending = this.closePending(id, { code: "AI_CANCELLED", params: {} });
             void this.enqueue(() => this.saveClosed(pending));
         }
@@ -1587,11 +1848,12 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         this.disposed = true;
         // A waiting request stays saved for the next element on this conversation (a reload, a
         // remount): only this controller forgets it, so the cancel below does not end it.
-        for (const pending of this.approvals.values()) {
+        for (const pending of [...this.approvals.values(), ...this.questions.values()]) {
             pending.stopWatching();
         }
 
         this.approvals.clear();
+        this.questions.clear();
         this.cancel();
         this.stopStore();
         // Closed once the turns before it have settled, so the last save still lands.

@@ -107,6 +107,7 @@ const ASSISTANT_VERBS = [
     "onAiStatusChange",
     "cancelAiCommand",
     "resolveAiApproval",
+    "answerAiQuestion",
     "openAiConversation",
     "newAiConversation",
     "deleteAiConversation",
@@ -728,6 +729,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "cancel",
             "retry",
             "resolveAiApproval",
+            "answerQuestion",
             "openConversation",
             "newConversation",
             "deleteConversation",
@@ -742,6 +744,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         members: [
             "execute",
             "resolveAiApproval",
+            "answerQuestion",
             "openConversation",
             "newConversation",
             "deleteConversation",

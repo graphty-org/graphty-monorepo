@@ -11,7 +11,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import { defineAlgorithm, defineLayout } from "../../../extend";
 import { createGraphSession } from "../../../session";
 import { CommandRegistry } from "../../../src/ai/commands";
-import { turnTools } from "../../../src/ai/runConversation";
+import { ASK_READER_TOOL, turnTools } from "../../../src/ai/runConversation";
 import { installAssistantTools } from "../../../src/ai/tools/install";
 import { isAssistantTool } from "../../../src/ai/tools/toolset";
 import { clearRegisteredLayoutsForTesting } from "../../../src/catalog/layoutRegistry";
@@ -25,11 +25,19 @@ const CHARS_PER_TOKEN = 3;
  * @param profile - The profile.
  * @returns The tool count and the estimated tokens.
  */
-function declared(profile: "standard" | "small"): { tools: string[]; tokens: number; enumNames: boolean } {
+function declared(
+    profile: "standard" | "small",
+    questions = false,
+): { tools: string[]; tokens: number; enumNames: boolean } {
     const registry = new CommandRegistry();
     installAssistantTools(registry, createGraphSession());
     const offered = turnTools(registry, profile, []);
-    let chars = 0;
+    // The loop's own question tool, when questions are switched on.
+    let chars = questions
+        ? ASK_READER_TOOL.name.length +
+          ASK_READER_TOOL.description.length +
+          JSON.stringify(ASK_READER_TOOL.jsonSchema).length
+        : 0;
     for (const tool of offered) {
         assert.isTrue(isAssistantTool(tool));
         chars +=
@@ -43,7 +51,7 @@ function declared(profile: "standard" | "small"): { tools: string[]; tokens: num
         ? (run.jsonSchema as { properties: { name: { enum?: unknown } } }).properties.name
         : undefined;
     return {
-        tools: offered.map((tool) => tool.name),
+        tools: [...offered.map((tool) => tool.name), ...(questions ? [ASK_READER_TOOL.name] : [])],
         tokens: Math.ceil(chars / CHARS_PER_TOKEN),
         enumNames: name?.enum !== undefined,
     };
@@ -66,6 +74,15 @@ describe("the always-loaded tools fit a model's budget", () => {
         const { tools, tokens } = declared("small");
         assert.deepStrictEqual(tools.sort(), ["call", "catalog", "query", "undo"]);
         assert.isAtMost(tokens, 1500);
+    });
+
+    it("stays within both budgets with questions on: ask_reader is the twelfth and the fifth tool", () => {
+        const standard = declared("standard", true);
+        assert.lengthOf(standard.tools, 12);
+        assert.isAtMost(standard.tokens, 5000);
+        const small = declared("small", true);
+        assert.lengthOf(small.tools, 5);
+        assert.isAtMost(small.tokens, 1500);
     });
 
     it("stays within budget with 100 algorithms and 30 layouts registered, their names a validated string", () => {

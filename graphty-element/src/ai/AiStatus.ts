@@ -130,8 +130,16 @@ export class AiStatusManager {
      * @param approvals - The open requests.
      */
     setPendingApprovals(approvals: number): void {
-        const { pending: was, ...rest } = this.status;
-        const questions = was?.questions ?? 0;
+        this.setPending(approvals, this.status.pending?.questions ?? 0);
+    }
+
+    /**
+     * Set what waits on the reader.
+     * @param approvals - The open approval requests.
+     * @param questions - The open questions.
+     */
+    setPending(approvals: number, questions: number): void {
+        const { pending: _was, ...rest } = this.status;
         this.status = approvals + questions > 0 ? { ...rest, pending: { approvals, questions } } : rest;
         this.notify();
     }

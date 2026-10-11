@@ -43,7 +43,7 @@ export const resultField = z
         op: z.enum(RESULT_OPS),
         value: z.unknown().describe("A value; a list for in."),
     })
-    .describe('Run value: {run: "louvain", field: "group", op: "==", value: 3}.');
+    .describe("Run value: {run, field, op, value}.");
 
 /** The three ways to name a target. */
 export const targetFields = {

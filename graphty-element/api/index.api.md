@@ -1524,6 +1524,7 @@ export class Graph implements GraphContext {
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     aiCommand(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
+    answerAiQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult>;
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -1592,6 +1593,7 @@ export class Graph implements GraphContext {
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
     getPendingAiApprovals(): readonly AiApprovalRequest[];
+    getPendingAiQuestions(): readonly AiQuestionRequest[];
     getScene(): Scene;
     getSelectedNode(): Node_2 | null;
     getSelectionManager(): SelectionManager;
@@ -1945,6 +1947,7 @@ export class Graphty extends LitElement {
     aiCommand(message: string, options?: AiCommandOptions): Promise<ExecutionResult>;
     get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined;
     set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined);
+    answerAiQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult>;
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -2020,6 +2023,7 @@ export class Graphty extends LitElement {
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
     getPendingAiApprovals(): readonly AiApprovalRequest[];
+    getPendingAiQuestions(): readonly AiQuestionRequest[];
     getScene(): Scene;
     getSelectedNode(): Node_2 | null;
     getSelectionManager(): SelectionManager;

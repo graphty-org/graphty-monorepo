@@ -27,6 +27,7 @@ import type { AiEngine, EngineCapabilities, EngineOutcome, TurnEvent, TurnReques
 import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
 import { installAssistantTools } from "../../src/ai/tools/install";
 import type { AiResultCode, AiResultParams } from "../../src/catalog/ai";
+import type { AiQuestionRequest } from "../../src/events";
 import type { Graph } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { assistantSession } from "./assistant";
@@ -209,6 +210,8 @@ export interface LlmRegressionTestHarnessOptions {
     history?: AiControllerOptions["history"];
     /** Which calls wait for an approval; none, as the element's default, when absent. */
     approvals?: AiControllerOptions["approvals"];
+    /** Whether the model may ask the reader a question; off, as the element's default, when absent. */
+    questions?: boolean;
     /** The store conversations are kept in, instead of the one `history` names: a reload's. */
     store?: ConversationStore;
 }
@@ -427,6 +430,7 @@ export class LlmRegressionTestHarness {
             toolProfile: process.env.LLM_REGRESSION_TOOL_PROFILE === "small" ? "small" : "standard",
             ...(options.history === undefined ? {} : { history: options.history }),
             ...(options.approvals === undefined ? {} : { approvals: options.approvals }),
+            ...(options.questions === undefined ? {} : { questions: options.questions }),
             [ENGINE_OVERRIDE]: engine,
             ...(options.store === undefined ? {} : { [STORE_OVERRIDE]: options.store }),
         };
@@ -567,6 +571,29 @@ export class LlmRegressionTestHarness {
         this.engine.clearCaptured();
         const result = await this.controller.resolveAiApproval(id, answer);
         return { result, toolCalls: [...this.engine.capturedToolCalls] };
+    }
+
+    /**
+     * Answer a question the model asked, as a reader would, and let the message continue.
+     * @param id - The question's id (`params.request` of an `AI_QUESTION_ASKED` result).
+     * @param answer - One of its choices, or several.
+     * @returns The message's final result and the calls the model made after the answer.
+     */
+    async answerQuestion(
+        id: string,
+        answer: string | readonly string[],
+    ): Promise<{ result: ExecutionResult; toolCalls: CapturedToolCall[] }> {
+        this.engine.clearCaptured();
+        const result = await this.controller.answerQuestion(id, answer);
+        return { result, toolCalls: [...this.engine.capturedToolCalls] };
+    }
+
+    /**
+     * The questions waiting on the reader.
+     * @returns The questions, oldest first.
+     */
+    pendingQuestions(): readonly AiQuestionRequest[] {
+        return this.controller.getPendingQuestions();
     }
 
     /**

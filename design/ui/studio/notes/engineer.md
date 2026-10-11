@@ -11,59 +11,60 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-11) **Round 3 closed: 54 of 56 succeeded; the one real product failure was Shift-click
-  on a node replacing the selection (element, now fixed).** The two T24 failures were that defect
-  plus a prompt ("point out") and key (a selection only) measuring different things, and the
-  study's own gate never ran (the leak check read no log yet said "no leaks"). Lesson: check the
-  measurement before the product; a check that reads nothing must fail.
-- (2026-10-11) **All twelve round 4 changes I own are built and walked on fresh builds:** Shift-
-  click adds (element `SelectionManager.add`); Made with after Undo shows the restored run
-  (element); two focus drops (path form `autoFocus`, `useFocusLine` re-arm); find-box "N or more"
-  (element `FindValueRow.atLeast`); Analyze name matches first; toolbar Filters tool; Add page
-  repeated-ties warning in Load's description; filter step counts edges (Tree row wraps); disabled
-  reason on keyboard focus (already worked); bars 8 and 9 counted as worded. Evidence folders are
-  under `tmp/t2r3-r4-*/` and `tmp/r4-dry1-*/`.
-- (2026-10-11) **Also built after the dry run:** step editor's disabled submit says what is
-  missing (`filterWords.ts` `missingTip`); a measure run's first Values section is
-  "Distribution".
-- (2026-10-11) **Round 4 screenshot audit on 5277e2cbe (`tier2/rounds/round-4/expert/engineer.md`),
-  38 findings, 5 new.** Worst new one (sev 3): a bare number in the find box lists every matching
-  edge first, so "weight is 4 or more" sits below the fold of a fixed ~280 px list even at 1200 x
-  900 -- T22's change may go unseen; fix the section order or list height in `FindBox.tsx`. Also
-  new: the key keeps a re-run's range after Undo (script app vs element layer first); the Analyze
-  box jumps up to 357 px as the list narrows (popover grows from the toolbar); a run under a filter
-  is "out of date" / "Ran on 20 nodes" / "full graph" at once; the step editor's blank Attribute.
-  Round 3's "+"-tooltip-over-checkbox and segment dot are gone.
-- (2026-10-11) **Watch in round 4:** T17 first moves (5 of 8 looked on the Graph place first in
-  round 3 -- does the toolbar Filters tool end that?); T22 readers type the prompt's most prominent
-  data word first, so the find box must answer a column name and a bare number; T24 with Shift-
-  click working; "Select endpoints" in "..." re-measured now that Shift works; edge inspector
-  words (31 of 30 was the counter counting data names).
-- (2026-10-11) **One variant per problem, one change per task's route:** do not stack a second
-  fix on T18 (it carries three) or T17 (two), or round 4 cannot say which worked. Words at rest
-  never rise.
+- (2026-10-11) **Round 4 closed: 53 of 53 valid sessions succeeded; bars 9 (b) and 10 fail.** Bar 10
+  on two confirmed severity 3s: drawn names and nodes covering ties and dots (element, owner's
+  list, not mine in the app) and the find box offering "=`10`" for a bare number and then refusing
+  it. Shift-click carried T24 from 2 of 4 to 7 of 7. Three sessions void (runner start on a full
+  browser slot); the briefings' file table leaked answers.
+- (2026-10-11) **Round 4 critique, six changes proposed, each with its mechanism read in source:**
+  (1) element `suggestBackticks` (`session/styles/predicate.ts`) offers a rewrite that only
+  parses; a lone literal parses but is no rule, so suggest only a rewrite the rule check accepts.
+  (2) element find: an "or more" answer for a typed number inside a quantitative column's range
+  that is not a value (additive field), so bus stops' "10" gets "minutes is 10 or more".
+  (3) app `FindBox.tsx`: Values section before the record sections when the text is a number.
+  (4) element `atLeastOf` (`session/query.ts`) writes `data.minutes`; write the bare name as the
+  app's `columnText` does (unreleased field, 9b69ca650 is only on the studio branch: not breaking).
+  (5) app `TableDock.tsx:349` reads scope "graph"; the element already offers `scope: "visible"`,
+  so the table lists what the drawing keeps, count "12 of 41 edges" only while they differ.
+  (6) app `Filters.tsx`: the leave path's `unchanged` needs `step.on === true` (line 444), so
+  leaving an off step's editor turns it on; script it first, then compare rules alone on leave.
+- (2026-10-11) **Not to change after round 4:** Shift-click, toolbar Filters door, Replace place,
+  scope words, names off in setups, T18 (8 against 8: no new step there), second path replacing
+  the first (no task needs both; decided), any label placement in the app.
+- (2026-10-11) **Script first, from round 4:** New project then Discard showing the error page; a
+  rule on a missing column answering only "Nothing matches" (element has `E_UNKNOWN_ATTRIBUTE`;
+  a coded fact would let the app say the column is missing); the edge inspector's 29 words (find
+  which two to cut with `bars.mjs` before cutting).
+- (2026-10-11) **Watch in round 5:** T22 A on bus stops typing "10" (the prompt's own number);
+  T17 with the table open under a step; the owed re-runs r4-s05b, s20b, s28b.
+- (2026-10-11) **One variant per problem, one change per task's route.** Words at rest never rise.
 - (2026-10-11) **Held, first in line:** distance per name at Hops 2/3 (element `depth` option and
-  `hops` per `Neighbor`, additive) if a second session meets it; "4 hops" vs "5 nodes, 4 edges"
-  (sev 1); `nodesInRect(..., { labels: true })` (script autoFrame first); committing a step edit
-  on focus leaving Value (contradicts Escape innermost-first); a second Find path replacing the
-  first.
+  `hops` per `Neighbor`, additive); "4 hops" vs "5 nodes, 4 edges" (sev 1); `nodesInRect(..., {
+  labels: true })`; a second Find path replacing the first.
 - (2026-10-10) **Not mine to fix in the app, ever:** drawn names covering names and ties, sized
-  nodes inside each other (element label placement and layout spacing, owner's list; the only
-  confirmed sev-3 under bar 10); bare numbers in rules, backticks, what an edge width measures
-  (breaking, owner's list). Never scale widths or parse rules in the app.
+  nodes inside each other (element label placement and layout spacing, owner's list); bare
+  numbers in rules, backticks, what an edge width measures (breaking, owner's list).
 - (2026-10-11) **A one-specialist claim is scripted on the frozen build before any fix;** not
-  reproduced means closed as not shown.
+  reproduced means closed as not shown. Reading the mechanism in source does not replace the script.
 - (2026-10-10) **OPEN, not reproduced:** a reopen from Recent projects once drew no "Opened
   friends" (`tmp/r3-dry1-reopen-shows-opened-notice/`). No code without a mechanism.
 - (2026-10-10) **Still open from audits:** Escape does nothing on the Data pages; two-table source
   has no actions and no reason; "Edit source..." lands on "Replace: ..."; neighbor Back row scrolls
   the inspector sideways; path popover covers the nodes it asks for; 900 x 700 canvas is 363 px;
-  the hidden tooltip after a pointer press on a disabled control.
-- (2026-10-11) **Pilot on a copied `graphty/dist`** (REAL_DIST at the copy) so another agent's
-  rebuild cannot swap the app mid-pilot; real.mjs cannot click aria-disabled buttons (prove with
-  `--key Enter` or a real-element test).
+  Delete does nothing on a step; Analyze box jumps as the list narrows.
+- (2026-10-11) **Pilot on a copied `graphty/dist`** (REAL_DIST at the copy); real.mjs cannot
+  click aria-disabled buttons (prove with `--key Enter` or a real-element test).
 
 ## Decisions and reasons
+
+- (2026-10-11) Built for round 4 (all walked on fresh builds, evidence `tmp/t2r3-r4-*/`,
+  `tmp/r4-dry1-*/`): Shift-click adds (element `SelectionManager.add`), Made with after Undo, two
+  focus drops, find-box "or more" (`FindValueRow.atLeast`), Analyze name matches first, toolbar
+  Filters, repeated-ties warning in Load's description, filter step counts edges, disabled submit
+  says what is missing, "Distribution" heading.
+- (2026-10-11) **The table follows the drawing, by the element's own scope.** Reason: under a filter
+  step the table listed 41 edges beside "12 of 41" everywhere else (r4-s27, s21); the element
+  already has `scope: "visible"`, so the app needs no computing, only the scope it asks for.
 
 - (2026-10-11) **Round 3 decisions I build to:** study fixed first (gate and T24 key before any
   session); one variant per problem; every fix in its owning package; words at rest do not rise;
@@ -232,6 +233,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   is "replace"); weigh those findings up, not down.
 
 ## Tried: worked / did not work
+
+- (2026-10-11) Worked: reading each round 4 finding's mechanism in source before proposing a fix
+  (grep the refusal reason, the leave handler's `unchanged`, the table's scope). Two of six fixes
+  turned out to be one word or one condition because the element already had the capability.
 
 - (2026-10-11) **Audit without a wrapper script worked:** one Bash call per walk, each line a
   direct `node real.mjs --step <own folder> ...` with output to `<walk>.log`, run in the background

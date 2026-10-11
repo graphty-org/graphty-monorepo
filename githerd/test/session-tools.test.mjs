@@ -72,6 +72,7 @@ function setup(state, over = {}) {
         snapshotFacts: () => ({ ownerSessions: [] }),
         commit: async (/** @type {any} */ entry) => commits.push(entry),
         uid: 1000,
+        taskExists: () => true,
         ...over,
     };
     return { ctx, commits, writes, groups };
@@ -673,9 +674,19 @@ describe("sessionToolSet", () => {
         expect(JSON.parse(local.text)).toEqual({ ok: true });
         expect(job).toMatchObject({ state: "waiting", deadline: null });
         expect(job.waitingFor.output).toBe("/tmp/claude-1000/-work-x/w1/tasks/t1.output");
-        expect((await call(ctx, "githerd_wait", { job: "pr-7", for: "checks", target: HEAD, reason: "ci" })).text).toBe(
-            "pr-7 is waiting, not working",
-        );
+        // The holder of a waiting job may replace its wait.
+        await call(ctx, "githerd_wait", { job: "pr-7", for: "checks", target: HEAD, reason: "ci" });
+        expect(job).toMatchObject({ state: "waiting", waitingFor: { checks: HEAD, reason: "ci" } });
+    });
+
+    it("refuses a local wait on anything but a background task with an output file (issue-1982)", async () => {
+        const job = heldJob("pr-7");
+        const { ctx } = setup({ jobs: { "pr-7": job } }, { taskExists: () => false });
+        const target = "fix/capture-settled-height-1982 push";
+        const r = await call(ctx, "githerd_wait", { job: "pr-7", for: "local", target, reason: "push" });
+        expect(r.isError).toBe(true);
+        expect(r.text).toMatch(/names the id of a background task .* no such file for fix\/capture/);
+        expect(job.state).toBe("working");
     });
 
     it("takes a wait as the holder's answer to the status question, so the job is not released for silence", async () => {

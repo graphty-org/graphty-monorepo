@@ -421,7 +421,8 @@ export const TOOLS = [
             "started, or another pull request's merge), then stop. githerd watches it and wakes this session when it " +
             'settles; no timer ends the wait. For "merge", target is the pull request ("#1520") or, when its pull ' +
             "request is not open yet, its branch: the wait ends when it merges into the default branch, or closes " +
-            "unmerged. While a job waits, githerd does not ask its status. Answers ok; refused if it is already settled.",
+            'unmerged. For "local", target is the id of a background task this session started; anything else is ' +
+            "refused. The holder of a waiting job may declare a new wait or call githerd_done. While a job waits, githerd does not ask its status. Answers ok; refused if it is already settled.",
         inputSchema: object(
             {
                 job: JOB,

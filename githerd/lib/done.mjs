@@ -826,6 +826,10 @@ function inProgress(state) {
  * @returns {Promise<{text: string, isError?: boolean}>} the tool result
  */
 export async function githerdDone(ctx, job, report, session) {
+    // The holder of a waiting job ends its own wait by reporting: the report is checked as usual.
+    if (job.state === "waiting") {
+        board.move(job, "working", ctx.now, { reason: "the holder reported while waiting" });
+    }
     if (job.state !== "working")
         throw new Error(`${job.id} is ${job.state}; githerd_done is for a job you are working on`);
     const jobs = inProgress(ctx.state);

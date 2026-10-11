@@ -709,10 +709,21 @@ describe("githerdDone", () => {
         expect(await pollVerifying(s, ctx)).toEqual([{ job: job.id, action: "done" }]);
     });
 
-    it("refuses a job that is not working", async () => {
+    it("refuses a job that is not working or waiting", async () => {
         const job = working("pr", "7");
-        move(job, "waiting", NOW, { waitingFor: { checks: HEAD } });
-        await expect(githerdDone(setup(state()).ctx, job, report(), "w1")).rejects.toThrow("waiting");
+        move(job, "parked", NOW, { waitingFor: { owner: "q1" } });
+        await expect(githerdDone(setup(state()).ctx, job, report(), "w1")).rejects.toThrow("parked");
+    });
+
+    it("lets the holder of a waiting job report it done, ending the wait (issue-1982)", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        // A local wait on a free-text label, which githerd took before it checked local targets.
+        move(job, "waiting", NOW, { waitingFor: { local: "fix/x push", output: "/nowhere.output" } });
+        const { ctx } = setup(s);
+        const r = await githerdDone(ctx, job, report(), "w1");
+        expect(r.isError).toBeUndefined();
+        expect(job.state).toBe("done");
     });
 
     it("moves a claim whose checks still run to waiting, and the poll finishes it", async () => {

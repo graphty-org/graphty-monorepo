@@ -10,7 +10,7 @@
  * `githerd_ask_owner` and `githerd_record` are the owner layer (owner.mjs).
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { availableParallelism, loadavg } from "node:os";
 import { join } from "node:path";
 
@@ -81,6 +81,7 @@ const claimRefusal = (inUse) => (inUse?.startsWith("yours:") && !inUse.startsWit
  * @property {(entry: {kind: string} & Record<string, unknown>) => Promise<void>} commit persists the
  *   state, then appends the ledger entry
  * @property {number} uid the user id, for a background task's output path
+ * @property {(path: string) => boolean} [taskExists] whether a background task's output file exists
  * @property {string} [home] the home directory holding Claude Code's session registry
  * @property {import("./done.mjs").DoneIo} io what `githerd_done` reads to check a claim
  * @property {(job: any) => Promise<void>} ring rings a job's worker, for a job an answer sent back
@@ -305,7 +306,10 @@ export function sessionToolSet(ctx) {
         githerd_wait: async (args, caller, client) => {
             const session = sessionOf(caller, client);
             const job = heldJob(state, args.job, session, client);
-            if (job.state !== "working") throw new Error(`${job.id} is ${job.state}, not working`);
+            // The holder of a waiting job may declare a new wait in place of the old one.
+            if (job.state !== "working" && job.state !== "waiting") {
+                throw new Error(`${job.id} is ${job.state}, not working`);
+            }
             const key = WAIT_KEYS[args.for];
             /** @type {Record<string, unknown>} */
             const waitingFor = { [key]: args.target, reason: args.reason };
@@ -328,8 +332,19 @@ export function sessionToolSet(ctx) {
                 // A task's directory is named after the session's own directory: an owner session's
                 // is the checkout it started in, never the job's worktree.
                 const cwd = state.sessions?.[session ?? ""]?.cwd ?? job.worktree ?? "";
-                waitingFor.output = taskOutputPath(ctx.uid, cwd, session ?? "", args.target);
+                const output = taskOutputPath(ctx.uid, cwd, session ?? "", args.target);
+                waitingFor.output = output;
+                // The wait ends when that file records the task's exit (advance.mjs localNews): a
+                // target with no output file is a label githerd could never settle.
+                if (!(ctx.taskExists ?? existsSync)(output)) {
+                    throw new Error(
+                        `a local wait names the id of a background task this session started, whose output ` +
+                            `is ${output}; there is no such file for ${args.target}. To wait for a push, ` +
+                            `use githerd_push; for checks or a merge, wait for "checks" or "merge"`,
+                    );
+                }
             }
+            if (job.state === "waiting") board.move(job, "working", now, { reason: "the holder declared a new wait" });
             // ponytail: only a job wait is checked for being settled; checks, lanes and releases are
             // settled by the next poll, which ends the wait with the doorbell. No timer ends it.
             board.move(job, "waiting", now, { waitingFor });

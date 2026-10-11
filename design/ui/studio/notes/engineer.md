@@ -11,6 +11,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **A filter step over an edge column counts edges: built** (app only, 8ab196fb3).
+  Scripted on 26f3bb968 first: friends, "weight is at least 3" read "20 to 20 nodes" on its row
+  and "20 of 20 nodes" on the chip while the element's Overview said "Edges showing 20 of 41"
+  (`tmp/t2r3-r4-11/frozen/05.png`). The element already counts both (`plan` steps effect has
+  `edges`; `visibility.summary` has `visibleEdges`/`totalEdges`), so no element change. Row uses
+  edges for a step whose rule has `nodes: "ends"`; the chip uses edges only while EVERY step that
+  is on is such a step (a mixed set stays in nodes, since node steps change what the chip is
+  for). Status line unchanged (it names both). Fresh build: "41 to 20 edges", chip "20 of 41
+  edges", Overview agrees; unticked, chip goes, row "off" (`tmp/t2r3-r4-11/fresh/04.png`,
+  `05.png`). Same word count. **The T17A answer key's "19 of 20 nodes" / "20 to 19 nodes" become
+  "12 of 41 edges" / "41 to 12 edges" on the next build** -- re-record it before round 4 freezes.
 - (2026-10-10) **The Add page's repeated-ties line now reads as a warning and describes Load:
   built** (app only). The line carries the danger-colored warning glyph (as an unmatched table's
   check does), its text has id `dp-repeats`, and Load's `aria-describedby` lists it beside

@@ -42,7 +42,7 @@ describe("the Style tab's words and arrangement", () => {
         }
     });
 
-    it("shows the bind icon at rest on Color and Size only", () => {
+    it("shows the bind icon at rest on Color, Size and Tooltip only", () => {
         const at = (channel: string): boolean => {
             const d = channelsFor(channel.startsWith("node") ? "node" : "edge").find((c) => c.channel === channel);
             return d !== undefined && bindsAtRest(d);
@@ -51,6 +51,8 @@ describe("the Style tab's words and arrangement", () => {
         assert.isTrue(at("node.size"));
         assert.isFalse(at("node.shape"));
         assert.isFalse(at("node.opacity"));
+        assert.isTrue(at("node.tooltip"));
+        assert.isFalse(at("node.label"));
         const color = channelsFor("node").find((c) => c.channel === "node.color");
         assert.equal(color === undefined ? "" : bindLabel(color), "Color by attribute");
     });

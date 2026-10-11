@@ -674,6 +674,12 @@ describe("focus after a pick on the real element", () => {
 
         // A single "+": the button goes away with the one property it added.
         await userEvent.click(within(tab).getByRole("button", { name: "Add Tooltip" }));
+        // A new Tooltip line asks at once what it reads; "Fixed text" keeps the typed words.
+        await userEvent.click(
+            within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", {
+                name: "Fixed text",
+            }),
+        );
         await focusIsOnLine("node.tooltip");
         assert.isNull(within(styleTab()).queryByRole("button", { name: "Add Tooltip" }));
 
@@ -936,6 +942,12 @@ describe("editing lines on the real element", () => {
         const { session } = await openWithGraph();
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(tab).getByRole("button", { name: "Add Tooltip" }));
+        // A new Tooltip line asks at once what it reads; "Fixed text" keeps the typed words.
+        await userEvent.click(
+            within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", {
+                name: "Fixed text",
+            }),
+        );
         const field = await within(styleTab()).findByRole("textbox", { name: "Tooltip" });
         await userEvent.type(field, "hello{Enter}");
         await waitFor(() => {
@@ -1035,6 +1047,12 @@ describe("the selection's own row on the real element", () => {
         await session.selection.apply({ nodes: ["1"] });
         await pickStyleTab();
         await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add Tooltip" }));
+        // A new Tooltip line asks at once what it reads; "Fixed text" keeps the typed words.
+        await userEvent.click(
+            within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", {
+                name: "Fixed text",
+            }),
+        );
         await waitFor(() => {
             assert.equal(idLayers(session).length, 1);
         });

@@ -189,6 +189,8 @@ export async function exportElements(
     const snapshot = elementsToSnapshot(eles, {
         directed,
         integerIds: INTEGER_ID_FORMATS.has(format),
+        // GEXF owns the name "color" for viz:color: a plain "color" field would read back renamed
+        colors: format === "gexf",
     });
     const graphOptions = {
         sanitizeIds: "mangle" as const,

@@ -24,6 +24,69 @@ function plain(v: unknown): unknown {
 }
 
 /**
+ * A CSS color as RGBA channels in 0..1: `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`, `hsl()` and
+ * `hsla()` with comma-separated arguments. A named color ("red") is not read.
+ * @param text - the color
+ * @returns the channels, or undefined when the text is not one of those forms
+ */
+function parseCssColor(text: string): [number, number, number, number] | undefined {
+    const s = text.trim().toLowerCase();
+    const hex = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(s)?.[1];
+    if (hex !== undefined) {
+        const pairs = hex.length <= 4 ? Array.from(hex, (h) => h + h) : (hex.match(/../g) ?? []);
+        const [r, g, b, a = 255] = pairs.map((h) => Number.parseInt(h, 16) / 255);
+        return [r, g, b, a === 255 ? 1 : a];
+    }
+    const fn = /^(rgba?|hsla?)\(([^)]*)\)$/.exec(s);
+    const args = fn?.[2].split(",").map((a) => a.trim());
+    if (fn === undefined || fn === null || args === undefined || (args.length !== 3 && args.length !== 4)) {
+        return undefined;
+    }
+    // each argument: a number, or a percentage of `full`
+    const num = (a: string, full: number): number =>
+        a.endsWith("%") ? (Number(a.slice(0, -1)) / 100) * full : Number(a);
+    const alpha = args.length === 4 ? num(args[3], 1) : 1;
+    let rgb: number[];
+    if (fn[1].startsWith("rgb")) {
+        rgb = args.slice(0, 3).map((a) => num(a, 255) / 255);
+    } else {
+        const h = Number(args[0].replace(/deg$/, ""));
+        const sat = num(args[1], 1);
+        const l = num(args[2], 1);
+        const k = (n: number): number => (n + h / 30) % 12;
+        const c = sat * Math.min(l, 1 - l);
+        rgb = [0, 8, 4].map((n) => l - c * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)));
+    }
+    const out = [...rgb, alpha];
+    return out.every((v) => Number.isFinite(v) && v >= 0 && v <= 1)
+        ? (out as [number, number, number, number])
+        : undefined;
+}
+
+/**
+ * RGB(A) channels in 0..1 as a CSS color: `#rrggbb` when opaque, `rgba(r, g, b, a)` otherwise.
+ * @param c - the channels
+ * @returns the color
+ */
+function cssColor(c: ArrayLike<number>): string {
+    const ch = (i: number): number => Math.max(0, Math.min(255, Math.round(c[i] * 255)));
+    const a = c.length > 3 ? Math.round(c[3] * 1000) / 1000 : 1;
+    if (a === 1) {
+        return `#${[0, 1, 2].map((i) => ch(i).toString(16).padStart(2, "0")).join("")}`;
+    }
+    return `rgba(${ch(0)}, ${ch(1)}, ${ch(2)}, ${a})`;
+}
+
+/**
+ * Whether a column is a color: the role "color" with 3 or 4 numeric components (GEXF's viz:color).
+ * @param c - the column
+ * @returns true for a color column
+ */
+function isColor(c: Column): boolean {
+    return c.meta.role === "color" && (c.meta.components === 3 || c.meta.components === 4) && c.dtype !== "json";
+}
+
+/**
  * A y coordinate between Cytoscape (y grows downward) and graph-io (y grows upward, so a Cytoscape-family file's
  * screen y is negated on import and negated back on export). Never yields -0.
  * @param y - the coordinate
@@ -44,6 +107,7 @@ interface RenamedColumn {
  * Cytoscape element definitions for a snapshot. Node ids are the snapshot's ids as strings. Every node and edge
  * column becomes a data field of the same name, except that one named `id`, `source`, `target` or `parent` (which
  * Cytoscape reserves) becomes `<name>#<the attribute's id in the file>`, or `<name>#2` when it has none, and:
+ * - a column with the role "color" (GEXF's viz:color) becomes a CSS color string, `#rrggbb` or `rgba(r, g, b, a)`;
  * - a node column with the role "position" becomes the node's position (x and y; a z is dropped);
  * - a node column with the role "parent" (a compound parent, as Cytoscape JSON, GraphML nested graphs and DOT
  *   clusters carry it) becomes `data.parent`;
@@ -126,7 +190,8 @@ function rowData(cols: readonly Column[], row: number, fieldOf: (c: Column) => s
     const data: Record<string, unknown> = {};
     for (const c of cols) {
         if (c.isSet(row)) {
-            data[fieldOf(c)] = plain(c.value(row));
+            const v = c.value(row);
+            data[fieldOf(c)] = isColor(c) ? cssColor(v as ArrayLike<number>) : plain(v);
         }
     }
     return data;
@@ -260,11 +325,28 @@ function column(values: unknown[], label: boolean): ColumnInput | undefined {
 }
 
 /**
+ * A string column of CSS colors as a color column (role "color", RGBA in 0..1), which GEXF writes as viz:color.
+ * @param c - the column
+ * @returns the color column, or undefined when it is not a string column or a value is not a color parseCssColor reads
+ */
+function colorColumn(c: ColumnInput): ColumnInput | undefined {
+    if (c.decl.dtype !== "string") {
+        return undefined;
+    }
+    const rows = (c.data as (string | null)[]).map((v) => (v === null ? null : parseCssColor(v)));
+    if (rows.includes(undefined)) {
+        return undefined;
+    }
+    return { data: rows, decl: { dtype: "f32", components: 4, role: "color" } };
+}
+
+/**
  * The columns of a set of elements' data, one per field, skipping the reserved ones.
  * @param records - each element's data
+ * @param colors - write a `color` field of CSS colors as the role "color"
  * @returns the columns by name
  */
-function columns(records: readonly Record<string, unknown>[]): Record<string, ColumnInput> {
+function columns(records: readonly Record<string, unknown>[], colors = false): Record<string, ColumnInput> {
     const names = new Set<string>();
     for (const r of records) {
         for (const k of Object.keys(r)) {
@@ -280,7 +362,7 @@ function columns(records: readonly Record<string, unknown>[]): Record<string, Co
             name === "label",
         );
         if (c !== undefined) {
-            out[name] = c;
+            out[name] = colors && name === "color" ? (colorColumn(c) ?? c) : c;
         }
     }
     return out;
@@ -296,6 +378,8 @@ function columns(records: readonly Record<string, unknown>[]): Record<string, Co
  * @param eles - the collection
  * @param options - the direction and the id type
  * @param options.directed - write a directed graph (default false)
+ * @param options.colors - write a `color` data field whose every value is a CSS color parseCssColor reads as the
+ * role "color", for a format with a color slot of its own (GEXF's viz:color) (default false)
  * @param options.integerIds - when every node id is a non-negative integer written plainly ("0", "17"), give the
  * snapshot number ids, so a format that holds only integer ids (GML, CX2) writes them as they are (default false)
  * @returns the snapshot
@@ -305,6 +389,7 @@ export function elementsToSnapshot(
     options: {
         readonly directed?: boolean | undefined;
         readonly integerIds?: boolean | undefined;
+        readonly colors?: boolean | undefined;
     } = {},
 ): GraphSnapshot {
     const nodes = eles.nodes();
@@ -329,7 +414,10 @@ export function elementsToSnapshot(
         xy[2 * i + 1] = flipY(p.y);
     });
     const parents = nodes.map((n) => index.get(n.parent().first().id()) ?? null);
-    const edgeColumns = columns(edges.map((e) => e.data() as Record<string, unknown>));
+    const edgeColumns = columns(
+        edges.map((e) => e.data() as Record<string, unknown>),
+        options.colors,
+    );
     let weights: Float64Array<ArrayBuffer> | undefined;
     const w = edgeColumns.weight;
     if (w?.decl.dtype === "f64" && (w.data as unknown[]).every((v) => v !== null)) {
@@ -343,7 +431,10 @@ export function elementsToSnapshot(
         dst,
         weights,
         nodeColumns: {
-            ...columns(nodes.map((n) => n.data() as Record<string, unknown>)),
+            ...columns(
+                nodes.map((n) => n.data() as Record<string, unknown>),
+                options.colors,
+            ),
             position: { data: xy, decl: { dtype: "f64", components: 2, role: "position" } },
             ...(parents.some((p) => p !== null)
                 ? { parent: { data: parents, decl: { dtype: "u32", role: "parent", refersTo: "node" } } }

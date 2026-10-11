@@ -6,9 +6,13 @@
  * Sends prompts to real LLM providers and captures tool calls for verification.
  */
 
-import { Color3 } from "@babylonjs/core";
+import { appendFileSync } from "node:fs";
+import { basename } from "node:path";
 
-import { AiController, type AiControllerOptions } from "../../src/ai/AiController";
+import { Color3 } from "@babylonjs/core";
+import { expect } from "vitest";
+
+import { AiController, type AiControllerOptions, type ExecutionResult } from "../../src/ai/AiController";
 import { CommandRegistry } from "../../src/ai/commands";
 import { BUILTIN_COMMANDS } from "../../src/ai/commands/builtin";
 import type { CommandResult } from "../../src/ai/commands/types";
@@ -178,6 +182,14 @@ export interface CapturedToolCall {
     arguments: Record<string, unknown>;
 }
 
+/** One model turn as the transcript records it: what the model wrote and called, and how it ended. */
+export interface TranscriptTurn {
+    text: string;
+    toolCalls: (CapturedToolCall & { invalidArguments?: true })[];
+    /** The finish reason, or the error code the turn ended with; "none" when it ended with neither. */
+    end: string;
+}
+
 /**
  * An engine decorator that records what the model did on every turn -- its tool calls, in order,
  * and its token usage -- and counts the requests, without changing anything that passes through.
@@ -187,6 +199,8 @@ export class RecordingEngine implements AiEngine {
     readonly providerName: string;
     capturedToolCalls: CapturedToolCall[] = [];
     capturedTokenUsage?: { prompt: number; completion: number };
+    /** Every turn of the current prompt, for the transcript. */
+    capturedTurns: TranscriptTurn[] = [];
 
     constructor(private readonly inner: AiEngine) {
         this.kind = inner.kind;
@@ -201,10 +215,23 @@ export class RecordingEngine implements AiEngine {
         // Counted per test file and printed by setup.ts, so a run reports what it cost.
         const counter = globalThis as { __LLM_REGRESSION_API_CALLS__?: number };
         counter.__LLM_REGRESSION_API_CALLS__ = (counter.__LLM_REGRESSION_API_CALLS__ ?? 0) + 1;
+        const turn: TranscriptTurn = { text: "", toolCalls: [], end: "none" };
+        this.capturedTurns.push(turn);
         for await (const event of this.inner.turn(request, signal)) {
-            if (event.type === "tool-call") {
+            if (event.type === "text") {
+                turn.text += event.delta;
+            } else if (event.type === "finish") {
+                turn.end = event.reason;
+            } else if (event.type === "error") {
+                turn.end = event.code;
+            } else if (event.type === "tool-call") {
                 // Every turn's tool calls, in order: one prompt may ask the model several times.
                 this.capturedToolCalls.push({ name: event.name, arguments: { ...event.arguments } });
+                turn.toolCalls.push({
+                    name: event.name,
+                    arguments: { ...event.arguments },
+                    ...(event.invalidArguments && { invalidArguments: true }),
+                });
             } else if (event.type === "usage") {
                 // Token usage, summed over the prompt's turns
                 this.capturedTokenUsage = {
@@ -228,6 +255,7 @@ export class RecordingEngine implements AiEngine {
     clearCaptured(): void {
         this.capturedToolCalls = [];
         this.capturedTokenUsage = undefined;
+        this.capturedTurns = [];
     }
 }
 
@@ -349,6 +377,7 @@ export class LlmRegressionTestHarness {
         for (let attempt = 0; ; attempt++) {
             this.engine.clearCaptured();
             const executionResult = await this.controller.execute(prompt);
+            this.writeTranscript(prompt, attempt, executionResult);
 
             // The controller never throws: a message that failed outside its tools -- the API
             // refused the request, or the graph could not open the message's transaction --
@@ -405,6 +434,34 @@ export class LlmRegressionTestHarness {
 
             return result;
         }
+    }
+
+    /**
+     * Append one attempt of one prompt to the JSONL transcript `LLM_REGRESSION_TRANSCRIPT` names, so
+     * two runs (two engines, two commits) can be compared case by case. Off when it is unset.
+     * @param prompt - The prompt.
+     * @param attempt - The harness's attempt, from 0.
+     * @param result - What the controller returned.
+     */
+    private writeTranscript(prompt: string, attempt: number, result: ExecutionResult): void {
+        const path = process.env.LLM_REGRESSION_TRANSCRIPT;
+        if (path === undefined || path === "") {
+            return;
+        }
+
+        const { testPath, currentTestName } = expect.getState();
+        const line = {
+            file: basename(testPath ?? ""),
+            test: currentTestName,
+            prompt,
+            attempt,
+            code: result.code,
+            params: result.params,
+            success: result.success,
+            turns: this.engine.capturedTurns,
+            llmText: result.llmText ?? null,
+        };
+        appendFileSync(path, `${JSON.stringify(line)}\n`);
     }
 
     /**

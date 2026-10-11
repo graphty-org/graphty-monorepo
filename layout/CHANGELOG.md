@@ -1,3 +1,17 @@
+## 2.3.1 (2026-10-11)
+
+### 🩹 Fixes
+
+- **layout:** draw spectral layouts from the smallest non-zero eigenvectors ([#1663](https://github.com/graphty-org/graphty-monorepo/issues/1663))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.4.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.3.0 (2026-10-10)
 
 ### 🚀 Features

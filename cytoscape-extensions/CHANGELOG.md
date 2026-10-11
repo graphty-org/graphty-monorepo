@@ -1,3 +1,20 @@
+## 0.0.8 (2026-10-11)
+
+### 🩹 Fixes
+
+- **algorithms:** stop SynC blurring connected communities together ([#1698](https://github.com/graphty-org/graphty-monorepo/issues/1698))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.44
+- Updated algorithms to 3.4.1
+- Updated graph-io to 0.3.34
+- Updated layout to 2.3.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.7 (2026-10-10)
 
 ### 🚀 Features

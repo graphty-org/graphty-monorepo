@@ -16,6 +16,7 @@
 import { assert, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { contextOf, released } from "../helpers/webgl-context";
 
 /** More graphs than Chrome keeps contexts for, so an unreleased context would evict one. */
 const GRAPHS = 24;
@@ -30,42 +31,6 @@ function makeContainer(): HTMLElement {
     container.style.height = "150px";
     document.body.appendChild(container);
     return container;
-}
-
-/**
- * The WebGL context a graph draws with.
- * @param graph - A graph on the WebGL renderer.
- * @returns Its context.
- */
-function contextOf(graph: Graph): WebGLRenderingContext | WebGL2RenderingContext {
-    const canvas = graph.engine.getRenderingCanvas();
-    assert.isNotNull(canvas);
-    const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
-    assert.isNotNull(gl, "the graph's canvas has no WebGL context");
-    return gl;
-}
-
-/**
- * Resolves when a canvas's context is lost, or at once when it already is.
- * @param gl - The context to watch.
- * @returns A promise of the release.
- */
-function released(gl: WebGLRenderingContext | WebGL2RenderingContext): Promise<void> {
-    const canvas = gl.canvas as HTMLCanvasElement;
-    return new Promise((resolve) => {
-        if (gl.isContextLost()) {
-            resolve();
-            return;
-        }
-
-        canvas.addEventListener(
-            "webglcontextlost",
-            () => {
-                resolve();
-            },
-            { once: true },
-        );
-    });
 }
 
 describe("disposing a graph releases its WebGL context", () => {

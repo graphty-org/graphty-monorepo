@@ -160,7 +160,10 @@ for this milestone", gives the reason for each.
 - **Capture is at device scale factor 2, always the whole canvas.** Each story and mode renders
   in a 1200 x 900 viewport at scale 2, and the PNG is the full page of the story iframe: the whole
   viewport, or everything a scroll would reach when the story is taller or wider, as the owner
-  would see it in Storybook by scrolling. It is never cropped to the content, in any project. The
+  would see it in Storybook by scrolling. Chromium cannot take one screenshot taller than 8,192
+  device px (it repeats the top of the page below that row), so a taller page is shot in slices
+  of at most 8,192 px and stitched into one PNG; a page within the limit is the one screenshot.
+  It is never cropped to the content, in any project. The
   owner's rule (2026-09-29): "ALWAYS use the whole canvas, regardless of the situation". An earlier
   version cropped each capture to the story's ink plus a 32 CSS-pixel margin (graphty-element
   kept the full width and was cropped in height only); a small component then sat in an image of

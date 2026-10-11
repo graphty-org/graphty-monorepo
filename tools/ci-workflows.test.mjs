@@ -142,7 +142,7 @@ describe("the pre-push gate matches CI", () => {
         assert.match(prepush, /nx show projects --affected --base="\$BASE" --head=HEAD --json/);
         assert.match(
             prepush,
-            /run_step "[^"]+" \\\n\s+"timeout --foreground --kill-after=60s '\$\{PREPUSH_TESTS_TIMEOUT:-90m\}' PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'"/,
+            /run_step "[^"]+" \\\n\s+"timeout --foreground --kill-after=60s '\$\{PREPUSH_TESTS_TIMEOUT:-90m\}' env PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'"/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
         const nvidia = /\n {4}run_step "webgpu-graph-algorithms on the local NVIDIA GPU" \\\n.*\n/;

@@ -12,6 +12,7 @@ import { basename } from "node:path";
 import { Color3 } from "@babylonjs/core";
 import { assert, expect } from "vitest";
 
+import type { GraphSession } from "../../session";
 import { AiController, type AiControllerOptions, type ExecutionResult } from "../../src/ai/AiController";
 import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandResult } from "../../src/ai/commands/types";
@@ -21,6 +22,7 @@ import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
 import { installAssistantTools } from "../../src/ai/tools/install";
 import type { AiResultCode, AiResultParams } from "../../src/catalog/ai";
 import type { Graph } from "../../src/Graph";
+import { dispatcherOf } from "../../src/session/GraphSession";
 import { assistantSession } from "./assistant";
 import {
     getLlmRegressionApiKey,
@@ -30,7 +32,7 @@ import {
 } from "./llm-regression-env";
 
 /** What only a renderer does, answered as one would: the camera, a capture, XR. */
-const STAND_IN_RENDERER = {
+export const STAND_IN_RENDERER = {
     applyCameraView: (): Promise<void> => Promise.resolve(),
     getCameraState: () => ({ position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } }),
     captureScreenshot: () =>
@@ -79,6 +81,12 @@ export interface LlmRegressionResult {
     latencyMs: number;
     /** Token usage from the LLM response */
     tokenUsage?: { prompt: number; completion: number };
+    /** The model turns the message took. */
+    turns?: number;
+    /** The message's last request to the model: the whole conversation, every tool result in it. */
+    lastRequest?: TurnRequest | null;
+    /** The message's result code. */
+    code?: string;
 }
 
 /**
@@ -187,6 +195,8 @@ export interface LlmRegressionTestHarnessOptions {
     model?: string;
     /** Temperature setting (defaults to 0 for determinism) */
     temperature?: number;
+    /** A session to work on instead of one built from `graphData`: a task's dataset. */
+    session?: GraphSession;
 }
 
 /**
@@ -254,6 +264,8 @@ export class RecordingEngine implements AiEngine {
     capturedTokenUsage?: { prompt: number; completion: number };
     /** Every turn of the current prompt, for the transcript. */
     capturedTurns: TranscriptTurn[] = [];
+    /** The current prompt's last request. */
+    lastRequest: TurnRequest | null = null;
 
     constructor(private readonly inner: AiEngine) {
         this.kind = inner.kind;
@@ -270,6 +282,7 @@ export class RecordingEngine implements AiEngine {
         counter.__LLM_REGRESSION_API_CALLS__ = (counter.__LLM_REGRESSION_API_CALLS__ ?? 0) + 1;
         const turn: TranscriptTurn = { text: "", toolCalls: [], end: "none", ms: 0, requests: [] };
         this.capturedTurns.push(turn);
+        this.lastRequest = request;
         recordingTurn = turn;
         const start = Date.now();
         try {
@@ -326,6 +339,7 @@ export class RecordingEngine implements AiEngine {
         this.capturedToolCalls = [];
         this.capturedTokenUsage = undefined;
         this.capturedTurns = [];
+        this.lastRequest = null;
     }
 }
 
@@ -375,8 +389,11 @@ export class LlmRegressionTestHarness {
 
         // A real session from the fixture, with the stand-in algorithm executor, and a stand-in
         // renderer for what only a renderer does (the camera, a capture, XR).
-        const session = await assistantSession(LlmRegressionTestHarness.recordsOf(options.graphData));
+        const session =
+            options.session ?? (await assistantSession(LlmRegressionTestHarness.recordsOf(options.graphData)));
         const graph = { getSession: () => session, ...STAND_IN_RENDERER } as unknown as Graph;
+        // The renderer's camera, as the element installs it: a view.camera call arrives at once.
+        dispatcherOf(session).services.camera = { move: () => Promise.resolve() };
 
         // What AiManager hands the model, built the way AiManager builds it: the generated tools,
         // the profile AiManager would pick, and the instructions and facts the controller writes.
@@ -502,6 +519,9 @@ export class LlmRegressionTestHarness {
                 llmText: executionResult.llmText ?? null,
                 latencyMs: Date.now() - startTime,
                 tokenUsage: this.engine.capturedTokenUsage,
+                turns: this.engine.capturedTurns.length,
+                lastRequest: this.engine.lastRequest,
+                code: executionResult.code,
             };
 
             if (expectations) {

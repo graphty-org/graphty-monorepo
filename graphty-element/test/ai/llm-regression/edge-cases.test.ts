@@ -27,11 +27,13 @@ import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 /** Every action of the generated tools that only reads: a model may call these to look before it acts. */
 const READ_ONLY_ACTIONS = new Set(
-    buildToolset(createGraphSession()).tools.flatMap((tool) =>
-        tool.definition.actions
+    buildToolset(createGraphSession()).tools.flatMap((tool) => [
+        ...tool.definition.actions
             .filter((action) => action.effect === "read")
             .map((action) => `${tool.name}.${action.name}`),
-    ),
+        // A call naming no action, to a tool that only reads, reads or is refused: it changes nothing.
+        ...(tool.definition.actions.every((action) => action.effect === "read") ? [`${tool.name}.run`] : []),
+    ]),
 );
 
 /**
@@ -141,16 +143,21 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
             );
             assert.ok(styled, `Expected a style add among ${actionsOf(result).join(", ")}`);
             const target = JSON.stringify([styled.arguments.where, styled.arguments.ids]);
-            const values = (styled.arguments.values ?? {}) as Record<string, unknown>;
             assert.ok(
                 target.toLowerCase().includes("server") || target.includes('"1"'),
                 `Expected the target to name the servers but got '${target}'`,
             );
-            assert.ok(
-                values["node.color"] !== undefined ||
-                    (values.node as { color?: unknown } | undefined)?.color !== undefined,
-                "Expected a node color",
-            );
+            // What the session paints, not how the model spelled the channel: the tool reads
+            // `nodeColor` and `node_color` as node.color too.
+            const session = harness.getGraph().getSession();
+            for (const id of ["1", "2"]) {
+                const color = session.styles.explain({ node: id }).merged["node.color" as never] as
+                    { r: number; g: number; b: number } | undefined;
+                assert.ok(
+                    color !== undefined && color.b > color.r && color.b > color.g,
+                    `Expected server ${id} to be blue but it is ${JSON.stringify(color)}`,
+                );
+            }
         });
 
         it("handles 'highlight nodes with high weight connections'", async () => {

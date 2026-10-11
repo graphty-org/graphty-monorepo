@@ -6,13 +6,16 @@
  * a little every frame. The pass's own time is measured separately by wrapping its `run`.
  *
  * Frame time here is the CPU cost of one synchronous `scene.render()`; it does not include the
- * GPU finishing the frame, which the pass does not touch.
+ * GPU finishing the frame, which the pass does not touch. The frames are drawn faster than a
+ * software GPU finishes them, so after each block the test waits for the GPU to catch up: the
+ * hundreds of frames left queued otherwise blocked the NEXT graph's first texture upload for as
+ * long as they took to draw, more than the 30 s its stable-frame wait allows (issue #1947).
  *
  * It asserts nothing about speed, only that the pass ran exactly when it had to. The numbers go
  * to the console, one line per scenario.
  */
 
-import { Axis, type TransformNode } from "@babylonjs/core";
+import { Axis, Engine, type TransformNode } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
@@ -98,7 +101,25 @@ describe("label declutter performance", () => {
         g.setLayoutBehavior({ labels: { declutter: on } });
     }
 
-    function measure(g: Graph, moving: boolean, skipPass = false): Sample {
+    /**
+     * Wait until the GPU has drawn every frame queued so far, without blocking the page.
+     * @param g - The graph.
+     */
+    async function untilGpuCaughtUp(g: Graph): Promise<void> {
+        assert.instanceOf(g.engine, Engine, "the graph draws with WebGL");
+        const gl = g.engine._gl;
+
+        const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+        assert.isOk(fence, "a fence marks the last frame queued");
+        gl.flush();
+        while (gl.getSyncParameter(fence, gl.SYNC_STATUS) === gl.UNSIGNALED) {
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+
+        gl.deleteSync(fence);
+    }
+
+    async function measure(g: Graph, moving: boolean, skipPass = false): Promise<Sample> {
         const pivot = g.scene.activeCamera?.parent as TransformNode | null;
         assert.isOk(pivot, "the orbit camera hangs from a pivot");
 
@@ -140,6 +161,7 @@ describe("label declutter performance", () => {
         const frameMs = (performance.now() - start) / FRAMES;
         const passRuns = pass.passes - passesBefore;
         pass.run = original;
+        await untilGpuCaughtUp(g);
 
         let shown = 0;
         for (const node of g.getDataManager().nodes.values()) {
@@ -171,7 +193,7 @@ describe("label declutter performance", () => {
     }
 
     for (const count of SIZES) {
-        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, building 1000 labels and timing about 300 frames over them takes 11 to 28 s locally and about 39 s on CI, more than a third of the 15 s budget (5000 labels, run by hand, take about two minutes); tracked in #1636
+        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, building 1000 labels and timing about 300 frames over them takes 11 to 28 s locally and about 39 s on CI, plus the time a software GPU needs to draw those frames (about 85 s on a loaded workstation; it was charged to the next test file before #1947), more than a third of the 15 s budget (5000 labels, run by hand, take about two minutes); tracked in #1636
         it(`${String(count)} labelled nodes`, { timeout: 300_000 }, async () => {
             const g = await draw(count);
             const lines: string[] = [];
@@ -179,7 +201,7 @@ describe("label declutter performance", () => {
             for (const on of [false, true]) {
                 setDeclutter(g, on);
                 for (const moving of [false, true]) {
-                    const s = measure(g, moving);
+                    const s = await measure(g, moving);
                     lines.push(
                         `[label-declutter-perf] labels=${String(count)} declutter=${on ? "on " : "off"} ` +
                             `camera=${moving ? "moving" : "still "} frame_ms=${s.frameMs.toFixed(2)} ` +
@@ -199,7 +221,7 @@ describe("label declutter performance", () => {
             // The same moving camera over the same labels with the pass switched off by hand, so
             // the difference to the moving row above is what the pass adds to a frame. Some of
             // the pass's own time is world matrices the render would compute anyway.
-            const skipped = measure(g, true, true);
+            const skipped = await measure(g, true, true);
             lines.push(
                 `[label-declutter-perf] labels=${String(count)} declutter=on  camera=moving pass=skipped ` +
                     `frame_ms=${skipped.frameMs.toFixed(2)} labels_shown=${String(skipped.shown)}`,

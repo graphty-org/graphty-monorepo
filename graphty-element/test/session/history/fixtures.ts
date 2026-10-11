@@ -513,6 +513,21 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.setSource", source: { type: "json", name: "Renamed" } },
     },
     {
+        name: "data.setFileStyles",
+        tags: ["session"],
+        command: {
+            op: "data.setFileStyles",
+            loads: [
+                {
+                    importId: "fixture",
+                    namespace: "gexf",
+                    format: "gexf",
+                    columns: [{ kind: "node", key: "member.1", ids: ["n1", "n3"], values: [true, true] }],
+                },
+            ],
+        },
+    },
+    {
         name: "view.save",
         tags: ["session"],
         command: { op: "view.save", views: [{ name: "Fixture view", camera: { zoom: 2, pan: { x: 1, y: 2 } } }] },

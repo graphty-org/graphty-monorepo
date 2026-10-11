@@ -176,7 +176,20 @@ export { recommendLayout } from "./src/session";
 // Previewing a load: the column roles a table of each kind takes and requires
 // ---------------------------------------------------------------------------------------------
 
+export type {
+    FileStyleColumnValues,
+    FileStyleKind,
+    FileStyleLoadValues,
+    FileStyleMappingKind,
+    FileStyleMeaning,
+    FileStyleOrigin,
+    FileStyleReason,
+    FileStyleRole,
+    FileStyleRuleOrigin,
+    FileStyleScalar,
+} from "./src/session";
 export { LOAD_ROLES } from "./src/session";
+export { fileStyleOf } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // Runs: starting a computation, watching it, stopping it, and finding it again
@@ -483,6 +496,7 @@ export type {
     StylesApi,
     StyleSuggestion,
     TemplateOptions,
+    TemplatePosition,
     TemplateReport,
     UnboundLayer,
     UnboundLayerCode,

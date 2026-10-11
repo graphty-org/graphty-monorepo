@@ -40,6 +40,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "data.expand": ["data.expand"],
     "data.declare": ["data.declare"],
     "data.setSource": ["data.set-source"],
+    "data.setFileStyles": ["data.set-file-styles"],
     "style.patch": [
         "style.add-layer",
         "style.update-layer",
@@ -95,6 +96,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.expand": ["node"],
     "data.declare": ["column", "kind"],
     "data.set-source": ["name"],
+    "data.set-file-styles": ["loads"],
     "style.add-layer": ["layer"],
     "style.update-layer": ["layer"],
     "style.remove-layer": ["layer"],

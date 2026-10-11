@@ -22,7 +22,7 @@ import type { CodedFact } from "../shared";
 import type { EncodingSpec } from "../styles/EncodingSpec";
 import type { ExplainTarget } from "../styles/explain";
 import type { LayerPosition } from "../styles/Layer";
-import type { HighlightSpec } from "../styles/StylesApi";
+import type { HighlightSpec, TemplatePosition } from "../styles/StylesApi";
 import type { HistoryCode } from "../types";
 
 /** The values of `style.patch`'s discriminant: one per styles verb that reaches it. */
@@ -95,6 +95,8 @@ interface StyleTemplateCommand {
     readonly document: StyleDocument;
     /** Recorded as the template on every layer that names no source of its own. */
     readonly templateId?: string;
+    /** Where the layers go; the top of the stack when absent. */
+    readonly at?: TemplatePosition;
 }
 
 /** Every style op. */

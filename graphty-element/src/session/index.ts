@@ -20,6 +20,17 @@ export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand }
 export { isAlgorithmRunCommand } from "./planning";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 export type {
+    FileStyleMappingKind,
+    FileStyleMeaning,
+    FileStyleOrigin,
+    FileStyleReason,
+    FileStyleRole,
+    FileStyleRuleOrigin,
+} from "./styles/fileStyles/origin";
+export { fileStyleOf } from "./styles/fileStyles/origin";
+export type { FileStyleKind } from "./styles/fileStyles/path";
+export type { FileStyleColumnValues, FileStyleLoadValues, FileStyleScalar } from "./styles/fileStyles/store";
+export type {
     ColumnHistogram,
     ColumnRole,
     CommandOutcome,

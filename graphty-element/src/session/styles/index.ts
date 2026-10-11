@@ -83,6 +83,7 @@ export type {
     StylesApi,
     StylesSources,
     TemplateOptions,
+    TemplatePosition,
     TemplateReport,
 } from "./StylesApi";
 export { createStylesApi } from "./StylesApi";

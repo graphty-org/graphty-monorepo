@@ -206,6 +206,19 @@ describe("the Node-safe entry points", () => {
 
         assert.isTrue(loaded.every((module) => typeof module === "object"));
     });
+
+    it("reads a layer's file-style facts in plain Node, from ./session alone", () => {
+        const origin: session.FileStyleOrigin = {
+            format: "gexf",
+            importId: "i1",
+            ruleId: "node.by.Modularity Class",
+            role: "mapping",
+            origin: "declared",
+        };
+
+        assert.deepEqual(session.fileStyleOf({ userData: { "graphty.fileStyle": origin } }), origin);
+        assert.isNull(session.fileStyleOf({}));
+    });
 });
 
 describe("the ./webgpu entry point", () => {

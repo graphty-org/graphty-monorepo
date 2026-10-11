@@ -125,6 +125,9 @@ export interface Layer {
      * control is pinned, where the layer came from in its own model -- has a documented place to
      * keep it. Without one, every consumer invents a place, and that place is a name collision
      * with the next release.
+     *
+     * Keys starting `graphty.` are the element's: a layer made from a file's styles carries its
+     * facts under `graphty.fileStyle`, read with `fileStyleOf(layer)`. Never used to paint.
      */
     readonly userData?: Record<string, unknown>;
 }

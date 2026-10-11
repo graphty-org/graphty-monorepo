@@ -45,6 +45,9 @@ export const COMMANDS: Readonly<{
     readonly "data.setSource": {
         readonly undo: "undoable";
     };
+    readonly "data.setFileStyles": {
+        readonly undo: "undoable";
+    };
     readonly "style.patch": {
         readonly undo: "undoable";
     };

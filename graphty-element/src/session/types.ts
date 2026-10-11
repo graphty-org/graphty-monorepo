@@ -1491,6 +1491,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.expand` | `node`: the id expanded |
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
+ * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
  * | `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.remove-layers` | `count` |
  * | `style.highlight` | `run`: the run highlighted |
@@ -1541,6 +1542,7 @@ export type HistoryCode =
     | "data.expand"
     | "data.declare"
     | "data.set-source"
+    | "data.set-file-styles"
     | "style.add-layer"
     | "style.update-layer"
     | "style.remove-layer"
@@ -1729,6 +1731,8 @@ export interface CommandOutcomeMap {
     "data.declare": Promise<void>;
     /** Settles once the source is recorded. */
     "data.setSource": Promise<void>;
+    /** Settles once the style values are recorded. */
+    "data.setFileStyles": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */

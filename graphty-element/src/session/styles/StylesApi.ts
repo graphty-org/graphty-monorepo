@@ -229,7 +229,17 @@ export interface TemplateOptions extends RunOptions {
      * its own. That is what lets the whole import be swept away again in one call.
      */
     readonly templateId?: string;
+    /**
+     * Where the document's layers go: `"top"` (the default) above every layer, `"aboveBase"`
+     * directly above the element's own base layers and beneath every layer added since, or
+     * `{ before: id }` directly beneath one layer. A file's styles land above the base so that
+     * the layers a reader added stay on top of them.
+     */
+    readonly at?: TemplatePosition;
 }
+
+/** Where `applyTemplate` puts a document's layers. */
+export type TemplatePosition = "top" | "aboveBase" | { readonly before: LayerId };
 
 /**
  * The style stack, the verbs that change it, and the three questions a reader asks of it.
@@ -1711,6 +1721,39 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * Where a style document's layers go.
+     * @param at - The position, or undefined for the top.
+     * @returns The index they are inserted at, bottom first.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for a position that is none of the three, and
+     *     `E_UNKNOWN_LAYER` when the layer to sit beneath is not in the stack.
+     */
+    const templateIndex = (at: TemplatePosition | undefined): number => {
+        const stack = current();
+        if (at === undefined || at === "top") {
+            return stack.length;
+        }
+
+        if (at === "aboveBase") {
+            // Directly above the last of the element's own base layers, wherever it sits.
+            let index = 0;
+            stack.forEach((entry, position) => {
+                const { source } = entry.layer;
+                if (source.by === "element" && source.reason === "default") {
+                    index = position + 1;
+                }
+            });
+            return index;
+        }
+
+        if (typeof at === "object" && at !== null && typeof at.before === "string") {
+            require(at.before);
+            return positionOf(at.before);
+        }
+
+        throw badCommand('A style document goes at "top", "aboveBase" or { before: <layer id> }.', { field: "at" });
+    };
+
+    /**
      * The runs this session can look up, or the refusal a session that cannot look one up gives.
      * @param verb - What was being attempted, for the refusal.
      * @returns Where a run is looked up.
@@ -2078,10 +2121,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * The plan for applying a style document: every layer lands, bound or disabled, or none does.
      * @param document - The document.
      * @param templateId - What to record as the template.
+     * @param at - Where the layers go.
      * @returns The plan.
      */
-    const planTemplate = (document: StyleDocument, templateId: string | undefined): EditPlan<TemplateReport> => {
+    const planTemplate = (
+        document: StyleDocument,
+        templateId: string | undefined,
+        at: TemplatePosition | undefined,
+    ): EditPlan<TemplateReport> => {
         checkDocument(document);
+        const index = templateIndex(at);
 
         const id = minter();
         const imported: ImportedLayer[] = [];
@@ -2135,8 +2184,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return off.layer;
         });
 
+        const stack = [...current()];
+        stack.splice(index, 0, ...final);
+
         return {
-            stack: [...current(), ...final],
+            stack,
             result: Object.freeze({
                 applied: Object.freeze(
                     final.filter((entry) => !disabled.has(entry.layer.id)).map((entry) => entry.layer.id),
@@ -2160,7 +2212,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         if (command.op === "style.template") {
-            return planTemplate(command.document, command.templateId);
+            return planTemplate(command.document, command.templateId, command.at);
         }
 
         switch (command.action) {
@@ -2452,6 +2504,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     op: "style.template",
                     document,
                     ...(options.templateId === undefined ? {} : { templateId: options.templateId }),
+                    ...(options.at === undefined ? {} : { at: options.at }),
                 },
                 options,
             );

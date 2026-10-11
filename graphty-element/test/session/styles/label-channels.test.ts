@@ -217,7 +217,7 @@ describe("label field channels take a rule", () => {
         await held.paintAll();
 
         for (const [index, id] of ["a", "b", "c"].entries()) {
-            const expected = NODES[index]?.["data.fs"];
+            const expected = NODES[index]?.["data.fs"] as number | undefined;
             const merged = held.styles.explain({ node: id }).merged["node.labelStyle"];
 
             assert.deepEqual(merged, { sizePx: expected }, id);

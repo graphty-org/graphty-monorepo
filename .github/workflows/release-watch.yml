@@ -41,6 +41,8 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
                   RUN_ID: ${{ github.event.workflow_run.id }}
                   RUN_URL: ${{ github.event.workflow_run.html_url }}
                   ATTEMPT: ${{ github.event.workflow_run.run_attempt }}

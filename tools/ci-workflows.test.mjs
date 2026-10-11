@@ -54,6 +54,7 @@ import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 // config: a commit there must never reach their signing key.
 isolateGit();
 
+const PUSHOVER_SECRETS = ["secrets.PUSHOVER_APP_TOKEN", "secrets.PUSHOVER_USER_KEY"];
 const workflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
 const job = (text, name) => {
     const start = text.indexOf(`\n    ${name}:\n`);
@@ -1589,6 +1590,12 @@ describe("the re-run of a T4 run whose spot runner was lost", () => {
         );
         assert.match(rerun, /if tools\/gpu-runner-lost.sh "\$RUN" 1; then\n[^\n]*\n\s+gh run rerun "\$RUN" --failed /);
         assert.equal(rerun.match(/gh run rerun/g).length, 1);
+        // a Release run re-run this way tells the owner's phone it is retrying, never failing the re-run
+        assert.match(
+            rerun,
+            /gh run rerun "\$RUN" --failed [^\n]*\n[^\n]*\n\s+\[ "\$WORKFLOW" != Release \] \|\| node tools\/release-status.mjs started --attempt 2 [^\n]*\n[^\n]*\|\| true\n/,
+        );
+        assert.match(rerun, /tools\/release-status.mjs\n/, "in its sparse checkout");
     });
 
     it("opens no Release held issue for a first attempt the re-run will repeat, using the same test", () => {
@@ -2582,6 +2589,63 @@ describe("release.yml", () => {
         assert.match(publish, /echo "tags=\$\(IFS=,; echo "\$\{tags\[\*\]\}"\)" >> "\$GITHUB_OUTPUT"/);
     });
 
+    it("sends a phone notice when a train starts testing a candidate, RETRYING after a fix or on a re-run", () => {
+        // after the pending and nothing-releasable checks, only when there is something to release
+        assert.ok(pick.indexOf("- name: Announce the train attempt") > pick.indexOf("id: releasable"));
+        assert.match(
+            pick,
+            /- name: Announce the train attempt\n\s+if: \$\{\{ steps.releasable.outputs.release == 'true' \}\}\n\s+continue-on-error: true\n/,
+        );
+        assert.match(pick, /TAGS: \$\{\{ steps.releasable.outputs.tags \}\}/);
+        assert.match(
+            pick,
+            /if \[ "\$TRIGGER" = workflow_run \]; then\n\s+restart=\(--restart --issue "\$\(tools\/release-held.sh find --train\)" --fix /,
+        );
+        assert.match(
+            pick,
+            /node tools\/release-status.mjs started --sha "\$SHA" --tags "\$TAGS" "\$\{restart\[@\]\}" \\\n\s+--attempt "\$GITHUB_RUN_ATTEMPT"/,
+        );
+        // a re-run of a failed publish says it is retrying, before anything else in the job
+        assert.match(
+            publish,
+            /fetch-depth: 0\n\n[^\n]*\n\s+- name: Announce a re-run of the publish\n\s+if: \$\{\{ github.run_attempt > 1 \}\}\n\s+continue-on-error: true\n/,
+        );
+        assert.match(
+            publish,
+            /node tools\/release-status.mjs started --sha "\$GITHUB_SHA" --attempt "\$GITHUB_RUN_ATTEMPT"/,
+        );
+    });
+
+    it("hands the Pushover secrets only to the steps that run tools/release-status.mjs", () => {
+        for (const name of [
+            "release.yml",
+            "release-watch.yml",
+            "release-dequeued.yml",
+            "gpu-rerun-on-runner-loss.yml",
+        ]) {
+            const steps = workflow(name).split(/\n(?=\s+- (?:name|uses): )/);
+            const announcing = steps.filter((st) => /node tools\/release-status.mjs /.test(st));
+            assert.ok(announcing.length > 0, name);
+            for (const st of steps) {
+                const secrets = st.match(/secrets\.PUSHOVER_\w+/g) ?? [];
+                if (announcing.includes(st)) {
+                    assert.match(
+                        st,
+                        /\n\s+PUSHOVER_APP_TOKEN: \$\{\{ secrets.PUSHOVER_APP_TOKEN \}\}\n/,
+                        `${name}: ${st}`,
+                    );
+                    assert.match(
+                        st,
+                        /\n\s+PUSHOVER_USER_KEY: \$\{\{ secrets.PUSHOVER_USER_KEY \}\}\n/,
+                        `${name}: ${st}`,
+                    );
+                } else {
+                    assert.deepEqual(secrets, [], `${name}: only an announcing step gets the Pushover secrets`);
+                }
+            }
+        }
+    });
+
     it("has a backstop that announces a run that ended badly without announcing itself", () => {
         const watch = workflow("release-watch.yml");
         // workflow_run matches the watched workflow by its name
@@ -2591,7 +2655,7 @@ describe("release.yml", () => {
             watch,
             /if: \$\{\{ !contains\(fromJSON\('\["success","skipped","neutral"\]'\), github.event.workflow_run.conclusion\) \}\}/,
         );
-        assert.doesNotMatch(watch, /secrets\./, "GITHUB_TOKEN only");
+        assert.deepEqual(watch.match(/secrets\.\w+/g), PUSHOVER_SECRETS, "GITHUB_TOKEN and Pushover only");
         assert.deepEqual(watch.match(/\w+: write/g), ["issues: write"], "it writes only the comment");
         assert.match(watch, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
         assert.match(watch, /node tools\/release-status.mjs run-ended --run "\$RUN_URL" --attempt "\$ATTEMPT"/);
@@ -2613,7 +2677,7 @@ describe("release.yml", () => {
         assert.match(mergify, /- head~=\^release\/train-\n\s+- author=github-actions\[bot\]/);
         // it runs nothing from the pull request
         assert.match(dq, /- uses: actions\/checkout@v4\n\s+with:\n\s+ref: master\n/);
-        assert.doesNotMatch(dq, /secrets\./, "GITHUB_TOKEN only");
+        assert.deepEqual(dq.match(/secrets\.\w+/g), PUSHOVER_SECRETS, "GITHUB_TOKEN and Pushover only");
         assert.deepEqual(dq.match(/\w+: write/g), ["issues: write"], "it writes only the comment");
         assert.match(dq, /checks: read/, "it reads the Mergify Merge Queue check run");
         assert.match(dq, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);

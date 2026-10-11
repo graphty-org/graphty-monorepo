@@ -7,33 +7,37 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- 2026-10-10 Round 3 (build 26f3bb968): 54 of 56 succeeded; no confirmed failure is a word
-  failure. The one real app failure is Shift/Ctrl-click on a node (element). Words did their job.
-- 2026-10-10 Round 3 proposals (below, under Decisions): value row without "Select where" plus an
-  "N or more" row; backtick refusal replaced by the existing "Rule: press Enter to select matches";
-  path row "4 edges" not "4 hops"; Hops 2 list grouped "1 hop" / "2 hops"; shorter disabled reason.
+- 2026-10-11 Round 3 closed. 54 of 56; no confirmed failure is a word failure. The real failures
+  were Shift-click on a node (element, fixed for round 4) and T24's prompt disagreeing with its key.
+- 2026-10-11 Round 4 word changes I own: find value row loses "Select where" (accessible name keeps
+  it) plus a "<column> is 10 or more (N)" row from the element's new `atLeast` fact; the app parses
+  no number. Acceptance: no cut find row on either dataset, words at rest unchanged.
+- 2026-10-11 T24 prompt is now "point out Gus and Ivan, and nobody else, so that whatever you do
+  next applies only to those two" -- names the outcome, not the control. A prompt names the
+  measured outcome; pilots must run before a round (now a gate).
+- 2026-10-11 Held this round, do not re-raise without new evidence: backtick refusal rewording
+  (tied to the owner's bare-number question), ">=10" rewrite per column, "4 hops" -> "4 edges"
+  (sev 1, T18 crowded), Hops 2 grouping (needs element `hops` fact; first in line on a 2nd session),
+  "second path replaced" notice (adds speech).
+- 2026-10-11 Repeated-ties line keeps its words; it gains a warning glyph and joins Load's
+  aria-describedby. Fix weight and reachability before rewording.
+- 2026-10-11 Watch in round 4: does "10 or more" get picked first on Les Miserables; T17 first
+  moves with the "Filters" toolbar tooltip (round 3: 5 of 8 looked on the Graph place); "Start
+  here" badge once only; filter-step counts naming edges ("20 of 41 edges").
+- 2026-10-11 Bar 9 counter now leaves out data names; re-measured figures replace the old 31.
+  Never cut a needed word to pass a broken count.
 - 2026-10-10 Readers type the prompt's most prominent data word first (column name or bare
-  number), so the find box must turn BOTH into a working rule. 0 of 16 typed "=" in two rounds:
-  the rule language is copied from hints, never discovered -- hints must be runnable, not taught.
-- 2026-10-10 Do NOT reword: "PageRank, full graph" (read right, called helpful); the repeated-ties
-  sentence (its fault is focus and button weight); "Higher means: Not set" on Replace; Hops,
-  Degree (field terms, sev 1).
-- 2026-10-10 Bar 9 (b): the edge inspector is 31 vs 30 only because the counter counts data names
-  ("friends", "team.csv"). Fix the counter; never cut a needed word to pass a broken count.
-- 2026-10-10 Backticks in layer names and the key ("minutes >= `10`") stay until the element
-  takes bare numbers (owner list). Stripping them in the app would be a workaround; the clean
-  route is an element fact (parsed rule: column, comparison, value) the app words.
-- 2026-10-10 Prompts are words too, again: T24 "point out" vs a key that credits only a selection
-  failed two valid answers. A prompt names the measured outcome in the field's word.
+  number). 0 of 16 typed "=": the rule language is copied from hints -- hints must be runnable.
+- 2026-10-10 Do NOT reword: "PageRank, full graph"; "Higher means: Not set" on Replace; Hops,
+  Degree; "Select endpoints" (re-measure after the Shift fix).
+- 2026-10-10 Backticks in rules stay until the element takes bare numbers (owner list). Stripping
+  them in the app would be a workaround.
 - 2026-10-10 A word proposal ships with its bars.mjs count before and after, per screen.
-- 2026-10-10 Owner list, unchanged: bare numbers in rules (element), what edge width measures.
-- 2026-10-09 Find hint: the ELEMENT decides if text is a rule; the app reads no syntax.
-- 2026-10-09 Deferred, mine to re-raise only on evidence: Select endpoints, Capacity, Leave out
-  preselected, "Edit source..." vs "Replace: team.csv", "Components 1" under a filter.
-- 2026-10-07 Element English leaks are element defects (code + params); CSV export headers may be
-  a format contract -- one-way door.
-- 2026-10-06 Words cannot fix a missing route (Filters from the Graph place is a route); a word
-  never promises what the screen does not do; task wording never echoes a fix.
+- 2026-10-09 The ELEMENT decides if text is a rule; the app reads no syntax.
+- 2026-10-07 Element English leaks are element defects (code + params); CSV headers may be a format
+  contract -- one-way door.
+- 2026-10-06 Words cannot fix a missing route; a word never promises what the screen does not do;
+  task wording never echoes a fix.
 - 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40). Simulated: fail strong, pass weak.
 
 ## Priorities and values
@@ -160,7 +164,22 @@ I read this file at the start of every session and update it as I decide and lea
   Filters", tied by aria-describedby (a11y 4). Reason: each fixes a confirmed sev 2 (6: sev 1)
   with fewer words; none adds words at rest.
 
+- 2026-10-11 Round 3 closed (tier2/rounds/round-3/decisions.md, Design Director). Adopted from my
+  proposals: (1) value row without "Select where" plus the "or more" row (change 7, with an additive
+  element fact `atLeast: { count, target }`). Held: (2) backtick refusal -> "Rule: press Enter"
+  (bare-number owner question), (3) ">=10" rewrite (the "or more" row answers bare numbers), (4)
+  "4 hops" -> "4 edges" (sev 1; T18 already carries three changes), (5) Hops grouping (needs element
+  fact, one session), (6) disabled-reason rewording (replaced by a check-first compact-mantine
+  Tooltip fix, no word change). Reason: one variant per problem so round 4 can credit it; words at
+  rest must not rise; claims from one specialist scripted before fixing. Studio, reversible.
+
 ## Tried: worked / did not work
+
+- 2026-10-11 LEARNED (round 3 close): six word proposals became one change. The Director takes one
+  variant per problem and drops anything that blurs credit on a crowded task. Lead with the one
+  proposal that answers the most-observed behavior; list the rest as held, not as a set.
+- 2026-10-11 LEARNED: a measurement check that reads nothing passed silently (leak check, bar 8,
+  bar 9). Before trusting a word count, confirm what the counter counts.
 
 - 2026-10-10 WORKED (round 3): "minutes 14" / "km 7.5" on weighted path rows (no weight doubt in
   T20, 8 of 8); the rule-named layer (r3-s15); "No match" plus example rule led to rules with no
@@ -193,54 +212,16 @@ I read this file at the start of every session and update it as I decide and lea
   (7 of 7); the "Not read --" weight note (4); "Select endpoints" guessed (4 of 4, all found it);
   "As the file says" on a CSV, which loads directed (behavior first: graph-io/element fact).
 
-- 2026-10-07 WORKED (re-pilot, round 3 build): method names on every run surface listed above;
-  "Show all labels" reached every name on two datasets in 5 steps; the count shortening kept words
-  at rest flat. Lesson: an unbuilt decision is found only by a preflight on the served build.
-- 2026-10-07 LEARNED (round 2 closing): the insights filed the unbuilt run rename as a design
-  opinion; the Director corrected it to an unbuilt decision. Severity of a word defect depends on
-  whether it was decided -- always cite the decision.
-- 2026-10-07 LEARNED: the bind door's two names merged when Size "+" opened the list titled
-  "Size by attribute"; an IA route fix removed a word problem. Fix the route first, then words.
-
-- 2026-10-07 WORKED (round 2): the Degree row as the door to the neighbor names, 8 of 8 (no word
-  change; the chevron cue did it). The Open-route refusal again (3 of 3, ease 6). The hidden count
-  again: every participant who read it said names were missing. The usage card: no wrong belief.
-- 2026-10-07 DID NOT WORK (round 2): the Data page's damaged-file refusal ("could not be read as
-  GraphML. Check the file, or pick another format in File settings") -- no cause, no line, remedy
-  points at format; `data-page/words.ts` E_PARSE_FAILED still carries the stale "#803" comment
-  though the element now reports the line (`project/actions.ts` notReadSentence uses it).
-  Lesson: one code, one sentence -- share the function, do not write a second.
-- 2026-10-07 DID NOT WORK: "Undirected, from the file: directed 0" (6 sessions) -- raw file syntax
-  pushes the label out; "Edges per ..." truncates (`inspector/words.ts` directionWords).
-- 2026-10-07 DID NOT WORK: the bind door has two names, "Size by attribute" (tooltip and
-  accessible name, `style/words.ts` bindLabel) and "Size from data" (popover title,
-  `style/SetLine.tsx`); a participant read the chain icon as "links to her file".
-
-- **Tier 1 lessons (summarized 2026-10-10).** WORKED: refusals naming faults with line numbers;
-  "never uploaded" / "Local only"; "Note on: <thing>"; Privacy "Where your data goes"; one
-  wording pass + lint fixed six concept splits. DID NOT WORK: seven weight wordings (words
-  cannot rescue an unsettled model); a bare "within 1%" (a number needs its basis); "Money
-  in/out" (one-domain + task echo); "Show labels" first item (a control matching the task's
-  words must do the task); a count with no names behind it; samples arriving pre-explained;
-  nine-term binding popover (fold rare options).
-- 2026-10-06 WORKED (round 1, real app): "N labels, M hidden to avoid overlap" -- no false "done"
-  on names in 29 sessions; participants read it and kept looking. The broken-file refusal again
-  forwarded as is (ease 7).
-- 2026-10-06 DID NOT WORK (round 1): method name swapped for a result name after a run (PageRank
-  shown as "Influence", Betweenness as "Bridges"): 12 participants paused; never a failure. Cause:
-  the app shows the element's English `run.label` instead of its own analysis words.
-- 2026-10-06 DID NOT WORK (round 1): "Degree 17" as the only door to the neighbor names -- 0 of 4
-  used it; ease 2.75, the round's worst. A bare standard term with a number reads as a fact, not
-  a door. Words alone may not fix it; pair with a visible link mark.
-- 2026-10-06 Seen, not yet raised: "Undirected, from the file: directed 0" on the graph's Values
-  shows the file's raw syntax; "Edges per n..." truncates. Candidates for the bar 9 word count.
-- 2026-10-06 WORKED (re-pilot): the refusal "No crossings could not lay out this graph, so the
-  drawing is unchanged" under Method reads clearly next to its control. Untested by participants.
-- 2026-10-06 SEEN (re-pilot, not tested): exported CSV headers and the CSV warning are written
-  for developers; header and outline disagree on the project name after a save.
-- 2026-10-03 WORKED (in the skeleton, untested by participants): one wording pass fixed six
-  concept-name splits; the check tool's wording lint found none after. Lesson: a lint catches
-  drift that per-page fixes miss.
+- **Tier 2 round 1 and tier 1 rounds 1-2 lessons (summarized 2026-10-11).** WORKED: method
+  names on every run surface; "Show all labels"; "N labels, M hidden to avoid overlap" (no false
+  "done" in 29 sessions); the Degree row with a chevron cue (8 of 8); refusals naming the method or
+  the line; the usage card. DID NOT WORK: element English `run.label` shown after a run; bare
+  "Degree 17" as a door; "directed 0" raw file syntax; "Edges per ..." truncating; the bind door's
+  two names; the damaged-file refusal with no cause. Lessons: an unbuilt decision shows only on a
+  preflight of the served build; fix the route first, then words; one code, one sentence (share the
+  function); severity of a word defect depends on whether it was decided -- cite the decision.
+  Tier 1: refusals with line numbers, "Local only", "Note on:" worked; seven weight wordings,
+  one-domain words, task echoes, pre-explained samples did not.
 
 ## Thinking
 
@@ -279,6 +260,8 @@ I read this file at the start of every session and update it as I decide and lea
   1000 ms is compact-mantine's.
 
 ## Sources
+
+- `design/ui/studio/tier2/rounds/round-3/decisions.md`, `insights.md` (2026-10-11)
 
 - `design/ui/studio/tier2/rounds/round-3/insights.md`, `scores.md`, `expert/` (figma 8-18, engineer
   28, a11y 4, 9, 16; visual); screenshots `sessions/r3-s10/02.png`, `expert/figma/find/02.png` (2026-10-10)

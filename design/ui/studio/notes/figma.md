@@ -5,43 +5,41 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-10 (tier 2 round 3 critique done).
+Last updated: 2026-10-11 (tier 2 round 3 closed; round 4 changes decided).
 
 ## Top of mind
 
-1. (2026-10-10) Round 3 critique proposed eight changes, most severe first: Shift/Ctrl-click on a
-   node adds (graphty-element, `NodeBehavior.handleClick`; the edge click already reads
-   `shiftKey`), T24 prompt and key aligned (study), a bare number offers "is" and "is at least"
-   with the row unclipped, a second path announced with Undo plus Made with read from the run not
-   the draft, a filter icon in the toolbar, exact name first in the Analyze search, the edge step
-   counted in edges, Value blur commits.
-2. (2026-10-10) The one app-caused failure of round 3 was a Figma muscle-memory gesture
-   (Shift-click adds), missing in the element on nodes only. Figma's selection grammar is a
-   checklist, not taste: walk Shift-click, Ctrl-click, marquee and Escape on every object kind.
-3. (2026-10-10) Skeptics cut my two severity 3s to one severity 2 (a second path replacing the
-   first) and "not shown" (Undo restating the wrong From and To). Lesson: a one-specialist claim
-   needs a script before it is scored; write the script with the finding.
-4. (2026-10-10) A prompt reworded to avoid a control word ("point out", not "select") let
-   participants reach a different valid outcome. A task must name the measured end state.
-5. (2026-10-10) Tab-commit shipped half (Tab from Value lands on Save step). A decided change must
-   name the exact key sequence it fixes, and the walk must replay it.
-6. (2026-10-10) Find box: 4 of 4 typed a bare number first; offer "is at least" beside "is". Rule
-   syntax and backticks stay an owner question; do not reword the refusal again.
-7. (2026-10-10) Do NOT move: Replace (8 of 8 found it), "Select endpoints" (recheck after the
-   Shift-click fix), weight role at load (8 of 8 right), note subject, names-off default (the
-   consumer's choice; no misread).
-8. (2026-10-10) Severity 3 left to the owner: drawn names covering edges and each other, sized
-   nodes drawn inside each other. No app font, seed or offset hacks. Not counted in my totals.
-9. (2026-10-10) Bar 9 (b): words go down, never up. Count before I propose. The counter must leave
-   out data names (it counted "friends" and "team.csv").
-10. (2026-10-10) Next walk's watch list: every command twice then Undo; Tab and Escape at each
-    field boundary; modifier clicks on nodes, edges and rows; panel right-click.
-11. (2026-10-09) Deferred divergences, bring only with clean-run evidence: Save form vs live
-    inspector; checkbox vs eye; two row grammars; add-first for "+".
-12. (2026-10-10) Tool: `--start` waits for a browser slot; wrap it in `timeout 580` in the
-    foreground. Click by name must match one control; `role=treeitem:` for step rows.
-13. (2026-10-07) Open element asks: fit inset (toolbar covers nodes); size vs 3D perspective;
-    neighbor distance per node (now needed for the Hops 2 list).
+1. (2026-10-11) Round 3 closed: 54 of 56 succeeded; the one real app failure is Shift-click on a
+   node replacing the selection. Decided: graphty-element's node click reads `shiftKey` like the
+   edge click (team's call, additive in behavior). Ctrl/Meta held (macOS Ctrl-click is the
+   context menu). Round 4: re-check T24, and "Select endpoints" once the confound is gone.
+2. (2026-10-11) Study first: round 4 cannot start without its gate (prompt pilots, bars on the
+   build); T24's prompt now names the outcome ("so that whatever you do next applies only to
+   those two"). Watch: the pilots actually ran, and every key route was walked on the build.
+3. (2026-10-11) Decided one variant per problem so round 4 can credit each. My "announce a second
+   path with Undo" was NOT taken (7 of 7 lost nothing; one model's template). Made with is
+   scripted first: draft keyed by run id outlives a re-run (`RunValues.tsx`).
+4. (2026-10-11) Find box: element adds optional `atLeast` on a number value row; the app drops
+   "Select where" from the visible row and adds "is N or more (count)". Watch: no cut row, words
+   at rest unchanged, T22 first moves.
+5. (2026-10-11) Filters door: icon-only toolbar button "Filters" opening the Data place step
+   editor; home does not move. Watch T17's first moves against round 3's 5 of 8 on Graph.
+6. (2026-10-11) Analyze search: name/alias matches before description matches; one "Start here"
+   while filtering. Watch "path" lands Shortest path first, "brokers" still finds Betweenness.
+7. (2026-10-11) Value-blur commit HELD: it contradicts Escape-innermost-first and no session met
+   it. My proposal lost; keep it off the list until a session shows a loss.
+8. (2026-10-10) A one-specialist claim needs a script before it is scored; write the script with
+   the finding. Both my round 3 severity 3s were cut for lack of one.
+9. (2026-10-10) Walk Figma's selection grammar on every object kind (Shift-click, marquee,
+   Escape) and every command twice then Undo; tier 2 is repeat work.
+10. (2026-10-10) A task must name the measured end state; a reworded prompt let readers reach a
+    different valid outcome (T24 path marking).
+11. (2026-10-11) Bar 9 counter will drop data names; re-measured figures for rounds 2 and 3 are
+    the baseline. Words at rest only go down.
+12. (2026-10-10) Do NOT move: Replace, weight role at load, note subject, names-off default,
+    Recent in Analyze. Owner list: drawn labels overlapping, rule syntax/backticks.
+13. (2026-10-09) Deferred divergences, only with clean-run evidence: Save form vs live inspector;
+    checkbox vs eye; two row grammars; add-first for "+".
 14. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
     graphty's ontology. Every control must visibly change canvas, key or popover.
 15. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
@@ -110,24 +108,18 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
-- 2026-10-10 (me, round 3 critique) Proposed for round 4, smallest per verified problem: (1)
-  graphty-element: Shift or Ctrl click on a node adds to the selection, as an edge click does,
-  with a real-input test (Figma's and every file browser's grammar; 4 of 4 T24 met it,
-  `r3-s41/05.png`); (2) T24 prompt and key ask for the same end state and every key route is
-  walked on the build; (3) find box: a bare number offers "is" and "is at least" rows, unclipped
-  (4 of 4 typed "10", `r3-s10/02.png`); (4) a second path keeps the replace but announces it
-  with Undo, and Made with reads the run's own inputs (`RunValues.tsx` `settingsOf(run, draft)`),
-  with a script first; (5) a filter icon in the toolbar opening Data > Filters, a door not a
-  home (5 of 8 T17 looked on Graph, `r3-s33/03.png`); (6) exact name match ranks first in the
-  Analyze search (7 sessions); (7) an edge step and the chip count edges; (8) Value blur commits.
-  Not changing: label overlap (owner), Replace, Select endpoints, weight role, note subject,
-  names-off default, the deferred divergences. Reason: one change per failure, doors not homes,
-  words at rest only down.
-- 2026-10-10 (me, round 3 walk) Severity 3 for the two second-path faults: a result lost with no
-  notice, and an inspector stating inputs of a run that does not exist, both on a path task's own
-  route. Rule syntax lowered to 2 because Enter now runs the suggestion. The owner items (label
-  overlap, bare numbers) are listed but not counted, as the round plan says. Reason: rate by
-  whether a reader is misled or stopped, not by distance from Figma.
+- 2026-10-11 (Director, round 3 closed, `tier2/rounds/round-3/decisions.md`) Twelve round 4
+  changes: study gate and T24 prompt first (sev 4), Shift-click on a node adds (element), bars 8/9
+  fixed, Made with scripted, two focus drops (PathForm `autoFocus`, Color line), find box
+  `atLeast` row, Analyze ranking, toolbar Filters door, repeated-ties warning, edge step counts
+  edges, disabled reason via compact-mantine Tooltip. Versus my proposal: taken -- Shift-click,
+  T24, find box, Filters door, ranking, edge counts; changed -- Shift only, not Ctrl; second-path
+  notice dropped, only Made with kept; not taken -- Value blur commit (contradicts Escape rule).
+  Reason: one variant per problem, fix in owning package, words at rest do not rise.
+- 2026-10-10 (me, round 3, summarized 2026-10-11) Walk rated two second-path faults severity 3
+  (both later cut); critique proposed eight changes (Shift/Ctrl-click adds, T24 aligned, bare
+  number "is at least", second path announced, toolbar filter door, name-first ranking, edge
+  counts, Value blur commits). Reason: one change per failure, doors not homes.
 - 2026-10-10 (Director, round 2 closed) Fifteen round 3 changes in
   `tier2/rounds/round-2/decisions.md`, study tool first (leak, pilot-seeded dry run, bar scripts
   proven on planted faults, all rated 4), then one change per confirmed problem in its owning
@@ -203,6 +195,10 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-10-11 Round 3 decisions. Worked: proposals backed by sessions plus source (Shift-click,
+  bare number, Filters door, ranking) were all taken. Did not: proposals with no session behind
+  them (Value blur, second-path notice) were held. Lesson: bring a change only with a session
+  that met it or a script that reproduces it.
 - 2026-10-10 Round 3 scored. Worked: 54 of 56 succeeded; my walk's edge-step-counts-nodes and
   Tab-then-Escape findings were confirmed by a second specialist. Did not: both my severity 3s
   were cut (second path to 2, the Undo restatement to "not shown") because I left no script;

@@ -141,9 +141,10 @@ function valueOf(frame: Frame): unknown {
  */
 function attachChild(parent: Frame, name: string, value: unknown): void {
     parent.hasChildren = true;
-    const existing = parent.node[name];
+    // own keys only: an element named `__proto__` is a child like any other, never the object's prototype
+    const existing = Object.hasOwn(parent.node, name) ? parent.node[name] : undefined;
     if (existing === undefined) {
-        parent.node[name] = value;
+        Object.defineProperty(parent.node, name, { value, writable: true, enumerable: true, configurable: true });
     } else if (Array.isArray(existing)) {
         existing.push(value);
     } else {
@@ -251,22 +252,25 @@ export function writeXmlTree(value: unknown, indent: string, out: string[]): voi
 }
 
 /**
- * Write one element (or, for an array, one element per item).
+ * Write one element (or, for an array, one element per item). An element holding text beside child elements (a yEd
+ * label: its text, then its label model) is written without any whitespace of its own inside it, so the text reads
+ * back exactly as it was.
  * @param name - the element name
  * @param value - the element value
- * @param indent - the indentation of this element
+ * @param indent - the indentation of this element, or null to write it with no line break or indentation
  * @param out - receives the text parts
  */
-function writeElements(name: string, value: unknown, indent: string, out: string[]): void {
+function writeElements(name: string, value: unknown, indent: string | null, out: string[]): void {
     if (Array.isArray(value)) {
         for (const item of value) {
             writeElements(name, item, indent, out);
         }
         return;
     }
+    const brk = indent === null ? "" : `\n${indent}`;
     if (value === null || typeof value !== "object") {
         const text = scalarText(value);
-        out.push(text.length === 0 ? `\n${indent}<${name}/>` : `\n${indent}<${name}>${escapeXmlText(text)}</${name}>`);
+        out.push(text.length === 0 ? `${brk}<${name}/>` : `${brk}<${name}>${escapeXmlText(text)}</${name}>`);
         return;
     }
     const object = value as XmlTreeObject;
@@ -285,22 +289,23 @@ function writeElements(name: string, value: unknown, indent: string, out: string
     if (!hasChildren) {
         out.push(
             text === null || text.length === 0
-                ? `\n${indent}<${name}${attrs}/>`
-                : `\n${indent}<${name}${attrs}>${escapeXmlText(text)}</${name}>`,
+                ? `${brk}<${name}${attrs}/>`
+                : `${brk}<${name}${attrs}>${escapeXmlText(text)}</${name}>`,
         );
         return;
     }
-    out.push(`\n${indent}<${name}${attrs}>`);
-    const inner = `${indent}  `;
+    // mixed content: the text first and the children with no whitespace, so none is added to the text
+    const inner = indent === null || text !== null ? null : `${indent}  `;
+    out.push(`${brk}<${name}${attrs}>`);
+    if (text !== null) {
+        out.push(escapeXmlText(text));
+    }
     for (const [key, child] of Object.entries(object)) {
         if (key !== TEXT_KEY && !key.startsWith(ATTRIBUTE_PREFIX)) {
             writeElements(key, child, inner, out);
         }
     }
-    if (text !== null) {
-        out.push(escapeXmlText(text));
-    }
-    out.push(`\n${indent}</${name}>`);
+    out.push(inner === null ? `</${name}>` : `${brk}</${name}>`);
 }
 
 /**

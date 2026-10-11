@@ -18,7 +18,7 @@ the expectation today; the reference points into
 | dot | 196 | 189 | 7 | 171 | 2 |
 | gexf | 110 | 104 | 6 | 101 | 1 |
 | gml | 109 | 100 | 9 | 90 | 4 |
-| graphml | 148 | 143 | 5 | 129 | 5 |
+| graphml | 148 | 145 | 3 | 131 | 5 |
 | json | 427 | 398 | 29 | 80 | 0 |
 | neo4j | 45 | 26 | 19 | 25 | 0 |
 | obo | 102 | 102 | 0 | 101 | 0 |
@@ -300,11 +300,6 @@ No known failures.
 - `networkx-generated/graphml-string-ids-1.graphml`: threw: GraphFormatError: 5 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
 - `networkx-generated/graphml-infer-string-ids-0.graphml`: threw: GraphFormatError: 5 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
 - `networkx-generated/graphml-infer-string-ids-1.graphml`: threw: GraphFormatError: 5 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
-
-### key for="graphml" is rejected as an error (sources.md 2.4, 10) (2)
-
-- `authored/for-graphml-key.graphml`: issue E_GRAPHML_KEY_FOR_INVALID present; issue W_GRAPHML_KEY_DOMAIN present
-- `authored/yed-classic.graphml`: issue E_GRAPHML_KEY_FOR_INVALID present
 
 ### <data> for an undeclared key is an error and its value is dropped (sources.md 2.4) (1)
 

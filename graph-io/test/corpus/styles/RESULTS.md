@@ -7,7 +7,7 @@ values are those that differ from their property's most common value; opaque one
 copies values (an unexplained passthrough or the exceptions), exception ones from the exceptions rule alone.
 Tool values are elements drawn with the writing program's default.
 
-268 inputs, 141 with styles; at most 15 node and 15 edge rules.
+273 inputs, 200 with styles; at most 15 node and 15 edge rules.
 
 | Input | Import | Nodes | Edges | Node rules | Edge rules | Varying | Opaque | Exceptions | Approximated | Tool values | Declared selecting nothing | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -152,62 +152,67 @@ Tool values are elements drawn with the writing program's default.
 | gml/di-unipi-socc_dgLBF__germany50.gml | ok | 50 | 88 | - | - | 0 | - | - | 0 | 0 | 0 |  |
 | gml/generated/graphics-mix.gml | ok | 60 | 60 | - | - | 0 | - | - | 0 | 0 | 0 |  |
 | gml/spupyrev_bob__need4stacks261.gml | ok | 261 | 777 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/LTVA1_STM32CrapSynth__func.graphml.gz | ok | 147 | 94 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml | ok | 70 | 72 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/StateSmith_StateSmith__Spec1Sm.graphml | ok | 14 | 7 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/a-little-srdjan_grapher__bleve.graphml.gz | ok | 39 | 120 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/architolk_mimtools__fbm-mim2.graphml.gz | ok | 73 | 38 | - | - | 0 | - | - | 0 | 0 | 0 |  |
+| graphml/LTVA1_STM32CrapSynth__func.graphml.gz | ok | 147 | 94 | 7 | 4 | 310 | 73% | 13% | 0 | 587 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_UNKNOWN_VALUE |
+| graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml | ok | 70 | 72 | 7 | 4 | 101 | 72% | 4% | 0 | 290 | 0 | W_STYLE_GRADIENT |
+| graphml/StateSmith_StateSmith__Spec1Sm.graphml | ok | 14 | 7 | 5 | 3 | 45 | 56% | 7% | 0 | 38 | 0 | W_STYLE_GRADIENT, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/a-little-srdjan_grapher__bleve.graphml.gz | ok | 39 | 120 | 3 | 3 | 143 | 100% | 0% | 0 | 0 | 0 |  |
+| graphml/architolk_mimtools__fbm-mim2.graphml.gz | ok | 73 | 38 | 9 | 5 | 143 | 61% | 15% | 0 | 303 | 0 | W_STYLE_EXTRA_LABELS |
 | graphml/color-key/iVis-at-Bilkent__chilay__circle.graphml | ok | 64 | 64 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/cytoscape/Multiomics-Analytics-Group__MicW2Graph__Wastewater_assembly_nosinglt_cclasso_10.graphml | ok | 4 | 6 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/cytoscape/Thakar-Lab__WikiNetworks__WP3935_cytoscape.graphml | ok | 24 | 14 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/cytoscape/chatox__networks-science-course__karate.graphml | ok | 34 | 78 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/cytoscape/coinslab__pgdcm__AH_DCM.graphml | ok | 31 | 39 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/cytoscape/karchern__network_connectivity_queries__eco03258.graphml | ok | 21 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/generated/fill-oddities.graphml | ok | 15 | 3 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/generated/labels-multi.graphml | ok | 6 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/generated/ramp-with-exceptions.graphml.gz | ok | 1000 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/generated/scale-50.graphml | ok | 50 | 50 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/generated/scale-500.graphml.gz | ok | 500 | 500 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/generated/scale-5000.graphml.gz | ok | 5000 | 5000 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/gephi-large/othercriteria__StochasticBlockmodel__celegans-modified.graphml.gz | ok | 306 | 2345 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/gephi-large/saraiva3__Shape-of-War__ONLY_RED.graphml | ok | 166 | 544 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/gephi-rgb/NetworkGraphs__graphysics__LesMiserables.graphml | ok | 77 | 254 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/gephi-rgb/nielmclaren__constellation.js__data.graphml | ok | 47 | 57 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/inbloom_secure-data-service__index.graphml | ok | 100 | 51 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/java-graphml-lib/ZUGFeRD__mustangproject__mustangArchitecture.graphml | ok | 10 | 4 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/java-graphml-lib/boschglobal__dse.clib__arch__fmi_library.graphml | ok | 33 | 5 | - | - | 0 | - | - | 0 | 0 | 0 |  |
+| graphml/cytoscape/Multiomics-Analytics-Group__MicW2Graph__Wastewater_assembly_nosinglt_cclasso_10.graphml | ok | 4 | 6 | 2 | 1 | 0 | - | - | 0 | 140 | 0 |  |
+| graphml/cytoscape/Thakar-Lab__WikiNetworks__WP3935_cytoscape.graphml | ok | 24 | 14 | 2 | 1 | 0 | - | - | 0 | 532 | 0 |  |
+| graphml/cytoscape/chatox__networks-science-course__karate.graphml | ok | 34 | 78 | 2 | 1 | 0 | - | - | 0 | 1568 | 0 |  |
+| graphml/cytoscape/coinslab__pgdcm__AH_DCM.graphml | ok | 31 | 39 | 2 | 1 | 0 | - | - | 0 | 980 | 0 |  |
+| graphml/cytoscape/karchern__network_connectivity_queries__eco03258.graphml | ok | 21 | 0 | 2 | 1 | 0 | - | - | 0 | 294 | 0 |  |
+| graphml/generated/fill-oddities.graphml | ok | 15 | 3 | 4 | 2 | 18 | 100% | 11% | 0 | 93 | 0 | W_STYLE_BAD_VALUE, W_STYLE_GRADIENT, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 317 | 86% | 0% | 0 | 0 | 0 |  |
+| graphml/generated/labels-multi.graphml | ok | 6 | 0 | 3 | 1 | 0 | - | - | 0 | 25 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_EXTRA_LABELS |
+| graphml/generated/ramp-with-exceptions.graphml.gz | ok | 1000 | 0 | 4 | 1 | 1551 | 63% | 0% | 1420 | 5000 | 0 | W_STYLE_RAMP_ROUNDED |
+| graphml/generated/scale-50.graphml | ok | 50 | 50 | 4 | 3 | 317 | 86% | 0% | 0 | 300 | 0 |  |
+| graphml/generated/scale-500.graphml.gz | ok | 500 | 500 | 4 | 4 | 3275 | 69% | 0% | 0 | 3000 | 0 |  |
+| graphml/generated/scale-5000.graphml.gz | ok | 5000 | 5000 | 4 | 4 | 33196 | 69% | 0% | 0 | 30000 | 0 |  |
+| graphml/generated/tamper-block-truncated.graphml | ok | 50 | 50 | 4 | 3 | 317 | 86% | 0% | 0 | 150 | 0 | W_STYLE_BLOCK_IGNORED |
+| graphml/generated/tamper-native-edited.graphml | ok | 50 | 50 | 5 | 3 | 318 | 86% | 0% | 0 | 0 | 0 |  |
+| graphml/generated/tamper-node-added.graphml | ok | 51 | 50 | 3 | 3 | 317 | 86% | 0% | 0 | 160 | 0 | W_STYLE_BLOCK_IGNORED |
+| graphml/generated/yfiles3-shared-cycle.graphml | ok | 3 | 0 | 2 | 1 | 1 | 100% | 0% | 0 | 18 | 0 | W_STYLE_REFERENCE_CYCLE, W_STYLE_UNRESOLVED |
+| graphml/gephi-large/othercriteria__StochasticBlockmodel__celegans-modified.graphml.gz | ok | 306 | 2345 | 4 | 3 | 770 | 0% | 0% | 2 | 7341 | 0 | W_STYLE_RAMP_ROUNDED |
+| graphml/gephi-large/saraiva3__Shape-of-War__ONLY_RED.graphml | ok | 166 | 544 | 4 | 2 | 423 | 71% | 0% | 0 | 1798 | 0 |  |
+| graphml/gephi-rgb/NetworkGraphs__graphysics__LesMiserables.graphml | ok | 77 | 254 | 4 | 2 | 182 | 0% | 0% | 0 | 839 | 0 |  |
+| graphml/gephi-rgb/nielmclaren__constellation.js__data.graphml | ok | 47 | 57 | 4 | 3 | 102 | 0% | 0% | 0 | 218 | 0 |  |
+| graphml/inbloom_secure-data-service__index.graphml | ok | 100 | 51 | 4 | 4 | 398 | 41% | 0% | 0 | 216 | 0 | W_STYLE_GRADIENT, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/java-graphml-lib/ZUGFeRD__mustangproject__mustangArchitecture.graphml | ok | 10 | 4 | 6 | 2 | 20 | 75% | 20% | 0 | 28 | 0 |  |
+| graphml/java-graphml-lib/boschglobal__dse.clib__arch__fmi_library.graphml | ok | 33 | 5 | 8 | 3 | 52 | 83% | 25% | 0 | 46 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/java-graphml-lib/domondi1__KEVGraph__guin-D__Library-Management-System.graphml | ok | 16 | 15 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-genericnode/Accenture__reactive-interaction-gateway__overview.graphml | ok | 13 | 4 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-genericnode/CERT-Polska__ursadb__dataset.graphml | ok | 11 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-genericnode/TimothyJones__github-cognito-openid-wrapper__overview.graphml | ok | 8 | 3 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-genericnode/awslabs__aws-c-io__slots.graphml | ok | 4 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-genericnode/brucou__kingly__hero_graph.graphml | ok | 6 | 8 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-genericnode/buaazp__zimg__arch.graphml | ok | 32 | 27 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-genericnode/diennea__herddb__herddb.graphml | ok | 14 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz | ok | 98 | 162 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-large/crocs-muni__scrutiny__SCRUTINYWholeProcess.graphml.gz | ok | 31 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-large/cuba-platform__documentation__DeploymentStructure.graphml.gz | ok | 263 | 6 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz | ok | 152 | 254 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-shapenode/Animatron__player__flow.graphml | ok | 12 | 14 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-shapenode/awslabs__ml-io__architecture.graphml | ok | 14 | 6 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-shapenode/getopt-php__getopt-php__getopt.graphml | ok | 13 | 8 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-shapenode/kwk__docker-registry-setup__setup.graphml | ok | 7 | 12 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-shapenode/linux4sam__egt__v4l2.graphml | ok | 9 | 5 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-shapenode/svanoort__pyresttest__contexts.graphml | ok | 32 | 18 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-shapenode/voc__voctomix__schema.graphml | ok | 43 | 48 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-svgnode/JustDerb__yed-aws-palettes__AWS_-_Blockchain.graphml | ok | 2 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-svgnode/ZUGFeRD__quba-viewer__XSLGenesis.graphml | ok | 62 | 9 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-svgnode/japila-books__apache-spark-internals__spark-rdd-partitioned-distributed.graphml | ok | 17 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-svgnode/kyriosdata__rnds__xds.b.graphml | ok | 12 | 11 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-svgnode/mitogen-hq__mitogen__persistent.graphml | ok | 9 | 6 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-svgnode/sk2__autonetkit-py__small_internet.graphml | ok | 15 | 18 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml | ok | 23 | 24 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml | ok | 37 | 37 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz | ok | 177 | 183 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml | ok | 14 | 7 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yfiles-html/aleph-im__pyaleph__PyAleph_architecture.graphml | ok | 30 | 3 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding.graphml | ok | 21 | 22 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml | ok | 4 | 13 | - | - | 0 | - | - | 0 | 0 | 0 |  |
+| graphml/yed-genericnode/Accenture__reactive-interaction-gateway__overview.graphml | ok | 13 | 4 | 6 | 3 | 34 | 47% | 0% | 0 | 32 | 0 | W_STYLE_GRADIENT, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-genericnode/CERT-Polska__ursadb__dataset.graphml | ok | 11 | 0 | 5 | 1 | 10 | 80% | 0% | 0 | 9 | 0 | W_STYLE_GRADIENT |
+| graphml/yed-genericnode/TimothyJones__github-cognito-openid-wrapper__overview.graphml | ok | 8 | 3 | 6 | 2 | 15 | 60% | 27% | 0 | 41 | 0 | W_STYLE_GRADIENT, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-genericnode/awslabs__aws-c-io__slots.graphml | ok | 4 | 0 | 3 | 1 | 6 | 100% | 0% | 0 | 8 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-genericnode/brucou__kingly__hero_graph.graphml | ok | 6 | 8 | 3 | 3 | 0 | - | - | 0 | 21 | 0 | W_STYLE_GRADIENT, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-genericnode/buaazp__zimg__arch.graphml | ok | 32 | 27 | 9 | 5 | 127 | 48% | 3% | 0 | 120 | 0 | W_STYLE_GRADIENT, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-genericnode/diennea__herddb__herddb.graphml | ok | 14 | 0 | 4 | 1 | 39 | 51% | 0% | 0 | 24 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz | ok | 98 | 162 | 6 | 2 | 51 | 29% | 29% | 0 | 584 | 0 |  |
+| graphml/yed-large/crocs-muni__scrutiny__SCRUTINYWholeProcess.graphml.gz | ok | 31 | 0 | 4 | 1 | 66 | 55% | 0% | 0 | 94 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-large/cuba-platform__documentation__DeploymentStructure.graphml.gz | ok | 263 | 6 | 6 | 2 | 266 | 83% | 18% | 0 | 1549 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz | ok | 152 | 254 | 7 | 2 | 225 | 79% | 16% | 0 | 912 | 0 |  |
+| graphml/yed-shapenode/Animatron__player__flow.graphml | ok | 12 | 14 | 7 | 4 | 35 | 51% | 3% | 0 | 51 | 0 |  |
+| graphml/yed-shapenode/awslabs__ml-io__architecture.graphml | ok | 14 | 6 | 7 | 3 | 19 | 74% | 37% | 0 | 26 | 0 | W_STYLE_GRADIENT, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-shapenode/getopt-php__getopt-php__getopt.graphml | ok | 13 | 8 | 6 | 3 | 31 | 19% | 3% | 0 | 41 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-shapenode/kwk__docker-registry-setup__setup.graphml | ok | 7 | 12 | 3 | 6 | 19 | 53% | 0% | 0 | 21 | 0 | W_STYLE_NO_FILL |
+| graphml/yed-shapenode/linux4sam__egt__v4l2.graphml | ok | 9 | 5 | 6 | 2 | 21 | 29% | 29% | 0 | 24 | 0 | W_STYLE_NO_FILL |
+| graphml/yed-shapenode/svanoort__pyresttest__contexts.graphml | ok | 32 | 18 | 7 | 4 | 118 | 51% | 6% | 0 | 102 | 0 | W_STYLE_GRADIENT, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-shapenode/voc__voctomix__schema.graphml | ok | 43 | 48 | 4 | 4 | 214 | 38% | 0% | 0 | 209 | 0 |  |
+| graphml/yed-svgnode/JustDerb__yed-aws-palettes__AWS_-_Blockchain.graphml | ok | 2 | 0 | 3 | 1 | 1 | 100% | 0% | 0 | 10 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-svgnode/ZUGFeRD__quba-viewer__XSLGenesis.graphml | ok | 62 | 9 | 5 | 2 | 136 | 54% | 1% | 0 | 283 | 0 | W_STYLE_GRADIENT, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-svgnode/japila-books__apache-spark-internals__spark-rdd-partitioned-distributed.graphml | ok | 17 | 0 | 3 | 1 | 39 | 49% | 0% | 0 | 37 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-svgnode/kyriosdata__rnds__xds.b.graphml | ok | 12 | 11 | 6 | 4 | 20 | 40% | 40% | 0 | 15 | 0 | W_STYLE_GRADIENT, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-svgnode/mitogen-hq__mitogen__persistent.graphml | ok | 9 | 6 | 5 | 3 | 20 | 100% | 30% | 0 | 28 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-svgnode/sk2__autonetkit-py__small_internet.graphml | ok | 15 | 18 | 3 | 3 | 1 | 0% | 0% | 0 | 54 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml | ok | 23 | 24 | 3 | 3 | 38 | 100% | 0% | 0 | 163 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml | ok | 37 | 37 | 5 | 2 | 34 | 6% | 6% | 0 | 148 | 0 | W_STYLE_GRADIENT, W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz | ok | 177 | 183 | 6 | 6 | 259 | 96% | 27% | 0 | 1241 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml | ok | 14 | 7 | 4 | 2 | 24 | 50% | 0% | 0 | 69 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html/aleph-im__pyaleph__PyAleph_architecture.graphml | ok | 30 | 3 | 9 | 2 | 43 | 47% | 12% | 0 | 12 | 0 |  |
+| graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding.graphml | ok | 21 | 22 | 5 | 3 | 24 | 0% | 0% | 0 | 120 | 0 | W_STYLE_ALPHA_DROPPED |
+| graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml | ok | 4 | 13 | 3 | 5 | 2 | 100% | 0% | 0 | 52 | 0 |  |
 | json/cydesktop-em-style.json | E_JSON_DIALECT | 0 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |
 | json/cydesktop-white-matter-style.json | E_JSON_DIALECT | 0 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |
 | json/cyjs-colajs-cy-style.json | E_JSON_DIALECT | 0 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |

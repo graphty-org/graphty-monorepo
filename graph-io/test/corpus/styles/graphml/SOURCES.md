@@ -17,11 +17,16 @@ Files under `generated/` were written for this project by seeded scripts, MIT li
 | `cytoscape/Multiomics-Analytics-Group__MicW2Graph__Wastewater_assembly_nosinglt_cclasso_10.graphml` | https://raw.githubusercontent.com/Multiomics-Analytics-Group/MicW2Graph/69eb3762c8df02fc70f10fef42e7cf231cfa348f/data/Microb_asso_nets/Wastewater/Assembly/Wastewater_assembly_nosinglt_cclasso_10.graphml | MIT |  |
 | `cytoscape/Thakar-Lab__WikiNetworks__WP3935_cytoscape.graphml` | https://raw.githubusercontent.com/Thakar-Lab/WikiNetworks/0c3f9c97029931072047c7e03191eb2a42b697e8/data/cytoscape_networks/WP3935_cytoscape.graphml | MIT |  |
 | `generated/fill-oddities.graphml` | Generated for this project by a seeded script | MIT (generated for this project) |  |
+| `generated/graphty-written.graphml` | Generated for this project: `generated/scale-50.graphml` imported with its styles and written by graph-io's GraphML exporter with them | MIT (generated for this project) | a file graphty wrote: yEd graphics and the `graphty.styles` block |
 | `generated/labels-multi.graphml` | Generated for this project by a seeded script | MIT (generated for this project) |  |
 | `generated/ramp-with-exceptions.graphml.gz` | Generated for this project by a seeded script | MIT (generated for this project) |  |
 | `generated/scale-50.graphml` | Generated for this project by a seeded script | MIT (generated for this project) |  |
 | `generated/scale-500.graphml.gz` | Generated for this project by a seeded script | MIT (generated for this project) |  |
 | `generated/scale-5000.graphml.gz` | Generated for this project by a seeded script | MIT (generated for this project) |  |
+| `generated/tamper-block-truncated.graphml` | Generated for this project: `graphty-written.graphml` with its `graphty.styles` block cut in half | MIT (generated for this project) | block-tamper fixture: the block is ignored (NOT_JSON) |
+| `generated/tamper-native-edited.graphml` | Generated for this project: `graphty-written.graphml` with one node's `y:Fill` color changed | MIT (generated for this project) | block-tamper fixture: the edit comes back as one exception |
+| `generated/tamper-node-added.graphml` | Generated for this project: `graphty-written.graphml` with one node added | MIT (generated for this project) | block-tamper fixture: the block is ignored (FINGERPRINT) |
+| `generated/yfiles3-shared-cycle.graphml` | Written by hand for this project | MIT (generated for this project) | yFiles 3 shared data whose references refer to themselves and each other |
 | `gephi-large/othercriteria__StochasticBlockmodel__celegans-modified.graphml.gz` | https://raw.githubusercontent.com/othercriteria/StochasticBlockmodel/a33b274bc8196c38fc659e44941a9ecf589cb739/data/celegans-modified.graphml | MIT |  |
 | `gephi-large/saraiva3__Shape-of-War__ONLY_RED.graphml` | https://raw.githubusercontent.com/saraiva3/Shape-of-War/454f7d77f919742420dfa4cdc44820f0c88f91ea/src/MultiEdge/graphs/ONLY_RED.graphml | MIT |  |
 | `gephi-rgb/NetworkGraphs__graphysics__LesMiserables.graphml` | https://raw.githubusercontent.com/NetworkGraphs/graphysics/8c0335f683d8de5ef7694b20752df5016ddd69e2/data/LesMiserables.graphml | MIT |  |

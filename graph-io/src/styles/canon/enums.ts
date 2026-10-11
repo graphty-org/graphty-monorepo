@@ -115,7 +115,7 @@ const ARROWS: Aliases = {
     "circle-open": ["circle-open", "odot", "white-circle", "open-circle"],
     square: ["square", "box", "skewed-dash"],
     // An X-shaped "cross" (yEd, yFiles) is not a crow's foot: it stays other:cross.
-    crow: ["crow", "crows-foot"],
+    crow: ["crow", "crows-foot", "crows-foot-many"],
     half: ["half", "half-top-arrow", "half-open", "lnormal", "rnormal", "halfopen"],
     inverted: ["inverted", "inv", "inverted-triangle", "inv-triangle"],
 };

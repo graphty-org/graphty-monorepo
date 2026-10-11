@@ -248,6 +248,8 @@ export const GRAPHML_ISSUE = Object.freeze({
     HYPEREDGE_DATA_DROPPED: "W_GRAPHML_HYPEREDGE_DATA_DROPPED",
     /** Nested elements in the `<data>` of a typed (non-yfiles) key. */
     DATA_NESTED: "E_GRAPHML_DATA_NESTED",
+    /** Nested elements in the `<data>` of an untyped key; they are kept as their XML text. */
+    DATA_STRUCTURED: "W_GRAPHML_DATA_STRUCTURED",
     /** A `<node>` declared twice. */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** An edge id already used by another edge. */

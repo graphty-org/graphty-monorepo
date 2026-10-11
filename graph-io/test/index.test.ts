@@ -78,6 +78,7 @@ const VALUE_EXPORTS = [
     "gmlImporter",
     "GRAPHML_ISSUE",
     "GRAPHML_LOSS",
+    "GRAPHML_STYLE_CAPABILITIES",
     "GRAPHTY_XML_NAMESPACE",
     "graphmlExporter",
     "graphmlImporter",

@@ -165,9 +165,12 @@ describe("a cyclic SharedData file", () => {
         expect(extractCounted(loaded)).toMatchInlineSnapshot(`
           {
             "edge": 0,
-            "node": 0,
-            "notes": [],
-            "rules": 0,
+            "node": 25,
+            "notes": [
+              "W_STYLE_REFERENCE_CYCLE",
+              "W_STYLE_UNRESOLVED",
+            ],
+            "rules": 3,
           }
         `);
     });

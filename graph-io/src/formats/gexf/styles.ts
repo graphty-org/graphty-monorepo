@@ -218,21 +218,20 @@ function directedEdges(snapshot: GraphSnapshot): boolean[] {
 }
 
 /**
- * The styles of a GEXF file: each element's viz values as Gephi draws them, Gephi's defaults beneath (black size-10
- * discs, no label rule), an arrow at the target of every directed edge, and the source node's color on every edge
- * without a color of its own; plus a `graphty.styles` block the file holds in `<meta>`.
- * @param snapshot - the graph the import built
- * @param context - the work budget and the block text the import kept
- * @returns the styles
+ * The rules Gephi's defaults make per element: an arrow at the target of every directed edge, and the source node's
+ * color on every edge without a color of its own (Gephi draws GEXF and its GraphML export the same way).
+ * @param snapshot - the graph
+ * @param nodeFill - each node's fill, or undefined when no node has one
+ * @param edgeColor - each edge's own color, or undefined when no edge has one
+ * @param budget - the work budget
+ * @returns the edge rules and the style columns they read
  */
-export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles {
-    const notes = new StyleNotes();
-    const node = vizValues(snapshot, "node", notes, context);
-    const edge = vizValues(snapshot, "edge", notes, context);
-    const block = typeof context.kept === "string" ? context.kept : null;
-    if (block !== null) {
-        exactFromBlock(snapshot, block, node, edge);
-    }
+export function gephiRules(
+    snapshot: GraphSnapshot,
+    nodeFill: readonly (StyleValue | null)[] | undefined,
+    edgeColor: readonly (StyleValue | null)[] | undefined,
+    budget: StyleReadContext["budget"],
+): { readonly rules: StyleRule[]; readonly columns: Map<string, StyleColumn> } {
     const rules: StyleRule[] = [];
     const columns = new Map<string, StyleColumn>();
     const directed = directedEdges(snapshot);
@@ -253,16 +252,16 @@ export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): 
     // Gephi draws an edge without a color in its source node's color. graphty-element cannot bind an edge's color
     // to its source node's drawn color yet, so the color is frozen here; replace this column with that binding once
     // the element has it (tracking issue "graphty-element: bind an edge's color to its source node's drawn color").
-    const own = edge.color;
+    const own = edgeColor;
     const sourceColor: (StyleValue | null)[] = new Array<StyleValue | null>(snapshot.edgeCount).fill(null);
     let uncolored = 0;
     for (let e = 0; e < snapshot.edgeCount; e++) {
         if (own?.[e] === null || own === undefined) {
-            sourceColor[e] = node.fill?.[snapshot.edgeSource(e)] ?? GEPHI_NODE_FILL;
+            sourceColor[e] = nodeFill?.[snapshot.edgeSource(e)] ?? GEPHI_NODE_FILL;
             uncolored++;
         }
     }
-    context.budget.spend("edge", snapshot.edgeCount);
+    budget.spend("edge", snapshot.edgeCount);
     if (uncolored > 0) {
         columns.set(SOURCE_COLOR_KEY, sourceColor);
         rules.push({
@@ -275,6 +274,26 @@ export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): 
             facts: { elements: uncolored, reason: "SOURCE_NODE_COLOR" },
         });
     }
+    return { rules, columns };
+}
+
+/**
+ * The styles of a GEXF file: each element's viz values as Gephi draws them, Gephi's defaults beneath (black size-10
+ * discs, no label rule), an arrow at the target of every directed edge, and the source node's color on every edge
+ * without a color of its own; plus a `graphty.styles` block the file holds in `<meta>`.
+ * @param snapshot - the graph the import built
+ * @param context - the work budget and the block text the import kept
+ * @returns the styles
+ */
+export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles {
+    const notes = new StyleNotes();
+    const node = vizValues(snapshot, "node", notes, context);
+    const edge = vizValues(snapshot, "edge", notes, context);
+    const block = typeof context.kept === "string" ? context.kept : null;
+    if (block !== null) {
+        exactFromBlock(snapshot, block, node, edge);
+    }
+    const { rules, columns } = gephiRules(snapshot, node.fill, edge.color, context.budget);
     return {
         canonical: true,
         dialect: "gexf",

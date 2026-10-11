@@ -37,6 +37,7 @@ import { agree, plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
     EDGE_ID_COLUMN,
@@ -56,6 +57,7 @@ import {
     XSI_NAMESPACE,
     YFILES_NAMESPACE,
 } from "./constants.js";
+import { GRAPHML_STYLE_CAPABILITIES, graphmlStyledExport } from "./styles-yed.js";
 import { treeProblem, writeXmlTree } from "./tree.js";
 import { isGraphicsColumn, staleGraphicsRows } from "./yfiles.js";
 
@@ -236,6 +238,8 @@ interface Plan {
     readonly hierarchy: Hierarchy;
     readonly meta: GraphmlMeta | null;
     readonly needsOriginalIdKey: boolean;
+    /** Styles are written: the `y` prefix is yEd's namespace, whatever the file the graph came from bound it to. */
+    readonly yedGraphics?: boolean;
 }
 
 /** The resolved format-specific options. */
@@ -301,9 +305,15 @@ function graphmlMetaOf(snapshot: GraphSnapshot): GraphmlMeta | null {
  * @param snapshot - the snapshot
  * @param options - the resolved common options
  * @param format - the resolved format options
+ * @param keyOrdered - write each element's data in the order of the keys (styled exports)
  * @returns the plan
  */
-function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, format: FormatOptions): Plan {
+function planExport(
+    snapshot: GraphSnapshot,
+    options: ResolvedExportOptions,
+    format: FormatOptions,
+    keyOrdered = false,
+): Plan {
     // the generic json note is replaced by planTable()'s (yfiles trees are kept, other json is
     // text); columns mapped from a yfiles tree are never written: planTable() notes the ones
     // that no longer match their tree, the rest lose nothing
@@ -325,6 +335,16 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, for
     const nodeColumns = planTable(snapshot.nodes, "node", notes, note);
     const edgeColumns = planTable(snapshot.edges, "edge", notes, note);
     const keys = planKeys([...graphColumns, ...nodeColumns, ...edgeColumns], keyIds);
+    if (keyOrdered) {
+        // an element's data in the order of its keys, as a re-import orders its columns, so that exporting what a
+        // styled export reads back gives the same bytes. ponytail: styled exports only, so an export without
+        // styles keeps its bytes; extend it to every export when that change is wanted on its own.
+        const keyOrder = new Map(keys.map((k, i) => [k.id, i]));
+        const byKey = (a: ColumnPlan, b: ColumnPlan): number =>
+            (keyOrder.get(a.keyId) ?? 0) - (keyOrder.get(b.keyId) ?? 0);
+        nodeColumns.sort(byKey);
+        edgeColumns.sort(byKey);
+    }
     reservedNameNotes(nodeColumns, RESERVED_NODE_NAMES, note);
     reservedNameNotes(edgeColumns, RESERVED_EDGE_NAMES, note);
     const weight = planWeight(snapshot, edgeColumns, keyIds, keys, note);
@@ -1169,7 +1189,9 @@ function keyElement(key: KeyPlan, indent: string): string {
         text += ` attr.type="${escapeXmlAttribute(key.attrType)}"`;
     }
     if (key.yfilesType !== null) {
-        text += ` yfiles.type="${escapeXmlAttribute(key.yfilesType)}"`;
+        // a yFiles 3 key is identified by its attr.uri, which the importer keeps as the column's type
+        const uri = key.yfilesType.includes("://");
+        text += ` ${uri ? "y:attr.uri" : "yfiles.type"}="${escapeXmlAttribute(key.yfilesType)}"`;
     }
     const { column } = key;
     const desc = column?.meta.extra.desc;
@@ -1265,11 +1287,15 @@ function* writeGraphml(snapshot: GraphSnapshot, plan: Plan): Generator<string, v
     yield '<?xml version="1.0" encoding="UTF-8"?>\n';
     let root = `<graphml xmlns="${GRAPHML_NAMESPACE}"`;
     const namespaces: Record<string, string> = { ...(plan.meta?.namespaces ?? {}) };
-    if (
+    if (plan.yedGraphics === true) {
+        namespaces.y = YFILES_NAMESPACE;
+    } else if (
         (plan.nodeColumns.some((c) => c.yfiles) ||
             plan.edgeColumns.some((c) => c.yfiles) ||
             plan.graphColumns.some((c) => c.yfiles)) &&
-        !Object.values(namespaces).includes(YFILES_NAMESPACE)
+        !Object.values(namespaces).includes(YFILES_NAMESPACE) &&
+        // a yFiles 3 file binds `y` to its own namespace, which its kept trees are written in
+        namespaces.y === undefined
     ) {
         namespaces.y = YFILES_NAMESPACE;
     }
@@ -1478,15 +1504,19 @@ export const graphmlExporter: GraphExporter<GraphmlExportOptions> = Object.freez
     format: FORMAT,
     options: Object.freeze(["edgedefault", "pretty"]),
     capabilities: CAPABILITIES,
+    styles: Object.freeze({ capabilities: GRAPHML_STYLE_CAPABILITIES }),
     /**
      * Pre-flight: every loss the export would incur.
      * @param snapshot - the snapshot
      * @param options - format-specific and common options
      * @returns the notes
      */
-    check(snapshot: GraphSnapshot, options?: GraphmlExportOptions & CommonExportOptions): readonly LossNote[] {
-        const plan = planExport(snapshot, resolveExportOptions(options), resolveFormatOptions(options));
-        return Object.freeze(plan.notes);
+    check(
+        snapshot: GraphSnapshot,
+        options?: GraphmlExportOptions & CommonExportOptions & ExporterStyleOptions,
+    ): readonly LossNote[] {
+        const { plan, styled } = prepare(snapshot, options);
+        return Object.freeze([...plan.notes, ...(styled?.notes ?? [])]);
     },
     /**
      * Write the document as UTF-8 chunks.
@@ -1494,9 +1524,12 @@ export const graphmlExporter: GraphExporter<GraphmlExportOptions> = Object.freez
      * @param options - format-specific and common options
      * @returns the chunks
      */
-    export(snapshot: GraphSnapshot, options?: GraphmlExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        const plan = planExport(snapshot, resolveExportOptions(options), resolveFormatOptions(options));
-        return encodeChunks(writeGraphml(snapshot, plan));
+    export(
+        snapshot: GraphSnapshot,
+        options?: GraphmlExportOptions & CommonExportOptions & ExporterStyleOptions,
+    ): AsyncIterable<Uint8Array> {
+        const { plan, written } = prepare(snapshot, options);
+        return encodeChunks(writeGraphml(written, plan));
     },
     /**
      * Write the document as one string.
@@ -1504,8 +1537,27 @@ export const graphmlExporter: GraphExporter<GraphmlExportOptions> = Object.freez
      * @param options - format-specific and common options
      * @returns the document
      */
-    exportToString(snapshot: GraphSnapshot, options?: GraphmlExportOptions & CommonExportOptions): Promise<string> {
-        const plan = planExport(snapshot, resolveExportOptions(options), resolveFormatOptions(options));
-        return joinText(writeGraphml(snapshot, plan));
+    exportToString(
+        snapshot: GraphSnapshot,
+        options?: GraphmlExportOptions & CommonExportOptions & ExporterStyleOptions,
+    ): Promise<string> {
+        const { plan, written } = prepare(snapshot, options);
+        return joinText(writeGraphml(written, plan));
     },
 });
+
+/**
+ * The plan of an export, with styles: the graph to write with yEd graphics in place of its yFiles columns.
+ * @param snapshot - the snapshot
+ * @param options - format-specific and common options
+ * @returns the plan, the graph to write and the styled export (null without styles)
+ */
+function prepare(
+    snapshot: GraphSnapshot,
+    options: (GraphmlExportOptions & CommonExportOptions & ExporterStyleOptions) | undefined,
+): { plan: Plan; written: GraphSnapshot; styled: ReturnType<typeof graphmlStyledExport> } {
+    const styled = graphmlStyledExport(snapshot, options?.styles);
+    const written = styled?.snapshot ?? snapshot;
+    const plan = planExport(written, resolveExportOptions(options), resolveFormatOptions(options), styled !== null);
+    return { plan: styled === null ? plan : { ...plan, yedGraphics: true }, written, styled };
+}

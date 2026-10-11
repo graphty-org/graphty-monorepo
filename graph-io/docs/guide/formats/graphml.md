@@ -184,6 +184,7 @@ The codes this format's import report can hold. They are also exported as `GRAPH
 - `W_GRAPHML_NESTED_GRAPH_DATA` (warning): Data of a nested `<graph>`; only the top-level graph has attributes.
 - `W_GRAPHML_HYPEREDGE_DATA_DROPPED` (warning): Data of a hyperedge expanded to a star or clique.
 - `E_GRAPHML_DATA_NESTED` (error): Nested elements in the `<data>` of a typed (non-yfiles) key.
+- `W_GRAPHML_DATA_STRUCTURED` (warning): Nested elements in the `<data>` of an untyped key; they are kept as their XML text.
 - `W_DUPLICATE_NODE` (warning): A `<node>` declared twice.
 - `E_GRAPHML_INVALID_DIRECTED` (error): A `directed` attribute that is neither true nor false.
 - `E_GRAPHML_INVALID_EDGEDEFAULT` (error): An `edgedefault` that is neither directed nor undirected.

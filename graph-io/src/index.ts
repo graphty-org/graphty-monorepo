@@ -167,6 +167,7 @@ export {
 export {
     GRAPHML_ISSUE,
     GRAPHML_LOSS,
+    GRAPHML_STYLE_CAPABILITIES,
     graphmlExporter,
     type GraphmlExportOptions,
     graphmlImporter,

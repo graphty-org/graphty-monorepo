@@ -258,6 +258,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GML_RECORD_NUMBER_TYPE"></a>`W_GML_RECORD_NUMBER_TYPE`: A json column holds numbers; GML records cannot keep int versus real. Save: [gml](./formats/gml.md).
 - <a id="W_GML_STRING_ID"></a>`W_GML_STRING_ID`: Node ids, sources or targets are text, where GML expects integers. They are read under the `ids` option. Reported once per file. Import: [gml](./formats/gml.md).
 - <a id="W_GML_UNKNOWN_ENTITY"></a>`W_GML_UNKNOWN_ENTITY`: A named entity no table decodes, or a numeric reference beyond U+10FFFF; kept as written. Import: [gml](./formats/gml.md).
+- <a id="W_GRAPHML_DATA_STRUCTURED"></a>`W_GRAPHML_DATA_STRUCTURED`: Nested elements in the `<data>` of an untyped key; they are kept as their XML text. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_DESC_DROPPED"></a>`W_GRAPHML_DESC_DROPPED`: A `<desc>` of a node, an edge or a hyperedge. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_EDGEDEFAULT_MISSING"></a>`W_GRAPHML_EDGEDEFAULT_MISSING`: A `<graph>` without edgedefault; the `defaultDirected` option applies. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_EDGE_GRAPH_DROPPED"></a>`W_GRAPHML_EDGE_GRAPH_DROPPED`: A `<graph>` inside an `<edge>` (legal GraphML): it and the nodes and edges it holds are dropped. Import: [graphml](./formats/graphml.md).

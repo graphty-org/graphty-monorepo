@@ -69,6 +69,8 @@ export interface StyleWriter {
     readonly format: string;
     /** The format name to import the written file with; defaults to `format`. */
     readonly importFormat?: string;
+    /** Export options beside `styles` (GraphML's `sanitizeIds: "mangle"` for node ids that are not XML names). */
+    readonly options?: Readonly<Record<string, unknown>>;
     /**
      * Changes one element's value in the format's own style slot of a written file, as another program would, or
      * returns null when the file has no such value.
@@ -750,11 +752,17 @@ export async function roundTrip(writer: StyleWriter, loaded: LoadedGraph, ex: Ex
     const failures: string[] = [];
     const registry = writer.registry?.() ?? createRegistry();
     const importFormat = writer.importFormat ?? writer.format;
-    const losses: readonly LossNote[] = registry.checkExport(loaded.snapshot, writer.format, { styles: ex });
+    const losses: readonly LossNote[] = registry.checkExport(loaded.snapshot, writer.format, {
+        ...writer.options,
+        styles: ex,
+    });
     const keepsRules =
         registry.exporter(writer.format).styles !== undefined &&
         !losses.some((l) => l.code === "W_STYLE_RULES_NOT_KEPT");
-    const written = await registry.exportGraphToBytes(loaded.snapshot, writer.format, { styles: ex });
+    const written = await registry.exportGraphToBytes(loaded.snapshot, writer.format, {
+        ...writer.options,
+        styles: ex,
+    });
     const back = await importForStyles(registry, importFormat, written);
     const backStyles = back.imported ?? null;
     if (backStyles === null) {
@@ -841,8 +849,14 @@ async function checkFixedPoint(
     backStyles: ExtractedStyles,
 ): Promise<string[]> {
     const same = (a: Uint8Array, b: Uint8Array): boolean => Buffer.compare(Buffer.from(a), Buffer.from(b)) === 0;
-    const second = await registry.exportGraphToBytes(back.snapshot, writer.format, { styles: backStyles });
-    const secondAgain = await registry.exportGraphToBytes(back.snapshot, writer.format, { styles: backStyles });
+    const second = await registry.exportGraphToBytes(back.snapshot, writer.format, {
+        ...writer.options,
+        styles: backStyles,
+    });
+    const secondAgain = await registry.exportGraphToBytes(back.snapshot, writer.format, {
+        ...writer.options,
+        styles: backStyles,
+    });
     if (!same(second, secondAgain)) {
         return ["writing the same graph and styles twice gives different bytes"];
     }
@@ -850,7 +864,10 @@ async function checkFixedPoint(
     if (third.imported === null || third.imported === undefined) {
         return ["a file graphty wrote twice has no styles when it is read back"];
     }
-    const thirdBytes = await registry.exportGraphToBytes(third.snapshot, writer.format, { styles: third.imported });
+    const thirdBytes = await registry.exportGraphToBytes(third.snapshot, writer.format, {
+        ...writer.options,
+        styles: third.imported,
+    });
     if (!same(second, thirdBytes)) {
         return ["exporting, importing and exporting again does not give the same bytes"];
     }

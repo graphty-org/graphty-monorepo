@@ -26,7 +26,7 @@
  */
 
 import { composeStories } from "storybook/preview-api";
-import { assert, describe, it, vi } from "vitest";
+import { assert, beforeAll, describe, it, vi } from "vitest";
 
 vi.mock("../../stories/helpers", async (importOriginal) => ({
     ...(await importOriginal<typeof import("../../stories/helpers")>()),
@@ -322,21 +322,27 @@ describe("Story Determinism", () => {
         assert.deepStrictEqual(issues, []);
     });
 
-    it("all story files should use deterministic patterns for Chromatic visual testing", async () => {
-        const files = Object.keys(storyModules).sort();
+    // One test per story file: importing a story module reaches Lit, Babylon and the DOM, and all of
+    // them in one test cost about 9 s of its 15 s limit (tools/vitest-time-budget.mjs, #1602).
+    const files = Object.keys(storyModules).sort();
+    const helperSettles = settlingHelperNames(Object.values(helperSources).join("\n"));
+
+    // The modules every story file shares -- the element, its entry point and the story helpers --
+    // loaded once up front, so the first story file's test does not pay for loading them all.
+    beforeAll(async () => {
+        await Promise.all([import("../../index"), import("../../stories/helpers")]);
+    });
+
+    it("finds the package's story files", () => {
         assert.isAbove(files.length, 20, "the glob must find the package's story files");
+    });
 
-        const helperSettles = settlingHelperNames(Object.values(helperSources).join("\n"));
-        const issues: string[] = [];
-
-        for (const file of files) {
-            const source = storySources[file];
-            const settlingHelpers = new Set([...helperSettles, ...settlingHelperNames(source)]);
-            const stories = composedStories(await storyModules[file]());
-            const relative = file.replace("../../", "");
-
-            issues.push(...unseededRandomIssues(relative, source), ...layoutIssues(relative, stories, settlingHelpers));
-        }
+    it.each(files)("%s uses deterministic patterns for Chromatic visual testing", async (file) => {
+        const source = storySources[file];
+        const settlingHelpers = new Set([...helperSettles, ...settlingHelperNames(source)]);
+        const stories = composedStories(await storyModules[file]());
+        const relative = file.replace("../../", "");
+        const issues = [...unseededRandomIssues(relative, source), ...layoutIssues(relative, stories, settlingHelpers)];
 
         assert.deepStrictEqual(
             issues,

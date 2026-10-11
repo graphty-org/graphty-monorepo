@@ -933,7 +933,7 @@ pnpm install                                      # at the monorepo root
 cd webgpu-graph-algorithms
 pnpm run build:all                                # tsc + the vite bundle + the d.ts shims
 pnpm run lint                                     # eslint + tsc --noEmit + the strict-consumer compile
-pnpm exec vitest run --project=node               # the node suite on the default adapter
+pnpm exec vitest run --project=node --project=node-gpu-alone   # the node suite on the default adapter
 pnpm run coverage                                 # the node suite with the 80 / 80 / 75 / 80 thresholds
 node scripts/run-browser-project.js               # the browser smoke suite (SwiftShader by default)
 node scripts/gpu-report.js                        # the adapter report and the policy verdict (after build)

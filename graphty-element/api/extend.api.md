@@ -1509,6 +1509,8 @@ class Node_2 {
     pinOnDrag: boolean;
     refreshSelectionOverlay(): void;
     get roundRadius(): number | null;
+    // @internal
+    setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];

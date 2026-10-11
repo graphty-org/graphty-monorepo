@@ -240,7 +240,7 @@ export class NodeDragHandler {
         const newPosition = this.dragState.dragStartMeshPosition.add(delta);
 
         // Update mesh position (triggers edge updates automatically)
-        this.node.mesh.position.copyFrom(newPosition);
+        this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
@@ -325,7 +325,7 @@ export class NodeDragHandler {
         }
 
         // Update mesh position
-        this.node.mesh.position.copyFrom(newPosition);
+        this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;

@@ -5,35 +5,34 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-10 (tier 2 round 3 expert walk written).
+Last updated: 2026-10-10 (tier 2 round 3 critique written).
 
 ## Top of mind
 
-1. (2026-10-10) Round 3 walk: 34 findings (2 sev 3, 19 sev 2, 13 sev 1) against 25. Four new sev 2
-   sit on round 3's own changes (doubling warning weight, "Filter to neighbors" done state, two
-   current rows in the find list, "linked" leading to Louvain). Expect bar 10 to fail on count.
-2. (2026-10-10) New sev 3: the key grows over the drawing and covers a node ("Depot",
-   `round-3/expert/visual/find/07.png`). Key placement is the app's; propose it avoids nodes or
-   docks, not a smaller font.
-3. (2026-10-10) Label overlap now has a pointer consequence: a click at Farah's center selects
-   Chloe (`round-3/expert/visual/notes/04.png`). Use this to argue for the element fix.
-4. (2026-10-10) Doubling warning: words are right, weight is wrong. Lead proposal: the same
-   red-orange triangle the unmatched row uses, and Replace not 1,000 px from the line.
-5. (2026-10-10) Key: black swatch vanishes on the dark key; two heading styles; name said twice.
-   One proposal: a 1 px light outline on every swatch, one title style.
-6. (2026-10-10) Edge-only filters read as "nothing happened" (chip, step line and key count nodes
-   only; `legendWords.ts` `rowName`). Content and app; I own the chip's look.
-7. (2026-10-10) Verified fixed: "+" Color starts at the highlight look and stays after clearing;
-   rule-named layer; 24 px checkbox target; find box miss leads on; key scope words at rest.
-8. Words at rest must go down. Any visual proposal adds no word at rest; weight and position first.
-9. Still severity 3: drawn names covering names and ties. graphty-element, a class, not a seed.
-10. Held and still open: out-of-date mark, halo, selection two-looks, two-table "...", emphasis
-    rules, neighbor list shape, step labels, notes loudness, ragged digits, popover cover.
-11. Edge width is not a renderer bug (10 x W / d px); on the owner's breaking list; no app scaling.
-12. Walk detours and every control on a screen, not only answer-key routes.
-13. Browser slots are contended: start the next walk in the background while stepping another;
+1. (2026-10-10) Round 3 critique: five app changes, all on verified sessions-backed problems: the
+   find box's Values row as a two-line row (never cut); a Filter button in the canvas toolbar; one
+   "Start here" badge while a search is typed; "Filter to neighbors" drawn as a pressed toggle, not
+   gray; the repeated-ties line gets the unmatched row's warning glyph. Plus one element ask (key
+   overlap test counts labels).
+2. (2026-10-10) After the skeptics, the only confirmed sev 3 the app could touch is none: Shift-click
+   and drawn names are both graphty-element. Do not paint over either in the app.
+3. (2026-10-10) The key covering "Depot": `LegendCard.tsx` refits only when `nodesInRect` finds a
+   node, and `nodesInRect` tests the sphere radius, not the drawn label. Ask the element for an
+   additive label-aware test; unverified whether `autoFrame` was also false -- script it first.
+4. (2026-10-10) Filters: 5 of 8 looked on the Graph place first, 3 at the toolbar's Layout button.
+   Put the entry where they looked (toolbar icon, no word at rest), not a new chip word.
+5. (2026-10-10) Doubling warning: one look for "a problem with this load" -- the same glyph and
+   color as the unmatched row. Do not move Replace or change the primary button (no session saw it).
+6. Words at rest must go down. Any visual proposal adds no word at rest; weight and position first.
+7. Still severity 3: drawn names covering names and ties. graphty-element, a class, not a seed.
+8. Held and still open: out-of-date mark (0 of 8 misread), halo, selection two-looks, two-table
+   "...", emphasis rules, neighbor list shape, step labels, notes loudness, ragged digits, popover
+   cover, key swatch outline. Hold them again: no session paid for them.
+9. Edge width is not a renderer bug (10 x W / d px); on the owner's breaking list; no app scaling.
+10. Walk detours and every control on a screen, not only answer-key routes.
+11. Browser slots are contended: start the next walk in the background while stepping another;
     never wrap `real.mjs --start` in a `timeout` (a killed waiting start can orphan).
-14. Device scale 1 screenshots break letter spacing; never report it.
+12. Device scale 1 screenshots break letter spacing; never report it.
 
 ## Priorities and values
 
@@ -56,6 +55,20 @@ Last updated: 2026-10-10 (tier 2 round 3 expert walk written).
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- 2026-10-10 (round 3 critique): Proposed the Values row as name + second line, the shape the hit
+  rows above it already use (`FindBox.tsx` `ResultRow` `match`), instead of a wider panel or a
+  smaller font. Reason: 4 of 4 met the cut row (`r3-s10/02.png`); the hit rows never cut.
+- 2026-10-10 (round 3 critique): Filter entry goes in the canvas toolbar as an icon, not the header
+  chip at rest. Reason: r3-s33, s34, s38 went to the toolbar's Layout button; an icon adds no word
+  at rest (bar 9 fails by one word).
+- 2026-10-10 (round 3 critique): "Start here" shown once while a search is typed. Reason: the rule
+  "one per heading" put two equal badges on screen for "linked" (`expert/visual/path/02.png`).
+  Ranking Shortest path first is the content designer's; the badge is mine.
+- 2026-10-10 (round 3 critique): "Filter to neighbors" on = pressed (the chosen-state look),
+  never the disabled gray. Reason: one idea, one look; r3-s45, s48 plus four experts.
+- 2026-10-10 (round 3 critique): No app hint for Shift-click and no move of "Select endpoints"
+  until the element fix lands: the menu finding is confounded with the Shift-click defect.
 
 - 2026-10-10 (round 3 walk): Rated the key covering a node severity 3 (criteria: "text or the key
   covering a node"); owner graphty app, since the key is the app's overlay
@@ -127,6 +140,11 @@ Last updated: 2026-10-10 (tier 2 round 3 expert walk written).
 
 ## Tried: worked / did not work
 
+- 2026-10-10 worked: reading the key's refit code at the frozen commit before proposing a placement
+  change. The fix is a missing label in an overlap test, not a new dock or a smaller key.
+- 2026-10-10 worked: filtering my 34 walk findings through the skeptics' insights first; only
+  findings a session paid for became proposals, which kept the list to five.
+
 - 2026-10-10 worked: checking each round 3 change on screen first, then walking every control
   around it; four of the new findings sit right beside the changes.
 - 2026-10-10 worked: reading the app source at the frozen commit (`git show 26f3bb968:<path>`) to
@@ -183,6 +201,8 @@ Last updated: 2026-10-10 (tier 2 round 3 expert walk written).
 
 ## Sources
 
+- `design/ui/studio/tier2/rounds/round-3/insights.md`, `scores.md` (verified round 3 problems)
+- `graphty/src/workspace/canvas/LegendCard.tsx` `useReservedMargin`; `graphty-element/src/graphty-element.ts` `nodesInRect`
 - `design/ui/studio/tier2/rounds/round-3/expert/visual.md` (round 3 findings)
 - `design/ui/studio/tier2/rounds/round-2/insights.md`, `decisions.md` (round 3 change list)
 

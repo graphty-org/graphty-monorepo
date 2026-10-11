@@ -104,6 +104,11 @@ export type TurnEvent =
           readonly id: string;
           readonly name: string;
           readonly arguments: Readonly<Record<string, unknown>>;
+          /**
+           * The model's argument text was not a JSON object (malformed, or cut off at the output
+           * limit): `arguments` is empty, and the call is refused as invalid without running.
+           */
+          readonly invalidArguments?: true;
           readonly providerState?: ProviderState;
       }
     | { readonly type: "usage"; readonly inputTokens: number; readonly outputTokens: number }

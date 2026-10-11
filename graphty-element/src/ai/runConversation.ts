@@ -234,6 +234,7 @@ async function modelTurn(
                 id: event.id,
                 name: event.name,
                 arguments: event.arguments,
+                ...(event.invalidArguments && { invalidArguments: true }),
                 ...(event.providerState && { providerState: event.providerState }),
             });
         } else if (event.type === "error") {

@@ -16,8 +16,20 @@ import type { EngineFixture } from "./contract";
 /** One scripted answer. */
 interface Answer {
     text?: string;
-    toolCalls?: { id: string; name: string; arguments: Record<string, unknown>; signature?: string }[];
+    /** A call's arguments as an object, or as the raw text the model wrote (OpenAI and Anthropic). */
+    toolCalls?: { id: string; name: string; arguments: Record<string, unknown> | string; signature?: string }[];
     usage?: { input: number; output: number };
+    /** The answer stops at the output limit (Gemini MAX_TOKENS, Anthropic max_tokens, OpenAI incomplete). */
+    cutOff?: boolean;
+}
+
+/**
+ * A call's argument text, as the model wrote it.
+ * @param args - The arguments, or their raw text.
+ * @returns The text.
+ */
+function argumentText(args: Record<string, unknown> | string): string {
+    return typeof args === "string" ? args : JSON.stringify(args);
 }
 
 /** One request the fake received. */
@@ -62,6 +74,19 @@ function sse(events: readonly (readonly [string | null, unknown])[]): string {
         .join("");
 }
 
+/**
+ * Why an Anthropic answer stopped.
+ * @param answer - The answer.
+ * @returns The `stop_reason`.
+ */
+function anthropicStopReason(answer: Answer): string {
+    if (answer.cutOff) {
+        return "max_tokens";
+    }
+
+    return answer.toolCalls?.length ? "tool_use" : "end_turn";
+}
+
 /** Each provider's streaming answer, in its own wire format. */
 const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
     openai: (answer) => {
@@ -83,7 +108,7 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
                 status: "completed",
                 call_id: call.id,
                 name: call.name,
-                arguments: JSON.stringify(call.arguments),
+                arguments: argumentText(call.arguments),
             })),
         ];
         const response = { id: "resp_1", object: "response", created_at: 1, model: MODELS.openai };
@@ -127,10 +152,11 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
                           event("response.output_item.done", { output_index: index, item }),
                       ],
             ),
-            event("response.completed", {
+            event(answer.cutOff ? "response.incomplete" : "response.completed", {
                 response: {
                     ...response,
-                    status: "completed",
+                    status: answer.cutOff ? "incomplete" : "completed",
+                    ...(answer.cutOff && { incomplete_details: { reason: "max_output_tokens" } }),
                     output: items,
                     usage: {
                         input_tokens: answer.usage?.input ?? 1,
@@ -191,7 +217,7 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
                               {
                                   type: "content_block_delta",
                                   index,
-                                  delta: { type: "input_json_delta", partial_json: JSON.stringify(block.input) },
+                                  delta: { type: "input_json_delta", partial_json: argumentText(block.input) },
                               },
                           ],
                           ["content_block_stop", { type: "content_block_stop", index }],
@@ -201,7 +227,7 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
                 "message_delta",
                 {
                     type: "message_delta",
-                    delta: { stop_reason: answer.toolCalls?.length ? "tool_use" : "end_turn", stop_sequence: null },
+                    delta: { stop_reason: anthropicStopReason(answer), stop_sequence: null },
                     usage: { output_tokens: answer.usage?.output ?? 1 },
                 },
             ],
@@ -225,7 +251,7 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
                                     })),
                                 ],
                             },
-                            finishReason: "STOP",
+                            finishReason: answer.cutOff ? "MAX_TOKENS" : "STOP",
                             index: 0,
                         },
                     ],
@@ -369,6 +395,8 @@ export interface ProviderApiFixture extends EngineFixture {
     failOnce(status: number, retryAfterMs?: number): void;
     /** The next request never reaches the server. */
     dropConnection(): void;
+    /** The next request is answered with this status, body and headers, as they are. */
+    respondOnce(status: number, body: string, headers?: Record<string, string>): void;
     /** Every wait the engine asked for between attempts, in milliseconds. */
     readonly waits: number[];
 }
@@ -432,6 +460,9 @@ export function providerApiFixture(
         },
         dropConnection: () => {
             replies.push(() => Promise.reject(new TypeError("Failed to fetch")));
+        },
+        respondOnce: (status, body, headers) => {
+            replies.push(respond(status, body, headers));
         },
         hang: () => {
             replies.push((init) => abortedFetch(init?.signal));

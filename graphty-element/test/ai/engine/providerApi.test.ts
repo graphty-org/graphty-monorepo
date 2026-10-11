@@ -167,12 +167,134 @@ describe.each(PROVIDERS)("provider-API engine: %s", (provider) => {
         );
     });
 
+    it("finishes an answer cut off at the output limit with what it had, as the AI SDK did", async () => {
+        const { engine, reply } = providerApiFixture(provider);
+        reply({
+            text: "Making them red.",
+            toolCalls: [{ id: "t1", name: "findNodes", arguments: { selector: "a" } }],
+            cutOff: true,
+        });
+        const out = await events(engine, request());
+        assert.notOk(out.some((e) => e.type === "error"));
+        assert.strictEqual(out.flatMap((e) => (e.type === "text" ? [e.delta] : [])).join(""), "Making them red.");
+        assert.deepStrictEqual(
+            out.flatMap((e) => (e.type === "tool-call" ? [[e.id, e.arguments, e.invalidArguments]] : [])),
+            [["t1", { selector: "a" }, undefined]],
+        );
+        assert.deepStrictEqual(out.at(-1), { type: "finish", reason: "tool-calls" });
+
+        reply({ text: "A long answer that", cutOff: true });
+        assert.deepStrictEqual((await events(engine, request())).at(-1), { type: "finish", reason: "stop" });
+    });
+
+    it("sends none of the SDKs' telemetry headers, which a proxy's CORS preflight may refuse", async () => {
+        const { engine, requests } = providerApiFixture(provider);
+        await events(engine, request());
+        const names = Object.keys(requests[0].headers);
+        assert.deepStrictEqual(
+            names.filter((name) => name.startsWith("x-stainless-") || name === "x-goog-api-client"),
+            [],
+        );
+    });
+
     it("takes a model id no table lists, and asks the API for it", async () => {
         const { engine, requests, settings } = providerApiFixture(provider);
         settings.model = "not-a-listed-model";
         const out = await events(engine, request());
         assert.strictEqual(out.at(-1)?.type, "finish");
         assert.include(`${requests[0].url} ${JSON.stringify(requests[0].body)}`, "not-a-listed-model");
+    });
+});
+
+describe.each(["openai", "anthropic"] as const)("%s: a call whose argument text does not parse", (provider) => {
+    it("is marked invalid with no arguments, so nothing runs with defaults", async () => {
+        const { engine, reply } = providerApiFixture(provider);
+        reply({ toolCalls: [{ id: "t1", name: "findNodes", arguments: '{"selector": "red-no' }] });
+        const out = await events(engine, request());
+        const calls = out.flatMap((e) => (e.type === "tool-call" ? [e] : []));
+        assert.strictEqual(calls.length, 1);
+        assert.deepStrictEqual(calls[0].arguments, {});
+        assert.isTrue(calls[0].invalidArguments);
+        assert.deepStrictEqual(out.at(-1), { type: "finish", reason: "tool-calls" });
+    });
+});
+
+describe("Gemini errors and streaming", () => {
+    it("codes a wrong key (400 API_KEY_INVALID) as AI_KEY_REJECTED, in Google's own words, and never retries", async () => {
+        const { engine, respondOnce, requests } = providerApiFixture("google");
+        // Google's answer to a wrong key, as the API sends it (checked 2026-10-10).
+        respondOnce(
+            400,
+            JSON.stringify({
+                error: {
+                    code: 400,
+                    message: "API key not valid. Please pass a valid API key.",
+                    status: "INVALID_ARGUMENT",
+                    details: [
+                        {
+                            "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                            reason: "API_KEY_INVALID",
+                            domain: "googleapis.com",
+                        },
+                    ],
+                },
+            }),
+            { "content-type": "application/json" },
+        );
+        const error = lastError(await events(engine, request()));
+        assert.strictEqual(error.code, "AI_KEY_REJECTED");
+        assert.deepStrictEqual(error.params, { provider: "google", status: 400 });
+        assert.strictEqual(error.cause.message, "API key not valid. Please pass a valid API key.");
+        assert.strictEqual(requests.length, 1);
+    });
+
+    it("keeps any other 400 a provider error", async () => {
+        const { engine, respondOnce } = providerApiFixture("google");
+        respondOnce(400, JSON.stringify({ error: { code: 400, message: "bad request", status: "INVALID_ARGUMENT" } }), {
+            "content-type": "application/json",
+        });
+        const error = lastError(await events(engine, request()));
+        assert.strictEqual(error.code, "AI_PROVIDER_ERROR");
+        assert.strictEqual(error.cause.message, "bad request");
+    });
+
+    it("reads a call whose arguments arrive over two chunks once, not twice", async () => {
+        const { engine, respondOnce } = providerApiFixture("google");
+        const chunk = (finish: boolean): string =>
+            `data: ${JSON.stringify({
+                candidates: [
+                    {
+                        content: {
+                            role: "model",
+                            parts: [{ functionCall: { id: "t1", name: "findNodes", args: { selector: "a" } } }],
+                        },
+                        ...(finish && { finishReason: "STOP" }),
+                        index: 0,
+                    },
+                ],
+            })}\n\n`;
+        respondOnce(200, chunk(false) + chunk(true), { "content-type": "text/event-stream" });
+        const out = await events(engine, request());
+        const calls = out.flatMap((e) => (e.type === "tool-call" ? [e] : []));
+        assert.deepStrictEqual(
+            calls.map((c) => [c.arguments, c.invalidArguments]),
+            [[{ selector: "a" }, undefined]],
+        );
+    });
+});
+
+describe("Anthropic's output limit", () => {
+    it.each([
+        ["claude-opus-4-20250514", 32_000],
+        ["claude-haiku-4-5-20251001", 64_000],
+        ["claude-3-5-haiku-20241022", 4096],
+        ["claude-sonnet-4-6", 128_000],
+        ["my-proxy-model", 4096],
+    ])("sends %s a max_tokens it accepts (%i), when the consumer set none", async (model, maxTokens) => {
+        const { engine, requests, settings } = providerApiFixture("anthropic");
+        settings.model = model;
+        await events(engine, request());
+        assert.strictEqual(requests[0].body.max_tokens, maxTokens);
     });
 });
 
@@ -183,6 +305,7 @@ describe("the consumer's baseUrl keeps the AI SDK's meaning, version path includ
         ["anthropic", undefined, "https://api.anthropic.com/v1/messages?beta=true"],
         ["anthropic", "https://proxy.example/anthropic/v1", "https://proxy.example/anthropic/v1/messages?beta=true"],
         ["anthropic", "https://proxy.example/anthropic/v1/", "https://proxy.example/anthropic/v1/messages?beta=true"],
+        ["anthropic", "https://proxy.example/anthropic", "https://proxy.example/anthropic/messages?beta=true"],
         [
             "google",
             undefined,

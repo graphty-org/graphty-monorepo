@@ -22,6 +22,8 @@ export interface ToolCallRequest {
     readonly id: string;
     readonly name: string;
     readonly arguments: Readonly<Record<string, unknown>>;
+    /** The model's argument text did not parse: the call is refused as invalid, never run with `arguments`. */
+    readonly invalidArguments?: true;
     /** The engine's opaque round-trip data for this call, kept with it in the conversation. */
     readonly providerState?: ProviderState;
 }
@@ -200,6 +202,17 @@ async function runCall(
         return {
             result: { success: false, message: `Unknown command: ${call.name}. Command not found in registry.` },
             code: "AI_TOOL_UNKNOWN",
+        };
+    }
+
+    if (call.invalidArguments) {
+        logger.debug("Command result: FAILED - Arguments are not a JSON object", { name: command.name });
+        return {
+            result: {
+                success: false,
+                message: `Invalid arguments for ${call.name}: they are not a complete JSON object. Call it again with valid arguments.`,
+            },
+            code: "AI_TOOL_INVALID_ARGUMENTS",
         };
     }
 

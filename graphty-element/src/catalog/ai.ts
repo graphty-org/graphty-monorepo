@@ -228,7 +228,8 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_NOT_ENABLED` -- the assistant is not switched on (`enableAiControl()` not called).
  * - `AI_DISPOSED` -- the assistant was shut down.
  * - `AI_KEY_MISSING` -- the provider needs an API key and has none. `{ provider }`.
- * - `AI_KEY_REJECTED` -- the provider refused the key (HTTP 401 or 403). `{ provider, status }`.
+ * - `AI_KEY_REJECTED` -- the provider refused the key (HTTP 401 or 403, or 400 from Google, which
+ *   answers a wrong key that way). `{ provider, status }`.
  * - `AI_PROVIDER_ERROR` -- the provider or the network failed. `{ provider }`, and `{ status }`
  *   when the provider answered with an HTTP status.
  * - `AI_CANCELLED` -- the command was cancelled (`cancelAiCommand()`); what it changed is taken back.

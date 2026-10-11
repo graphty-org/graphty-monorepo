@@ -769,10 +769,15 @@ interface AiCommandCancelledEvent {
     reason: "user" | "timeout";
 }
 
-/** Emitted during streaming when text chunks arrive (throttled) */
+/**
+ * Emitted once for each piece of text the provider streams (not throttled: OpenAI and Anthropic
+ * stream in small pieces, so one answer can send many).
+ */
 export interface AiStreamChunkEvent {
     type: "ai-stream-chunk";
+    /** The piece of text that just arrived. */
     text: string;
+    /** The message's text so far, every turn of it. */
     accumulated: string;
 }
 

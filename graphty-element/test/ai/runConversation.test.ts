@@ -189,6 +189,35 @@ describe("runConversation", () => {
         ]);
     });
 
+    it("refuses a call whose arguments did not parse, without running it, and tells the model why", async () => {
+        const registry = new CommandRegistry();
+        let ran = 0;
+        registry.register({
+            name: "clearStyles",
+            description: "clear",
+            // Every parameter optional: run with none, it would clear everything.
+            parameters: z.object({ layerName: z.string().optional() }),
+            examples: [],
+            execute: () => {
+                ran++;
+                return Promise.resolve({ success: true, message: "cleared" });
+            },
+        });
+        const engine = new FakeEngine([
+            [
+                { type: "tool-call", id: "t1", name: "clearStyles", arguments: {}, invalidArguments: true },
+                { type: "finish", reason: "tool-calls" },
+            ],
+            textTurn("Sorry, which layer?"),
+        ]);
+        const { result, conv } = await run(engine, "remove the red styling", registry);
+        assert.strictEqual(ran, 0);
+        assert.strictEqual(result.code, "AI_TOOL_INVALID_ARGUMENTS");
+        const [part] = conv.messages.flatMap((m) => m.parts).filter((p) => p.type === "tool-result");
+        assert.strictEqual(part.type === "tool-result" && part.code, "AI_TOOL_INVALID_ARGUMENTS");
+        assert.include(part.type === "tool-result" ? part.content : "", "not a complete JSON object");
+    });
+
     it("runs no call of a turn whose stream stops without a finish", async () => {
         const registry = new CommandRegistry();
         let ran = 0;

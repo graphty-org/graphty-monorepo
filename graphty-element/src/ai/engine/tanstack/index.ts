@@ -12,7 +12,7 @@
 import { chat, EventType, type ModelMessage, type StreamChunk } from "@tanstack/ai";
 
 import { providerFailure } from "../LlmProviderEngine";
-import type { ProviderApiSettings, ProviderState, SavedMessage, TurnEvent, TurnRequest } from "../types";
+import type { ProviderApiSettings, ProviderState, SavedMessage, TurnError, TurnEvent, TurnRequest } from "../types";
 
 /** Marks the provider state this engine wrote. */
 const ENGINE = "provider-api";
@@ -67,15 +67,30 @@ function retryAfter(headers: Headers): number | undefined {
 }
 
 /**
- * A fetch that records what the provider answered, for the error codes and the retry schedule.
- * It calls the page's `fetch` at request time.
+ * Headers an SDK adds for its own telemetry, which the AI SDK never sent: a proxy or a local server
+ * whose CORS preflight allows only the headers it knew would refuse every request.
+ * @param name - A header name, lower case.
+ * @returns Whether to drop it.
+ */
+function isSdkTelemetryHeader(name: string): boolean {
+    return name.startsWith("x-stainless-") || name === "x-goog-api-client";
+}
+
+/**
+ * A fetch that records what the provider answered, for the error codes and the retry schedule,
+ * and drops the SDKs' telemetry headers. It calls the page's `fetch` at request time.
  * @param record - Where it records.
  * @returns The fetch.
  */
 function recordingFetch(record: ResponseRecord): typeof globalThis.fetch {
     return async (input, init) => {
+        const headers = new Headers(init?.headers);
+        for (const name of [...headers.keys()].filter(isSdkTelemetryHeader)) {
+            headers.delete(name);
+        }
+
         try {
-            const response = await globalThis.fetch(input, init);
+            const response = await globalThis.fetch(input, { ...init, headers });
             if (!response.ok) {
                 record.status = response.status;
                 record.retryAfterMs = retryAfter(response.headers);
@@ -158,25 +173,81 @@ function toModelMessages(
 }
 
 /**
- * A tool call's arguments as an object.
- * @param input - TanStack's parsed input, when the arguments parsed.
- * @param raw - The streamed argument text.
- * @returns The arguments; `{}` when there were none or they did not parse (the command's schema
- *   then refuses them, as it refuses any wrong argument).
+ * Whether a value is a plain JSON object.
+ * @param value - The value.
+ * @returns Whether it is.
  */
-function callArguments(input: unknown, raw: string): Readonly<Record<string, unknown>> {
-    if (input !== null && typeof input === "object" && !Array.isArray(input)) {
-        return input as Record<string, unknown>;
+function isObject(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * A tool call's arguments as an object. The streamed text decides whether they are valid: every
+ * adapter hands `{}` as the parsed input of arguments that did not parse, which would run the
+ * command with its defaults.
+ * @param input - TanStack's parsed input (OpenAI's has its nullable optional fields narrowed back).
+ * @param raw - The streamed argument text.
+ * @returns The arguments, or undefined when the text is not a JSON object (malformed or cut off).
+ */
+function callArguments(input: unknown, raw: string): Readonly<Record<string, unknown>> | undefined {
+    let parsed: unknown = {};
+    if (raw.trim() !== "") {
+        try {
+            parsed = JSON.parse(raw);
+        } catch {
+            return undefined;
+        }
     }
 
-    try {
-        const parsed: unknown = JSON.parse(raw);
-        return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
-            ? (parsed as Record<string, unknown>)
-            : {};
-    } catch {
-        return {};
+    if (!isObject(parsed)) {
+        return undefined;
     }
+
+    return isObject(input) ? input : parsed;
+}
+
+/**
+ * The provider's own words from an error message that carries its JSON body, as `@google/genai`
+ * (twice encoded) and the Anthropic SDK (after the status) do.
+ * @param message - The message.
+ * @returns The innermost `error.message`, or the message as it was.
+ */
+function providerMessage(message: string): string {
+    let current = message;
+    for (let depth = 0; depth < 3; depth++) {
+        const start = current.indexOf("{");
+        if (start === -1) {
+            break;
+        }
+
+        let body: unknown;
+        try {
+            body = JSON.parse(current.slice(start));
+        } catch {
+            break;
+        }
+
+        const inner = isObject(body) && isObject(body.error) ? body.error.message : undefined;
+        if (typeof inner !== "string") {
+            break;
+        }
+
+        current = inner;
+    }
+
+    return current;
+}
+
+/**
+ * Whether an error is Google refusing the key: Gemini answers a wrong key with 400
+ * `INVALID_ARGUMENT`, reason `API_KEY_INVALID`, where the others answer 401 or 403.
+ * @param message - The error's message, the provider's body in it.
+ * @param response - What the request got back.
+ * @param settings - The provider.
+ * @returns Whether it is.
+ */
+function isGoogleKeyRefusal(message: string, response: ResponseRecord, settings: ProviderApiSettings): boolean {
+    return settings.provider === "google" && response.status === 400 && message.includes("API_KEY_INVALID");
 }
 
 /**
@@ -194,13 +265,17 @@ function failure(
     settings: ProviderApiSettings,
     signal: AbortSignal,
 ): TurnEvent {
-    const error = Object.assign(new Error(message), { name: "ProviderApiError" });
-    if (response.status !== undefined) {
-        Object.assign(error, { statusCode: response.status });
+    const error = Object.assign(new Error(providerMessage(message)), { name: "ProviderApiError" });
+    const { status } = response;
+    if (status !== undefined) {
+        Object.assign(error, { statusCode: status });
     }
 
-    const { status } = response;
-    const event = providerFailure(error, settings.provider, signal, [settings.apiKey]);
+    const coded = providerFailure(error, settings.provider, signal, [settings.apiKey]);
+    const event: TurnError =
+        coded.code === "AI_PROVIDER_ERROR" && isGoogleKeyRefusal(message, response, settings)
+            ? { ...coded, code: "AI_KEY_REJECTED" }
+            : coded;
     const retryable =
         event.code === "AI_PROVIDER_ERROR" &&
         (status === undefined
@@ -218,6 +293,33 @@ interface PendingCall {
     readonly name: string;
     args: string;
     readonly metadata?: Record<string, unknown>;
+}
+
+/** The end of a turn, as a `RUN_ERROR` chunk carries it. */
+interface RunError {
+    readonly message: string;
+    readonly code?: string;
+    readonly usage?: Usage;
+}
+
+/** A turn's token counts, as a chunk carries them. */
+interface Usage {
+    readonly promptTokens?: number;
+    readonly completionTokens?: number;
+}
+
+/**
+ * Whether a `RUN_ERROR` is a turn the provider cut short and still answered: the output limit
+ * (Gemini `MAX_TOKENS`, Anthropic `max_tokens`, OpenAI `incomplete` for `max_output_tokens`) or
+ * OpenAI's content filter. The AI SDK finished such a turn with what it had, and so does graphty.
+ * @param chunk - The chunk.
+ * @returns Whether it is.
+ */
+function isCutShort(chunk: RunError): boolean {
+    return (
+        chunk.code === "max_tokens" ||
+        (chunk.code === "incomplete" && (chunk.message === "max_output_tokens" || chunk.message === "content_filter"))
+    );
 }
 
 /** Reads one turn's TanStack chunks as turn events: each tool call as it completes, then the end. */
@@ -260,43 +362,54 @@ class ChunkReader {
             case EventType.TOOL_CALL_ARGS: {
                 const call = this.pending.get(chunk.toolCallId);
                 if (call) {
-                    call.args += chunk.delta;
+                    // Gemini's adapter sends the whole argument text so far as each delta; the
+                    // others send the next piece.
+                    call.args = this.settings.provider === "google" ? chunk.delta : call.args + chunk.delta;
                 }
                 return [];
             }
             case EventType.TOOL_CALL_END:
                 return this.callEnded(chunk.toolCallId, (chunk as { input?: unknown }).input);
-            case EventType.RUN_ERROR:
+            case EventType.RUN_ERROR: {
                 this.done = true;
-                return [failure(chunk.message, this.response, this.settings, this.signal)];
+                const error = chunk as RunError;
+                return isCutShort(error)
+                    ? this.finished(error.usage)
+                    : [failure(error.message, this.response, this.settings, this.signal)];
+            }
             case EventType.RUN_FINISHED:
                 this.done = true;
-                return this.finished((chunk as { usage?: { promptTokens?: number; completionTokens?: number } }).usage);
+                return this.finished((chunk as { usage?: Usage }).usage);
             default:
                 return [];
         }
     }
 
     /**
-     * A tool call whose arguments are complete.
+     * A tool call whose arguments are complete, or that the turn's end cut off.
      * @param id - Its id.
-     * @param input - TanStack's parsed arguments, when they parsed.
-     * @returns The call's event.
+     * @param input - TanStack's parsed arguments.
+     * @param cutOff - The turn ended before the call did.
+     * @returns The call's event; a call whose arguments are not a JSON object is marked, and runs
+     *   nothing.
      */
-    private callEnded(id: string, input: unknown): TurnEvent[] {
+    private callEnded(id: string, input: unknown, cutOff = false): TurnEvent[] {
         const call = this.pending.get(id);
         if (!call) {
             return [];
         }
 
+        this.pending.delete(id);
         this.calls++;
         const { provider, model } = this.settings;
+        const args = cutOff ? undefined : callArguments(input, call.args);
         return [
             {
                 type: "tool-call",
                 id,
                 name: call.name,
-                arguments: callArguments(input, call.args),
+                arguments: args ?? {},
+                ...(args === undefined && { invalidArguments: true as const }),
                 ...(call.metadata && {
                     providerState: { engine: ENGINE, provider, model, data: call.metadata },
                 }),
@@ -305,21 +418,22 @@ class ChunkReader {
     }
 
     /**
-     * The end of a turn that finished: its usage and its finish, or a cancel that came first.
+     * The end of a turn that finished: any call it cut off, its usage and its finish, or a cancel
+     * that came first.
      * @param usage - The turn's token counts.
      * @returns The events.
      */
-    private finished(usage: { promptTokens?: number; completionTokens?: number } | undefined): TurnEvent[] {
-        const events: TurnEvent[] = [];
+    private finished(usage: Usage | undefined): TurnEvent[] {
+        if (this.signal.aborted) {
+            return [failure("The turn was cancelled.", this.response, this.settings, this.signal)];
+        }
+
+        const events = [...this.pending.keys()].flatMap((id) => this.callEnded(id, undefined, true));
         if (usage?.promptTokens !== undefined && usage.completionTokens !== undefined) {
             events.push({ type: "usage", inputTokens: usage.promptTokens, outputTokens: usage.completionTokens });
         }
 
-        events.push(
-            this.signal.aborted
-                ? failure("The turn was cancelled.", this.response, this.settings, this.signal)
-                : { type: "finish", reason: this.calls > 0 ? "tool-calls" : "stop" },
-        );
+        events.push({ type: "finish", reason: this.calls > 0 ? "tool-calls" : "stop" });
         return events;
     }
 }

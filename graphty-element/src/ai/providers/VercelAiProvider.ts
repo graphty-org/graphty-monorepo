@@ -1,5 +1,6 @@
 import { aiProviderDescriptor, type AiProviderId } from "../../catalog/ai";
 import { toolJsonSchema } from "../engine/jsonSchema";
+import { providerFailure } from "../engine/LlmProviderEngine";
 import { registerProviderApiEngine } from "../engine/load";
 import { ProviderApiEngine } from "../engine/ProviderApiEngine";
 import type { SavedMessage, TurnError, TurnRequest } from "../engine/types";
@@ -162,6 +163,7 @@ export class VercelAiProvider implements LlmProvider {
         let text = "";
         const toolCalls: ToolCall[] = [];
         let usage: LlmResponse["usage"];
+        let finished = false;
         for await (const event of this.engine.turn(request, signal)) {
             switch (event.type) {
                 case "text":
@@ -169,6 +171,11 @@ export class VercelAiProvider implements LlmProvider {
                     callbacks?.onChunk(event.delta);
                     break;
                 case "tool-call":
+                    // A call whose arguments did not parse is not handed on to run with none.
+                    if (event.invalidArguments) {
+                        break;
+                    }
+
                     toolCalls.push({ id: event.id, name: event.name, arguments: { ...event.arguments } });
                     callbacks?.onToolCall(event.name, event.arguments);
                     break;
@@ -178,12 +185,23 @@ export class VercelAiProvider implements LlmProvider {
                 case "error":
                     return { error: event };
                 case "finish":
+                    finished = true;
+                    break;
                 default:
                     break;
             }
         }
 
-        return { response: { text, toolCalls, usage } };
+        // A stream that ended without a finish was dropped: what it carried may be cut short.
+        return finished
+            ? { response: { text, toolCalls, usage } }
+            : {
+                  error: providerFailure(
+                      new Error("The model's turn ended without finishing."),
+                      this.providerType,
+                      signal,
+                  ),
+              };
     }
 
     /**

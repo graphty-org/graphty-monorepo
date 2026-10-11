@@ -123,6 +123,15 @@ describe("VercelAiProvider", () => {
             await expect(provider.validateApiKey()).rejects.toMatchObject({ statusCode: 500 });
         });
 
+        it("fails a turn whose stream ends without finishing, rather than answer with what it cut", async () => {
+            const { respondOnce } = providerApiFixture(type);
+            // A stream that stops before the provider's end-of-answer event.
+            respondOnce(200, "", { "content-type": "text/event-stream" });
+            const provider = new VercelAiProvider(type);
+            provider.configure({ apiKey: KEYS[type] });
+            await expect(provider.generate([{ role: "user", content: "a" }], [])).rejects.toThrow();
+        });
+
         it("sends the configuration as it is at each call: a later configure() reaches the next request", async () => {
             const { requests } = providerApiFixture(type);
             const provider = new VercelAiProvider(type);

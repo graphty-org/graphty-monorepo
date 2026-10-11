@@ -214,7 +214,7 @@ echo ""
 # counts too; --foreground keeps Ctrl-C reaching it, and on the timeout's SIGTERM prepush-tests.mjs
 # stops every shard's process group itself.
 run_step "Tests (the CI shards of the affected packages)" \
-    "timeout --foreground --kill-after=60s '${PREPUSH_TESTS_TIMEOUT:-90m}' PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'"
+    "timeout --foreground --kill-after=60s '${PREPUSH_TESTS_TIMEOUT:-90m}' env PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'"
 
 # The real-GPU half: the paid T4 runs only on the daily release, so this is the only NVIDIA run before it.
 # CI's webgpu-graph-algorithms-node shard (above, through run-tests.sh) runs on Mesa lavapipe; this runs

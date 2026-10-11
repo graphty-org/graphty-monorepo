@@ -349,7 +349,7 @@ type Story = StoryObj<DFSArgs>;
  *
  * This story uses the actual `depthFirstSearch()` function from @graphty/algorithms.
  *
- * The play function runs the animation to completion for Chromatic visual testing.
+ * The play function runs the animation to completion for the visual capture.
  */
 export const DFS: Story = {
     render: (args) => createDFSStory(args),

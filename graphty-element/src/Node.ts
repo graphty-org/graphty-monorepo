@@ -1556,6 +1556,12 @@ export class Node {
     // Test helper methods
     /**
      * Gets the current 3D position of the node's mesh.
+     * @remarks
+     * This is where the node is DRAWN, which a frame's update pass copies from the layout. Until
+     * the first frame after the node's mesh is created -- a new node, or a 2D/3D switch that
+     * rebuilds the meshes -- it is the hidden mesh template's position (y = -10000), not the
+     * node's. `waitForSettled()` does not wait for that frame; wait for
+     * {@link Graph.waitForStableFrame} before reading it.
      * @returns An object containing the x, y, and z coordinates of the node
      */
     getPosition(): { x: number; y: number; z: number } {

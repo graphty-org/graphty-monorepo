@@ -5,35 +5,31 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-11 (tier 2 round 4 walk).
+Last updated: 2026-10-11 (tier 2 round 4 critique).
 
 ## Top of mind
 
-1. (2026-10-11) Round 4 walk: 3 sev 3. New: the "or more" row names its layer "data.minutes >=
-   `5`" (element `atLeastOf` spells the stored key); typed rules say "minutes >= `10`". Propose the
-   element's target in the find box's own rule form; a fix in the app would hide it.
-2. Still open sev 3: drawn names covering names, ties and nodes (graphty-element; Quinn drawn on the
-   path line reads as on the path), and the key growing over "Depot" (graphty app).
-3. (2026-10-11) Problem marks are inverted, not unified: the Add page glyph is on the footer line
-   with a green check on the table row; the unmatched row has the glyph on the table row only. The
-   fix is one rule for every load problem (glyph on the line and on its table row), not another glyph.
-4. (2026-10-11) Values rows sit under the hit rows: below the fold at 1280 x 800 (7 edges), and on a
-   30-character column both rows cut to the same text. Order and cut, not width.
-5. (2026-10-11) Neighbor list ignores an active filter (one-specialist claim): script it before
-   proposing; it may be the element's neighborhood query.
-6. Round 4 changes that held on screen: toolbar Filters, one "Start here", edge counts on chip and
-   step, repeated-ties glyph, the "or more" row's sibling look.
-7. Rejected: "Filter to neighbors" as a pressed toggle. Do not re-propose without new session
-   evidence; the disabled-gray done state is still my sev 2.
-8. Held: the key's label-aware overlap test until a script rules out `autoFrame`.
-9. Words at rest never rise. Weight and position first.
-10. One variant per problem: lead with one mark; keep alternatives as a fallback, unstated.
-11. A claim only one specialist made (mine included) is scripted on the frozen build before it is
-    fixed; if the script does not reproduce it, it closes.
-12. Held and still open: out-of-date mark (three looks now), halo, selection two-looks, two-table
-    "...", hop distance in the neighbor list, ragged digits, popover cover.
-13. Walk detours and every control on a screen; type a number, not only a rule, in the find box.
-14. Never wrap `real.mjs --start` in `timeout`; start walks in the background and poll a file.
+1. (2026-10-11 critique) Lead fix: the data table lists everything under a filter step
+   (r4-s21, s27). One word in `TableDock.tsx` line 349: scope "graph" -> "visible" (the element
+   already offers it), and the count reads "12 of 41 edges" like the header chip.
+2. (2026-10-11) Bare number not a value: the element's backtick suggestion "`10`" is itself
+   refused. Fix in the element (offer a suggestion only when it parses); no app check around it.
+3. (2026-10-11) "data.minutes >= `5`": the element should spell columns as the app's
+   `columnText` does; move that helper into the element (additive export), delete the app copy.
+   The target text shipped in graphty-element 3.23.0, so the text change goes to the owner.
+4. Still open sev 3: drawn names covering names, ties and nodes (graphty-element). No app workaround.
+5. Held, do not change: Values rows order (not shown on a task; returning users found it at the
+   bottom), key placement, halo, selection two-looks, out-of-date mark, polish bundle.
+6. Problem marks: one rule (glyph on the line and on its table row, gone once the reader chooses).
+   Sessions confirm the "mark stays after the choice" half (r4-s50).
+7. Round 4 changes that held: toolbar Filters, one "Start here", Shift-click, edge counts, the
+   "or more" row's sibling look. Do not touch them in round 5.
+8. Rejected: "Filter to neighbors" as a pressed toggle. Do not re-propose without new evidence.
+9. Check what the element already offers before proposing (scope "visible" made the table fix one word).
+10. A claim only one specialist made (mine included) is scripted on the frozen build before fixing.
+11. Words at rest never rise. Weight and position first. One mark per problem.
+12. Walk detours and every control; type a number, not only a rule, in the find box.
+13. Never wrap `real.mjs --start` in `timeout`; start walks in the background and poll a file.
 
 ## Priorities and values
 
@@ -56,6 +52,17 @@ Last updated: 2026-10-11 (tier 2 round 4 walk).
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- 2026-10-11 (round 4 critique): Proposed four changes: the table under a filter (app, scope
+  "visible"); the refused backtick suggestion (element); the "or more" layer name (element, owner
+  list for the text change); the problem mark following the reader's choice (app). Reason: the
+  first two sit on bars 5 and 10 with session or two-specialist evidence; the third is mine,
+  weakened to 2, but a one-helper move that also deletes an app duplicate; the fourth closes a
+  session-confirmed sev 2 and my inversion finding with one rule.
+- 2026-10-11 (round 4 critique): Held the Values-row order: insights weakened it to 2, no task met
+  it, and moving the rows changes what four returning participants learned this round.
+- 2026-10-11 (round 4 critique): Treated the `atLeast` target text change as breaking: it shipped in
+  graphty-element 3.23.0 and changes what an existing field returns, though the selection is equal.
 
 - 2026-10-11 (round 4 walk): Rated the "data.minutes" layer name severity 3: the criteria rate a raw
   field path on a success path 3, and T22's new "or more" row is that path
@@ -162,6 +169,11 @@ Last updated: 2026-10-11 (tier 2 round 4 walk).
 
 ## Tried: worked / did not work
 
+- 2026-10-11 worked: grepping the element's `Scope` union before proposing the table fix showed
+  "visible" exists; the fix shrank from a new element query to one word in the app.
+- 2026-10-11 worked: `git tag --contains` on the commit that added `atLeastOf` settled whether its
+  text change is breaking (shipped in 3.23.0) instead of guessing.
+
 - 2026-10-11 worked: typing a bare number (not only a rule) in the find box and following the new
   row through to a styled layer found the field-path name; checking a change only on its own row
   would have passed it.
@@ -239,6 +251,9 @@ Last updated: 2026-10-11 (tier 2 round 4 walk).
   designers too.
 
 ## Sources
+
+- `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md` (verified round 4 problems)
+- `graphty/src/workspace/table/TableDock.tsx` line 349 at 5277e2cbe (table scope); `graphty/src/workspace/graph-place/FindBox.tsx` `columnText`, `ruleFromText`
 
 - `design/ui/studio/tier2/rounds/round-4/expert/visual.md` (round 4 findings)
 - `graphty-element/src/session/query.ts` `atLeastOf` at 5277e2cbe (the "or more" target text)

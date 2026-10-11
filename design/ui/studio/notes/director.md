@@ -5,12 +5,16 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-11 (round 5 dry run one: `tier2/dry-run-r5-1.md`; 0 fixes, 8c015b806 stays the build).
+Last updated: 2026-10-11 (round 4 closed; state checked after the token limit; round 5 gate and owed re-runs still to do).
 
 ## Top of mind
 
+- 2026-10-11: BEFORE ROUND 5'S FIRST SESSION: run `real.mjs --gate` on round 5 (plan.md has no
+  Gate evidence yet; `--start` now refuses without it) and the owed r4-s05b, r4-s20b, r4-s28b.
 - 2026-10-11: ROUND 5 DRY RUN ONE: 0 FIXES (`tier2/dry-run-r5-1.md`, 96 items: 48 design, 38 no
-  change, 6 owner, 4 process). 8c015b806 stays the round 5 build; the sessions can start.
+  change, 6 owner, 4 process). 8c015b806 stays the round 5 build.
+- 2026-10-11: ROUND 5 WATCH: "10" on bus stops reaching the right stops with no refusal (credit
+  the outcome, not the word match); table under a step; off step stays off; bar 9 (b) diff.
 - 2026-10-11: TIER 2 ROUND 4 DECIDED (`tier2/rounds/round-4/decisions.md`): 12 changes, study
   first. 53 of 53 valid succeeded; T24 2 of 4 to 7 of 7 on the Shift-click fix. Product items:
   the find box's refused bare-number suggestion (element), "or more" for any in-range number
@@ -191,6 +195,21 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
   doubled "Florentine families" is a design question plus the tool refusing an ambiguous click.
   Items 2 to 5 added to the key's watch list. Reason for no refreeze: as in round 4's second dry
   run, a dry run that finds only known items means the build is ready.
+
+- 2026-10-11 -- Round 4 closed; state checked after the token limit. The worktree is clean; every
+  round 4 change is built and frozen into 8c015b806 (table lists what the steps keep, Cancel to
+  "+", New project > Discard, the three claims scripted -- all three reproduced, so they are fixed
+  next round, not closed). `real.mjs --start` now refuses a round with no "Gate evidence" for the
+  frozen build. Still open before round 5's first session: `--gate` on round 5 (its `plan.md` has
+  no Gate evidence yet), and the owed r4-s05b, r4-s20b, r4-s28b. Reason to record it here: the
+  last two rounds started with a gate "done" on paper.
+- 2026-10-11 -- What round 4 taught (for round 5): a fix that matches a habit is used at once (T24
+  7 of 7) but that pass is primed and weak; the severity 3s left are label/dot overlap (element,
+  owner list) and a suggestion the selector refused; the study's faults (ungated, lost sessions,
+  leaking briefing) outweigh the product's. Watch in round 5: "10" on bus stops reaching the right
+  selection without a refusal (credit the outcome, not the "or more" word match); the table under
+  a filter step; whether the off step stays off; the bar 9 (b) diff; any "noticed unprompted"
+  claim checked against the briefing first.
 
 ## Tried: worked / did not work
 

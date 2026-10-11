@@ -1,3 +1,13 @@
+## 0.9.17 (2026-10-11)
+
+### 🩹 Fixes
+
+- **compact-mantine:** end the Toolbar Keyboard story after Move's tooltip opens ([#1997](https://github.com/graphty-org/graphty-monorepo/issues/1997))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.16 (2026-10-11)
 
 ### 🚀 Features

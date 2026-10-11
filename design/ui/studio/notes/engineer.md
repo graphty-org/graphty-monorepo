@@ -11,70 +11,52 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-11) **The table lists what the filter steps keep.** `TableDock.tsx` reads scope
-  `"visible"` (a group keeps its member scope) and re-renders on `useVisibilityVersion`; the count
-  reads "12 of 41 edges" while a step hides some, "41 edges" when not, in the top bar's words. No
-  notice line. Export summaries now say "One row for every edge/node": Export writes every record
-  (the element's export cannot be limited to what is showing, #875, #820; left alone). Fresh build:
-  `tmp/t2r4-8/fresh/04-07.png`; real-element test in `TableDock.real-element.test.tsx`.
-- (2026-10-11) **Cancel in the note editor puts focus on "+"** (`NotesPlace.tsx`: the editor's
-  `close()` calls `onClosed`, which focuses "+" as Delete of the last note does; Esc on an empty
-  note too). Frozen 5277e2cbe: `focus: nothing (the page itself)`; fresh build: `focus: button
-  "Add note"` (`tmp/t2r4-10/sr-old`, `sr-new`, 04.png). bars.mjs move "Cancel in the note editor".
-- (2026-10-11) **A briefing never holds what a task asks the participant to find.** The README's
-  file table now names each file and its kind only; the answer key's "Facts no briefing may hold"
-  lists the facts (`Mo`, `Nia`, `6 - w`, `p13`, `s11`), and `--brief` refuses, `--leaks` voids,
-  a briefing holding one. The round's leak check prints, per session, the briefing and every log it
-  read. All 56 round 4 plan rows re-briefed clean (`tmp/t2r4-2/rounds/round-5/leaks.out`).
-- (2026-10-11) **The gate is checked by `real.mjs --start` itself.** A session of a round
-  (`rounds/<round>/sessions/<id>`, or its participant folder) exits 1 with one `FAIL:` line unless
-  the round's `plan.md` holds the "Gate evidence" section `--gate` wrote for the frozen build. Round
-  4 ran all 53 sessions with no gate evidence and no `bars/bars.json`: the runner's gate step was
-  skipped, and nothing else checked. Planted in `--prove` (`tmp/t2r4-1/prove.txt`).
-- (2026-10-11) **The round runner starts each session before the participant's turn**
-  (`workflow-tier2.js` `startSession`), with `REAL_SLOT_WAIT_SECONDS=540`: no slot means exit 4,
-  nothing started, the same start again. A start that never gives `01.png` re-runs as `<id>b` and
-  the scorer is told which. Planted: a full one-slot pool (`BROWSER_SLOT_DIR`), exit 4, then a
-  start that takes the slot once it frees (`tmp/t2r4-1/.../r9-s04/01.png`).
-- (2026-10-11) **Owed: r4-s05b, r4-s20b, r4-s28b.** They need fresh participant agents (never seen
-  the key or plan); an implement step has no way to start one. Round 4 needs its gate evidence
-  first (bars on 5277e2cbe, then `--gate`), or `--start` now refuses them.
-- (2026-10-11) **Bar 9 (b), edge inspector: fails honestly, 29 against 27.** Added "Settings",
-  ", full graph", "on 20 nodes"; removed "On the path"; no repeat to cut
-  (`tier2/rounds/round-4/bars/edge-inspector-words.md`).
-- (2026-10-11) **Round 4 closed: 53 of 53 valid sessions succeeded; bars 9 (b) and 10 fail.**
-  Bar 10: drawn names covering ties and dots (element, owner's list) and the find box's "=`10`"
-  (fixed since). Shift-click carried T24 to 7 of 7. Three sessions void (full browser slot).
-- (2026-10-11) **Round 4 critique, six changes:** (1) DONE: element `suggestBackticks` suggests
-  only a rewrite that parses and reads an attribute. (2) DONE: `FindResult.atLeast` rows; bus stops
-  "10" offers "minutes is 10 or more (3)". (3) open: app `FindBox.tsx` puts Values first for a
-  number. (4) open: element `atLeastOf` writes `data.minutes`; write the bare name (unreleased,
-  not breaking). (5) DONE: table lists what the steps keep. (6) DONE: leaving an off step's
-  editor unedited leaves it off.
-- (2026-10-11) **Not to change after round 4:** Shift-click, toolbar Filters door, Replace place,
-  scope words, names off in setups, T18 (8 against 8: no new step there), second path replacing
-  the first (no task needs both; decided), any label placement in the app.
-- (2026-10-11) **All three single-source claims reproduced on 5277e2cbe; fix them in round 5**
-  (`tier2/rounds/round-5/plan.md`, screenshots in `round-5/claims/`): (a) "weight >= 10" on Les Mis
-  runs and says only "Nothing matches this rule" -> element refuses with `E_UNKNOWN_ATTRIBUTE`,
-  app names the column; (b) Escape on a focused Color swatch reaches `useCommandKeys` (a button is
-  neither typing nor overlay) -> `selection.clear`, inspector swaps, focus to page -> app keeps a
-  panel's Escape; (c) a click on the "Stadium" chip over the tie selects Stadium (app sets
-  `label.pickable`; an unset label plane still stops the ray, `Node.ts`) -> element question.
-- (2026-10-11) **Held, first in line:** distance per name at Hops 2/3 (element `depth` option and
-  `hops` per `Neighbor`, additive); "4 hops" vs "5 nodes, 4 edges" (sev 1); `nodesInRect(..., {
-  labels: true })`; a second Find path replacing the first.
-- (2026-10-10) **Not mine to fix in the app, ever:** drawn names covering names and ties, sized
-  nodes inside each other (element label placement and layout spacing, owner's list); bare
-  numbers in rules, backticks, what an edge width measures (breaking, owner's list).
-- (2026-10-11) **A one-specialist claim is scripted on the frozen build before any fix;** not
-  reproduced means closed as not shown. Reading the mechanism in source does not replace the script.
-- (2026-10-10) **Still open from audits:** Escape does nothing on the Data pages; two-table source
-  has no actions and no reason; "Edit source..." lands on "Replace: ..."; neighbor Back row scrolls
-  the inspector sideways; path popover covers the nodes it asks for; 900 x 700 canvas is 363 px;
+- (2026-10-11) **Round 5 runs on frozen build 8c015b806** (graphty@0.8.65, `.study-builds/tier2-r5-8c015b806/`);
+  the first dry run is triaged with no fixes (d2440153c). Never touch that build; fixes go to round 6.
+- (2026-10-11) **Owed before round 5's sessions: r4-s05b, r4-s20b, r4-s28b** on 5277e2cbe, new
+  folders, fresh participant agents, scored into round 4. Not run yet (no folders). Gate evidence
+  for round 4 is in place (c256dc839), so `--start` accepts them.
+- (2026-10-11) **Round 4 taught: a study rule lives where every caller passes.** The gate and the
+  bounded slot wait are in `real.mjs --start` (571a15488); briefings name file and kind only and
+  `--leaks` reads briefings (2d085d627). Watch in round 5: both refusals fire on their own, no void.
+- (2026-10-11) **Round 4: 53 of 53 succeeded; bars 9 (b) and 10 failed.** Bar 10 on drawn names
+  covering ties and dots (element, owner's list) and the find box's "=`10`" refusal. Shift-click
+  took T24 to 7 of 7, discounted for priming (briefing lists `--shift-click`).
+- (2026-10-11) **Built for round 5:** element `suggestBackticks` suggests only a rule that reads an
+  attribute; `FindResult.atLeast` rows ("minutes is 10 or more"); `rulePath` so the "or more" layer
+  reads "minutes >= `5`"; off step stays off; New project + Discard; table lists what steps keep;
+  note Cancel focuses "+".
+- (2026-10-11) **Watch T22 in round 5:** credit "10" reaching the right stops with no refusal, not
+  a pick of the "or more" row (the prompt and the row share the words).
+- (2026-10-11) **Watch T17:** the table count ("12 of 41 edges") agrees with the top bar; histories
+  no longer name the toolbar's analysis button, so a toolbar-first door is less primed now.
+- (2026-10-11) **Bar 9 (b), edge inspector 29 against 27,** fails honestly: added scope words stay;
+  only a repeat on the same screen may go. Diff words by build (`bars.mjs --dist`) before cutting.
+- (2026-10-11) **Three claims reproduced on 5277e2cbe, fix in round 6 build** (`round-5/claims/`):
+  "weight >= 10" on Les Mis says only "Nothing matches" (element `E_UNKNOWN_ATTRIBUTE`); Escape on a
+  focused Color swatch clears the selection (app keeps a panel's Escape); a click on the "Stadium"
+  chip over the tie picks Stadium (element pick question).
+- (2026-10-11) **Open from round 4 critique:** `FindBox.tsx` Values first for a number (held: no
+  task met the row below the fold).
+- (2026-10-11) **Held, first in line:** hops per name at Hops 2/3 (element `depth` and `hops`,
+  additive); "4 hops" vs "5 nodes, 4 edges" (sev 1); `nodesInRect(..., { labels: true })`.
+- (2026-10-11) **Not to change:** Shift-click, toolbar Filters door, Replace place, scope words,
+  names off in setups, T18 (8 against 8), second path replacing the first, label placement in the app.
+- (2026-10-10) **Never mine in the app:** names covering names and ties, sized nodes overlapping
+  (element label placement, layout spacing); bare numbers in rules, edge width meaning (breaking).
+- (2026-10-11) **A one-specialist claim is scripted on the frozen build before any fix;** reading
+  source does not replace the script.
+- (2026-10-10) **Still open from audits:** Escape on Data pages; two-table source has no actions;
+  "Edit source..." lands on Replace; neighbor Back row scrolls sideways; path popover covers nodes;
   Delete does nothing on a step; Analyze box jumps as the list narrows.
 
 ## Decisions and reasons
+
+- (2026-10-11) **Round 4 closed; what it decided and why:** study fixed first (a refusal in the
+  command every session runs, because a written rule failed twice); one change per problem; fix in
+  the owning package (no app guard around `suggestBackticks`); words at rest never rise; Values-first
+  in the find box held as a second change on one problem. `--shift-click` stays in briefings: removing
+  it would make T24 measure the tool, not the app.
 
 - (2026-10-11) **The table's count names the whole only while they differ.** "12 of 41 edges"
   matches the top bar's filter chip word for word, so a reader sees one phrase for one fact; with

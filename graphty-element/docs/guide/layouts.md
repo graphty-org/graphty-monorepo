@@ -91,8 +91,34 @@ graph.setLayout("ngraph", {
     dragCoefficient: 0.02, // Damping
     theta: 0.8, // Barnes-Hut approximation
     seed: 7, // Starting positions; unset, they differ on every load
+    nodeGap: 2, // Space kept between nodes' drawn surfaces; unset, nodes may overlap
+    nodeGapFront: false, // In 3D, measure that space as seen from the front
 });
 ```
+
+### Keeping nodes from being drawn inside each other
+
+The force layout treats every node as a point, so two nodes drawn large -- a size bound to a
+ranking, say -- can land inside each other. Set `nodeGap` and the layout keeps every two nodes at
+least their drawn radii plus `nodeGap` apart, in the same units as `springLength`. It reads each
+node's size as it is drawn, so a style that makes nodes larger after the layout came to rest starts
+the layout again until no two of them overlap. `0` lets nodes touch; unset (`null`, the default)
+keeps the layout as it always was.
+
+```typescript
+element.layoutConfig = { nodeGap: 2 };
+```
+
+In 3D, two nodes kept apart in space still cover each other on screen when one is behind the
+other. Add `nodeGapFront: true` to measure the gap across x and y only, as the starting view sees
+the graph from the front, so no node is drawn over another until the camera is turned:
+
+```typescript
+element.layoutConfig = { nodeGap: 2, nodeGapFront: true };
+```
+
+`nodeGap` is honored by the `ngraph` engine; from two thousand nodes, with a hardware accelerator
+attached, the element draws the default arrangement with `spring-electrical`, which does not read it.
 
 ### The same drawing every time
 

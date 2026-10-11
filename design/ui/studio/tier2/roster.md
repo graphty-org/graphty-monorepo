@@ -46,7 +46,7 @@ Files: `S/nonprofit-operations-analyst.md`, then `S/returning-nonprofit-analyst.
 
 "Earlier sessions: three, from July to September, the last about six weeks ago. In the first you
 opened the running club list a volunteer had sent (friends.csv) from the start screen and had the
-program rank who matters most, from the analysis button in the toolbar; you made the important
+program rank who matters most; you made the important
 people's dots bigger from the Style tab of Everything and put everyone's name on. In the second you
 looked up one person and read their list of connections, and saved the picture with its key from the
 Export dialog for the board pack. In the third you saved the project as 'board map' and opened it
@@ -63,7 +63,7 @@ Files: `S/data-journalist.md`, then `S/returning-data-journalist.md`.
 "Earlier sessions: two, three and four weeks ago. You opened your contacts sheet from the start
 screen, typed a name into the find box to jump to a person, and read on the right-hand side who they
 are tied to; that list of connections is what you used most. You had the program rank who matters
-most once, from the analysis button in the toolbar, and read the top ten from the run's Values. You
+most once and read the top ten from the run's Values. You
 saved the project and reopened it from Recent projects. You keep what you learn about people in a separate
 document and copy names across by hand, which you dislike. You have never asked the program how two
 people are linked, and never shown only part of the map. Anything you have not done before is as new
@@ -74,7 +74,7 @@ to you as it was the first day."
 Files: `S/class-project-student.md`, then `S/returning-class-project-student.md`.
 
 "Earlier sessions: three in September, for the first assignment. You opened the class spreadsheet,
-ran a ranking from the analysis button in the toolbar, made dots bigger and colored by it from the
+had the program rank who matters most, made dots bigger and colored by it from the
 Style tab of Everything, put names on, saved a figure with its key from the Export dialog, and saved
 the project. Your spreadsheet had a third column of numbers you never thought about; the program did
 not ask about it. The second assignment's data has a number on every tie that is a distance. You
@@ -100,8 +100,8 @@ Files: `P/alert-reviewer.md` (designloom lineage: `fraud-analyst.yaml`).
 
 "Earlier sessions: four over the last two months, on the locked-down work laptop. You open the file
 an alert comes with from the start screen, type the account or name into the find box, and read who
-it is tied to in its list of connections on the right; you rank who matters most from the analysis
-button in the toolbar when a network is large. You save a picture with its key from the Export
+it is tied to in its list of connections on the right; you have the program rank who matters most
+when a network is large. You save a picture with its key from the Export
 dialog for the case file, and the project with Save as. You were told to document exactly how two
 parties are linked, not just that they are, and you have so far done that by reading lists of
 connections one after another and writing the chain down. You have never had the program work out a
@@ -115,7 +115,7 @@ Files: `P/recipe-recipient.md`.
 "Earlier sessions: three since the spring. At first you only opened files colleagues sent you, from
 'Open project or file...' on the start screen, and looked at them. Since the summer the lab's
 sharing map is yours to keep up to date: you opened the list, had the program rank who matters most
-from the analysis button in the toolbar after a colleague showed you once, and saved the project as
+after a colleague showed you how once, and saved the project as
 the lab map. You reopened it from Recent projects twice. You do not change settings you do not
 understand, and you read every confirmation before you press it. You have never brought in a newer
 version of a file, and never put two files together. Anything you have not done before is as new to
@@ -125,8 +125,8 @@ you as it was the first day."
 
 Files: `P/analyst-alex.md` (record `analyst-alex.yaml`).
 
-"Earlier sessions: weekly for the last five weeks. You open the week's export, rank who matters most
-and find groups from the analysis button in the toolbar, size and color dots by the results from the
+"Earlier sessions: weekly for the last five weeks. You open the week's export, have the program rank who matters most
+and find groups, size and color dots by the results from the
 Style tab of Everything, export the picture and the numbers from the Export dialog, and save the
 project. You know Gephi and NetworkX, so you expect the usual network tools to be in here somewhere,
 and you dislike re-doing the same clicks every week. You have not yet used this program for anything
@@ -137,7 +137,7 @@ beyond that routine. Anything you have not done before is as new to you as it wa
 Files: `P/marketing-analyst.md` (record `marketing-analyst.yaml`).
 
 "Earlier sessions: about six over two months, on customer and community networks. You open a file
-from the start screen, find groups and rank influence from the analysis button in the toolbar, read
+from the start screen, have the program find groups and rank influence, read
 the top names in a run's Values, and color by group from the Style tab of Everything; you export
 pictures for campaign decks from the Export dialog. You often look at one customer's circle: you
 typed the name in the find box and read their list of connections. You have never asked the program

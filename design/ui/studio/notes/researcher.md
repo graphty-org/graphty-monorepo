@@ -26,9 +26,10 @@ made and evidence comes in.
   only. r4-s38 named Mo and Nia before the screen did. The leak check cannot see briefings.
 - 2026-10-11 -- OWED before round 5: r4-s05b, r4-s20b, r4-s28b; runner starts a participant only
   on a free slot, and refuses to run without gate exit 0 and "Gate evidence" in plan.md.
-- 2026-10-11 -- Priming lives in personas and histories too: the nonprofit analyst "checks counts",
-  the student "counts the rows", 6 of 7 T17 histories name "the toolbar". Grep persona, history AND
-  briefing before writing "Priming: none/low".
+- 2026-10-11 -- Priming lives in personas and histories too. T17 histories no longer name "the
+  toolbar" (now "had the program rank who matters most"); the nonprofit analyst's and student's
+  count checks are scored as habit, not unprompted. Grep persona, history AND briefing before
+  writing "Priming: none/low".
 - 2026-10-11 -- T24 7 of 7 by Shift-click (round 3: 2 of 4). Habit-matching controls get used;
   "menu commands are never used" is NOT shown (round 3: 2 of 4 found Select endpoints).
 - 2026-10-11 -- Data table ignores a filter step: sev 2, app, out of bar 10 (no specialist).
@@ -190,6 +191,13 @@ reasons, in short:
   suffix; scored on valid sessions with voids beside; a change credited only on its route; keys
   kept from participants; task words never echo the screen; neutral facts in the element, words in
   the app; personas validate, never generate features.
+
+- 2026-10-11 -- **T17 histories say what was done, not where.** Seven T17 histories said earlier
+  rankings ran "from the analysis button in the toolbar", the same place narrowing starts, so the
+  history pointed at the route. Reworded in `tier2/roster.md`; logged in `tier2/tasks.md` (T17
+  words-changed) and `tier2/criteria.md`. Persona habits (counts) stay but are not scored as
+  unprompted checks. No bar or key route changed. Dana's history (not given T17) still names the
+  toolbar; reword it if Dana is ever given a task that starts there.
 
 ## Tried: worked / did not work
 

@@ -900,3 +900,9 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   key names for T24 was walked on that build. The new prompt's briefed pilots (two a half) were
   not run before the round; the round 4 plan says why and how T24 is reported because of it. No
   bar, floor, step limit, prompt or success path's end state changed.
+- **2026-10-11, before round 5: T17's histories stop naming the toolbar.** Seven of the eight
+  histories of the people given T17 said an earlier ranking ran "from the analysis button in the
+  toolbar", the place where narrowing the drawing also starts. They now say what was done, not
+  where (`roster.md`; `tasks.md`, T17, words-changed log). A count check by the nonprofit analyst
+  or the student, whose personas carry that habit, is scored as their habit, not as unprompted.
+  No bar, floor, step limit, prompt or answer-key route changed.

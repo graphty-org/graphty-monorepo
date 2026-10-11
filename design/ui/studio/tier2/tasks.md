@@ -120,6 +120,15 @@ changes:
       drawing then? Bring every character back when you are done."
 - **Words avoided:** "filter", "keep", "step", "apply", "show", "leave out" (all controls on or
   near the path); the follow-ups add none.
+- **Words changed before round 5 (2026-10-11):** through round 4, seven of the eight histories of
+  the people given T17 said their earlier ranking ran "from the analysis button in the toolbar".
+  That names the place where narrowing the drawing also starts, so it pointed at the route. The
+  histories (`roster.md`) now say only what was done ("had the program rank who matters most"),
+  not where. The prompt, the follow-ups and the answer key are unchanged. The habits written into
+  two personas, the nonprofit analyst who "checks counts" and the student who counts the rows,
+  stay; when scoring T17, a count check by either of them is their habit, not an unprompted
+  check. Round 5 is compared with round 4 on the outcome (graded end state and count); the steps
+  to the first move are compared with that change in mind.
 
 ### T18. The fewest people in between (two datasets)
 

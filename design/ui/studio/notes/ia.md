@@ -7,38 +7,37 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-1. (2026-10-10) Round 3 verdict: the homes hold again (54 of 56; Filters, Replace, Higher means,
-   find's hint all at or near the success path). The one real severity-3 is Shift-click on a node
-   replacing the selection -- graphty-element's, not mine. Do not paper over it with app hints.
-2. (2026-10-10) Proposed for round 4, IA: (a) Analyze search -- name or alias match beats a
-   description match; (b) find's bare number gets "is at least" beside "is", rows read
-   "<column> is 10" with the count right, no "Select where" prefix; (c) a Filters door on the Graph
-   place's toolbar (icon only); (d) step distance in the Hops 2-3 list, from the element.
-3. (2026-10-10) Do NOT change for round 4: Filters' home, Replace's home, load-time Higher means,
-   find's example-rule hint and Enter, rule-named layers, path aliases, Analyze's Recent entry,
-   Filter to neighbors as a command, the Neighborhood doors, "Select endpoints" (confounded with
-   Shift-click until the element fix lands).
-4. (2026-10-10) T24 is a study fault (prompt "point out" vs a key that credits only a selection).
-   Path-marking the two people is a valid answer; nothing in the app to fix there.
-5. (2026-10-10) Readers type the prompt's most prominent data word first: a column name OR a bare
-   number. The find box must turn both into a working rule.
-6. (2026-10-10) A description match is a weak signal; a name or alias match is a strong one. "linked"
-   marked Louvain (description) over Shortest path (alias).
-7. (2026-10-10) Rule of the round still holds: no feature moves, no second door where one is being
-   measured, words at rest go down. Words shown only while typing are not "at rest".
-8. (2026-10-10) Second Find path replacing the first is the interaction designer's call; my one
-   IA point: a command that makes a run should make a new row, never overwrite a sibling.
-9. (2026-10-09) The column is every user's second place. Treat it as a door to existing homes,
-   never a new home. Re-propose column rows in plain find only if 3+ of 8 still stall.
-10. (2026-10-09) Element-first: repeat-edge count, highlight look, hop distance, bare numbers in
-    rules (owner's list, breaking). The app never parses rules, counts duplicates or measures
-    distance.
-11. (2026-10-09) Style lines go only to the layer the row names. One home per layer.
-12. (2026-10-09) A number names its unit and whole; a count under a filter names whose numbers.
-    Open: an edge-only filter step counts only nodes ("20 of 20") -- the chip and step line must
-    count what the step hid.
-13. (2026-10-07) One popover per job, every door opens it; a working door nobody sees is not a door.
-14. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
+1. (2026-10-11) Round 4: 53 of 53 succeeded; bars 9 (b) and 10 fail. My two items: the find box
+   offers "=`10`" for a bare number not in the column, then refuses it (sev 3); with a filter step
+   on, the table lists everything under "41 edges" while every other count says "12 of 41" (sev 2).
+2. (2026-10-11) Proposed for round 5, IA: (a) never offer a rule the element refuses -- check the
+   rewrite before showing it, else the example-rule line; (b) element find offers an "or more" row
+   for any number inside a numeric column's range (additive `FindResult.atLeast`); (c) the table
+   lists what the steps keep and its count reads like the top bar ("12 of 41 edges").
+3. (2026-10-11) Do NOT change for round 5: the toolbar Filters door (7 of 7 first and only door),
+   Shift-click, Filters' and Replace's homes, find's hint and Enter, Analyze search (typing found
+   Shortest path first 15 of 15), Neighborhood in "...", the second path run replacing the first,
+   the key's scope words ("full graph" is a true fact only shown while a step is on).
+4. (2026-10-11) Overlapping labels, dots and ties are graphty-element's (label placement, spacing
+   by drawn size). No app hints, no app hover workarounds.
+5. (2026-10-11) Two "same number, two answers" places in one round (find's suggestion, the table)
+   share one cause: the app shows a thing the element was never asked about. Ask the element
+   first, show second.
+6. (2026-10-11) Study evidence is weaker than it looks: the briefing's file table named Mo and Nia
+   and the unmatched row; personas script count-checking. Discount "noticed unprompted".
+7. (2026-10-10) Readers type the prompt's most prominent data word first: a column name OR a bare
+   number. The find box must turn both into a working rule -- including a number no row holds.
+8. (2026-10-10) A description match is a weak signal; a name or alias match is a strong one.
+9. (2026-10-10) Rule of the round: no feature moves, no second door where one is being measured,
+   words at rest go down. Words shown only while typing are not "at rest".
+10. (2026-10-10) A command that makes a run should make a new row, never overwrite a sibling
+    (second Find path) -- interaction designer's call; not this round.
+11. (2026-10-09) The column is every user's second place: a door to existing homes, never a home.
+12. (2026-10-09) Element-first: repeat-edge count, highlight look, hop distance, numbers in rules.
+    The app never parses rules, counts duplicates or measures distance.
+13. (2026-10-09) A number names its unit and whole; a count under a filter names whose numbers.
+14. (2026-10-07) One popover per job, every door opens it; a working door nobody sees is not a door.
+15. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
     in the Summary; a Style-tab pointer to Label; Size pre-bound to the row's result.
 
 ## Priorities and values
@@ -126,46 +125,15 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   a stale run row gets a mark, and rerun stays per row (no "Rerun all" yet). Reason: one home per
   job; every guess the app makes about a run or a rule is an element defect hidden.
 
-- 2026-10-09 (IA proposal for tier 2 round 2, after round 1): five door fixes, no new places.
-  (1) Start-screen Open of a data file goes to the Data page (intent new), matching the same
-  label inside a project and request.ts's own list of doors. Evidence: T20 7 of 7 took Open;
-  nothing on that route sets a weight's meaning; median 23 vs 22 steps. (2) Replace and Edit
-  source drawn in the source's inspector. Evidence: T21 8 of 8 hunted; left click shows only
-  counts (r1-s29/08.png). (3) Find refusal for condition-shaped text names the rule start.
-  Evidence: T22 4 of 4 typed `col >= 10` and got "No match" (r1-s46/12.png). (4) "Select
-  where..." on the column menu, as a door to the find box. Evidence: the column was every T22
-  user's second place. (5) Out-of-date mark on the key entry. Evidence: two experts, bar 5.
-  Reason for all: each is a door to an existing home; none adds a home or moves one.
-
-- 2026-10-09 (Design Director, tier 2 round 1 decisions, on my proposal): adopted -- start-screen
-  Open of a data file through the Data page (with the risk that opening one's own file gains one
-  step, re-walked in the dry run); the source's "..." menu with Replace and Edit source sharing the
-  row menu's verbs; find's hint to the rule start, decided by the element (`scope.count`), not by
-  app parsing; ", out of date" on the key title only. Rejected -- "Select where..." on the column
-  (confounds the hint; only if the hint fails with 3+ in one place); visible Replace buttons in the
-  inspector body (words at rest). I accept: each reason keeps one variable per path.
-
-- 2026-10-09 (IA proposal for tier 2 round 3, after round 2): seven door and word fixes, no new
-  places, no moves. (1) Plain find lists columns whose name holds the typed word, each opening
-  the rule start; reuses FindBox's `columnOptions`, today gated behind "=". Evidence: 6 of 8 got
-  "No match" for "chapters 10", ">= 10", "minutes" (r2-s12/03.png); 0 of 8 typed "=". (2) Open of a
-  file whose name matches a loaded source offers "Replace <file>" beside "Add to <graph>";
-  the element reports how many added edges duplicate existing ones as a fact. Evidence: r2-s33/05
-  ("makes 20 nodes and 82 edges" with only Add). (3) Edit source page titled "Edit source:" with
-  an edit verb, not "Replace:" (door fidelity). (4) A layer made from a rule is named by the rule,
-  not "13 edges" (7 sessions). (5) Hops list says who is 1 step and who 2 (distance is the
-  element's fact). (6) "Filter to neighbors" again turns the step off, not deletes it; the
-  step's checkbox stays the one home for on/off. (7) Analyze search aliases for the path tool.
-  Reason for all: each is a door or a name for an existing home; none adds or moves one.
-
-- 2026-10-10 (Design Director, tier 2 round 2 decisions, on my proposal): adopted -- path
-  aliases ("linked", "between", "fewest", "chain", "in between"); rule-made layer named by its
-  rule; Filter to neighbors as a plain command; the element's repeat-edge count on prepare()
-  with "Replace <source>" beside Load. Replaced -- column rows in plain find by the example-rule
-  line after a miss plus Enter running a shown rule (no second door while the hint is measured).
-  Rejected -- file-name matching (guess vs element fact). Not taken this round -- Edit source
-  retitle, Hops grouped by step. I accept: each keeps one variable per path and puts facts in
-  the element.
+- 2026-10-09 to 2026-10-10 (tier 2 rounds 1-3 proposals and decisions, summarized 2026-10-11):
+  adopted -- start-screen Open of a data file through the Data page; the source's "..." with
+  Replace and Edit source; find's hint to the rule start decided by the element (`scope.count`);
+  ", out of date" on the key title; path aliases; rule-made layers named by the rule; Filter to
+  neighbors as a plain command; the element's repeat-edge count with "Replace <source>" beside
+  Load; the example-rule line after a miss plus Enter running a shown rule. Rejected -- "Select
+  where..." on the column; visible Replace buttons; file-name matching (guess vs element fact).
+  Not taken -- Edit source retitle; Hops grouped by step. Reason throughout: one variable per
+  path, each change a door or a word for an existing home, facts in the element.
 
 - 2026-10-10 (IA proposal for tier 2 round 4, after round 3): four door and word fixes, no new
   places, no moves. (1) Analyze search shows only name or alias matches when any exist (a
@@ -181,6 +149,19 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
     > step count (1, 2, 3) from the element (an additive fact on the neighborhood selection); evidence
     > r3-s48, figma 18, visual 16 (`visual/path/10.png`). Reason for all: each is a door or a word for an
     > existing home, and each puts the fact in the element.
+
+- 2026-10-11 (IA proposal for tier 2 round 5, after round 4): three fixes, no new places, no
+  moves. (1) FindBox never shows a rule the element refuses: `ruleFromText`'s backtick rewrite is
+  checked with `scope.count` before it is offered; on refusal the example-rule line shows instead.
+  Evidence: `expert/figma/find/04.png` offers "=`10`", `find/08.png` refuses it; T22 A's prompt
+  number (10) is in no bus-stops row. (2) Element (additive): `FindResult.atLeast`, one row per
+  numeric column whose range holds a typed number that is not itself a value
+  ({ kind, path, value, count, target }, the same shape as `FindValueRow.atLeast`); the app renders
+  it with the existing "<column> is N or more (count)" words. Reason: the threshold is a fact over
+  the data; the app must not parse numbers or scan columns. (3) The table's scope follows the
+  filter steps ("visible", not "graph", `TableDock.tsx`), its count "12 of 41 edges" while a step
+  is on. Evidence: `sessions/r4-s27/09.png`, r4-s21. Reason: one number per fact; the step's
+  checkbox stays the one home for on/off. Kept away: the key's scope words, overlaps (element).
 
 ## Tried: worked / did not work
 
@@ -251,6 +232,14 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 - 2026-10-10 -- A task word ("point out") that differs from the key's measure: did not work as a
   study; readers reached another valid answer (path). Check prompt and key together.
 
+- 2026-10-11 (tier 2 round 4) -- Toolbar Filters icon as a door to Data > Filters: worked (T17
+  7 of 7 first and only door, wrong turns 0). Analyze search name/alias first: worked (Shortest
+  path found by typing 15 of 15). Bare-number "or more" row: worked only when the number is a
+  value (r4-s10 on Les Miserables); on bus-stops the app's own suggestion is refused. Hops step
+  distance: not reached in a way that measured it.
+- 2026-10-11 -- A count drawn in three places and a list in a fourth: did not hold. Two readers
+  doubted a right answer because the table disagreed with the chip, the step and the Overview.
+
 ## Thinking
 
 - **Tier 1 IA questions (2026-10-06)** were answered by rounds 1-3: the intake, names and
@@ -278,6 +267,11 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   picture, export the numbers, save and reopen.
 
 ## Sources
+
+- `tier2/rounds/round-4/insights.md`, `scores.md` (bars 9 (b), 10; T17, T22, T23), `expert/figma.md`;
+  screenshots `expert/figma/find/04.png`, `08.png`, `sessions/r4-s27/09.png`;
+  `graph-place/FindBox.tsx` (`ruleFromText`, value rows), `table/TableDock.tsx` (scope),
+  `canvas/legendWords.ts` (`rowName`), graphty-element `session/query.ts` (`atLeastOf`) (2026-10-11)
 
 - `tier2/rounds/round-3/insights.md`, `scores.md`, `expert/figma.md`, `expert/visual.md`,
   `expert/a11y.md`; screenshots `r3-s10/02.png`, `r3-s33/03.png`, `r3-s43/13.png`,

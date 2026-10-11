@@ -68,6 +68,7 @@ import { fileURLToPath } from "node:url";
 import { PNG } from "pngjs";
 
 import {
+    activeInView,
     axeViolations,
     bar10,
     focusOnPage,
@@ -1126,8 +1127,8 @@ async function opEnd(s) {
 }
 // What the studio's bars read on the page as it is now (bars.mjs): axe, controls sharing a name,
 // focus fallen to the page, the app's words on screen, bar 10's cut text and raw strings. A plant
-// ("img", "twins", "blur", "cut", "raw") puts a known failure on the page first and takes it away
-// after, to prove each check can fail.
+// ("img", "twins", "blur", "cut", "raw", "unscroll") puts a known failure on the page first and
+// takes it away after, to prove each check can fail.
 async function measure(s, planted) {
     const { page } = s;
     s.cdp ??= await s.context.newCDPSession(page);
@@ -1138,6 +1139,7 @@ async function measure(s, planted) {
             code: 0,
             data: {
                 focusOnPage: await page.evaluate(focusOnPage),
+                activeInView: await page.evaluate(activeInView),
                 axe: await axeViolations(page),
                 names: await sameNames(s.cdp),
                 words: await page.evaluate(wordsOnScreen),

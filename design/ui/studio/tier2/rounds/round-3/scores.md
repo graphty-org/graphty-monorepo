@@ -200,6 +200,43 @@ path run's inspector 61, limit 66 (70); the neighbor list 33, limit 36 (38); **a
 under the screen's filter step its key now reads "Shortest path, full graph" and the header "of
 nodes", round 3's own scope words, and nothing was removed to make room. Tier 1's screen: 42 (limit 50).
 
+**Corrected counts (2026-10-10).** The counts above included the data's own names: the source
+"friends", the file "team.csv", the column "weight", "Ava's", "Les Miserables". `bars.mjs` now
+leaves out every name the session holds for the data (each source's name and its file name without
+the extension, its tables, the columns the file brought, each node's name), matched as written, so
+the app's own "Weight" label still counts. Re-measured on each round's frozen build
+(`design/ui/studio/tmp/t2r3-r4-04/bars-r1-9462/`, `bars-r2-8f0d/`, `bars-r3-26f3/`):
+
+| Screen                                 | Round 1 (the limit) | Round 2 | Round 3 |
+| -------------------------------------- | ------------------- | ------- | ------- |
+| Tier 1's screen at rest (limit 50)     | 36                  | 36      | 36      |
+| The returning rest screen              | 49                  | 51      | 45      |
+| A path run's inspector                 | 63                  | 67      | 58      |
+| The neighbor list with Hops and Follow | 33                  | 36      | 31      |
+| An edge's inspector                    | 27                  | 31      | **28**  |
+
+`tool/bars-limits.json` now holds round 1's corrected counts. The verdict is unchanged: round 3 is
+under round 1 on three screens and one word over on the edge's inspector; round 2 was over on all
+four.
+
+### Bar 8, the focus actions and the find list, scripted (2026-10-10)
+
+`bars.mjs` now runs the two actions the accessibility specialist found by hand, each proven first
+against a planted drop of focus to the page, and a scroll check proven against the active option
+planted out of view. On 26f3bb968e43 (`tmp/t2r3-r4-04/bars-r3-26f3/sessions/focus-and-scroll-1440x900/`):
+
+- **Focus falls to the page** after Enter on Shortest path, reached by typing "shortest path" in the
+  Analyze list (the fourth row; Enter on the first row, Betweenness, keeps focus on Run).
+- **Focus falls to the page** after choosing Color from Add to Line on a rule selection
+  (`=weight >= 4`, 12 edges).
+- **The find list keeps its active option in view**: 18 ArrowDowns past the 8 visible rows leave
+  "Eli -> Farah" inside the list. So axe's `scrollable-region-focusable` on the find list's viewport
+  (tier 1's "find box with results open") is recorded as an exception: the list is a combobox driven
+  by `aria-activedescendant`, and the keys reach and show every row with no tab stop of its own.
+  The script excuses that hit only while this check holds.
+
+Both focus faults are still there on the current branch build (9ac5f9f3e60f).
+
 **Bar 10's scripted counts** (both widths, every bar 8 screen and the long-names screens): 0 texts
 cut with no way to read them whole (12 more are cut but readable by a tooltip, a title or a copy
 on screen), 0 visible codes or field paths. The glossary's rejected words are not counted by the

@@ -11,6 +11,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **`bars.mjs` now measures bars 8 and 9 as the criteria word them.** Bar 9 leaves
+  out the data's names (source, file stem, tables, imported columns, node names, matched as written
+  so the app's "Weight" still counts). Corrected, round 1 / 2 / 3: rest screen 49 / 51 / 45, path
+  inspector 63 / 67 / 58, neighbor list 33 / 36 / 31, edge inspector 27 / 31 / 28; tier 1 36 on all.
+  `bars-limits.json` now holds round 1's corrected counts; the edge inspector is still one over.
+  Bar 8 runs two new focus actions, each proven on a planted drop: Enter on Shortest path typed
+  into the Analyze list, and Color from Add to Line on a rule selection. **Both FELL on 26f3bb968
+  and on the branch build 9ac5f9f3e: the focus fix (r4-06) goes ahead.** The find list keeps its
+  active option in view after 18 ArrowDowns, so axe's `scrollable-region-focusable` on its
+  viewport is excused, only while that check holds (`tmp/t2r3-r4-04/`, scores.md round 3).
 - (2026-10-10) **A filter step over an edge column counts edges: built** (app only, 8ab196fb3).
   Scripted on 26f3bb968 first: friends, "weight is at least 3" read "20 to 20 nodes" on its row
   and "20 of 20 nodes" on the chip while the element's Overview said "Edges showing 20 of 41"
@@ -46,9 +56,7 @@ picking it selects the 13 ties the file holds at 10 or more (`tmp/t2r3-r4-07/les
 `04.png`). Bars on that build (`tmp/t2r3-r4-07/bars/`): bar 10 no cut text anywhere, find box
 included; words at rest identical to round 3 (42; tier 2 screens 49/61/33/31). It exits 1 on two
 items ALSO failing on round 3's build: axe `scrollable-region-focusable` on the find list's
-  ScrollArea viewport (Mantine viewport has no tabindex; the list is driven by
-  aria-activedescendant, so the fix is in compact-mantine, not done here) and the edge inspector's
-  31 of 30 words.
+  viewport (now an excused exception, top bullet) and the edge inspector one word over.
 - (2026-10-10, condensed) **Built in graphty-element:** after Undo of a re-run, Made with shows
   the restored run (`Run.params`/`seed` read the handle, undo swapped only `runs`;
   `tmp/t2r3-r4-05/fixed/`); Shift-click on a node adds (`SelectionManager.add`; Shift only,
@@ -68,11 +76,6 @@ items ALSO failing on round 3's build: axe `scrollable-region-focusable` on the 
   just pressed it (tooltip opens on pointer entry only) and looks like an empty text field
   (compact-mantine's disabled Button); the repeated-ties warning (built 10-10, top bullet); Escape does nothing on the Data pages. New for the element: sized nodes drawn
   inside each other (layout spaces centers, not sizes) -- the cause under "Farah under Chloe".
-- (2026-10-10) **The dry run must walk what participants do, not last round's list.** 12 of about
-  30 build faults sat on the one detour nobody walked (styling a selection). Round 3: two
-  throwaway pilots per task on the candidate build, script their routes, walk them plus round 2's
-  detours, keyboard-press every control on each screen, and FIX before freeze -- never hand a
-  found fault to a later pass (the find box's second Escape slipped through that way).
 - (2026-10-10, condensed) **Round 3 changes were measured in round 3; edge inspector words 31 of
   30 still OPEN. Round 2's new routes (weight meaning at load, Replace in "...", rule hint) count
   only once a clean round re-measures them; do not reword or move them meanwhile.**
@@ -97,6 +100,13 @@ items ALSO failing on round 3's build: axe `scrollable-region-focusable` on the 
 
 ## Decisions and reasons
 
+- (2026-10-10) **Bar 9's data names are matched as written; ids and values stay case-blind.** The
+  column "weight" and the app's "Weight" label differ only in case, and the label is the app's word.
+  Known ceiling: an app word spelled exactly like a data name ("Loaded weight") is left out too.
+  Result columns ("PageRank") count: their names are the app's or the catalog's, not the file's.
+  The limits were re-measured on round 1's build rather than kept, so every round is counted by one
+  rule. The axe exception is code, not a note: excused only while the scroll check holds and only
+  on the find list's viewport, so a regression in the list's scrolling brings the hit back.
 - (2026-10-10) **A warning that changes what Load does is part of Load's description, and the
   warning glyph marks it.** One `aria-describedby` list built from the ids that show (blocked
   reason, repeats), so a screen reader on Load hears why the button may surprise; the glyph is
@@ -147,18 +157,10 @@ items ALSO failing on round 3's build: axe `scrollable-region-focusable` on the 
   (the TopBar Export and toolbar pattern); the click handler returns early. Only the exact reach
   disables it: at another reach a press moves the one step there, which is a change.
 
-- (2026-10-10) **A notice that describes the selection ends with it, by a flag on the notice.** Not
-  by matching its words and not by a second notice slot: one optional field, set by the one
-  command whose words describe the selection, read by the listener that already announces
-  selections. A notice about anything else is not taken down by a selection.
-
-- (2026-10-10) **A scrolling pane with a header row reserves its gutter** (`scrollbar-gutter:
-stable`), rather than moving the header out of the pane: one CSS line, and the Add and Replace
-  pages share the pane. Costs 15 px of table width when nothing overflows.
-- (2026-10-10) **One focus request for a find pick, not one per kind.** The pick sets it, and
-  whichever view the selection draws (node or edge) takes it once; a second flag per kind would
-  let a stale node request fire on a later node view. The edge view consumes it only once the
-  edge record exists, so an early render with no record does not swallow it.
+- (2026-10-10, condensed) **A selection notice ends with the selection** by one flag on the
+  notice, never by matching words. **A scrolling pane with a header row reserves its gutter**
+  (`scrollbar-gutter: stable`, 15 px). **One focus request per find pick**, taken once by whichever
+  view (node or edge) draws, the edge view only once its record exists.
 
 - (2026-10-10, condensed) **Announcements, scope words.** A repeated announcement is keyed by a
   counter in `store.set` (no clear-then-refill timer; the live region stays mounted). Scope words
@@ -235,6 +237,9 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
 
 ## Thinking
 
+- (2026-10-10) The dry run must walk what participants do, not last round's list: 12 of about 30
+  build faults sat on the one detour nobody walked (styling a selection). Pilot each task on the
+  candidate build, script the routes, keyboard-press every control, and fix before freeze.
 - (2026-10-10) Round 2's study leak biases one way: a problem found anyway is solid, a route that
   worked proves little. So treat every round 2 "pass" on a new route as unmeasured, and every
   confirmed failure as real.
@@ -245,6 +250,13 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
 
 ## Tried: worked / did not work
 
+- (2026-10-10) **Scripting the Analyze focus drop.** Did not work: typing "shortest path" and
+  Enter (the first row is Betweenness, which keeps focus on Run); Shift+A while the find box has
+  focus (types "A" into the find). Worked: `--click role=button:Analyze`, type, three ArrowDowns,
+  Enter, `--expect role=button:Find path` (the expect fails the move if a build reorders the rows).
+  `--click` is refused in an `--sr` session; explore with keys there, then walk without `--sr`.
+  A new tool check that reads the page goes in `measure.mjs` with a planted case in `plant()`, and a
+  browser test beside it (`bar8-9.test.mjs`) that fails on the old code.
 - (2026-10-10) **Reaching "Add to <graph>" in real.mjs.** Did not work: `--drop` on the Graph
   canvas (nothing takes it), `--click "Add data"` in the Data place (the Sources "+" is not
   rendered for a loaded project). Worked: `--key Control+k`, `--type "Add data"`, `--key Enter`,
@@ -256,49 +268,22 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   `--expect "described=<text>"` in real.mjs (CDP's AX node `description` of the focused control).
   A pointer click is not focus-visible, so Mantine's focus opening does not fire on it; to test
   what a keyboard user hears, reach the control by Tab or Shift+Tab.
-- (2026-10-10) **Tried: test data keyed `shared_chapters` in an element unit test. Did not work
-  as written:** lint's camelcase rule flags the key, prettier strips quotes, and a literal
-  computed key trips no-useless-computed-key. Worked: a `const WEIGHT = "shared_chapters"` and
-  `[WEIGHT]:`.
-- (2026-10-10) **Tried: Shift-add through the session only. Did not work.** The manager's
-  `select()` skipped a click on a node when its OWN index held one node, so click C, Shift A,
-  click C left {A, C}. Fixed by counting `selection.size` from the session. The interaction test
-  covers both (each half fails alone without its fix, checked by reverting).
-- (2026-10-10, condensed) **Audit walks:** one data line per walk (`engineer/walks.txt`), each its
-  own session calling real.mjs directly, all queued at once on the shared slots. Name collisions:
-  `role=option:weight`, `"Source#1"`; "Graph" is both rail button and heading.
-- (2026-10-10, condensed) **Real.mjs and probe lessons.** A missed notice did not reproduce by
-  route (11 walks); probing worked: copy the frozen build, `chmod -R u+w`, add `console.error`
-  probes in the bundle (real.mjs prints them with page times). Read the pilot agent's own commands
-  in `.claudehistory/.../agent-*.jsonl` before trusting a triage row's route. `--hover` right after
-  `--click` on the same button gives `tooltip: null`; hover elsewhere first. A click on an
-  `aria-disabled` button is refused ("element is not enabled"). Escape in the find box only empties
-  it; put a clear and a new selection in one `--step` (a 6 s wait proves nothing about a notice).
-  Focus tests: `userEvent.click(document.body)`, not `document.body.focus()`.
-- (2026-10-10, condensed) **Test lessons.** Headless vitest Chromium hides scrollbars, so assert
-  computed `scrollbar-gutter` and measure on real.mjs shots. Test rings load directed (" -> "
-  joiner). Use `MutationObserver.takeRecords()` before `disconnect()`; `textContent?.trim()` in the
-  tool's observer (a document record has null text). Read the failure screenshot before changing
-  code.
-- (2026-10-10) Worked: real.mjs runs need no helper and no `rm -rf` (the safety check refuses a
-  variable path); pick a fresh session folder. With all four browser slots held by others,
-  `--start` waits ("waiting for a free browser slot"); it is not hung.
+- (2026-10-10, summarized) **Smaller lessons from 10-10.** Lint wants a test key like
+  `shared_chapters` as `const WEIGHT = "shared_chapters"` and `[WEIGHT]:`. Shift-add needed
+  `selection.size` from the session (the manager's own index skipped a click). Audit walks: one
+  data line per walk, each its own real.mjs session; names collide (`role=option:weight`,
+  "Graph" is rail button and heading). Probing a frozen build: copy it, `chmod -R u+w`, add
+  `console.error` probes; read the pilot's own commands in `.claudehistory` before trusting a
+  route; `--hover` right after `--click` gives `tooltip: null`; a click on `aria-disabled` is
+  refused; Escape in the find box only empties it. Tests: headless vitest hides scrollbars (assert
+  computed `scrollbar-gutter`); `MutationObserver.takeRecords()` before `disconnect()`; read the
+  failure screenshot first; a real-element test with real typing for every path a unit adds;
+  anchor scripted edits on a line unique to the test; prove a test fails without the change
+  (`git show HEAD:<file>` beside it). real.mjs needs no helper; `--start` waits for a free slot,
+  not hung. Another agent's rebuild breaks tsc, vitest and `bars.mjs` mid-run: copy the dist or
+  rerun. Resuming after an interruption: check `git log`, the round folder and `tmp/<task>/` first.
+  Script a finding on the frozen build before reading the suspect code.
 
-- (2026-10-10) **Shared-worktree builds:** another agent's rebuild breaks tsc, vitest imports and
-  `bars.mjs` mid-run; copy the dist or rerun after their build exits. Measure word arithmetic on
-  screen.
-- (2026-10-10) Worked: scripting a finding on the frozen build before reading the suspect: the
-  task blamed the app's draft, the script (Find path twice, Control+z) showed no draft was ever
-  written. A failing element test first (`test/session/history/runs.test.ts`, 'n2' for 'n1').
-- (2026-10-10, condensed) Prove a test fails without the change (`&& false`, or `git show
-HEAD:<file>` over the source, run, copy the new file back). A backtick-typed rule shows only
-  "Rule: press Enter to select matches", no option row.
-- (2026-10-10) Worked: a real-element test with real typing for every path a unit adds (the
-  backtick-typed condition failed only there).
-- (2026-10-10) Resuming after an interrupted session: check `git log`, the round folder and
-  `tmp/<session>/` before redoing a task (focus-after-actions was already on the branch, 7f61a2ab2).
-- (2026-10-10) Anchor scripted test edits on a line unique to the test (a shared line got the
-  assertion in two tests).
 - (2026-10-09, summarized 2026-10-10) **Probes before code.** Subagent logs:
   `~/.claude/projects/<proj>/<session>/subagents/workflows/wf_*/agent-*.jsonl`. Axe probe as a
   throwaway compact-mantine test before CSS. Pixel checks from public API only

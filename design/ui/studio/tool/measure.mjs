@@ -53,7 +53,9 @@ export function workGone(start, end) {
 }
 
 // Bar 9: the app's own words on screen -- visible light-DOM text outside graphty-element, one entry
-// per word -- with the data's words (ids and values) and numbers left out
+// per word -- with the data's words and numbers left out: ids and values, and the names the session
+// holds for the data (each source's name, its file name without the extension, its tables, the
+// columns the file brought, each node's name; "Ava's" is the name Ava)
 export function wordsOnScreen() {
     const el = document.querySelector("graphty-element");
     const data = new Set();
@@ -65,6 +67,21 @@ export function wordsOnScreen() {
         add(n.id);
         for (const v of Object.values(n.data ?? {})) add(v);
     }
+    // names match as written, so a column "weight" leaves the app's own "Weight" label counted
+    // ponytail: an app word spelled exactly like a data name ("Loaded weight") is left out too
+    const names = new Set();
+    const name = (v) => {
+        for (const w of String(v ?? "").split(/\s+/)) if (w) names.add(w);
+    };
+    const d = el?.session?.data;
+    for (const x of d?.sources?.() ?? []) {
+        name(x.name);
+        name(x.name?.replace(/\.\w+$/, ""));
+        for (const t of x.tables ?? []) name(t);
+    }
+    for (const a of d?.attributes?.() ?? []) if (a.origin === "imported" || a.origin === "joined") name(a.name);
+    for (const n of d?.nodes?.() ?? []) name(d.name(n.id));
+    const isData = (w) => data.has(w.toLowerCase()) || names.has(w) || names.has(w.replace(/['\u2019]s$/, ""));
     const words = [];
     const left = [];
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -87,7 +104,7 @@ export function wordsOnScreen() {
         for (const raw of t.textContent.split(/\s+/)) {
             const w = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
             if (!w) continue;
-            if (/\d/.test(w) || data.has(w.toLowerCase())) left.push(w);
+            if (/\d/.test(w) || isData(w)) left.push(w);
             else words.push(w);
         }
     }
@@ -193,9 +210,43 @@ export function focusOnPage() {
     return !a || a === document.body || a === document.documentElement;
 }
 
+// Bar 8: the option a focused list box points at (aria-activedescendant, through shadow roots) is
+// inside the visible part of every box that scrolls it: { option, inView }, or null when focus points
+// at no option. Axe flags a scrolling list with no tab stop of its own; a list driven by
+// aria-activedescendant needs none as long as the keys that move the option also scroll it.
+export function activeInView() {
+    let a = document.activeElement;
+    while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
+    const id = a?.getAttribute("aria-activedescendant");
+    const o = id && a.getRootNode().getElementById(id);
+    if (!o) return null;
+    const b = o.getBoundingClientRect();
+    let inView = b.top >= 0 && b.bottom <= innerHeight;
+    for (let p = o.parentElement; p && inView; p = p.parentElement) {
+        if (!/auto|scroll|hidden/.test(getComputedStyle(p).overflowY)) continue;
+        const r = p.getBoundingClientRect();
+        inView = b.top >= r.top - 1 && b.bottom <= r.bottom + 1;
+    }
+    return { option: o.textContent.replace(/\s+/g, " ").trim().slice(0, 80), inView };
+}
+
 // Planted failures, so a check that cannot fail is caught: an image with no text alternative (axe),
-// two buttons of one name, focus dropped to the page, a clipped name and an element code (bar 10)
+// two buttons of one name, focus dropped to the page, a clipped name and an element code (bar 10),
+// and the active option scrolled out of its list ("unscroll")
 export function plant(kind) {
+    if (kind === "unscroll") {
+        let a = document.activeElement;
+        while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
+        const o = a?.getRootNode().getElementById(a.getAttribute("aria-activedescendant") ?? "");
+        for (let p = o?.parentElement; p; p = p.parentElement)
+            if (p.scrollHeight > p.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(p).overflowY)) {
+                // to the top, or to the bottom when the option is near the top
+                p.scrollTop = 0;
+                if (o.getBoundingClientRect().bottom <= p.getBoundingClientRect().bottom) p.scrollTop = p.scrollHeight;
+                return;
+            }
+        return;
+    }
     if (kind === "blur") {
         let e = document.activeElement;
         while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement;

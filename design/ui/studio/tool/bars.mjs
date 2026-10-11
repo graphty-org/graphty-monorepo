@@ -7,9 +7,13 @@
 //          that read no weight must give the same answer as on the table with no weight column
 //   bar 8: axe-core (tags wcag2a, wcag2aa, wcag21aa, wcag22aa) on tier 1's core screens and tier 2's
 //          screens -- a serious or critical violation fails; on tier 2's screens also no two
-//          reachable controls sharing an accessible name, and focus never fallen to the page after
-//          the actions the criteria list
-//   bar 9: the app's own words on screen at rest, data values, names and numbers left out: (a) tier
+//          reachable controls sharing an accessible name, focus never fallen to the page after
+//          the actions the criteria list, and the find list's active option scrolled into view when
+//          ArrowDown passes the visible rows. When that scroll check holds, axe's
+//          scrollable-region-focusable on the find list's viewport is an exception: the list is a
+//          combobox driven by aria-activedescendant, so the keys reach every row with no tab stop
+//   bar 9: the app's own words on screen at rest, data values, names (sources, files, tables,
+//          columns and nodes, read from the session) and numbers left out: (a) tier
 //          1's screen (Les Miserables, nothing selected, 1440 x 900) at most 50; (b) tier 2's four
 //          screens no higher than round 1's counts in bars-limits.json
 //   bar 10 (scripted counts): on every bar 8 tier 2 screen and on long-names.csv's Data place, a
@@ -23,7 +27,8 @@
 // --scheme picks the app's color scheme for tier 1's screens (dark, the app's default, when left
 // out). Tier 2's screens are walked with real.mjs sessions (REAL_DIST=<build dir>), each in its own
 // browser slot. Before a check is trusted it must fail on a planted case: an image with no text
-// alternative (axe), two buttons of one name, focus dropped to the page, a clipped name and an
+// alternative (axe), two buttons of one name, focus dropped to the page (also after each action
+// added for the focus check), the active option scrolled out of the find list, a clipped name and an
 // E_BAD_SELECTOR string (bar 10), a wrong weight reading of each kind; and a check that reads zero
 // items fails. Every planted case is printed with whether it was caught, and where. Writes <out dir>/bars.json and prints a
 // summary; exit 1 when a bar fails, a screen was not reached or a planted case was not caught.
@@ -496,6 +501,58 @@ const WALKS = [
         ],
     },
     {
+        // the focus check's actions found by hand in round 3, and the find list's scrolling; measured
+        // at the first window size only, each focus action proven against a planted drop
+        name: "focus-and-scroll",
+        setup: "friends-pagerank.txt",
+        only: SIZES[0],
+        moves: [
+            {
+                do: steps(
+                    "--key /",
+                    "--type weight >= 4",
+                    "--key ArrowDown",
+                    "--key Enter",
+                    "--expect 12 edges selected",
+                    "--click role=tab:Style",
+                    "--click Add to Line",
+                    "--click role=menuitem:Color",
+                ),
+                focus: "Color chosen from Add to Line on a rule selection",
+                proveFocus: true,
+            },
+            {
+                // 18 rows down: past the 8 the list shows at 1440 x 900
+                do: steps(
+                    "--key Escape",
+                    "--key Escape",
+                    "--key Escape",
+                    "--key /",
+                    "--key Control+a",
+                    "--type a",
+                    ...Array(18).fill("--key ArrowDown"),
+                ),
+                scroll: "the find list after ArrowDown past its visible rows",
+            },
+            {
+                // "shortest path" matches four descriptions; Shortest path is the fourth row on round
+                // 3's build. The --expect fails the move if a build orders the rows otherwise.
+                do: steps(
+                    "--key Escape",
+                    "--click role=button:Analyze",
+                    "--type shortest path",
+                    "--key ArrowDown",
+                    "--key ArrowDown",
+                    "--key ArrowDown",
+                    "--key Enter",
+                    "--expect role=button:Find path",
+                ),
+                focus: "Enter on Shortest path, found by typing 'shortest path' in the Analyze list",
+                proveFocus: true,
+            },
+        ],
+    },
+    {
         // names of 40 or more characters and a 30-character column name
         name: "long-names",
         setup: null,
@@ -533,6 +590,7 @@ async function walkTier2(base) {
     const screens = {};
     const names = {};
     const focus = {};
+    const scroll = {};
     const words = {};
     const cut = {};
     const raw = {};
@@ -542,6 +600,7 @@ async function walkTier2(base) {
     for (const size of SIZES)
         for (const w of WALKS) {
             const first = size === SIZES[0];
+            if (w.only && w.only !== size) continue;
             const dir = join(base, `${w.name}-${size}`);
             await rm(dir, { recursive: true, force: true });
             let r = real(size, "--start", dir, w.setup ? `setup:${w.setup}` : "empty");
@@ -552,7 +611,7 @@ async function walkTier2(base) {
             let lost = false;
             try {
                 for (const m of w.moves) {
-                    const label = `${m.screen || m.audit || m.focus || m.words || m.do.join(" ")} at ${size}`;
+                    const label = `${m.screen || m.audit || m.focus || m.scroll || m.words || m.do.join(" ")} at ${size}`;
                     if (lost) {
                         log.push(`MISS ${label}: an earlier move missed`);
                         continue;
@@ -564,7 +623,7 @@ async function walkTier2(base) {
                         log.push(`MISS ${label}: ${r.out.split("\n").filter((l) => MISSED.test(l))[0]} (${shot})`);
                         continue;
                     }
-                    if (!m.screen && !m.audit && !(first && (m.focus || m.words))) continue;
+                    if (!m.screen && !m.audit && !(first && (m.focus || m.words || m.scroll))) continue;
                     const { data } = await ask(dir, { op: "measure" });
                     if (m.plant) {
                         // bar 10: a planted clipped name and a planted code, each found by screen and element
@@ -607,6 +666,21 @@ async function walkTier2(base) {
                         names[m.screen] = data.names.shared;
                     }
                     if (m.focus) focus[m.focus] = data.focusOnPage;
+                    if (m.proveFocus) {
+                        const b = (await ask(dir, { op: "measure", plant: "blur" })).data;
+                        if (b.focusOnPage) caught.push(`focus dropped to the page: caught after "${label}"`);
+                        else planted.push(`the focus check missed focus dropped to the page after "${label}"`);
+                    }
+                    if (m.scroll) {
+                        scroll[m.scroll] = data.activeInView;
+                        const u = (await ask(dir, { op: "measure", plant: "unscroll" })).data;
+                        if (u.activeInView?.inView === false)
+                            caught.push(`the active option scrolled out of view: caught on "${label}"`);
+                        else
+                            planted.push(
+                                `the scroll check missed the active option scrolled out of view on "${label}"`,
+                            );
+                    }
                     if (m.words) words[m.words] = data.words;
                     log.push(`ok   ${label} (${shot})`);
                 }
@@ -614,7 +688,7 @@ async function walkTier2(base) {
                 real(size, "--end", dir);
             }
         }
-    return { screens, names, focus, words, cut, raw, log, planted, caught };
+    return { screens, names, focus, scroll, words, cut, raw, log, planted, caught };
 }
 
 async function outer() {
@@ -636,8 +710,25 @@ async function outer() {
     const weightProblems = judgeWeights(inn.weights);
     const weightPlantsMissed = plantedWeights();
     const notFinished = inn.weights.filter((r) => r.status !== "succeeded");
-    const t1Failing = Object.values(inn.screens).flat().filter(serious);
-    const t2Failing = Object.values(t2.screens).flat().filter(serious);
+    const scrolled = Object.entries(t2.scroll).filter(([, a]) => !a?.inView);
+    // axe's scrollable-region-focusable on the find list's viewport, excused only while the scroll
+    // check shows the keys bring every row into view
+    const excused = (v) =>
+        Object.keys(t2.scroll).length > 0 &&
+        !scrolled.length &&
+        v.id === "scrollable-region-focusable" &&
+        v.nodes.every((n) => n.html.includes("ws-find-viewport"));
+    const exceptions = [...Object.entries(inn.screens), ...Object.entries(t2.screens)].flatMap(([k, vs]) =>
+        vs.filter(excused).map((v) => `${k}: ${v.id} on ${v.nodes.map((n) => n.target).join(", ")}`),
+    );
+    const t1Failing = Object.values(inn.screens)
+        .flat()
+        .filter(serious)
+        .filter((v) => !excused(v));
+    const t2Failing = Object.values(t2.screens)
+        .flat()
+        .filter(serious)
+        .filter((v) => !excused(v));
     const shared = Object.entries(t2.names).filter(([, g]) => g.length);
     const fell = Object.entries(t2.focus).filter(([, f]) => f);
     const counts = Object.fromEntries(Object.entries(t2.words).map(([k, v]) => [k, v.words.length]));
@@ -661,7 +752,14 @@ async function outer() {
                 tags: AXE_TAGS,
                 screens: inn.screens,
                 wordsAtRest: inn.rest,
-                tier2: { screens: t2.screens, sharedNames: t2.names, focusOnPage: t2.focus, words: t2.words },
+                tier2: {
+                    screens: t2.screens,
+                    sharedNames: t2.names,
+                    focusOnPage: t2.focus,
+                    activeOptionInView: t2.scroll,
+                    words: t2.words,
+                },
+                exceptions,
                 bar10: { cut: t2.cut, raw: t2.raw },
                 planted: { caught: t2.caught, missed: untrusted },
                 weights: { problems: weightProblems, notFinished, runs: inn.weights },
@@ -694,6 +792,14 @@ async function outer() {
     if (!shared.length) console.log("  none");
     console.log("bar 8, focus fallen to the page after:");
     for (const [name, f] of Object.entries(t2.focus)) console.log(`  ${f ? "FELL" : "kept"} ${name}`);
+    console.log("bar 8, the find list's active option after ArrowDown:");
+    for (const [name, a] of Object.entries(t2.scroll))
+        console.log(
+            `  ${a?.inView ? "in view" : a ? "OUT OF VIEW" : "NO ACTIVE OPTION"} ${name}${a ? `: "${a.option}"` : ""}`,
+        );
+    console.log("bar 8, axe hits excused by the scroll check:");
+    for (const e of exceptions) console.log(`  ${e}`);
+    if (!exceptions.length) console.log("  none");
     console.log(
         `\nbar 9 (a): ${inn.rest.words.length} app words at rest (target <= 50); ${inn.rest.left.length} data words and numbers left out`,
     );
@@ -724,6 +830,7 @@ async function outer() {
         t2Failing.length ||
         shared.length ||
         fell.length ||
+        scrolled.length ||
         inn.rest.words.length === 0 ||
         inn.rest.words.length > 50 ||
         over.length ||

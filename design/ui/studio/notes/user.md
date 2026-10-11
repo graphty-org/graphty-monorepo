@@ -12,35 +12,30 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- 2026-10-11 -- Round 4 does not start until the study's gate works: prompt pilots run, the leak
-  check fails when it reads no log, --end never deletes notes, each shown failing on a planted
-  fault. A broken measurement decided more of round 3 than the app did.
-- 2026-10-11 -- T24 re-runs with the prompt changed, not the key: "point out Gus and Ivan, and
-  nobody else, so that whatever you do next applies only to those two". Watch: does the outcome
-  wording lead people to the control (wording echo), and do both pilots per half pass the key.
-- 2026-10-11 -- Shift-click on a node now adds (element, matching edges). Ctrl/Meta held. Watch in
-  round 4: does anyone try Ctrl first and stall? If so, Ctrl is the next ask, not an app patch.
-- 2026-10-11 -- Find box: a bare "10" gets an element fact `atLeast` and an "is 10 or more (N)" row;
-  "Select where" leaves the visible text. Watch T22 on Les Miserables: first-pick rate of the "or
-  more" row, and zero cut rows in bars.mjs.
-- 2026-10-11 -- Filters: a toolbar icon (tooltip "Filters") opening the existing step editor, not my
-  layer-list row (that adds words at rest and reads as a second home). Watch T17 first moves against
-  round 3's 5 of 8 looking on the Graph place; an icon-only button may still be missed.
-- 2026-10-11 -- Second Find path replacing the first: no notice this round (lost nothing in 7 of 7).
-  I accepted it. Instead the "Made with" staleness after re-run/Undo is scripted first; a screen
-  naming settings of a run that is gone is the trust break I care about more.
-- 2026-10-11 -- One variant per problem, every one-specialist claim scripted first, words at rest
-  never rise. Three changes (5, 11, 12) are script-gated: if they do not reproduce, they close.
-- 2026-10-11 -- Analyze search: name/alias matches first, one "Start here" while filtering. Watch
-  bar 11 on T18 ("path" should land on Shortest path in one move).
-- 2026-10-11 -- Rule language is copied, never discovered (0 of 16 typed "=" across rounds 2-3).
+- 2026-10-11 -- Round 4 after checks: 53 of 53 valid sessions passed; bar 10 fails on two sev 3s
+  (drawn names over ties and dots; find box offering a rule it refuses), bar 9 (b) by two words.
+- 2026-10-11 -- Find box: the element's "add backticks" suggestion for a bare "10" is "`10`", a
+  literal that is no condition, so the box offers it and then refuses it. Fix it in the element
+  (suggest only a rewrite that reads), plus an additive "or more" row for any number inside a
+  numeric column's range. T22 A's own number (10 on bus-stops) is not a value in the file.
+- 2026-10-11 -- With a filter step on, the table should list what is showing: the element already
+  has the "visible" scope; TableDock passes "graph". One line, no new words.
+- 2026-10-11 -- Bar 9 (b): do not cut trust words ("full graph" under a filter: a path can run
+  through hidden nodes) to pass a word count; check round 1 measured that screen in the same state.
+- 2026-10-11 -- Briefings leak (file table with contents, --shift-click, toolbar-pointing
+  histories). Every "noticed unprompted" claim from rounds 3-4 is discounted until fixed.
+- 2026-10-11 -- Kept, do not touch: Shift-click adds (T24 7 of 7), toolbar Filters icon (7 of 7
+  first door), second path replacing the first with no notice, Analyze name ranking, Replace page.
+- 2026-10-11 -- Rule language is copied, never discovered (0 of 16 typed "=" in rounds 2-3).
   Every T22 route must work without knowing it; the syntax itself stays on the owner's list.
+- 2026-10-11 -- One variant per problem, every one-specialist claim scripted first, words at rest
+  never rise.
 - 2026-10-09 -- Simulated passes are weak; failures and script repros count. One model's seven
   matching asides are one voice, not seven.
-- 2026-10-09 -- Known to keep failing bar 10: drawn names overlapping (element label placement,
-  owner's list). The app must not hide it with small fonts or a seed.
+- 2026-10-09 -- Drawn names overlapping ties and dots (element label placement, owner's list). The
+  app must not hide it with small fonts, a seed or setups that turn names off.
 - 2026-10-07 -- Top risk still: a picture that looks right and answers wrong (stale key, stale
-  "Made with", overlapping names, a Load that doubles ties -- now a real warning on Load).
+  "Made with", overlapping names, a table that disagrees with the drawing).
 - 2026-10-06 -- No tours, hint panels or first-run aids; same screens for everyone. Grade from what
   ended on screen; task wording never reuses the target's screen words.
 
@@ -101,6 +96,16 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- 2026-10-11 (me, tier 2 round 4 critique) -- Four changes, smallest first: (1) the element's
+  `number-needs-backticks` refusal suggests a rewrite only when it reads as a condition (a bare
+  "10" gives "`10`", which the box then refuses: expert/figma/find/08.png); (2) additive optional
+  "or more" rows in `find()` for a number inside a numeric column's range, rendered by FindBox like
+  today's row; (3) the table reads scope "visible" (r4-s27/09.png: "41 edges" under "12 of 41");
+  (4) study: gate enforced, slot-aware start, file table names files only, histories stop naming
+  the toolbar, owed re-runs. Not changed: label overlap (element, owner), scope words, every sev 2
+  load/direction/Degree/save item, Shift-click, Filters icon. Reason: each targets a confirmed
+  failure on the route a returning user takes from memory (type the number; check the table).
+
 - 2026-10-11 (Design Director, round 3 close; my position after) -- Twelve changes, study first:
   gate and leak check (sev 4), T24 prompt reworded to name the outcome (sev 4), element Shift-click
   adds (Ctrl/Meta held: macOS Ctrl-click is a context menu), bars 8/9 fixed, "Made with" after
@@ -128,18 +133,9 @@ something, or change my mind. Summarize when it passes about 25 KB.
   the starting look comes from the element's own highlight (no app-invented value), and my opt-in
   bare-number idea is rightly dropped (a capability, not a choice). I accept holding "Select
   where..." until round 3 shows 3+ of 8 still stall.
-- 2026-10-09 (me, tier 2 round 2 critique) -- Round 3 changes, smallest first: (1) the app's
-  starting Width and Color for a new line row must draw visibly different from an unstyled tie
-  (an app choice, not an element default; r2-s14/15.png, 4 of 8 T22 spent steps); (2) the
-  element's rule parser accepts a bare number and returns neutral facts for an unknown column and
-  for text that parses as a condition, so the app can word "Did you mean =shared_chapters >= 10?"
-  (r2-s12/03.png, 6 of 8; additive); (3) the element reports how many incoming rows duplicate
-  existing edges, and the Add page words it and offers Replace there (r2-s33/05.png: "adds 0
-  nodes, 41 edges ... 82 edges" with Load as the primary button; additive); (4) a layer made from
-  a find rule is named by the rule, not its count. Not changed: Filters, the load-time weight,
-  the Replace page, the source "..." menu, Shortest path's place. Reason: each fix targets a
-  confirmed failure on a route participants took; the routes that worked stay so round 3 can
-  credit them once the briefing is enforced.
+- 2026-10-09 (me, tier 2 round 2 critique; summarized 2026-10-11) -- Asked: a visible starting
+  look for a new line row, element facts for a bare number and an unknown column, a repeat-edge
+  count with Replace on the Add page, rule-named layers. Three of four landed in round 3.
 - 2026-10-09 (Design Director, round 1 close; my position after) -- Round 2 starts only after the
   study tool is fixed, the bar scripts are built and a detour dry run (pointer and keyboard) is
   written on the new build. App changes: find refusal words; "..." with Replace on the source
@@ -169,20 +165,9 @@ something, or change my mind. Summarize when it passes about 25 KB.
   rounds. Reason for all: a returning user's repeat work is judged by repeat cost and kept habits,
   and every check the owner asked for must decide something.
 
-- 2026-10-07 (studio, round 2 decisions; I agree) -- Twelve changes for round 3, in the package
-  that owns each cause: menu-dialog focus (compact-mantine Menu), key omits a fully covered layer
-  (element legend), 2D Fit frames the graph (element camera), group layouts accept community
-  results through the existing `optionsFor` (element) rendered by the app, load and run finished
-  announcements (app), the drawing named with a focus ring (element), Size "+" opens its picker
-  (app), row glyph inside the row (compact-mantine DataRow), runs named by method (app),
-  "Show all labels" writing the element's existing declutter setting (app), study tool hears the
-  active option, answer key re-recorded. Not changed: Force still cloud (trace first), 4x export
-  (element, later), key placement and seed, toolbar, hover, Analyze words. Reason: smallest
-  reproduced fixes on the first-time path, no redesign. My view: matches my order; the
-  "Show all labels" switch passes my test because it visibly changes the drawing and is not
-  novice-only. T10 kept its prompt -- I had asked to reword it; the studio's reason (a real goal
-  that now measures a real fix) is better, and I accept it.
-
+- 2026-10-07 (studio, tier 1 round 2 decisions; summarized 2026-10-11) -- Twelve fixes in their
+  owning packages (menu focus, key omits covered layer, 2D Fit, finished announcements, "Show all
+  labels" writing the element's declutter setting). I agreed; T10 kept its prompt.
 - 2026-10-07 (me, tier 1 round 2 critique; summarized 2026-10-09) -- Order: menu-to-dialog
   focus, Force re-apply and 2D Fit, groupings as an element fact, key omits a fully covered
   layer, Size "+" opens its picker, chevron inside the row, finished announcements. Reason:
@@ -244,6 +229,12 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Tried: worked / did not work
 
+- 2026-10-11 -- TIER 2 ROUND 4. WORKED: Shift-click adds (T24 2 of 4 to 7 of 7, median 4 steps);
+  toolbar Filters icon (7 of 7 first door, 0 wrong turns); Les Miserables "or more" row taken. DID
+  NOT: the gate again (not run, not enforced); 3 sessions lost to the browser-slot wait; briefings
+  leaking file contents; find box on a number that is not a value. My round 3 watch list was
+  answered on T24 and T17; nobody tried Ctrl first.
+
 - 2026-10-11 -- DID NOT WORK: proposing several variants per problem (eight roles, up to four
   each). Stacked, round 4 could not credit any one. One path per problem, the rest held by name.
   WORKED: my round 3 critique's ranking matched the final list on 5 of 7 items.
@@ -277,6 +268,10 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Thinking
 
+- 2026-10-11 -- A returning user types what they remember (a number, a name). The find box must
+  answer that literal input on any file, not only when the number happens to be a stored value.
+  Watch round 5: T22 A on bus-stops, first move "10".
+
 - 2026-10-11 -- Round 4 watch list: T24 (prompt pilots pass the key? anyone try Ctrl?), T22 (picks
   the "or more" row first?), T17 (first move on the new toolbar icon or still Layout?), T18 (one
   move to Shortest path; "Made with" true after Undo). If T24 still splits on "point out", the
@@ -295,6 +290,11 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Sources
 
+- `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md`, `expert/*.md`; screenshots
+  `expert/figma/find/08.png`, `sessions/r4-s27/09.png`, `sessions/r4-s08/02.png`; code
+  `graphty/src/workspace/graph-place/FindBox.tsx` (ruleFromText, backtickSuggestion),
+  `graphty/src/workspace/table/TableDock.tsx:349`, `graphty-element/src/session/query.ts` (atLeastOf),
+  `graphty/src/workspace/canvas/legendWords.ts:336` (2026-10-11).
 - `design/ui/studio/tier2/rounds/round-3/decisions.md` (2026-10-11).
 
 - `design/ui/studio/tier2/rounds/round-3/insights.md`, `scores.md`, `expert/*.md`; screenshots

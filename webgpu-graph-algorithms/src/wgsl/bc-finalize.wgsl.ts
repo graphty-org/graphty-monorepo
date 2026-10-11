@@ -15,8 +15,10 @@
  * `done` when that level is empty. A boundary that finds `done` set moves nothing, so the levels the host records
  * past the end are no-ops. The forward kernels dispatch directly and read their range from `ends` (no indirect
  * dispatch: design/decisions/2026-09-25-frontier-kernels-dispatch-directly.md). One lane; no barrier follows the
- * early return of the others (spec 3.5 rule 1). Body only; the sabotage rows of test/helpers/sabotage.ts are
- * textual edits of it.
+ * early return of the others (spec 3.5 rule 1). The seed count is a branch on `SCALED`, not
+ * `select(1u, bitcast<u32>(1.0), SCALED)`: every operand of that select is constant, so WebKit 26.6 folds it at
+ * pipeline creation and fails with "Failed to evaluate override value". Body only; the sabotage rows of
+ * test/helpers/sabotage.ts are textual edits of it.
  */
 export const bcFinalizeWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)
@@ -26,7 +28,7 @@ fn bc_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         for (var i = 0u; i < P.k; i = i + 1u) {
             let t = S[i];
             depthK[t] = 0u;                                          // the source is at depth 0
-            sigmaK[t] = select(1u, bitcast<u32>(1.0), SCALED);       // with one shortest path, itself (f32 bits when SCALED)
+            if (SCALED) { sigmaK[t] = 0x3f800000u; } else { sigmaK[t] = 1u; }   // one shortest path, itself (f32 1.0 bits when SCALED)
         }
         levelMax[0] = bitcast<u32>(1.0);                             // the largest count at depth 0
         ends[0] = 0u;

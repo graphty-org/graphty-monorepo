@@ -1,0 +1,8 @@
+[INFO]  Bootstrapper: Retrieving info from "package.json" file
+[INFO]  Bootstrapper: Platform: linux x64
+[INFO]  Bootstrapper: Server URL: http://127.0.0.1:9
+[INFO]  Bootstrapper: Using SonarScanner for NPM (@sonar/scan)
+[INFO]  Bootstrapper: Version: 5.0.1
+[ERROR] Bootstrapper: Failed to fetch server version: Error: connect ECONNREFUSED 127.0.0.1:9
+[ERROR] Bootstrapper: Verify that http://127.0.0.1:9 is a valid SonarQube server
+[ERROR] Bootstrapper: An error occurred: Error: connect ECONNREFUSED 127.0.0.1:9

@@ -10,6 +10,7 @@ import { createGraphSession, type GraphSession } from "../../session";
 import { AiController, type AiControllerOptions, type ExecutionResult } from "../../src/ai/AiController";
 import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandContext } from "../../src/ai/commands/types";
+import { type ConversationStore, STORE_OVERRIDE } from "../../src/ai/conversation/Conversation";
 import { FakeEngine, type FakeTurn } from "../../src/ai/engine/FakeEngine";
 import { ENGINE_OVERRIDE } from "../../src/ai/engine/load";
 import type { TurnEvent, TurnRequest } from "../../src/ai/engine/types";
@@ -137,6 +138,7 @@ export class ScriptedAssistant {
      * @param options.allowImportUrl - URLs the reader did not type that an import may still ask about.
      * @param options.history - Where conversations are kept; none when absent.
      * @param options.approvals - Which calls the reader is asked about; none when absent.
+     * @param options.store - The store conversations are kept in, instead of the one `history` names.
      */
     constructor(
         readonly session: GraphSession,
@@ -147,6 +149,7 @@ export class ScriptedAssistant {
             allowImportUrl?: (url: URL) => boolean;
             history?: AiControllerOptions["history"];
             approvals?: AiControllerOptions["approvals"];
+            store?: ConversationStore;
         } = {},
     ) {
         installAssistantTools(this.registry, session);
@@ -162,6 +165,7 @@ export class ScriptedAssistant {
             ...(options.history === undefined ? {} : { history: options.history }),
             ...(options.approvals === undefined ? {} : { approvals: options.approvals }),
             [ENGINE_OVERRIDE]: this.engine,
+            ...(options.store === undefined ? {} : { [STORE_OVERRIDE]: options.store }),
         } as never);
     }
 

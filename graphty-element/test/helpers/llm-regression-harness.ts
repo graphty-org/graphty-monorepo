@@ -21,6 +21,7 @@ import {
 } from "../../src/ai/AiController";
 import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandResult } from "../../src/ai/commands/types";
+import { type ConversationStore, STORE_OVERRIDE } from "../../src/ai/conversation/Conversation";
 import { ENGINE_OVERRIDE, engineFor } from "../../src/ai/engine/load";
 import type { AiEngine, EngineCapabilities, EngineOutcome, TurnEvent, TurnRequest } from "../../src/ai/engine/types";
 import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
@@ -208,6 +209,8 @@ export interface LlmRegressionTestHarnessOptions {
     history?: AiControllerOptions["history"];
     /** Which calls wait for an approval; none, as the element's default, when absent. */
     approvals?: AiControllerOptions["approvals"];
+    /** The store conversations are kept in, instead of the one `history` names: a reload's. */
+    store?: ConversationStore;
 }
 
 /**
@@ -414,7 +417,10 @@ export class LlmRegressionTestHarness {
         installAssistantTools(commandRegistry, session);
         // The provider's own engine, wrapped so every turn is recorded.
         const engine = new RecordingEngine(engineFor(provider));
-        const controllerOptions: AiControllerOptions & { [ENGINE_OVERRIDE]: AiEngine } = {
+        const controllerOptions: AiControllerOptions & {
+            [ENGINE_OVERRIDE]: AiEngine;
+            [STORE_OVERRIDE]?: ConversationStore;
+        } = {
             provider,
             commandRegistry,
             graph,
@@ -422,8 +428,10 @@ export class LlmRegressionTestHarness {
             ...(options.history === undefined ? {} : { history: options.history }),
             ...(options.approvals === undefined ? {} : { approvals: options.approvals }),
             [ENGINE_OVERRIDE]: engine,
+            ...(options.store === undefined ? {} : { [STORE_OVERRIDE]: options.store }),
         };
         const controller = new AiController(controllerOptions);
+        await controller.ready();
 
         return new LlmRegressionTestHarness(controller, engine, graph);
     }
@@ -559,6 +567,27 @@ export class LlmRegressionTestHarness {
         this.engine.clearCaptured();
         const result = await this.controller.resolveAiApproval(id, answer);
         return { result, toolCalls: [...this.engine.capturedToolCalls] };
+    }
+
+    /**
+     * The approval requests waiting, held here or reopened from the saved conversation.
+     * @returns Their ids, oldest first.
+     */
+    pendingApprovals(): string[] {
+        return this.controller.getPendingApprovals().map((request) => request.id);
+    }
+
+    /**
+     * The open conversation in the saved format, as `exportAiConversation` gives it.
+     * @returns Its JSON text.
+     */
+    async exportConversation(): Promise<string> {
+        const json = await this.controller.exportConversation(this.controller.getConversation()?.id ?? "");
+        if (json === null) {
+            throw new Error("The harness keeps no conversation: create it with history.");
+        }
+
+        return json;
     }
 
     /**

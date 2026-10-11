@@ -103,9 +103,10 @@ export interface ConversationRun {
     /**
      * Store a held batch for the host's approval. The conversation then ends in the assistant
      * message holding its calls, whose results the decision adds.
-     * @returns The approval request's id, or undefined when nothing can approve it.
+     * @returns The approval request's id, or undefined when nothing can approve it; settles once
+     *     the request is saved and the host told.
      */
-    readonly hold?: (held: HeldBatch, messageId: string) => string | undefined;
+    readonly hold?: (held: HeldBatch, messageId: string) => Promise<string | undefined>;
     /**
      * A held batch the reader decided, which the run starts with: its results answer the calls
      * the conversation ends in, and ordinary turns follow until the model answers.
@@ -575,12 +576,18 @@ async function runBatch(
  * @param batch - The batch.
  * @param run - The loop's run, for its approval store.
  * @param messageId - The assistant message holding the batch's calls.
+ * @returns When tallied: a held batch once its request is saved and the host told.
  */
-function tallyBatch(tally: MessageTally, batch: BatchOutcome, run: ConversationRun, messageId: string): void {
+async function tallyBatch(
+    tally: MessageTally,
+    batch: BatchOutcome,
+    run: ConversationRun,
+    messageId: string,
+): Promise<void> {
     tally.results.push(...batch.results.filter((result): result is CallResult => result !== undefined));
     tally.decision = undefined;
     if (batch.held !== undefined) {
-        tally.held = { request: run.hold?.(batch.held, messageId), gate: batch.held.gate };
+        tally.held = { request: await run.hold?.(batch.held, messageId), gate: batch.held.gate };
         return;
     }
 
@@ -650,7 +657,7 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
             // other limit still holds, counted on from what the message did before it.
             const approved = run.decided.approved === undefined ? state : { ...state, approved: run.decided.approved };
             const batch = await runBatch(run, [...calls], approved, resultOf);
-            tallyBatch(tally, batch, run, callsMessage);
+            await tallyBatch(tally, batch, run, callsMessage);
             const added = appendResults(conversation, calls, batch, cap, newId);
             heldResults = batch.held === undefined ? undefined : added;
         } else {
@@ -716,7 +723,7 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
 
         const callsMessage = appendCalls(conversation, text, calls, newId);
         const batch = await runBatch(run, calls, state, resultOf);
-        tallyBatch(tally, batch, run, callsMessage);
+        await tallyBatch(tally, batch, run, callsMessage);
         const added = appendResults(conversation, calls, batch, cap, newId);
         if (batch.held !== undefined) {
             heldResults = added;

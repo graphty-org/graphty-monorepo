@@ -7,8 +7,10 @@
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { ExecutionResult } from "../../../src/ai/AiController";
+import { readConversation } from "../../../src/ai/conversation/formats";
+import { MemoryStore } from "../../../src/ai/conversation/MemoryStore";
 import { assistantSession } from "../../helpers/assistant";
-import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
+import { getLlmRegressionProvider, skipIfNoApiKey } from "../../helpers/llm-regression-env";
 import { type CapturedToolCall, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 
 /** A ring of six connected nodes and three nodes with no edges. */
@@ -51,6 +53,53 @@ describe.skipIf(skipIfNoApiKey())("approvals on a real model", () => {
 
         // Every write waits, so a model that runs an algorithm before removing asks more than once.
         let result: { code?: string; params?: ExecutionResult["params"]; llmText?: string | null } = first;
+        for (let hold = 0; hold < MOST_HOLDS && result.code === "AI_CONFIRMATION_NEEDED"; hold++) {
+            ({ result } = await harness.resolveApproval(String(result.params?.request), { approve: true }));
+        }
+
+        assert.strictEqual(result.code, "AI_COMPLETED", JSON.stringify(result));
+        assert.isNotEmpty(result.llmText ?? "", "the model answers in text");
+        for (const loner of LONERS) {
+            assert.notExists(session.data.node(loner), `${loner} is removed`);
+        }
+
+        for (const node of RING) {
+            assert.exists(session.data.node(node), `${node} stays`);
+        }
+    });
+
+    it("approved after a reload: a fresh harness built from the saved JSON runs the change and answers", async () => {
+        const held = await LlmRegressionTestHarness.create({
+            session: await assistantSession(GRAPH),
+            approvals: "writes",
+            history: "memory",
+        });
+        harness = held;
+        const first = await held.testPrompt("remove every node with degree 0");
+        assert.strictEqual(first.code, "AI_CONFIRMATION_NEEDED", JSON.stringify(first.toolCalls));
+        const json = await held.exportConversation();
+        if (getLlmRegressionProvider() === "google") {
+            assert.include(json, '"thoughtSignature"', "Gemini's signature is saved with the held call");
+        }
+        // The page reloads: everything but the saved JSON is gone.
+        held.dispose();
+        const read = readConversation(json);
+        assert.isTrue(read.ok);
+        const store = new MemoryStore();
+        if (read.ok) {
+            await store.save(read.record);
+        }
+
+        const session = await assistantSession(GRAPH);
+        harness = await LlmRegressionTestHarness.create({ session, approvals: "writes", history: "memory", store });
+        const [request] = harness.pendingApprovals();
+        assert.strictEqual(request, String(first.params?.request), "the request comes back");
+
+        // The next turn sends the held call's thought signature as the saved JSON kept it.
+        let result: { code?: string; params?: ExecutionResult["params"]; llmText?: string | null } = {
+            code: "AI_CONFIRMATION_NEEDED",
+            params: { request },
+        };
         for (let hold = 0; hold < MOST_HOLDS && result.code === "AI_CONFIRMATION_NEEDED"; hold++) {
             ({ result } = await harness.resolveApproval(String(result.params?.request), { approve: true }));
         }

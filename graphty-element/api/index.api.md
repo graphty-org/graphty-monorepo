@@ -1591,6 +1591,7 @@ export class Graph implements GraphContext {
     getNodeCount(): number;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
+    getPendingAiApprovals(): readonly AiApprovalRequest[];
     getScene(): Scene;
     getSelectedNode(): Node_2 | null;
     getSelectionManager(): SelectionManager;
@@ -2018,6 +2019,7 @@ export class Graphty extends LitElement {
     getNodeCount(): number;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
+    getPendingAiApprovals(): readonly AiApprovalRequest[];
     getScene(): Scene;
     getSelectedNode(): Node_2 | null;
     getSelectionManager(): SelectionManager;

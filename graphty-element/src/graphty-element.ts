@@ -4000,6 +4000,22 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * The approval requests waiting on the reader (`ai-approval-requested` asked, nothing ended
+     * yet): held in this page, or reopened from the saved conversation after a reload, when they
+     * are also asked again with `replayed: true`. Read it any time to draw approval cards.
+     * @returns The requests, oldest first; none before AI is enabled.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * await element.enableAiControl({ provider: "google", apiKey, history: "browser", approvals: "writes" });
+     * for (const request of element.getPendingAiApprovals()) drawCard(request);
+     * ```
+     */
+    getPendingAiApprovals(): readonly import("./events").AiApprovalRequest[] {
+        return this.#graph.getPendingAiApprovals();
+    }
+
+    /**
      * The assistant's saved conversations, newest first: this element's scope, or every scope.
      * @param options - Which.
      * @param options.allKeys - True for every scope's.

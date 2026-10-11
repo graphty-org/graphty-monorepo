@@ -6,6 +6,7 @@
 
 import debounce from "lodash/debounce.js";
 
+import type { AiApprovalRequest } from "../events";
 import type { Graph } from "../Graph";
 import {
     type AiApprovalAnswer,
@@ -383,6 +384,15 @@ export class AiManager {
      */
     getConversation(): AiConversationSnapshot | null {
         return this.controller?.getConversation() ?? null;
+    }
+
+    /**
+     * The approval requests waiting on the reader: held in this page, or reopened from the saved
+     * conversation after a reload. Authoritative at any time, the replayed events or not.
+     * @returns The requests, oldest first; none before the assistant is enabled.
+     */
+    getPendingAiApprovals(): readonly AiApprovalRequest[] {
+        return this.controller?.getPendingApprovals() ?? [];
     }
 
     /**

@@ -9,11 +9,20 @@
 import { assert, describe, it } from "vitest";
 import { z } from "zod";
 
+import { readConversation, writeConversation } from "../../../src/ai/conversation/formats";
 import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
 import { LlmProviderEngine } from "../../../src/ai/engine/LlmProviderEngine";
-import type { AiEngine, SavedMessage, ToolSpec, TurnEvent, TurnRequest } from "../../../src/ai/engine/types";
+import type {
+    AiEngine,
+    ProviderState,
+    SavedMessage,
+    ToolSpec,
+    TurnEvent,
+    TurnRequest,
+} from "../../../src/ai/engine/types";
 import { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
 import type { LlmResponse, Message, ToolDefinition } from "../../../src/ai/providers/types";
+import { AI_CONVERSATION_FORMAT } from "../../../src/catalog/ai";
 
 /** What one scripted turn answers. */
 interface Answer {
@@ -51,6 +60,11 @@ export interface EngineFixture {
     answerAfterAbort(answer: Answer): void;
     /** Every request the model received, in order. */
     seen(): SeenRequest[];
+    /**
+     * Every request as it left the engine, in full: the HTTP body for a provider API, the
+     * provider's messages for an `LlmProvider`, what the model was shown for the fake.
+     */
+    wire(): unknown[];
 }
 
 /** A promise that settles when the signal fires. */
@@ -99,14 +113,20 @@ export function fakeFixture(): EngineFixture {
                 yield* answerEvents(answer);
             });
         },
-        seen: () =>
-            engine.requests.map((request) => ({
-                system: request.system,
-                messages: request.messages.flatMap(seenMessages),
-                tools: request.tools.map((tool) => tool.name),
-                toolMode: request.toolMode,
-            })),
+        seen: () => seenRequests(engine.requests),
+        // The fake model sees the request itself; what a provider would be sent is its projection.
+        wire: () => seenRequests(engine.requests),
     };
+}
+
+/** Requests as the model saw them. */
+function seenRequests(requests: readonly TurnRequest[]): SeenRequest[] {
+    return requests.map((request) => ({
+        system: request.system,
+        messages: request.messages.flatMap(seenMessages),
+        tools: request.tools.map((tool) => tool.name),
+        toolMode: request.toolMode,
+    }));
 }
 
 /** A saved message as the model saw it: one entry per tool result, as a provider's messages have. */
@@ -164,6 +184,7 @@ export function mockProviderFixture(): EngineFixture {
                 return { text: answer.text ?? "", toolCalls: answer.toolCalls ?? [] };
             };
         },
+        wire: () => provider.asks.map(({ messages, toolChoice }) => ({ messages, toolChoice })),
         seen: () =>
             provider.asks.map(({ messages, tools, toolChoice }) => ({
                 system: messages.find((m) => m.role === "system")?.content ?? "",
@@ -200,6 +221,75 @@ function request(overrides: Partial<TurnRequest> = {}): TurnRequest {
         toolMode: "auto",
         ...overrides,
     };
+}
+
+/** A history ending in a tool result, its call carrying provider state Gemini 3.8 Flash wrote. */
+function historyWithState(state: ProviderState | undefined): SavedMessage[] {
+    return [
+        ...request().messages,
+        {
+            id: "m2",
+            role: "assistant",
+            parts: [
+                { type: "text", origin: "model", text: "Looking." },
+                {
+                    type: "tool-call",
+                    origin: "model",
+                    callId: "t1",
+                    command: "findNodes",
+                    arguments: { selector: "a" },
+                    ...(state === undefined ? {} : { providerState: state }),
+                },
+            ],
+        },
+        {
+            id: "m3",
+            role: "tool",
+            parts: [
+                {
+                    type: "tool-result",
+                    origin: "graph-data",
+                    callId: "t1",
+                    code: "AI_COMPLETED",
+                    params: {},
+                    content: '{"success":true}',
+                },
+            ],
+        },
+    ];
+}
+
+/** Gemini's state on a call: a thought signature, sent back only to the model that wrote it. */
+const GEMINI_STATE: ProviderState = {
+    engine: "provider-api",
+    provider: "google",
+    model: "gemini-3.8-flash",
+    data: { thoughtSignature: "c2lnLWdlbWluaQ==" },
+};
+
+/**
+ * Messages saved in the conversation format and read back from its JSON, as a reload reads them.
+ * @param messages - The messages.
+ * @returns The messages the record holds after the round trip.
+ */
+function throughJson(messages: readonly SavedMessage[]): SavedMessage[] {
+    const at = "2026-10-11T00:00:00.000Z";
+    const read = readConversation(
+        writeConversation({
+            format: AI_CONVERSATION_FORMAT,
+            version: 1,
+            revision: 0,
+            id: "c1",
+            key: "",
+            createdAt: at,
+            updatedAt: at,
+            graph: { dataKey: null, fingerprint: null },
+            messages,
+            pending: [],
+        }),
+    );
+    assert.isTrue(read.ok, "the history is a valid record");
+    return read.ok ? [...read.record.messages] : [];
 }
 
 /** Every event of one turn. */
@@ -315,6 +405,43 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
             );
             assert.deepStrictEqual(sent.messages[1].calls, ["t1"]);
             assert.strictEqual(sent.messages[2].resultFor, "t1");
+        });
+
+        it("sends a history read back from its saved JSON exactly as the live one", async () => {
+            const { engine, reply, wire } = make();
+            reply({ text: "Done." });
+            reply({ text: "Done." });
+            const live = historyWithState(GEMINI_STATE);
+            await events(engine, request({ messages: live }));
+            await events(engine, request({ messages: throughJson(live) }));
+            const [first, second] = wire();
+            assert.deepStrictEqual(second, first);
+        });
+
+        it("continues from a saved record stripped of provider state, or ends with a code, and never throws", async () => {
+            const { engine, reply } = make();
+            reply({ text: "Done." });
+            const stripped = throughJson(historyWithState(undefined));
+            const out = await events(engine, request({ messages: stripped }));
+            const last = out.at(-1);
+            assert.include(["finish", "error"], last?.type);
+            if (last?.type === "error") {
+                assert.match(last.code, /^AI_/);
+            }
+        });
+
+        it("sends no state another provider wrote, after a conversation switched from Anthropic", async () => {
+            const { engine, reply, wire } = make();
+            reply({ text: "Done." });
+            // Another model than any fixture asks, so the state is foreign on every engine.
+            const foreign: ProviderState = {
+                engine: "provider-api",
+                provider: "anthropic",
+                model: "claude-sonnet-4-5",
+                data: { signature: "anthropic-thinking-signature-0451" },
+            };
+            await events(engine, request({ messages: throughJson(historyWithState(foreign)) }));
+            assert.notInclude(JSON.stringify(wire()), "anthropic-thinking-signature-0451");
         });
 
         it("asks for text only under toolMode none, with the tools still declared", async () => {

@@ -94,6 +94,7 @@ export interface AiApprovalRequest {
 
 // @public
 export interface AiApprovalRequestedEvent {
+    replayed: boolean;
     request: AiApprovalRequest;
     type: "ai-approval-requested";
 }
@@ -134,6 +135,7 @@ export class AiController {
     getConversation(): AiConversationSnapshot | null;
     getLastError(): Error | null;
     getLastInput(): string | null;
+    getPendingApprovals(): readonly AiApprovalRequest[];
     getStatus(): AiStatus;
     listConversations(options?: {
         readonly allKeys?: boolean;
@@ -236,6 +238,7 @@ export class AiManager {
     getCommandRegistry(): CommandRegistry;
     getController(): AiController | null;
     getConversation(): AiConversationSnapshot | null;
+    getPendingAiApprovals(): readonly AiApprovalRequest[];
     getProvider(): LlmProvider | null;
     getRegisteredCommands(): string[];
     getSchemaManager(): SchemaManager | null;

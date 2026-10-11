@@ -61,6 +61,12 @@ export interface ConversationStoreOptions {
     readonly secrets?: () => readonly string[];
 }
 
+/**
+ * The internal option a test or the regression harness hands a store through, in place of the one
+ * `history` names: a memory store seeded from a saved record stands in for a reload.
+ */
+export const STORE_OVERRIDE: unique symbol = Symbol("graphty.ai.conversationStore");
+
 /** A store, and the failure that made it a memory store instead of the one asked for. */
 export interface OpenedConversationStore {
     readonly store: ConversationStore;

@@ -477,5 +477,6 @@ export function providerApiFixture(
             });
         },
         seen: () => requests.map((r) => SEEN[provider](r.body)),
+        wire: () => requests.map((r) => r.body),
     };
 }

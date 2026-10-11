@@ -826,6 +826,11 @@ export interface AiApprovalRequestedEvent {
     type: "ai-approval-requested";
     /** What the reader is asked to approve. */
     request: AiApprovalRequest;
+    /**
+     * True when the request was made earlier and is asked again: the assistant reopened a saved
+     * conversation still waiting on it (after a reload, in a new element). Draw it as any other.
+     */
+    replayed: boolean;
 }
 
 /** What the assistant asks the reader to approve. */

@@ -151,7 +151,8 @@ export function claimEntry(
 export function mergeRecords(stored: ConversationRecord, incoming: ConversationRecord): ConversationRecord {
     const messageIds = new Set(stored.messages.map((message) => message.id));
     const pendingIds = new Set(stored.pending.map((entry) => entry.id));
-    // ponytail: an entry one copy resolved (removed) comes back from the other; claims settle it in unit 5.
+    // ponytail: an entry one copy resolved (removed) may come back from the other, claimed; a claimed
+    // entry is never asked about again. Drop resolved entries by id if records grow from it.
     return {
         ...incoming,
         revision: stored.revision,

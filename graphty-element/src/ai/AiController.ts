@@ -9,7 +9,7 @@ import {
     type AiResultCode,
     type AiResultParams,
 } from "../catalog/ai";
-import type { AiEvent } from "../events";
+import type { AiApprovalRequest, AiEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession } from "../session/types";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
@@ -19,14 +19,19 @@ import {
     type ConversationStore,
     type ConversationStoreChange,
     openConversationStore,
+    STORE_OVERRIDE,
 } from "./conversation/Conversation";
 import type { ConversationRecord } from "./conversation/formats";
+import type { SavedPending } from "./conversation/formats/v1";
 import { conversationToReopen } from "./conversation/scope";
 import {
     type AiConversationSnapshot,
     type AiConversationSummary,
+    approvalRequest,
     conversationSnapshot,
     conversationSummary,
+    type SavedApproval,
+    waitingApprovals,
 } from "./conversation/snapshot";
 import { ENGINE_OVERRIDE, engineFor } from "./engine/load";
 import type { AiEngine, SavedMessage } from "./engine/types";
@@ -50,6 +55,8 @@ import {
     type AiToolCallFacts,
     type AssistantGateLimits,
     DEFAULT_ASSISTANT_GATE_LIMITS,
+    type GateKind,
+    type JsonObject,
     type MessageState,
 } from "./tools/types";
 
@@ -117,7 +124,19 @@ interface PendingApproval {
     /** The saved conversation it belongs to, with history. */
     readonly conversationId: string | undefined;
     readonly stopWatching: () => void;
+    /** What the host was asked, as `getPendingAiApprovals` returns it. */
+    readonly request: AiApprovalRequest;
+    /** The graph when it was held, which a request reopened after a reload is checked against. */
+    readonly graph: HeldGraph;
+    /** Reopened from the saved conversation, rather than held by this controller. */
+    readonly replayed: boolean;
 }
+
+/** The graph a request was held against, as its saved entry records it. */
+type HeldGraph = SavedApproval["graph"];
+
+/** No changes counted yet: the totals a reopened request's message starts from. */
+const NO_TOTALS: MessageState["totals"] = { removeNodes: 0, removeEdges: 0, changedValues: 0 };
 
 /** Which of the assistant's calls the reader is asked about before they run. */
 export type AiApprovalsSetting =
@@ -171,6 +190,23 @@ function edited(calls: readonly ToolCallRequest[], edits: AiApprovalAnswer["call
         const args = edits?.[index]?.arguments;
         return args === undefined ? call : { ...call, arguments: args };
     });
+}
+
+/**
+ * The reader's request a held message answered: the reader's text of the last user message before it.
+ * @param messages - The conversation.
+ * @param messageId - The message holding the calls.
+ * @returns The text, or empty when there is none.
+ */
+function readerTextBefore(messages: readonly SavedMessage[], messageId: string): string {
+    const end = messages.findIndex((message) => message.id === messageId);
+    const user = messages
+        .slice(0, end === -1 ? messages.length : end)
+        .reverse()
+        .find((message) => message.role === "user" && message.parts.some((part) => part.origin === "reader"));
+    return (user?.parts ?? [])
+        .flatMap((part) => (part.type === "text" && part.origin === "reader" ? [part.text] : []))
+        .join("\n");
 }
 
 /** How a message is run: a new one, or a held one continued after the reader's decision. */
@@ -361,6 +397,10 @@ export class AiController {
     private current: ConversationRecord | undefined;
     /** Settles once the store is open and the conversation reopened. */
     private readonly opened: Promise<void>;
+    /** Who this controller is, when it claims a saved request to resolve it. */
+    private readonly claimant = uniqueId("ctl_");
+    /** A store handed in instead of the one `history` names (tests, the regression harness). */
+    private readonly storeOverride: ConversationStore | undefined;
 
     /**
      * Creates a new AiController instance.
@@ -382,6 +422,9 @@ export class AiController {
         this.policy = policyOf(options.approvals);
         this.history = historyOptionsOf(options.history);
         this.secrets = options.secrets ?? ((): readonly string[] => []);
+        this.storeOverride = (options as AiControllerOptions & { [STORE_OVERRIDE]?: ConversationStore })[
+            STORE_OVERRIDE
+        ];
         this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history);
         // Every turn waits for the saved conversation.
         this.queue = this.opened;
@@ -710,9 +753,9 @@ export class AiController {
      * @param hold.conversation - The conversation, ending in the held calls.
      * @param hold.messageId - The conversation message holding the calls.
      * @param hold.conversationId - The saved conversation, with history.
-     * @returns The request's id.
+     * @returns The request's id, once the conversation holding it is saved and the host told.
      */
-    private hold(hold: {
+    private async hold(hold: {
         held: HeldBatch;
         message: string;
         label: string;
@@ -720,7 +763,7 @@ export class AiController {
         conversation: Conversation;
         messageId: string;
         conversationId: string | undefined;
-    }): string {
+    }): Promise<string> {
         const { held, message, session, conversationId } = hold;
         const id = uniqueId("approval_");
         const changed = { value: false };
@@ -731,6 +774,17 @@ export class AiController {
                 void this.enqueue(() => this.saveClosed(pending));
             }
         });
+        const createdAt = new Date().toISOString();
+        const graph = this.heldGraph();
+        const request: AiApprovalRequest = {
+            id,
+            gate: held.gate,
+            calls: held.calls.map((call) => ({ tool: call.name, arguments: call.arguments })),
+            preview: held.preview,
+            ...(conversationId === undefined ? {} : { conversationId }),
+            messageId: hold.messageId,
+            createdAt,
+        };
         this.approvals.set(id, {
             message,
             label: hold.label,
@@ -739,21 +793,131 @@ export class AiController {
             conversation: hold.conversation,
             conversationId,
             stopWatching,
+            request,
+            graph,
+            replayed: false,
         });
         this.statusManager.setPendingApprovals(this.approvals.size);
-        this.emitAiEvent({
-            type: "ai-approval-requested",
-            request: {
-                id,
-                gate: held.gate,
-                calls: held.calls.map((call) => ({ tool: call.name, arguments: call.arguments })),
-                preview: held.preview,
-                ...(conversationId === undefined ? {} : { conversationId }),
-                messageId: hold.messageId,
-                createdAt: new Date().toISOString(),
-            },
-        });
+        // The message holding the calls and the request are saved together, before the host hears
+        // of it: a reload after the event always finds the request.
+        const entry: SavedPending = {
+            kind: "approval",
+            id,
+            messageId: hold.messageId,
+            gate: held.gate,
+            calls: held.calls.map((call) => ({ callId: call.id, command: call.name, arguments: call.arguments })),
+            preview: held.preview,
+            graph,
+            historyRevision: session.history.position,
+            claim: null,
+            createdAt,
+        };
+        await this.saveInto(conversationId, hold.conversation.messages, [...(this.current?.pending ?? []), entry]);
+        this.emitAiEvent({ type: "ai-approval-requested", request, replayed: false });
         return id;
+    }
+
+    /**
+     * The loaded graph, as a held request records it.
+     * @returns Its data key, fingerprint and counts.
+     */
+    private heldGraph(): HeldGraph {
+        const { counts } = this.graph.getSession().status;
+        return { ...this.graphFacts(), nodes: counts.nodes, edges: counts.edges };
+    }
+
+    /**
+     * Reopen the requests a saved conversation still waits on, as if this controller had held
+     * them, and ask the host about each again (`replayed: true`) in a task after the store opened,
+     * so a listener added once `enableAiControl` resolves hears them.
+     * @param record - The conversation.
+     */
+    private reopenPending(record: ConversationRecord): void {
+        const reopened = waitingApprovals(record).map((entry) => this.reopenOne(record, entry));
+        if (reopened.length === 0) {
+            return;
+        }
+
+        this.statusManager.setPendingApprovals(this.approvals.size);
+        setTimeout(() => {
+            for (const pending of reopened) {
+                // Answered, or ended, before the host was told again: nothing to ask.
+                if (this.approvals.get(pending.request.id) === pending) {
+                    this.emitAiEvent({ type: "ai-approval-requested", request: pending.request, replayed: true });
+                }
+            }
+        }, 0);
+    }
+
+    /**
+     * One saved request, open again.
+     * @param record - Its conversation.
+     * @param entry - The request.
+     * @returns The open request.
+     */
+    private reopenOne(record: ConversationRecord, entry: SavedApproval): PendingApproval {
+        const messages = [...record.messages];
+        const pending: PendingApproval = {
+            // The message's undo step went with the page: its calls start a step of their own.
+            message: entry.messageId,
+            label: readerTextBefore(messages, entry.messageId),
+            held: {
+                gate: entry.gate as GateKind,
+                preview: entry.preview as JsonObject,
+                calls: entry.calls.map((call) => ({ id: call.callId, name: call.command, arguments: call.arguments })),
+                totals: { ...NO_TOTALS },
+            },
+            changed: { value: false },
+            conversation: { system: this.systemPrompt(), messages },
+            conversationId: record.id,
+            stopWatching: () => undefined,
+            request: approvalRequest(entry, record.id),
+            graph: entry.graph,
+            replayed: true,
+        };
+        this.approvals.set(entry.id, pending);
+        return pending;
+    }
+
+    /**
+     * Claim a saved request in the store, so it runs once however many tabs answer it.
+     * @param id - The request's id.
+     * @param pending - The request.
+     * @returns False when another instance claimed it first.
+     */
+    private async claim(id: string, pending: PendingApproval): Promise<boolean> {
+        const { store } = this;
+        if (store === undefined || pending.conversationId === undefined) {
+            return true;
+        }
+
+        const claimed = await store.claim(pending.conversationId, id, this.claimant);
+        if (this.current?.id === pending.conversationId) {
+            // The claim moved the record's revision; a lost one means another copy moved it further.
+            this.current = claimed ?? (await store.load(pending.conversationId)) ?? this.current;
+        }
+
+        return claimed !== undefined;
+    }
+
+    /**
+     * Whether the graph changed under a request: while this controller lives, any change to the
+     * history since the hold; after a reload, a different `dataKey`, or without one a different
+     * fingerprint.
+     * @param pending - The request.
+     * @returns The facts of the change, or undefined when the request is fresh.
+     */
+    private graphChange(pending: PendingApproval): AiResultParams | undefined {
+        if (!pending.replayed) {
+            return pending.changed.value ? {} : undefined;
+        }
+
+        const now = this.heldGraph();
+        const held = pending.graph;
+        const changed = held.dataKey === null ? held.fingerprint !== now.fingerprint : held.dataKey !== now.dataKey;
+        return changed
+            ? { nodes: now.nodes, edges: now.edges, heldNodes: held.nodes, heldEdges: held.edges }
+            : undefined;
     }
 
     /**
@@ -770,6 +934,12 @@ export class AiController {
 
         this.approvals.delete(id);
         pending.stopWatching();
+        const { current } = this;
+        if (current !== undefined && current.id === pending.conversationId) {
+            // Saved with the conversation's next save.
+            this.current = { ...current, pending: current.pending.filter((entry) => entry.id !== id) };
+        }
+
         this.statusManager.setPendingApprovals(this.approvals.size);
         this.emitAiEvent({
             type: "ai-pending-resolved",
@@ -842,9 +1012,30 @@ export class AiController {
             };
         }
 
+        // Claimed first: of several tabs answering one request, one runs it.
+        if (!(await this.claim(id, pending))) {
+            const params = { request: id, reason: "resolved-elsewhere" };
+            this.endPending(id, { code: "AI_APPROVAL_STALE", params });
+            return { success: false, message: "", code: "AI_APPROVAL_STALE", params };
+        }
+
+        if (this.approvals.get(id) !== pending) {
+            // A cancel ended it while the claim was written.
+            return {
+                success: false,
+                message: "",
+                code: "AI_APPROVAL_STALE",
+                params: { request: id, reason: "expired" },
+            };
+        }
+
         let decided: DecidedBatch;
-        if (pending.changed.value) {
-            const outcome = { code: "AI_APPROVAL_STALE" as const, params: { request: id, reason: "graph-changed" } };
+        const change = this.graphChange(pending);
+        if (change !== undefined) {
+            const outcome = {
+                code: "AI_APPROVAL_STALE" as const,
+                params: { request: id, reason: "graph-changed", ...change },
+            };
             this.endPending(id, outcome);
             decided = { calls: pending.held.calls, outcome };
         } else if (answer.approve) {
@@ -901,13 +1092,11 @@ export class AiController {
      * @returns The conversation
      */
     private startConversation(input: string, session: GraphSession): Conversation {
+        const system = this.systemPrompt();
         if (hasAssistantTools(this.commandRegistry)) {
             // The generated tools: fixed instructions, and the facts as graph data, never in them.
-            const consumer = this.commandRegistry
-                .getAll()
-                .filter((command) => !isAssistantTool(command) && (command.load ?? "always") === "always");
             return {
-                system: assistantInstructions(this.profile, consumer),
+                system,
                 messages: [
                     ...this.earlierMessages(),
                     {
@@ -922,17 +1111,6 @@ export class AiController {
             };
         }
 
-        const commands = this.commandRegistry.getAll();
-        const commandDescriptions = commands.map((cmd) => `- ${cmd.name}: ${cmd.description}`).join("\n");
-        const schemaSection = this.buildSchemaSection();
-
-        const system = `You are an AI assistant that helps users interact with a graph visualization.
-
-Available commands:
-${commandDescriptions}
-${schemaSection}
-When the user asks you to perform an action, use the appropriate tool. If no tool is needed, respond conversationally.`;
-
         return {
             system,
             messages: [
@@ -940,6 +1118,31 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 { id: this.firstMessageId(), role: "user", parts: [{ type: "text", origin: "reader", text: input }] },
             ],
         };
+    }
+
+    /**
+     * The instructions a conversation is sent with. Never saved: a conversation reopened after a
+     * reload is sent today's.
+     * @returns The system prompt.
+     */
+    private systemPrompt(): string {
+        if (hasAssistantTools(this.commandRegistry)) {
+            const consumer = this.commandRegistry
+                .getAll()
+                .filter((command) => !isAssistantTool(command) && (command.load ?? "always") === "always");
+            return assistantInstructions(this.profile, consumer);
+        }
+
+        const commands = this.commandRegistry.getAll();
+        const commandDescriptions = commands.map((cmd) => `- ${cmd.name}: ${cmd.description}`).join("\n");
+        const schemaSection = this.buildSchemaSection();
+
+        return `You are an AI assistant that helps users interact with a graph visualization.
+
+Available commands:
+${commandDescriptions}
+${schemaSection}
+When the user asks you to perform an action, use the appropriate tool. If no tool is needed, respond conversationally.`;
     }
 
     /**
@@ -993,11 +1196,14 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      */
     private async openHistory(history: AiHistoryOptions): Promise<void> {
         try {
-            const { store, failure } = await openConversationStore({
-                store: history.store,
-                ...(history.database === undefined ? {} : { database: history.database }),
-                secrets: this.secrets,
-            });
+            const { store, failure } =
+                this.storeOverride === undefined
+                    ? await openConversationStore({
+                          store: history.store,
+                          ...(history.database === undefined ? {} : { database: history.database }),
+                          secrets: this.secrets,
+                      })
+                    : { store: this.storeOverride, failure: undefined };
             this.store = store;
             this.stopStore = store.subscribe((change) => {
                 this.storeChanged(change);
@@ -1010,6 +1216,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
 
             if (reopened !== undefined) {
                 this.emitChanged();
+                this.reopenPending(reopened);
             }
         } catch (error) {
             // ponytail: an unreadable store reads as no history; the controller still answers.
@@ -1098,8 +1305,13 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      * Save a conversation with these messages, at the end of a turn: only while it is the open one.
      * @param id - The conversation's id.
      * @param messages - Its messages now.
+     * @param pending - What waits on the reader now; the open record's when absent.
      */
-    private async saveInto(id: string | undefined, messages: readonly SavedMessage[]): Promise<void> {
+    private async saveInto(
+        id: string | undefined,
+        messages: readonly SavedMessage[],
+        pending?: readonly SavedPending[],
+    ): Promise<void> {
         const { store, current } = this;
         // ponytail: a conversation switched away from while a request waited is not saved; save it by id if a host needs that.
         if (store === undefined || current === undefined || current.id !== id) {
@@ -1109,6 +1321,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         const record: ConversationRecord = {
             ...current,
             messages,
+            ...(pending === undefined ? {} : { pending }),
             updatedAt: new Date().toISOString(),
             graph: this.graphFacts(),
         };
@@ -1241,6 +1454,15 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     }
 
     /**
+     * The approval requests waiting on the reader, held here or reopened from the saved
+     * conversation: what `ai-approval-requested` asked and nothing has ended yet.
+     * @returns The requests, oldest first.
+     */
+    getPendingApprovals(): readonly AiApprovalRequest[] {
+        return [...this.approvals.values()].map((pending) => pending.request);
+    }
+
+    /**
      * Get the current status snapshot.
      * @returns Current AI status
      */
@@ -1283,6 +1505,13 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      */
     dispose(): void {
         this.disposed = true;
+        // A waiting request stays saved for the next element on this conversation (a reload, a
+        // remount): only this controller forgets it, so the cancel below does not end it.
+        for (const pending of this.approvals.values()) {
+            pending.stopWatching();
+        }
+
+        this.approvals.clear();
         this.cancel();
         this.stopStore();
         // Closed once the turns before it have settled, so the last save still lands.

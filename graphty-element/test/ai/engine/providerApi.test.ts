@@ -8,9 +8,11 @@
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { z } from "zod";
 
+import { readConversation, writeConversation } from "../../../src/ai/conversation/formats";
 import { toolJsonSchema } from "../../../src/ai/engine/jsonSchema";
 import { ProviderApiEngine } from "../../../src/ai/engine/ProviderApiEngine";
 import type { ProviderState, SavedMessage, TurnEvent, TurnRequest } from "../../../src/ai/engine/types";
+import { AI_CONVERSATION_FORMAT } from "../../../src/catalog/ai";
 import { HOSTS, KEYS, providerApiFixture } from "./providerApiFixtures";
 
 const PROVIDERS = ["openai", "anthropic", "google"] as const;
@@ -433,6 +435,39 @@ describe("Gemini thought signatures", () => {
         await events(engine, request({ messages: history(states) }));
         // The second call is not signed, and needs no placeholder: Gemini signs the first of a batch.
         assert.deepStrictEqual(signatures(requests[1].body), ["c2lnLTE=", undefined]);
+    });
+
+    it("echoes the signature of a held call saved as JSON when its approval resumes after a reload", async () => {
+        const held = providerApiFixture("google");
+        held.reply({
+            toolCalls: [{ id: "t1", name: "findNodes", arguments: { selector: "a" }, signature: "aGVsZA==" }],
+        });
+        const states = (await events(held.engine, request())).flatMap((e) =>
+            e.type === "tool-call" ? [e.providerState] : [],
+        );
+        // The held message is saved, the page reloads, and the approved call's result is sent from
+        // the record alone, on a new engine.
+        const at = "2026-10-11T00:00:00.000Z";
+        const json = writeConversation({
+            format: AI_CONVERSATION_FORMAT,
+            version: 1,
+            revision: 3,
+            id: "c1",
+            key: "graph:/",
+            createdAt: at,
+            updatedAt: at,
+            graph: { dataKey: null, fingerprint: "f" },
+            messages: history(states),
+            pending: [],
+        });
+        const read = readConversation(json);
+        assert.isTrue(read.ok);
+        const resumed = providerApiFixture("google");
+        resumed.reply({ text: "Done." });
+
+        await events(resumed.engine, request({ messages: read.ok ? [...read.record.messages] : [] }));
+
+        assert.deepStrictEqual(signatures(resumed.requests[0].body), ["aGVsZA=="]);
     });
 
     it("sends the documented placeholder for calls another engine, provider or model made", async () => {

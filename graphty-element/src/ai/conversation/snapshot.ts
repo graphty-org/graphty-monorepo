@@ -9,7 +9,7 @@
 import type { AiResultCode, AiResultParams } from "../../catalog/ai";
 import type { AiApprovalRequest } from "../../events";
 import type { ConversationRecord } from "./formats";
-import type { SavedMessage } from "./formats/v1";
+import type { SavedMessage, SavedPending } from "./formats/v1";
 
 /** One call the model made, with what came of it. */
 export interface AiCallRecord {
@@ -126,19 +126,49 @@ function snapshotMessages(messages: readonly SavedMessage[]): AiConversationMess
     return out;
 }
 
+/** A saved approval entry. */
+export type SavedApproval = Extract<SavedPending, { kind: "approval" }>;
+
+/**
+ * A saved approval entry as the request `ai-approval-requested` carries.
+ * @param entry - The entry.
+ * @param conversationId - Its conversation.
+ * @returns The request.
+ */
+export function approvalRequest(entry: SavedApproval, conversationId: string): AiApprovalRequest {
+    return {
+        id: entry.id,
+        gate: entry.gate,
+        calls: entry.calls.map((call) => ({ tool: call.command, arguments: call.arguments })),
+        preview: entry.preview,
+        conversationId,
+        messageId: entry.messageId,
+        createdAt: entry.createdAt,
+    };
+}
+
+/**
+ * The approvals of a record still waiting: unclaimed. A claimed one is being resolved, here or in
+ * another tab, and is never asked about again.
+ * @param record - The saved conversation.
+ * @returns The entries.
+ */
+export function waitingApprovals(record: ConversationRecord): SavedApproval[] {
+    return record.pending.filter((entry): entry is SavedApproval => entry.kind === "approval" && entry.claim === null);
+}
+
 /**
  * A record as an application reads it.
  * @param record - The saved conversation.
  * @returns Its snapshot.
  */
 export function conversationSnapshot(record: ConversationRecord): AiConversationSnapshot {
-    // ponytail: pending stays empty until held approvals are saved with the conversation.
     return {
         id: record.id,
         key: record.key,
         formatVersion: record.version,
         messages: snapshotMessages(record.messages),
-        pending: [],
+        pending: waitingApprovals(record).map((entry) => approvalRequest(entry, record.id)),
     };
 }
 

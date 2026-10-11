@@ -6318,6 +6318,17 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The approval requests waiting on the reader (`ai-approval-requested` asked, nothing ended
+     * yet): held in this page, or reopened from the saved conversation after a reload. Read it any
+     * time to draw approval cards, whether or not the replayed events were heard.
+     * @returns The requests, oldest first; none before AI is enabled.
+     * @since 4.0.0
+     */
+    getPendingAiApprovals(): readonly import("./events").AiApprovalRequest[] {
+        return this.aiManager?.getPendingAiApprovals() ?? [];
+    }
+
+    /**
      * The assistant's saved conversations, newest first: this element's scope, or every scope.
      * @param options - Which.
      * @param options.allKeys - True for every scope's.

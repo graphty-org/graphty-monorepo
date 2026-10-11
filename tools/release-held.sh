@@ -5,7 +5,7 @@
 # There are two kinds of hold, each with its own issue, and they never touch each other:
 #   - a train hold, "Release held: <what> failed on <sha>": a release train failed. A later train that fails
 #     retitles and comments on it; a train that passes closes it.
-#   - a publish hold, "Release held: publish failed on <sha>": the publish of a merged release pull request
+#   - a publish hold, "Release held: publish failed on <sha>": the publish of a release already on master
 #     failed. Only re-running that publish run clears it, so trains never retitle or close it; a passing
 #     re-run closes it.
 #

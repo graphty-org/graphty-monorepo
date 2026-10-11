@@ -7,8 +7,6 @@ import { describe, it } from "node:test";
 
 import {
     announce,
-    dequeueFacts,
-    dequeueKey,
     LABEL,
     push,
     PUSHOVER_URL,
@@ -57,49 +55,17 @@ describe("statusComment", () => {
         );
     });
 
-    it("names the release pull request a passing train opened", () => {
-        const c = statusComment("opened", {
-            run: RUN,
-            sha: "abcdef123",
-            pr: "https://github.com/o/r/pull/7",
-            tags: "a@1",
-        });
-        assert.match(
-            c,
-            /Release train passed\*\* on abcdef1: release pull request https:\/\/github\.com\/o\/r\/pull\/7 is open for a@1\./,
-        );
-    });
-
     it("says a run ended badly without announcing, with its conclusion and attempt", () => {
         const c = statusComment("run-ended", { run: RUN, sha: "abcdef123", what: "timed_out", attempt: "2" });
         assert.match(c, /\*\*Release run ended timed_out\*\* \(re-run, attempt 2\) on abcdef1, and no comment here/);
         assert.match(c, /Run: https:\/\/github\.com\/o\/r\/actions\/runs\/1$/);
     });
 
-    it("names the dequeued release pull request, why, the failing checks and the queue run", () => {
-        const c = statusComment(
-            "dequeued",
-            {
-                run: RUN,
-                sha: "abcdef123",
-                pr: "https://github.com/o/r/pull/7",
-                left: "2026-10-10T00:17:58Z",
-                what: "Dequeued -- checks failed",
-                checks: "All Checks Pass (u1), Queue Checks Pass (u2)",
-                queue: "https://github.com/o/r/pull/8",
-            },
-            "@x",
-        );
-        assert.match(
-            c,
-            /^@x \*\*Release pull request dequeued\*\*: https:\/\/github\.com\/o\/r\/pull\/7 left the merge queue at 2026-10-10T00:17:58Z without merging \(Dequeued -- checks failed\), on abcdef1\. Nothing was published\. Failing checks: All Checks Pass \(u1\), Queue Checks Pass \(u2\)\. Queue run: https:\/\/github\.com\/o\/r\/pull\/8\./,
-        );
-        assert.ok(c.includes(dequeueKey("https://github.com/o/r/pull/7", "2026-10-10T00:17:58Z")));
-        assert.ok(!reportsFailure(c, RUN, "1"), "not a release run failure");
-    });
-
     it("refuses an unknown outcome", () => {
-        assert.throws(() => statusComment("skipped", { run: RUN }), /unknown outcome/);
+        // no release pull request any more: the train publishes directly (owner decision, 2026-10-11)
+        for (const gone of ["skipped", "opened", "dequeued"]) {
+            assert.throws(() => statusComment(gone, { run: RUN }), /unknown outcome/, gone);
+        }
     });
 });
 
@@ -116,50 +82,7 @@ describe("reportsFailure", () => {
         assert.ok(!reportsFailure(held("1"), RUN, "2"));
         assert.ok(!reportsFailure(held("2"), RUN, "1"));
         assert.ok(!reportsFailure(held("1"), `${RUN}0`, "1"));
-        assert.ok(!reportsFailure(statusComment("opened", { run: RUN, pr: "p" }), RUN, "1"));
         assert.ok(!reportsFailure(statusComment("published", { run: RUN }), RUN, "1"));
-    });
-});
-
-describe("dequeueFacts", () => {
-    // the "Mergify Merge Queue" check run of release pull request #1840 (2026-10-10), shortened
-    const run = {
-        completed_at: "2026-10-10T00:17:58Z",
-        details_url: "https://dashboard.mergify.com/x",
-        output: {
-            title: "Dequeued \u2014 checks failed",
-            summary: [
-                "- \u2705 **Entered queue** \u2014 `2026-10-10 00:05 UTC` \u00b7 Rule: `release`",
-                "- \u274c **Checks failed** \u00b7 on draft #1841",
-                "",
-                "## Reason",
-                "",
-                "- `Queue Checks Pass`",
-                "- `Lint PR Title`",
-                "",
-                "Failing checks:",
-                "- \u274c [`All Checks Pass`](https://github.com/o/r/runs/1) ([job log](https://github.com/o/r/runs/1))",
-                "- \u274c [`Queue Checks Pass`](https://github.com/o/r/runs/2) ([job log](https://github.com/o/r/runs/2))",
-                "",
-                "## Hint",
-                "- [ ] `check-success=Queue Checks Pass`",
-            ].join("\n"),
-        },
-    };
-    it("reads the reason, the failing checks, the queue draft and when it left", () => {
-        assert.deepEqual(dequeueFacts(run, "o/r"), {
-            what: "Dequeued -- checks failed",
-            checks: "All Checks Pass (https://github.com/o/r/runs/1), Queue Checks Pass (https://github.com/o/r/runs/2)",
-            queue: "https://github.com/o/r/pull/1841",
-            left: "2026-10-10T00:17:58Z",
-        });
-    });
-    it("falls back to Mergify's page with no draft, and to nothing with no check run", () => {
-        assert.equal(
-            dequeueFacts({ ...run, output: { title: "Dequeued", summary: "" } }, "o/r").queue,
-            run.details_url,
-        );
-        assert.deepEqual(dequeueFacts(undefined, "o/r"), { what: "", checks: "", queue: "", left: "" });
     });
 });
 
@@ -252,7 +175,7 @@ describe("announce", () => {
     });
 
     it("posts a run-ended comment when only a success of that run was announced", async () => {
-        const { calls, request } = fake([{ number: 8 }], [{ body: statusComment("opened", { run: RUN, pr: "p" }) }]);
+        const { calls, request } = fake([{ number: 8 }], [{ body: statusComment("published", { run: RUN }) }]);
         assert.equal(
             await announce({
                 request,
@@ -264,32 +187,12 @@ describe("announce", () => {
         );
         assert.deepEqual(calls.at(-1), ["POST", "/repos/o/r/issues/8/comments", { body: "hi" }]);
     });
-
-    it("posts one comment per dequeue: the same pull request and time again posts nothing", async () => {
-        const f = { run: RUN, pr: "https://github.com/o/r/pull/7", left: "2026-10-10T00:17:58Z" };
-        const reported = (left) => (b) => b.includes(dequeueKey(f.pr, left));
-        const { request } = fake([{ number: 8 }], [{ body: statusComment("dequeued", f) }]);
-        assert.equal(
-            await announce({ request, repo: "o/r", body: "hi", unlessReported: { reported: reported(f.left) } }),
-            null,
-        );
-        assert.equal(
-            await announce({
-                request,
-                repo: "o/r",
-                body: "hi",
-                unlessReported: { reported: reported("2026-10-11T00:00:00Z") },
-            }),
-            8,
-        );
-    });
 });
 
 describe("pushMessage", () => {
     const f = {
         run: RUN,
         sha: "abcdef123",
-        pr: "https://github.com/o/r/pull/7",
         tags: "a@1.0.0,b@2.0.0",
         issue: "12",
     };
@@ -297,24 +200,23 @@ describe("pushMessage", () => {
     const quiet = { priority: "-1", sound: "none" };
     const pick = ({ title, priority, sound, url, url_title }) => ({ title, priority, sound, url, url_title });
     const run = { url: RUN, url_title: "Open run" };
-    const pr = { url: f.pr, url_title: "Open PR" };
 
     it("titles each kind with its state word, priority, sound and link", () => {
         for (const [outcome, want] of [
             ["started", { title: "Release STARTED", ...quiet, ...run }],
-            ["opened", { title: "Release PR OPENED", ...quiet, ...pr }],
             ["held", { title: "Release HELD", ...loud, ...run }],
             ["published", { title: "Release PUBLISHED", priority: "0", sound: "cashregister", ...run }],
             ["publish-failed", { title: "Release PUBLISH FAILED", ...loud, ...run }],
             ["run-ended", { title: "Release RUN ENDED BADLY", ...loud, ...run }],
-            ["dequeued", { title: "Release DROPPED FROM QUEUE", ...loud, ...pr }],
         ]) {
             const m = pushMessage(outcome, f);
             assert.deepEqual(pick(m), want, outcome);
             assert.match(m.title + m.message, /^[\x20-\x7e\n]+$/, `${outcome} is plain ASCII`);
             assert.ok(m.message.split("\n").length <= 2, `${outcome} is at most two lines`);
         }
-        assert.throws(() => pushMessage("skipped", f), /unknown outcome/);
+        for (const gone of ["skipped", "opened", "dequeued"]) {
+            assert.throws(() => pushMessage(gone, f), /unknown outcome/, gone);
+        }
     });
 
     it("says what: the packages and versions, or the failed lane and check", () => {
@@ -326,14 +228,6 @@ describe("pushMessage", () => {
         assert.match(
             pushMessage("held", { ...f, what: "T4 GPU" }).message,
             /^T4 GPU failed on abcdef1\nNothing published; see #12$/,
-        );
-        assert.equal(
-            pushMessage("dequeued", {
-                ...f,
-                what: "Dequeued -- checks failed",
-                checks: "All Checks Pass (u1), Lint (u2)",
-            }).message,
-            "PR #7: Dequeued -- checks failed\nFailing: All Checks Pass, Lint",
         );
     });
 

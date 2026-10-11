@@ -44,7 +44,11 @@ function endpoint(
     settings: ProviderApiSettings,
     fetch: typeof globalThis.fetch,
 ): { baseURL?: string; fetch: typeof globalThis.fetch } {
-    const base = settings.baseUrl?.replace(/\/+$/, "");
+    let base = settings.baseUrl;
+    while (base?.endsWith("/")) {
+        base = base.slice(0, -1);
+    }
+
     if (base === undefined || base.endsWith("/v1")) {
         return { ...(base !== undefined && { baseURL: base.slice(0, -"/v1".length) }), fetch };
     }

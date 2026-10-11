@@ -711,7 +711,11 @@ export interface EdgeAddEvent {
     metadata: object;
 }
 
-// AI events (Phase 7)
+/**
+ * Every event the AI assistant emits. OPEN UNION: events may be added in a minor release, so a
+ * `switch` over `type` needs a `default`; a listener subscribed by name never receives one it
+ * did not ask for.
+ */
 export type AiEvent =
     | AiStatusChangeEvent
     | AiCommandStartEvent

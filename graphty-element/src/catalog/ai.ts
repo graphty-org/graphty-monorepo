@@ -238,6 +238,9 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_TOOL_FAILED` -- a tool ran and reported failure. `{ tool }`.
  * - `AI_TOOL_THREW` -- a tool threw; what the command changed is taken back. `{ tool }`.
  * - `AI_FAILED` -- anything else went wrong while the command ran.
+ *
+ * OPEN UNION: codes may be added in a minor release. Handle a code you do not know, for example
+ * by `success` alone.
  */
 export const AI_RESULT_CODES = Object.freeze([
     "AI_COMPLETED",
@@ -256,7 +259,10 @@ export const AI_RESULT_CODES = Object.freeze([
     "AI_FAILED",
 ] as const);
 
-/** One AI command result code; see {@link AI_RESULT_CODES}. */
+/**
+ * One AI command result code; see {@link AI_RESULT_CODES}. OPEN UNION: codes may be added in a
+ * minor release, so a `switch` over it needs a `default`.
+ */
 export type AiResultCode = (typeof AI_RESULT_CODES)[number];
 
 /** The facts an AI command result states, keyed by name; which ones each code carries is listed in {@link AI_RESULT_CODES}. */

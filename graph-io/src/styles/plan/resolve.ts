@@ -324,7 +324,7 @@ export function numberOf(v: unknown): number | null {
  * @param table - the table
  * @returns the index of the matching entry, or -1
  */
-function discreteLookup(table: readonly (readonly [Scalar, StyleValue])[]): (value: unknown) => number {
+export function discreteLookup(table: readonly (readonly [Scalar, StyleValue])[]): (value: unknown) => number {
     const cached = LOOKUPS.get(table);
     if (cached !== undefined) {
         return cached;

@@ -11,7 +11,7 @@
             "borderWidth": 0,
             "borderStyle": "solid",
             "labelColor": "#000000",
-            "labelFont": "SansSerif",
+            "labelFont": "sans-serif",
             "labelWeight": "normal",
             "labelSize": 12,
             "labelPosition": "center"
@@ -26,7 +26,7 @@
             "sourceArrowColor": "#000000",
             "targetArrowColor": "#000000",
             "labelColor": "#000000",
-            "labelFont": "Dialog",
+            "labelFont": "sans-serif",
             "labelWeight": "normal",
             "labelSize": 10,
             "curved": true
@@ -52,7 +52,7 @@
             "borderColor": "#000000",
             "borderWidth": 2,
             "labelColor": "#000000",
-            "labelFont": "SansSerif",
+            "labelFont": "sans-serif",
             "labelSize": 12,
             "labelPosition": "center"
         },
@@ -63,7 +63,7 @@
             "sourceArrow": "none",
             "targetArrow": "none",
             "labelColor": "#000000",
-            "labelFont": "SansSerif",
+            "labelFont": "sans-serif",
             "labelSize": 10
         },
         "graph": {

@@ -91,6 +91,11 @@ locked values (bypasses) on top of the current style (`GenericXGMMLReader.java:3
 Note the mappings: because the importers copy the default style, the `name` -> node label
 passthrough survives into every imported CX / CX2 style unless the file maps NODE_LABEL itself.
 
+Fonts: Cytoscape desktop names Java's logical fonts (`SansSerif`, `Dialog`, `Serif`,
+`Monospaced`), and CX2 names the CSS families they stand for (`sans-serif`). graph-io reads both
+as the CSS family, so the canonical value of every `SansSerif` and `Dialog` above and in 2.2 is
+`sans-serif`, and the same network gives the same font from CX and from CX2.
+
 ### 2.2 Renderer fallbacks (.cys sessions, and any property a style leaves unset)
 
 A session's styles are rebuilt from `session_vizmap.xml` with `createVisualStyle(title)`

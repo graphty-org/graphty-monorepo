@@ -616,7 +616,7 @@ interface Args {
  * nodes rotate slowly while Spin is on.
  */
 export const OneSetup: StoryObj<Args> = {
-    args: { setup: "matte", spin: true },
+    args: { setup: "matte", spin: false },
     argTypes: { setup: { control: "select", options: Object.keys(SETUPS) } },
     render: (args) => {
         const host = document.createElement("div");
@@ -663,7 +663,7 @@ export const OneSetup: StoryObj<Args> = {
 
 /** Every setup at once, two per row: each panel is every shape across, the four colors down. */
 export const AllSetups: StoryObj<{ spin: boolean }> = {
-    args: { spin: true },
+    args: { spin: false },
     render: (args) => {
         const host = document.createElement("div");
         host.style.cssText = "font: 13px sans-serif; display: flex; flex-wrap: wrap; gap: 8px;";

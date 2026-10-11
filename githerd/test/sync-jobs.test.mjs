@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { move } from "../lib/board.mjs";
 import { normalizeConfig } from "../lib/config.mjs";
 import { jobText } from "../lib/job-text.mjs";
-import { syncJobs } from "../lib/jobs.mjs";
+import { backfillTriaged, syncJobs } from "../lib/jobs.mjs";
 import { issueRefusal, jobInUse, jobOrder } from "../lib/queue.mjs";
 import { accumulateMerged, commitRefs } from "../lib/merged.mjs";
 
@@ -612,6 +612,51 @@ describe("syncJobs: a full triage pass judges each issue once per change", () =>
         state.merged.count = 300;
         expect(triage(state)).toEqual(["triage-full-2"]);
         expect(state.jobs["triage-full-2"].facts.batch).toEqual([12]);
+    });
+});
+
+describe("backfillTriaged: verdicts accepted before they were stamped", () => {
+    /**
+     * A ledger record line of a triage job.
+     * @param {string} id the job
+     * @param {string} jobState its state
+     * @param {string} stateSince when it entered it
+     * @param {number[]} batch its issues
+     * @returns {any} the entry
+     */
+    const line = (id, jobState, stateSince, batch) => ({
+        kind: "record",
+        collection: "jobs",
+        id,
+        record: { id, kind: "triage", state: jobState, stateSince, facts: { batch } },
+    });
+
+    it("stamps each judged issue with its latest acceptance, only where none is stamped, and the full pass skips them", () => {
+        const state = base();
+        for (let n = 1; n <= 4; n++) issue(state, n, LABELED);
+        state.issues.byNumber[4].lastTriagedAt = "2026-10-03T09:00:00Z";
+        const ledger = [
+            line("triage-full-23", "working", "2026-10-03T01:00:00Z", [1, 2]),
+            line("triage-full-23", "done", "2026-10-03T02:00:00Z", [1, 2]),
+            // The same record again, unchanged, as a later save writes it.
+            line("triage-full-23", "done", "2026-10-03T02:00:00Z", [1, 2]),
+            line("triage-full-49", "done", "2026-10-03T06:00:00Z", [2, 4]),
+            line("triage-full-50", "cancelled", "2026-10-03T07:00:00Z", [3]),
+            { kind: "done-verify", job: "triage-full-49", action: "done" },
+        ];
+        expect(backfillTriaged(state, ledger)).toBe(2);
+        expect([1, 2, 3, 4].map((n) => state.issues.byNumber[n].lastTriagedAt)).toEqual([
+            "2026-10-03T02:00:00Z",
+            "2026-10-03T06:00:00Z",
+            undefined,
+            "2026-10-03T09:00:00Z",
+        ]);
+        // Run again at the next start: nothing left to stamp.
+        expect(backfillTriaged(state, ledger)).toBe(0);
+        // The issues updated 2026-10-03T00:00 were judged since: only the never-judged #3 is due.
+        state.merged.count = 100;
+        sync(state);
+        expect(state.jobs["triage-full-1"].facts.batch).toEqual([3]);
     });
 });
 

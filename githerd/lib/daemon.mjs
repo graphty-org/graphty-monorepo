@@ -93,7 +93,7 @@ import { updateMainCheckout } from "./main-checkout.mjs";
 import { createGitHub, GitHubError, notSent } from "./github.mjs";
 import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
-import { syncJobs } from "./jobs.mjs";
+import { backfillTriaged, syncJobs } from "./jobs.mjs";
 import { checkFaults, confirmClosedWaits, settleWaits, tickJobs, waitNews } from "./advance.mjs";
 import {
     endIdleSessions,
@@ -587,6 +587,22 @@ function devQuiet(env) {
 }
 
 /**
+ * Stamps the issues that triage verdicts judged before they were stamped (`backfillTriaged`), read
+ * from the ledger. A failure is only logged: the next full pass then judges those issues again.
+ * @param {any} state the daemon state
+ * @param {string} stateDir the .githerd directory
+ * @param {(level: string, text: string) => void} say the log
+ */
+async function backfillFromLedger(state, stateDir, say) {
+    try {
+        const stamped = backfillTriaged(state, await readLedger(stateDir, { since: new Date(0) }));
+        if (stamped) say("info", `stamped ${stamped} issues judged by earlier triage jobs`);
+    } catch (err) {
+        say("error", `triage backfill: ${/** @type {Error} */ (err).message}`);
+    }
+}
+
+/**
  * Starts the daemon.
  * @param {object} options what it runs on
  * @param {string} options.root the repository's main checkout
@@ -721,6 +737,7 @@ export async function startDaemon({
     state.incidents ??= {};
     state.issues ??= { since: null, byNumber: {} };
     state.merged ??= { lastScanAt: null, pending: [], closed: [] };
+    await backfillFromLedger(state, stateDir, say);
     // References kept under an earlier rule (a stacked merge, a bare `#n` in prose): read them again.
     if (state.merged.refsRule !== 2)
         Object.assign(state.merged, { refs: {}, refsBackfilled: false, commitRefs: undefined, refsRule: 2 });

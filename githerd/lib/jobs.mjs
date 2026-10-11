@@ -539,6 +539,36 @@ function judgedSinceChange(issue) {
     return Boolean(at && issue.updatedAt && Date.parse(issue.updatedAt) <= Date.parse(at));
 }
 
+/**
+ * Stamps `lastTriagedAt` from the ledger on each issue that has none: every triage job recorded
+ * done (its verdicts accepted at `stateSince`) judged the issues of its batch, and the latest
+ * acceptance wins. Verdicts accepted before done.mjs stamped them would otherwise make the next
+ * full pass judge every open issue again. Only empty stamps are filled, so it can run every start.
+ * @param {any} state the daemon state, changed in place
+ * @param {any[]} entries the ledger's entries
+ * @returns {number} how many issues it stamped
+ */
+export function backfillTriaged(state, entries) {
+    /** @type {Map<string, string>} */
+    const latest = new Map();
+    for (const e of entries) {
+        const job = e?.collection === "jobs" ? e.record : null;
+        if (job?.kind !== "triage" || job.state !== "done" || !job.stateSince) continue;
+        for (const n of job.facts?.batch ?? []) {
+            const had = latest.get(String(n));
+            if (!had || had < job.stateSince) latest.set(String(n), job.stateSince);
+        }
+    }
+    let stamped = 0;
+    for (const [n, at] of latest) {
+        const issue = state.issues?.byNumber?.[n];
+        if (!issue || issue.lastTriagedAt) continue;
+        issue.lastTriagedAt = at;
+        stamped += 1;
+    }
+    return stamped;
+}
+
 /** The reason of a triage pass that merges did not call for. */
 const PASS_REASONS = /** @type {Record<string, string>} */ ({
     types: "re-judge each issue's type label now that infrastructure exists",

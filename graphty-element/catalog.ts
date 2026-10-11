@@ -45,6 +45,8 @@ export type {
     AiResultParams,
 } from "./src/catalog/ai";
 export {
+    AI_CONVERSATION_FORMAT,
+    AI_CONVERSATION_FORMAT_VERSION,
     AI_PROVIDER_DESCRIPTORS,
     AI_PROVIDER_IDS,
     AI_RESULT_CODES,

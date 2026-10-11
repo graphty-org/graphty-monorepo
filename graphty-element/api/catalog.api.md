@@ -8,13 +8,19 @@ import { GraphListing } from '@graphty/graph-io';
 import { z } from 'zod';
 
 // @public
+export const AI_CONVERSATION_FORMAT = "graphty-ai-conversation";
+
+// @public
+export const AI_CONVERSATION_FORMAT_VERSION = 1;
+
+// @public
 export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[];
 
 // @public
 export const AI_PROVIDER_IDS: readonly ["openai", "anthropic", "google", "webllm", "mock"];
 
 // @public
-export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED", "AI_CONFIRMATION_NEEDED", "AI_ROLLBACK_PARTIAL", "AI_APPROVAL_STALE", "AI_APPROVAL_DENIED"];
+export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED", "AI_CONFIRMATION_NEEDED", "AI_ROLLBACK_PARTIAL", "AI_APPROVAL_STALE", "AI_APPROVAL_DENIED", "AI_TOOL_NOT_RUN", "AI_HISTORY_UNAVAILABLE", "AI_HISTORY_NEWER_FORMAT", "AI_STORAGE_FAILED"];
 
 // @public
 export const AI_STAGES: readonly ["processing", "generating", "executing"];

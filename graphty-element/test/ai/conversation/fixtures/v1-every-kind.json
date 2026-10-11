@@ -1,0 +1,235 @@
+{
+    "createdAt": "2026-10-11T09:00:00.000Z",
+    "format": "graphty-ai-conversation",
+    "graph": {
+        "dataKey": null,
+        "fingerprint": "n=120;e=340;h=9f2c"
+    },
+    "id": "c-every-kind",
+    "key": "graph-1:/explore",
+    "messages": [
+        {
+            "id": "m1",
+            "parts": [
+                {
+                    "origin": "reader",
+                    "text": "Remove the isolated nodes",
+                    "type": "text",
+                    "via": "voice"
+                },
+                {
+                    "origin": "graph-data",
+                    "text": "nodes: 120, edges: 340",
+                    "type": "text"
+                }
+            ],
+            "role": "user"
+        },
+        {
+            "id": "m2",
+            "parts": [
+                {
+                    "origin": "model",
+                    "providerState": {
+                        "data": {
+                            "signature": "c2ln"
+                        },
+                        "engine": "provider-api",
+                        "model": "claude-haiku-4-5-20251001",
+                        "provider": "anthropic"
+                    },
+                    "text": "Find degree 0 first.",
+                    "type": "reasoning"
+                },
+                {
+                    "origin": "model",
+                    "text": "Removing them.",
+                    "type": "text"
+                },
+                {
+                    "arguments": {
+                        "selector": "degree == `0`"
+                    },
+                    "callId": "t1",
+                    "command": "removeNodes",
+                    "origin": "model",
+                    "providerState": {
+                        "data": {
+                            "thoughtSignature": "dGhvdWdodA=="
+                        },
+                        "engine": "provider-api",
+                        "model": "gemini-3.8-flash",
+                        "provider": "google"
+                    },
+                    "type": "tool-call"
+                }
+            ],
+            "role": "assistant"
+        },
+        {
+            "id": "m3",
+            "parts": [
+                {
+                    "callId": "t1",
+                    "code": "AI_CONFIRMATION_NEEDED",
+                    "content": "{\"code\":\"AI_CONFIRMATION_NEEDED\",\"params\":{}}",
+                    "origin": "graph-data",
+                    "params": {
+                        "gate": "large",
+                        "tool": "removeNodes"
+                    },
+                    "type": "tool-result"
+                },
+                {
+                    "callId": "t2",
+                    "code": "AI_TOOL_NOT_RUN",
+                    "content": "{\"code\":\"AI_TOOL_NOT_RUN\",\"params\":{\"tool\":\"setStyle\"}}",
+                    "origin": "graph-data",
+                    "params": {
+                        "tool": "setStyle"
+                    },
+                    "type": "tool-result"
+                }
+            ],
+            "role": "tool"
+        },
+        {
+            "agent": "researcher",
+            "id": "m4",
+            "parts": [
+                {
+                    "callId": "h1",
+                    "origin": "web",
+                    "sources": [
+                        {
+                            "title": "Karate club",
+                            "url": "https://example.org/karate"
+                        },
+                        {
+                            "url": "http://example.org/plain"
+                        }
+                    ],
+                    "status": "done",
+                    "tool": "web-search",
+                    "type": "hosted-tool"
+                },
+                {
+                    "agent": "researcher",
+                    "code": "AI_COMPLETED",
+                    "conversationId": "c-helper-1",
+                    "origin": "graphty",
+                    "params": {
+                        "toolCalls": 1
+                    },
+                    "type": "agent-ref"
+                },
+                {
+                    "origin": "model",
+                    "text": "I found the source.",
+                    "type": "live-transcript"
+                }
+            ],
+            "role": "assistant"
+        },
+        {
+            "id": "m5",
+            "parts": [
+                {
+                    "origin": "reader",
+                    "text": "thanks",
+                    "type": "live-transcript"
+                }
+            ],
+            "role": "user"
+        }
+    ],
+    "pending": [
+        {
+            "calls": [
+                {
+                    "arguments": {
+                        "selector": "degree == `0`"
+                    },
+                    "callId": "t1",
+                    "command": "removeNodes"
+                }
+            ],
+            "claim": null,
+            "createdAt": "2026-10-11T09:01:00.000Z",
+            "gate": "large",
+            "graph": {
+                "dataKey": null,
+                "edges": 340,
+                "fingerprint": "n=120;e=340;h=9f2c",
+                "nodes": 120
+            },
+            "historyRevision": 4,
+            "id": "a1",
+            "kind": "approval",
+            "messageId": "m2",
+            "preview": {
+                "ids": [
+                    {
+                        "id": "n1",
+                        "label": "Alice"
+                    }
+                ],
+                "removeEdges": 0,
+                "removeNodes": 12
+            }
+        },
+        {
+            "agent": "researcher",
+            "callId": "t3",
+            "choices": [
+                "1",
+                "2"
+            ],
+            "claim": null,
+            "createdAt": "2026-10-11T09:02:00.000Z",
+            "id": "q1",
+            "kind": "question",
+            "messageId": "m4",
+            "multiple": false,
+            "question": "Which community?"
+        },
+        {
+            "agents": [
+                "styler"
+            ],
+            "claim": "tab-2",
+            "createdAt": "2026-10-11T09:03:00.000Z",
+            "id": "p1",
+            "kind": "plan-step",
+            "messageId": "m4",
+            "order": "sequence",
+            "planId": "plan-1",
+            "step": 1
+        },
+        {
+            "claim": null,
+            "createdAt": "2026-10-11T09:04:00.000Z",
+            "id": "p2",
+            "kind": "plan-confirmation",
+            "messageId": "m4",
+            "planId": "plan-1",
+            "steps": [
+                {
+                    "agents": [
+                        "researcher",
+                        "analyst"
+                    ],
+                    "order": "parallel"
+                },
+                {
+                    "agents": [
+                        "styler"
+                    ]
+                }
+            ]
+        }
+    ],
+    "revision": 7,
+    "updatedAt": "2026-10-11T09:05:00.000Z",
+    "version": 1
+}

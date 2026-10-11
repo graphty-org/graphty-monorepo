@@ -250,6 +250,16 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_APPROVAL_DENIED` -- the reader declined a held change. `{ request }`.
  * - `AI_FAILED` -- anything else went wrong while the command ran.
  *
+ * Carried by saved conversations and the conversation events rather than ending a command:
+ * - `AI_TOOL_NOT_RUN` -- a saved tool result: the call did not run, because an earlier call in its
+ *   batch failed or the batch was taken back. `{ tool }`.
+ * - `AI_HISTORY_UNAVAILABLE` -- saved history cannot be used. `{ reason }`: `"invalid-record"`
+ *   for a saved conversation that is not a valid record (it is skipped, never thrown).
+ * - `AI_HISTORY_NEWER_FORMAT` -- a saved conversation was written by a newer release, in a format
+ *   version this one cannot read; it is left untouched. `{ version }`.
+ * - `AI_STORAGE_FAILED` -- saving the conversation failed (quota, private mode); it continues in
+ *   memory.
+ *
  * OPEN UNION: codes may be added in a minor release. Handle a code you do not know, for example
  * by `success` alone.
  */
@@ -272,6 +282,10 @@ export const AI_RESULT_CODES = Object.freeze([
     "AI_ROLLBACK_PARTIAL",
     "AI_APPROVAL_STALE",
     "AI_APPROVAL_DENIED",
+    "AI_TOOL_NOT_RUN",
+    "AI_HISTORY_UNAVAILABLE",
+    "AI_HISTORY_NEWER_FORMAT",
+    "AI_STORAGE_FAILED",
 ] as const);
 
 /**
@@ -282,3 +296,12 @@ export type AiResultCode = (typeof AI_RESULT_CODES)[number];
 
 /** The facts an AI command result states, keyed by name; which ones each code carries is listed in {@link AI_RESULT_CODES}. */
 export type AiResultParams = Readonly<Record<string, string | number>>;
+
+/** The `format` of a saved assistant conversation (an exported conversation's JSON). */
+export const AI_CONVERSATION_FORMAT = "graphty-ai-conversation";
+
+/**
+ * The newest saved conversation format version this release writes and reads. A record of an
+ * older version is upgraded when read; a newer one is left untouched (`AI_HISTORY_NEWER_FORMAT`).
+ */
+export const AI_CONVERSATION_FORMAT_VERSION = 1;

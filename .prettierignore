@@ -12,6 +12,11 @@ storybook-static/
 # graphty-element's ./jsx entry: written by graphty-element/scripts/generate-jsx-types.ts and
 # compared byte for byte by graphty-element/test/packaging/jsx-types.test.ts
 graphty-element/jsx.ts
+# graphty-element's saved conversation format: the JSON Schema of each version is generated and
+# frozen, and the golden fixture is the writer's output, both compared byte for byte by
+# graphty-element/test/ai/conversation/formats.test.ts
+graphty-element/src/ai/conversation/formats/*.schema.json
+graphty-element/test/ai/conversation/fixtures/
 # Vitest file snapshots: written by the tests that compare them byte for byte
 **/__snapshots__/
 # Changelogs: written by `nx release` (tools/changelog-renderer.cjs) inside the release commit, so

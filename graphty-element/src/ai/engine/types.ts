@@ -12,24 +12,13 @@
 import type { z } from "zod";
 
 import type { AiProviderId, AiResultCode, AiResultParams } from "../../catalog/ai";
+import type { ProviderState, SavedMessage, SavedPart } from "../conversation/formats/v1";
+
+// One definition of a saved message: the saved conversation format's (formats/v1.ts).
+export type { PartOrigin, ProviderState, SavedMessage, SavedPart } from "../conversation/formats/v1";
 
 /** A JSON Schema object, as a provider's tool declaration takes it. */
 export type JsonSchema = Readonly<Record<string, unknown>>;
-
-/**
- * Opaque provider round-trip data (Gemini thought signatures, Anthropic thinking signatures,
- * OpenAI encrypted reasoning). Only the engine that wrote it reads `data`, and it is sent back
- * only when engine, provider and model all match.
- */
-export interface ProviderState {
-    readonly engine: string;
-    readonly provider: string;
-    readonly model: string;
-    readonly data: unknown;
-}
-
-/** Where a part of a message came from. */
-export type PartOrigin = "reader" | "model" | "graph-data" | "graphty";
 
 /** The envelope's own tags, in any case and spacing, which text inside it may not carry. */
 const ENVELOPE_TAG = /<[\s/]*graph-data\s*>/gi;
@@ -58,7 +47,8 @@ export function textOf(parts: readonly SavedPart[]): string {
                 return [];
             }
 
-            return [part.origin === "graph-data" ? graphData(part.text) : part.text];
+            // Text from the graph or the web is data, never an instruction.
+            return [part.origin === "graph-data" || part.origin === "web" ? graphData(part.text) : part.text];
         })
         .join("\n");
 }
@@ -73,43 +63,14 @@ export function toolResultText(part: Extract<SavedPart, { type: "tool-result" }>
     return graphData(part.content);
 }
 
-/** One part of a message the engine is shown. */
-export type SavedPart =
-    | { readonly type: "text"; readonly origin: PartOrigin; readonly text: string }
-    | {
-          readonly type: "tool-call";
-          readonly origin: "model";
-          readonly callId: string;
-          readonly command: string;
-          readonly arguments: Readonly<Record<string, unknown>>;
-          readonly providerState?: ProviderState;
-      }
-    | ({
-          readonly type: "tool-result";
-          readonly origin: "graph-data";
-          readonly callId: string;
-          /** The text the model reads: the result as JSON, truncated. */
-          readonly content: string;
-      } & ToolResultOutcome);
-
 /**
  * What one tool call did, as its result part records it: a command result's code, or
  * `AI_TOOL_NOT_RUN` (`{ tool }`) for a call that did not run because an earlier call in its batch
- * failed. That code is internal until the saved conversation format is published (milestone 3).
+ * failed.
  */
 export interface ToolResultOutcome {
-    readonly code: AiResultCode | "AI_TOOL_NOT_RUN";
+    readonly code: AiResultCode;
     readonly params: AiResultParams;
-}
-
-/**
- * One message of a conversation, in graphty's own shape. The saved conversation format
- * (milestone 3) is built on it.
- */
-export interface SavedMessage {
-    readonly id: string;
-    readonly role: "user" | "assistant" | "tool";
-    readonly parts: readonly SavedPart[];
 }
 
 /** One tool the model may call: a command's name, description and parameter schema. */

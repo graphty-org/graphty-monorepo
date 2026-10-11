@@ -25,6 +25,17 @@ import { installAssistantTools } from "../../../src/ai/tools/install";
 const reached = new Set<string>();
 
 /**
+ * Codes a saved conversation's tool results and the conversation events carry rather than a
+ * command's result (test/ai/conversation/ covers them).
+ */
+const NOT_COMMAND_RESULTS = [
+    "AI_TOOL_NOT_RUN",
+    "AI_HISTORY_UNAVAILABLE",
+    "AI_HISTORY_NEWER_FORMAT",
+    "AI_STORAGE_FAILED",
+];
+
+/**
  * Record a result's code.
  * @param result - The result.
  * @returns The result.
@@ -285,6 +296,10 @@ describe("AI command result codes", () => {
     });
 
     afterAll(() => {
-        assert.sameMembers([...reached], [...AI_RESULT_CODES], "every code in AI_RESULT_CODES is reached");
+        assert.sameMembers(
+            [...reached],
+            AI_RESULT_CODES.filter((code) => !NOT_COMMAND_RESULTS.includes(code)),
+            "every code in AI_RESULT_CODES is reached",
+        );
     });
 });

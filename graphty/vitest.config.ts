@@ -60,6 +60,12 @@ export default defineConfig({
                     name: "browser",
                     include: ["src/**/*.test.{ts,tsx}"],
                     exclude: [...BASE_EXCLUDE, REAL_ELEMENT_TESTS],
+                    // Three pages at a time, as on a 4-core CI runner. Vitest's browser mode opens
+                    // min(12, cores - 1) pages by default, and a --maxWorkers flag does not reach a
+                    // browser project: only the project's own maxWorkers does.
+                    maxWorkers: 3,
+                    // Vitest refuses two projects with different maxWorkers in one group order.
+                    sequence: { groupOrder: 2 },
                     browser: chromium(),
                     setupFiles: "./src/test/setup.ts",
                 },
@@ -70,12 +76,6 @@ export default defineConfig({
                     name: "real-element",
                     include: [REAL_ELEMENT_TESTS],
                     sequence: { groupOrder: 1 },
-                    // Three files at a time, as on a 4-core CI runner. Vitest's browser mode opens
-                    // min(12, cores - 1) pages at once, so this machine ran 12 real elements side by
-                    // side; each draws through SwiftShader and keeps about 1.75 cores busy, and the
-                    // test-slot limit counts the whole run as one slot. At 12 pages a 1 s test took
-                    // 10 to 15 s and some timed out. Per project: a --maxWorkers flag does not reach it.
-                    maxWorkers: 3,
                     browser: chromium(),
                     setupFiles: "./src/test/setup.ts",
                     // One file at a time. Every file mounts a real element, and the files share

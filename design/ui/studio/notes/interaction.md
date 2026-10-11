@@ -15,32 +15,35 @@ save and reopen.
 
 ## Top of mind
 
-- 2026-10-10 **Round 3 (54 of 56): the one real app failure is Shift/Ctrl-click on a node, which
-  replaces the selection** (element `NodeBehavior.handleClick` always `select()`s; the edge click
-  already adds). Element fix with a real-input test. Shift is the add key; Meta beside Ctrl on macOS.
-- 2026-10-10 **Truth over tidiness: after Undo a path run's "Made with" names the undone run's From
-  and To** (verified, `expert/figma/path/11.png`: route Depot-School-Stadium, Made with Market to
-  Station). Mechanism not pinned: the inspector draft keyed by run id, or the element's undo of a
-  re-tuned run not restoring its params. Script it, then fix where it lives.
-- 2026-10-10 **Focus drops still found by keys only:** picking Shortest path with Enter (PathForm's
-  `data-autofocus` is read only when the popover opens; use `autoFocus` like the other forms), and
-  adding a style to a selection's new layer (focus to page; the next Escape clears the selection).
-  Both go into bars.mjs's focus-drop list so they cannot slip again.
-- 2026-10-10 **Round 3 credited:** the find box's example line and runnable suggestion, two Escapes
-  keep focus, Follow arrows stay on Follow, Tab commits a step edit, Escape cancels and says so.
-- 2026-10-10 **A prompt and its answer key must ask for the same outcome** (T24: "point out" vs a
-  selection rule). Walk every route the key names on the build before a task runs.
-- 2026-10-10 **The walk list is always one round behind.** Script pilots' real routes; a keyboard
-  walk presses every control; a fault found is fixed before freeze, never handed on.
-- 2026-10-10 **A disabled done-state is not a state.** "Filter to neighbors" gray with no reason
-  reads as "not allowed"; say why (criterion 8).
-- 2026-10-10 **Words at rest go down, never up.** No new words for any fix; no second door where
-  one is measured (Filters on the Graph place waits).
+- 2026-10-11 **Round 4 does not start until the study's own gate works.** Round 3's leak check read
+  zero logs and said "no leaks", `--end` deleted step notes, and the prompt pilots never ran. A
+  check that reads nothing must fail; each check shown failing on a planted fault first.
+- 2026-10-11 **Shift-click on a node adds to the selection (element, team's call); Ctrl and Meta
+  held.** Node click takes the edge click's `applyNow(..., add ? "add" : "replace")` path; XR keeps
+  replace. Watch in round 4: Selection reads 2 after Gus, Shift-click Ivan; Shift-drag still drags.
+- 2026-10-11 **T24 was the study's fault as much as the app's:** the prompt now names the outcome
+  ("so whatever you do next applies only to those two"); the key names the Shift route only after
+  it is walked on the frozen build. Walk every key route before a task runs.
+- 2026-10-11 **Focus drops are scripted before fixed.** bars.mjs gains two actions (Enter on
+  Shortest path; Add to Line, then Color on a selection); both must fail on 26f3bb968, then pass.
+  PathForm gets `autoFocus`; the Color drop is traced in `useFocusLine`, no second mechanism.
+- 2026-10-11 **"Made with" after re-run or Undo: script first.** Draft keyed by run id survives a
+  re-run; clear it on finish/undo if that is it, fix the element's undo if params are not restored,
+  close as not shown if it does not reproduce.
+- 2026-10-11 **One variant per problem; a one-specialist claim is scripted before it is fixed.**
+  Eight roles proposed up to four variants each; stacking blinds the round.
+- 2026-10-11 **Round 4 watch list (mine):** T17 first moves with the new toolbar Filters icon (vs 5
+  of 8 looking on the Graph place); T22 "10 or more" row (element `atLeast`, app counts nothing);
+  T18 Analyze ranking (name match first, one "Start here"); edge filter step counts edges; Add
+  page repeated-ties line in Load's description; disabled reason reaching a screen reader.
+- 2026-10-11 **Held, first in line if met again:** Hops distance per name (needs element `hops`),
+  committing a step edit on focus leave (contradicts innermost-first Escape), a notice for a
+  replaced path (another spoken line on a screen that already says too much).
+- 2026-10-10 **A disabled done-state is not a state.** Say why it is off (criterion 8).
+- 2026-10-10 **Words at rest go down, never up.** No new words for any fix.
 - 2026-10-10 **Discount behavior a prompt's own words ask for** ("stand out", "point out").
 - 2026-10-07 **A decided change that is not verified on the served build is not done.**
-- 2026-10-07 **Recovery routes are first-class.** "Back to start" must never be the only route.
 - 2026-10-07 **Simulated participants are one model.** Trust reproductions and causes in code.
-- 2026-10-06 **Change one thing per problem per round,** so the round can tell what helped.
 - 2026-10-06 **Every detour must work or not look clickable. Refusals in place until the value
   changes.**
 - 2026-10-06 **Where a fix goes:** graph facts in graphty-element; flows, focus, words in the app;
@@ -180,6 +183,18 @@ text })`; accepted or refused only with `number-needs-backticks` -> "To select b
   ranks a name match above a description match; the find Values row wraps instead of cutting.
   Held: "or more" for a bare number (the element suggests rules; one change per problem), a
   Filters door on the Graph place, announcing a replaced path, Hops distance (waits on element).
+
+- 2026-10-11 Tier 2 round 3 closed (Design Director). 54 of 56. Decided for round 4: study gate
+  enforced (leak check fails on unread logs, `--end` never removes notes, runner refuses a round
+  without pilots and bars); T24 prompt reworded to the outcome; Shift-click adds on a node
+  (element); bars.mjs fixed (bar 9 excludes data names; two focus actions; find list axe hit as an
+  exception if ArrowDown scrolls the active option); Made with scripted first; PathForm
+  `autoFocus` and the Color focus drop; find "or more" row via element `atLeast` and "Select where"
+  dropped from visible text (my wrap proposal not taken: shorter text should fit); Analyze name
+  match first; toolbar Filters icon to the existing step editor (my "hold" overruled: the one clean
+  case of no control where people look first); repeated-ties line as a described warning; edge
+  filter step counts edges (script first); disabled reason via compact-mantine Tooltip (check
+  first). Reason throughout: one variant per problem, fixes in the owning package, no words added.
 
 ## Tried: worked / did not work
 

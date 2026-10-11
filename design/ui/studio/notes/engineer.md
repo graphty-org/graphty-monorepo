@@ -11,6 +11,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-11) **T12R B piloted on the fresh local build 3c257c2f7 (`tmp/r4-dry1-repilot-t12rb/
+  T12RB/`, 5 screenshots, `work.json` gone empty): success path unchanged** -- find "Medici",
+  Enter, Degree 6 lists Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni; Back
+  returns. Only the known hover-under-pointer fills (no change). Still owed: the second dry run
+  pilots it in `rounds/r4d2/pilot/` on the refrozen build, which does not exist yet (criteria
+  still name 38e180aac; `graphty/dist` lacks c9f2ceed3 and another agent has RunValues edits
+  uncommitted). The ten untracked r4 pilot folders are committed (b6f244643).
 - (2026-10-11) **The step editor's disabled submit says what is missing: built** (app only).
   "Add step" / "Save step" / "Save and turn on" use the Filter to neighbors pattern (Tooltip,
   aria-disabled, data-disabled; the click and Enter reach `commit()`, which returns on an
@@ -64,12 +71,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-10) **Hold still in round 4:** second Find path replacing the first, "Select endpoints"
   in "..." (confounded with Shift-click), the "=" hint and backtick wording (measure "or more"
   alone), round 2's routes (now passing clean), label and node overlap (element, owner's list).
+  Edge inspector words 31 of 30 still OPEN; do not reword measured routes meanwhile.
 - (2026-10-10, condensed) **Round 3 screenshot audit: 38 findings, 2 at severity 3 (element
   label placement).** `tier2/rounds/round-3/expert/engineer.md`. Still mine: Escape does nothing on
   the Data pages. For the element: sized nodes drawn inside each other (layout spaces centers).
-- (2026-10-10, condensed) **Round 3 changes were measured in round 3; edge inspector words 31 of
-  30 still OPEN. Round 2's new routes (weight meaning at load, Replace in "...", rule hint) count
-  only once a clean round re-measures them; do not reword or move them meanwhile.**
 - (2026-10-10) **Not mine to fix in the app, ever:** drawn names covering names and ties (element
   label placement on an unseeded layout, owner's list); bare numbers in rules and what an edge
   width measures (both breaking, owner's list); never scale widths or parse rules in the app.
@@ -246,6 +251,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-11) Worked: copying `graphty/dist` into the session folder and pointing REAL_DIST at
+  the copy, so another agent's rebuild cannot swap the app mid-pilot; delete the copy after
+  `--end`. The start queued for a browser slot and then ran; no wrapper around real.mjs needed.
 - (2026-10-11) Worked: wrapping the Tree description in compact-mantine (`overflow-wrap:
   anywhere`, row `height: auto; min-height: 44px; padding-block: 6px`, pill and ring `bottom:
   4px`). One-line rows look the same (44). Did not do: no-break spaces inside each count phrase so

@@ -323,7 +323,7 @@ export interface GraphtyElementJSXProps {
      */
     "onai-status-change"?: (event: CustomEvent<EventOfType<"ai-status-change">>) => void;
     /**
-     * Emitted during streaming when text chunks arrive (throttled)
+     * Emitted once for each piece of text the provider streams, not throttled.
      */
     "onai-stream-chunk"?: (event: CustomEvent<EventOfType<"ai-stream-chunk">>) => void;
     /**

@@ -770,8 +770,9 @@ interface AiCommandCancelledEvent {
 }
 
 /**
- * Emitted once for each piece of text the provider streams (not throttled: OpenAI and Anthropic
- * stream in small pieces, so one answer can send many).
+ * Emitted once for each piece of text the provider streams, not throttled.
+ *
+ * OpenAI and Anthropic stream in small pieces, so one answer can send many.
  */
 export interface AiStreamChunkEvent {
     type: "ai-stream-chunk";

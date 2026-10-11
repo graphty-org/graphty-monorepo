@@ -14,6 +14,15 @@
  * a string-literal union of codes or a `CodedFact` `{ code, params }`, never free text. Fields that
  * already exist never fail; see plainStringAdditions.
  *
+ * The check also fails when a report imports an AI framework or provider package
+ * (FRAMEWORK_PACKAGES): graphty-element's assistant keeps every framework behind its internal
+ * engine seam, so no public type names one. And it fails when a report adds an open-ended member
+ * -- typed `unknown`, `any`, `object`, a record of unknown, or an index signature -- to the AI
+ * configuration (OPTION_ROOTS) or any type it reaches, compared with the merge base, unless
+ * OPEN_OPTION_EXCEPTIONS gives the reason: a provider setting becomes a named graphty field, never
+ * a pass-through to whatever the framework underneath takes. See
+ * design/ai/tanstack-ai-harness-design.md, section 7, rules 1 and 3.
+ *
  * Usage (after the package is built):
  *   node tools/api-report.mjs <package dir>           rewrite <package dir>/api/*.api.md
  *   node tools/api-report.mjs <package dir> --check   exit 1 when the built API differs from them,
@@ -25,6 +34,10 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync }
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { frameworkFamily } from "./ai-framework-packages.mjs";
+
+export { FRAMEWORK_PACKAGES } from "./ai-framework-packages.mjs";
 
 /**
  * The entry points of a package.json "exports" map that have types.
@@ -286,11 +299,110 @@ export function plainStringAdditions(baseTexts, headTexts) {
 }
 
 /**
- * Checks a package's committed reports against the merge base's for added plain string fields.
+ * The AI framework or provider packages a report imports.
+ * @param name - the report's file name, for the message
+ * @param text - the report
+ * @returns one failure message per framework import
+ */
+export function frameworkImports(name, text) {
+    return [...text.matchAll(/^import .* from '([^']+)';$/gm)]
+        .map((m) => m[1])
+        .filter((specifier) => frameworkFamily(specifier) !== undefined)
+        .map(
+            (specifier) =>
+                `${name} imports '${specifier}', an AI framework or provider package. No public type may name one: ` +
+                `declare graphty's own type and translate inside src/ai/engine/ (design/ai/tanstack-ai-harness-design.md, rule 1).`,
+        );
+}
+
+/** The AI configuration types whose members, and the members of every type they reach, must be named graphty fields. */
+export const OPTION_ROOTS = ["AiManagerConfig", "ProviderOptions"];
+/**
+ * Open-ended members allowed on the AI configuration anyway, as `Type.member` -> the reason. A
+ * member that already exists on the merge base never fails, so this lists only deliberate additions.
+ */
+export const OPEN_OPTION_EXCEPTIONS = new Map([]);
+
+const OPEN_MEMBER =
+    /^\s+(?:readonly )?([A-Za-z_$][\w$]*)\??: (unknown|any|object|\{\}|(?:Readonly<)?Record<string, (?:unknown|any)>>?)(?: \| (?:undefined|null))*;$/;
+const INDEX_MEMBER = /^\s+(?:readonly )?\[[A-Za-z_$][\w$]*: (?:string|number|symbol)\]\??: /;
+
+/**
+ * Every declaration of several reports, the later report winning a name both declare.
+ * @param texts - the reports
+ * @returns declaration name -> its lines
+ */
+function parseReports(texts) {
+    return new Map(texts.flatMap((t) => [...parseReport(t)]));
+}
+
+/**
+ * The declarations the AI configuration reaches: OPTION_ROOTS, then every type named anywhere in a
+ * declaration already reached.
+ * @param declarations - from parseReports
+ * @returns the reached declaration names
+ */
+export function optionReachable(declarations) {
+    const reached = new Set();
+    const queue = OPTION_ROOTS.filter((root) => declarations.has(root));
+    while (queue.length > 0) {
+        const name = queue.pop();
+        if (reached.has(name)) continue;
+        reached.add(name);
+        const [head, ...rest] = declarations.get(name);
+        for (const [ref] of [head.replace(DECLARATION, ""), ...rest].join("\n").matchAll(/[A-Za-z_$][\w$]*/g)) {
+            if (declarations.has(ref) && !reached.has(ref)) queue.push(ref);
+        }
+    }
+    return reached;
+}
+
+/**
+ * Every open-ended member of the given declarations.
+ * @param declarations - from parseReports
+ * @param names - the declarations to read, or undefined for every one
+ * @returns `Type.member` (`Type.[index]` for an index signature) -> what makes it open
+ */
+export function openOptionFields(declarations, names) {
+    const found = new Map();
+    for (const [name, lines] of declarations) {
+        if (names && !names.has(name)) continue;
+        for (const line of members(lines.slice(1)).map(receivedType).join("\n").split("\n")) {
+            const open = OPEN_MEMBER.exec(line);
+            if (open) found.set(`${name}.${open[1]}`, open[2]);
+            else if (INDEX_MEMBER.test(line)) found.set(`${name}.[index]`, "an index signature");
+        }
+    }
+    return found;
+}
+
+/**
+ * The open-ended members a report adds to the AI configuration, compared with the base reports.
+ * @param baseTexts - the base reports
+ * @param headTexts - the reports being checked
+ * @returns one failure message per added member
+ */
+export function openOptionFieldAdditions(baseTexts, headTexts) {
+    const before = new Set(openOptionFields(parseReports(baseTexts)).keys());
+    const head = parseReports(headTexts);
+    return [...openOptionFields(head, optionReachable(head))]
+        .filter(([key]) => !before.has(key) && !OPEN_OPTION_EXCEPTIONS.has(key))
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(
+            ([key, kind]) =>
+                `${key} is a new open-ended member (${kind}) of the AI configuration. Name the setting as a graphty ` +
+                `field, never a pass-through to a framework's options; or add it to OPEN_OPTION_EXCEPTIONS in ` +
+                `tools/api-report.mjs with the reason (design/ai/tanstack-ai-harness-design.md, rule 3).`,
+        );
+}
+
+/**
+ * Checks a package's committed reports: against the merge base's for added plain string fields and
+ * open-ended AI configuration members, and on their own for framework imports.
  * @param packageDir - the package's directory
  * @returns the failure messages
  */
-function checkPlainStrings(packageDir) {
+function checkAgainstBase(packageDir) {
     const apiDir = join(resolve(packageDir), "api");
     const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: apiDir, encoding: "utf8" }).trim();
     // from the top: ls-tree run in a subfolder lists only that subfolder's part of the tree
@@ -301,10 +413,13 @@ function checkPlainStrings(packageDir) {
     const baseFiles = git("ls-tree", "--name-only", `${base}:${prefix}`)
         .split("\n")
         .filter((f) => f.endsWith(".api.md"));
-    return plainStringAdditions(
-        baseFiles.map((f) => git("show", `${base}:${prefix}/${f}`)),
-        files.map((f) => readFileSync(join(apiDir, f), "utf8")),
-    );
+    const baseTexts = baseFiles.map((f) => git("show", `${base}:${prefix}/${f}`));
+    const headTexts = files.map((f) => readFileSync(join(apiDir, f), "utf8"));
+    return [
+        ...plainStringAdditions(baseTexts, headTexts),
+        ...openOptionFieldAdditions(baseTexts, headTexts),
+        ...files.flatMap((f, i) => frameworkImports(`api/${f}`, headTexts[i])),
+    ];
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -319,7 +434,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         console.error("public API changed: run npm run api:report in the package and commit the new report");
         process.exit(1);
     }
-    const strings = flag ? checkPlainStrings(packageDir) : [];
+    const strings = flag ? checkAgainstBase(packageDir) : [];
     if (strings.length > 0) {
         for (const s of strings) console.error(`${packageDir}: ${s}`);
         process.exit(1);

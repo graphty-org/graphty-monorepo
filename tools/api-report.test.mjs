@@ -12,6 +12,13 @@ import { after, describe, it } from "node:test";
 import {
     apiReport,
     entryPoints,
+    FRAMEWORK_PACKAGES,
+    frameworkImports,
+    OPEN_OPTION_EXCEPTIONS,
+    openOptionFieldAdditions,
+    openOptionFields,
+    optionReachable,
+    parseReport,
     PLAIN_STRING_ALLOWLIST,
     plainStringAdditions,
     plainStringProperties,
@@ -209,5 +216,136 @@ describe("the committed graphty-element reports", () => {
         const texts = readdirSync(dir).map((f) => readFileSync(join(dir, f), "utf8"));
         assert.deepEqual(plainStringAdditions(texts, texts), []);
         assert.ok(plainStringProperties(texts.join("\n"), true).size > 0, "the parser finds the existing fields");
+    });
+});
+
+describe("frameworkImports (no framework or provider type in a public entry point)", () => {
+    const report = (imports) =>
+        `## API Report File for "fixture"\n\n\`\`\`ts\n\n${imports}\nimport { z } from 'zod';\n`;
+
+    it("fails a report that imports a framework or provider package, one message each", () => {
+        const planted = [
+            "import { chat } from '@tanstack/ai';",
+            "import { ModelMessage } from 'ai';",
+            "import { LanguageModel } from '@ai-sdk/openai';",
+            "import OpenAI from 'openai';",
+            "import { GoogleGenAI } from '@google/genai';",
+            "import Anthropic from '@anthropic-ai/sdk';",
+            "import { RunAgentInput } from '@ag-ui/core';",
+            "import { MLCEngine } from '@mlc-ai/web-llm';",
+        ];
+        const messages = frameworkImports("api/ai.api.md", report(planted.join("\n")));
+        assert.equal(messages.length, planted.length);
+        assert.match(messages[0], /^api\/ai\.api\.md imports '@tanstack\/ai', an AI framework or provider package/);
+    });
+
+    it("passes the packages that are not frameworks, a name that only starts like one included", () => {
+        const text = report(
+            "import { LitElement } from 'lit';\nimport { aim } from 'aim';\nimport x from '@tanstackish/ai';",
+        );
+        assert.deepEqual(frameworkImports("api/index.api.md", text), []);
+    });
+
+    it("lists the design's packages: exact ai, openai, @google/genai and the five scopes", () => {
+        for (const name of ["ai", "openai", "@google/genai"]) assert.ok(FRAMEWORK_PACKAGES.exact.includes(name), name);
+        for (const scope of ["@tanstack/", "@ag-ui/", "@ai-sdk/", "@anthropic-ai/", "@mlc-ai/"]) {
+            assert.ok(FRAMEWORK_PACKAGES.prefixes.includes(scope), scope);
+        }
+    });
+});
+
+describe("openOptionFieldAdditions (providers configured in graphty's terms)", () => {
+    const report = (extra = {}) => `## API Report File for "fixture"
+
+\`\`\`ts
+
+// @public
+export interface AiManagerConfig {
+    apiKey?: string;
+    keyPersistence?: KeyPersistenceConfig;
+    providerInstance?: LlmProvider;${extra.config ?? ""}
+}
+
+// @public
+export interface KeyPersistenceConfig {
+    enabled: boolean;${extra.keys ?? ""}
+}
+
+// @public
+export interface LlmProvider {
+    configure(options: ProviderOptions): void;
+}
+
+// @public
+export interface ProviderOptions {
+    model?: string;${extra.provider ?? ""}
+}
+
+// @public
+export interface Unrelated {
+    anything: unknown;${extra.unrelated ?? ""}
+}
+
+\`\`\`
+`;
+    const check = (head) => openOptionFieldAdditions([report()], [report(head)]);
+
+    it("fails each kind of open-ended member added to the configuration", () => {
+        for (const [member, kind] of [
+            ["providerOptions?: unknown;", "unknown"],
+            ["raw: any;", "any"],
+            ["extra?: object;", "object"],
+            ["headers?: Record<string, unknown>;", "Record<string, unknown>"],
+            ["readonly passthrough?: Readonly<Record<string, any>> | undefined;", "Readonly<Record<string, any>>"],
+        ]) {
+            const [message, ...rest] = check({ config: `\n    ${member}` });
+            assert.equal(rest.length, 0, member);
+            assert.match(
+                message,
+                new RegExp(
+                    `^AiManagerConfig\\.\\w+ is a new open-ended member \\(${kind.replace(/[<>|()]/g, "\\$&")}\\)`,
+                ),
+            );
+        }
+    });
+
+    it("fails an index signature, and a member of a type the configuration reaches", () => {
+        assert.match(
+            check({ provider: "\n    [key: string]: unknown;" })[0],
+            /^ProviderOptions\.\[index\] is a new open-ended member/,
+        );
+        assert.match(check({ keys: "\n    store?: unknown;" })[0], /^KeyPersistenceConfig\.store /);
+    });
+
+    it("passes a named field, a member the base already had, and a type the configuration does not reach", () => {
+        assert.deepEqual(check({ config: "\n    temperature?: number;" }), []);
+        assert.deepEqual(check({ unrelated: "\n    more: unknown;" }), []);
+        const before = report({ config: "\n    legacy?: unknown;" });
+        assert.deepEqual(openOptionFieldAdditions([before], [before]), []);
+    });
+
+    it("reaches every type named in the configuration, through method parameters too", () => {
+        const reached = optionReachable(parseReport(report()));
+        assert.deepEqual([...reached].sort(), [
+            "AiManagerConfig",
+            "KeyPersistenceConfig",
+            "LlmProvider",
+            "ProviderOptions",
+        ]);
+        assert.equal(OPEN_OPTION_EXCEPTIONS.size, 0, "an exception names its reason; none is needed yet");
+    });
+
+    it("finds no open member the committed graphty-element reports do not already have", () => {
+        const dir = join(import.meta.dirname, "..", "graphty-element", "api");
+        const texts = readdirSync(dir).map((f) => readFileSync(join(dir, f), "utf8"));
+        assert.deepEqual(openOptionFieldAdditions(texts, texts), []);
+        assert.ok(
+            openOptionFields(parseReport(texts.join("\n"))).size > 0,
+            "the parser finds the existing open members",
+        );
+        assert.deepEqual(
+            texts.flatMap((t) => frameworkImports("api", t)),
+            [],
+        );
     });
 });

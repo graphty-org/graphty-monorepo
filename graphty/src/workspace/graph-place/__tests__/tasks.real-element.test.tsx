@@ -18,7 +18,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent as realInput } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { addLabelRow } from "../../style/row";
 import { Workspace } from "../../Workspace";
@@ -166,6 +166,20 @@ describe("the Graph place on the real element", () => {
         assert.isNotNull(await screen.findByRole("option", { name: /^=minutes >= `10`/ }));
         await realInput.keyboard("{Enter}");
         await linksOfTenOrMore();
+    });
+
+    it("keeps the example under the box while the session changes, rather than taking it down to ask again", async () => {
+        const { session } = await openGraph();
+        await realInput.type(screen.getByRole("combobox", { name: "Find" }), "chapters 10");
+        const example = await screen.findByText(/^=\w+ > `\d+`$/);
+
+        // Any session change asks the element again; the element's own late history step after a
+        // load is one, and took the line down between a test finding it and reading it.
+        await act(async () => {
+            await session.selection.apply({ nodes: [1] });
+        });
+
+        assert.isTrue(example.isConnected, "the example line stayed up");
     });
 
     it("a click on a drawn name selects that node and opens it in the inspector", async () => {

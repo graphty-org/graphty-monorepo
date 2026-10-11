@@ -249,11 +249,14 @@ export function FindBox(): React.JSX.Element {
     const [text, setText] = useState("");
     const [active, setActive] = useState(-1);
     const [refusal, setRefusal] = useState<Refusal | null>(null);
+    // The element's answers below are kept with the text they were asked for: a session change
+    // asks again, and the line under the box keeps the last answer until the new one arrives
+    // rather than blinking out (and being announced again by its status region) on every change.
     // What the element said of the typed rule: "ok", "empty", or null while unchecked.
-    const [ruleCheck, setRuleCheck] = useState<"ok" | "empty" | null>(null);
+    const [ruleAnswer, setRuleAnswer] = useState<{ text: string; verdict: "ok" | "empty" | null } | null>(null);
     // The rule plain text that found nothing reads as once "=" leads it, null when it reads as
     // none, or undefined until the element has answered.
-    const [textAsRule, setTextAsRule] = useState<string | null | undefined>(undefined);
+    const [textAsRuleAnswer, setTextAsRuleAnswer] = useState<{ text: string; rule: string | null } | null>(null);
     const listId = useId();
     // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
     const version = useSessionVersion(session);
@@ -265,6 +268,7 @@ export function FindBox(): React.JSX.Element {
             : session.find(text, { limit: LIMIT, edgeNameJoiner: edgeJoiner(session) });
     }, [session, text, version]);
     const isRule = found?.notSearchable === "expression";
+    const ruleCheck = isRule && ruleAnswer?.text === text ? ruleAnswer.verdict : null;
     const { word, columns } = useMemo(() => {
         const _changeCount = version; // NOSONAR(S1481): reads the change count so a new column is offered
         return session !== null && isRule ? columnOptions(session, text) : { word: "", columns: [] };
@@ -273,14 +277,6 @@ export function FindBox(): React.JSX.Element {
     const nodeHits = found?.records.filter((hit) => hit.kind !== "edge") ?? [];
     const edgeHits = found?.records.filter((hit) => hit.kind === "edge") ?? [];
     const hits = [...nodeHits, ...edgeHits];
-    // A rule shown under the box, the element's rewrite of a refused rule or the plain text as a
-    // rule, is an option too: the last, and the one Enter picks.
-    let ruleOption: string | null = null;
-    if (isRule) {
-        ruleOption = refusal?.rule ?? null;
-    } else if (typeof textAsRule === "string") {
-        ruleOption = `=${textAsRule}`;
-    }
     // Each value row, then its "or more" row when the element offers one; then the element's
     // "or more" rows for a typed number no value equals.
     const valueOptions = [
@@ -298,6 +294,18 @@ export function FindBox(): React.JSX.Element {
             orMore: true,
         })),
     ];
+    // Plain text that finds nothing is asked of the element as a rule once typing pauses.
+    const foundNothing =
+        found !== null && found.notSearchable === undefined && found.records.length === 0 && valueOptions.length === 0;
+    const textAsRule = foundNothing && textAsRuleAnswer?.text === text ? textAsRuleAnswer.rule : undefined;
+    // A rule shown under the box, the element's rewrite of a refused rule or the plain text as a
+    // rule, is an option too: the last, and the one Enter picks.
+    let ruleOption: string | null = null;
+    if (isRule) {
+        ruleOption = refusal?.rule ?? null;
+    } else if (typeof textAsRule === "string") {
+        ruleOption = `=${textAsRule}`;
+    }
     const options: Option[] = found
         ? [
               ...hits.map((hit): Option => ({ type: "hit", hit })),
@@ -309,7 +317,6 @@ export function FindBox(): React.JSX.Element {
 
     // A typed rule is checked once typing pauses, so a refusal shows before Enter.
     useEffect(() => {
-        setRuleCheck(null);
         if (session === null || !isRule) {
             return undefined;
         }
@@ -320,9 +327,10 @@ export function FindBox(): React.JSX.Element {
                     return;
                 }
                 if (verdict === "ok" || verdict === "empty") {
-                    setRuleCheck(verdict);
+                    setRuleAnswer({ text, verdict });
                     setRefusal(null);
                 } else {
+                    setRuleAnswer({ text, verdict: null });
                     setRefusal(verdict);
                 }
             });
@@ -332,11 +340,7 @@ export function FindBox(): React.JSX.Element {
             clearTimeout(timer);
         };
     }, [session, text, isRule, version]);
-    // Plain text that finds nothing is asked of the element as a rule once typing pauses.
-    const foundNothing =
-        found !== null && found.notSearchable === undefined && found.records.length === 0 && valueOptions.length === 0;
     useEffect(() => {
-        setTextAsRule(undefined);
         if (session === null || !foundNothing) {
             return undefined;
         }
@@ -344,7 +348,7 @@ export function FindBox(): React.JSX.Element {
         const timer = setTimeout(() => {
             void ruleFromText(session, text).then((rule) => {
                 if (current) {
-                    setTextAsRule(rule);
+                    setTextAsRuleAnswer({ text, rule });
                 }
             });
         }, CHECK_DELAY_MS);

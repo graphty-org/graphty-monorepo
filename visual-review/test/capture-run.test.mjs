@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { chromium } from "playwright";
 
-/* global requestAnimationFrame -- read only inside the page */
+/* global document, requestAnimationFrame -- read only inside the page */
 
 import { capture, CHROMIUM_ARGS, hasEmojiFont, MAX_SHOT_HEIGHT, screenshotWholePage } from "../capture/capture.mjs";
 
@@ -347,6 +347,26 @@ describe("screenshotWholePage", () => {
             for (const y of [0, 199, 200, 8191, 8192, 8199, 8200, 8399]) {
                 expect(redAt(png, y), `row ${y}`).toBe(Math.floor(y / 200) * 5);
             }
+        });
+    });
+
+    it("captures a tall page that lays out shorter once Chromium has captured it", async () => {
+        // 11px monospace text with line-height: normal is 21 CSS px a row on load and 20 after
+        // the first capture beyond the viewport: 220 rows go from 4,620 CSS px to 4,400, and the
+        // last slice measured on load asks for rows the page no longer has.
+        const rows = Array.from(
+            { length: 220 },
+            (_, i) => `<div style="padding:4px 6px;font:11px monospace">${i}</div>`,
+        );
+        const html = `<body style="margin:0">${rows.join("")}<div style="height:10px;background:rgb(200,0,0)"></div></body>`;
+        await withPage(html, async (page) => {
+            const png = PNG.sync.read(await screenshotWholePage(page));
+            const height = await page.evaluate(() => document.documentElement.scrollHeight);
+            expect(height).toBe(220 * 20 + 10);
+            expect([png.width, png.height]).toEqual([200, height * 2]);
+            // The last rows are the page's real end, the red block, not background past it.
+            expect(redAt(png, png.height - 1)).toBe(200);
+            expect(redAt(png, png.height - 20)).toBe(200);
         });
     });
 });

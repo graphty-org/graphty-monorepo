@@ -442,25 +442,40 @@ export const MAX_SHOT_HEIGHT = 8192;
 export async function screenshotWholePage(page) {
     const options = /** @type {const} */ ({ animations: "disabled", caret: "hide", fullPage: true });
     // The page's size as Playwright measures it for a full-page screenshot.
-    const size = await page.evaluate(() => {
-        const [b, d] = [document.body, document.documentElement];
-        return {
-            width: Math.max(b.scrollWidth, d.scrollWidth, b.offsetWidth, d.offsetWidth, b.clientWidth, d.clientWidth),
-            height: Math.max(
-                b.scrollHeight,
-                d.scrollHeight,
-                b.offsetHeight,
-                d.offsetHeight,
-                b.clientHeight,
-                d.clientHeight,
-            ),
-        };
-    });
-    const width = size.width * SCALE;
-    const height = size.height * SCALE;
-    if (height <= MAX_SHOT_HEIGHT) {
+    const measure = () =>
+        page.evaluate(() => {
+            const [b, d] = [document.body, document.documentElement];
+            return {
+                width: Math.max(
+                    b.scrollWidth,
+                    d.scrollWidth,
+                    b.offsetWidth,
+                    d.offsetWidth,
+                    b.clientWidth,
+                    d.clientWidth,
+                ),
+                height: Math.max(
+                    b.scrollHeight,
+                    d.scrollHeight,
+                    b.offsetHeight,
+                    d.offsetHeight,
+                    b.clientHeight,
+                    d.clientHeight,
+                ),
+            };
+        });
+    let size = await measure();
+    if (size.height * SCALE <= MAX_SHOT_HEIGHT) {
         return page.screenshot(options);
     }
+    // A page can lay out shorter once it has been captured beyond the viewport: Chromium's first
+    // such capture re-resolves font metrics, and text with line-height: normal in a monospace face
+    // drops from 13 to 12 CSS px a line at 11px, for good. Slices measured before that ask for
+    // rows the page no longer has. One throwaway capture settles the layout; measure after it.
+    await page.screenshot({ ...options, clip: { x: 0, y: 0, width: 1, height: 1 } });
+    size = await measure();
+    const width = size.width * SCALE;
+    const height = size.height * SCALE;
     const out = new PNG({ width, height });
     for (let top = 0; top < height; top += MAX_SHOT_HEIGHT) {
         const rows = Math.min(MAX_SHOT_HEIGHT, height - top);

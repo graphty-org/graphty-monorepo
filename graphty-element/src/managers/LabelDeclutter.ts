@@ -191,7 +191,7 @@ export class LabelDeclutter {
     /** A sum over every node's position, mesh and visibility: what the last pass saw of them. */
     private nodesSeen = 0;
     /** Reused every pass while avoiding: each drawn node and edge on screen, and their buckets. */
-    private nodeSlots = new Map<Node, number>();
+    private readonly nodeSlots = new Map<Node, number>();
     private circles = new Float64Array(0);
     private segments = new Float64Array(0);
     private readonly nodeGrid = new Map<number, number[]>();
@@ -822,91 +822,114 @@ export class LabelDeclutter {
             bucket.length = 0;
         }
 
-        const { circles, segments, nodeSlots, viewport } = this;
-        const { view } = this;
-        nodeSlots.clear();
+        this.nodeSlots.clear();
         let slot = 0;
         for (const node of nodes.values()) {
-            const { mesh } = node;
-            if (mesh.isDisposed() || !mesh.isEnabled()) {
-                continue;
+            if (this.projectNode(node, slot, size)) {
+                slot++;
             }
-
-            const centre = mesh.computeWorldMatrix().getTranslationToRef(this.centre);
-            const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
-            if (depth <= 0) {
-                continue;
-            }
-
-            const root =
-                mesh.parent && "absoluteScaling" in mesh.parent ? (mesh.parent.absoluteScaling as Vector3).x : 1;
-            const corner = this.corner.copyFrom(centre);
-            this.right.scaleAndAddToRef(node.drawnRadius * Math.abs(root), corner);
-            const c = Vector3.TransformCoordinatesToRef(centre, this.worldToPixels, this.centreOnScreen);
-            const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
-            const r = Math.hypot(k.x - c.x, k.y - c.y);
-            circles[3 * slot] = c.x;
-            circles[3 * slot + 1] = c.y;
-            circles[3 * slot + 2] = r;
-            nodeSlots.set(node, slot);
-            if (
-                c.x + r >= viewport.x &&
-                c.x - r <= viewport.x + viewport.width &&
-                c.y + r >= viewport.y &&
-                c.y - r <= viewport.y + viewport.height
-            ) {
-                this.bucket(this.nodeGrid, slot, c.x - r, c.y - r, c.x + r, c.y + r, size);
-            }
-
-            slot++;
         }
 
         let index = 0;
         for (const edge of edges.values()) {
-            const from = nodeSlots.get(edge.srcNode);
-            const to = nodeSlots.get(edge.dstNode);
-            if (from === undefined || to === undefined || !edgeDrawn(edge)) {
-                continue;
+            if (this.projectEdge(edge, index, size)) {
+                index++;
             }
-
-            const x0 = circles[3 * from];
-            const y0 = circles[3 * from + 1];
-            const x1 = circles[3 * to];
-            const y1 = circles[3 * to + 1];
-            const span = clip(
-                x0,
-                y0,
-                x1,
-                y1,
-                viewport.x,
-                viewport.y,
-                viewport.x + viewport.width,
-                viewport.y + viewport.height,
-            );
-            if (span === null) {
-                continue;
-            }
-
-            segments[4 * index] = x0;
-            segments[4 * index + 1] = y0;
-            segments[4 * index + 2] = x1;
-            segments[4 * index + 3] = y1;
-            // Walked in quarter cells over the part in view, so a segment lands in every cell it
-            // crosses but a corner it only clips.
-            const length = Math.hypot(x1 - x0, y1 - y0) * (span[1] - span[0]);
-            const steps = Math.max(1, Math.ceil(length / (size / 4)));
-            let last = -1;
-            for (let n = 0; n <= steps; n++) {
-                const t = span[0] + ((span[1] - span[0]) * n) / steps;
-                const key = this.cellOf(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, size);
-                if (key !== last) {
-                    this.add(this.edgeGrid, key, index);
-                    last = key;
-                }
-            }
-
-            index++;
         }
+    }
+
+    /**
+     * Project one drawn node to a screen circle in `slot` and bucket it when it is in view.
+     * @param node - The node.
+     * @param slot - Its slot.
+     * @param size - The grid's cell size in pixels.
+     * @returns False when the node is not drawn or is behind the camera.
+     */
+    private projectNode(node: Node, slot: number, size: number): boolean {
+        const { mesh } = node;
+        if (mesh.isDisposed() || !mesh.isEnabled()) {
+            return false;
+        }
+
+        const { view, viewport, circles } = this;
+        const centre = mesh.computeWorldMatrix().getTranslationToRef(this.centre);
+        const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
+        if (depth <= 0) {
+            return false;
+        }
+
+        const root = mesh.parent && "absoluteScaling" in mesh.parent ? (mesh.parent.absoluteScaling as Vector3).x : 1;
+        const corner = this.corner.copyFrom(centre);
+        this.right.scaleAndAddToRef(node.drawnRadius * Math.abs(root), corner);
+        const c = Vector3.TransformCoordinatesToRef(centre, this.worldToPixels, this.centreOnScreen);
+        const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
+        const r = Math.hypot(k.x - c.x, k.y - c.y);
+        circles[3 * slot] = c.x;
+        circles[3 * slot + 1] = c.y;
+        circles[3 * slot + 2] = r;
+        this.nodeSlots.set(node, slot);
+        const box = { left: c.x - r, top: c.y - r, right: c.x + r, bottom: c.y + r };
+        if (
+            box.right >= viewport.x &&
+            box.left <= viewport.x + viewport.width &&
+            box.bottom >= viewport.y &&
+            box.top <= viewport.y + viewport.height
+        ) {
+            this.bucket(this.nodeGrid, slot, box, size);
+        }
+
+        return true;
+    }
+
+    /**
+     * Project one drawn edge between two projected nodes to a segment in `index`, and bucket the
+     * part of it in view.
+     * @param edge - The edge.
+     * @param index - Its index.
+     * @param size - The grid's cell size in pixels.
+     * @returns False when it is not drawn or not in view.
+     */
+    private projectEdge(edge: Edge, index: number, size: number): boolean {
+        const from = this.nodeSlots.get(edge.srcNode);
+        const to = this.nodeSlots.get(edge.dstNode);
+        if (from === undefined || to === undefined || !edgeDrawn(edge)) {
+            return false;
+        }
+
+        const { circles, segments, viewport } = this;
+        const x0 = circles[3 * from];
+        const y0 = circles[3 * from + 1];
+        const x1 = circles[3 * to];
+        const y1 = circles[3 * to + 1];
+        const span = clip(x0, y0, x1, y1, {
+            left: viewport.x,
+            top: viewport.y,
+            right: viewport.x + viewport.width,
+            bottom: viewport.y + viewport.height,
+        });
+        if (span === null) {
+            return false;
+        }
+
+        segments[4 * index] = x0;
+        segments[4 * index + 1] = y0;
+        segments[4 * index + 2] = x1;
+        segments[4 * index + 3] = y1;
+        // Walked in quarter cells over the part in view, so a segment lands in every cell it
+        // crosses but a corner it only clips.
+        const length = Math.hypot(x1 - x0, y1 - y0) * (span[1] - span[0]);
+        const steps = Math.max(1, Math.ceil(length / (size / 4)));
+        let last = -1;
+        for (let n = 0; n <= steps; n++) {
+            const t = span[0] + ((span[1] - span[0]) * n) / steps;
+            const key = this.cellOf(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, size);
+            if (key !== last) {
+                this.add(this.edgeGrid, key, index);
+                last = key;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -922,47 +945,61 @@ export class LabelDeclutter {
         this.projectGraph(size);
         let hidden = 0;
         for (const entry of this.order) {
-            entry.slot = this.nodeSlots.get(entry.node) ?? -1;
-            const { slot } = entry;
-            if (slot >= 0) {
-                entry.nx = this.circles[3 * slot];
-                entry.ny = this.circles[3 * slot + 1];
-                entry.nr = this.circles[3 * slot + 2];
-            } else {
-                entry.nx = entry.cx;
-                entry.ny = entry.cy;
-                entry.nr = 0;
-            }
-
-            let best = 0;
-            let lowest = Number.POSITIVE_INFINITY;
-            for (let place = 0; place <= AROUND.length && lowest > 0; place++) {
-                this.frame(entry, place);
-                const cost = this.cost(entry, size, lowest);
-                if (cost < lowest) {
-                    lowest = cost;
-                    best = place;
-                }
-            }
-
-            const { mesh } = entry;
-            if (declutter && lowest >= COVERS_NODE) {
+            if (!this.placeOne(entry, size, declutter)) {
                 hidden++;
-                if (mesh) {
-                    mesh.isVisible = false;
-                }
-
-                continue;
-            }
-
-            this.frame(entry, best);
-            this.keep(entry, size);
-            if (best > 0 && mesh) {
-                this.move(entry, mesh);
             }
         }
 
         return hidden;
+    }
+
+    /**
+     * Give one label the cheapest of its places, or hide it.
+     * @param entry - The label.
+     * @param size - The grid's cell size in pixels.
+     * @param declutter - Whether a label with no place clear of labels and nodes is hidden.
+     * @returns False when it was hidden.
+     */
+    private placeOne(entry: Entry, size: number, declutter: boolean): boolean {
+        entry.slot = this.nodeSlots.get(entry.node) ?? -1;
+        const { slot } = entry;
+        if (slot >= 0) {
+            entry.nx = this.circles[3 * slot];
+            entry.ny = this.circles[3 * slot + 1];
+            entry.nr = this.circles[3 * slot + 2];
+        } else {
+            entry.nx = entry.cx;
+            entry.ny = entry.cy;
+            entry.nr = 0;
+        }
+
+        let best = 0;
+        let lowest = Number.POSITIVE_INFINITY;
+        for (let place = 0; place <= AROUND.length && lowest > 0; place++) {
+            this.frame(entry, place);
+            const cost = this.cost(entry, size, lowest);
+            if (cost < lowest) {
+                lowest = cost;
+                best = place;
+            }
+        }
+
+        const { mesh } = entry;
+        if (declutter && lowest >= COVERS_NODE) {
+            if (mesh) {
+                mesh.isVisible = false;
+            }
+
+            return false;
+        }
+
+        this.frame(entry, best);
+        this.keep(entry, size);
+        if (best > 0 && mesh) {
+            this.move(entry, mesh);
+        }
+
+        return true;
     }
 
     /**
@@ -1057,16 +1094,7 @@ export class LabelDeclutter {
         const { segments } = this;
         for (const index of indices ?? []) {
             const i = 4 * index;
-            const span = clip(
-                segments[i],
-                segments[i + 1],
-                segments[i + 2],
-                segments[i + 3],
-                entry.left,
-                entry.top,
-                entry.right,
-                entry.bottom,
-            );
+            const span = clip(segments[i], segments[i + 1], segments[i + 2], segments[i + 3], entry);
             if (span !== null) {
                 return true;
             }
@@ -1104,17 +1132,14 @@ export class LabelDeclutter {
     private bucket(
         grid: Map<number, number[]>,
         value: number,
-        left: number,
-        top: number,
-        right: number,
-        bottom: number,
+        box: { left: number; top: number; right: number; bottom: number },
         size: number,
     ): void {
         const { x: originX, y: originY } = this.viewport;
-        const x1 = cell(right - originX, size, this.columns);
-        const y1 = cell(bottom - originY, size, this.rows);
-        for (let x = cell(left - originX, size, this.columns); x <= x1; x++) {
-            for (let y = cell(top - originY, size, this.rows); y <= y1; y++) {
+        const x1 = cell(box.right - originX, size, this.columns);
+        const y1 = cell(box.bottom - originY, size, this.rows);
+        for (let x = cell(box.left - originX, size, this.columns); x <= x1; x++) {
+            for (let y = cell(box.top - originY, size, this.rows); y <= y1; y++) {
                 this.add(grid, x * this.rows + y, value);
             }
         }
@@ -1223,10 +1248,11 @@ function rectMeetsCircle(
  * @param y0 - Start.
  * @param x1 - End.
  * @param y1 - End.
- * @param left - The rectangle.
- * @param top - The rectangle.
- * @param right - The rectangle.
- * @param bottom - The rectangle.
+ * @param rect - The rectangle.
+ * @param rect.left - Its left edge.
+ * @param rect.top - Its top edge.
+ * @param rect.right - Its right edge.
+ * @param rect.bottom - Its bottom edge.
  * @returns The range of the segment's parameter inside, or null when it misses.
  */
 function clip(
@@ -1234,10 +1260,7 @@ function clip(
     y0: number,
     x1: number,
     y1: number,
-    left: number,
-    top: number,
-    right: number,
-    bottom: number,
+    { left, top, right, bottom }: { left: number; top: number; right: number; bottom: number },
 ): [number, number] | null {
     const dx = x1 - x0;
     const dy = y1 - y0;

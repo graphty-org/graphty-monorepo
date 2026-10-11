@@ -103,6 +103,11 @@ const ngraphLayoutOptionsSchema = defineOptions({
 
 /** How many extra sweeps a forced stop may spend pushing overlapping nodes apart. */
 const MAX_FINAL_SWEEPS = 100;
+/** A grid cell and the cells around it, in 3D and in a plane. */
+const NEIGHBOURS: readonly (readonly [number, number, number])[] = [-1, 0, 1].flatMap((x) =>
+    [-1, 0, 1].flatMap((y) => [-1, 0, 1].map((z) => [x, y, z] as const)),
+);
+const NEIGHBOURS_FLAT = NEIGHBOURS.filter(([, , z]) => z === 0);
 /** Spreads the directions of coincident pairs evenly around the circle. */
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
@@ -147,7 +152,7 @@ export class NGraphEngine extends LayoutEngine {
     /** Whether `nodeGap` ignores depth: see the option. */
     private readonly nodeGapFront: boolean = false;
     /** Reused by {@link NGraphEngine.separate}: each body, its radius and whether it may move. */
-    private bodies: { x: number; y: number; z?: number }[] = [];
+    private readonly bodies: { x: number; y: number; z?: number }[] = [];
     private radii = new Float64Array(0);
     private movable = new Uint8Array(0);
     private readonly cells = new Map<number, number[]>();
@@ -290,36 +295,8 @@ export class NGraphEngine extends LayoutEngine {
         }
 
         const count = this.nodeMapping.size;
-        if (this.radii.length < count) {
-            this.radii = new Float64Array(count);
-            this.movable = new Uint8Array(count);
-        }
-
-        const { bodies, radii, movable } = this;
-        bodies.length = 0;
-        let largest = 0;
-        let minX = Infinity;
-        let maxX = -Infinity;
-        let minY = Infinity;
-        let maxY = -Infinity;
-        let minZ = Infinity;
-        let maxZ = -Infinity;
-        for (const [node, ngraphNode] of this.nodeMapping) {
-            const i = bodies.length;
-            bodies.push(this.ngraphLayout.getNodePosition(ngraphNode.id));
-            radii[i] = node.drawnRadius + gap / 2;
-            movable[i] = this.ngraphLayout.isNodePinned(ngraphNode) ? 0 : 1;
-            largest = Math.max(largest, radii[i]);
-            const b = bodies[i];
-            minX = Math.min(minX, b.x);
-            maxX = Math.max(maxX, b.x);
-            minY = Math.min(minY, b.y);
-            maxY = Math.max(maxY, b.y);
-            minZ = Math.min(minZ, b.z ?? 0);
-            maxZ = Math.max(maxZ, b.z ?? 0);
-        }
-
-        const size = 2 * largest;
+        const extent = this.gather(gap);
+        const size = 2 * extent.largest;
         if (size <= 0) {
             return 0;
         }
@@ -328,14 +305,63 @@ export class NGraphEngine extends LayoutEngine {
         const flat = this.nodeGapFront || this.ngraphLayout.simulator.settings.dimensions !== 3;
         // Each node's cell against the cells the arrangement spans: fewer cells than nodes is a
         // graph still packed together.
-        const span = ((maxX - minX) / size) * ((maxY - minY) / size) * (flat ? 1 : (maxZ - minZ) / size);
+        const span = (extent.x / size) * (extent.y / size) * (flat ? 1 : extent.z / size);
         if (whileSpreading && span < count) {
             return 1;
         }
 
-        const { cells } = this;
+        this.bucketBodies(size, flat);
+        let overlaps = 0;
+        for (let i = 0; i < count; i++) {
+            overlaps += this.pushNeighbours(i, size, flat);
+        }
+
+        return overlaps;
+    }
+
+    /**
+     * Read every body, its radius plus half the gap and whether it may move.
+     * @param gap - The gap.
+     * @returns The largest radius and how far the bodies spread on each axis.
+     */
+    private gather(gap: number): { largest: number; x: number; y: number; z: number } {
+        const count = this.nodeMapping.size;
+        if (this.radii.length < count) {
+            this.radii = new Float64Array(count);
+            this.movable = new Uint8Array(count);
+        }
+
+        const { bodies, radii, movable } = this;
+        bodies.length = 0;
+        let largest = 0;
+        const min = [Infinity, Infinity, Infinity];
+        const max = [-Infinity, -Infinity, -Infinity];
+        for (const [node, ngraphNode] of this.nodeMapping) {
+            const i = bodies.length;
+            const b = this.ngraphLayout.getNodePosition(ngraphNode.id);
+            bodies.push(b);
+            radii[i] = node.drawnRadius + gap / 2;
+            movable[i] = this.ngraphLayout.isNodePinned(ngraphNode) ? 0 : 1;
+            largest = Math.max(largest, radii[i]);
+            const at = [b.x, b.y, b.z ?? 0];
+            for (let axis = 0; axis < 3; axis++) {
+                min[axis] = Math.min(min[axis], at[axis]);
+                max[axis] = Math.max(max[axis], at[axis]);
+            }
+        }
+
+        return { largest, x: max[0] - min[0], y: max[1] - min[1], z: max[2] - min[2] };
+    }
+
+    /**
+     * Put every body in its grid cell.
+     * @param size - The cell size.
+     * @param flat - Whether depth is ignored.
+     */
+    private bucketBodies(size: number, flat: boolean): void {
+        const { cells, bodies } = this;
         // Emptied, not rebuilt; dropped when nodes have wandered into many more cells than there are.
-        if (cells.size > 4 * count) {
+        if (cells.size > 4 * bodies.length) {
             cells.clear();
         }
 
@@ -343,7 +369,7 @@ export class NGraphEngine extends LayoutEngine {
             bucket.length = 0;
         }
 
-        for (let i = 0; i < count; i++) {
+        for (let i = 0; i < bodies.length; i++) {
             const b = bodies[i];
             const key = cellKey(
                 Math.floor(b.x / size),
@@ -358,28 +384,25 @@ export class NGraphEngine extends LayoutEngine {
 
             bucket.push(i);
         }
+    }
 
+    /**
+     * Push one body apart from every later body in its own and the neighbouring cells.
+     * @param i - The body.
+     * @param size - The cell size.
+     * @param flat - Whether depth is ignored.
+     * @returns How many of those pairs overlapped.
+     */
+    private pushNeighbours(i: number, size: number, flat: boolean): number {
+        const a = this.bodies[i];
+        const cx = Math.floor(a.x / size);
+        const cy = Math.floor(a.y / size);
+        const cz = flat ? 0 : Math.floor((a.z ?? 0) / size);
         let overlaps = 0;
-        const depth = flat ? 0 : 1;
-        for (let i = 0; i < count; i++) {
-            const a = bodies[i];
-            const cx = Math.floor(a.x / size);
-            const cy = Math.floor(a.y / size);
-            const cz = flat ? 0 : Math.floor((a.z ?? 0) / size);
-            for (let dx = -1; dx <= 1; dx++) {
-                for (let dy = -1; dy <= 1; dy++) {
-                    for (let dz = -depth; dz <= depth; dz++) {
-                        const bucket = cells.get(cellKey(cx + dx, cy + dy, cz + dz));
-                        if (!bucket) {
-                            continue;
-                        }
-
-                        for (const j of bucket) {
-                            if (j > i && this.push(i, j, flat)) {
-                                overlaps++;
-                            }
-                        }
-                    }
+        for (const [dx, dy, dz] of flat ? NEIGHBOURS_FLAT : NEIGHBOURS) {
+            for (const j of this.cells.get(cellKey(cx + dx, cy + dy, cz + dz)) ?? []) {
+                if (j > i && this.push(i, j, flat)) {
+                    overlaps++;
                 }
             }
         }

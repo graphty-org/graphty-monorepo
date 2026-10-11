@@ -1002,3 +1002,55 @@ export function cytoscapeVizmapXml(style: CytoscapeStyle, name: string): string 
     lines.push("</visualStyle>");
     return lines.join("\n");
 }
+
+// ------------------------------------------------------------------ per-element values
+
+/**
+ * The neutral properties a Cytoscape dialect holds per element: what a writer of resolved per-element values (XGMML
+ * graphics, a session view's bypasses) can write.
+ * @param target - nodes or edges
+ * @param dialect - the spelling
+ * @returns the properties
+ */
+export function cytoscapeWritableProperties(target: StyleTarget, dialect: CytoscapeDialect): string[] {
+    return [...WRITERS[dialect][target].keys(), ...FONT_PROPS];
+}
+
+/**
+ * One element's values as Cytoscape visual properties in a dialect's spelling, for a writer of per-element values.
+ * The label font, weight and italic are written together as one font face.
+ * @param target - nodes or edges
+ * @param value - the element's value of a neutral property, or null
+ * @param dialect - the spelling
+ * @param approx - called with the property when a value is written as its nearest
+ * @returns visual property name to raw value
+ */
+export function cytoscapeElementProperties(
+    target: StyleTarget,
+    value: (property: string) => StyleValue | null,
+    dialect: CytoscapeDialect,
+    approx: (property: string) => void,
+): Map<string, unknown> {
+    const out = new Map<string, unknown>();
+    for (const [p, w] of WRITERS[dialect][target]) {
+        const v = value(p);
+        if (v !== null) {
+            out.set(
+                w.vp,
+                w.write(v, () => {
+                    approx(p);
+                }),
+            );
+        }
+    }
+    const [f, wt, it] = FONT_PROPS.map((p) => value(p));
+    if (f !== null || wt !== null || it !== null) {
+        out.set(
+            FONT_VP[target],
+            fontOut(dialect, f, wt, it, () => {
+                approx("labelFont");
+            }),
+        );
+    }
+    return out;
+}

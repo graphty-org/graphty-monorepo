@@ -13,8 +13,12 @@
  * - `views/<subnetwork>-<view>-<name>.xgmml`, the node coordinates (y negated back to screen
  *   coordinates), only when the snapshot has positions: graph-io computes no layout.
  *
- * Styles, the network list, properties and thumbnails are not written; Cytoscape gives the view
- * its default style. Entries are stored, not compressed. Every SUID comes from one counter, above
+ * Given styles (`exportGraph(..., { styles })`), the session also holds `session_vizmap.xml` with one style named
+ * for the network, which the view names, the view's per-element bypasses, and the `graphty.styles` block as an
+ * archive entry of its own (Cytoscape ignores it), with the style values its rules read inside it: a CyCSV text
+ * cell cannot be unset, so a table column would read an element without a value back as "". Without styles the
+ * view names Cytoscape's default style. The network list, properties and thumbnails are not written. Entries are
+ * stored, not compressed. Every SUID comes from one counter, above
  * the node ids that are kept as SUIDs; Cytoscape renumbers them all on load.
  */
 
@@ -30,6 +34,10 @@ import { agree, plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { hasIllegalXmlChar } from "../../common/xml.js";
 import { writeZip, type ZipWriteEntry } from "../../common/zip.js";
+import { type CytoscapeEmitted, cytoscapeVizmapXml, emitCytoscapeStyle } from "../../styles/cytoscape/emit.js";
+import { STYLE_BLOCK_NAME, writeStyleBlock } from "../../styles/io/block.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
+import type { StyleValue, StyleWriteCapabilities } from "../../styles/types.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { ORIGINAL_ID_ATTRIBUTE } from "../graphml/constants.js";
 import {
@@ -44,9 +52,11 @@ import {
     POSITION_COLUMN,
     SUBGRAPH_COLUMN,
     XGMML_NAMESPACE,
+    XGMML_ORIGIN_NAMESPACE,
     XLINK_NAMESPACE,
     Z_COLUMN,
 } from "../xgmml/constants.js";
+import { XGMML_STYLE_CAPABILITIES } from "../xgmml/styles.js";
 import { FORMAT } from "./constants.js";
 
 /**
@@ -233,6 +243,12 @@ const LONG = "java.lang.Long";
 const BOOLEAN = "java.lang.Boolean";
 const I32_MAX = 2147483647;
 
+/**
+ * What the session writer holds of a graph's styles: every visual property Cytoscape keeps, as a named style and
+ * view bypasses, and the graph's background; the block, with the style values its rules read, in an entry of its own.
+ */
+const CYS_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({ ...XGMML_STYLE_CAPABILITIES, block: "native" });
+
 /** The folder every entry lives under (Cytoscape needs one; the name is free). */
 const ROOT_FOLDER = "CytoscapeSession/";
 
@@ -289,6 +305,10 @@ interface Plan {
     readonly z: Column | null;
     /** Whether a position's own z is written as the view's z (no z column). */
     readonly positionZ: boolean;
+    /** The styles as a Cytoscape style, its bypasses and the columns its mappings add, or null without styles. */
+    readonly styled: CytoscapeEmitted | null;
+    /** The `graphty.styles` block, written as its own entry: the styles being written, else the one the snapshot carries as a graph attribute; or null. */
+    readonly block: string | null;
 }
 
 // ============================================================ ids
@@ -947,7 +967,50 @@ function networkCandidates(snapshot: GraphSnapshot, name: string): Candidate[] {
         out.push({ name: "description", source: null, javaClass: STRING, cell: () => description });
     }
     for (const column of snapshot.graph) {
-        out.push(candidateOf(column, column.meta.name));
+        // the graphty.styles block goes into an archive entry of its own, not the network table
+        if (column.meta.name !== STYLE_BLOCK_NAME) {
+            out.push(candidateOf(column, column.meta.name));
+        }
+    }
+    return out;
+}
+
+/**
+ * The columns a Cytoscape style's mappings read that the graph does not hold (a computed degree), as table
+ * candidates.
+ * @param table - the node or edge table
+ * @param added - the columns by name, each element's value
+ * @returns the candidates
+ */
+function addedCandidates(
+    table: GraphSnapshot["nodes"],
+    added: ReadonlyMap<string, readonly (StyleValue | null)[]>,
+): Candidate[] {
+    const out: Candidate[] = [];
+    for (const [name, values] of added) {
+        if (table.has(name)) {
+            continue;
+        }
+        const kinds = new Set(values.filter((v) => v !== null).map((v) => typeof v));
+        const [kind] = kinds;
+        let javaClass = STRING;
+        if (kinds.size === 1 && kind === "number") {
+            javaClass = DOUBLE;
+        } else if (kinds.size === 1 && kind === "boolean") {
+            javaClass = BOOLEAN;
+        }
+        out.push({
+            name,
+            source: null,
+            javaClass,
+            cell: (row) => {
+                const v = values[row] ?? null;
+                if (v === null) {
+                    return null;
+                }
+                return typeof v === "number" ? formatDecimal(v) : String(v);
+            },
+        });
     }
     return out;
 }
@@ -956,9 +1019,10 @@ function networkCandidates(snapshot: GraphSnapshot, name: string): Candidate[] {
  * Plan an export: the notes, the fatal condition, the SUIDs and the tables.
  * @param snapshot - the snapshot
  * @param common - the resolved common options
+ * @param styles - the styles being written, or undefined
  * @returns the plan
  */
-function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
+function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions, styles?: ExporterStyleOptions["styles"]): Plan {
     const notes: LossNote[] = [];
     const note: NoteFn = (code, message, column = null, count = null) => {
         notes.push(Object.freeze({ code, message, column, count }));
@@ -1000,7 +1064,15 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     }
     const placed =
         (position !== null && position.nullCount < position.length) || (z !== null && z.nullCount < z.length);
-    const viewSuid = placed ? next++ : null;
+    const styled = styles === undefined ? null : emitCytoscapeStyle(styles.rules, snapshot, { dialect: "desktop" });
+    // written with styles, the graphics an XGMML or session import kept are the view's to say, from the styles
+    const superseded = (c: Column): boolean =>
+        styled !== null &&
+        c.dtype === "json" &&
+        c.meta.origin?.type === "graphics" &&
+        c.meta.origin.namespace === XGMML_ORIGIN_NAMESPACE;
+    // a styled session always has a view: the view names the style and holds the bypasses
+    const viewSuid = placed || styled !== null ? next++ : null;
     const viewNodeBase = next;
 
     // node table
@@ -1017,7 +1089,10 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
         : [];
     const nodeTable = planTable(
         "node",
-        elementCandidates(snapshot, "node", nodeOwn, (c) => placed && c === z, note),
+        [
+            ...elementCandidates(snapshot, "node", nodeOwn, (c) => (placed && c === z) || superseded(c), note),
+            ...(styled === null ? [] : addedCandidates(snapshot.nodes, styled.columns.node)),
+        ],
         snapshot.nodeCount,
         note,
     );
@@ -1041,7 +1116,10 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     const edgeRows = snapshot.edgeCount;
     const edgeTable = planTable(
         "edge",
-        elementCandidates(snapshot, "edge", edgeOwn, () => false, note),
+        [
+            ...elementCandidates(snapshot, "edge", edgeOwn, superseded, note),
+            ...(styled === null ? [] : addedCandidates(snapshot.edges, styled.columns.edge)),
+        ],
         edgeRows,
         note,
     );
@@ -1067,7 +1145,20 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
         position,
         z: placed ? z : null,
         positionZ,
+        styled,
+        block: styles === undefined ? blockOf(snapshot) : writeStyleBlock(styles.rules, { inlineColumns: true }),
     };
+}
+
+/**
+ * The `graphty.styles` block a snapshot carries as a graph attribute, or null.
+ * @param snapshot - the snapshot
+ * @returns the block's text
+ */
+function blockOf(snapshot: GraphSnapshot): string | null {
+    const column = snapshot.graph.get(STYLE_BLOCK_NAME);
+    const value = column !== null && column.isSet(0) ? column.value(0) : null;
+    return typeof value === "string" ? value : null;
 }
 
 /**
@@ -1202,16 +1293,48 @@ function* networkFile(snapshot: GraphSnapshot, p: Plan): Generator<string, void,
  * @returns nothing
  */
 function* viewFile(snapshot: GraphSnapshot, p: Plan, viewSuid: number): Generator<string, void, undefined> {
+    const style = p.styled === null ? "default" : p.name;
     yield XML_DECLARATION;
-    yield `<graph id="${viewSuid}" label="${viewSuid}" cy:view="1" cy:networkId="${p.subSuid}" cy:visualStyle="default" cy:rendererId="org.cytoscape.ding" cy:documentVersion="3.0" ${NAMESPACES}>\n`;
+    yield `<graph id="${viewSuid}" label="${viewSuid}" cy:view="1" cy:networkId="${p.subSuid}" cy:visualStyle="${escapeXmlAttribute(style)}" cy:rendererId="org.cytoscape.ding" cy:documentVersion="3.0" ${NAMESPACES}>\n`;
     let view = p.viewNodeBase;
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const coords = viewCoords(p, i);
-        if (coords.length > 0) {
-            yield `  <node id="${view++}" cy:nodeId="${p.nodeSuids[i]}">\n    <graphics ${coords.join(" ")}/>\n  </node>\n`;
+        const locked = p.styled?.bypasses.node[i] ?? null;
+        if (coords.length > 0 || locked !== null) {
+            yield `  <node id="${view++}" cy:nodeId="${p.nodeSuids[i]}">\n`;
+            yield* viewGraphics(coords, locked);
+            yield "  </node>\n";
+        }
+    }
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        const locked = p.styled?.bypasses.edge[e] ?? null;
+        if (locked !== null && !p.folding.folded(e)) {
+            yield `  <edge id="${view++}" cy:edgeId="${p.edgeSuids[e]}">\n`;
+            yield* viewGraphics([], locked);
+            yield "  </edge>\n";
         }
     }
     yield "</graph>\n";
+}
+
+/**
+ * One view element's graphics: its coordinates, and its bypasses as `lockedVisualProperties`.
+ * @param coords - the coordinate attributes
+ * @param locked - the bypasses, or null
+ * @yields the graphics element
+ * @returns nothing
+ */
+function* viewGraphics(coords: readonly string[], locked: ReadonlyMap<string, unknown> | null): Generator<string> {
+    const head = coords.length === 0 ? "    <graphics" : `    <graphics ${coords.join(" ")}`;
+    if (locked === null) {
+        yield `${head}/>\n`;
+        return;
+    }
+    yield `${head}>\n      <att name="lockedVisualProperties">\n`;
+    for (const [vp, value] of locked) {
+        yield `        <att name="${escapeXmlAttribute(vp)}" value="${escapeXmlAttribute(String(value))}" type="string" cy:type="String"/>\n`;
+    }
+    yield "      </att>\n    </graphics>\n";
 }
 
 /**
@@ -1306,6 +1429,20 @@ function* entries(snapshot: GraphSnapshot, p: Plan): Generator<ZipWriteEntry, vo
             data: encode(viewFile(snapshot, p, p.viewSuid)),
         };
     }
+    if (p.styled !== null) {
+        yield {
+            name: `${ROOT_FOLDER}session_vizmap.xml`,
+            data: encode([
+                XML_DECLARATION,
+                '<vizmap documentVersion="3.0" id="VizMap-graphty">\n',
+                cytoscapeVizmapXml(p.styled.style, p.name),
+                "\n</vizmap>\n",
+            ]),
+        };
+    }
+    if (p.block !== null) {
+        yield { name: `${ROOT_FOLDER}${STYLE_BLOCK_NAME}`, data: new TextEncoder().encode(p.block) };
+    }
 }
 
 /**
@@ -1317,9 +1454,9 @@ function* entries(snapshot: GraphSnapshot, p: Plan): Generator<ZipWriteEntry, vo
  */
 async function* write(
     snapshot: GraphSnapshot,
-    options: CysExportOptions | undefined,
+    options: (CysExportOptions & ExporterStyleOptions) | undefined,
 ): AsyncGenerator<Uint8Array, void, undefined> {
-    const p = plan(snapshot, resolveExportOptions(options));
+    const p = plan(snapshot, resolveExportOptions(options), options?.styles);
     await Promise.resolve();
     yield* writeZip(entries(snapshot, p));
 }
@@ -1332,6 +1469,7 @@ export const cysExporter: GraphExporter<CysExportOptions> = Object.freeze({
     format: FORMAT,
     options: Object.freeze([]),
     capabilities: CYS_CAPABILITIES,
+    styles: Object.freeze({ capabilities: CYS_STYLE_CAPABILITIES }),
 
     /**
      * Pre-flight: what export() would lose, without writing anything.

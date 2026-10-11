@@ -9,7 +9,8 @@
  * `defaultDirected` option), then `cy:directed` per edge, overruling Cytoscape, which ignores the
  * root attribute. Ids are kept as written (`ids: "keep"`), so `"1"`, `"01"` and `" 1 "` stay three
  * nodes. Positions are stored y-up (Cytoscape writes screen coordinates). Graphics values are kept
- * as a json column, never interpreted (style import is issue #706).
+ * as a json column; asked for styles, the importer reads them as Cytoscape's resolved visual properties
+ * (styles.ts), with Cytoscape desktop's default style for what an element leaves unset.
  */
 
 import { GraphFormatError, type GraphSink } from "@graphty/graph-format";
@@ -53,6 +54,7 @@ import {
     XgmmlEmitter,
     type XgmmlSettings,
 } from "./emit.js";
+import { readXgmmlFileStyles } from "./styles.js";
 
 /**
  * The format-specific options of the XGMML importer.
@@ -477,4 +479,5 @@ export const xgmmlImporter: GraphImporter<XgmmlImportOptions> = Object.freeze({
     import: importXgmml,
     importAll: importAllXgmml,
     listGraphs: listXgmmlGraphs,
+    styles: readXgmmlFileStyles,
 });

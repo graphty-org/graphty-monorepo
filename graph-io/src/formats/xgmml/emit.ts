@@ -1347,10 +1347,15 @@ class JsonColumn {
             return;
         }
         const sink = this.emitter.target;
-        if (this.domain === "node") {
-            sink.setNodeValue(this.handle, index, value);
-        } else {
-            sink.setEdgeValue(this.handle, index, value);
+        try {
+            if (this.domain === "node") {
+                sink.setNodeValue(this.handle, index, value);
+            } else {
+                sink.setEdgeValue(this.handle, index, value);
+            }
+        } catch (err) {
+            // a value the sink refuses (graphics nested deeper than a json cell holds) leaves the cell unset
+            this.emitter.issues.recordError(err, { element: this.name });
         }
     }
 }

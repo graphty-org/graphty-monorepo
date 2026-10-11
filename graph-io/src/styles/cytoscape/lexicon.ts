@@ -59,12 +59,21 @@ const visibility: CytoscapeValueParser = (raw, site) => {
 /** Cytoscape spellings the common shape table does not hold. */
 const CY_SHAPES: ReadonlyMap<string, string> = new Map([["rounded_rectangle", "round-rectangle"]]);
 
+/**
+ * Cytoscape reads its enumeration names whatever their case, so a name it does not know is kept lowercase and
+ * hyphenated, the form of the names it knows: `Bogus` and the `BOGUS` a writer spells it as read the same.
+ * @param v - a canonical value
+ * @returns the value, an `other:` one in that form
+ */
+const caseless = (v: StyleValue | null): StyleValue | null =>
+    typeof v === "string" && v.startsWith("other:") ? `other:${v.slice(6).toLowerCase().replace(/_/g, "-")}` : v;
+
 const shape: CytoscapeValueParser = (raw, site) => {
     const s = scalarText(raw, site);
     if (s === null) {
         return null;
     }
-    return CY_SHAPES.get(s.trim().toLowerCase()) ?? canonEnum("shape", s, "cytoscape", site);
+    return caseless(CY_SHAPES.get(s.trim().toLowerCase()) ?? canonEnum("shape", s, "cytoscape", site));
 };
 
 /** Cytoscape's arrow names, desktop (`DELTA`) and CX2 (`triangle`), lowercase. */
@@ -137,7 +146,7 @@ const arrow: CytoscapeValueParser = (raw, site) => {
     if (/^\d{1,2}$/.test(key)) {
         key = LEGACY_ARROW.at(Number(key)) ?? key;
     }
-    return CY_ARROWS.get(key) ?? canonEnum("arrow", s, "cytoscape", site);
+    return caseless(CY_ARROWS.get(key) ?? canonEnum("arrow", s, "cytoscape", site));
 };
 
 /** Cytoscape's line types, lowercase. */

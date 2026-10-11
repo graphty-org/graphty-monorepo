@@ -13,6 +13,7 @@
             "labelColor": "#000000",
             "labelFont": "sans-serif",
             "labelWeight": "normal",
+            "labelItalic": false,
             "labelSize": 12,
             "labelPosition": "center"
         },
@@ -28,6 +29,7 @@
             "labelColor": "#000000",
             "labelFont": "sans-serif",
             "labelWeight": "normal",
+            "labelItalic": false,
             "labelSize": 10,
             "curved": true
         },

@@ -7,7 +7,7 @@ values are those that differ from their property's most common value; opaque one
 copies values (an unexplained passthrough or the exceptions), exception ones from the exceptions rule alone.
 Tool values are elements drawn with the writing program's default.
 
-260 inputs, 123 with styles; at most 15 node and 15 edge rules.
+268 inputs, 141 with styles; at most 15 node and 15 edge rules.
 
 | Input | Import | Nodes | Edges | Node rules | Edge rules | Varying | Opaque | Exceptions | Approximated | Tool values | Declared selecting nothing | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -76,10 +76,14 @@ Tool values are elements drawn with the writing program's default.
 | cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 15 | 310 | 0% | 0% | 0 | 796 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
 | cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 6 | 4 | 11 | 91% | 91% | 0 | 1900 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
 | cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 11 | 5 | 84 | 12% | 12% | 0 | 1668 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| cys/BasicDataVizDemo.cys | ok | 249 | 299 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| cys/STELZL.cys | ok | 1603 | 3308 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| cys/cytoscape-tutorials-AnnotationExample.cys | ok | 330 | 359 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| cys/cytoscape-tutorials-layout-v1.cys | ok | 331 | 362 | - | - | 0 | - | - | 0 | 0 | 0 |  |
+| cys/BasicDataVizDemo.cys | ok | 249 | 299 | 3 | 2 | 0 | - | - | 0 | 0 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/STELZL.cys | ok | 1603 | 3308 | 3 | 2 | 0 | - | - | 0 | 0 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/cytoscape-tutorials-AnnotationExample.cys | ok | 330 | 359 | 6 | 2 | 727 | 0% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/cytoscape-tutorials-layout-v1.cys | ok | 331 | 362 | 3 | 4 | 111 | 0% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/generated/graphty-written-block-other-graph.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
+| cys/generated/graphty-written-block-truncated.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
+| cys/generated/graphty-written-native-edit.cys | ok | 45 | 62 | 5 | 3 | 103 | 1% | 1% | 0 | 0 | 0 |  |
+| cys/generated/graphty-written.cys | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 0 | 0 |  |
 | dot/ArthurConmy_Automatic-Circuit-Discovery__layout.gv | ok | 108 | 926 | - | - | 0 | - | - | 0 | 0 | 0 |  |
 | dot/DynamicalSystemsGroup_cats__cats_pkg.gv | ok | 456 | 1003 | - | - | 0 | - | - | 0 | 0 | 0 |  |
 | dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot | ok | 18 | 20 | - | - | 0 | - | - | 0 | 0 | 0 |  |
@@ -265,9 +269,13 @@ Tool values are elements drawn with the writing program's default.
 | styled-json/sparse-300 | ok | 300 | 600 | 3 | 3 | 1464 | 0% | 0% | 0 | 0 | 0 |  |
 | styled-json/sparse-60 | ok | 60 | 120 | 3 | 3 | 285 | 0% | 0% | 0 | 0 | 0 |  |
 | styled-json/sparse-9 | ok | 9 | 18 | 3 | 2 | 41 | 10% | 0% | 0 | 0 | 0 |  |
-| xgmml/BasicDataVizDemo.xgmml.gz | ok | 331 | 362 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| xgmml/STRING-BreastCancer_expr.xgmml.gz | ok | 21 | 98 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| xgmml/String_Network-breast_cancer.xgmml.gz | ok | 90 | 378 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| xgmml/generated/graphics-mix.xgmml | ok | 80 | 80 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| xgmml/parklab_NGSCheckMate__luad.out.xgmml | ok | 45 | 62 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| xgmml/sample_yeast_network.xgmml.gz | ok | 128 | 220 | - | - | 0 | - | - | 0 | 0 | 0 |  |
+| xgmml/BasicDataVizDemo.xgmml.gz | ok | 331 | 362 | 7 | 2 | 437 | 74% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
+| xgmml/STRING-BreastCancer_expr.xgmml.gz | ok | 21 | 98 | 4 | 3 | 101 | 19% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
+| xgmml/String_Network-breast_cancer.xgmml.gz | ok | 90 | 378 | 3 | 3 | 324 | 0% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
+| xgmml/generated/graphics-mix.xgmml | ok | 80 | 80 | 3 | 2 | 436 | 100% | 0% | 0 | 1161 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| xgmml/generated/graphty-written-block-other-graph.xgmml.gz | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
+| xgmml/generated/graphty-written-block-truncated.xgmml.gz | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
+| xgmml/generated/graphty-written-native-edit.xgmml.gz | ok | 45 | 62 | 5 | 3 | 103 | 1% | 1% | 0 | 0 | 0 |  |
+| xgmml/generated/graphty-written.xgmml.gz | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 0 | 0 |  |
+| xgmml/parklab_NGSCheckMate__luad.out.xgmml | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 321 | 0 |  |
+| xgmml/sample_yeast_network.xgmml.gz | ok | 128 | 220 | 8 | 4 | 21 | 38% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |

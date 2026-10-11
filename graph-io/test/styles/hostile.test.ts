@@ -135,9 +135,9 @@ describe("deep XML nesting", () => {
         expect(extractCounted(loaded)).toMatchInlineSnapshot(`
           {
             "edge": 0,
-            "node": 0,
+            "node": 17,
             "notes": [],
-            "rules": 0,
+            "rules": 3,
           }
         `);
         const err = await importForStyles(createRegistry(), "xgmml", doc(MAX_XML_DEPTH + 1)).then(

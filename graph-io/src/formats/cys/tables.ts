@@ -200,7 +200,8 @@ function tableError(report: ImportReportBuilder, entry: string, reason: string):
 /**
  * The att record of one cell, or null for an unset cell. CyCSV's rules: an empty cell is unset
  * except in a String column, where it is the empty string; a list cell holds its items separated
- * by newlines (Java's `split`, so trailing empty items vanish; an empty String-list cell is one
+ * by line breaks (`\n`, or `\r` as some Cytoscape versions write them; Java's `split`, so trailing empty items
+ * vanish; an empty String-list cell is one
  * empty item, any other empty list cell unset); a cell starting with `=` is an equation.
  * @param column - the column
  * @param text - the cell text
@@ -240,16 +241,17 @@ export function cellAtt(
 }
 
 /**
- * Java's `String.split("\n")`: trailing empty strings are removed, and a text without a newline
- * is itself (so `""` is one empty item).
+ * Java's `String.split("\n")`, with `\r` and `\r\n` read as line breaks too (Cytoscape has written list cells
+ * with each): trailing empty strings are removed, and a text without a line break is itself (so `""` is one empty
+ * item).
  * @param text - the cell
  * @returns the items
  */
 function javaSplitLines(text: string): string[] {
-    if (!text.includes("\n")) {
+    if (!text.includes("\n") && !text.includes("\r")) {
         return [text];
     }
-    const items = text.split("\n");
+    const items = text.split(/\r\n|\r|\n/);
     while (items.length > 0 && items[items.length - 1].length === 0) {
         items.pop();
     }

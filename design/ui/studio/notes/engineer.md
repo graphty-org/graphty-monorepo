@@ -186,8 +186,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 ## Tried: worked / did not work
 
 - (2026-10-11) WORKED: completing a committed audit instead of redoing it: list both size folders
-  side by side, run only the missing walk, take its commands from the earlier transcript. `--hover
-  "role=treeitem:PageRank"` prints `tooltip: null` (the tooltip lives on the row's icon; use
+  side by side, run only the missing walk, take its commands from the earlier transcript.
+  `--hover "role=treeitem:PageRank"` prints `tooltip: null` (the tooltip lives on the row's icon; use
   `--hover-at` on the icon), but the inspector bar shows the same words, so no hover is needed.
 - (2026-10-11) WORKED: re-running last round's audit walks by pulling their exact commands out of
   the earlier subagent transcript (`~/.claude/projects/<proj>/<session>/subagents/workflows/*/agent-*.jsonl`,

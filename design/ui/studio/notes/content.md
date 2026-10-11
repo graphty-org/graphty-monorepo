@@ -7,34 +7,31 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- 2026-10-11 Round 4 closed: 53 of 53; bars 9 (b) and 10 fail. No failed task is a word failure.
-  My critique leads with ONE change per problem (round 3 lesson), in this order:
-- 2026-10-11 (1) Bare "10" on bus stops: the element offers "=`10`" and then refuses it ("Not a
-  rule Find can read (at character 2)"). Mechanism: `suggestBackticks` (predicate.ts) checks the
-  rewrite with `parseExpression`, but the run refuses a literal-only rule -- two checks disagree.
-  Element fix (its doc already promises it) + `atLeast` for any in-range number. Zero app words.
-- 2026-10-11 (2) "or more" layer named "data.minutes >= `5`" (`atLeastOf` uses `quotePath(path)`);
-  one rule, two spellings. Element: same column spelling as a typed rule. Branch-only field.
-- 2026-10-11 (3) Bar 9 (b): edge inspector 29 vs 27 is the key repeating ", full graph" three
-  times (`legendWords.ts rowName`), while the run row says "out of date" and its tooltip "Ran on
-  20 nodes; 10 shown now" -- three names for one state. Say the scope once, in the tooltip's words.
-- 2026-10-11 Do NOT change this round: backticks (owner), "4 hops" (insights: sev 1, 7 of 7 read
-  it right), "Weight: none (each edge counts 1)" (r4-s32: it sent him to the column), "Local only"
-  (rest screen 48 of 49), second-path notice, "Capacity", "Select endpoints", "Filters" tooltip.
-- 2026-10-11 Needs a fact before words: CSV "As the file says" (resolved direction), a rule on a
-  missing column (element code; script r4-s12 first), saved state (app fact; rest budget).
-- 2026-10-11 The study's own words leak: briefings' file table named Mo and Nia and the inverted
-  weights. File table names each file and its kind only. Read the briefing before crediting a word.
-- 2026-10-11 Shift-click took T24 to 7 of 7: behavior beat every word change I made on that task.
-- 2026-10-10 Readers type the prompt's most prominent data word first (column name or bare
-  number). 0 of 16 typed "=": the rule language is copied from hints -- hints must be runnable.
-- 2026-10-10 Backticks in rules stay until the element takes bare numbers (owner list). Stripping
-  them in the app would be a workaround.
+- 2026-10-11 Round 4 decided (round-4/decisions.md): no word change on any screen bar 9 measures.
+  Words at rest do not rise; one change per problem; every fix in its owning package.
+- 2026-10-11 Bare "10" on bus stops: element stops suggesting a rule it then refuses
+  (`suggestBackticks` uses the selector's own test) and adds `FindResult.atLeast` for any number
+  inside a column's range. App shows it with the row it already draws: "minutes is 10 or more (N)".
+- 2026-10-11 The "or more" layer takes the typed-rule spelling via a new element export
+  `rulePath(path)`; the app's `columnText` copy is deleted. One rule, one spelling -- adopted.
+- 2026-10-11 Bar 9 (b) edge inspector 29 vs 27: my "Ran on 20 nodes" line and dropping ", full
+  graph" were NOT taken. Diff the word lists first; scope words stay even if the bar fails. Do not
+  propose words before the diff names the added ones.
+- 2026-10-11 Data table under a filter: "12 of 41 edges" in the top bar's words, "41 edges" when
+  equal. The "N of M <noun>" form holds; no notice line where a fix exists.
+- 2026-10-11 Held words: run row "out of date" for a filter change (wait for one announcer design),
+  second-path notice, "As the file says", "Attribute"/"Weight: none" at load, note subject, T23 "...".
+- 2026-10-11 Study words leak answers: briefings' file table now names file and kind only; the leak
+  check reads briefings. Persona habits (counting rows) are never credited as unprompted.
+- 2026-10-11 Watch in round 5: credit the "or more" row by whether "10" reaches the right stops
+  without a refusal, NOT by the word match (prompt and row both say "or more").
+- 2026-10-11 Watch in round 5: T17 table under a filter step; the "minutes >= `5`" layer name read
+  aloud; whether "No match" + example still appears for non-numbers.
+- 2026-10-11 Shift-click took T24 to 7 of 7: behavior beat every word change on that task.
+- 2026-10-10 Readers type the prompt's most prominent data word first; hints must be runnable.
+- 2026-10-10 Backticks stay until the element takes bare numbers (owner list); no app stripping.
 - 2026-10-10 A word proposal ships with its bars.mjs count before and after, per screen.
-- 2026-10-09 The ELEMENT decides if text is a rule; the app reads no syntax.
-- 2026-10-07 Element English leaks are element defects (code + params).
-- 2026-10-06 Words cannot fix a missing route; a word never promises what the screen does not do;
-  task wording never echoes a fix.
+- 2026-10-07 Element returns codes + params; the app reads no rule syntax and writes every word.
 - 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40). Simulated: fail strong, pass weak.
 
 ## Priorities and values
@@ -181,7 +178,21 @@ I read this file at the start of every session and update it as I decide and lea
   s46, s48 unsure whether sizes describe the drawn subset; engineer 17 three names). Reason: one
   term per state, fewer words, no promise the screen does not keep.
 
+- 2026-10-11 Round 4 closed (tier2/rounds/round-4/decisions.md, Design Director). Adopted from my
+  critique: (1) bare-number suggestion only when the selector accepts it, plus `atLeast` rows for
+  any in-range number (changes 3, 4); (2) "or more" layer named like a typed rule, through a new
+  `rulePath` export (change 9). Not taken: (3) the key's scope line "Ran on 20 nodes" and dropping
+  ", full graph" -- the Director wants the added words named by a diff of both builds first, and
+  keeps scope words even if bar 9 (b) then fails, because a true fact is not cut to pass a count.
+  The run row's "out of date" rename held for one announcer design. Reason: one change per problem,
+  no unmeasured word changes, fix in the owning package. Studio, reversible.
+
 ## Tried: worked / did not work
+
+- 2026-10-11 LEARNED (round 4 close): proposals that fix a mechanism in the element (a check that
+  disagrees, a spelling) are adopted; proposals that pick words to meet a count are not until the
+  count's diff names the words. Evidence: changes 3, 4, 9 adopted; my bar 9 wording held.
+
 
 - 2026-10-11 WORKED (round 4): "<column> is 10 or more (13)" taken at once by the one reader who
   typed a bare number (r4-s10); value row without "Select where" no longer cut; "Weight: none (each
@@ -196,14 +207,10 @@ I read this file at the start of every session and update it as I decide and lea
 - 2026-10-11 LEARNED: a measurement check that reads nothing passed silently (leak check, bar 8,
   bar 9). Before trusting a word count, confirm what the counter counts.
 
-- 2026-10-10 WORKED (round 3): "minutes 14" / "km 7.5" on weighted path rows (no weight doubt in
-  T20, 8 of 8); the rule-named layer (r3-s15); "No match" plus example rule led to rules with no
-  dead end (T22 8 of 8, steps 16 -> 5); dropping "stand out" cut styling the selection from 5 of 8
-  to 1 of 8; "PageRank, full graph" under a filter read correctly (r3-s33, s34). All weak passes.
-- 2026-10-10 DID NOT WORK (round 3): "Select where shared_chapters is 1..." cut at the panel edge
-  and offering only equality (4 of 4 typed "10"); "Put numbers in backticks:" read as a refusal
-  in programmer words; the generic example after ">=10"; "4 hops" beside "5 nodes, 4 edges";
-  the Hops 2 list with no distance per name; T24's "point out" prompt against a selection key.
+- 2026-10-10 Round 3 (summarized 2026-10-11). WORKED: "minutes 14" on path rows; rule-named
+  layer; "No match" plus example rule (T22 steps 16 -> 5); dropping "stand out". DID NOT WORK:
+  "Select where ..." cut and equality only; "Put numbers in backticks:"; "4 hops" beside "5 nodes,
+  4 edges"; Hops 2 list with no distance; T24's "point out" prompt.
 
 - **Tier 2 rounds 1-2 (summarized 2026-10-11).** WORKED: "Higher means" on the load page;
   "Loaded weight minutes (farther)"; Replace title and "Was N; now M"; filter chip agreeing with
@@ -262,6 +269,7 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Sources
 
+- `design/ui/studio/tier2/rounds/round-4/decisions.md` changes 3, 4, 8, 9, 12, held list (2026-10-11)
 - `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md` (bar 9 b, bar 10), `expert/`
   (figma 2, 23; visual 1, 9, 26, 40; engineer 17, 30; a11y 5, 9, 18); screenshots
   `expert/figma/find/08.png`, `expert/visual/find/09.png`, `expert/visual/path/22.png`; code

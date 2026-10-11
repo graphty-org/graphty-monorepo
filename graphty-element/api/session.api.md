@@ -769,6 +769,10 @@ export interface FindResult {
 
 // @public
 export interface FindValueRow {
+    readonly atLeast?: {
+        readonly count: number;
+        readonly target: SelectionTarget;
+    };
     readonly count: number;
     readonly kind: FindKind;
     readonly path: Path;

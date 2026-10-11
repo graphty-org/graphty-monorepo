@@ -2,6 +2,7 @@
  * @file `session.find`: what a find box lists as the reader types, without selecting anything.
  */
 
+import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type FindHit, type GraphSession, isGraphtyError } from "../../session";
@@ -155,6 +156,38 @@ describe("finding without selecting", () => {
         await session.selection.apply(values[1].target);
         assert.lengthOf(session.selection.edges, 1);
         assert.lengthOf(session.selection.nodes, 0);
+        session.dispose();
+    });
+
+    it("offers a number's row an 'or more' rule whose count is what the rule selects; text has none", async () => {
+        // The column the app's Les Miserables sample writes its edge weights under.
+        const WEIGHT = "shared_chapters";
+        const sample = lesMiserables();
+        const ids = sample.ids ?? [];
+        const session = createGraphSession();
+        await session.data.addNodes(ids.map((id) => ({ id })));
+        await session.data.addEdges(
+            [...sample.src].map((src, e) => ({
+                source: ids[src],
+                target: ids[sample.dst[e]],
+                [WEIGHT]: sample.weights?.[e],
+            })),
+        );
+
+        const row = session.find("10").values.find((value) => value.path === "data.shared_chapters");
+        assert.isDefined(row);
+        assert.isDefined(row?.atLeast);
+        const counted = await session.selection.count(row?.atLeast?.target ?? { invert: true });
+        assert.strictEqual(row?.atLeast?.count, counted.edges + counted.nodes);
+        assert.isAbove(row?.atLeast?.count ?? 0, row?.count ?? 0, "ties above 10 come too");
+        session.dispose();
+    });
+
+    it("gives text value rows no 'or more' rule", async () => {
+        const session = await cast();
+        const [family] = session.find("family").values;
+        assert.strictEqual(family.value, "family");
+        assert.isUndefined(family.atLeast);
         session.dispose();
     });
 

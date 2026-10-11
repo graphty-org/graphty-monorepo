@@ -220,7 +220,7 @@ function kindWords(kinds: ReadonlySet<"node" | "edge">): string {
 /** One pickable entry of the list: an element hit, a value row, a column for a rule, or a rule to run. */
 type Option =
     | { readonly type: "hit"; readonly hit: FindHit }
-    | { readonly type: "value"; readonly row: FindValueRow }
+    | { readonly type: "value"; readonly row: FindValueRow; readonly orMore?: boolean }
     | { readonly type: "column"; readonly column: ColumnOption }
     | { readonly type: "rule"; readonly rule: string };
 
@@ -293,10 +293,20 @@ export function FindBox(): React.JSX.Element {
     } else if (typeof textAsRule === "string") {
         ruleOption = `=${textAsRule}`;
     }
+    // Each value row, then its "or more" row when the element offers one.
+    const valueOptions =
+        found?.values.flatMap((row): Option[] =>
+            row.atLeast === undefined
+                ? [{ type: "value", row }]
+                : [
+                      { type: "value", row },
+                      { type: "value", row, orMore: true },
+                  ],
+        ) ?? [];
     const options: Option[] = found
         ? [
               ...hits.map((hit): Option => ({ type: "hit", hit })),
-              ...found.values.map((row): Option => ({ type: "value", row })),
+              ...valueOptions,
               ...columns.map((column): Option => ({ type: "column", column })),
               ...(ruleOption === null ? [] : [{ type: "rule", rule: ruleOption } as const]),
           ]
@@ -385,7 +395,9 @@ export function FindBox(): React.JSX.Element {
         setText("");
         setActive(-1);
         if (option.type === "value") {
-            await session.selection.apply(option.row.target);
+            await session.selection.apply(
+                option.orMore === true && option.row.atLeast ? option.row.atLeast.target : option.row.target,
+            );
             return;
         }
         const { hit } = option;
@@ -628,17 +640,24 @@ export function FindBox(): React.JSX.Element {
                                 <Text component="div" className="ws-find-heading" aria-hidden="true">
                                     Values
                                 </Text>
-                                {found.values.map((row, j) => {
+                                {valueOptions.map((option, j) => {
+                                    if (option.type !== "value") {
+                                        return null;
+                                    }
                                     const i = found.records.length + j;
+                                    const { row } = option;
+                                    const count = option.orMore === true ? row.atLeast?.count : row.count;
+                                    const words = `${attributeName(session, row.path)} is ${String(row.value)}${option.orMore === true ? " or more" : ""} (${String(count)})`;
                                     return (
                                         <ResultRow
                                             key={optionId(i)}
                                             id={optionId(i)}
-                                            name={`Select where ${attributeName(session, row.path)} is ${String(row.value)} (${String(row.count)})`}
+                                            name={words}
+                                            aria-label={`Select where ${words}`}
                                             icon={<GLYPHS.filter size={14} />}
                                             current={i === target}
                                             onClick={() => {
-                                                void pick({ type: "value", row });
+                                                void pick(option);
                                             }}
                                         />
                                     );
@@ -654,7 +673,7 @@ export function FindBox(): React.JSX.Element {
                                     Columns
                                 </Text>
                                 {columns.map((column, j) => {
-                                    const i = found.records.length + found.values.length + j;
+                                    const i = found.records.length + valueOptions.length + j;
                                     return (
                                         <ResultRow
                                             key={optionId(i)}

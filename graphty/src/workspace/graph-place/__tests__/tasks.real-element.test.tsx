@@ -17,6 +17,7 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent as realInput } from "vitest/browser";
 
+import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { addLabelRow } from "../../style/row";
@@ -270,6 +271,30 @@ describe("the Graph place on the real element", () => {
         const list = await screen.findByRole("listbox", { name: "Find results" });
         const values = within(list).getByRole("group", { name: "Values" });
         assert.isNotNull(within(values).getByRole("option", { name: "Select where club is Mr Hi (5)" }));
+    });
+
+    it("offers 'or more' beside a typed number, and picking it selects every tie at or above it", async () => {
+        const { session } = await openGraph();
+        await session.data.clear();
+        await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
+        // Read from the file itself, not through the element: ties of 10 or more shared chapters.
+        const wanted = [...lesMiserables.matchAll(/shared_chapters ([\d.]+)/g)].filter(
+            (m) => Number(m[1]) >= 10,
+        ).length;
+
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "10");
+        const values = within(await screen.findByRole("listbox", { name: "Find results" })).getByRole("group", {
+            name: "Values",
+        });
+        const exact = within(values).getByRole("option", { name: /^Select where .+ is 10 \(\d+\)$/ });
+        assert.notInclude(exact.textContent, "Select where", "the words on the row drop the verb");
+        await userEvent.click(within(values).getByRole("option", { name: /^Select where .+ is 10 or more \(\d+\)$/ }));
+
+        await waitFor(() => {
+            assert.equal(session.selection.edges.length, wanted);
+        });
+        assert.isAbove(wanted, 0);
+        assert.equal(session.selection.nodes.length, 0);
     });
 
     it("lists a run on top under Selection, hides and shows its paint as one undo step, and deletes it with Undo", async () => {

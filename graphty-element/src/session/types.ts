@@ -345,6 +345,12 @@ export interface FindValueRow {
     readonly count: number;
     /** A selection target naming exactly those elements, for `selection.apply`. */
     readonly target: SelectionTarget;
+    /**
+     * Present only when `value` is a number: the elements in scope whose value in this column is
+     * `value` or more. `target` is the typed rule `<column> >= value` (a `{ text: "=..." }`
+     * target, narrowed to the find's scope), and `count` is how many elements it selects.
+     */
+    readonly atLeast?: { readonly count: number; readonly target: SelectionTarget };
 }
 
 /** What {@link GraphSession.find} answers: a page of hits, in the `RecordPage` shape, and value rows. */

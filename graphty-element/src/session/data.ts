@@ -1030,6 +1030,7 @@ export class SessionData implements SessionDataApi {
             kinds: new Set(kinds),
             scope,
             edgeNameJoiner: options.edgeNameJoiner,
+            scopeInput: options.scope,
         });
         return { ...found, offset, revision: String(revision) };
     }

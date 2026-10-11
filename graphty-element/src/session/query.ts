@@ -17,12 +17,18 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query } from "../catalog/types";
+import type { EdgeId, NodeId, Path, Query, ScopeInput } from "../catalog/types";
 import { GraphtyError } from "../errors";
 import { RevisionCache } from "./revision";
 import type { SelectionMatch, SelectionSearchHit, SelectionTextMode } from "./selection";
 import { searchOf, type SelectionTarget } from "./selection/targets";
-import { columnsFor, compileExpressionPredicate, type SelectorSource, type SelectorTarget } from "./styles/predicate";
+import {
+    columnsFor,
+    compileExpressionPredicate,
+    quotePath,
+    type SelectorSource,
+    type SelectorTarget,
+} from "./styles/predicate";
 import { matchText, normalizeText } from "./text";
 import type { FindEnd, FindHit, FindKind, FindResult, FindValueRow } from "./types";
 
@@ -322,6 +328,8 @@ export interface SearchRequest {
     readonly scope: { readonly nodes: ReadonlySet<NodeId>; readonly edges: ReadonlySet<EdgeId> } | null;
     /** `FindOptions.edgeNameJoiner`: absent, an edge is not found by its name. */
     readonly edgeNameJoiner?: string;
+    /** The scope as the caller named it, carried on a row's `atLeast` target. */
+    readonly scopeInput?: ScopeInput;
 }
 
 /** What {@link QueryEngine.search} answers; the caller adds the window and the revision. */
@@ -643,7 +651,7 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
         records,
         total: sorted.length,
         totals,
-        values: rows.slice(0, VALUE_ROWS).map((row) => valueRowOf(index, row)),
+        values: rows.slice(0, VALUE_ROWS).map((row) => valueRowOf(index, row, request)),
     };
 }
 
@@ -682,9 +690,10 @@ function hitOf(parts: QueryEngineParts, index: FindIndex, best: BestMatch, kind:
  * One value row, its target naming exactly the members in scope.
  * @param index - The index for this revision.
  * @param row - The matched row.
+ * @param request - The scope.
  * @returns The value row.
  */
-function valueRowOf(index: FindIndex, row: MatchedRow): FindValueRow {
+function valueRowOf(index: FindIndex, row: MatchedRow, request: SearchRequest): FindValueRow {
     const { kind, column, entry, members } = row;
     // ponytail: a value many elements carry makes a long id list; a where-target limited to
     // one kind replaces it when the target grammar can say "nodes only".
@@ -699,7 +708,42 @@ function valueRowOf(index: FindIndex, row: MatchedRow): FindValueRow {
         entry.target = target;
     }
 
-    return { kind, path: column.path, value: entry.value, count: members.length, target };
+    const exact = { kind, path: column.path, value: entry.value, count: members.length, target };
+    return typeof entry.value === "number" && Number.isFinite(entry.value)
+        ? { ...exact, atLeast: atLeastOf(index, column.path, entry.value, request) }
+        : exact;
+}
+
+/**
+ * The "or more" answer for a number: the rule `<column> >= value` and how many it selects. The
+ * rule reads both kinds, so both kinds' columns of that path are counted, in scope.
+ * @param index - The index for this revision.
+ * @param path - The column key.
+ * @param value - The number.
+ * @param request - The scope.
+ * @returns The count and the rule's target.
+ */
+function atLeastOf(
+    index: FindIndex,
+    path: Path,
+    value: number,
+    request: SearchRequest,
+): NonNullable<FindValueRow["atLeast"]> {
+    let count = 0;
+    for (const kind of ["node", "edge"] as const) {
+        const inScope = scopeOf(request, kind);
+        for (const entry of index[kind].columns.find((c) => c.path === path)?.values ?? []) {
+            if (typeof entry.value === "number" && entry.value >= value) {
+                count += inScopeOnly(entry.members, index[kind].ids, inScope).length;
+            }
+        }
+    }
+
+    const text = `=${quotePath(path)} >= \`${JSON.stringify(value)}\``;
+    return {
+        count,
+        target: request.scopeInput === undefined ? { text } : { text, scope: request.scopeInput },
+    };
 }
 
 /**

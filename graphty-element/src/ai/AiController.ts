@@ -87,7 +87,7 @@ export interface ExecutionResult extends CommandResult {
  * Manages the conversation flow, command dispatch, and status updates.
  */
 export class AiController {
-    private engine: AiEngine;
+    private readonly engine: AiEngine;
     private commandRegistry: CommandRegistry;
     private graph: CommandContext["graph"];
     private statusManager: AiStatusManager;

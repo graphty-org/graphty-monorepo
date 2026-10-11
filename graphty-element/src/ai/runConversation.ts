@@ -182,12 +182,12 @@ function combineResults(results: CommandResult[], llmText?: string, failure?: Ou
     const affectedNodes = [...new Set(results.flatMap((r) => r.affectedNodes ?? []))];
     const affectedEdges = [...new Set(results.flatMap((r) => r.affectedEdges ?? []))];
     // Data from the last successful result (or the last result)
-    const lastResult = results.filter((r) => r.success).pop() ?? results[results.length - 1];
+    const lastResult = [...results].reverse().find((r) => r.success) ?? results.at(-1);
 
     return {
         success: allSucceeded,
         message: messages.join("\n"),
-        data: lastResult.data,
+        data: lastResult?.data,
         affectedNodes: affectedNodes.length > 0 ? affectedNodes : undefined,
         affectedEdges: affectedEdges.length > 0 ? affectedEdges : undefined,
         llmText,
@@ -239,38 +239,76 @@ async function modelTurn(
  */
 function appendRound(conversation: Conversation, text: string, calls: ToolCallRequest[], batch: BatchOutcome): void {
     const { messages } = conversation;
-    messages.push({
-        id: `m${messages.length + 1}`,
-        role: "assistant",
-        parts: [
-            ...(text ? [{ type: "text" as const, origin: "model" as const, text }] : []),
-            ...calls.map((call) => ({
-                type: "tool-call" as const,
-                origin: "model" as const,
-                callId: call.id,
-                command: call.name,
-                arguments: call.arguments,
-            })),
-        ],
-    });
-    messages.push({
-        id: `m${messages.length + 1}`,
-        role: "tool",
-        parts: calls.map((call, index) => {
-            const result = batch.results.at(index);
-            const outcome: Outcome =
-                result?.success === true
-                    ? { code: "AI_COMPLETED", params: {} }
-                    : (batch.failure ?? { code: "AI_TOOL_FAILED", params: { tool: call.name } });
-            return {
-                type: "tool-result" as const,
-                origin: "graph-data" as const,
-                callId: call.id,
-                ...outcome,
-                content: toolResultContent(result),
-            };
-        }),
-    });
+    const id = messages.length + 1;
+    messages.push(
+        {
+            id: `m${id}`,
+            role: "assistant",
+            parts: [
+                ...(text ? [{ type: "text" as const, origin: "model" as const, text }] : []),
+                ...calls.map((call) => ({
+                    type: "tool-call" as const,
+                    origin: "model" as const,
+                    callId: call.id,
+                    command: call.name,
+                    arguments: call.arguments,
+                })),
+            ],
+        },
+        {
+            id: `m${id + 1}`,
+            role: "tool",
+            parts: calls.map((call, index) => {
+                const result = batch.results.at(index);
+                const outcome: Outcome =
+                    result?.success === true
+                        ? { code: "AI_COMPLETED", params: {} }
+                        : (batch.failure ?? { code: "AI_TOOL_FAILED", params: { tool: call.name } });
+                return {
+                    type: "tool-result" as const,
+                    origin: "graph-data" as const,
+                    callId: call.id,
+                    ...outcome,
+                    content: toolResultContent(result),
+                };
+            }),
+        },
+    );
+}
+
+/**
+ * Run one batch of calls in its transaction.
+ * @param run - The loop's run.
+ * @param calls - The calls.
+ * @param resultOf - The message's result once a call threw, given what the batch ran.
+ * @returns What the batch did.
+ * @throws {MessageRolledBack} When a call threw.
+ */
+async function runBatch(
+    run: ConversationRun,
+    calls: ToolCallRequest[],
+    resultOf: (threw: BatchOutcome) => ExecutionResult,
+): Promise<BatchOutcome> {
+    const { session, message } = run;
+    try {
+        return await runToolBatch({
+            calls,
+            registry: run.tools,
+            graph: run.graph,
+            session,
+            label: run.label,
+            message,
+            after: latestStepOf(session, message),
+            abort: run.abort,
+            sink: run.sink,
+        });
+    } catch (error) {
+        if (error instanceof BatchThrew) {
+            throw new MessageRolledBack(resultOf(error.outcome));
+        }
+
+        throw error;
+    }
 }
 
 /**
@@ -282,7 +320,7 @@ function appendRound(conversation: Conversation, text: string, calls: ToolCallRe
  * @throws {MessageRolledBack} When a tool threw; its batch is rolled back, earlier batches are the caller's to take back.
  */
 export async function runConversation(run: ConversationRun): Promise<ExecutionResult> {
-    const { conversation, tools, session, message, sink } = run;
+    const { conversation, tools, sink } = run;
     const specs = tools.getAll().map(toolSpec);
 
     logger.debug("Request", {
@@ -339,29 +377,11 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
 
         sink.status.startExecuting();
 
-        let batch: BatchOutcome;
-        try {
-            batch = await runToolBatch({
-                calls,
-                registry: tools,
-                graph: run.graph,
-                session,
-                label: run.label,
-                message,
-                after: latestStepOf(session, message),
-                abort: run.abort,
-                sink,
-            });
-        } catch (error) {
-            if (error instanceof BatchThrew) {
-                results.push(...error.outcome.results);
-                failure ??= error.outcome.failure;
-                throw new MessageRolledBack(combineResults(results, joinTexts(texts), failure));
-            }
-
-            throw error;
-        }
-
+        const batch = await runBatch(run, calls, (threw) => {
+            results.push(...threw.results);
+            failure ??= threw.failure;
+            return combineResults(results, joinTexts(texts), failure);
+        });
         results.push(...batch.results);
         failure ??= batch.failure;
 

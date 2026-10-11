@@ -58,9 +58,9 @@ export function frameworkFamily(specifier) {
  * @returns the source, anchored at the start
  */
 export function frameworkSpecifierSource(families) {
-    const escape = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+    const escape = (s) => s.replaceAll(/[.*+?^${}()|[\]\\/]/g, String.raw`\$&`);
     const alternatives = families.flatMap((name) => [
-        ...FRAMEWORK_FAMILIES[name].exact.map((e) => `${escape(e)}(?:\\/|$)`),
+        ...FRAMEWORK_FAMILIES[name].exact.map((e) => String.raw`${escape(e)}(?:\/|$)`),
         ...FRAMEWORK_FAMILIES[name].prefixes.map(escape),
     ]);
     return `^(?:${alternatives.join("|")})`;

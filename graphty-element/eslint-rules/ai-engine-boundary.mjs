@@ -49,7 +49,7 @@ export const ADAPTER_TEST_FILES = ["test/ai/engine/tanstack/**/*.ts"];
 export const LOADER_FILE = "src/ai/engine/load.ts";
 
 /** A relative import of a folder named tanstack: the adapter. */
-const ADAPTER_SPECIFIER = "^\\.{1,2}\\/(?:.*\\/)?tanstack(?:\\/|$)";
+const ADAPTER_SPECIFIER = String.raw`^\.{1,2}\/(?:.*\/)?tanstack(?:\/|$)`;
 
 const FRAMEWORK_MESSAGE =
     "AI framework and provider packages are imported only in src/ai/engine/tanstack/ (and its tests); " +
@@ -61,7 +61,7 @@ const ADAPTER_MESSAGE = "The AI adapter folder is loaded only by src/ai/engine/l
  * @param source - The source.
  * @returns The literal, `/` escaped.
  */
-const literal = (source) => `/${source.replace(/(?<!\\)\//g, "\\/")}/`;
+const literal = (source) => `/${source.replaceAll(/(?<!\\)\//g, String.raw`\/`)}/`;
 
 /**
  * The two rules for one group of files.
@@ -106,17 +106,16 @@ function rules({ allow = [], loader = false, anyImport = true, named = false }, 
             "factories, and message and event types. Loop, policies, plans, agents and persistence are graphty code.";
         patterns.push(
             {
-                regex: "^@tanstack\\/ai$",
-                allowImportNamePattern:
-                    "^(?:chat|generateTranscription|generateSpeech|[A-Z]\\w*(?:Message|Chunk|Event)(?:Type)?)$",
+                regex: String.raw`^@tanstack\/ai$`,
+                allowImportNamePattern: String.raw`^(?:chat|generateTranscription|generateSpeech|[A-Z]\w*(?:Message|Chunk|Event)(?:Type)?)$`,
                 message,
             },
             {
-                regex: "^@tanstack\\/ai-(?:openai|anthropic|gemini)$",
-                allowImportNamePattern: "^(?:create[A-Z]\\w*|[A-Z]\\w*(?:Config|ProviderOptions|Message|Chunk|Event))$",
+                regex: String.raw`^@tanstack\/ai-(?:openai|anthropic|gemini)$`,
+                allowImportNamePattern: String.raw`^(?:create[A-Z]\w*|[A-Z]\w*(?:Config|ProviderOptions|Message|Chunk|Event))$`,
                 message,
             },
-            { regex: "^@tanstack\\/(?!ai$|ai-openai$|ai-anthropic$|ai-gemini$)", message },
+            { regex: String.raw`^@tanstack\/(?!ai$|ai-openai$|ai-anthropic$|ai-gemini$)`, message },
         );
     }
     return {

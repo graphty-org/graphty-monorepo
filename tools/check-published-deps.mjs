@@ -134,6 +134,37 @@ function pack(dir, dest) {
     return path.join(out, "package");
 }
 
+/**
+ * The AI framework imports one shipped file of a scanned package holds, and whether a declaration
+ * names the adapter folder.
+ * @param allowed - What the package may still ship, from FRAMEWORK_IMPORTS_ALLOWED.
+ * @param file - The file, relative to the package.
+ * @param text - Its contents.
+ * @returns One message per problem.
+ */
+function frameworkProblems(allowed, file, text) {
+    const problems = [];
+    const declaration = /\.d\.[cm]?ts$/.test(file);
+    if (declaration && (/(^|\/)engine\/tanstack\//.test(file) || /(?:engine\/|["']\.\/)tanstack\//.test(text))) {
+        problems.push(`${file} names the AI adapter folder (engine/tanstack), which ships no declarations`);
+    }
+    const packages = new Set(
+        IMPORT_PATTERNS.flatMap((re) => [...text.matchAll(re)].map((m) => m[1]))
+            .filter((spec) => {
+                const family = frameworkFamily(spec);
+                return family !== undefined && !allowed.some((a) => a.family === family && a.files.test(file));
+            })
+            .map(packageName),
+    );
+    for (const name of packages) {
+        problems.push(
+            `${file} imports "${name}", an AI framework or provider package; only graphty-element's own chunks ` +
+                "may hold one, built in, never imported (tools/ai-framework-packages.mjs)",
+        );
+    }
+    return problems;
+}
+
 function check(dir, packed, workspaceVersions) {
     const problems = [];
     const manifest = JSON.parse(fs.readFileSync(path.join(packed, "package.json"), "utf8"));
@@ -149,36 +180,15 @@ function check(dir, packed, workspaceVersions) {
 
     const imported = new Map(); // name -> first file that imports it
     const frameworkAllowed = FRAMEWORK_IMPORTS_ALLOWED[manifest.name];
-    const frameworkReported = new Set();
     for (const file of files) {
         // The top-level src/ is shipped for source maps; it is what dist was built FROM, not what runs.
         if (file.startsWith("src/")) continue;
         if (!/\.(c|m)?js$|\.d\.(c|m)?ts$/.test(file)) continue;
         const text = fs.readFileSync(path.join(packed, file), "utf8");
-        const declaration = /\.d\.[cm]?ts$/.test(file);
-        if (
-            frameworkAllowed &&
-            declaration &&
-            (/(^|\/)engine\/tanstack\//.test(file) || /(?:engine\/|["']\.\/)tanstack\//.test(text))
-        ) {
-            problems.push(`${file} names the AI adapter folder (engine/tanstack), which ships no declarations`);
-        }
+        if (frameworkAllowed) problems.push(...frameworkProblems(frameworkAllowed, file, text));
         for (const re of IMPORT_PATTERNS) {
             for (const m of text.matchAll(re)) {
                 const spec = m[1];
-                const family = frameworkFamily(spec);
-                if (
-                    frameworkAllowed &&
-                    family !== undefined &&
-                    !frameworkAllowed.some((a) => a.family === family && a.files.test(file)) &&
-                    !frameworkReported.has(`${file} ${packageName(spec)}`)
-                ) {
-                    frameworkReported.add(`${file} ${packageName(spec)}`);
-                    problems.push(
-                        `${file} imports "${packageName(spec)}", an AI framework or provider package; only graphty-element's ` +
-                            "own chunks may hold one, built in, never imported (tools/ai-framework-packages.mjs)",
-                    );
-                }
                 if (spec.startsWith(".") || spec.startsWith("/") || /^[a-z]+:\/\//.test(spec)) continue;
                 if (builtins.has(spec) || builtins.has(packageName(spec)) || spec.startsWith("node:")) continue;
                 let name = packageName(spec);

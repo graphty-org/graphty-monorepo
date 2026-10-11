@@ -687,8 +687,10 @@ export default defineConfig({
             // job). VITE_LLM_REGRESSION_PROVIDER picks the provider (google by default, as the release job
             // runs; openai and anthropic also work) and its key variable (VITE_GOOGLE_API_KEY, ...). Its seven real test
             // files sit inside describe.skipIf(skipIfNoApiKey()), so without a key they skip; the release
-            // job checks the key is set first and fails if it is not.
+            // job checks the key is set first and fails if it is not. Locally the key comes from the
+            // repository's .env, the one the dev server reads (envDir); CI sets it in the environment.
             {
+                envDir: "..",
                 test: {
                     name: "llm-regression",
                     setupFiles: ["./test/ai/llm-regression/setup.ts"],

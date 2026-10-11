@@ -10,34 +10,29 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-11 -- **Round 5 measured nothing: 0 of 56 valid, all 56 refused at `--start`** (journal
-  results quote "no Gate evidence" in all 56). Cause: the running workflow executes
-  `tmp/studio-resume/workflow-tier2-continue.js` (main checkout), forked 2026-10-10 before the gate
-  existed; launched once, never relaunched. Gate and start steps live only in the UNCOMMITTED
-  `tier2/rounds/workflow-tier2.js`.
-- 2026-10-11 -- A continuation script is a fork. After any usage-limit stop: find which script the
-  run actually executes (journal + script mtime), diff it against the main script, and check the
-  journal for "Round N: gate" before any session -- not just the round folder.
-- 2026-10-11 -- Round 5 re-plan is done: same 56 rows, ids r5-s01b..r5-s56b in `plan.md`,
-  `sessions.json`, `table.md`; void folders r5-s01..s56 kept. A failed `b` start becomes `bb`. The
-  round stops on the first "Gate evidence" refusal. Gate parses the `b` rows (scratch-copy check).
-- 2026-10-11 -- Bar 10 fails on ONE confirmed sev 3: names over names and nodes (Chloe/Farah,
-  Dev/Eli). Name-over-tie click reproduced only on 5277e2cbe; re-script on 8c015b806.
-- 2026-10-11 -- "Or more" row below the fold: confirmed but sev 2 (3/2 split, carry-forward is not
-  evidence). Round 4 deferred that half on purpose.
-- 2026-10-11 -- Confirmed sev 2: edge-only step says "Ran on 20 nodes; 20 shown now" (owner unsettled
-  -- element fact vs app words, script it); unknown column answers "Nothing matches" (3 specialists).
-- 2026-10-11 -- Fixed on 8c015b806 by specialists only (credit when readers meet them): filtered
-  table, rule-named "or more" layer, bare "10", off step stays off, New project > Discard, note Cancel.
-- 2026-10-11 -- A void round is incomplete, not stalled: never apply the stall rule to it.
-- 2026-10-11 -- Round 5 watch on re-run: T22 A credit by "10" reaching the 3 stops (not an "or more"
-  pick echoing the prompt); T17 table counts under a step; T18 bar 11 at 8 of 8.
+- 2026-10-11 -- **Round 5 (b re-runs) scored: 55 of 55 valid succeed; bars 9 (b) and 10 fail.**
+  Bar 9 (b): edge inspector 29 vs 27, unchanged since round 4. Bar 10: one confirmed sev 3 (names
+  and nodes over each other, element owner) and totals 153 to 162. r5-s02b void, r5-s02bb owed.
+- 2026-10-11 -- T18 bar 11 holds on the limit (8 of 8) ONLY because two answered by hand; tool
+  users' median is 8.5. The path tool's route is the cost; P key 0 of 74 over five rounds.
+- 2026-10-11 -- Bar 5 held by ABSENCE (no reader opened the table under a step). A bar that holds
+  because nobody went there is not evidence of the fix; say so in every score.
+- 2026-10-11 -- Leak-check VOID lines are text matches: read the participant's own log before
+  voiding (s03b's ".." was legend prose, s53b's path a heredoc variable). Name both in scores.
+- 2026-10-11 -- Setups steer findings: T19's wrong note target starts from the run the setup leaves
+  open; T21 histories say "saved" but setups never save. Check setup against history before a round.
+- 2026-10-11 -- bars.mjs has two silent MISS lines in rounds 4 and 5 (Enter on Shortest path picks
+  All-pairs distance; tier 1 Degree click). Read the bars log's MISS lines, not only the JSON.
+- 2026-10-11 -- A continuation script is a fork: check the run's script and the journal for the
+  gate step after any usage-limit stop. The gate worked this time.
+- 2026-10-11 -- T22: the "N or more" row works (3 of 3 bare "10"), but its funnel icon made all
+  three hesitate; 3 of 7 looked in Everything > Style > Edges first. "=" unprompted 0 of 31.
 - 2026-10-11 -- Priming has four sources: prompt, history, persona playing rules, briefing. Grep
   all four before "unprompted".
+- 2026-10-11 -- Raising a severity because participants "named a risk" breaks the opinion rule;
+  held the Add page's Load-primary trap at 2 though one grade said 3.
 - 2026-10-11 -- Habit-matching fixes land at once; a rule written down fails; a refusal in the tool
   works for a session, but only the runner's own gate step protects a round.
-- 2026-10-11 -- Raising a severity because participants "named a risk" breaks the opinion rule;
-  near-identical lines across sessions are one template, not N people.
 
 ## Priorities and values
 
@@ -78,39 +73,21 @@ reasons, in short:
 
 ## Decisions and reasons
 
-- 2026-10-11 (researcher, round 5 re-plan for `b` re-runs) -- Kept the allocation unchanged: no
-  build, bar or criteria change since the plan, and it already weights the round 4 misses (T22 at 8
-  for bar 10's sev 3, T17 at 8 for bar 5, T18 on bar 11's limit, T24 at 4 for names over its tie)
-  and the touched paths (T19, T23 at 4) while covering T4 and T12R at 2. Renamed the PLAN ROWS to
-  `<id>b` rather than relying on `real.mjs`'s `b`-fallback, so briefs, the gate and scores all name
-  the folder that runs. `sessions.py` asserts every void folder exists and no `b` folder does.
-  Wrote that the round's leak check lists the 56 void folders as record only; each `b` session's
-  own line decides. Did not brief into the round folder: `--brief` would create the `b` folders.
+- 2026-10-11 (researcher, round 5 scored from the b re-runs) -- Rewrote `round-5/scores.md` from
+  55 valid grades, the gate's `bars/bars.json`, four expert reports and the leak check;
+  `tmp/researcher/t2r5/score-b.py` asserts every row. Kept r5-s03b and s53b after reading their
+  logs (no outside file opened). Voided r5-s02b as a run fault (a model-side classifier stopped its
+  first transcript write) and named r5-s02bb owed. Applied the skeptics' round 5 severities to the
+  expert findings (same build). Held the Add page's Load-primary trap at sev 2 (one session at 3,
+  no one pressed Load). Read the borderline broken habit (T18 B by hand from the find box) as not a
+  dead end, with the stricter reading written out. Called bar 5 a hold by absence and the stall
+  test "not stalled" only with that caveat. Reported the bars script's two MISS moves.
 
-- 2026-10-11 (researcher, round 5 skeptic verdicts) -- Wrote `round-5/insights.md`. Rule: two
-  drops = dropped, one drop or weaken = weakened. Verified myself before applying: journal has one
-  "launched" event and no "Round 5: gate" step; all 56 participant results quote the refusal; the
-  continuation script has no "gate"; workflow-tier2.js has no git history; no r4 `b` folders exist;
-  claim c screenshots carry build 5277e2cbe. Dropped "restart skipped the gate" as a replay; kept the
-  fork mechanism. Bar 10 on one sev 3; "or more" to sev 2; table count split into three unconfirmed;
-  "Edit source" to sev 1; swatch Escape one specialist. Viewed every screenshot cited.
-
-- 2026-10-11 (researcher, round 5 scored) -- Wrote `round-5/scores.md` from 56 VOID grades and four
-  expert reports; `tmp/researcher/t2r5/score.py` asserts 56 planned, every grade VOID, no
-  screenshot anywhere, no gate section, no bars.json. Every session bar "not scored" (does not
-  hold); 7 (a), 8, 9 not scored (no bars run); bar 10 fails on two confirmed sev 3. Did NOT apply
-  the stall rule: criteria void and re-run run faults, so a fully void round measured nothing.
-  Kept "or more under the fold" at sev 3 on a 3/2 split, as round 4 did. Expert findings stand
-  for the re-run (same build). Recommended: gate, then 56 `b` re-runs, runner stops on the first
-  refusal and resumes at the gate after a usage limit.
-
-- 2026-10-11 (researcher, round 5 plan) -- Sized by the frozen rule, not by the director's "what
-  round 5 re-runs" list where they differ: the core four at 8 always (decisions listed only T22 and
-  T17), T19 at 4 because a fix touched it (decisions said script only). No task missed bar 1, so
-  the weight follows the failing bars: T22 at 8 (bar 10 severity 3 on its natural route), T24 at
-  4 (names over its tie, claim c). T4 and T12R at 2 to cover every task. Kept the claims section as
-  the plan's last part, marked not fixed on this build. Briefed all 56 in scratch: only the kept
-  avoided words; no answer facts (the one "s11" hit was the session id r5-s11).
+- 2026-10-11 (round 5 plan, void run, re-plan, folded) -- Sized by the frozen rule (core four at 8,
+  T22 at 8, T24/T19/T23 at 4, T4/T12R at 2). The first run was void: 56 refusals at `--start`
+  because the running continuation script had no gate step. Verdicts: dropped "restart skipped the
+  gate"; bar 10 on one sev 3; "or more" under the fold to sev 2. Re-planned as `<id>b` rows with the
+  void folders kept as record.
 
 - 2026-10-11 (researcher, round 4 closed) -- Read `round-4/insights.md` and `decisions.md`.
   Taught: a fix that matches a habit lands at once (Shift-click T24 2/4 to 7/7; toolbar Filters
@@ -200,6 +177,12 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-11 (round 5 b scoring) -- Worked: a 20-line call dump of each flagged participant log
+  (`t2r5/calls.py`) settled both leak flags and the void's mechanism in minutes; reading the bars
+  log's MISS lines found two dead moves round 4 never reported; viewing the screenshots behind a
+  sev 3 claim (r5-s38b `04.png`, `expert/visual/replace/13.png`). Did not work: trusting grade.md
+  ease lines alone (seven grades lacked one; the transcript had it).
+
 - 2026-10-11 (round 5 re-plan) -- Worked: running `real.mjs --gate` on a SCRATCH COPY of the round
   folder (no bars there) to prove the gate reads all 20 halves from the renamed rows: its only
   problem was the missing bars, and it wrote no evidence. Cheap, no browser, no round-folder writes.
@@ -257,6 +240,12 @@ reasons, in short:
   once; editing a script while it runs; a harness that exits 0 printing nothing; mocks.
 
 ## Thinking
+
+- 2026-10-11 -- When every task passes, the stall rule can only be met by bars, and a bar can hold
+  because nobody visited its screen. Next rounds need a reader route that reaches each fixed screen
+  (a prompt or follow-up that opens the table), or the fix stays specialist-only.
+- 2026-10-11 -- A by-hand SD answer can carry a cost bar: score cost with and without routes that
+  skip the feature under study.
 
 - 2026-10-11 -- Priming has four sources, not one: the prompt, the history, the persona's playing
   rules, and the tool's own reference table in the briefing. A leak check over participant logs

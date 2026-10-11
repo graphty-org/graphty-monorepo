@@ -1,5 +1,5 @@
-The study runs on build 26f3bb968e43 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r3d2-26f3bb968/`
-(graphty@0.8.61, commit 26f3bb968), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build 38e180aac230 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r4-38e180aac/`
+(graphty@0.8.64, commit 38e180aac), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -837,3 +837,17 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   prompt is piloted twice on each half (A, B) on the frozen round 4 build, each pilot graded by the
   key, and every route the key names for T24 is walked on that build, with the results listed in
   the round 4 plan. No bar, floor, target or step limit changed.
+
+- **2026-10-10, before round 4: the build moved from 26f3bb968e43 to 38e180aac230.** The previous
+  build, served from `.study-builds/tier2-r3d2-26f3bb968/`, stays frozen as it was. The round 4
+  build (`.study-builds/tier2-r4-38e180aac/`) is a fresh build of the worktree's current commit. It
+  carries these changes to what a participant meets: in graphty-element, a Shift-click on a node
+  adds it to the selection instead of replacing it, a number found in a column also offers its "or
+  more" rule, a run reports the parameters of the execution an undo restores, and a partition's
+  group is written as its rank only when asked; in the app, a Filters tool on the canvas toolbar
+  opens a new filter step's editor, Analyze ranks name and alias matches first and draws one Start
+  here while filtering, keyboard focus stays on the path form's From and on a selection's new
+  Color line, a filter step over an edge column counts edges on its row and in the header chip, and
+  the Add page's repeated-ties line reads as a warning and describes Load; in compact-mantine, the
+  chosen segment's face is restored. Every new-build preflight item runs on this build before round
+  4's first session. No bar, floor, step limit or prompt changed.

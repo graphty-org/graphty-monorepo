@@ -13,7 +13,15 @@
 import rootConfig from "../eslint.config.js";
 import tseslint from "typescript-eslint";
 
+import { aiEngineBoundary } from "./eslint-rules/ai-engine-boundary.mjs";
 import nodePositionFunnel from "./eslint-rules/node-position-funnel.mjs";
+
+/** Prevent architectural violations - don't mutate layers directly. */
+const LAYERS_MUTATION = {
+    selector:
+        'MemberExpression[property.name="layers"] CallExpression[callee.property.name=/^(push|splice|unshift|pop|shift)$/]',
+    message: "Do not mutate layers directly. Use StyleManager.addLayer() or StyleManager.insertLayer().",
+};
 
 export default tseslint.config(
     // Inherit all rules from root config (includes JSDoc). All but one block: this package's
@@ -51,21 +59,10 @@ export default tseslint.config(
     // ============================================
     // PACKAGE-SPECIFIC RULES
     // ============================================
-    {
-        files: ["**/*.ts", "**/*.tsx"],
-        rules: {
-            // Prevent architectural violations - don't mutate layers directly
-            "no-restricted-syntax": [
-                "error",
-                {
-                    selector:
-                        'MemberExpression[property.name="layers"] CallExpression[callee.property.name=/^(push|splice|unshift|pop|shift)$/]',
-                    message:
-                        "Do not mutate layers directly. Use StyleManager.addLayer() or StyleManager.insertLayer().",
-                },
-            ],
-        },
-    },
+    // The layers guard, and the AI engine boundary: AI frameworks and provider SDKs only in the
+    // adapter folder, loaded only by src/ai/engine/load.ts (eslint-rules/ai-engine-boundary.mjs).
+    // Each block of the boundary repeats the layers guard, since ESLint keeps one setting per rule.
+    ...aiEngineBoundary(rootConfig, [LAYERS_MUTATION]),
 
     // ============================================
     // NODE MESHES MOVE ONLY THROUGH THE POSITION FUNNEL

@@ -409,7 +409,8 @@ When the step fails:
   the tests, the LFS upload). If you use either, say so in your reply, with the reason.
 - **"SonarQube step cannot run"** (no token, a rejected token, no Java, a missing
   project): a setup problem. Report it to the owner with the message; do not work around it.
-- **"SonarQube did NOT check this push"**: the server was unreachable. The push went through; the
+- **"SonarQube did NOT check this push"**: the server was unreachable, or it or the network failed
+  during the scan (the step prints the scanner's error lines). The push went through; the
   next push from the owner's network checks the whole branch. Mention it in your reply.
 
 Existing issues (the backlog) are burned down in separate small pull requests, one rule or one

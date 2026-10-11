@@ -10,6 +10,9 @@ made and evidence comes in.
 
 ## Top of mind
 
+- 2026-10-11 -- Round 4 decisions read: study fixes (gate refusal, answer-free briefings) gate
+  round 5; product fixes one per problem in the owning package; bar 9 (b) diff before any cut.
+  Round 5 watch: T22 "or more" row picks may only echo the prompt's words.
 - 2026-10-11 -- Round 5 key vs first pilots on 8c015b806 (T4 B, T18 B, T20 A, T12R B): every
   value held; only T18's stale "On the path" legend notes and "orange" wording fixed. A pilot
   report's claim that a sibling folder "looks interrupted" was wrong: T12R A was mid-run by
@@ -85,6 +88,20 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-11 (researcher, round 4 closed) -- Read `round-4/insights.md` and `decisions.md`.
+  Taught: a fix that matches a habit lands at once (Shift-click T24 2/4 to 7/7; toolbar Filters
+  first door 7/7 T17), and a rule written down fails twice while a refusal in the tool works --
+  the gate skipped two rounds running and briefings leaked answers. Decided (director): study
+  first (sev 4: `--start` refuses without gate and runs on a free slot; briefings name file and
+  kind only, leak check reads briefings; `--shift-click` stays), then one fix per problem in its
+  owning package: backtick suggestion only if selection accepts it; "or more" row inside a
+  column's range; off step stays off on leave; New project > Discard scripted then fixed; table
+  uses scope "visible"; `rulePath` export (team-decided, additive); note Cancel focuses "+"; T17
+  histories say what, not where; bar 9 (b) diff words before cutting, scope words stay. Held:
+  one warning look for load problems (1 session), "out of date" accessible name, second-path
+  notice. Watch in round 5: T22 A picks of the "or more" row are prompt-matching, not discovery;
+  gate evidence in plan.md; leak check on briefings; persona habits not scored as unprompted.
 
 - 2026-10-11 (researcher, round 4 critique) -- Proposed the smallest fix per verified problem,
   traced to source first. Find box: `ruleFromText` offers the element's `number-needs-backticks`

@@ -20,6 +20,7 @@ import type { CommandContext } from "../../../src/ai/commands/types";
 import { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
 import type { LlmProvider, LlmResponse } from "../../../src/ai/providers/types";
 import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
+import { installAssistantTools } from "../../../src/ai/tools/install";
 
 const reached = new Set<string>();
 
@@ -160,8 +161,66 @@ describe("AI command result codes", () => {
             const result = seen(await assistant().execute("go"));
             assert.isFalse(result.success, code);
             assert.strictEqual(result.code, code);
-            assert.deepEqual(result.params, { tool });
+            assert.strictEqual(result.params?.tool, tool);
         }
+    });
+
+    it("AI_CONFIRMATION_NEEDED for a held change; AI_APPROVAL_DENIED and AI_APPROVAL_STALE for its answers", async () => {
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        installAssistantTools(registry, session);
+        mock.setResponse("empty", call("edit_data", { action: "delete_all" }));
+        const controller = assistant();
+        const held = seen(await controller.execute("empty it"));
+        assert.isTrue(held.success);
+        assert.strictEqual(held.code, "AI_CONFIRMATION_NEEDED");
+        assert.strictEqual(held.params?.gate, "replaces");
+        const denied = seen(await controller.resolveAiApproval(String(held.params?.request), { approve: false }));
+        assert.strictEqual(denied.code, "AI_APPROVAL_DENIED");
+        const again = seen(await controller.resolveAiApproval(String(held.params?.request), { approve: true }));
+        assert.strictEqual(again.code, "AI_APPROVAL_STALE");
+        assert.strictEqual(session.status.counts.nodes, 3);
+    });
+
+    it("AI_ROLLBACK_PARTIAL when taking a failed message back stops at the reader's own edit", async () => {
+        let asks = 0;
+        let markAsked: () => void = () => undefined;
+        const asked = new Promise<void>((resolve) => {
+            markAsked = resolve;
+        });
+        let release: () => void = () => undefined;
+        const released = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const provider: LlmProvider = {
+            name: "pausing",
+            supportsStreaming: false,
+            supportsTools: true,
+            configure: () => undefined,
+            generate: async () => {
+                asks++;
+                if (asks === 1) {
+                    return call("addNode", { id: "x" });
+                }
+
+                if (asks === 2) {
+                    markAsked();
+                    await released;
+                    return call("refuse");
+                }
+
+                return { text: "it failed", toolCalls: [] };
+            },
+            generateStream: () => Promise.reject(new Error("not used")),
+            validateApiKey: () => Promise.resolve(true),
+        };
+        const running = assistant(provider).execute("add x, then fail");
+        await asked;
+        // The reader's own edit lands on top of the message's step while the model thinks.
+        await session.data.addNodes([{ id: "reader" }]);
+        release();
+        const result = seen(await running);
+        assert.strictEqual(result.code, "AI_ROLLBACK_PARTIAL");
+        assert.exists(session.data.node("reader"));
     });
 
     it("AI_PROVIDER_ERROR and AI_KEY_REJECTED name the provider and the HTTP status", async () => {

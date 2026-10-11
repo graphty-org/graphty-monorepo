@@ -24,11 +24,11 @@ describe("AiManager", () => {
     });
 
     describe("initialization", () => {
-        it("initializes with built-in commands", () => {
+        it("initializes with the generated tools", () => {
             const commands = manager.getRegisteredCommands();
-            assert.ok(commands.includes("queryGraph"), "should include queryGraph command");
-            assert.ok(commands.includes("setLayout"), "should include setLayout command");
-            assert.ok(commands.includes("setImmersiveMode"), "should include setImmersiveMode command");
+            assert.ok(commands.includes("query"), "should include the query tool");
+            assert.ok(commands.includes("layout"), "should include the layout tool");
+            assert.ok(commands.includes("immersive"), "should include the immersive tool");
         });
 
         it("initializes with mock provider", () => {

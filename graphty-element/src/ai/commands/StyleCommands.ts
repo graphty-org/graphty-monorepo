@@ -292,6 +292,8 @@ async function addLayer(
 
 /**
  * Command to find and style nodes matching a selector.
+ * @deprecated The assistant registers generated tools instead: this one is the `style (add)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const findAndStyleNodes: GraphCommand = {
     name: "findAndStyleNodes",
@@ -344,6 +346,8 @@ export const findAndStyleNodes: GraphCommand = {
 
 /**
  * Command to find and style edges matching a selector.
+ * @deprecated The assistant registers generated tools instead: this one is the `style (add)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const findAndStyleEdges: GraphCommand = {
     name: "findAndStyleEdges",
@@ -392,6 +396,8 @@ export const findAndStyleEdges: GraphCommand = {
 
 /**
  * Command to clear styles from a layer or all AI-added layers.
+ * @deprecated The assistant registers generated tools instead: this one is the `style (clear_mine)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const clearStyles: GraphCommand = {
     name: "clearStyles",

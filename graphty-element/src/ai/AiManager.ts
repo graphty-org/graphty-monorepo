@@ -10,11 +10,11 @@ import type { Graph } from "../Graph";
 import { AiController, type ExecutionResult } from "./AiController";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import { CommandRegistry } from "./commands";
-import { BUILTIN_COMMANDS } from "./commands/builtin";
 import { ApiKeyManager } from "./keys";
 import { createProvider, type ProviderType } from "./providers";
 import type { LlmProvider } from "./providers/types";
 import { SchemaManager } from "./schema";
+import { installAssistantTools } from "./tools/install";
 import { ASSISTANT_TOOL_NAMES } from "./tools/toolset";
 import type { AssistantGateLimits } from "./tools/types";
 
@@ -49,7 +49,11 @@ export interface AiManagerConfig {
     apiKey?: string;
     /** Optional model name override */
     model?: string;
-    /** Whether to register built-in commands (default: true) */
+    /**
+     * Whether to register the assistant's own tools (default: true). They are generated from the
+     * element's catalog, so an algorithm, layout, format, palette or camera a plugin registers
+     * reaches the model with no further code.
+     */
     registerBuiltinCommands?: boolean;
     /**
      * Which tools a model is offered: `"standard"` (eleven core tools plus those a catalog search
@@ -218,8 +222,8 @@ export class AiManager {
      * Register built-in commands for graph control.
      */
     private registerBuiltinCommands(): void {
-        for (const command of BUILTIN_COMMANDS) {
-            this.registerCommand(command);
+        if (this.graph) {
+            installAssistantTools(this.commandRegistry, this.graph.getSession());
         }
     }
 

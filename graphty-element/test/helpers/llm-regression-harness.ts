@@ -10,25 +10,40 @@ import { appendFileSync } from "node:fs";
 import { basename } from "node:path";
 
 import { Color3 } from "@babylonjs/core";
-import { expect } from "vitest";
+import { assert, expect } from "vitest";
 
 import { AiController, type AiControllerOptions, type ExecutionResult } from "../../src/ai/AiController";
 import { CommandRegistry } from "../../src/ai/commands";
-import { BUILTIN_COMMANDS } from "../../src/ai/commands/builtin";
 import type { CommandResult } from "../../src/ai/commands/types";
 import { ENGINE_OVERRIDE, engineFor } from "../../src/ai/engine/load";
 import type { AiEngine, EngineCapabilities, EngineOutcome, TurnEvent, TurnRequest } from "../../src/ai/engine/types";
 import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
-import { SchemaManager } from "../../src/ai/schema";
+import { installAssistantTools } from "../../src/ai/tools/install";
 import type { AiResultCode, AiResultParams } from "../../src/catalog/ai";
 import type { Graph } from "../../src/Graph";
+import { assistantSession } from "./assistant";
 import {
     getLlmRegressionApiKey,
     getLlmRegressionKeyVariable,
     getLlmRegressionModel,
     getLlmRegressionProvider,
 } from "./llm-regression-env";
-import { createMockGraphContext } from "./mock-graph-context";
+
+/** What only a renderer does, answered as one would: the camera, a capture, XR. */
+const STAND_IN_RENDERER = {
+    applyCameraView: (): Promise<void> => Promise.resolve(),
+    getCameraState: () => ({ position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } }),
+    captureScreenshot: () =>
+        Promise.resolve({ blob: new Blob(["png"]), metadata: { width: 800, height: 600, format: "png", byteSize: 3 } }),
+    captureAnimation: () =>
+        Promise.resolve({
+            blob: new Blob(["webm"]),
+            metadata: { width: 800, height: 600, format: "webm", duration: 1000 },
+        }),
+    cancelAnimationCapture: (): boolean => false,
+    isVRSupported: (): Promise<boolean> => Promise.resolve(false),
+    isARSupported: (): Promise<boolean> => Promise.resolve(false),
+};
 
 /**
  * Test graph fixture interface
@@ -338,7 +353,7 @@ export class LlmRegressionTestHarness {
      * @returns Promise resolving to the harness instance
      * @throws Error if API key is not available
      */
-    static create(options: LlmRegressionTestHarnessOptions = {}): Promise<LlmRegressionTestHarness> {
+    static async create(options: LlmRegressionTestHarnessOptions = {}): Promise<LlmRegressionTestHarness> {
         const apiKey = getLlmRegressionApiKey();
         if (!apiKey) {
             throw new Error(
@@ -358,58 +373,60 @@ export class LlmRegressionTestHarness {
             temperature: options.temperature ?? 0,
         });
 
-        // Create graph from fixture or default
-        const graph = LlmRegressionTestHarness.createGraphFromFixture(options.graphData);
+        // A real session from the fixture, with the stand-in algorithm executor, and a stand-in
+        // renderer for what only a renderer does (the camera, a capture, XR).
+        const session = await assistantSession(LlmRegressionTestHarness.recordsOf(options.graphData));
+        const graph = { getSession: () => session, ...STAND_IN_RENDERER } as unknown as Graph;
 
-        // What AiManager hands the model, built the way AiManager builds it: its built-in
-        // commands and the schema summary it adds to the system prompt. AiManager itself is not
-        // used because it loads the browser-only key store, and this project runs in Node.
+        // What AiManager hands the model, built the way AiManager builds it: the generated tools,
+        // the profile AiManager would pick, and the instructions and facts the controller writes.
+        // AiManager itself is not used because it loads the browser-only key store, and this
+        // project runs in Node.
         const commandRegistry = new CommandRegistry();
-        for (const command of BUILTIN_COMMANDS) {
-            commandRegistry.register(command);
-        }
-
-        const schemaManager = new SchemaManager(graph);
-        schemaManager.extract();
+        installAssistantTools(commandRegistry, session);
         // The provider's own engine, wrapped so every turn is recorded.
         const engine = new RecordingEngine(engineFor(provider));
         const controllerOptions: AiControllerOptions & { [ENGINE_OVERRIDE]: AiEngine } = {
             provider,
             commandRegistry,
             graph,
-            schemaManager,
+            toolProfile: process.env.LLM_REGRESSION_TOOL_PROFILE === "small" ? "small" : "standard",
             [ENGINE_OVERRIDE]: engine,
         };
         const controller = new AiController(controllerOptions);
 
-        return Promise.resolve(new LlmRegressionTestHarness(controller, engine, graph));
+        return new LlmRegressionTestHarness(controller, engine, graph);
     }
 
     /**
-     * Create a mock graph from a test fixture. It is the mock every AI command test uses, so the
-     * commands the model picks run against a real session, style stack, layout and camera
-     * rather than failing on a graph that has none.
+     * The fixture's records, as a session takes them; five servers and databases when none is given.
+     * @param fixture - The fixture.
+     * @returns The node and edge records.
      */
-    private static createGraphFromFixture(fixture?: TestGraphFixture): Graph {
-        // The AI unit tests' mock graph: it has the session the controller runs each message in.
+    private static recordsOf(fixture?: TestGraphFixture): {
+        nodes: Record<string, unknown>[];
+        edges: Record<string, unknown>[];
+    } {
         if (!fixture) {
-            return createMockGraphContext({
-                nodeCount: 5,
-                edgeCount: 4,
-                nodeData: (i) => ({ type: i % 2 === 0 ? "server" : "database", name: `node-${i}`, status: "online" }),
-                edgeData: () => ({ weight: 1.0 }),
-            });
+            return {
+                nodes: Array.from({ length: 5 }, (_, i) => ({
+                    id: `node-${String(i)}`,
+                    type: i % 2 === 0 ? "server" : "database",
+                    name: `node-${String(i)}`,
+                    status: "online",
+                })),
+                edges: Array.from({ length: 4 }, (_, i) => ({
+                    source: `node-${String(i)}`,
+                    target: `node-${String(i + 1)}`,
+                    weight: 1.0,
+                })),
+            };
         }
 
-        return createMockGraphContext({
-            nodeCount: fixture.nodes.length,
-            edgeCount: fixture.edges.length,
-            nodeData: (i) => fixture.nodes[i].data,
-            edgeData: (i) => fixture.edges[i].data,
-            // The fixture's own ids and endpoints, so a test can name the nodes it expects.
-            nodeId: (i) => fixture.nodes[i].id,
-            edgeEnds: (i) => fixture.edges[i],
-        });
+        return {
+            nodes: fixture.nodes.map((node) => ({ ...node.data, id: node.id })),
+            edges: fixture.edges.map((edge) => ({ ...edge.data, source: edge.source, target: edge.target })),
+        };
     }
 
     /**
@@ -588,6 +605,88 @@ export class LlmRegressionTestHarness {
  * @param name - The tool, or the tools any one of which is acceptable.
  * @returns The first call to it.
  */
+/**
+ * A call's action, or "" when it names none.
+ * @param call - The call.
+ * @returns The action.
+ */
+export function actionOf(call: CapturedToolCall): string {
+    return typeof call.arguments.action === "string" ? call.arguments.action : "";
+}
+
+/**
+ * The calls a prompt made, with the small profile's `call` replaced by the call it stands for.
+ * @param result - The prompt's result.
+ * @returns The calls, each as the tool it reached and its arguments.
+ */
+export function reachedCalls(result: LlmRegressionResult): CapturedToolCall[] {
+    return result.toolCalls.map((call) => {
+        if (call.name !== "call") {
+            return call;
+        }
+
+        const inner =
+            typeof call.arguments.args === "string"
+                ? (JSON.parse(call.arguments.args) as Record<string, unknown>)
+                : ((call.arguments.args ?? {}) as Record<string, unknown>);
+        return {
+            name: String(call.arguments.tool),
+            arguments: { ...inner, ...(call.arguments.action === undefined ? {} : { action: call.arguments.action }) },
+        };
+    });
+}
+
+/**
+ * The first call of a tool, and of one of its actions when named.
+ * @param result - The prompt's result.
+ * @param tool - The tool, or tools.
+ * @param actions - The actions any of which will do; any when absent.
+ * @returns The call.
+ * @throws When the model made no such call, naming the calls it made.
+ */
+export function assertAction(
+    result: LlmRegressionResult,
+    tool: string | readonly string[],
+    actions?: string | readonly string[],
+): CapturedToolCall {
+    const tools = typeof tool === "string" ? [tool] : tool;
+    let wanted: readonly string[] | undefined;
+    if (actions !== undefined) {
+        wanted = typeof actions === "string" ? [actions] : actions;
+    }
+
+    const calls = reachedCalls(result);
+    const call = calls.find(
+        (candidate) => tools.includes(candidate.name) && (wanted === undefined || wanted.includes(actionOf(candidate))),
+    );
+    if (!call) {
+        const made = calls.map((candidate) => `${candidate.name}.${actionOf(candidate)}`).join(", ") || "none";
+        throw new Error(
+            `Expected a call to ${tools.join(" or ")}${wanted === undefined ? "" : ` (${wanted.join(" or ")})`}; the model called: ${made}`,
+        );
+    }
+
+    return call;
+}
+
+/**
+ * Assert a question was answered: by a call of one of the tools, or in the answer itself, which
+ * the facts the model is handed may already hold.
+ * @param result - The prompt's result.
+ * @param tools - Tools a call to which answers it.
+ * @param answer - Text the answer must hold when no such call was made.
+ */
+export function assertAnswered(result: LlmRegressionResult, tools: readonly string[], answer: RegExp): void {
+    const called = reachedCalls(result).some((call) => tools.includes(call.name));
+    if (!called) {
+        assert.match(
+            result.llmText ?? "",
+            answer,
+            `Expected a call to ${tools.join(" or ")}, or an answer matching ${String(answer)}`,
+        );
+    }
+}
+
 export function assertCalled(result: LlmRegressionResult, name: string | readonly string[]): CapturedToolCall {
     const names = typeof name === "string" ? [name] : name;
     const call = result.toolCalls.find((candidate) => names.includes(candidate.name));

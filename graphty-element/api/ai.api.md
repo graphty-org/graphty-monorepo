@@ -64,9 +64,7 @@ export interface AiApprovalRequest {
 
 // @public
 export interface AiApprovalRequestedEvent {
-    // (undocumented)
     request: AiApprovalRequest;
-    // (undocumented)
     type: "ai-approval-requested";
 }
 
@@ -109,7 +107,6 @@ export interface AiExportReadyEvent {
         readonly code: string;
         readonly params?: unknown;
     }[];
-    // (undocumented)
     type: "ai-export-ready";
 }
 
@@ -233,13 +230,13 @@ export interface AttributeHistogramBin {
     range: string;
 }
 
-// @public
+// @public @deprecated
 export const captureScreenshot: GraphCommand;
 
-// @public
+// @public @deprecated
 export const captureVideo: GraphCommand;
 
-// @public
+// @public @deprecated
 export const clearStyles: GraphCommand;
 
 // @public
@@ -295,7 +292,7 @@ export function createWebLlmProvider(): Promise<LlmProvider>;
 // @public
 export const DEFAULT_ASSISTANT_GATE_LIMITS: Readonly<AssistantGateLimits>;
 
-// @public
+// @public @deprecated
 export const describeProperty: GraphCommand;
 
 // @public
@@ -305,13 +302,13 @@ export interface ExecutionResult extends CommandResult {
     params?: AiResultParams;
 }
 
-// @public
+// @public @deprecated
 export const findAndStyleEdges: GraphCommand;
 
-// @public
+// @public @deprecated
 export const findAndStyleNodes: GraphCommand;
 
-// @public
+// @public @deprecated
 export const findNodes: GraphCommand;
 
 // @public
@@ -361,7 +358,7 @@ export interface KeyPersistenceConfig {
     storage?: "localStorage" | "sessionStorage";
 }
 
-// @public
+// @public @deprecated
 export const listAlgorithms: GraphCommand;
 
 // @public
@@ -480,13 +477,13 @@ export interface ProviderOptions {
 // @public
 export type ProviderType = AiProviderId;
 
-// @public
+// @public @deprecated
 export const queryGraph: GraphCommand;
 
-// @public
+// @public @deprecated
 export const runAlgorithm: GraphCommand;
 
-// @public
+// @public @deprecated
 export const sampleData: GraphCommand;
 
 // @public
@@ -522,16 +519,16 @@ export interface SchemaSummary {
     nodeProperties: PropertySummary[];
 }
 
-// @public
+// @public @deprecated
 export const setCameraPosition: GraphCommand;
 
-// @public
+// @public @deprecated
 export const setDimension: GraphCommand;
 
-// @public
+// @public @deprecated
 export const setImmersiveMode: GraphCommand;
 
-// @public
+// @public @deprecated
 export const setLayout: GraphCommand;
 
 // @public
@@ -658,7 +655,7 @@ export interface WebLlmProviderOptions {
     initializeOnFirstUse?: boolean;
 }
 
-// @public
+// @public @deprecated
 export const zoomToNodes: GraphCommand;
 
 // (No @packageDocumentation comment for this package)

@@ -2,8 +2,8 @@
  * Algorithm Commands LLM Regression Tests
  * @module test/ai/llm-regression/algorithm-commands
  *
- * Tests that verify LLMs correctly call algorithm commands (listAlgorithms, runAlgorithm)
- * in response to natural language prompts.
+ * Tests that a real model finds algorithms with the `catalog` tool and runs them with
+ * `run_algorithm`, in response to natural language prompts.
  *
  * These tests run against real LLM APIs and verify correct tool selection
  * and parameter extraction for graph algorithm operations.
@@ -12,7 +12,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { getLlmRegressionCaseTimeoutMs, skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { assertCalled, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { assertAction, assertAnswered, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 /**
@@ -22,7 +22,7 @@ import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 const ALGORITHM_SYNONYMS: Record<string, string[]> = {
     degree: ["degree", "degree-centrality", "degreecentrality"],
     pagerank: ["pagerank", "page-rank", "page_rank"],
-    "connected-components": ["connected-components", "connectedcomponents", "components", "connected"],
+    components: ["components", "connected-components", "connectedcomponents", "connected"],
     betweenness: ["betweenness", "betweenness-centrality", "betweennesscentrality"],
     closeness: ["closeness", "closeness-centrality", "closenesscentrality"],
 };
@@ -67,7 +67,7 @@ function isValidAlgorithmType(actual: unknown, expected: string): boolean {
     return false;
 }
 
-describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
+describe.skipIf(skipIfNoApiKey())("Algorithm LLM Regression", () => {
     let harness: LlmRegressionTestHarness;
 
     beforeEach(async () => {
@@ -80,95 +80,61 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
         harness.dispose();
     });
 
-    describe("listAlgorithms", () => {
-        it("calls listAlgorithms for 'What algorithms are available?'", async () => {
+    describe("finding algorithms", () => {
+        it("answers 'What algorithms are available?'", async () => {
             const result = await harness.testPrompt("What algorithms are available?");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assertCalled(result, "listAlgorithms");
-            // listAlgorithms may or may not have parameters (namespace is optional)
-            // The command should work with an empty params object
+            // The run_algorithm tool names every algorithm, so a model may answer without searching.
+            assertAnswered(result, ["catalog"], /pagerank|louvain|degree|betweenness/i);
         });
 
-        it("calls listAlgorithms for 'List graphty algorithms'", async () => {
+        it("answers 'List graphty algorithms'", async () => {
             const result = await harness.testPrompt("List graphty algorithms");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assertCalled(result, "listAlgorithms");
-
-            // The LLM should recognize 'graphty' as a namespace
-            // It might pass namespace: "graphty" or leave it empty
-            // Both are acceptable as the command handles both cases
+            assertAnswered(result, ["catalog"], /pagerank|louvain|degree|betweenness/i);
         });
     });
 
-    describe("runAlgorithm", () => {
-        it("calls runAlgorithm for 'Calculate the degree of each node'", async () => {
+    describe("run_algorithm", () => {
+        it("runs degree for 'Calculate the degree of each node'", async () => {
             const result = await harness.testPrompt("Calculate the degree of each node");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "runAlgorithm");
-
-            // Verify algorithm type is degree (or a synonym)
+            const call = assertAction(result, "run_algorithm");
             assert.ok(
-                isValidAlgorithmType(call.arguments.type, "degree"),
-                `Expected algorithm type 'degree' but got '${String(call.arguments.type)}'`,
+                isValidAlgorithmType(call.arguments.name, "degree"),
+                `Expected algorithm 'degree' but got '${String(call.arguments.name)}'`,
             );
-
-            // Namespace should typically be 'graphty'
-            if (call.arguments.namespace) {
-                assert.ok(typeof call.arguments.namespace === "string", "Namespace should be a string");
-            }
         });
 
-        it("calls runAlgorithm for 'Run pagerank'", async () => {
+        it("runs pagerank for 'Run pagerank'", async () => {
             const result = await harness.testPrompt("Run pagerank");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "runAlgorithm");
-
-            // Verify algorithm type is pagerank
+            const call = assertAction(result, "run_algorithm");
             assert.ok(
-                isValidAlgorithmType(call.arguments.type, "pagerank"),
-                `Expected algorithm type 'pagerank' but got '${String(call.arguments.type)}'`,
+                isValidAlgorithmType(call.arguments.name, "pagerank"),
+                `Expected algorithm 'pagerank' but got '${String(call.arguments.name)}'`,
             );
         });
 
-        it("calls runAlgorithm for 'Run connected components algorithm'", async () => {
+        it("runs components for 'Run the connected components algorithm on this graph'", async () => {
             const result = await harness.testPrompt("Run the connected components algorithm on this graph");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "runAlgorithm");
-
-            // Verify algorithm type is connected-components or similar
+            const call = assertAction(result, "run_algorithm");
             assert.ok(
-                isValidAlgorithmType(call.arguments.type, "connected-components"),
-                `Expected algorithm type related to 'connected-components' but got '${String(call.arguments.type)}'`,
+                isValidAlgorithmType(call.arguments.name, "components"),
+                `Expected algorithm 'components' but got '${String(call.arguments.name)}'`,
             );
         });
     });
 
     describe("command result validation", () => {
-        it("returns command result for listAlgorithms", async () => {
+        it("lists algorithms in its answer", async () => {
             const result = await harness.testPrompt("Show me all available graph analysis algorithms");
-
-            assert.ok(result.toolWasCalled, "Expected listAlgorithms to be called");
-            assertCalled(result, "listAlgorithms");
-
-            // Command result should exist
             assert.ok(result.commandResult, "Expected command result");
-            assert.ok(result.commandResult.message, "Expected result message");
+            assert.match(result.llmText ?? "", /pagerank|louvain|degree|betweenness/i);
         });
 
-        it("returns command result for runAlgorithm", async () => {
+        it("runs degree centrality and answers", async () => {
             const result = await harness.testPrompt("Analyze the graph using degree centrality");
-
-            assert.ok(result.toolWasCalled, "Expected runAlgorithm to be called");
-            assertCalled(result, "runAlgorithm");
-
-            // Command result should exist
+            assertAction(result, "run_algorithm");
             assert.ok(result.commandResult, "Expected command result");
-            assert.ok(result.commandResult.message, "Expected result message");
+            assert.strictEqual(result.commandResult.success, true);
+            assert.ok(result.llmText, "Expected an answer");
         });
 
         it("tracks latency for algorithm commands", async () => {

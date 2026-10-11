@@ -2,7 +2,7 @@
  * Camera Commands LLM Regression Tests
  * @module test/ai/llm-regression/camera-commands
  *
- * Tests that verify LLMs correctly call camera commands (setCameraPosition, zoomToNodes)
+ * Tests that a real model moves the camera with the `view` tool (camera views, framing nodes)
  * in response to natural language prompts.
  *
  * These tests run against real LLM APIs and verify correct tool selection
@@ -12,7 +12,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { getLlmRegressionCaseTimeoutMs, skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { assertCalled, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { assertAction, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 /**
@@ -68,38 +68,38 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
         harness.dispose();
     });
 
-    describe("setCameraPosition", () => {
-        it("calls setCameraPosition for 'Show the graph from above'", async () => {
+    describe("view camera", () => {
+        it("calls view camera for 'Show the graph from above'", async () => {
             const result = await harness.testPrompt("Show the graph from above");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "setCameraPosition");
+            const call = assertAction(result, "view", "camera");
 
             // Verify preset is topView or similar
             const { preset } = call.arguments;
             assert.ok(isValidCameraPreset(preset, "topView"), `Expected topView preset but got '${String(preset)}'`);
         });
 
-        it("calls setCameraPosition for 'View from the side'", async () => {
+        it("calls view camera for 'View from the side'", async () => {
             const result = await harness.testPrompt("View from the side");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "setCameraPosition");
+            const call = assertAction(result, "view", "camera");
 
             // Verify preset is sideView or similar
             const { preset } = call.arguments;
             assert.ok(isValidCameraPreset(preset, "sideView"), `Expected sideView preset but got '${String(preset)}'`);
         });
 
-        it("calls setCameraPosition for 'Fit all nodes in view'", async () => {
+        it("calls view camera for 'Fit all nodes in view'", async () => {
             const result = await harness.testPrompt("Fit all nodes in view");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            // This could be either setCameraPosition with fitToGraph preset OR zoomToNodes
-            const call = assertCalled(result, ["setCameraPosition", "zoomToNodes"]);
+            // A fit, a zoom to every node, or the fitToGraph camera view
+            const call = assertAction(result, "view", ["camera", "fit", "zoom_to"]);
 
-            // If setCameraPosition, verify preset is fitToGraph
-            if (call.name === "setCameraPosition") {
+            // A camera view, then fitToGraph
+            if (call.arguments.action === "camera") {
                 const { preset } = call.arguments;
                 assert.ok(
                     isValidCameraPreset(preset, "fitToGraph"),
@@ -109,24 +109,24 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
         });
     });
 
-    describe("zoomToNodes", () => {
-        it("calls zoomToNodes for 'Zoom to fit all nodes'", async () => {
+    describe("view zoom_to and fit", () => {
+        it("calls view zoom_to for 'Zoom to fit all nodes'", async () => {
             const result = await harness.testPrompt("Zoom to fit all nodes");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            // This could be either zoomToNodes OR setCameraPosition with fitToGraph
-            assertCalled(result, ["zoomToNodes", "setCameraPosition"]);
+            // A fit, a zoom to every node, or the fitToGraph camera view
+            assertAction(result, "view", ["fit", "zoom_to", "camera"]);
         });
 
-        it("calls zoomToNodes for 'Focus on server nodes'", async () => {
+        it("calls view zoom_to for 'Focus on server nodes'", async () => {
             const result = await harness.testPrompt("Focus on server nodes");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            // This should specifically call zoomToNodes since it's filtering by selector
-            const call = assertCalled(result, "zoomToNodes");
+            // A zoom to a target, since it names some nodes
+            const call = assertAction(result, "view", "zoom_to");
 
             // Verify selector targets server type
-            const selector = call.arguments.selector as string | undefined;
+            const selector = (call.arguments.where ?? JSON.stringify(call.arguments.ids ?? "")) as string | undefined;
             if (selector && selector.length > 0) {
                 assert.ok(
                     selector.includes("server") || selector.includes("type"),
@@ -137,26 +137,26 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
     });
 
     describe("command result validation", () => {
-        it("returns command result for setCameraPosition", async () => {
+        it("returns command result for view camera", async () => {
             const result = await harness.testPrompt("Move camera to front view");
 
-            assert.ok(result.toolWasCalled, "Expected setCameraPosition to be called");
-            assertCalled(result, "setCameraPosition");
+            assert.ok(result.toolWasCalled, "Expected the view tool to be called");
+            assertAction(result, "view", "camera");
 
             // Command result should exist
             assert.ok(result.commandResult, "Expected command result");
-            assert.ok(result.commandResult.message, "Expected result message");
+            assert.ok(result.commandResult.success, "Expected the camera to move");
         });
 
-        it("returns command result for zoomToNodes", async () => {
+        it("returns command result for view zoom_to", async () => {
             const result = await harness.testPrompt("Zoom in on the database nodes");
 
-            assert.ok(result.toolWasCalled, "Expected zoomToNodes to be called");
-            assertCalled(result, "zoomToNodes");
+            assert.ok(result.toolWasCalled, "Expected the view tool to be called");
+            assertAction(result, "view", "zoom_to");
 
             // Command result should exist
             assert.ok(result.commandResult, "Expected command result");
-            assert.ok(result.commandResult.message, "Expected result message");
+            assert.ok(result.commandResult.success, "Expected the camera to move");
         });
 
         it("tracks latency for camera commands", async () => {

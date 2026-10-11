@@ -10,6 +10,8 @@ import type { CommandResult, GraphCommand } from "./types";
 
 /**
  * Command to capture a screenshot of the graph.
+ * @deprecated The assistant registers generated tools instead: this one is the `capture (screenshot)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const captureScreenshot: GraphCommand = {
     name: "captureScreenshot",
@@ -119,6 +121,8 @@ function triggerDownload(dataUrl: string, filename: string): void {
 /**
  * Command to capture a video recording of the graph.
  * Note: Video recording requires browser MediaRecorder API support.
+ * @deprecated The assistant registers generated tools instead: this one is the `capture (animation)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const captureVideo: GraphCommand = {
     name: "captureVideo",

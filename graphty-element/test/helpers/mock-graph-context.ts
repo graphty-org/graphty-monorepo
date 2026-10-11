@@ -273,11 +273,25 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
                 }),
         },
         layout: {
+            get id() {
+                return currentLayoutType;
+            },
+            get dimension() {
+                return currentTwoD ? "2d" : "3d";
+            },
             set: async (id: string, options?: { engine?: string }) => {
                 await mockGraph.setLayout(options?.engine ?? id);
             },
             setDimension: (dimension: "2d" | "3d") => mockGraph.setViewMode(dimension),
         },
+        // What the assistant's facts about the graph read: counts, attributes, runs, the selection.
+        status: {
+            counts: { nodes: nodeCount, edges: edgeCount, visibleNodes: nodeCount, visibleEdges: edgeCount },
+            directed: false,
+        },
+        data: { attributes: () => [] },
+        runs: { list: () => [] },
+        selection: { size: 0 },
         transaction: <T>(_label: string, fn: (tx: GraphSession, signal: AbortSignal) => T | Promise<T>) =>
             Promise.resolve().then(() => fn(mockSession, new AbortController().signal)),
         // A history that records nothing, so an assistant message has no step to continue or undo.

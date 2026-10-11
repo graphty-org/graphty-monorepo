@@ -29,6 +29,7 @@ describe("Dimension Switch Regression Test", () => {
             nodes: DEFAULT_TEST_NODES,
             edges: DEFAULT_TEST_EDGES,
             enableAi: true,
+            legacyCommands: true,
         });
         ({ graph } = result);
     });

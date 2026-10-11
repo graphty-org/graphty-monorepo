@@ -1,21 +1,20 @@
 /**
- * Query Commands LLM Regression Tests
+ * Query LLM Regression Tests
  * @module test/ai/llm-regression/query-commands
  *
- * Tests that verify LLMs correctly call query commands (queryGraph, findNodes,
- * sampleData, describeProperty) in response to natural language prompts.
- *
- * These tests run against real LLM APIs and verify correct tool selection
- * and parameter extraction.
+ * Tests that a real model reads the graph's data with the `query` tool -- counts, records,
+ * samples, an attribute's values -- in response to natural language prompts. A question the facts
+ * the model is handed already answer (how many nodes, which layout) may be answered without a
+ * call: those cases grade the answer instead.
  */
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { getLlmRegressionCaseTimeoutMs, skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { assertCalled, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { assertAction, assertAnswered, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
-describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
+describe.skipIf(skipIfNoApiKey())("Query LLM Regression", () => {
     let harness: LlmRegressionTestHarness;
 
     beforeEach(async () => {
@@ -28,180 +27,88 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
         harness.dispose();
     });
 
-    describe("queryGraph", () => {
-        it("calls queryGraph for 'How many nodes are there?'", async () => {
+    describe("counts and overview", () => {
+        it("answers 'How many nodes are there?'", async () => {
             const result = await harness.testPrompt("How many nodes are there?");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "queryGraph");
-            // Accept various query types that would give node count
-            const query = call.arguments.query as string;
-            assert.ok(
-                query === "nodeCount" || query === "summary" || query === "all",
-                `Expected query to be 'nodeCount', 'summary', or 'all' but got '${query}'`,
-            );
+            assertAnswered(result, ["query"], /\b4\b|four/i);
         });
 
-        it("calls queryGraph for 'How many edges exist?'", async () => {
+        it("answers 'How many edges exist?'", async () => {
             const result = await harness.testPrompt("How many edges exist?");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "queryGraph");
-            const query = call.arguments.query as string;
-            assert.ok(
-                query === "edgeCount" || query === "summary" || query === "all",
-                `Expected query to be 'edgeCount', 'summary', or 'all' but got '${query}'`,
-            );
+            assertAnswered(result, ["query"], /\b3\b|three/i);
         });
 
-        it("calls queryGraph for 'What layout is being used?'", async () => {
+        it("answers 'What layout is being used?'", async () => {
             const result = await harness.testPrompt("What layout is being used?");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "queryGraph");
-            const query = call.arguments.query as string;
-            assert.ok(
-                query === "currentLayout" || query === "summary" || query === "all",
-                `Expected query to be 'currentLayout', 'summary', or 'all' but got '${query}'`,
-            );
+            assertAnswered(result, ["query"], /force/i);
         });
 
-        it("calls queryGraph for 'Give me a summary of the graph'", async () => {
+        it("answers 'Give me a summary of the graph'", async () => {
             const result = await harness.testPrompt("Give me a summary of the graph");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "queryGraph");
-            const query = call.arguments.query as string;
-            assert.ok(
-                query === "summary" || query === "all",
-                `Expected query to be 'summary' or 'all' but got '${query}'`,
-            );
+            assertAnswered(result, ["query"], /\b4\b|four/i);
         });
     });
 
-    describe("findNodes", () => {
-        it("calls findNodes for 'Find all server nodes'", async () => {
+    describe("records", () => {
+        it("calls query nodes for 'Find all server nodes'", async () => {
             const result = await harness.testPrompt("Find all server nodes");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "findNodes");
-            // Verify selector targets server type
-            const selector = call.arguments.selector as string;
-            assert.ok(selector.includes("server"), `Expected selector to include 'server' but got '${selector}'`);
+            const call = assertAction(result, ["query", "select"], ["nodes", "find", "set", "count"]);
+            const target = JSON.stringify(call.arguments);
+            assert.include(target, "server", `Expected the target to name 'server' but got ${target}`);
         });
 
-        it("calls findNodes for 'Show nodes with type database'", async () => {
+        it("calls query nodes for 'Show nodes with type database'", async () => {
             const result = await harness.testPrompt("Show nodes with type database");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "findNodes");
-            // Verify selector targets database type
-            const selector = call.arguments.selector as string;
-            assert.ok(selector.includes("database"), `Expected selector to include 'database' but got '${selector}'`);
+            const call = assertAction(result, ["query", "select"], ["nodes", "find", "set"]);
+            assert.include(JSON.stringify(call.arguments), "database");
         });
-    });
 
-    describe("sampleData", () => {
-        it("calls sampleData for 'Show me some example nodes'", async () => {
+        it("calls query nodes for 'Show me some example nodes'", async () => {
             const result = await harness.testPrompt("Show me some example nodes");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "sampleData");
-            // Target should be 'nodes' or 'both'
-            const target = call.arguments.target as string | undefined;
-            if (target) {
-                assert.ok(
-                    target === "nodes" || target === "both",
-                    `Expected target to be 'nodes' or 'both' but got '${target}'`,
-                );
-            }
+            assertAction(result, "query", ["nodes", "overview", "attributes"]);
         });
 
-        it("calls sampleData for 'Show 5 sample edges'", async () => {
+        it("calls query edges for 'Show 5 sample edges'", async () => {
             const result = await harness.testPrompt("Show 5 sample edges");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "sampleData");
-            // Target should be 'edges' or 'both'
-            const target = call.arguments.target as string | undefined;
-            if (target) {
-                assert.ok(
-                    target === "edges" || target === "both",
-                    `Expected target to be 'edges' or 'both' but got '${target}'`,
-                );
-            }
-
-            // Check count if provided (should be around 5)
-            const count = call.arguments.count as number | undefined;
-            if (count !== undefined) {
-                assert.ok(count >= 3 && count <= 7, `Expected count to be around 5 but got ${count}`);
+            const call = assertAction(result, "query", "edges");
+            const limit = call.arguments.limit as number | undefined;
+            if (limit !== undefined) {
+                assert.ok(limit >= 3 && limit <= 7, `Expected a limit around 5 but got ${String(limit)}`);
             }
         });
     });
 
-    describe("describeProperty", () => {
-        it("calls describeProperty for 'What values does type have?'", async () => {
+    describe("an attribute's values", () => {
+        it("calls query histogram or attributes for 'What values does the type property have?'", async () => {
             const result = await harness.testPrompt("What values does the type property have?");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "describeProperty");
-            // Property should be 'type' or include 'type'
-            const property = call.arguments.property as string;
-            assert.ok(
-                property === "type" || property.includes("type"),
-                `Expected property to be or include 'type' but got '${property}'`,
-            );
+            const call = assertAction(result, "query", ["histogram", "attributes", "nodes"]);
+            if (call.arguments.action === "histogram") {
+                assert.include(String(call.arguments.column), "type");
+            }
         });
 
-        it("calls describeProperty for 'Analyze the weight property on edges'", async () => {
+        it("calls query histogram or attributes for 'Analyze the weight property on edges'", async () => {
             const result = await harness.testPrompt("Analyze the weight property on edges");
-
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "describeProperty");
-            // Property should be 'weight'
-            const property = call.arguments.property as string;
-            assert.ok(
-                property === "weight" || property.includes("weight"),
-                `Expected property to be or include 'weight' but got '${property}'`,
-            );
-            // Target should be 'edges'
-            const target = call.arguments.target as string | undefined;
-            if (target) {
-                assert.strictEqual(target, "edges");
+            const call = assertAction(result, "query", ["histogram", "attributes", "edges", "statistics"]);
+            if (call.arguments.action === "histogram") {
+                assert.include(String(call.arguments.column), "weight");
             }
         });
     });
 
     describe("command result validation", () => {
-        it("returns successful command result for queryGraph", async () => {
+        it("answers a count with the number", async () => {
             const result = await harness.testPrompt("How many nodes are there?");
-
             assert.ok(result.commandResult, "Expected command result");
             assert.strictEqual(result.commandResult.success, true);
-            assert.ok(result.commandResult.message, "Expected result message");
-            // Verify the message contains node count information
-            assert.ok(
-                result.commandResult.message.includes("node") || result.commandResult.message.includes("Node"),
-                "Expected message to mention nodes",
-            );
+            assert.match(result.llmText ?? "", /\b4\b|four/i);
         });
 
-        it("returns successful command result for findNodes", async () => {
-            const result = await harness.testPrompt("Find all server nodes");
-
-            assert.ok(result.commandResult, "Expected command result");
-            assertCalled(result, "findNodes");
-            // Not `success === true`: the controller reports a message as failed when ANY tool
-            // call in it failed, so a model that sends a selector that does not parse, reads the
-            // error and retries with a good one fails the message although it found the nodes.
-            // What this test owns is that findNodes returned the server nodes (ids 1 and 2).
-            const found = result.commandResult.affectedNodes ?? [];
-            assert.ok(
-                found.includes("1") && found.includes("2"),
-                `Expected findNodes to return server nodes 1 and 2; got [${found.join(", ")}]. ` +
-                    `Calls: ${JSON.stringify(result.toolCalls)}. Message: ${result.commandResult.message}`,
-            );
-            assert.ok(result.commandResult.message, "Expected result message");
+        it("finds the server nodes, 1 and 2", async () => {
+            const result = await harness.testPrompt("Find all server nodes and tell me their ids");
+            assertAction(result, ["query", "select"]);
+            assert.match(result.llmText ?? "", /\b1\b/);
+            assert.match(result.llmText ?? "", /\b2\b/);
         });
 
         it("tracks latency for each prompt", async () => {
@@ -214,7 +121,6 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
         it("captures token usage when available", async () => {
             const result = await harness.testPrompt("Give me a summary of the graph");
 
-            // Token usage may not always be available depending on provider configuration
             if (result.tokenUsage) {
                 assert.ok(result.tokenUsage.prompt > 0, "Expected positive prompt tokens");
                 assert.ok(result.tokenUsage.completion >= 0, "Expected non-negative completion tokens");

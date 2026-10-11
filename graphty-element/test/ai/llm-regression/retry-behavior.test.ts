@@ -9,7 +9,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { getLlmRegressionCaseTimeoutMs, skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { assertCalled, LlmRegressionTestHarness, type RetryOptions } from "../../helpers/llm-regression-harness";
+import { assertAnswered, LlmRegressionTestHarness, type RetryOptions } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
@@ -69,8 +69,7 @@ describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
                 retryDelayMs: 100,
             });
 
-            assert.ok(result.toolWasCalled, "Expected tool to be called");
-            assertCalled(result, "queryGraph");
+            assertAnswered(result, ["query"], /\b3\b|three/i);
         });
 
         it("includes retry options in complex prompts", async () => {

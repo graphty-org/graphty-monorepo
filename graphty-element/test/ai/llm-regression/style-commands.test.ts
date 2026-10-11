@@ -2,8 +2,8 @@
  * Style Commands LLM Regression Tests
  * @module test/ai/llm-regression/style-commands
  *
- * Tests that verify LLMs correctly call style commands (findAndStyleNodes,
- * findAndStyleEdges, clearStyles) in response to natural language prompts.
+ * Tests that a real model styles nodes and edges with the `style` tool -- literal values on a
+ * target, or an encoding -- and clears what it added, in response to natural language prompts.
  *
  * These tests run against real LLM APIs and verify correct tool selection
  * and parameter extraction for styling graph elements.
@@ -12,7 +12,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { getLlmRegressionCaseTimeoutMs, skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { assertCalled, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { assertAction, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 /**
@@ -99,7 +99,10 @@ function hasColorStyle(style: Record<string, unknown> | null): boolean {
     }
 
     for (const [key, value] of Object.entries(style)) {
-        if (key === "color" && isColorValue(value)) {
+        if (
+            (key === "channel" && String(value).endsWith(".color")) ||
+            ((key === "color" || key.endsWith(".color")) && isColorValue(value))
+        ) {
             return true;
         }
 
@@ -125,7 +128,10 @@ function hasSizeStyle(style: Record<string, unknown> | null): boolean {
     }
 
     for (const [key, value] of Object.entries(style)) {
-        if (key === "size" && typeof value === "number") {
+        if (
+            (key === "channel" && String(value).endsWith(".size")) ||
+            ((key === "size" || key.endsWith(".size")) && typeof value === "number")
+        ) {
             return true;
         }
 
@@ -151,7 +157,10 @@ function hasWidthStyle(style: Record<string, unknown> | null): boolean {
     }
 
     for (const [key, value] of Object.entries(style)) {
-        if (key === "width" && typeof value === "number") {
+        if (
+            (key === "channel" && String(value).endsWith(".width")) ||
+            ((key === "width" || key.endsWith(".width")) && typeof value === "number")
+        ) {
             return true;
         }
 
@@ -178,60 +187,60 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
         harness.dispose();
     });
 
-    describe("findAndStyleNodes", () => {
-        it("calls findAndStyleNodes for 'Make all nodes red'", async () => {
+    describe("style nodes", () => {
+        it("calls style for 'Make all nodes red'", async () => {
             const result = await harness.testPrompt("Make all nodes red");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "findAndStyleNodes");
+            const call = assertAction(result, "style", ["add", "encode"]);
 
             // Flexible assertion - color could be "red", "#ff0000", "#FF0000", etc.
-            const style = call.arguments.style as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected style parameter");
-            assert.ok(hasColorStyle(style) || style.color !== undefined, "Expected color to be specified in style");
+            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
+            assert.ok(style, "Expected values or an encoding");
+            assert.ok(hasColorStyle(style), "Expected color to be specified in style");
         });
 
-        it("calls findAndStyleNodes for 'Highlight server nodes in blue'", async () => {
+        it("calls style for 'Highlight server nodes in blue'", async () => {
             const result = await harness.testPrompt("Highlight server nodes in blue");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "findAndStyleNodes");
+            const call = assertAction(result, "style", ["add", "encode"]);
 
             // Verify selector targets server type
-            const selector = call.arguments.selector as string | undefined;
+            const selector = call.arguments.where as string | undefined;
             if (selector) {
                 assert.ok(
-                    selector.includes("server") || selector === "" || selector === "*",
+                    selector.includes("server") || selector === "all",
                     `Expected selector to include 'server' or be a wildcard but got '${selector}'`,
                 );
             }
 
             // Verify style includes color
-            const style = call.arguments.style as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected style parameter");
-            assert.ok(hasColorStyle(style) || style.color !== undefined, "Expected color to be specified in style");
+            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
+            assert.ok(style, "Expected values or an encoding");
+            assert.ok(hasColorStyle(style), "Expected color to be specified in style");
         });
 
-        it("calls findAndStyleNodes for 'Make all nodes bigger'", async () => {
+        it("calls style for 'Make all nodes bigger'", async () => {
             const result = await harness.testPrompt("Make all nodes bigger");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "findAndStyleNodes");
+            const call = assertAction(result, "style", ["add", "encode"]);
 
             // Verify style includes size
-            const style = call.arguments.style as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected style parameter");
-            assert.ok(hasSizeStyle(style) || style.size !== undefined, "Expected size to be specified in style");
+            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
+            assert.ok(style, "Expected values or an encoding");
+            assert.ok(hasSizeStyle(style), "Expected size to be specified in style");
         });
 
-        it("calls findAndStyleNodes for 'Make database nodes green and larger'", async () => {
+        it("calls style for 'Make database nodes green and larger'", async () => {
             const result = await harness.testPrompt("Make database nodes green and larger");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "findAndStyleNodes");
+            const call = assertAction(result, "style", ["add", "encode"]);
 
             // Verify selector targets database type
-            const selector = call.arguments.selector as string | undefined;
+            const selector = call.arguments.where as string | undefined;
             if (selector) {
                 assert.ok(
                     selector.includes("database") || selector === "" || selector === "*",
@@ -240,122 +249,120 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             }
 
             // Verify style includes both color and size
-            const style = call.arguments.style as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected style parameter");
+            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
+            assert.ok(style, "Expected values or an encoding");
             // At minimum, one of these should be present
-            const hasColor = hasColorStyle(style) || style.color !== undefined;
-            const hasSize = hasSizeStyle(style) || style.size !== undefined;
+            const hasColor = hasColorStyle(style);
+            const hasSize = hasSizeStyle(style);
             assert.ok(hasColor || hasSize, "Expected color or size to be specified in style");
         });
     });
 
-    describe("findAndStyleEdges", () => {
-        it("calls findAndStyleEdges for 'Make all edges green'", async () => {
+    describe("style edges", () => {
+        it("calls style for 'Make all edges green'", async () => {
             const result = await harness.testPrompt("Make all edges green");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "findAndStyleEdges");
+            const call = assertAction(result, "style", ["add", "encode"]);
 
             // Verify style includes color
-            const style = call.arguments.style as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected style parameter");
-            assert.ok(hasColorStyle(style) || style.color !== undefined, "Expected color to be specified in style");
+            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
+            assert.ok(style, "Expected values or an encoding");
+            assert.ok(hasColorStyle(style), "Expected color to be specified in style");
         });
 
-        it("calls findAndStyleEdges for 'Make high-weight edges thicker'", async () => {
+        it("calls style for 'Make high-weight edges thicker'", async () => {
             const result = await harness.testPrompt("Make high-weight edges thicker");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "findAndStyleEdges");
+            const call = assertAction(result, "style", ["add", "encode"]);
 
             // Verify selector targets weight property
-            const selector = call.arguments.selector as string | undefined;
+            const selector = call.arguments.where as string | undefined;
             if (selector && selector.length > 0 && selector !== "*") {
                 assert.ok(selector.includes("weight"), `Expected selector to include 'weight' but got '${selector}'`);
             }
 
             // Verify style includes width
-            const style = call.arguments.style as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected style parameter");
-            assert.ok(hasWidthStyle(style) || style.width !== undefined, "Expected width to be specified in style");
+            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
+            assert.ok(style, "Expected values or an encoding");
+            assert.ok(hasWidthStyle(style), "Expected width to be specified in style");
         });
 
-        it("calls findAndStyleEdges for 'Color edges with latency > 50 as red'", async () => {
+        it("calls style for 'Color edges with latency > 50 as red'", async () => {
             const result = await harness.testPrompt("Color edges with latency > 50 as red");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "findAndStyleEdges");
+            const call = assertAction(result, "style", ["add", "encode"]);
 
             // Verify selector targets latency property
-            const selector = call.arguments.selector as string | undefined;
+            const selector = call.arguments.where as string | undefined;
             if (selector && selector.length > 0 && selector !== "*") {
                 assert.ok(selector.includes("latency"), `Expected selector to include 'latency' but got '${selector}'`);
             }
 
             // Verify style includes color
-            const style = call.arguments.style as Record<string, unknown> | undefined;
-            assert.ok(style, "Expected style parameter");
-            assert.ok(hasColorStyle(style) || style.color !== undefined, "Expected color to be specified in style");
+            const style = (call.arguments.values ?? call.arguments.encode) as Record<string, unknown> | undefined;
+            assert.ok(style, "Expected values or an encoding");
+            assert.ok(hasColorStyle(style), "Expected color to be specified in style");
         });
     });
 
-    describe("clearStyles", () => {
-        it("calls clearStyles for 'Remove all styling'", async () => {
+    describe("clear styles", () => {
+        it("calls style clear_mine for 'Remove all styling'", async () => {
             const result = await harness.testPrompt("Remove all styling");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assertCalled(result, "clearStyles");
-            // clearStyles may have empty params or no layerName for clearing all
+            assertAction(result, "style", ["clear_mine", "remove"]);
         });
 
-        it("calls clearStyles for 'Clear the highlight style'", async () => {
+        it("calls style clear_mine for 'Clear the highlight style'", async () => {
             const result = await harness.testPrompt("Clear the highlight style");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assertCalled(result, "clearStyles");
-            // clearStyles may have a layerName param to clear specific style
-            // The LLM might guess at layer names, so we just verify the tool was called
+            assertAction(result, "style", ["clear_mine", "remove"]);
+            // No highlight exists yet: clearing the assistant's layers, or naming one, both do.
         });
     });
 
     describe("command result validation", () => {
-        it("returns command result for findAndStyleNodes", async () => {
+        it("returns command result for styling nodes", async () => {
             // Use explicit prompt that reliably triggers the tool
             const result = await harness.testPrompt("Apply red color to all nodes");
 
             // Verify the LLM called the correct tool
-            assert.ok(result.toolWasCalled, "Expected findAndStyleNodes to be called");
-            assertCalled(result, "findAndStyleNodes");
+            assert.ok(result.toolWasCalled, "Expected the style tool to be called");
+            assertAction(result, "style", ["add", "encode"]);
 
             // Command result should exist (success or failure due to mock limitations)
             assert.ok(result.commandResult, "Expected command result");
-            assert.ok(result.commandResult.message, "Expected result message");
+            assert.ok(result.commandResult.success, "Expected the change to succeed");
         });
 
-        it("returns command result for findAndStyleEdges", async () => {
+        it("returns command result for styling edges", async () => {
             // Use explicit prompt that reliably triggers the tool
             const result = await harness.testPrompt("Color all edges green");
 
             // Verify the LLM called the correct tool
-            assert.ok(result.toolWasCalled, "Expected findAndStyleEdges to be called");
-            assertCalled(result, "findAndStyleEdges");
+            assert.ok(result.toolWasCalled, "Expected the style tool to be called");
+            assertAction(result, "style", ["add", "encode"]);
 
             // Command result should exist (success or failure due to mock limitations)
             assert.ok(result.commandResult, "Expected command result");
-            assert.ok(result.commandResult.message, "Expected result message");
+            assert.ok(result.commandResult.success, "Expected the change to succeed");
         });
 
-        it("returns command result for clearStyles", async () => {
+        it("returns command result for clearing styles", async () => {
             // Use explicit prompt that reliably triggers the tool
             const result = await harness.testPrompt("Clear all styles from the graph");
 
             // Verify the LLM called the correct tool
-            assert.ok(result.toolWasCalled, "Expected clearStyles to be called");
-            assertCalled(result, "clearStyles");
+            assert.ok(result.toolWasCalled, "Expected the style tool to be called");
+            assertAction(result, "style", ["clear_mine", "remove"]);
 
             // Command result should exist (success or failure due to mock limitations)
             assert.ok(result.commandResult, "Expected command result");
-            assert.ok(result.commandResult.message, "Expected result message");
+            assert.ok(result.commandResult.success, "Expected the change to succeed");
         });
 
         it("tracks latency for style commands", async () => {

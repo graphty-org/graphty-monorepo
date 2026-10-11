@@ -107,7 +107,8 @@ export class MockLlmProvider implements LlmProvider {
             return this.defaultResponse;
         }
 
-        const content = userMessage.content.toLowerCase();
+        // The reader's words, not the facts about the graph the assistant sends beside them.
+        const content = userMessage.content.replace(/<graph-data>[\s\S]*?<\/graph-data>/g, "").toLowerCase();
 
         // Check each pattern for a match
         for (const [pattern, response] of this.responses) {

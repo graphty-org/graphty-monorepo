@@ -18,8 +18,9 @@ made and evidence comes in.
 - 2026-10-11 -- A continuation script is a fork. After any usage-limit stop: find which script the
   run actually executes (journal + script mtime), diff it against the main script, and check the
   journal for "Round N: gate" before any session -- not just the round folder.
-- 2026-10-11 -- Next: commit workflow-tier2.js, stop and relaunch from it at round 5; owed r4-s05b,
-  s20b, s28b first; then 56 `b` re-runs on 8c015b806; runner stops on the first refusal.
+- 2026-10-11 -- Round 5 re-plan is done: same 56 rows, ids r5-s01b..r5-s56b in `plan.md`,
+  `sessions.json`, `table.md`; void folders r5-s01..s56 kept. A failed `b` start becomes `bb`. The
+  round stops on the first "Gate evidence" refusal. Gate parses the `b` rows (scratch-copy check).
 - 2026-10-11 -- Bar 10 fails on ONE confirmed sev 3: names over names and nodes (Chloe/Farah,
   Dev/Eli). Name-over-tie click reproduced only on 5277e2cbe; re-script on 8c015b806.
 - 2026-10-11 -- "Or more" row below the fold: confirmed but sev 2 (3/2 split, carry-forward is not
@@ -76,6 +77,15 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-11 (researcher, round 5 re-plan for `b` re-runs) -- Kept the allocation unchanged: no
+  build, bar or criteria change since the plan, and it already weights the round 4 misses (T22 at 8
+  for bar 10's sev 3, T17 at 8 for bar 5, T18 on bar 11's limit, T24 at 4 for names over its tie)
+  and the touched paths (T19, T23 at 4) while covering T4 and T12R at 2. Renamed the PLAN ROWS to
+  `<id>b` rather than relying on `real.mjs`'s `b`-fallback, so briefs, the gate and scores all name
+  the folder that runs. `sessions.py` asserts every void folder exists and no `b` folder does.
+  Wrote that the round's leak check lists the 56 void folders as record only; each `b` session's
+  own line decides. Did not brief into the round folder: `--brief` would create the `b` folders.
 
 - 2026-10-11 (researcher, round 5 skeptic verdicts) -- Wrote `round-5/insights.md`. Rule: two
   drops = dropped, one drop or weaken = weakened. Verified myself before applying: journal has one
@@ -136,13 +146,9 @@ reasons, in short:
   shared name (same command). Cited only screenshots I viewed. Top five for the owner: overlaps,
   bare-number refusal, study faults, unfiltered table, Shift-click.
 
-- 2026-10-11 (round 4 plan, scoring and key matches, folded) -- Sizes from the frozen rule (T24
-  at 8, core four 32, changed tasks 4, T12R 2, last 2 to T19; personas swapped vs round 3). Missing
-  T24 prompt pilots recorded NOT MET with a mitigation rather than failing the gate. Scored from 53
-  grades, 3 voids beside, my own after-the-fact bars.mjs run; bar 5 scored failing on a reader's own
-  check (skeptics then held it to the bar's words). Voids traced in the participants' own logs. Key
-  edits per build as a build section plus in-place notes; the screen wins over a change note
-  (pixels sampled first); drawn-names sev 3 measured with declutter off.
+- 2026-10-11 (round 4 plan, scoring and key matches, folded) -- Sizes from the frozen rule; missing
+  pilots recorded NOT MET with a mitigation; scored on valid grades with voids beside; key edits per
+  build as a build section; the screen wins over a change note.
 
 - 2026-10-10 (researcher, T24 wording before round 4) -- Changed the prompt, not the key: both
   halves end "so that whatever you do next applies only to those two"; words-changed log in
@@ -193,6 +199,10 @@ reasons, in short:
   toolbar; reword it if Dana is ever given a task that starts there.
 
 ## Tried: worked / did not work
+
+- 2026-10-11 (round 5 re-plan) -- Worked: running `real.mjs --gate` on a SCRATCH COPY of the round
+  folder (no bars there) to prove the gate reads all 20 halves from the renamed rows: its only
+  problem was the missing bars, and it wrote no evidence. Cheap, no browser, no round-folder writes.
 
 - 2026-10-11 (round 5 verdicts) -- Worked: reading the workflow journal (event types, step labels,
   each participant's result) and the script the run executes, instead of the round folder alone;

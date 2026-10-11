@@ -7,6 +7,16 @@ Every `session.json` must read `buildStamp: 8c015b806086 graphty@0.8.65`; a sess
 build is void. The bars, how they are scored and the stop rules are in `../../criteria.md`; this
 plan changes none of them.
 
+**This plan's first run was void, so every session runs again as `<id>b`.** The plan was first run
+with ids r5-s01 to r5-s56, and every one of the 56 was refused at its start: the round's gate had
+never run, so this plan held no "Gate evidence" and `real.mjs --start` refused each session
+(`scores.md` and `insights.md` beside this plan). Not one session reached the app, so that run
+measured nothing about the design. Its folders `sessions/r5-s01/` to `sessions/r5-s56/` stay
+untouched as the record of the void run. The sessions below are the same 56, with the same task
+half, persona, prompt, start and run order, under the ids r5-s01b to r5-s56b, each in a new, empty
+folder. The build, the pilots, the briefings and the expert findings made on this build all stand.
+No session starts before the gate has written "Gate evidence" at the end of this plan.
+
 Round 4 passed 53 of 53 valid sessions, and every task met its success floor (bar 1). Three bars
 failed, and each points at a task:
 
@@ -80,7 +90,8 @@ of this plan.
 on 5277e2cbe before this round. They were not run. Round 4's bar 1 holds even if all three fail
 (`../round-4/scores.md`), and this round re-runs each of their halves (T24 A, T18 B, T17 B) on the
 newer build, so round 5's scoring, which uses the latest result of every task, no longer depends on
-them. Round 4 stays reported with the three voids named.
+them. Round 4 stays reported with the three voids named. If they are run, they run on 5277e2cbe before the first
+session of this round and are scored into round 4, not here.
 
 ## The questions round 5 answers
 
@@ -178,17 +189,21 @@ As round 4 (`../round-4/plan.md`, "How a session runs"), with its two study faul
   command from `node tool/real.mjs --brief tier2/rounds/round-5/sessions/<id>` (run from
   `design/ui/studio/`); a start waits for a browser slot a bounded time and is retried, so a
   participant never waits for one inside its turn. A session whose start produced no `01.png` is
-  not a session: it is re-run as `<id>b` and named in the scores.
+  not a session: it is re-run once more with one more `b` (r5-s01b becomes r5-s01bb) and named in
+  the scores. **If a start prints the "Gate evidence" refusal, the round stops there**: no further
+  session starts until the gate has passed, since every later start would be refused the same way.
 - **The participant** gets only that briefing, steps with `real.mjs`, and ends with `--end`, which
   copies the session back to `sessions/<id>/` here.
 - **Follow-ups**: on every T17 and T18 session the first `--end` answers with exit 3 and the
   follow-up, word for word; the participant carries on in the same session and ends again.
 - **The leak check** runs over the whole round (`real.mjs --leaks <this folder>`) before scoring;
   it reads every briefing and every participant log, and fails, naming them, on any session whose
-  log it could not read.
+  log it could not read. It also lists the 56 void folders of the first run; a line about one of them
+  is part of that run's record and decides nothing about a `b` session, so each `b` session's own
+  line is the one read (or `real.mjs --leaks sessions/<id>b` on its own).
 - **Voids**: a facilitator file read, a session on the wrong build, a save the tool lost, or a model
-  API error voids the session; it is re-run as `<id>b` from a new folder, same persona and prompt,
-  and every retry and its reason go in the round report.
+  API error voids the session; it is re-run with one more `b` (r5-s07b becomes r5-s07bb) from a new
+  folder, same persona and prompt, and every retry and its reason go in the round report.
 - **At most 4 sessions alive at once**; a session's clock starts only when its slot is free.
 
 ## Grading and scoring
@@ -242,62 +257,62 @@ Persona files: `../round-1/plan.md`, "Persona files"; histories: `../../roster.m
 
 | Id     | Task | Half and data                                  | Persona          | Start                              |
 | ------ | ---- | ---------------------------------------------- | ---------------- | ---------------------------------- |
-| r5-s01 | T22 | A: bus stops, bus-stops.csv | Grace | `setup:bus-stops-ranked.txt` |
-| r5-s02 | T22 | B: Les Miserables | Ruth | `setup:lesmis-ranked.txt` |
-| r5-s03 | T22 | A: bus stops, bus-stops.csv | Alex (analyst) | `setup:bus-stops-ranked.txt` |
-| r5-s04 | T22 | B: Les Miserables | Dana (analyst) | `setup:lesmis-ranked.txt` |
-| r5-s05 | T22 | A: bus stops, bus-stops.csv | Nadia | `setup:bus-stops-ranked.txt` |
-| r5-s06 | T22 | B: Les Miserables | Elena | `setup:lesmis-ranked.txt` |
-| r5-s07 | T22 | A: bus stops, bus-stops.csv | Tom | `setup:bus-stops-ranked.txt` |
-| r5-s08 | T22 | B: Les Miserables | Jordan (analyst) | `setup:lesmis-ranked.txt` |
-| r5-s09 | T17 | A: running club, friends.csv | Ruth | `setup:friends-ranked.txt` |
-| r5-s10 | T17 | B: Les Miserables | Grace | `setup:lesmis-ranked.txt` |
-| r5-s11 | T17 | A: running club, friends.csv | Jordan (analyst) | `setup:friends-ranked.txt` |
-| r5-s12 | T17 | B: Les Miserables | Alex (analyst) | `setup:lesmis-ranked.txt` |
-| r5-s13 | T17 | A: running club, friends.csv | Elena | `setup:friends-ranked.txt` |
-| r5-s14 | T17 | B: Les Miserables | Dev | `setup:lesmis-ranked.txt` |
-| r5-s15 | T17 | A: running club, friends.csv | Nadia | `setup:friends-ranked.txt` |
-| r5-s16 | T17 | B: Les Miserables | Tom | `setup:lesmis-ranked.txt` |
-| r5-s17 | T18 | A: running club, friends.csv | Ruth | `setup:friends-ranked.txt` |
-| r5-s18 | T18 | B: Florentine families | Nadia | `setup:florentine-ranked.txt` |
-| r5-s19 | T18 | A: running club, friends.csv | Dana (analyst) | `setup:friends-ranked.txt` |
-| r5-s20 | T18 | B: Florentine families | Alex (analyst) | `setup:florentine-ranked.txt` |
-| r5-s21 | T18 | A: running club, friends.csv | Grace | `setup:friends-ranked.txt` |
-| r5-s22 | T18 | B: Florentine families | Dev | `setup:florentine-ranked.txt` |
-| r5-s23 | T18 | A: running club, friends.csv | Elena | `setup:friends-ranked.txt` |
-| r5-s24 | T18 | B: Florentine families | Tom | `setup:florentine-ranked.txt` |
-| r5-s25 | T24 | A: running club, friends.csv, names drawn | Ruth | `setup:friends-ranked-names.txt` |
-| r5-s26 | T24 | B: bus stops, bus-stops.csv, names drawn | Dev | `setup:bus-stops-ranked-names.txt` |
-| r5-s27 | T24 | A: running club, friends.csv, names drawn | Dana (analyst) | `setup:friends-ranked-names.txt` |
-| r5-s28 | T24 | B: bus stops, bus-stops.csv, names drawn | Jordan (analyst) | `setup:bus-stops-ranked-names.txt` |
-| r5-s29 | T20 | A: bus stops, bus-stops.csv | Nadia | `empty` |
-| r5-s30 | T20 | B: hiking trails, trails.csv | Grace | `empty` |
-| r5-s31 | T20 | A: bus stops, bus-stops.csv | Alex (analyst) | `empty` |
-| r5-s32 | T20 | B: hiking trails, trails.csv | Dana (analyst) | `empty` |
-| r5-s33 | T20 | A: bus stops, bus-stops.csv | Dev | `empty` |
-| r5-s34 | T20 | B: hiking trails, trails.csv | Tom | `empty` |
-| r5-s35 | T20 | A: bus stops, bus-stops.csv | Elena | `empty` |
-| r5-s36 | T20 | B: hiking trails, trails.csv | Jordan (analyst) | `empty` |
-| r5-s37 | T21 | A: running club, friends.csv to friends-v2.csv | Grace | `setup:friends-ranked.txt` |
-| r5-s38 | T21 | B: team, team.csv to team-v2.csv | Dev | `setup:team-ranked.txt` |
-| r5-s39 | T21 | A: running club, friends.csv to friends-v2.csv | Alex (analyst) | `setup:friends-ranked.txt` |
-| r5-s40 | T21 | B: team, team.csv to team-v2.csv | Dana (analyst) | `setup:team-ranked.txt` |
-| r5-s41 | T21 | A: running club, friends.csv to friends-v2.csv | Tom | `setup:friends-ranked.txt` |
-| r5-s42 | T21 | B: team, team.csv to team-v2.csv | Ruth | `setup:team-ranked.txt` |
-| r5-s43 | T21 | A: running club, friends.csv to friends-v2.csv | Jordan (analyst) | `setup:friends-ranked.txt` |
-| r5-s44 | T21 | B: team, team.csv to team-v2.csv | Nadia | `setup:team-ranked.txt` |
-| r5-s45 | T19 | A: running club, friends.csv | Jordan (analyst) | `setup:friends-ranked.txt` |
-| r5-s46 | T19 | B: Florentine families | Elena | `setup:florentine-ranked.txt` |
-| r5-s47 | T19 | A: running club, friends.csv | Grace | `setup:friends-ranked.txt` |
-| r5-s48 | T19 | B: Florentine families | Alex (analyst) | `setup:florentine-ranked.txt` |
-| r5-s49 | T23 | A: running club, friends.csv | Elena | `setup:friends-ranked.txt` |
-| r5-s50 | T23 | B: Florentine families | Ruth | `setup:florentine-ranked.txt` |
-| r5-s51 | T23 | A: running club, friends.csv | Tom | `setup:friends-ranked.txt` |
-| r5-s52 | T23 | B: Florentine families | Nadia | `setup:florentine-ranked.txt` |
-| r5-s53 | T4 | A: office, people.csv + messages.csv | Dana (analyst) | `empty` |
-| r5-s54 | T4 | B: football, players.csv + passes.csv | Dev | `empty` |
-| r5-s55 | T12R | A: Les Miserables | Ruth | `setup:lesmis-ranked.txt` |
-| r5-s56 | T12R | B: Florentine families | Jordan (analyst) | `setup:florentine-ranked.txt` |
+| r5-s01b | T22 | A: bus stops, bus-stops.csv | Grace | `setup:bus-stops-ranked.txt` |
+| r5-s02b | T22 | B: Les Miserables | Ruth | `setup:lesmis-ranked.txt` |
+| r5-s03b | T22 | A: bus stops, bus-stops.csv | Alex (analyst) | `setup:bus-stops-ranked.txt` |
+| r5-s04b | T22 | B: Les Miserables | Dana (analyst) | `setup:lesmis-ranked.txt` |
+| r5-s05b | T22 | A: bus stops, bus-stops.csv | Nadia | `setup:bus-stops-ranked.txt` |
+| r5-s06b | T22 | B: Les Miserables | Elena | `setup:lesmis-ranked.txt` |
+| r5-s07b | T22 | A: bus stops, bus-stops.csv | Tom | `setup:bus-stops-ranked.txt` |
+| r5-s08b | T22 | B: Les Miserables | Jordan (analyst) | `setup:lesmis-ranked.txt` |
+| r5-s09b | T17 | A: running club, friends.csv | Ruth | `setup:friends-ranked.txt` |
+| r5-s10b | T17 | B: Les Miserables | Grace | `setup:lesmis-ranked.txt` |
+| r5-s11b | T17 | A: running club, friends.csv | Jordan (analyst) | `setup:friends-ranked.txt` |
+| r5-s12b | T17 | B: Les Miserables | Alex (analyst) | `setup:lesmis-ranked.txt` |
+| r5-s13b | T17 | A: running club, friends.csv | Elena | `setup:friends-ranked.txt` |
+| r5-s14b | T17 | B: Les Miserables | Dev | `setup:lesmis-ranked.txt` |
+| r5-s15b | T17 | A: running club, friends.csv | Nadia | `setup:friends-ranked.txt` |
+| r5-s16b | T17 | B: Les Miserables | Tom | `setup:lesmis-ranked.txt` |
+| r5-s17b | T18 | A: running club, friends.csv | Ruth | `setup:friends-ranked.txt` |
+| r5-s18b | T18 | B: Florentine families | Nadia | `setup:florentine-ranked.txt` |
+| r5-s19b | T18 | A: running club, friends.csv | Dana (analyst) | `setup:friends-ranked.txt` |
+| r5-s20b | T18 | B: Florentine families | Alex (analyst) | `setup:florentine-ranked.txt` |
+| r5-s21b | T18 | A: running club, friends.csv | Grace | `setup:friends-ranked.txt` |
+| r5-s22b | T18 | B: Florentine families | Dev | `setup:florentine-ranked.txt` |
+| r5-s23b | T18 | A: running club, friends.csv | Elena | `setup:friends-ranked.txt` |
+| r5-s24b | T18 | B: Florentine families | Tom | `setup:florentine-ranked.txt` |
+| r5-s25b | T24 | A: running club, friends.csv, names drawn | Ruth | `setup:friends-ranked-names.txt` |
+| r5-s26b | T24 | B: bus stops, bus-stops.csv, names drawn | Dev | `setup:bus-stops-ranked-names.txt` |
+| r5-s27b | T24 | A: running club, friends.csv, names drawn | Dana (analyst) | `setup:friends-ranked-names.txt` |
+| r5-s28b | T24 | B: bus stops, bus-stops.csv, names drawn | Jordan (analyst) | `setup:bus-stops-ranked-names.txt` |
+| r5-s29b | T20 | A: bus stops, bus-stops.csv | Nadia | `empty` |
+| r5-s30b | T20 | B: hiking trails, trails.csv | Grace | `empty` |
+| r5-s31b | T20 | A: bus stops, bus-stops.csv | Alex (analyst) | `empty` |
+| r5-s32b | T20 | B: hiking trails, trails.csv | Dana (analyst) | `empty` |
+| r5-s33b | T20 | A: bus stops, bus-stops.csv | Dev | `empty` |
+| r5-s34b | T20 | B: hiking trails, trails.csv | Tom | `empty` |
+| r5-s35b | T20 | A: bus stops, bus-stops.csv | Elena | `empty` |
+| r5-s36b | T20 | B: hiking trails, trails.csv | Jordan (analyst) | `empty` |
+| r5-s37b | T21 | A: running club, friends.csv to friends-v2.csv | Grace | `setup:friends-ranked.txt` |
+| r5-s38b | T21 | B: team, team.csv to team-v2.csv | Dev | `setup:team-ranked.txt` |
+| r5-s39b | T21 | A: running club, friends.csv to friends-v2.csv | Alex (analyst) | `setup:friends-ranked.txt` |
+| r5-s40b | T21 | B: team, team.csv to team-v2.csv | Dana (analyst) | `setup:team-ranked.txt` |
+| r5-s41b | T21 | A: running club, friends.csv to friends-v2.csv | Tom | `setup:friends-ranked.txt` |
+| r5-s42b | T21 | B: team, team.csv to team-v2.csv | Ruth | `setup:team-ranked.txt` |
+| r5-s43b | T21 | A: running club, friends.csv to friends-v2.csv | Jordan (analyst) | `setup:friends-ranked.txt` |
+| r5-s44b | T21 | B: team, team.csv to team-v2.csv | Nadia | `setup:team-ranked.txt` |
+| r5-s45b | T19 | A: running club, friends.csv | Jordan (analyst) | `setup:friends-ranked.txt` |
+| r5-s46b | T19 | B: Florentine families | Elena | `setup:florentine-ranked.txt` |
+| r5-s47b | T19 | A: running club, friends.csv | Grace | `setup:friends-ranked.txt` |
+| r5-s48b | T19 | B: Florentine families | Alex (analyst) | `setup:florentine-ranked.txt` |
+| r5-s49b | T23 | A: running club, friends.csv | Elena | `setup:friends-ranked.txt` |
+| r5-s50b | T23 | B: Florentine families | Ruth | `setup:florentine-ranked.txt` |
+| r5-s51b | T23 | A: running club, friends.csv | Tom | `setup:friends-ranked.txt` |
+| r5-s52b | T23 | B: Florentine families | Nadia | `setup:florentine-ranked.txt` |
+| r5-s53b | T4 | A: office, people.csv + messages.csv | Dana (analyst) | `empty` |
+| r5-s54b | T4 | B: football, players.csv + passes.csv | Dev | `empty` |
+| r5-s55b | T12R | A: Les Miserables | Ruth | `setup:lesmis-ranked.txt` |
+| r5-s56b | T12R | B: Florentine families | Jordan (analyst) | `setup:florentine-ranked.txt` |
 
 ## Three claims from round 4, each checked by one script before anyone fixes it
 

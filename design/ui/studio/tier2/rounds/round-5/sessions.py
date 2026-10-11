@@ -73,9 +73,15 @@ assert [r[0] for r in rows[:8]] == ["T22"] * 8
 for t in size:
     hs = [h for tt, h, _ in rows if tt == t]
     assert all(a != b for a, b in zip(hs, hs[1:])), (t, hs)
+# The first run of this plan (ids r5-s01 to r5-s56) was void: every start was refused for want of
+# the round's gate evidence. Its folders stay as the record; every session runs again as <id>b
+# from a new folder, so a b folder must not exist before its session starts.
+for i in range(1, 57):
+    assert os.path.isdir(os.path.join(here, f"sessions/r5-s{i:02d}")), f"void record r5-s{i:02d} missing"
+    assert not os.path.exists(os.path.join(here, f"sessions/r5-s{i:02d}b")), f"r5-s{i:02d}b already exists"
 out, md = [], []
 for i, (t, h, p) in enumerate(rows, 1):
-    sid = f"r5-s{i:02d}"; ds, st = DATA[(t, h)]
+    sid = f"r5-s{i:02d}b"; ds, st = DATA[(t, h)]
     out.append({"id": sid, "task": t, "dataset": f"{h}: {ds}", "start": st,
                 "persona": f"{p} ({'tier 1 graduate' if p in GRAD else 'regular analyst'}); files: " + ", then ".join(FILES[p]) + "; history: tier2/roster.md, under " + p})
     md.append(f"| {sid} | {t} | {h}: {ds} | {p}{'' if p in GRAD else ' (analyst)'} | `{st}` |")

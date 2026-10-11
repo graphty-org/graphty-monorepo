@@ -11,6 +11,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-11) **Round 5 audit on 8c015b806 done** (`tier2/rounds/round-5/expert/engineer.md`): five
+  round 4 fixes hold; new: an edge-only filter step marks runs "out of date" with "Ran on 20 nodes;
+  20 shown now" (needs edge counts in `run.stale`, element, additive); table count cut at 900.
+  "Or more" row still below the find list's fold (sev 3, app).
 - (2026-10-11) **Round 5 runs on frozen build 8c015b806** (graphty@0.8.65, `.study-builds/tier2-r5-8c015b806/`);
   the first dry run is triaged with no fixes (d2440153c). Never touch that build; fixes go to round 6.
 - (2026-10-11) **Owed before round 5's sessions: r4-s05b, r4-s20b, r4-s28b** on 5277e2cbe, new
@@ -22,10 +26,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-11) **Round 4: 53 of 53 succeeded; bars 9 (b) and 10 failed.** Bar 10 on drawn names
   covering ties and dots (element, owner's list) and the find box's "=`10`" refusal. Shift-click
   took T24 to 7 of 7, discounted for priming (briefing lists `--shift-click`).
-- (2026-10-11) **Built for round 5:** element `suggestBackticks` suggests only a rule that reads an
-  attribute; `FindResult.atLeast` rows ("minutes is 10 or more"); `rulePath` so the "or more" layer
-  reads "minutes >= `5`"; off step stays off; New project + Discard; table lists what steps keep;
-  note Cancel focuses "+".
 - (2026-10-11) **Watch T22 in round 5:** credit "10" reaching the right stops with no refusal, not
   a pick of the "or more" row (the prompt and the row share the words).
 - (2026-10-11) **Watch T17:** the table count ("12 of 41 edges") agrees with the top bar; histories
@@ -183,6 +183,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   is "replace"); weigh those findings up, not down.
 
 ## Tried: worked / did not work
+
+- (2026-10-11) WORKED: re-running last round's audit walks by pulling their exact commands out of
+  the earlier subagent transcript (`~/.claude/projects/<proj>/<session>/subagents/workflows/*/agent-*.jsonl`,
+  Bash inputs containing `real.mjs --start`); session folders do not record steps. Four chains (two
+  groups x two sizes) in the background finished in about 25 minutes with other experts holding
+  slots. Two-up montages (`montage -tile 2x1`) read well; 4-wide contact sheets only for spotting.
+  Screenshots are 1x, so crops use 1x coordinates. `--click "Add to Edge"` does not exist on an
+  edge selection's Style tab (Line, Arrows, Label sections).
 
 - (2026-10-11) Worked: the new table test failed on the old scope ("6 of 13 edges" never
   appeared) by a one-line sed back to `"graph"` and forward again, no stash. In real.mjs, `--click

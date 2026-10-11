@@ -582,12 +582,28 @@ export function assertSameMembers(actual: Iterable<unknown>, expected: Iterable<
  * @returns The ids, the node included.
  */
 export function neighborhood(s: GraphSession, node: string, hops: number): Set<string> {
+    // One pass over the edges, not one per frontier node: on political-blogs a two-hop frontier
+    // rescanned its 19,000 edges hundreds of times.
+    const adjacent = new Map<string, string[]>();
+    for (const edge of s.data.edges()) {
+        const { source, target } = edge as unknown as { source: unknown; target: unknown };
+        const [a, b] = [String(source), String(target)];
+        for (const [from, to] of [
+            [a, b],
+            [b, a],
+        ]) {
+            const list = adjacent.get(from) ?? [];
+            list.push(to);
+            adjacent.set(from, list);
+        }
+    }
+
     const seen = new Set([node]);
     let frontier = [node];
     for (let hop = 0; hop < hops; hop++) {
         const next: string[] = [];
         for (const id of frontier) {
-            for (const neighbor of neighborIds(s, id)) {
+            for (const neighbor of adjacent.get(id) ?? []) {
                 if (!seen.has(neighbor)) {
                     seen.add(neighbor);
                     next.push(neighbor);

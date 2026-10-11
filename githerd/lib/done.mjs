@@ -788,13 +788,26 @@ function recordVerdicts(job, report, view, now) {
     }
     const refused = [];
     for (const v of verdicts) {
-        // A `keep` weighed the references on master and left the issue open: they ask for no verify.
-        const issue = v.verdict === "keep" ? view.state.issues?.byNumber?.[v.number] : null;
-        if (issue) issue.judgedRefs = [...(issue.judgedRefs ?? []), ...masterRefs(view.state, v.number)];
+        const issue = job.kind === "triage" ? view.state.issues?.byNumber?.[v.number] : null;
+        if (issue) judged(issue, v, view.state, at);
         const r = recordVerdict(view.state, { ...v, session, at });
         if (r.refused) refused.push(`#${v.number}: ${r.refused}`);
     }
     return refused;
+}
+
+/**
+ * What a triage verdict leaves on its issue. It covers the issue until it next changes, so a full
+ * pass skips it (jobs.mjs); a `keep` weighed the references on master and left the issue open, so
+ * they ask for no verify.
+ * @param {any} issue the issue's record, changed in place
+ * @param {any} v the verdict
+ * @param {any} state the daemon state
+ * @param {string} at when it was accepted
+ */
+function judged(issue, v, state, at) {
+    issue.lastTriagedAt = at;
+    if (v.verdict === "keep") issue.judgedRefs = [...(issue.judgedRefs ?? []), ...masterRefs(state, v.number)];
 }
 
 /** The jobs whose `githerd_done` check is in progress, per daemon state. */

@@ -935,6 +935,8 @@ describe("githerdDone", () => {
             verified: true,
         });
         expect(s.issues.byNumber[5].judgedRefs).toEqual(["b702301a5", "#947"]);
+        // The verdict covers the issue until it next changes: a full pass skips it (jobs.mjs).
+        expect(s.issues.byNumber[5].lastTriagedAt).toBe(NOW.toISOString());
     });
 
     it("records a verified triage batch's verdicts and a split's children", async () => {

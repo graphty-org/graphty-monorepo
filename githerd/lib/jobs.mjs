@@ -24,8 +24,8 @@
  * - `review-<n>`: a pull request a githerd job made, at a patch id no review has seen.
  * - `triage-<scope>-<seq>`: one triage job at a time: issues missing a type, priority or effort label
  *   first (`new`, 20 at most, each with the kinds it lacks),
- *   then a refresh after 20 merges, and a full pass over every open issue after 100 merges (20 per
- *   job). A refresh job is given the merged pull requests with their changed files and the open
+ *   then a refresh after 20 merges, and a full pass after 100 merges over every open issue not
+ *   judged since its last change (`lastTriagedAt`, 20 per job). A refresh job is given the merged pull requests with their changed files and the open
  *   issues; its session judges which issues the merges affect. The issues a merge mentions without
  *   closing are in its batch. No clock: merges count. Once, a `types` pass over every open issue
  *   (20 per job) re-judges each type label now that `infrastructure` exists (owner decision
@@ -496,8 +496,12 @@ function triageJobs(state, config, now, add) {
         if (!next) return;
         scope = next.scope;
         const still = new Set(open.map((i) => i.number));
-        batch = next.issues.filter((/** @type {number} */ n) => still.has(n)).slice(0, TRIAGE_BATCH);
-        next.issues = next.issues.filter((/** @type {number} */ n) => !batch.includes(n));
+        // A full pass judges each issue once per change: one judged since its last change is done.
+        const due = (/** @type {number} */ n) =>
+            still.has(n) && !(scope === "full" && judgedSinceChange(state.issues?.byNumber?.[n]));
+        next.issues = next.issues.filter(due);
+        batch = next.issues.slice(0, TRIAGE_BATCH);
+        next.issues = next.issues.slice(TRIAGE_BATCH);
         if (!next.issues.length) passes.queue.shift();
         if (!batch.length) return;
     }
@@ -522,6 +526,17 @@ function triageJobs(state, config, now, add) {
         reason,
         facts: { scope, batch, since: now.toISOString(), ...(missing ? { missing } : {}) },
     });
+}
+
+/**
+ * Whether an accepted triage verdict covers the issue as it stands: it came after the issue's last
+ * change on GitHub (a comment, an edit, a label). Any later change makes it due again.
+ * @param {any} issue the issue's record
+ * @returns {boolean} whether it was judged since it last changed
+ */
+function judgedSinceChange(issue) {
+    const at = issue?.lastTriagedAt;
+    return Boolean(at && issue.updatedAt && Date.parse(issue.updatedAt) <= Date.parse(at));
 }
 
 /** The reason of a triage pass that merges did not call for. */

@@ -583,6 +583,38 @@ describe("syncJobs: triage", () => {
     });
 });
 
+describe("syncJobs: a full triage pass judges each issue once per change", () => {
+    const triage = (/** @type {any} */ state) =>
+        sync(state).created.filter((/** @type {string} */ id) => id.startsWith("triage"));
+    // 2026-10-11: triage-full-60 offered the same 20 issues as triage-full-49, accepted that
+    // morning, though none of them had changed since: the accepted verdicts were not recorded.
+    it("skips issues judged since their last change, ends when none are left, and takes back one that changed", () => {
+        const state = base();
+        for (let n = 1; n <= 25; n++) issue(state, n, LABELED, { lastTriagedAt: "2026-10-03T06:00:00Z" });
+        // Judged before its last change: due.
+        state.issues.byNumber[7].lastTriagedAt = "2026-10-02T00:00:00Z";
+        // Never judged: due.
+        delete state.issues.byNumber[9].lastTriagedAt;
+        state.merged.count = 100;
+        expect(triage(state)).toEqual(["triage-full-1"]);
+        expect(state.jobs["triage-full-1"].facts.batch).toEqual([7, 9]);
+        expect(state.triagePasses.queue).toEqual([]);
+        // Its verdicts accepted (done.mjs stamps each issue it judged).
+        move(state.jobs["triage-full-1"], "cancelled", NOW);
+        state.issues.byNumber[7].lastTriagedAt = NOW.toISOString();
+        state.issues.byNumber[9].lastTriagedAt = NOW.toISOString();
+        // A hundred merges later nothing changed: the pass ends with no job.
+        state.merged.count = 200;
+        expect(triage(state)).toEqual([]);
+        expect(state.triagePasses.queue).toEqual([]);
+        // One issue gets a comment: it alone comes back.
+        state.issues.byNumber[12].updatedAt = "2026-10-04T13:00:00Z";
+        state.merged.count = 300;
+        expect(triage(state)).toEqual(["triage-full-2"]);
+        expect(state.jobs["triage-full-2"].facts.batch).toEqual([12]);
+    });
+});
+
 describe("syncJobs: the one-time type refresh (owner decision 2026-10-06)", () => {
     it("re-judges every open issue's type once, 20 per job, after the new issues' triage", () => {
         const state = base();

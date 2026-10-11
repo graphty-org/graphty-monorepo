@@ -10,6 +10,15 @@ made and evidence comes in.
 
 ## Top of mind
 
+- 2026-10-11 -- r4 key matched for T4, T12R A, T17, T19 B, T20 A, T21 A, T24 B on 38e180aac230.
+  OWED before round 4's first session: T12R B pilot (never got a browser slot).
+- 2026-10-11 -- New likely sev 3 on 38e180aac230: the chosen segment is dark/outlined and the
+  unchosen one keeps the gray fill (T4 Add/Leave out, "a node"/"an edge", T12R Hops). Fix in
+  compact-mantine; the build note says it was restored, the pixels say otherwise.
+- 2026-10-11 -- T17 on 38e180aac230: chip and Filters row count edges; people count only in the
+  Overview. Expect `read-wrong` answers of 12 (B 51); suggest both counts on chip and row.
+- 2026-10-11 -- Drawn-names sev 3 was measured with declutter off (setups tick "Show all
+  labels"). Re-score with the app's default; only label-over-dot and layout overlap remain.
 - 2026-10-10 -- Round 3 critique done (returned, not filed). Six smallest changes: element
   Shift-click on a node adds (as an edge does); T24 prompt reworded to an outcome only a selection
   gives, key's Shift route walked; bare number gets an "at least" rule option and its row wraps;
@@ -35,18 +44,12 @@ made and evidence comes in.
   not discovered. Readers type the prompt's most prominent data word first (column or number).
 - 2026-10-10 -- Follow-up "second time" measures are memory, not the app: only the Recent entry
   (6 of 7) is creditable. Seven identical asides are one model's template, not seven people.
-- 2026-10-10 -- Still open, owner items: drawn names covering each other, bare numbers in rules,
-  edge width units. Cite as known; never score their recurrence as new.
 - 2026-10-10 -- Briefing check: `tmp/researcher/t2r3/brief-all.py <scratch dir>`; words kept on
   purpose: T20 "longer", T18 "from"/"to", T21 "updated list", T23 "change the drawing so it has
   only".
 - 2026-10-10 -- A check that inspects zero items must fail: grep every "no leaks"/"0 found" for its
   denominator before trusting it (preflight "built" in round 2, `leaks.json` in round 3).
 - 2026-10-09 -- A leak voids passes, not problems: a problem found anyway is robust.
-- 2026-10-09 -- Prompt words make findings; when a prompt changes, re-read the key's S line against
-  the new words and pilot it.
-- 2026-10-09 -- Hold opinion-only problems one level down at SCORING time, not at the verdicts.
-- 2026-10-09 -- Histories steer first moves; the SECOND place looked is the real signal.
 
 ## Priorities and values
 
@@ -87,6 +90,25 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-11 (researcher, key matched to the first r4 pilots on 38e180aac230) -- T4 A/B, T12R A,
+  T17 A/B, T19 B, T20 A, T21 A, T24 B. A build section plus in-place notes, old wording kept as
+  "on earlier builds". Two real changes: (1) the chosen segment is now dark with a light outline
+  and the unchosen part keeps the lighter gray fill (pixels: Leave out rgb 44,44,44 vs Add 56,56,56;
+  white on 897d9aed9ffe), although the build note says "chosen segment's face restored" -- the
+  screen wins; the inverted cue is a likely sev 3 for T4 (Add read as chosen), fix in
+  compact-mantine. (2) T17's chip and Filters row count edges for an edge-column step, so the
+  people count is only in Overview "Nodes showing"; the S line now says "read where it is shown"
+  (same criterion, not a bar) and reporting the tie count as people is `read-wrong`. Also the
+  toolbar Filters tool as a third door (opens with an empty Attribute). T12R B not walked (no
+  browser slot): owed before round 4. No prompt was wrong; tasks.md unchanged.
+- 2026-10-11 (researcher, drawn-names finding) -- graphty-element already declutters labels
+  (`layoutBehavior.labels.declutter`) and the app turns it on; the `*-ranked-names.txt` setups
+  tick "Show all labels", which turns it off, so round 3's sev 3 "names cover each other" measured
+  the setup, not the app. Round 4: re-score with declutter on; tick "Show all labels" only where a
+  task needs every name, with the reason in tasks.md. What may remain is separate: declutter avoids
+  label-on-label only, not a label over a dot or an edge, and nodes can overlap in the layout
+  (Chloe and Farah, r3-s43/01.png). Treating dots as obstacles would be an additive element option
+  (the team's call). It is not one of the owner's open items.
 - 2026-10-10 (researcher, T24 wording before round 4) -- Changed the prompt, not the key: both
   halves end "so that whatever you do next applies only to those two"; words-changed log in
   `tasks.md`; criteria log entry. Removed the key's Shift route rather than leaving it: on
@@ -130,48 +152,18 @@ reasons, in short:
   (tool's copy read none); kept round 2's readings so rounds compare; steps by screenshot mtimes
   in the participant's own folder.
 
-- 2026-10-10 (round 3 plan and round 2 close, folded) -- Plan: 56 sessions at the cap, `sessions.py`
-  asserted (sizes, halves, 37 graduates, r2-s05 re-run first); T4 and T19 cut to 3 to hold the cap.
-  Fixed Dana's refused briefings in the tool. Prompt pilots (gate item 1) left "reported, not
-  done" -- which round 3 paid for on T24. Round 2 closed: study tool first, then one change per
-  confirmed problem in its owning package; held label placement, bare numbers, edge width units
-  for the owner.
+- 2026-10-09 to 10-10 (round 2 and round 3 plans, prompts, critiques and verdicts, folded) --
+  Plans at the 56-session cap with asserted `sessions.py`; prompt pilots left "reported, not done"
+  in round 3, which T24 paid for. Prompts: "point out on the drawing" (T22, T24), never "show" (a
+  View menu word); briefings checked by `real.mjs --brief`. Critiques: smallest change per
+  confirmed sev 3 in its owning package, reusing what exists (`exampleRule`, rule options).
+  Verdicts: two drops = dropped, one drop or weaken = weakened unless answered with evidence; every
+  disputed claim checked in the screenshot, the grade file or the code at the build commit.
 
 - 2026-10-10 (researcher, keys for 26f3bb968e43, 897d9aed9ffe and b6d932823642, folded) -- Each a
   build section plus in-place fixes with the old wording as a parenthetical; a missed overlap (Jada
   on T18 A) added as a grader instruction; tier 1's frozen key untouched. T24's key was NOT
   re-walked on 26f3bb968e43, which round 3 paid for (its Shift route does not exist).
-
-- 2026-10-09 (researcher, round 3 prompts and re-runs) -- Reworded the second half of T22 and
-  T24 to "point out on the drawing" (T24: "point out Gus and Ivan, and nobody else, on the
-  drawing"). Reasons: "stand out" asked for a style that neither task measures (5 of 8 T22, 4 of
-  4 T24 styled in round 2); "point out" asks for a visible mark with no word for how; "show" is the
-  View menu's own word, so not used. The briefing check also found "where" (an avoided word, the
-  find list's "Select where ...") in T22's unchanged first sentence since round 1; reworded it to
-  "how the slow links lie across the whole map" because the acceptance asks for no avoided word in
-  the briefing. Kept T24's key as written (two ends selected only), although the decision text
-  said "a selection or a style, as now": T22's key accepts a color, T24's never did; changing it
-  would change a grade rule, so it is reported, not done. Put the re-run list in criteria.md
-  "Round plan" because round 3 has no plan.md yet. Pilots not run: the round 3 candidate build is
-  not built (HEAD holds only the decision), and piloting on the round 2 build would measure the
-  wrong screens.
-
-- 2026-10-09 (researcher, tier 2 round 2 critique, folded) -- Five smallest changes, one per
-  confirmed sev 3, each reusing what exists (find box `exampleRule`/`ruleFromText`, the element's
-  `number-needs-backticks` suggestion as a neutral fact; a "+" line's starting value is the app's
-  choice). Rejected: element bare-number parsing (unsure = breaking), label placement (element),
-  moving the path tool (find box led 8 of 8 to a right answer).
-- 2026-10-09 (researcher, round 2 skeptic verdicts) -- Wrote `rounds/round-2/insights.md`.
-  Applied: both drop = dropped (insight 6, routes carried habits); one drop or weaken = weakened
-  (T24 halo, the "All 13 rows" caption, insights 1 to 5) unless the other answered with evidence.
-  Resolved the skeptic's T18-vs-T22 consistency question: T18 find box stays sev 2 (the rule counts
-  a place offering no way on; T18's led all 8 to a right answer, 2 by hand), T22's is sev 3 ("No
-  match" only). Rated the "Open project or file..." doubling sev 3, not 4: both who met it caught
-  the 82. Checked myself: `r2-s14/15.png` (width 8 red ties barely visible), `r2-s33/05.png` ("Add
-  to friends", 82 edges, only Cancel/Load), `r2-s52/02.png` ("Stadium" label over the tie), r2-s12
-  "chapters 10" on the Les Mis half (answers half of skeptic 1's priming objection to insight 2).
-  Rejected: reopening bar statuses (no skeptic changed one); calling the discarded filter step an
-  app user problem (both cases started by the tool's misclick).
 
 - 2026-10-09 (round 1 critique, round 2 key, plan and scoring, folded) -- Round 2: 56 sessions
   at the cap, core four and T22 at full size with halves swapped; route credits graded like the
@@ -224,6 +216,12 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-11 (r4 key match, after a token-limit stop) -- Worked: `git status` and `git log` on
+  answers.md first; nothing of this batch had landed, so it was applied whole. Worked: sampling
+  the toggle pixels in `r4/pilot/T4A/07.png` against `r3d1/pilot/T4B/07.png` before writing a
+  claim that contradicts the build's own change note. Worked: one asserted (old, new) script
+  (`tmp/researcher/r4/edit-answers.py`); one match failed on a wrapped line and nothing was
+  written until it was fixed.
 - 2026-10-10 (T24 wording, after a token-limit stop) -- Worked: checked `git status`/`git log`
   and grepped for the new wording first; nothing of the change had landed, so it was applied
   whole. Worked: grepping the studio for copies of the old prompt outside `rounds/` (none; the

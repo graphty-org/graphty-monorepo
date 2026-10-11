@@ -851,3 +851,21 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   the Add page's repeated-ties line reads as a warning and describes Load; in compact-mantine, the
   chosen segment's face is restored. Every new-build preflight item runs on this build before round
   4's first session. No bar, floor, step limit or prompt changed.
+
+- **2026-10-11, before round 4: the answer key matched to the first pilots on build 38e180aac230.**
+  T4 A and B, T12R A, T17 A and B, T19 B, T20 A, T21 A and T24 B were piloted on the round 4 build
+  from their starts (`rounds/r4/pilot/`). Every success path landed on the first try with no script
+  errors, console errors or failed requests, and every reference value held. `answers.md` now
+  describes those screens, each change citing the pilot's screenshot: a section on this build; the
+  chosen part of a segmented control is drawn dark with a light outline while the part not chosen
+  keeps the lighter gray fill (Add and Leave out, "a node" / "an edge", the Hops switch; T4, T12R),
+  and the edge table's caption reads "All 18 rows" (A "All 23 rows") (T4); for a step over an edge
+  column the header chip and the Filters row count ties ("12 of 41 edges"), so the number of people
+  is read only from the Overview's "Nodes showing", reporting the tie count as the people left is
+  `read-wrong`, and the canvas toolbar's Filters tool is a third door (T17); "New from data..."
+  opens with Direction, Cancel and Load already at the bottom, and the role boxes sit at about
+  y 211 (T20); the Replace page's own "+" (T21); the edge inspector's line icon and the label over
+  Station's ring (T24). T17's S grade still credits the right count of people; only where that
+  count is shown changed. T12R B was not walked (no browser slot came free) and keeps
+  26f3bb968e43's notes until it is. No prompt was wrong, so `tasks.md` is unchanged. No bar, floor,
+  step limit or success path's end state changed.

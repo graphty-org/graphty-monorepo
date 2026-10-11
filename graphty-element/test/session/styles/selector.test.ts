@@ -593,7 +593,8 @@ describe("every selector refusal says why, as a code", () => {
         assert.strictEqual(suggestionOf("10"), undefined);
         assert.strictEqual(suggestionOf("(10)"), undefined);
         assert.strictEqual(
-            refusalOf(() => compileSelector({ match: "expression", where: "10" }, "node", harness.source)).details.reason,
+            refusalOf(() => compileSelector({ match: "expression", where: "10" }, "node", harness.source)).details
+                .reason,
             "number-needs-backticks",
         );
     });

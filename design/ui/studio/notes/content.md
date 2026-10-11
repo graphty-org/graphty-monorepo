@@ -193,7 +193,6 @@ I read this file at the start of every session and update it as I decide and lea
   disagrees, a spelling) are adopted; proposals that pick words to meet a count are not until the
   count's diff names the words. Evidence: changes 3, 4, 9 adopted; my bar 9 wording held.
 
-
 - 2026-10-11 WORKED (round 4): "<column> is 10 or more (13)" taken at once by the one reader who
   typed a bare number (r4-s10); value row without "Select where" no longer cut; "Weight: none (each
   edge counts 1)" sent r4-s32 to the column. DID NOT WORK: the "or more" layer's field-path name

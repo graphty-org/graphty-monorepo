@@ -371,10 +371,7 @@ export function TableDock(): React.JSX.Element {
         setArrangement((now) => ({ ...now, views: { ...now.views, [kind]: { ...now.views[kind], ...change } } }));
     };
 
-    const count =
-        groupRun === undefined
-            ? recordCount(session, kind, scope)
-            : countOf(groupRun.groups.length, "group");
+    const count = groupRun === undefined ? recordCount(session, kind, scope) : countOf(groupRun.groups.length, "group");
 
     return (
         <div className="ws-table" ref={root}>

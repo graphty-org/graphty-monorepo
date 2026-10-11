@@ -194,8 +194,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 - (2026-10-11) Worked: the new table test failed on the old scope ("6 of 13 edges" never
   appeared) by a one-line sed back to `"graph"` and forward again, no stash. In real.mjs, `--click
-  weight` hit the table's weight header, not the attribute row; `--click "role=treeitem:weight,
-  edge attribute"` reaches the row.
+weight` hit the table's weight header, not the attribute row; `--click "role=treeitem:weight,
+edge attribute"` reaches the row.
 - (2026-10-11) Did not work as a check on the frozen build: the bars.mjs Cancel move. The
   "returning" walk stops earlier there, at "leaving an off step's editor unedited" (the off-step
   bug fixed in 8f6426ab6), so every later move is MISS. Checked the frozen build directly instead
@@ -293,12 +293,12 @@ anywhere`, row `height: auto; min-height: 44px; padding-block: 6px`, pill and ri
 - (2026-10-06 to 10-10, condensed 2026-10-11) **Older lessons.** Focus after a pointer click
   draws no ring; `--key ArrowDown` opens a focused Select. real.mjs cannot click aria-disabled
   buttons (prove with `--key Enter` or a real-element test). Descriptions: `--expect
-  "described=<text>"`. Pilot on a copied `graphty/dist`. Another agent's rebuild breaks tsc,
+"described=<text>"`. Pilot on a copied `graphty/dist`. Another agent's rebuild breaks tsc,
   vitest and `bars.mjs` mid-run: copy the dist or rerun. Prove a test fails without the change.
   Read output, not exit codes; step N lands in screenshot N+1; read `setup.log` after `--start`.
   Builds need `NODE_OPTIONS=--max-old-space-size=8192`. Subagent logs under
   `~/.claude/projects/<proj>/<session>/subagents/`. Resuming after an interruption: check `git
-  log`, the round folder and `tmp/<task>/` first.
+log`, the round folder and `tmp/<task>/` first.
 
 ## Sources
 

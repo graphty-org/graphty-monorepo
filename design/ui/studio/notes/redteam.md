@@ -16,34 +16,32 @@ served at `/?next`.
 
 ## Top of mind
 
-1. (2026-10-11) A runner gate is still a wish: round 4 ran with no gate evidence, two rounds
-   running. Round 5 does not start until the runner itself refuses (gate exit 0, free browser
-   slot) and the leak check reads the briefings, each shown failing on a planted fault.
-2. (2026-10-11) Bare-number find: fix in the element's suggestBackticks (check the rewrite with
-   the selector's own acceptance test, not parseExpression). No app count guard around it.
-3. (2026-10-11) "Or more" for a number inside a column's range: one optional FindResult field,
-   one name, reusing atLeastOf. No Values-first reorder in the same round.
-4. (2026-10-11) atLeastOf is unreleased (absent from graphty-element@3.24.1): its rule text
-   ("data.minutes") is the team's call to fix, not an owner item.
-5. (2026-10-11) Table under a filter: scope "visible" plus a visibility re-render; no notice line.
-   Watch: table Export still writes every record (element #875/#820), a new mismatch.
-6. (2026-10-11) Off filter step turning on is code-proven (Filters.tsx unchanged needs on===true;
-   leave writes on:true). Fix the leave guard only; no "stays off" semantics change, no new line.
-7. (2026-10-11) Bar 9 (b): no word cut until a bars.json diff names the two added words; never
-   re-measure the bar's limit after seeing data, only a proven measurement fault.
-8. (2026-10-11) T22 A's prompt says "or more" and the new row says "or more": round 5 credit for
-   it comes from the other half's wording, not T22 A.
-9. Shift-click adds (Shift only; Ctrl/Meta held); toolbar Filters door; second path replaces the
-   first silently. All held by 7 of 7; do not touch.
-10. Rejected and staying rejected without new evidence: "replaced" notice, keeping both paths,
-    Filters row in the layer list, hiding description matches, pressed "Filter to neighbors"
-    toggle, Replace as primary, Hops grouping.
-11. Bare numbers in rules, backticks, edge width units: breaking, owner list. No opt-in flag.
-12. Drawn-name overlap is the element's label placement: no app font, seed or offset.
-13. Rounds are one model playing every participant: a failure is strong, a pass weak, seven
-    identical asides are one voice. A scripted repro or code cause is solid. Name the mechanism.
-14. Fix by removing, not adding. One door per job. Graph logic and codes in the element, words
-    in the app; check existing API first.
+1. (2026-10-11) Round 5 gate: the refusal now lives in `real.mjs --start` (no "Gate evidence" in
+   plan.md = exit 1) and the runner takes the machine-wide browser slot. Before round 5 I check
+   the self-test refusal on a planted fault and the owed r4-s05b/s20b/s28b myself; never assume.
+2. (2026-10-11) Briefings: data files by name and kind only; leak check reads briefings too.
+   --shift/--ctrl/--alt-click stay, listed neutrally (removing them would measure the tool).
+3. (2026-10-11) Bare number "10": suggestBackticks applies the selector's own acceptance test.
+   No app count guard. Pattern to hunt: one question answered by two different tests.
+4. (2026-10-11) In-range number: optional FindResult.atLeast rows from atLeastOf. Credit it by
+   "10" reaching the right stops without a refusal, not by the prompt's "or more" echo.
+5. (2026-10-11) rulePath export was added over my "no new export": right, it deletes the app's
+   copy of element logic. Watch that it is the only change to that row.
+6. (2026-10-11) Off filter step: leave handler returns early on an unchanged rule; nothing else.
+7. (2026-10-11) Table under a filter: scope "visible", tab "12 of 41 edges", re-render on
+   visibility. Watch the export mismatch (#875/#820): export words must say "every record".
+8. (2026-10-11) Bar 9 (b): diff the word lists first; scope words stay and the bar fails
+   honestly. Never re-set a limit from data; only a proven measurement fault re-measures.
+9. (2026-10-11) Single-source claims (unknown column, Escape on swatch, label taking a tie click,
+   New project Discard crash) are scripted before any fix; not shown = closed.
+10. Shift-click adds, toolbar Filters door, second path replaces silently: held 7 of 7. Do not
+    touch. Rejected stays rejected without new evidence (notices, second homes, Hops grouping).
+11. Drawn-name overlap is the element's label placement, owner list; bar 10 fails on it honestly.
+    No app font, seed, offset or names-off setup.
+12. Bare numbers in rules, backticks, edge width units: breaking, owner list. No opt-in flag.
+13. Rounds are one model playing everyone: a failure is strong, a pass weak; briefings and
+    histories prime -- discount any "unprompted" count. Name the mechanism.
+14. Fix by removing, not adding. One change per problem; words at rest never rise.
 
 ## Priorities and values
 
@@ -143,22 +141,12 @@ served at `/?next`.
   path row shows "<column> <total>"; "Filter to neighbors" is a plain command, off only on the
   step checkbox; "PageRank, full graph" only under a filter; "Components 1" held for attribution.
 
-- 2026-10-10 -- Tier 2 round 3 proposals attack (summarized 2026-10-11). Code read at 26f3bb968
-  (NodeBehavior.handleClick, Graph.ts edge click, settingsOf, PathForm data-autofocus, Neighbor has
-  no depth). Positions: node Shift-click through the session path; T24 outcome prompt; find-row
-  prefix dropped plus element at-least target; name-first ranking, one badge; one Filters toolbar
-  icon; scripts before one-specialist fixes; Load aria-describedby. Rejected: notices, second
-  homes, stacked variants, Ctrl/Meta, Value-blur commit, Hops subheadings.
-
-- 2026-10-11 -- Tier 2 round 3 closed (decisions.md). Adopted all my positions above, with no
-  reversals. Went further than me: the study tool fix is rated severity 4 and made a hard start
-  gate (runner refuses without pilots and bars), and `--end` deleting notes was added; bar 8's
-  axe hit is to be settled by an ArrowDown script, not by making the list focusable (a useless
-  Tab stop) -- agreed. Added beyond my list: Add page repeated-ties warning glyph plus
-  describedby (sev 2, words unchanged), edge-step counts read from the element (script first),
-  compact-mantine Tooltip describing a disabled target (check first). All three are fixes in the
-  owning package with no new words; no objection. Reason throughout: measurement before defects,
-  one change per problem, element first.
+- 2026-10-10 to 2026-10-11 -- Tier 2 round 3 attack and close (summarized 2026-10-11). Adopted
+  with no reversals: node Shift-click through the session path, T24 outcome prompt, find-row
+  prefix dropped plus element at-least target, one Filters toolbar icon, scripts before
+  one-specialist fixes. Rejected: notices, second homes, stacked variants, Ctrl/Meta first,
+  Hops subheadings. Director went further: tool fix as a severity 4 hard start gate (correct,
+  but it was not enforced -- see round 4).
 
 - 2026-10-11 -- Tier 2 round 4 proposals attack. Code read on the studio branch:
   predicate.ts suggestBackticks (checks only parseExpression, so a lone literal passes),
@@ -172,6 +160,17 @@ served at `/?next`.
   "visible" plus re-render, reject the notice line; fix the off-step leave guard now (code
   cause is solid), reject the "stays off" plus new announcement; bar 9 (b) cut nothing before a
   bars.json diff; hold the glyph rule, Escape tracing, and every one-specialist sev 3.
+
+- 2026-10-11 -- Tier 2 round 4 closed (decisions.md). Adopted: element fix for the refused
+  suggestion (no app guard); one FindResult.atLeast field (my single name over "ranges"); no
+  Values-first reorder; atLeastOf text is the team's call; table scope "visible" with no notice
+  line; off-step leave guard only; bar 9 (b) diff before any cut; one-source claims scripted
+  first. Overruled me, rightly: a new `rulePath` export, because the app's `columnText` copies
+  element logic and only an export lets it be deleted. Added: the gate refusal moves into
+  `--start` itself (survives continuation scripts and hand starts), slot taken by the runner,
+  briefings stripped of file contents (the second leak of the "rule without a refusing gate"
+  kind), T17 histories stop naming the toolbar, Cancel focus to "+", New project Discard crash
+  scripted first. Reason throughout: study fixed first, one change per problem, owning package.
 
 ## Tried: worked / did not work
 
@@ -211,6 +210,11 @@ served at `/?next`.
   refuses" -- it started anyway, three sessions were lost to browser slots, and the briefings
   leaked file contents. Taught: a rule in my notes and in decisions.md is still not a gate; the
   director must show the refusal before launch, and I must check for it, not assume it.
+
+- 2026-10-11 -- Round 4 close of my proposal positions: worked as argument -- all carried
+  except "no new export", which lost on a better reason (deleting an app copy beats API
+  minimalism). Taught: "no new API" is not a value in itself; the test is whether the export
+  removes forbidden app logic.
 
 ## Thinking
 
@@ -278,8 +282,15 @@ served at `/?next`.
   Export still writes all records). Fixes that align one view must list every other view of the
   same state before landing.
 
+- (2026-10-11) Round 5 is mostly a measurement round: three study fixes, two element fixes,
+  small app fixes. If round 5 still shows no gate evidence, the fault is the director's launch
+  path, not the runner; raise it as severity 4 before reading any score.
+- (2026-10-11) Priming has three sources now (briefing file table, persona habits, histories).
+  Every "noticed unprompted" claim must say which source it was checked against.
+
 ## Sources
 
+- `design/ui/studio/tier2/rounds/round-4/decisions.md`, `insights.md` (closed, 2026-10-11)
 - `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md`, the eight role critiques;
   source files named in the 2026-10-11 decision entry (2026-10-11)
 - `design/ui/studio/tier2/rounds/round-3/insights.md`, `decisions.md` (closed, 2026-10-11)

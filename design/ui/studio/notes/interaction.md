@@ -15,39 +15,32 @@ save and reopen.
 
 ## Top of mind
 
-- 2026-10-11 **Round 4 does not start until the study's own gate works.** Round 3's leak check read
-  zero logs and said "no leaks", `--end` deleted step notes, and the prompt pilots never ran. A
-  check that reads nothing must fail; each check shown failing on a planted fault first.
-- 2026-10-11 **Shift-click on a node adds to the selection (element, team's call); Ctrl and Meta
-  held.** Node click takes the edge click's `applyNow(..., add ? "add" : "replace")` path; XR keeps
-  replace. Watch in round 4: Selection reads 2 after Gus, Shift-click Ivan; Shift-drag still drags.
-- 2026-10-11 **T24 was the study's fault as much as the app's:** the prompt now names the outcome
-  ("so whatever you do next applies only to those two"); the key names the Shift route only after
-  it is walked on the frozen build. Walk every key route before a task runs.
-- 2026-10-11 **Focus drops are scripted before fixed.** bars.mjs gains two actions (Enter on
-  Shortest path; Add to Line, then Color on a selection); both must fail on 26f3bb968, then pass.
-  PathForm gets `autoFocus`; the Color drop is traced in `useFocusLine`, no second mechanism.
-- 2026-10-11 **"Made with" after re-run or Undo: script first.** Draft keyed by run id survives a
-  re-run; clear it on finish/undo if that is it, fix the element's undo if params are not restored,
-  close as not shown if it does not reproduce.
+- 2026-10-11 **Round 4 critique, mine (four fixes, each scripted to fail on 5277e2cbe first):**
+  an off filter step must not turn on when its editor closes unedited (`Filters.tsx` leave
+  handler); the find box never offers a rule the element refuses, and the element adds an "or
+  more" row for a number inside a column's range (new optional `FindResult.ranges`, team's call);
+  the data table lists what the filter keeps (`scope: "visible"`, element already supports it);
+  New project then Discard must not show the error page (find the reader of the disposed session).
+- 2026-10-11 **Do not change what worked:** Shift-click adds (7 of 7 T24), the toolbar Filters
+  icon (7 of 7 T17), the Degree link opening the neighbor list as a selection (one function, two
+  doors), a second path replacing the first silently (no task cost shown; a notice adds a line).
+- 2026-10-11 **Label and node overlap is graphty-element's** (placement, spacing by drawn size);
+  no app offsets, no turning "Show all labels" off as a workaround.
+- 2026-10-11 **A study gate that is not enforced is not a gate.** Two rounds ran without it; the
+  briefing's file table leaked answers and listed `--shift-click`. A check that reads nothing fails.
 - 2026-10-11 **One variant per problem; a one-specialist claim is scripted before it is fixed.**
-  Eight roles proposed up to four variants each; stacking blinds the round.
-- 2026-10-11 **Round 4 watch list (mine):** T17 first moves with the new toolbar Filters icon (vs 5
-  of 8 looking on the Graph place); T22 "10 or more" row (element `atLeast`, app counts nothing);
-  T18 Analyze ranking (name match first, one "Start here"); edge filter step counts edges; Add
-  page repeated-ties line in Load's description; disabled reason reaching a screen reader.
-- 2026-10-11 **Held, first in line if met again:** Hops distance per name (needs element `hops`),
-  committing a step edit on focus leave (contradicts innermost-first Escape), a notice for a
-  replaced path (another spoken line on a screen that already says too much).
+- 2026-10-11 **Walk every key route before a task runs** (T24's key credited an unwalked route).
 - 2026-10-10 **A disabled done-state is not a state.** Say why it is off (criterion 8).
-- 2026-10-10 **Words at rest go down, never up.** No new words for any fix.
-- 2026-10-10 **Discount behavior a prompt's own words ask for** ("stand out", "point out").
+- 2026-10-10 **Words at rest go down, never up.** No new words for any fix (bar 9 (b) failed by 2).
+- 2026-10-10 **Discount behavior a prompt's or a briefing's own words ask for.**
 - 2026-10-07 **A decided change that is not verified on the served build is not done.**
 - 2026-10-07 **Simulated participants are one model.** Trust reproductions and causes in code.
 - 2026-10-06 **Every detour must work or not look clickable. Refusals in place until the value
-  changes.**
+  changes.** Never suggest an action the app then refuses.
 - 2026-10-06 **Where a fix goes:** graph facts in graphty-element; flows, focus, words in the app;
   shared control defects in compact-mantine.
+- Held, first in line if met again: Hops distance per name (element `hops`), a notice for a
+  replaced path, committing a step edit on focus leave vs Escape.
 
 ## Priorities and values
 
@@ -130,52 +123,14 @@ Each with its reason. A screen that breaks one is a defect.
   function); Summary drops "Babet (1)"; "No crossings" refusal under Method from a code; focus to
   the new Style line; runs named by method. Rejected: Degree cue, Summary names, notice-slot changes.
 
-- 2026-10-07 Round 2 decisions (Design Director), with my proposals' fate: menu dialogs keep
-  focus -- fixed in compact-mantine's Menu, not per caller (mine was app or shared; the shared
-  fix is right: a third `returnFocus={false}` copy is the forbidden pattern). Clickable row's
-  trailing glyph inside the hit area, compact-mantine (mine, taken). Key leaves out a fully
-  covered layer, element (mine, taken; the element already detected the cover and only said it in
-  English). 2D Fit frames the whole graph, element. Finished load and run announced in the one
-  polite region, replacing "added, running" (mine, taken). Canvas gets the host's `aria-label`
-  and a visible focus ring. Group layouts offer community results via `catalog.optionsFor`
-  (app's `groupings()` deleted). Runs named by method. "Show all labels" beside the hidden count.
-  REJECTED: my "Size arrives bound to the run" -- a community run would size by group id; Size
-  "+" opens its picker instead (Label "+" pattern). Not changed: Force unsettled cloud (untraced),
-  4x print export, key placement and fit inset (new API, seed is the owner's).
-
-- 2026-10-07 (summarized) Tier 2 proposals: path Values lists the route; Find with "=" selects by
-  rule with element-coded reasons; Replace marks changed runs, Rerun on the row; filter chip only
-  once a step exists; Analyze says which weight a method reads. Owner questions: stronger weight
-  as distance; bare numbers in rules.
-
-- 2026-10-09 Tier 2 round 2 decisions (Design Director) and my proposals' fate:
-  (a) source inspector doors: TAKEN AS A "..." HEADER MENU (Edit source, Replace, same `canReplace`,
-  verbs shared like `attributeActionsOf`), not my visible buttons -- buttons add words at rest.
-  (b) find hint: TAKEN, BUT the element decides: the app asks `session.scope.count({ where: "=" +
-text })`; accepted or refused only with `number-needs-backticks` -> "To select by a value, start
-  with =, such as <exampleRule>"; else "No match". Better than my operator-spotting (no app syntax).
-  (c) key ", out of date": TAKEN, words only, from `run.stale`. (d) Edges Color to Everything:
-  TAKEN at the root -- `writeLine` loses its default layer; a row with no layer for a side shows
-  no lines for it. ADDED by others, mine to watch: start-screen data file opens the Data page;
-  focus after Add/Delete step and find Escape, Enter/Escape in step edits, named note deletes;
-  load status uses `headerName` and left-out count, spoken once after mount; path Weight starts on
-  the loaded weight; "Total minutes"; Replace page button "Replace"; path aliases. Halo drawn back
-  faces only (element). Not now: "Select where..." (only if the hint fails), Filters' home, label
-  overlap (element issue), bare numbers (owner), compact-mantine Toast role and segment contrast.
-
-- 2026-10-10 Tier 2 round 2 closed (Design Director, from insights and the red team). Round 3 is
-  gated on three study-tool fixes (leak closed, pilot-route dry run, every named bar script real
-  with a planted fault). My proposals' fate: find box "way on" TAKEN in a narrower form (example
-  line on a miss, "=" kept on the suggestion, shown rule runs on Enter or click) -- my column rows
-  REJECTED as a second door among node hits. "+" opens the value picker HELD (one change per
-  problem; the element's `highlightStyle` is the fix measured). Doubling Add says so in place with
-  Replace beside Load: TAKEN, but the count comes from the element, not file names. Also taken:
-  three focus fixes, step edit commits on Tab/click-away, "Filter to neighbors" as a plain command,
-  repeated status re-announced, rule-named layers, weighted path row shows "<column> <total>",
-  Shortest path search aliases, 24 px hit area on the extra-small Checkbox (compact-mantine). Not
-  changed: label overlap (element, owner), bare numbers and edge width units (owner, breaking),
-  neighbor list by distance (waits on the element), "Components 1" under a filter (held so the
-  words change is measured alone). Reason throughout: no second door where one is measured.
+- 2026-10-07..10-10 (summarized) Real-app rounds 2 and tier 2 rounds 1-2: menu focus fixed in
+  compact-mantine's Menu, not per caller; row chevron in the hit area; key leaves out covered layers
+  and says ", out of date" from `run.stale`; finished load and run announced in one polite region;
+  source "..." header menu (Edit source, Replace); find hint decided by the element's refusal code,
+  then the example line on a miss with "=" kept and Enter running it; Edges Color to Everything
+  fixed at the root; three focus fixes; step edit commits on Tab/click-away; "Filter to neighbors"
+  a plain command. Rejected: "Size arrives bound to the run", my find column rows (a second door),
+  "+" opening the value picker (held). Owner: label overlap, bare numbers, edge width units.
 
 - 2026-10-10 Round 3 critique, mine: Shift/Ctrl-click adds (element); PathForm focuses its first
   field with `autoFocus`; a selection layer's style pick focuses the new line; Made with reads only
@@ -195,6 +150,18 @@ text })`; accepted or refused only with `number-needs-backticks` -> "To select b
   case of no control where people look first); repeated-ties line as a described warning; edge
   filter step counts edges (script first); disabled reason via compact-mantine Tooltip (check
   first). Reason throughout: one variant per problem, fixes in the owning package, no words added.
+
+- 2026-10-11 Round 4 critique, mine. (1) Off filter step turning on: in the leave handler, return
+  when `step !== undefined && sameRule(rule, step.rule)`; `unchanged` keeps its `on` test for the
+  submit's "Save and turn on". Reason: a leave that changes state unasked breaks criterion 3 and 1;
+  the mechanism is in code (`unchanged` requires `step.on`). (2) Find box: `ruleFromText` offers the
+  backtick rewrite only if the element then counts it (> 0); the element adds `FindResult.ranges`
+  for a typed number between a number column's min and max that no record holds. Reason: T22 A's
+  prompt number (10) is not a bus-stops value; offering then refusing breaks criterion 7.
+  (3) TableDock `scope` "visible" for the graph view. Reason: the table is the canvas's text
+  equivalent; it read "41 edges" beside "12 of 41". (4) New project, Discard: script, then fix the
+  component that reads the disposed session. Not changed: Degree link selection, path replace
+  notice, "or more" row order (no task meets the fold), Replace's visible control.
 
 ## Tried: worked / did not work
 
@@ -224,24 +191,12 @@ text })`; accepted or refused only with `number-needs-backticks` -> "To select b
   on: <thing>". Rounds 1-2 on the real app: two doors to one act must share one function; menu
   focus, row chevron, stale key, 2D Fit, the sizing chain, layouts failed and were fixed; a pointer
   pilot cannot certify focus and announcement fixes.
-- 2026-10-09 Tier 2 round 1 (55 valid sessions, frozen build 946256efb): worked -- 0 false
-  "done", 0 silent commits, 0 weights read backwards; the path run, Replace page and load-time
-  "Higher means" read right every time once found; T23 and T12R at or under the success path.
-  Did not -- doors hidden by right-click (Replace, Edit source), a find box that answers a
-  condition with only "No match", the stale key after Replace. Also the run: more than four
-  browsers at once (click timeouts), missing preflight scripts, one void session not re-run.
-  Taught: a dry run that walks only success paths certifies the success paths; detours need
-  their own walk.
-
-- 2026-10-09 Tier 2 round 2 (55 valid sessions, frozen build 8f0d5a6f7): worked -- 55 of 55
-  succeeded; no grade decided by a build fault; the in-place load words, Enter/Escape in step
-  edits. Did not -- the find hint (fires only on an exact column plus a condition), backticks, the
-  style "+" starting on the drawn default, selection layers named by count ("13 edges"), Add on a
-  newer copy, focus: second Escape in the find box blurs to the page (`FindBox.tsx` calls
-  `blur()`), Follow arrows land focus on Hops, Tab then Escape drops a step edit silently. Study:
-  facilitator file readable, prompts saying "stand out" manufactured styling, the tool's click by
-  name hit a same-named row. Taught: the dry run must walk what participants are prompted toward
-  (styling), not only the answer key; and a keyboard finding "handed on" to a bar is not fixed.
+- 2026-10-09 (summarized) Tier 2 rounds 1-2 (55 valid each, both leaked): worked -- 0 false
+  "done", the path run, Replace page, load-time "Higher means", Enter/Escape in step edits. Did
+  not -- doors behind right-click, a find box answering only "No match", the stale key, the "start
+  with =" hint, backticks, style "+" on the drawn default, layers named by count, a second Escape
+  blurring the find box, Follow arrows landing on Hops. Taught: a dry run that walks only the
+  answer key certifies only it; a keyboard finding handed to a bar is not fixed.
 
 - 2026-10-10 Tier 2 round 3 (54 of 56, build 26f3bb968). Worked: the find box's example line,
   the "=" kept on the suggestion and Enter running it (rules copied, never discovered: 0 of 8 typed
@@ -252,6 +207,13 @@ text })`; accepted or refused only with `number-needs-backticks` -> "To select b
   and a selection layer's style pick dropping focus; Made with after Undo; "Filter to neighbors"
   disabled without a reason. Taught: my focus walk covered what I fixed, not every route into a
   form; T24's key credited a route (Shift-click) nobody walked.
+
+- 2026-10-11 Tier 2 round 4 (53 of 53 valid, 3 void; build 5277e2cbe). Worked: Shift-click
+  adds (T24 7 of 7, 0 false "done", median 4 steps against 7.5); the toolbar Filters icon was the
+  first door 7 of 7; the round 3 focus fixes held under the script (15 actions). Did not: the
+  bare-number suggestion on bus stops (expert script; T22 A invites it); the table ignoring a
+  filter step (2 sessions); an off step's editor turning it on (keys and pointer); New project,
+  Discard crashing. Taught: a fix matching a habit is used at once, but the briefing primed it.
 
 ## Thinking
 

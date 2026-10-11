@@ -1535,6 +1535,25 @@ describe("gpu.yml", () => {
         assert.doesNotMatch(gpu, /gpu-lane-needed|T4 GPU gate/);
     });
 
+    it("checks the large-graph GPU screenshots, uploads them, and fails the job naming the stories that differ", () => {
+        const t4 = job(gpu, "test-gpu");
+        assert.match(
+            t4,
+            /git lfs pull --include "visual-fonts\/\*\*,cytoscape-extensions\/test\/gpu-screenshots\/\*\*"/,
+        );
+        assert.match(
+            t4,
+            /id: shots\n\s+continue-on-error: true\n[\s\S]*?run: node scripts\/gpu-screenshots\.mjs --check\n/,
+        );
+        assert.match(t4, /name: "gpu-screenshots-\$\{\{ github\.run_id \}\}"/);
+        assert.match(
+            t4,
+            /if: \$\{\{ !cancelled\(\) && steps\.shots\.outcome == 'failure' \}\}[\s\S]*?::error::[\s\S]*?exit 1\n/,
+        );
+        // --update writes references; only a person on a GPU machine runs it
+        assert.doesNotMatch(gpu, /gpu-screenshots\.mjs --update/);
+    });
+
     it("runs on an on-demand T4 by default, the release train included, with spot and hosted as dispatch options", () => {
         // owner decision, 2026-10-08 (spot reclaims held releases); a workflow_call declares no runner input, so the
         // train takes the default

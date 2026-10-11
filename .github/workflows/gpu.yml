@@ -98,8 +98,8 @@ jobs:
         # Every step through the benchmarks measured about 47 minutes on 2026-10-01 (run 36823257324); the container
         # adds the image pull and the bootstrap apt, about 10 more. The pull-request-only paired benchmark that once
         # needed 140 is gone (gpu-weekly-paired.yml runs it in full). Each step that can hang keeps its own, tighter
-        # limit.
-        timeout-minutes: 80
+        # limit. The large-graph screenshot check adds the cytoscape-extensions Storybook build and nine stories.
+        timeout-minutes: 100
         env:
             GRAPHTY_GPU_REQUIRE: nvidia # a software adapter fails the job
             GRAPHTY_BROWSER_GPU: nvidia # --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface
@@ -121,7 +121,7 @@ jobs:
               run: |
                   apt-get update
                   apt-get install -y --no-install-recommends \
-                      ca-certificates curl git gnupg sudo xz-utils \
+                      ca-certificates curl git git-lfs gnupg sudo xz-utils \
                       libvulkan1 libegl1 libgl1
             - uses: actions/checkout@v4
               with: { ref: "${{ inputs.ref }}" } # the release train's candidate; empty on a dispatch, which takes the dispatched ref
@@ -130,6 +130,18 @@ jobs:
             - name: Let git use the checkout inside the container
               working-directory: .
               run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+            # The large-graph screenshot check (below) draws with the pinned fonts every visual-review capture uses
+            # and compares with reference images; both are Git LFS objects, which checkout leaves as pointer files.
+            # Cached like ci.yml's visual job, so a run downloads only what changed since the cache was saved.
+            - name: Cache the Git LFS objects of the pinned fonts and the GPU screenshot references
+              uses: actions/cache@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-gpu-screenshots-${{ hashFiles('visual-fonts/fonts/**', 'cytoscape-extensions/test/gpu-screenshots/**') }}
+                  restore-keys: lfs-gpu-screenshots-
+            - name: Fetch the pinned fonts and the GPU screenshot references from Git LFS
+              working-directory: .
+              run: git lfs pull --include "visual-fonts/**,cytoscape-extensions/test/gpu-screenshots/**"
             # No modprobe: a container cannot load host kernel modules, and it does not need to -- the host has
             # them up before the job starts (run 35922927676: "modprobe exit=0 nvidia modules before=4 after=4"),
             # and --gpus all fails at container creation if the driver is not there. This step records the
@@ -218,6 +230,22 @@ jobs:
               working-directory: graphty-element
               timeout-minutes: 20 # Chromium on the NVIDIA path can hang AFTER every test passed (webgpu-graph-algorithms R-13); bound it here rather than let it eat the job's 45
               run: pnpm exec nx run-many -t build --projects=@graphty/remote-logger,algorithms,graph-io,layout,graph-samples && pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts # the job env already carries GRAPHTY_BROWSER_GPU=nvidia; nx resolves the workspace root from here. Every workspace package the element imports resolves to its dist (no src fallback), so each must be built: graph-format and webgpu-graph-algorithms by the step above, the rest here. Keep this list in step with graphty-element/package.json -- graph-io missing from it broke this step when the element began reading csv and json through graph-io
+            # The large-graph stories of cytoscape-extensions' Storybook (ForceAtlas2, Fruchterman-Reingold and
+            # spring-electrical at 2,000, 10,000 and 50,000 nodes) drawn WITH WebGPU on this card and compared, with
+            # visual review's own comparison, against reference images made on the developer's RTX 4070 SUPER and
+            # approved by the owner (cytoscape-extensions/test/gpu-screenshots/; the package's CLAUDE.md, "GPU
+            # screenshots"). The two cards compute bitwise-identical positions, and the page is rasterized on the CPU,
+            # so the images are byte-identical when nothing changed. continue-on-error: the benchmarks still run, and
+            # the last step fails the job, naming the stories that differ and linking the captures and diffs.
+            - name: Build the cytoscape-extensions Storybook
+              working-directory: .
+              run: NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run cytoscape-extensions:build-storybook
+            - name: Large-graph story screenshots on NVIDIA against the reference images
+              id: shots
+              continue-on-error: true
+              working-directory: cytoscape-extensions
+              timeout-minutes: 30
+              run: node scripts/gpu-screenshots.mjs --check
             # Issue #703: the 10k layout-fr rows swung x1.0 to x3.6 between T4 runs on unchanged code, in the
             # profiler's GPU time as well as the wall time, so the card itself ran the kernels slower. NVIDIA's power
             # governor holds the SM clock low under the sparse one-step dispatches of a small rung (finding G3-F1),
@@ -261,3 +289,24 @@ jobs:
                       retention-days: 90,
                       overwrite: true,
                   }
+            - uses: actions/upload-artifact@v4
+              id: shots-artifact
+              if: ${{ !cancelled() && steps.shots.outcome != 'skipped' }}
+              with:
+                  {
+                      name: "gpu-screenshots-${{ github.run_id }}",
+                      path: "tmp/gpu-screenshots/",
+                      retention-days: 90,
+                      overwrite: true,
+                  }
+            # The release train's held-release issue quotes this job's FAIL and ::error lines: the script printed
+            # one FAIL line per story, and this line names them all and links the captures and diffs.
+            - name: Fail when a large-graph story differs from its reference image
+              if: ${{ !cancelled() && steps.shots.outcome == 'failure' }}
+              working-directory: .
+              env:
+                  ARTIFACT_URL: ${{ steps.shots-artifact.outputs.artifact-url }}
+              run: |
+                  failed=$(node -p "require('./tmp/gpu-screenshots/report.json').failed.join(', ')" 2>/dev/null || echo "the check did not finish; see its step")
+                  echo "::error::large-graph GPU screenshots differ from their reference images: ${failed}. Captures, references and diffs (index.html): ${ARTIFACT_URL:-no artifact}"
+                  exit 1

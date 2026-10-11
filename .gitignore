@@ -29,6 +29,10 @@ build-storybook.log
 /.tmp/
 /?*/tmp/
 /?*/.tmp/
+# The design studio's scratch folder. design/ui/studio/.gitignore already ignores it for git, but
+# knip applies only the .gitignore files at or above a workspace's directory, so the root
+# workspace's test glob still found the scratch copies of app tests there.
+/design/ui/studio/tmp/
 .playwright-mcp/
 
 # IDE/Editor files

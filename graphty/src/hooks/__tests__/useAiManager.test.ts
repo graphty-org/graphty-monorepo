@@ -48,10 +48,10 @@ describe("useAiManager", () => {
         const { useAiManager } = await import("../useAiManager");
         const { result } = renderHook(() => useAiManager({ defaultProvider: "openai" }));
 
-        // Wait a bit to ensure no async init happens
-        await new Promise((resolve) => setTimeout(resolve, 50));
-
+        // Without an element the hook has nothing to enable: its only way to become ready is the
+        // element's enableAiControl, so there is no later async step to wait for.
         expect(result.current.isReady).toBe(false);
+        expect(mockDoors.enableAiControl).not.toHaveBeenCalled();
     });
 
     it("enables the element's assistant when an element is provided", async () => {
@@ -94,6 +94,26 @@ describe("useAiManager", () => {
         });
 
         expect(getKey).toHaveBeenCalledWith("anthropic");
+    });
+
+    describe("the in-browser provider", () => {
+        it("hands it to the element with no key", async () => {
+            const { useAiManager } = await import("../useAiManager");
+
+            renderHook(() => useAiManager({ element: mockElement, defaultProvider: "webllm" }));
+
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenCalledWith({ provider: "webllm", apiKey: undefined });
+            });
+        });
+
+        it("resolves the library the element loads to the real WebLLM, not a stand-in that throws", async () => {
+            // graphty-element's WebLlmProvider imports @mlc-ai/web-llm lazily and calls these two.
+            const webllm = await import("@mlc-ai/web-llm");
+
+            expect(typeof webllm.CreateMLCEngine).toBe("function");
+            expect(webllm.functionCallingModelIds.length).toBeGreaterThan(0);
+        });
     });
 
     it("setProvider updates currentProvider", async () => {

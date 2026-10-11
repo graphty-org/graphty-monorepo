@@ -16,6 +16,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import type { Edge } from "../../src/Edge";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { DataManager } from "../../src/managers/DataManager";
+import { nextFrame } from "../helpers/real-input";
 
 // Type helper to access private Graph members in tests
 interface TestGraph {
@@ -192,9 +193,9 @@ describe("ViewMode Switching Regression Tests", () => {
 
             // Rapid switching without waiting between each
             void graph.setViewMode("2d");
-            await new Promise((resolve) => setTimeout(resolve, 50));
+            await nextFrame();
             void graph.setViewMode("3d");
-            await new Promise((resolve) => setTimeout(resolve, 50));
+            await nextFrame();
             void graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
 
@@ -253,8 +254,8 @@ describe("ViewMode Switching Regression Tests", () => {
 
             assert.strictEqual(graph.getViewMode(), "2d");
 
-            // Wait for camera to be properly set up
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            // Wait for the camera to be properly set up and a frame drawn through it
+            await graph.waitForStableFrame();
 
             // Verify 2D camera is active
             assert.isTrue(graph.getViewMode() === "2d", "Should be in 2D mode");
@@ -279,15 +280,15 @@ describe("ViewMode Switching Regression Tests", () => {
             // Multiple switches
             await graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForStableFrame();
 
             await graph.setViewMode("3d");
             await operationQueueOf(graph).waitForCompletion();
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForStableFrame();
 
             await graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForStableFrame();
 
             // Verify camera controller is active
             const cameraManager = graph.camera;

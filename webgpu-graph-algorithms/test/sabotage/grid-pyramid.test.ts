@@ -28,7 +28,6 @@ import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const PYRAMID_TEST = "test/primitives/grid-pyramid.test.ts";
-const CASE_TIMEOUT = 300_000;
 
 /** The fixtures and the first compared level of each id's check. */
 const CHECKS: readonly {
@@ -95,32 +94,24 @@ for (const check of CHECKS) {
             }
         });
 
-        it(
-            "the real kernel passes the analytic check",
-            async (t) => {
-                requireGpu(t);
-                const ctx = await acquire({ label: `sabotage-${id}` });
-                try {
-                    assertCheckPasses(await report(check, ctx));
-                } finally {
-                    ctx.dispose();
-                }
-            },
-            CASE_TIMEOUT,
-        );
+        it("the real kernel passes the analytic check", async (t) => {
+            requireGpu(t);
+            const ctx = await acquire({ label: `sabotage-${id}` });
+            try {
+                assertCheckPasses(await report(check, ctx));
+            } finally {
+                ctx.dispose();
+            }
+        });
 
         for (const mutation of SABOTAGE[id] ?? []) {
-            it(
-                `${id}/${mutation.name}: fails the analytic check by >= ${mutation.minFactor}x`,
-                async (t) => {
-                    requireGpu(t);
-                    const r = await withSabotage(id, mutation, (ctx) => report(check, ctx));
-                    console.warn(`[sabotage] ${id}/${mutation.name}: factor ${r.worst} at ${r.worstLabel}`);
-                    expect(r.worst).toBeGreaterThanOrEqual(mutation.minFactor);
-                    expect(() => assertCheckPasses(r)).toThrow();
-                },
-                CASE_TIMEOUT,
-            );
+            it(`${id}/${mutation.name}: fails the analytic check by >= ${mutation.minFactor}x`, async (t) => {
+                requireGpu(t);
+                const r = await withSabotage(id, mutation, (ctx) => report(check, ctx));
+                console.warn(`[sabotage] ${id}/${mutation.name}: factor ${r.worst} at ${r.worstLabel}`);
+                expect(r.worst).toBeGreaterThanOrEqual(mutation.minFactor);
+                expect(() => assertCheckPasses(r)).toThrow();
+            });
         }
 
         it("the normative body is restored after every mutation", () => {

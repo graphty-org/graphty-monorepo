@@ -32,9 +32,7 @@ describe("Edge 2D Solid Integration", () => {
         await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         // Get the edge from dataManager
         const edge = edgeBetween(graph, "node1", "node2");
@@ -71,9 +69,7 @@ describe("Edge 2D Solid Integration", () => {
         await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         // Get the edge from dataManager
         const edge = edgeBetween(graph, "node1", "node2");
@@ -101,9 +97,7 @@ describe("Edge 2D Solid Integration", () => {
             target: "target",
         });
 
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         // Get the edge from dataManager
         const edge = edgeBetween(graph, "node1", "node2");

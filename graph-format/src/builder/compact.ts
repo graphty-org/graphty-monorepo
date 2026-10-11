@@ -1238,6 +1238,25 @@ export class Staging {
     }
 
     /**
+     * Append `count` live anonymous nodes: pushNode(null) `count` times, but with one resize per
+     * array while no id map exists (2^24 single pushes took 0.7-1.0 s, the three resizes about 0.05 s).
+     * @param count - how many
+     */
+    pushAnonymousNodes(count: number): void {
+        if (this.idToIndex !== null) {
+            for (let i = 0; i < count; i++) {
+                this.pushNode(null);
+            }
+            return;
+        }
+        const bound = this.nodeBound + count;
+        this.nodeAlive.resize(bound, true);
+        this.firstOut.resize(bound, INVALID_INDEX);
+        this.firstIn.resize(bound, INVALID_INDEX);
+        this.liveNodeCount += count;
+    }
+
+    /**
      * The weight array, allocated on first use and back-filled with 1 for existing edges.
      * @returns the growable weight array
      */

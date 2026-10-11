@@ -47,7 +47,7 @@ export function _kamadaKawaiSolve(distMatrix: number[][], positions: number[][],
             cost,
             grad,
             (x: number[]) => _kamadaKawaiCostfn(x, invDistMatrix, meanWeight, dim)[0],
-            1.0,
+            1,
         );
 
         if (alpha === 0) {
@@ -147,7 +147,7 @@ export function _kamadaKawaiCostfn(
 
             // Add penalty for difference between actual and ideal distance
             const idealInvDist = invDist[i][j];
-            const offset = distance * idealInvDist - 1.0;
+            const offset = distance * idealInvDist - 1;
             cost += offset * offset;
         }
     }
@@ -172,7 +172,7 @@ export function _kamadaKawaiCostfn(
 
             // Calculate contribution to gradient
             const idealInvDist = invDist[i][j];
-            const offset = distance * idealInvDist - 1.0;
+            const offset = distance * idealInvDist - 1;
 
             for (let d = 0; d < dim; d++) {
                 const force = 2 * idealInvDist * offset * direction[d];

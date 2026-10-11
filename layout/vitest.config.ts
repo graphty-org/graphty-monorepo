@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 
-import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 
 export default defineConfig({
     test: {
@@ -23,7 +23,7 @@ export default defineConfig({
             },
         },
         include: ["test/**/*.test.ts", "test/**/*.test.js"],
-        reporters: ["verbose", ...ciJunitReporter()],
+        reporters: ["verbose", ...ciReporters()],
         // test/types/*.test-d.ts are compile-only: tsc checks them as part of every run
         typecheck: {
             enabled: true,

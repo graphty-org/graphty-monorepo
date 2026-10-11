@@ -11,9 +11,9 @@
  * re-exports the per-module declarations under dist/src/.
  */
 
-import { spawnSync } from "child_process";
-import path from "path";
-import { fileURLToPath } from "url";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { build } from "vite";
 
 const __filename = fileURLToPath(import.meta.url);

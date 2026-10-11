@@ -16,7 +16,7 @@ import type { DataManager } from "../../src/managers";
 import { StylePainter } from "../../src/managers/StylePainter";
 import type { GraphSession } from "../../src/session";
 import { createStylesApi } from "../../src/session/styles";
-import type { SelectorSource } from "../../src/session/styles/predicate";
+import { columnsFor, compileExpressionPredicate, type SelectorSource } from "../../src/session/styles/predicate";
 import { createLayerRepaint } from "../../src/session/styles/repaint";
 
 /**
@@ -31,6 +31,17 @@ export interface MockGraphContextOptions {
     layoutType?: string;
     /** Whether the graph is in 2D mode */
     twoD?: boolean;
+    /**
+     * A node's own fields, in place of the default `label` and nested `data.type`. The record a
+     * command reads and the row a selector reads both come from it, so they always agree.
+     */
+    nodeData?: (index: number) => Record<string, unknown>;
+    /** An edge's own fields, in place of the default `weight`. */
+    edgeData?: (index: number) => Record<string, unknown>;
+    /** A node's id, in place of the default `node-<index>`. */
+    nodeId?: (index: number) => string;
+    /** An edge's source and target node ids, in place of the default chain node i to node i + 1. */
+    edgeEnds?: (index: number) => { source: string; target: string };
 }
 
 /**
@@ -68,6 +79,15 @@ function getNodeType(index: number): string {
 }
 
 /**
+ * A record's own fields as the row a selector reads: each one under `data.`.
+ * @param fields - The record's fields.
+ * @returns The row.
+ */
+function rowOf(fields: Record<string, unknown>): Readonly<Record<Path, unknown>> {
+    return Object.fromEntries(Object.entries(fields).map(([key, value]) => [`data.${key}`, value]));
+}
+
+/**
  * Create a mock graph context for testing AI functionality.
  * This creates a minimal mock that satisfies the Graph interface for AI commands.
  *
@@ -75,22 +95,33 @@ function getNodeType(index: number): string {
  * @returns A mock graph context
  */
 export function createMockGraphContext(options: MockGraphContextOptions = {}): Graph {
-    const { nodeCount = 10, edgeCount = 15, layoutType = "ngraph", twoD = false } = options;
+    const {
+        nodeCount = 10,
+        edgeCount = 15,
+        layoutType = "ngraph",
+        twoD = false,
+        nodeData,
+        edgeData,
+        nodeId = (i: number) => `node-${i}`,
+        edgeEnds,
+    } = options;
 
     // Create mock nodes
     // Data structure uses {data: {type: ...}} format to match JMESPath selectors like "data.type == 'server'"
     const mockNodes = new Map<string, MockNodeData>();
     for (let i = 0; i < nodeCount; i++) {
-        const id = `node-${i}`;
+        const id = nodeId(i);
         mockNodes.set(id, {
             id,
-            data: {
-                id,
-                label: `Node ${i}`,
-                data: {
-                    type: getNodeType(i),
-                },
-            },
+            data: nodeData
+                ? { id, ...nodeData(i) }
+                : {
+                      id,
+                      label: `Node ${i}`,
+                      data: {
+                          type: getNodeType(i),
+                      },
+                  },
         });
     }
 
@@ -99,14 +130,16 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     const nodeIds = Array.from(mockNodes.keys());
     for (let i = 0; i < edgeCount; i++) {
         const id = `edge-${i}`;
-        // Create edges connecting nodes in a round-robin fashion
-        const srcIdx = i % nodeIds.length;
-        const dstIdx = (i + 1) % nodeIds.length;
+        // Unless given, edges connect nodes in a round-robin fashion
+        const ends = edgeEnds?.(i) ?? {
+            source: nodeIds[i % nodeIds.length],
+            target: nodeIds[(i + 1) % nodeIds.length],
+        };
         mockEdges.set(id, {
             id,
-            srcId: nodeIds[srcIdx],
-            dstId: nodeIds[dstIdx],
-            data: { id, weight: Math.random() },
+            srcId: ends.source,
+            dstId: ends.target,
+            data: edgeData ? { id, ...edgeData(i) } : { id, weight: Math.random() },
         });
     }
 
@@ -174,7 +207,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         addListener(type: string, listener: (event: { type: string }) => void): void {
             listeners.set(type, [...(listeners.get(type) ?? []), listener]);
         },
-        emitGraphEvent(type: string): void {
+        emit(type: string): void {
             announce(type);
         },
     };
@@ -183,14 +216,22 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     // record's own fields live under `data.`, so a layer selects on `data.type`.
     const nodeRows: Readonly<Record<Path, unknown>>[] = [];
     for (let i = 0; i < nodeCount; i++) {
-        nodeRows.push({ "data.id": `node-${i}`, "data.label": `Node ${i}`, "data.type": getNodeType(i) });
+        nodeRows.push(
+            nodeData
+                ? rowOf({ id: nodeId(i), ...nodeData(i) })
+                : { "data.id": nodeId(i), "data.label": `Node ${i}`, "data.type": getNodeType(i) },
+        );
     }
 
     const edgeRows: Readonly<Record<Path, unknown>>[] = [];
     for (let i = 0; i < edgeCount; i++) {
         // Fixed rather than random, so a selector that compares against a weight selects the
         // same edges on every run.
-        edgeRows.push({ "data.id": `edge-${i}`, "data.weight": (i % 10) / 10 });
+        edgeRows.push(
+            edgeData
+                ? rowOf({ id: `edge-${i}`, ...edgeData(i) })
+                : { "data.id": `edge-${i}`, "data.weight": (i % 10) / 10 },
+        );
     }
 
     const selectorSource: SelectorSource = {
@@ -222,6 +263,15 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     // session as `tx`, which is what a command is handed as `ctx.tx`.
     const mockSession = {
         styles: mockSessionStyles,
+        // A `{ where }` scope, read by the same expression compiler a style layer uses, so a
+        // command that selects nodes reads the same selector language a layer does.
+        scope: {
+            resolve: (spec: { where: string }) =>
+                Promise.resolve().then(() => {
+                    const { test } = compileExpressionPredicate(spec.where, columnsFor(selectorSource, "node"));
+                    return { nodes: new Set(nodeRows.flatMap((row, index) => (test(index) ? [row["data.id"]] : []))) };
+                }),
+        },
         layout: {
             set: async (id: string, options?: { engine?: string }) => {
                 await mockGraph.setLayout(options?.engine ?? id);
@@ -230,6 +280,9 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         },
         transaction: <T>(_label: string, fn: (tx: GraphSession, signal: AbortSignal) => T | Promise<T>) =>
             Promise.resolve().then(() => fn(mockSession, new AbortController().signal)),
+        // A history that records nothing, so an assistant message has no step to continue or undo.
+        history: { steps: [], position: 0, nextUndo: null },
+        on: () => () => undefined,
     } as unknown as GraphSession;
 
     // The renderer's door onto that stack. A test that wants to know what a command actually

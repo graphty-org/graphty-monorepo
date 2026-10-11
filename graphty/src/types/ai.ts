@@ -52,47 +52,6 @@ async function getGraphtyElement(): Promise<typeof import("@graphty/graphty-elem
     return loadPromise;
 }
 
-/** AI status stages */
-export type AiStage = "idle" | "processing" | "executingTool" | "streaming" | "complete" | "error";
-
-/** Tool call status types */
-type ToolCallStatusType = "pending" | "executing" | "success" | "error";
-
-/** Status of a tool call */
-interface ToolCallStatus {
-    name: string;
-    status: ToolCallStatusType;
-    args?: Record<string, unknown>;
-    result?: unknown;
-    error?: string;
-}
-
-/** AI execution status */
-export interface AiStatus {
-    stage: AiStage;
-    message?: string;
-    toolCalls?: ToolCallStatus[];
-    streamedText?: string;
-    error?: Error;
-}
-
-/** Execution result from AI command */
-export interface ExecutionResult {
-    success: boolean;
-    /** Message from tool execution (e.g., "The graph has 20 nodes.") */
-    message?: string;
-    /** Text response from LLM (when no tool is called) */
-    text?: string;
-    /** Alias for text - LLM's direct text response */
-    llmText?: string;
-    toolCalls?: {
-        name: string;
-        args: Record<string, unknown>;
-        result?: unknown;
-    }[];
-    error?: Error;
-}
-
 /**
  * Get the graphty-element AI module lazily.
  * This delays loading until first access, avoiding module import issues on Safari.

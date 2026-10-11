@@ -42,6 +42,7 @@ import type { Edge } from "../../src/Edge";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { Node } from "../../src/Node";
 import type { GraphSession } from "../../src/session";
+import { nextFrame } from "../helpers/real-input";
 
 /**
  * Two nodes and the edge between them.
@@ -70,9 +71,6 @@ const HEIGHT = 480;
  * material does. This is the same wait `style-paint-pixels.test.ts` makes, for the same reason.
  */
 const FRAMES = 60;
-
-/** How long to leave between frames so the work a frame started can land. */
-const FRAME_MS = 10;
 
 /**
  * How dark every channel of a pixel must be for it to count as a glyph.
@@ -166,9 +164,7 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
 
         for (let frame = 0; frame < FRAMES; frame++) {
             graph.scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
+            await nextFrame();
         }
 
         return (await engine.readPixels(

@@ -63,6 +63,7 @@ import type {
 import { isGraphtyError } from "../../errors";
 import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
+import { trimTrailingSeparators } from "../runs/runId";
 import { type ChannelDescriptor, channelDescriptor, channelsFor, toColorValue } from "./channels";
 import type { CompiledSelector, SelectorSource, SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
@@ -383,9 +384,8 @@ export function mintLayerId(name: string, taken: ReadonlySet<LayerId>): LayerId 
     const slug = name
         .toLowerCase()
         .replaceAll(/[^a-z0-9_-]+/g, "-")
-        .replace(/^[^a-z]+/, "")
-        .replace(/[-_]+$/, "");
-    const base = slug === "" ? ID_FALLBACK : slug;
+        .replace(/^[^a-z]+/, "");
+    const base = trimTrailingSeparators(slug) || ID_FALLBACK;
 
     let suffix = 1;
     let id = `${base}_${String(suffix)}`;

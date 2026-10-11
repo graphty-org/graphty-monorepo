@@ -27,7 +27,7 @@ const katzCentralityOptionsSchema = defineOptions({
         },
     },
     beta: {
-        schema: z.number().min(0).max(10).default(1.0),
+        schema: z.number().min(0).max(10).default(1),
         meta: {
             label: "Beta (Base Weight)",
             description: "Base centrality added to each node",
@@ -131,7 +131,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
         },
         beta: {
             type: "number",
-            default: 1.0,
+            default: 1,
             label: "Beta (Base Weight)",
             description: "Base centrality added to each node",
             min: 0,

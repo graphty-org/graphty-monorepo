@@ -22,6 +22,12 @@
 # dequeues the batch (4 of 10 batches on 2026-10-06).
 merge_queue:
     max_parallel_checks: 2
+    # No comments on pull requests. Every pull request is opened by the owner's account, so each Mergify comment
+    # notified the owner; the queue's state is in Mergify's check runs, which notify nobody, and nothing reads
+    # these comments. status_comments: none drops the queue status comments (queued, checking, merged, dequeued),
+    # queue_controls_comment: false the "Queue / Requeue this pull request" checkbox comments.
+    status_comments: none
+    queue_controls_comment: false
 
 # Two kinds of pull request go to the front of the queue: the daily release train (its branch and author,
 # not a label) and a fix for a red master (label it "priority:critical"). Neither interrupts the batches
@@ -78,9 +84,11 @@ queue_rules:
       # Checked for as long as a pull request is queued: adding "hold" (or retitling it as a breaking
       # change) takes an already-queued pull request out of the queue. A pull request enters only
       # once its own CI passed; the ruleset's required checks (All Checks Pass, Lint PR Title) are
-      # added here by Mergify on its own.
+      # added here by Mergify on its own. A failing "Link PR Issue" (pr-issue-link.yml) blocks too; it is
+      # negated, not check-success, because pull requests opened before the check existed have none.
       queue_conditions:
           - label!=hold
+          - -check-failure=Link PR Issue
           - "-title~=^[a-z]+(\\([^)]*\\))?!:"
       # The batch merges only when the full suite passed on the combined tree.
       merge_conditions:
@@ -90,6 +98,8 @@ queue_rules:
 # the queue's own queue_conditions still gate it. (pull_request_rules would need Mergify's Workflow
 # Automation product, which this repository does not use.)
 merge_protections_settings:
+    # No merge protections summary comment either (same reason as merge_queue's status_comments above).
+    post_comment: false
     auto_merge_conditions:
         - base=master
         - -draft

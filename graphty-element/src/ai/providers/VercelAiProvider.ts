@@ -3,6 +3,8 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, type LanguageModel, type ModelMessage, streamText, type Tool } from "ai";
 
+import { aiProviderDescriptor, type AiProviderId } from "../../catalog/ai";
+import { API_KEY_MISSING_ERROR, toSafeError } from "../safeError";
 import type {
     LlmProvider,
     LlmResponse,
@@ -14,7 +16,18 @@ import type {
 } from "./types";
 
 /** Supported provider types */
-export type VercelProviderType = "openai" | "anthropic" | "google";
+export type VercelProviderType = Exclude<AiProviderId, "webllm" | "mock">;
+
+/**
+ * The model each provider uses when `configure` is given none: its `defaultModel` in the AI
+ * catalogue. Each is a current model id from the provider's own model list (checked 2026-10-07);
+ * a retired id fails every request.
+ */
+const DEFAULT_MODELS: Readonly<Record<VercelProviderType, string>> = {
+    openai: aiProviderDescriptor("openai").defaultModel,
+    anthropic: aiProviderDescriptor("anthropic").defaultModel,
+    google: aiProviderDescriptor("google").defaultModel,
+};
 
 /**
  * LLM provider implementation using the Vercel AI SDK.
@@ -59,13 +72,15 @@ export class VercelAiProvider implements LlmProvider {
      */
     private getModel(): LanguageModel {
         if (!this.apiKey) {
-            throw new Error(`API key not configured for ${this.name}`);
+            const error = new Error(`API key not configured for ${this.name}`);
+            error.name = API_KEY_MISSING_ERROR;
+            throw error;
         }
 
         switch (this.providerType) {
             case "openai": {
                 const openai = createOpenAI({ apiKey: this.apiKey, baseURL: this.baseUrl });
-                return openai(this.model ?? "gpt-4o");
+                return openai(this.model ?? DEFAULT_MODELS.openai);
             }
             case "anthropic": {
                 const anthropic = createAnthropic({
@@ -76,14 +91,12 @@ export class VercelAiProvider implements LlmProvider {
                         "anthropic-dangerous-direct-browser-access": "true",
                     },
                 });
-                // Use claude-3-haiku as default - it's cost-effective and known to work well
-                // claude-3-5-sonnet-20241022 has been deprecated in favor of newer naming conventions
-                return anthropic(this.model ?? "claude-3-haiku-20240307");
+                return anthropic(this.model ?? DEFAULT_MODELS.anthropic);
             }
             case "google":
             default: {
                 const google = createGoogleGenerativeAI({ apiKey: this.apiKey, baseURL: this.baseUrl });
-                return google(this.model ?? "gemini-2.0-flash");
+                return google(this.model ?? DEFAULT_MODELS.google);
             }
         }
     }
@@ -94,12 +107,35 @@ export class VercelAiProvider implements LlmProvider {
      * @param tools - Available tools for the LLM
      * @param options - Generation options
      * @param options.signal - Optional abort signal
+     * @param options.toolChoice - "none" for a text answer only; "auto" (default) lets the model call tools
      * @returns Promise resolving to LLM response
      */
     async generate(
         messages: Message[],
         tools: ToolDefinition[],
-        options?: { signal?: AbortSignal },
+        options?: { signal?: AbortSignal; toolChoice?: "auto" | "none" },
+    ): Promise<LlmResponse> {
+        try {
+            return await this.generateUnsafe(messages, tools, options);
+        } catch (error) {
+            throw toSafeError(error, [this.apiKey]);
+        }
+    }
+
+    /**
+     * {@link generate} without the error cleaning: what it throws may carry the request and the
+     * response, so it never leaves this class.
+     * @param messages - Conversation messages
+     * @param tools - Available tools for the LLM
+     * @param options - Generation options
+     * @param options.signal - Optional abort signal
+     * @param options.toolChoice - "none" for a text answer only; "auto" (default) lets the model call tools
+     * @returns Promise resolving to LLM response
+     */
+    private async generateUnsafe(
+        messages: Message[],
+        tools: ToolDefinition[],
+        options?: { signal?: AbortSignal; toolChoice?: "auto" | "none" },
     ): Promise<LlmResponse> {
         const model = this.getModel();
         const convertedMessages = this.convertMessages(messages);
@@ -109,6 +145,7 @@ export class VercelAiProvider implements LlmProvider {
             model,
             messages: convertedMessages,
             tools: convertedTools,
+            toolChoice: options?.toolChoice,
             maxOutputTokens: this.maxTokens,
             temperature: this.temperature,
             abortSignal: options?.signal,
@@ -149,6 +186,10 @@ export class VercelAiProvider implements LlmProvider {
             maxOutputTokens: this.maxTokens,
             temperature: this.temperature,
             abortSignal: signal,
+            // The SDK's default writes the raw error, request and response included, to
+            // console.error, where an error reporter's console breadcrumbs pick it up. The error
+            // still arrives below as an "error" part, cleaned.
+            onError: () => undefined,
         });
 
         let accumulatedText = "";
@@ -195,7 +236,7 @@ export class VercelAiProvider implements LlmProvider {
                     }
 
                     case "error":
-                        callbacks.onError(new Error(String(event.error)));
+                        callbacks.onError(toSafeError(event.error, [this.apiKey]));
                         break;
 
                     default:
@@ -216,8 +257,9 @@ export class VercelAiProvider implements LlmProvider {
                         : undefined,
             });
         } catch (error) {
-            callbacks.onError(error instanceof Error ? error : new Error(String(error)));
-            throw error;
+            const safe = toSafeError(error, [this.apiKey]);
+            callbacks.onError(safe);
+            throw safe;
         }
     }
 
@@ -227,6 +269,15 @@ export class VercelAiProvider implements LlmProvider {
      * @returns Array of ModelMessage objects
      */
     private convertMessages(messages: Message[]): ModelMessage[] {
+        // A tool result names its tool: Google refuses a function response with an empty name.
+        // The name is the one the assistant's call with the same id gave.
+        const toolNames = new Map<string, string>();
+        for (const msg of messages) {
+            for (const call of msg.toolCalls ?? []) {
+                toolNames.set(call.id, call.name);
+            }
+        }
+
         return messages.map((msg): ModelMessage => {
             switch (msg.role) {
                 case "system":
@@ -261,7 +312,7 @@ export class VercelAiProvider implements LlmProvider {
                             {
                                 type: "tool-result" as const,
                                 toolCallId: msg.toolCallId ?? "",
-                                toolName: "", // Will be matched by toolCallId
+                                toolName: toolNames.get(msg.toolCallId ?? "") ?? "",
                                 output: { type: "text" as const, value: msg.content },
                             },
                         ],

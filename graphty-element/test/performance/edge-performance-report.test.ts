@@ -546,7 +546,7 @@ describe("Edge Performance Report", () => {
         }
 
         // Allow event loop to clear between tests
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     afterAll(() => {

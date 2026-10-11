@@ -665,9 +665,13 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         const one = getByRole("button", { name: "1" });
         await userEvent.hover(one);
         await waitFor(visibleTip);
+        // Whatever the click schedules (Mantine's close and reopen delays) runs on setTimeout:
+        // run every such timer, and the tooltip must still be hidden.
+        fakeTooltipTimers();
         await userEvent.click(one);
         await waitFor(hiddenTip, 50);
-        await new Promise((r) => setTimeout(r, 400));
+        vi.runAllTimers();
+        await frames();
         expect(visibleTip()).toBeNull();
     });
 
@@ -730,7 +734,7 @@ describe("8.3 tooltip dismiss and focus delay", () => {
                 unseen
             </div>,
         );
-        await new Promise((r) => setTimeout(r, 50));
+        await frames();
         expect(computed(document.querySelector(".cm-tooltip") as HTMLElement).visibility).toBe("hidden");
     });
 

@@ -52,30 +52,34 @@ describe("Standardized error messages", () => {
         assert.strictEqual(errorThrown, true, "Expected error to be thrown");
     });
 
-    // fetch is stubbed rather than pointed at an unreachable host: the retry
-    // path sleeps 1s then 2s between three attempts, which left under two
-    // seconds for three real DNS lookups and made the test fail on a slow
-    // resolver. Stubbing also lets us assert the attempt count directly.
+    // fetch is stubbed rather than pointed at an unreachable host, so the test can assert the
+    // attempt count directly; the retry path backs off 1 s then 2 s between three attempts, so
+    // the clock is faked and every backoff timer run at once.
     afterEach(() => {
         vi.unstubAllGlobals();
+        vi.useRealTimers();
     });
 
     test("network error includes retry count", async () => {
         const fetchMock = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
         vi.stubGlobal("fetch", fetchMock);
+        vi.useFakeTimers();
 
         const source = new GraphMLDataSource({ url: "http://graphty.invalid/graph.graphml" });
-        let errorThrown = false;
-
-        try {
+        const drained = (async () => {
             for await (const _chunk of source.getData()) {
                 // Should not get here
             }
-        } catch (error) {
-            errorThrown = true;
-            assert.match((error as Error).message, /Failed to fetch .* after 3 attempts/);
-        }
-        assert.strictEqual(errorThrown, true, "Expected error to be thrown");
+        })();
+        const failure = drained.then(
+            () => undefined,
+            (error: unknown) => error as Error,
+        );
+        await vi.runAllTimersAsync();
+        const error = await failure;
+
+        assert.isDefined(error, "Expected error to be thrown");
+        assert.match(error.message, /Failed to fetch .* after 3 attempts/);
         assert.strictEqual(fetchMock.mock.calls.length, 3, "Expected three fetch attempts");
-    }, 10000);
+    });
 });

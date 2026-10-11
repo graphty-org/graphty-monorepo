@@ -4,7 +4,7 @@
  * session with a `zoomToSelection` that records its call.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import type { FindHit } from "../../index";
 import { createGraphSession } from "../../session";
@@ -96,8 +96,9 @@ describe("the finding guide's example", () => {
         assert.lengthOf(session.selection.nodes, 0, "Enter on plain text commits nothing");
         box.value = "regex:^Jav";
         box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        assert.isAbove(session.selection.nodes.length, 0, "Enter on a pattern selects what it matches");
+        await vi.waitFor(() => {
+            assert.isAbove(session.selection.nodes.length, 0, "Enter on a pattern selects what it matches");
+        });
         session.dispose();
     });
 

@@ -10,11 +10,6 @@ const defaultProps = {
     onOpenHistory: vi.fn(),
 };
 
-const wait = (ms: number) =>
-    new Promise((resolve) => {
-        setTimeout(resolve, ms);
-    });
-
 describe("UndoSplitButton", () => {
     describe("rendering", () => {
         it("draws two separately clickable halves", () => {
@@ -103,7 +98,7 @@ describe("UndoSplitButton", () => {
             expect(onUndo).not.toHaveBeenCalled();
         });
 
-        it("opens History from a long-press and suppresses the click that ends it", async () => {
+        it("opens History from a long-press and suppresses the click that ends it", () => {
             const onOpenHistory = vi.fn();
             const onUndo = vi.fn();
 
@@ -111,8 +106,15 @@ describe("UndoSplitButton", () => {
 
             const undoHalf = screen.getByRole("button", { name: "Undo" });
 
-            fireEvent.pointerDown(undoHalf);
-            await wait(LONG_PRESS_MS + 100);
+            vi.useFakeTimers();
+            try {
+                fireEvent.pointerDown(undoHalf);
+                vi.advanceTimersByTime(LONG_PRESS_MS - 1);
+                expect(onOpenHistory).not.toHaveBeenCalled();
+                vi.advanceTimersByTime(1);
+            } finally {
+                vi.useRealTimers();
+            }
 
             expect(onOpenHistory).toHaveBeenCalledTimes(1);
 

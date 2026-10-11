@@ -390,7 +390,7 @@ describe("Schema Discovery End-to-End", () => {
             // Now simulate LLM using that info to create a selector
             provider.setResponse("server nodes", {
                 text: "",
-                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "type == 'server'" } }],
+                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "data.type == 'server'" } }],
             });
 
             const result = await graph.aiCommand("find all server nodes");
@@ -409,7 +409,7 @@ describe("Schema Discovery End-to-End", () => {
             // Simulate LLM creating a selector based on schema knowledge
             provider.setResponse("high priority", {
                 text: "",
-                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "priority >= 3" } }],
+                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "data.priority >= `3`" } }],
             });
 
             const result = await graph.aiCommand("find high priority nodes");
@@ -425,7 +425,7 @@ describe("Schema Discovery End-to-End", () => {
 
             provider.setResponse("find active", {
                 text: "",
-                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "active == 'true'" } }],
+                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "data.active == `true`" } }],
             });
 
             const result = await graph.aiCommand("find active nodes");
@@ -481,7 +481,7 @@ describe("Schema Discovery End-to-End", () => {
                         id: "1",
                         name: "findAndStyleNodes",
                         arguments: {
-                            selector: "type == 'server'",
+                            selector: "data.type == 'server'",
                             style: { color: "#ff0000" },
                             layerName: "server-highlight",
                         },

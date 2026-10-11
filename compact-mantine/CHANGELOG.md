@@ -1,3 +1,49 @@
+## 0.9.16 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🩹 Fixes
+
+- **compact-mantine:** keep a dragged pop-out where it was put when its sidebar anchor changes ([#1971](https://github.com/graphty-org/graphty-monorepo/issues/1971))
+- **compact-mantine:** make the focusable ScrollArea viewport opt-in ([#1599](https://github.com/graphty-org/graphty-monorepo/issues/1599))
+- **compact-mantine:** name unlabeled controls and make ScrollArea keyboard scrollable ([a95b241e0](https://github.com/graphty-org/graphty-monorepo/commit/a95b241e0))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.15 (2026-10-10)
+
+### 🩹 Fixes
+
+- **compact-mantine:** mark a queued popout reposition so settled-layout waits for it ([#1825](https://github.com/graphty-org/graphty-monorepo/issues/1825))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.14 (2026-10-09)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.13 (2026-10-09)
+
+### 🩹 Fixes
+
+- **compact-mantine:** register the browser commands for the storybook test project ([#1566](https://github.com/graphty-org/graphty-monorepo/issues/1566), [#1480](https://github.com/graphty-org/graphty-monorepo/issues/1480))
+- **compact-mantine:** theme Input.Wrapper labels like every field label ([#877](https://github.com/graphty-org/graphty-monorepo/issues/877))
+- **compact-mantine:** make dimmed text meet AA under the high-contrast tokens ([#2](https://github.com/graphty-org/graphty-monorepo/issues/2), [#1405](https://github.com/graphty-org/graphty-monorepo/issues/1405))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.12 (2026-10-08)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
 ## 0.9.11 (2026-10-08)
 
 ### 🩹 Fixes

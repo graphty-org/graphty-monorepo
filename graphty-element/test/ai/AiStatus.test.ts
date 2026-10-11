@@ -1,4 +1,4 @@
-import { assert, beforeEach, describe, it } from "vitest";
+import { assert, beforeEach, describe, it, vi } from "vitest";
 
 import { type AiStatus, AiStatusManager, type ToolCallStatus } from "../../src/ai/AiStatus";
 
@@ -67,13 +67,17 @@ describe("AiStatusManager", () => {
             assert.ok(manager.current.elapsed >= 0);
         });
 
-        it("calculates correct elapsed time", async () => {
-            manager.submit();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-            manager.updateElapsed();
+        it("calculates correct elapsed time", () => {
+            vi.useFakeTimers();
+            try {
+                manager.submit();
+                vi.advanceTimersByTime(50);
+                manager.updateElapsed();
 
-            assert.ok(manager.current.elapsed !== undefined);
-            assert.ok(manager.current.elapsed >= 45, `Expected at least 45ms, got ${manager.current.elapsed}ms`);
+                assert.strictEqual(manager.current.elapsed, 50);
+            } finally {
+                vi.useRealTimers();
+            }
         });
     });
 

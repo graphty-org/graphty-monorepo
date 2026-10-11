@@ -11,9 +11,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import { Graph } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
-
-/** Per test: each builds a real Babylon scene and runs a simulation to rest twice. */
-const TEST_TIMEOUT_MS = 60_000;
+import { nextFrame } from "../helpers/real-input";
 
 /** Frames advanced after the undo, in which nothing may move. */
 const FRAMES = 30;
@@ -32,8 +30,8 @@ afterEach(() => {
  */
 async function atRest(graph: Graph): Promise<void> {
     await graph.waitForSettled();
-    for (let wait = 0; wait < 1000 && graph.getLayoutManager().running; wait++) {
-        await new Promise((resolve) => setTimeout(resolve, 10));
+    for (let wait = 0; wait < 600 && graph.getLayoutManager().running; wait++) {
+        await nextFrame();
     }
 
     assert.isFalse(graph.getLayoutManager().running, "the layout came to rest");
@@ -101,7 +99,9 @@ async function addSettleUndo(graph: Graph): Promise<void> {
     assert.deepEqual(restored, before, "undo restores where the layout had come to rest before the add");
 
     graph.getUpdateManager().stepFrames(FRAMES);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The render loop draws a couple of frames of its own: still nothing may move.
+    await nextFrame();
+    await nextFrame();
     assert.isFalse(graph.getLayoutManager().running, "nothing reheated the layout");
     assert.deepEqual(lane(graph), restored, "and nothing moved");
     assert.strictEqual(
@@ -112,71 +112,55 @@ async function addSettleUndo(graph: Graph): Promise<void> {
 }
 
 describe("the arrangement under undo, on a renderer", () => {
-    it(
-        "no reheat on refreeze: add, settle, undo, advance frames, and the lane is the restored capture",
-        async () => {
-            const graph = await settledGraph();
-            await addSettleUndo(graph);
-        },
-        TEST_TIMEOUT_MS,
-    );
+    it("no reheat on refreeze: add, settle, undo, advance frames, and the lane is the restored capture", async () => {
+        const graph = await settledGraph();
+        await addSettleUndo(graph);
+    });
 
-    it(
-        "a listener reading the snapshot during the undo does not reheat the layout either",
-        async () => {
-            const graph = await settledGraph();
-            const session = graph.getSession();
-            let reads = 0;
-            session.on("project:changed", () => {
-                // The freeze this read causes happens before the derivation has run.
-                if (session.snapshot().nodeCount > 0) {
-                    reads++;
-                }
-            });
+    it("a listener reading the snapshot during the undo does not reheat the layout either", async () => {
+        const graph = await settledGraph();
+        const session = graph.getSession();
+        let reads = 0;
+        session.on("project:changed", () => {
+            // The freeze this read causes happens before the derivation has run.
+            if (session.snapshot().nodeCount > 0) {
+                reads++;
+            }
+        });
 
-            await addSettleUndo(graph);
-            assert.isAbove(reads, 0, "the listener read the snapshot");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        await addSettleUndo(graph);
+        assert.isAbove(reads, 0, "the listener read the snapshot");
+    });
 
-    it(
-        "a placement moves the node, and undo puts it back where the layout had it",
-        async () => {
-            const graph = await settledGraph();
-            const session = graph.getSession();
-            const before = lane(graph);
+    it("a placement moves the node, and undo puts it back where the layout had it", async () => {
+        const graph = await settledGraph();
+        const session = graph.getSession();
+        const before = lane(graph);
 
-            await session.positions.set([{ id: "n3", x: 50, y: -20, z: 5 }]);
-            assert.deepEqual(lane(graph).n3, [50, -20, 5]);
-            const node = graph.getNode("n3");
-            assert.deepEqual(node?.mesh.position.asArray(), [50, -20, 5], "and its mesh is drawn there");
+        await session.positions.set([{ id: "n3", x: 50, y: -20, z: 5 }]);
+        assert.deepEqual(lane(graph).n3, [50, -20, 5]);
+        const node = graph.getNode("n3");
+        assert.deepEqual(node?.mesh.position.asArray(), [50, -20, 5], "and its mesh is drawn there");
 
-            await session.undo();
-            assert.deepEqual(lane(graph), before);
-            assert.deepEqual(node?.mesh.position.asArray(), before.n3, "and drawn back where it was");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        await session.undo();
+        assert.deepEqual(lane(graph), before);
+        assert.deepEqual(node?.mesh.position.asArray(), before.n3, "and drawn back where it was");
+    });
 
-    it(
-        "a pin reaches the lane and the simulation, and undo releases it",
-        async () => {
-            const graph = await settledGraph();
-            const session = graph.getSession();
-            const row = (): number => session.snapshot().ids.indexOf("n2");
+    it("a pin reaches the lane and the simulation, and undo releases it", async () => {
+        const graph = await settledGraph();
+        const session = graph.getSession();
+        const row = (): number => session.snapshot().ids.indexOf("n2");
 
-            graph.getNode("n2")?.pin();
-            assert.isTrue(session.positions.pinned.has("n2"), "the pin is a step of the session");
-            assert.isTrue(session.positions.isPinned(row()));
-            assert.isTrue(graph.getNode("n2")?.isPinned());
-            assert.strictEqual(session.history.steps.at(-1)?.label, "Pinned a node");
+        graph.getNode("n2")?.pin();
+        assert.isTrue(session.positions.pinned.has("n2"), "the pin is a step of the session");
+        assert.isTrue(session.positions.isPinned(row()));
+        assert.isTrue(graph.getNode("n2")?.isPinned());
+        assert.strictEqual(session.history.steps.at(-1)?.label, "Pinned a node");
 
-            await session.undo();
-            assert.isFalse(session.positions.pinned.has("n2"));
-            assert.isFalse(session.positions.isPinned(row()), "the lane follows the pins slice");
-            assert.isFalse(dispatcherOf(session).lane.restoring);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        await session.undo();
+        assert.isFalse(session.positions.pinned.has("n2"));
+        assert.isFalse(session.positions.isPinned(row()), "the lane follows the pins slice");
+        assert.isFalse(dispatcherOf(session).lane.restoring);
+    });
 });

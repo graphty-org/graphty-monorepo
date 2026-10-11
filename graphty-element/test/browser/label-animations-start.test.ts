@@ -3,7 +3,8 @@
  *
  * They used to start on a 100 ms timer after `init()`: too early on a slow machine, a pure
  * delay on a fast one, and still armed after a dispose. Now a layout that runs starts them when
- * it settles, and one that is already at rest starts them on the first frame that has nodes.
+ * it settles, and one that is already at rest starts them on the first frame that has nodes. A
+ * label built later -- by a style layer or any other write -- is started the same way.
  * Every wait here is on a frame or on the stable-frame promise, never on a clock.
  */
 
@@ -13,6 +14,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Graph } from "../../src/Graph";
 import { DataManager } from "../../src/managers/DataManager";
+import { RichTextAnimator } from "../../src/meshes/RichTextAnimator";
 
 const NODES = [
     { id: "a", position: { x: -2, y: 0, z: 0 } },
@@ -97,6 +99,43 @@ describe("label animations start when the labels exist", () => {
         await nextFrame();
         assert.isFalse(g.isRunning(), "the layout stayed paused");
         assert.deepEqual(starts, [true], "one start, with every label in place");
+    });
+
+    it("starts the animation of a label a later layer adds, once, while the layout stays at rest", async () => {
+        const g = await mount();
+        const starts = watchStarts();
+        g.setRunning(false);
+        await loadLabelledNodes(g);
+
+        while (starts.length === 0) {
+            await nextFrame();
+        }
+
+        const animated: RichTextAnimator[] = [];
+        const setup = RichTextAnimator.prototype.setupAnimation;
+        vi.spyOn(RichTextAnimator.prototype, "setupAnimation").mockImplementation(function (
+            this: RichTextAnimator,
+            ...args: Parameters<RichTextAnimator["setupAnimation"]>
+        ) {
+            animated.push(this);
+            setup.apply(this, args);
+        });
+
+        await g.getSession().styles.add({
+            name: "pulse a",
+            target: "node",
+            selector: { match: "ids", nodes: ["a"] },
+            set: { "node.labelStyle": { animation: "pulse" } },
+        });
+
+        while (animated.length === 0) {
+            await nextFrame();
+        }
+
+        await nextFrame();
+        await nextFrame();
+        assert.isFalse(g.isRunning(), "the layout stayed paused");
+        assert.lengthOf(animated, 1, "one animation started: node a's new label, and no other label restarted");
     });
 
     it("starts nothing when the graph is disposed first", async () => {

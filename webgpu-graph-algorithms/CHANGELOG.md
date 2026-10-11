@@ -1,3 +1,74 @@
+## 0.6.45 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.12
+- Updated algorithms to 3.4.2
+- Updated layout to 2.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.44 (2026-10-11)
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.4.1
+- Updated layout to 2.3.1
+
+## 0.6.43 (2026-10-10)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** honor maxIter in the spring-electrical layout ([#1766](https://github.com/graphty-org/graphty-monorepo/issues/1766))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.4.0
+- Updated layout to 2.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.42 (2026-10-09)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** stop a timed-out compile-matrix case from compiling on ([#1706](https://github.com/graphty-org/graphty-monorepo/issues/1706))
+- **webgpu-graph-algorithms:** take the test slot before the browser run's time limit starts ([#1689](https://github.com/graphty-org/graphty-monorepo/issues/1689))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.11
+- Updated algorithms to 3.3.13
+- Updated layout to 2.2.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.41 (2026-10-09)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.10
+- Updated algorithms to 3.3.12
+- Updated layout to 2.2.13
+
+## 0.6.40 (2026-10-08)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.9
+- Updated algorithms to 3.3.11
+- Updated layout to 2.2.12
+
 ## 0.6.39 (2026-10-08)
 
 ### 🧱 Updated Dependencies

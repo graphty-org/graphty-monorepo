@@ -276,6 +276,36 @@ export function planWaxman(options: WaxmanOptions): WaxmanPlan {
     return { n, seed, beta, logQ: detLog(1 - beta), scale: alpha * WAXMAN_L, x, y };
 }
 
+/** The relative margin that makes the Waxman bounds safe against rounding: far above the few ulps involved. */
+const WAXMAN_MARGIN = 1e-9;
+
+/**
+ * The Waxman keep decision d2 < (scale ln t)^2, computed as `scale * detLog(t)` squared, but
+ * decided without the logarithm whenever the rational bounds 2(1 - t) / (1 + t) <= -ln t <=
+ * (1 - t) / sqrt(t) (t in (0, 1]) settle it with a wide margin. Only a candidate within that
+ * margin of the bounds takes detLog, so the answer is always exactly the detLog answer, and most
+ * candidates (far apart at small alpha) are rejected with no logarithm. The bounds are used only
+ * for scales in [1e-100, 1e100], where nothing they square underflows or overflows.
+ * @param d2 - the squared distance
+ * @param t - the uniform draw in [0, 1)
+ * @param scale - alpha L
+ * @returns whether the pair is an edge
+ */
+function waxmanKeeps(d2: number, t: number, scale: number): boolean {
+    if (scale >= 1e-100 && scale <= 1e100) {
+        const hi = (scale * (1 - t)) / Math.sqrt(t);
+        if (d2 > hi * hi * (1 + WAXMAN_MARGIN)) {
+            return false;
+        }
+        const lo = (2 * scale * (1 - t)) / (1 + t);
+        if (d2 < lo * lo * (1 - WAXMAN_MARGIN)) {
+            return true;
+        }
+    }
+    const bound = scale * detLog(t);
+    return d2 < bound * bound;
+}
+
 /**
  * Rows [start, end) of the Waxman graph: row u draws from stream (seed, "waxman", u), walks the
  * candidates v > u by geometric skipping at probability beta (one draw per skip), and keeps a
@@ -298,8 +328,7 @@ export function waxmanRows(plan: WaxmanPlan, start: number, end: number, out: Ed
         for (let v = u + 1 + skip(); v < n; v += 1 + skip()) {
             const dx = x[u] - x[v];
             const dy = y[u] - y[v];
-            const bound = scale * detLog(stream.nextFloat());
-            if (dx * dx + dy * dy < bound * bound) {
+            if (waxmanKeeps(dx * dx + dy * dy, stream.nextFloat(), scale)) {
                 out.push(u, v);
             }
         }

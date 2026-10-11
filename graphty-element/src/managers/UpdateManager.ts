@@ -930,7 +930,7 @@ export class UpdateManager implements Manager {
         }
 
         this.drawnFrameIsFinished = true;
-        this.eventManager.emitGraphEvent("graph-frame-stable", { frames: this.frameCount });
+        this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
     }
 
     /**
@@ -1594,7 +1594,7 @@ export class UpdateManager implements Manager {
         }
 
         // Emit zoom complete event
-        this.eventManager.emitGraphEvent("zoom-to-fit-complete", {
+        this.eventManager.emit("zoom-to-fit-complete", {
             boundingBoxMin,
             boundingBoxMax,
         });

@@ -266,12 +266,16 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         expect(cond.condensed.snapshot.edgeCount).toBe(1);
     });
 
-    it("kargerMinCut, stoerWagner and minSTCut: the bridge, as kargerStein finds it", () => {
+    it("kargerMinCut, stoerWagner and minSTCut: the bridge, a cut no larger than kargerStein's", () => {
         const cy = graph(BARBELL);
-        const theirs = cy.elements().kargerStein();
         const karger = cy.elements().graphtyKargerMinCut({ randomSeed: 1 });
-        expect(ids(karger.cut)).toEqual(ids(theirs.cut));
+        expect(ids(karger.cut)).toEqual(["e3"]);
         expect(karger.value).toBe(1);
+        // kargerStein is randomized and unseeded: it usually finds the bridge, but sometimes returns a larger
+        // cut (two edges around one node). It always returns a valid cut, never one smaller than the minimum.
+        const theirs = cy.elements().kargerStein();
+        expect(cy.elements().difference(theirs.cut).components().length).toBe(2);
+        expect(theirs.cut.length).toBeGreaterThanOrEqual(karger.value);
         expect(sets([karger.partitionFirst, karger.partitionSecond])).toEqual([
             ["a", "b", "c"],
             ["d", "e", "f"],
@@ -508,6 +512,17 @@ describe("communities and clustering", () => {
         expect(sets(e.graphtyLabelPropagationSemiSupervised({ seeds: "seed" }))).toEqual(halves);
     });
 
+    it("teraHAC and hierarchicalClustering refuse more than maxNodes nodes with E_TOO_LARGE", () => {
+        const e = graph(BARBELL).elements();
+        const refusal = expect.objectContaining({
+            code: "E_TOO_LARGE",
+            params: expect.objectContaining({ maxNodes: 5 }),
+        });
+        expect(() => e.graphtyTeraHAC({ maxNodes: 5 })).toThrow(refusal);
+        expect(() => e.graphtyHierarchicalClustering({ maxNodes: 5 })).toThrow(refusal);
+        expect(e.graphtyTeraHAC({ numClusters: 2, maxNodes: 6 }).length).toBe(2);
+    });
+
     it("hierarchicalClustering cuts the dendrogram", () => {
         const cy = graph(BARBELL);
         const h = cy.elements().graphtyHierarchicalClustering({ linkage: "average" });
@@ -623,15 +638,9 @@ describe("link prediction", () => {
         const e = cy.elements();
         expect(e.graphtyCommonNeighborsScore({ source: "#a", target: "#c" })).toBe(2);
         expect(e.graphtyAdamicAdarScore({ source: "#a", target: "#c" })).toBeCloseTo(2 / Math.log(2), 6);
-        // @graphty/algorithms lists every candidate pair of an undirected graph twice, once per orientation, so
-        // topK: 2 is one pair; topK: 4 is the two pairs.
-        const top = e.graphtyCommonNeighborsPrediction({ topK: 4 });
-        expect(top.map((p) => [p.source.id(), p.target.id()].sort().join()).sort()).toEqual([
-            "a,c",
-            "a,c",
-            "b,d",
-            "b,d",
-        ]);
+        // Each candidate pair is listed once, the first node in the collection as source, so topK: 2 is two pairs.
+        const top = e.graphtyCommonNeighborsPrediction({ topK: 2 });
+        expect(top.map((p) => `${p.source.id()},${p.target.id()}`)).toEqual(["a,c", "b,d"]);
         expect(top[0]?.score).toBe(2);
         expect(e.graphtyAdamicAdarPrediction({ topK: 1 }).length).toBe(1);
         expect(
@@ -653,7 +662,7 @@ describe("link prediction", () => {
         for (const k of [0, -1]) {
             expect(bar.graphtyTopCandidatesForNode({ ...cand, topK: k }).length).toBe(3);
             expect(bar.graphtyTopAdamicAdarCandidatesForNode({ ...cand, topK: k }).length).toBe(3);
-            expect(e.graphtyCommonNeighborsPrediction({ topK: k }).length).toBe(4);
+            expect(e.graphtyCommonNeighborsPrediction({ topK: k }).length).toBe(2);
         }
         expect(bar.graphtyTopCandidatesForNode({ ...cand, topK: 1 }).length).toBe(1);
         expect(e.graphtyEvaluateCommonNeighbors(held).auc).toBe(1);

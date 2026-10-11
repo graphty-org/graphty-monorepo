@@ -37,7 +37,7 @@ beforeAll(async () => {
     }
     // The policy, not the adapter's software filter, decides which adapters these tests accept
     configureWebGpu({ acceptSoftware: true, adapter });
-}, 60_000);
+});
 
 /**
  * Skips under the unset policy when there is no adapter; fails when the policy demands one.

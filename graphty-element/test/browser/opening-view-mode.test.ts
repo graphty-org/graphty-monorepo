@@ -24,12 +24,12 @@
 import "../../src/graphty-element";
 
 import { Camera } from "@babylonjs/core";
-import { afterEach, assert, describe, test } from "vitest";
+import { afterEach, assert, describe, test, vi } from "vitest";
 
-import { Graph, operationQueueOf } from "../../src/Graph";
+import { Graph } from "../../src/Graph";
 
-/** How long the element needs to connect, run its first update and finish `Graph.init()`. */
-const ELEMENT_READY_MS = 400;
+/** How long to wait for the element to connect and finish `Graph.init()`: the test's own budget. */
+const INIT_BUDGET_MS = 10_000;
 
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
 const EDGES = [
@@ -66,14 +66,26 @@ function makeHost(): HTMLDivElement {
 }
 
 /**
- * Wait for everything the element has queued to finish, twice over, so that work queued by
- * work counts too.
+ * Wait until an element's graph has finished `Graph.init()`.
+ * @param graph - The element's graph.
+ */
+async function initialised(graph: Graph): Promise<void> {
+    await vi.waitFor(
+        () => {
+            assert.isTrue(graph.initialized, "the element finished initialising");
+        },
+        { timeout: INIT_BUDGET_MS },
+    );
+}
+
+/**
+ * Wait until the picture is final: every queued operation has run, including work queued by
+ * work, the layout has converged and a frame has been drawn in that state.
  * @param graph - The graph to drain.
  */
 async function settle(graph: Graph): Promise<void> {
-    await operationQueueOf(graph).waitForCompletion();
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    await operationQueueOf(graph).waitForCompletion();
+    await graph.waitForSettled();
+    await graph.waitForStableFrame();
 }
 
 /**
@@ -119,7 +131,7 @@ describe("a graph that opens in 2D", () => {
         element.edgeData = EDGES;
         element.layout = "circular";
 
-        await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+        await initialised(element.graph);
         await settle(element.graph);
 
         assertDrawnIn2D(element.graph, "viewMode then layout");
@@ -136,7 +148,7 @@ describe("a graph that opens in 2D", () => {
         element.setAttribute("layout", "circular");
         host.append(element);
 
-        await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+        await initialised(element.graph);
         element.nodeData = NODES;
         element.edgeData = EDGES;
         await settle(element.graph);
@@ -158,7 +170,7 @@ describe("a graph that opens in 2D", () => {
         element.edgeData = EDGES;
         element.layout = "spring";
 
-        await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+        await initialised(element.graph);
         await settle(element.graph);
 
         const nodes = [...element.graph.getNodes()];
@@ -193,7 +205,7 @@ describe("a graph that opens in 2D", () => {
         element.nodeData = NODES;
         element.edgeData = EDGES;
 
-        await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+        await initialised(element.graph);
         await settle(element.graph);
 
         assertDrawnIn2D(element.graph, "deprecated layout2d before connecting");

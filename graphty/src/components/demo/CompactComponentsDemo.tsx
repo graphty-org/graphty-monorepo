@@ -736,7 +736,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                         />
                                         <NumberInput
                                             size="compact"
-                                            value={1.0}
+                                            value={1}
                                             min={0.1}
                                             max={10}
                                             step={0.1}

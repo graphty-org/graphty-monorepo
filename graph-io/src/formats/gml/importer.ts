@@ -171,7 +171,7 @@ export const FLAG_TYPE_CODE = "E_GML_FLAG_TYPE";
 export const FLAG_VALUE_CODE = "W_GML_FLAG_VALUE";
 
 /** A flag written as a quoted integer, surrounding spaces allowed. */
-const QUOTED_INT = /^\s*[+-]?[0-9]+\s*$/;
+const QUOTED_INT = /^\s*[+-]?\d+\s*$/;
 /**
  * A named entity in a string that is neither an XML nor an ISO-8859-1 HTML entity, or a numeric reference beyond
  * U+10FFFF; it is kept as written.
@@ -1896,7 +1896,7 @@ function describeValue(t: GmlTokens, v: number): string {
 
 const SNIFF_GRAPH_START = /^(?:\s|#[^\n]*\n)*graph\s*\[/;
 const SNIFF_GRAPH_ANYWHERE = /(?:^|\s)graph\s*\[/;
-const SNIFF_KEY_START = /^(?:\s|#[^\n]*\n)*[A-Za-z_][0-9A-Za-z_]*\s+(?:"|[+-]?[0-9.]|\[)/;
+const SNIFF_KEY_START = /^(?:\s|#[^\n]*\n)*[A-Za-z_]\w*\s+(?:"|[+-]?[0-9.]|\[)/;
 
 /**
  * Confidence that a head of bytes is GML: a `graph [` opener, or key-value text with a `graph [`

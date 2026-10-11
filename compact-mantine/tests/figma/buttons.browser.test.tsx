@@ -29,6 +29,7 @@ import { AdvancedButton } from "../../src/components/rows/TrailingSlot";
 import { UiGlyph } from "../../src/icons";
 import { CM_COLORS, CM_HIGH_CONTRAST } from "../../src/theme/tokens";
 import {
+    animationsSettled,
     drive,
     type DriveState,
     expectMeasured,
@@ -186,7 +187,7 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
             const { container } = await renderFigma(<Button loading>Button</Button>);
             const button = part(container, "button");
             expectMeasured(button, figmaSpec(figma, ["width", "height", "cursor", ...FILL]));
-            await new Promise((r) => setTimeout(r, 300));
+            await animationsSettled(button);
             const loader = part(button, ".mantine-Loader-root");
             expectMeasured(
                 loader,

@@ -234,6 +234,7 @@ export { definePalette } from "./src/simple/definePalette";
 // Events
 // =============================================================================
 export type {
+    AiEventType,
     CameraStateChangedEvent,
     DataLoadingCompleteEvent,
     DataLoadingErrorEvent,
@@ -254,7 +255,16 @@ export type {
     GraphGenericEvent,
     GraphLayoutInitializedEvent,
     GraphSettledEvent,
+    GraphStartedEvent,
     GraphtyForwardedEventMap,
+    InputEnabledChangedEvent,
+    InputKeyEvent,
+    InputPointerEvent,
+    InputShortcutEvent,
+    InputTouchEndEvent,
+    InputTouchEvent,
+    InputWheelEvent,
+    LayoutChangedEvent,
     NodeAddEvent,
     NodeClickEvent,
     NodeDragEndEvent,
@@ -266,7 +276,11 @@ export type {
     NodeEventType,
     NodeGenericEvent,
     NodeHoverEvent,
+    OperationCancelledEvent,
+    StatsUpdateEvent,
     StyleChangedEvent,
+    XRSessionEndedEvent,
+    XRSessionStartedEvent,
 } from "./src/events";
 
 // =============================================================================

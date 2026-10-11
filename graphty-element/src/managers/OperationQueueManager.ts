@@ -2,6 +2,7 @@ import PQueue from "p-queue";
 import toposort from "toposort";
 
 import { OBSOLESCENCE_RULES } from "../constants/obsolescence-rules";
+import type { OperationCancelledEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { OperationMetadata, OperationProgress } from "../types/operations";
 import type { EventManager } from "./EventManager";
@@ -210,14 +211,14 @@ export class OperationQueueManager implements Manager {
 
         // Listen for queue events
         this.queue.on("active", () => {
-            this.eventManager.emitGraphEvent("operation-queue-active", {
+            this.eventManager.emit("operation-queue-active", {
                 size: this.queue.size,
                 pending: this.queue.pending,
             });
         });
 
         this.queue.on("idle", () => {
-            this.eventManager.emitGraphEvent("operation-queue-idle", {});
+            this.eventManager.emit("operation-queue-idle", {});
         });
     }
 
@@ -401,7 +402,7 @@ export class OperationQueueManager implements Manager {
                     controller.abort();
 
                     // Emit obsolescence event
-                    this.eventManager.emitGraphEvent("operation-obsoleted", {
+                    this.eventManager.emit("operation-obsoleted", {
                         id: operation.id,
                         category: operation.category,
                         reason: `Obsoleted by ${newOperation.category} operation`,
@@ -488,7 +489,7 @@ export class OperationQueueManager implements Manager {
                 )
                 .catch((error: unknown) => {
                     if (error && (error as Error).name === "AbortError") {
-                        this.eventManager.emitGraphEvent("operation-obsoleted", {
+                        this.eventManager.emit("operation-obsoleted", {
                             id: operation.id,
                             category: operation.category,
                             reason: "Obsoleted by newer operation",
@@ -498,7 +499,7 @@ export class OperationQueueManager implements Manager {
         }
 
         // Emit batch complete event after all operations
-        this.eventManager.emitGraphEvent("operation-batch-complete", {
+        this.eventManager.emit("operation-batch-complete", {
             operationCount: sortedOperations.length,
             operations: sortedOperations.map((op) => ({
                 id: op.id,
@@ -585,7 +586,7 @@ export class OperationQueueManager implements Manager {
             description: operation.metadata?.description,
         });
 
-        this.eventManager.emitGraphEvent("operation-start", {
+        this.eventManager.emit("operation-start", {
             id: operation.id,
             category: operation.category,
             description: operation.metadata?.description,
@@ -610,7 +611,7 @@ export class OperationQueueManager implements Manager {
                 duration: duration.toFixed(2),
             });
 
-            this.eventManager.emitGraphEvent("operation-complete", {
+            this.eventManager.emit("operation-complete", {
                 id: operation.id,
                 category: operation.category,
                 duration,
@@ -754,7 +755,7 @@ export class OperationQueueManager implements Manager {
      * @param progress - Current progress state
      */
     private emitProgressUpdate(id: string, category: OperationCategory, progress: OperationProgress): void {
-        this.eventManager.emitGraphEvent("operation-progress", {
+        this.eventManager.emit("operation-progress", {
             id,
             category,
             progress: progress.percent,
@@ -848,10 +849,10 @@ export class OperationQueueManager implements Manager {
         this.activeControllers.forEach((controller, id) => {
             if (!controller.signal.aborted) {
                 controller.abort();
-                this.eventManager.emitGraphEvent("operation-cancelled", {
+                this.eventManager.emit("operation-cancelled", {
                     id,
                     reason: "Queue cleared",
-                });
+                } satisfies Omit<OperationCancelledEvent, "type">);
             }
         });
 
@@ -1002,10 +1003,10 @@ export class OperationQueueManager implements Manager {
             controller.abort();
 
             // Emit cancellation event
-            this.eventManager.emitGraphEvent("operation-cancelled", {
+            this.eventManager.emit("operation-cancelled", {
                 id: operationId,
                 reason: "Manual cancellation",
-            });
+            } satisfies Omit<OperationCancelledEvent, "type">);
 
             return true;
         }

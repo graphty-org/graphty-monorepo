@@ -53,7 +53,9 @@ async function gated(): Promise<Gated> {
  * @param session - The session.
  */
 async function idle(session: GraphSession): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    // The session's queue and its passes run on promise chains, no timers: one macrotask yield
+    // lets them all run.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     await dispatcherOf(session).lane.settled();
 }
 

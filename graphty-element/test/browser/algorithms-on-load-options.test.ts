@@ -11,7 +11,7 @@
 import "../../src/algorithms";
 
 import type { InstancedMesh } from "@babylonjs/core";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { operationQueueOf } from "../../src/Graph";
 import { Graphty } from "../../src/graphty-element";
@@ -25,9 +25,6 @@ const EDGES = [
     { src: "hub", dst: "tail" },
     { src: "a", dst: "b" },
 ];
-
-/** Mounting, loading and running is slower than the five-second default. */
-const TEST_TIMEOUT_MS = 30000;
 
 let container: HTMLDivElement | null = null;
 
@@ -54,23 +51,20 @@ async function mountWith(configure: (element: Graphty) => void): Promise<Graphty
     element.nodeData = NODES;
     element.edgeData = EDGES;
 
-    const deadline = Date.now() + TEST_TIMEOUT_MS / 2;
-
-    while (!element.session.runs.list().some((run) => run.algorithm === "pagerank" && run.status === "succeeded")) {
-        if (Date.now() > deadline) {
-            throw new Error("the PageRank run named in the load-time list never succeeded");
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+    await vi.waitFor(
+        () => {
+            assert.isTrue(
+                element.session.runs.list().some((run) => run.algorithm === "pagerank" && run.status === "succeeded"),
+                "the PageRank run named in the load-time list succeeded",
+            );
+        },
+        { timeout: 10_000 },
+    );
 
     await operationQueueOf(element.graph).waitForCompletion();
     await element.session.styles.settled();
-
-    for (let frame = 0; frame < 10; frame++) {
-        element.graph.scene.render();
-        await new Promise((resolve) => setTimeout(resolve, 10));
-    }
+    // A frame drawn from the painted styles.
+    await element.waitForStableFrame();
 
     return element;
 }
@@ -105,77 +99,57 @@ describe("run options in the load-time algorithm list", () => {
         container = null;
     });
 
-    it(
-        "colours AND sizes the nodes for an entry carrying style: { size: [1, 5] }",
-        async () => {
-            const element = await mountWith((el) => {
-                el.setAttribute("run-algorithms-on-load", "");
-                el.algorithmsOnLoad = [{ algorithm: "graphty:pagerank", style: { size: [1, 5] } }];
-            });
+    it("colours AND sizes the nodes for an entry carrying style: { size: [1, 5] }", async () => {
+        const element = await mountWith((el) => {
+            el.setAttribute("run-algorithms-on-load", "");
+            el.algorithmsOnLoad = [{ algorithm: "graphty:pagerank", style: { size: [1, 5] } }];
+        });
 
-            assert.deepStrictEqual(element.algorithmsOnLoad, [
-                { algorithm: "graphty:pagerank", style: { size: [1, 5] } },
-            ]);
+        assert.deepStrictEqual(element.algorithmsOnLoad, [{ algorithm: "graphty:pagerank", style: { size: [1, 5] } }]);
 
-            const run = element.session.runs.list().find((entry) => entry.algorithm === "pagerank");
-            const first = String(run?.result?.ranking("value", 1)[0]?.id);
-            const last = String(run?.result?.ranking("value", NODES.length).at(-1)?.id);
-            const nodes = drawn(element);
-            const radii = [...nodes.values()].map((node) => node.radius);
+        const run = element.session.runs.list().find((entry) => entry.algorithm === "pagerank");
+        const first = String(run?.result?.ranking("value", 1)[0]?.id);
+        const last = String(run?.result?.ranking("value", NODES.length).at(-1)?.id);
+        const nodes = drawn(element);
+        const radii = [...nodes.values()].map((node) => node.radius);
 
-            assert.strictEqual(
-                nodes.get(first)?.radius,
-                Math.max(...radii),
-                "the node PageRank ranks first is largest",
-            );
-            assert.closeTo(Math.max(...radii) / Math.min(...radii), 5, 0.1, "the range [1, 5] spans five times");
-            assert.notStrictEqual(nodes.get(first)?.colour, nodes.get(last)?.colour, "the run colours nodes by score");
+        assert.strictEqual(nodes.get(first)?.radius, Math.max(...radii), "the node PageRank ranks first is largest");
+        assert.closeTo(Math.max(...radii) / Math.min(...radii), 5, 0.1, "the range [1, 5] spans five times");
+        assert.notStrictEqual(nodes.get(first)?.colour, nodes.get(last)?.colour, "the run colours nodes by score");
 
-            const sizeLayers = element.session.styles
-                .list()
-                .filter((layer) => layer.encode?.["node.size"] !== undefined);
+        const sizeLayers = element.session.styles.list().filter((layer) => layer.encode?.["node.size"] !== undefined);
 
-            assert.lengthOf(sizeLayers, 1, "one size layer, from the run");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.lengthOf(sizeLayers, 1, "one size layer, from the run");
+    });
 
-    it(
-        "takes a bare catalogue key, and hands the run its id and its default size range",
-        async () => {
-            const element = await mountWith((el) => {
-                el.runAlgorithmsOnLoad = true;
-                el.algorithmsOnLoad = [{ algorithm: "pagerank", as: "importance", style: { size: true } }];
-            });
+    it("takes a bare catalogue key, and hands the run its id and its default size range", async () => {
+        const element = await mountWith((el) => {
+            el.runAlgorithmsOnLoad = true;
+            el.algorithmsOnLoad = [{ algorithm: "pagerank", as: "importance", style: { size: true } }];
+        });
 
-            const radii = [...drawn(element).values()].map((node) => node.radius);
+        const radii = [...drawn(element).values()].map((node) => node.radius);
 
-            assert.deepStrictEqual(
-                element.session.runs.list().map((run) => run.id),
-                ["importance"],
-                "the run carries the id the entry gave it",
-            );
-            assert.closeTo(Math.max(...radii) / Math.min(...radii), 3, 0.1, "size: true is the range [1, 3]");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.deepStrictEqual(
+            element.session.runs.list().map((run) => run.id),
+            ["importance"],
+            "the run carries the id the entry gave it",
+        );
+        assert.closeTo(Math.max(...radii) / Math.min(...radii), 3, 0.1, "size: true is the range [1, 3]");
+    });
 
-    it(
-        "colours without sizing for a plain name, as it always did",
-        async () => {
-            const element = await mountWith((el) => {
-                el.runAlgorithmsOnLoad = true;
-                el.algorithmsOnLoad = ["graphty:pagerank"];
-            });
+    it("colours without sizing for a plain name, as it always did", async () => {
+        const element = await mountWith((el) => {
+            el.runAlgorithmsOnLoad = true;
+            el.algorithmsOnLoad = ["graphty:pagerank"];
+        });
 
-            const nodes = drawn(element);
-            const radii = [...nodes.values()].map((node) => node.radius);
+        const nodes = drawn(element);
+        const radii = [...nodes.values()].map((node) => node.radius);
 
-            assert.closeTo(Math.max(...radii), Math.min(...radii), 1e-6, "every node keeps the same size");
-            assert.notStrictEqual(nodes.get("hub")?.colour, nodes.get("tail")?.colour, "the run colours nodes");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.closeTo(Math.max(...radii), Math.min(...radii), 1e-6, "every node keeps the same size");
+        assert.notStrictEqual(nodes.get("hub")?.colour, nodes.get("tail")?.colour, "the run colours nodes");
+    });
 
     it("refuses a malformed entry with E_BAD_COMMAND naming it, and keeps the list it had", () => {
         const element = new Graphty();

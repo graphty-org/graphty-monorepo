@@ -355,7 +355,7 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         const report = await frontierReport(ctx);
         expect(report.worst).toBe(0);
         assertCheckPasses(report);
-    }, 120_000);
+    });
 
     it("a bad n, arcCount, edgeCapacity, source, seed word, level or role is E_INVALID_ARGUMENT naming it, before anything is recorded", async (t) => {
         const ctx = await context(t);

@@ -57,5 +57,5 @@ describe("sampled betweenness at 1M nodes / 10M edges (node-limits)", () => {
         } finally {
             ctx.dispose();
         }
-    }, 600_000);
+    });
 });

@@ -3,12 +3,12 @@
  * @module ai/commands/CameraCommands
  */
 
-import jmespath from "jmespath";
 import { z } from "zod";
 
 import { registeredCameraDescriptors } from "../../catalog/cameraRegistry";
 import { CAMERA_DESCRIPTORS, cameraDescriptor } from "../../catalog/cameras";
 import type { Graph } from "../../Graph";
+import { isMatchAllSelector, matchingNodeIds, noMatchMessage, SELECTOR_SYNTAX } from "./selectors";
 import type { CommandResult, GraphCommand } from "./types";
 
 /**
@@ -168,64 +168,20 @@ export const setCameraPosition: GraphCommand = {
 };
 
 /**
- * Find nodes matching a JMESPath selector (reused from StyleCommands).
- * @param graph - The graph instance
- * @param selector - JMESPath selector string
- * @returns Array of matching node IDs
- */
-function findMatchingNodeIds(graph: Graph, selector: string): string[] {
-    const dataManager = graph.getDataManager();
-    const { nodes } = dataManager;
-    const matchingIds: string[] = [];
-
-    // Empty selector matches all nodes
-    if (!selector || selector.length === 0) {
-        for (const [id] of nodes) {
-            matchingIds.push(String(id));
-        }
-
-        return matchingIds;
-    }
-
-    // Try JMESPath matching
-    // Wrap data in array so we can use JMESPath filter expression [?condition]
-    try {
-        // Normalize selector: JMESPath npm library only supports single quotes for string literals,
-        // not double quotes. LLMs like Anthropic send double quotes, so convert them.
-        const normalizedSelector = selector.replaceAll('"', "'");
-        const query = `[?${normalizedSelector}]`;
-
-        for (const [id, node] of nodes) {
-            const { data } = node;
-            // Use JMESPath filter syntax: [?selector] returns array of matches
-            const searchResult = jmespath.search([data], query);
-            if (Array.isArray(searchResult) && searchResult.length > 0) {
-                matchingIds.push(String(id));
-            }
-        }
-    } catch {
-        // Invalid JMESPath, return empty array
-        return [];
-    }
-
-    return matchingIds;
-}
-
-/**
  * Command to zoom the camera to fit specific nodes.
  */
 export const zoomToNodes: GraphCommand = {
     name: "zoomToNodes",
     description:
-        "Zoom the camera to fit specific nodes in view. Use a JMESPath selector to choose which nodes to focus on, or leave empty to fit all nodes. Optionally add padding around the nodes.",
+        "Zoom the camera to fit specific nodes in view. Takes the same selector as findNodes and findAndStyleNodes; leave it empty to fit all nodes. Optionally add padding around the nodes.",
     parameters: z.object({
-        selector: z.string().optional().describe("JMESPath expression to match nodes (empty matches all)"),
+        selector: z.string().optional().describe(`Expression matching nodes. ${SELECTOR_SYNTAX}`),
         animate: z.boolean().optional().describe("Whether to animate the zoom (default: true)"),
         padding: z.number().optional().describe("Extra padding around nodes (default: 1.2 = 20% padding)"),
     }),
     examples: [
         { input: "Zoom to fit all nodes", params: { selector: "" } },
-        { input: "Zoom to server nodes", params: { selector: "type == 'server'" } },
+        { input: "Zoom to server nodes", params: { selector: "data.type == 'server'" } },
         { input: "Fit graph with more padding", params: { selector: "", padding: 1.5 } },
     ],
 
@@ -238,12 +194,13 @@ export const zoomToNodes: GraphCommand = {
 
         try {
             // Find matching nodes
-            const matchingIds = findMatchingNodeIds(graph, selector);
+            const matchingIds = await matchingNodeIds(graph, selector);
+            const scoped = !isMatchAllSelector(selector);
 
-            if (matchingIds.length === 0 && selector && selector.length > 0) {
+            if (matchingIds.length === 0 && scoped) {
                 return {
                     success: true,
-                    message: `No nodes matched the selector "${selector}".`,
+                    message: noMatchMessage(selector),
                     affectedNodes: [],
                 };
             }
@@ -252,15 +209,16 @@ export const zoomToNodes: GraphCommand = {
             // element measured rather than measuring one itself, so scoping the box is all it
             // takes -- which is why this used to fit the whole graph and no longer does.
             await graph.applyCameraView("fitToGraph", {
-                ...(selector && selector.length > 0 ? { scope: { nodes: matchingIds } } : {}),
+                ...(scoped ? { scope: { nodes: matchingIds } } : {}),
                 animate,
-                description: `Zooming to fit ${selector ? "matching nodes" : "all nodes"}`,
+                description: `Zooming to fit ${scoped ? "matching nodes" : "all nodes"}`,
             });
 
-            const nodeCount = selector ? matchingIds.length : graph.getNodeCount();
+            const nodeCount = scoped ? matchingIds.length : graph.getNodeCount();
+            const matching = scoped ? ` matching "${selector}"` : "";
             return {
                 success: true,
-                message: `Zoomed to fit ${nodeCount} node(s)${selector ? ` matching "${selector}"` : ""}.`,
+                message: `Zoomed to fit ${nodeCount} node(s)${matching}.`,
                 affectedNodes: matchingIds,
                 data: { nodeCount, animated: animate },
             };

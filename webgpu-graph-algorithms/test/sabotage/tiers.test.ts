@@ -25,7 +25,6 @@ import { tieredWorstFactor, windowedWorstFactor } from "../helpers/segmented-red
 import { tieredSpmvWorstFactor } from "../helpers/spmv.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 /** The three row-walking kernels whose tier rows this file measures. */
 const ROW_WALKING: readonly KernelId[] = ["segmented-reduce", "spmv-pull", "fa2-attraction"];
@@ -114,29 +113,21 @@ describe("sabotage: the tier rows of the row-walking kernels", () => {
         if (rowsOf(id).length === 0) {
             continue;
         }
-        it(
-            `${id}: the real kernel passes the tier check (factor < 1)`,
-            async (t) => {
-                const ctx = await context(t);
-                expect(await checkOf(ctx, id)).toBeLessThan(1);
-                for (const mutation of rowsOf(id)) {
-                    expect(await checkOf(ctx, id, mutation), `${mutation.name}'s check`).toBeLessThan(1);
-                }
-                ctx.dispose();
-            },
-            CASE_TIMEOUT,
-        );
+        it(`${id}: the real kernel passes the tier check (factor < 1)`, async (t) => {
+            const ctx = await context(t);
+            expect(await checkOf(ctx, id)).toBeLessThan(1);
+            for (const mutation of rowsOf(id)) {
+                expect(await checkOf(ctx, id, mutation), `${mutation.name}'s check`).toBeLessThan(1);
+            }
+            ctx.dispose();
+        });
         for (const mutation of rowsOf(id)) {
-            it(
-                `${id}/${mutation.name}: fails the tier check by >= ${mutation.minFactor}x`,
-                async (t) => {
-                    requireGpu(t);
-                    const factor = await withSabotage(id, mutation, (ctx) => checkOf(ctx, id, mutation));
-                    console.warn(`[sabotage] ${id}/${mutation.name}: factor ${factor.toExponential(2)}`);
-                    expect(factor).toBeGreaterThanOrEqual(mutation.minFactor);
-                },
-                CASE_TIMEOUT,
-            );
+            it(`${id}/${mutation.name}: fails the tier check by >= ${mutation.minFactor}x`, async (t) => {
+                requireGpu(t);
+                const factor = await withSabotage(id, mutation, (ctx) => checkOf(ctx, id, mutation));
+                console.warn(`[sabotage] ${id}/${mutation.name}: factor ${factor.toExponential(2)}`);
+                expect(factor).toBeGreaterThanOrEqual(mutation.minFactor);
+            });
         }
     }
 });

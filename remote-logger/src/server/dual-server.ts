@@ -6,14 +6,15 @@
  * @module server/dual-server
  */
 
+import * as http from "node:http";
+import * as https from "node:https";
+import * as net from "node:net";
+import * as os from "node:os";
+import * as path from "node:path";
+
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import * as http from "http";
-import * as https from "https";
 import { internalIpV4Sync } from "internal-ip";
-import * as net from "net";
-import * as os from "os";
-import * as path from "path";
 
 import { createMcpServer } from "../mcp/mcp-server.js";
 import { JsonlWriter } from "./jsonl-writer.js";

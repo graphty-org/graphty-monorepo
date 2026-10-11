@@ -1,3 +1,110 @@
+## 0.0.9 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.45
+- Updated graph-samples to 0.1.27
+- Updated graph-format to 1.3.12
+- Updated algorithms to 3.4.2
+- Updated graph-io to 0.3.35
+- Updated layout to 2.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.8 (2026-10-11)
+
+### 🩹 Fixes
+
+- **algorithms:** stop SynC blurring connected communities together ([#1698](https://github.com/graphty-org/graphty-monorepo/issues/1698))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.44
+- Updated algorithms to 3.4.1
+- Updated graph-io to 0.3.34
+- Updated layout to 2.3.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.7 (2026-10-10)
+
+### 🚀 Features
+
+- **cytoscape-extensions:** maxNodes for teraHAC, hierarchicalClustering and kamada-kawai ([ed244b6f4](https://github.com/graphty-org/graphty-monorepo/commit/ed244b6f4))
+- **algorithms:** list each undirected link-prediction pair once on request ([#723](https://github.com/graphty-org/graphty-monorepo/issues/723))
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** let the demo's iterations control reach spring-electrical ([#1766](https://github.com/graphty-org/graphty-monorepo/issues/1766))
+- **algorithms:** scale each SynC step by the node's degree so unconnected cliques split ([#1600](https://github.com/graphty-org/graphty-monorepo/issues/1600))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.43
+- Updated algorithms to 3.4.0
+- Updated layout to 2.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.6 (2026-10-09)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.42
+- Updated graph-samples to 0.1.26
+- Updated graph-format to 1.3.11
+- Updated algorithms to 3.3.13
+- Updated graph-io to 0.3.33
+- Updated layout to 2.2.14
+
+## 0.0.5 (2026-10-09)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** give the TeraHAC demo tile a cluster count ([#1448](https://github.com/graphty-org/graphty-monorepo/issues/1448))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.41
+- Updated graph-samples to 0.1.25
+- Updated graph-format to 1.3.10
+- Updated algorithms to 3.3.12
+- Updated graph-io to 0.3.32
+- Updated layout to 2.2.13
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.4 (2026-10-08)
+
+### 🩹 Fixes
+
+- **algorithms:** start free nodes unlabeled in semi-supervised label propagation ([#959](https://github.com/graphty-org/graphty-monorepo/issues/959))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.40
+- Updated graph-samples to 0.1.24
+- Updated graph-format to 1.3.9
+- Updated algorithms to 3.3.11
+- Updated graph-io to 0.3.31
+- Updated layout to 2.2.12
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.3 (2026-10-08)
 
 ### 🩹 Fixes

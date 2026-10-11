@@ -37,7 +37,7 @@ beforeAll(async () => {
         build: { write: false, minify: false, rollupOptions: { input: join(dir, "main.js") } },
     })) as Rollup.RollupOutput;
     chunks = out.output.filter((o): o is Rollup.OutputChunk => o.type === "chunk");
-}, 120_000);
+});
 
 afterAll(() => {
     if (dir !== "") {
@@ -138,7 +138,7 @@ describe("a Vite production build whose entry module awaits a loading method at 
         return (): void => {
             rmSync(page, { recursive: true, force: true });
         };
-    }, 120_000);
+    });
 
     it("warns, naming the method and the fix, instead of stopping with no message", async () => {
         const [dataset, gpu, then] = await Promise.all([
@@ -156,5 +156,5 @@ describe("a Vite production build whose entry module awaits a loading method at 
         expect(then.code, then.out).toBe(0);
         expect(then.out).toContain("nodes 34");
         expect(then.out).not.toContain("graphty:");
-    }, 60_000);
+    });
 });

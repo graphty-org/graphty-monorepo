@@ -38,7 +38,11 @@
  * where it is weakest shows that.
  *
  * What is timed is the element's `measure()` minus its progress reports and its chunked read of
- * the result back out, which is O(n) and small beside everything measured here.
+ * the result back out. Building the run's result (`createRunResult`) is not timed and not priced.
+ * It no longer builds an id index (it reads the snapshot's) or sorts for ranks (they are filled
+ * when first read), and it finds the value column's median by selection rather than by sorting, so
+ * for most rows it is small beside the work measured here. Degree is the closest: about 20 to 30 ns
+ * a node, against 30 to 48 for the counting.
  */
 
 import { execFileSync } from "node:child_process";
@@ -623,7 +627,7 @@ beforeAll(async () => {
     }
 
     await machineSpeed(); // warm the probe's JIT; its first answers are low
-}, 30_000);
+});
 
 afterAll(() => {
     if (affinity !== undefined) {
@@ -642,6 +646,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
         for (const row of ROWS) {
             const bounds =
                 row.optimismOnly === undefined ? `[${MAX_OPTIMISM}, ${MAX_PESSIMISM}]` : `at least ${MAX_OPTIMISM}`;
+            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a row is timed runs on graphs of up to 800,000 nodes between calibration probes of about 2.3 s each; degree takes 6.4 s locally and about twice that on CI's 0.5x-speed runners, more than a third of the 30 s budget; tracked in #1636
             it(`${row.key} on ${row.shapeName ?? "random, m = 5n"}: estimate / measured stays ${bounds}`, async () => {
                 const descriptor = algorithmByKey(row.key);
                 const graphs = row.sizes.map((nodes) => measuredGraph(row.shape ?? random(5), nodes));

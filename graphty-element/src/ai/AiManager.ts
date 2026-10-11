@@ -10,14 +10,7 @@ import type { Graph } from "../Graph";
 import { AiController, type ExecutionResult } from "./AiController";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import { CommandRegistry } from "./commands";
-// Import built-in commands
-import { listAlgorithms, runAlgorithm } from "./commands/AlgorithmCommands";
-import { setCameraPosition, zoomToNodes } from "./commands/CameraCommands";
-import { setDimension, setLayout } from "./commands/LayoutCommands";
-import { setImmersiveMode } from "./commands/ModeCommands";
-import { findNodes, getSchema, queryGraph } from "./commands/QueryCommands";
-import { describeProperty, sampleData } from "./commands/SchemaCommands";
-import { clearStyles, findAndStyleEdges, findAndStyleNodes } from "./commands/StyleCommands";
+import { BUILTIN_COMMANDS } from "./commands/builtin";
 import { ApiKeyManager } from "./keys";
 import { createProvider, type ProviderType } from "./providers";
 import type { LlmProvider } from "./providers/types";
@@ -44,7 +37,11 @@ export interface KeyPersistenceConfig {
  * Configuration options for initializing the AiManager.
  */
 export interface AiManagerConfig {
-    /** The LLM provider to use (e.g., "openai", "anthropic", "google", "mock") */
+    /**
+     * The LLM provider to use (e.g., "openai", "anthropic", "google", "mock", "webllm").
+     * `"webllm"` is built by `enableAiControl`; `AiManager.init` itself needs it as
+     * `providerInstance`.
+     */
     provider: ProviderType;
     /** Optional API key for the provider */
     apiKey?: string;
@@ -143,7 +140,7 @@ export class AiManager {
             // Onto the graph's own event channel, so `addListener` and the element's DOM
             // forwarder both deliver every AI event.
             emitEvent: (event) => {
-                graph.eventManager.emitGraphEvent(event.type, { ...event });
+                graph.eventManager.emit(event.type, { ...event });
             },
         });
 
@@ -187,34 +184,9 @@ export class AiManager {
      * Register built-in commands for graph control.
      */
     private registerBuiltinCommands(): void {
-        // Query commands
-        this.registerCommand(queryGraph);
-        this.registerCommand(findNodes);
-        this.registerCommand(getSchema);
-
-        // Schema exploration commands
-        this.registerCommand(sampleData);
-        this.registerCommand(describeProperty);
-
-        // Algorithm commands
-        this.registerCommand(listAlgorithms);
-        this.registerCommand(runAlgorithm);
-
-        // Layout commands
-        this.registerCommand(setLayout);
-        this.registerCommand(setDimension);
-
-        // Mode commands
-        this.registerCommand(setImmersiveMode);
-
-        // Style commands (Phase 5)
-        this.registerCommand(findAndStyleNodes);
-        this.registerCommand(findAndStyleEdges);
-        this.registerCommand(clearStyles);
-
-        // Camera commands (Phase 5)
-        this.registerCommand(setCameraPosition);
-        this.registerCommand(zoomToNodes);
+        for (const command of BUILTIN_COMMANDS) {
+            this.registerCommand(command);
+        }
     }
 
     /**
@@ -252,6 +224,8 @@ export class AiManager {
             return {
                 success: false,
                 message: "AI Manager has been disposed. Please re-initialize before using.",
+                code: "AI_DISPOSED",
+                params: {},
             };
         }
 
@@ -259,6 +233,8 @@ export class AiManager {
             return {
                 success: false,
                 message: "AI Manager not initialized. Call init() first.",
+                code: "AI_NOT_ENABLED",
+                params: {},
             };
         }
 

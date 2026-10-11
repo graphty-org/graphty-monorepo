@@ -73,6 +73,17 @@ const ids = element.session.data.nodePage({ limit: 5 }).records.map((node) => no
 await element.session.selection.apply({ ids }); // numbers and strings alike
 ```
 
+An integer id can be written either way. A node the data gave as the number `34` is found by
+`"34"`, and a node given as `"34"` is found by `34`; an edge id such as `"17"` is found by the number
+`17` too. This holds wherever you pass a node or an edge id: `session.data`, the selection, the
+visible and scope sets, sets and their members, `styles.explain`, run results, the visibility
+filters, `positions`, algorithm and layout options, and the element's own methods such as
+`getNode`, `isNodeSelected` and `zoomToNodes`. A graph that holds both `34` and `"34"` answers each
+by its own id, and whatever comes back carries the id as the graph holds it, so a set yields `34`
+even when you asked `has("34")`. Text that only reads as the number, such as `"34.0"` or `"3.4e1"`,
+is not another spelling; the one exception is a list given to `selection.apply({ ids })`, which is
+read as pasted text and so also trims spaces and reads number notation.
+
 An id that names nothing is reported on the result's `unmatched`, as text. A call that needs an
 element to exist and is given an id the graph does not hold throws `E_UNKNOWN_ELEMENT`, with
 `details.kind` (`"node"` or `"edge"`) and `details.id`.

@@ -2,127 +2,122 @@
 
 [![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
 [![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#license)
+[![Documentation](https://img.shields.io/badge/docs-graphty.app-blue)](https://graphty.app/docs/)
 
-A modular graph visualization ecosystem consisting of multiple TypeScript packages. This monorepo contains libraries for graph algorithms, layout computation, and interactive 2D/3D visualization.
+A modular graph visualization ecosystem in TypeScript: interactive 2D and 3D graph visualization, graph algorithms,
+layouts, file formats and sample graphs, each in its own package that you can install on its own.
 
 <h3 align="center"><a href="https://graphty.app">Try the live demo at graphty.app</a></h3>
 
 ## Packages
 
-### @graphty/graphty
+### Visualization
+
+#### graphty app (@graphty/graphty)
 
 [![Demo](https://img.shields.io/badge/demo-graphty.app-blue)](https://graphty.app)
+[![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/storybook/app/)
 
-React application providing a user-friendly interface for graph visualization and exploration. Built on top of the `graphty-element` web component, it offers interactive graph visualization with multiple layout algorithms, rich styling options, and 2D/3D visualization modes. This package is private and not published to npm.
+The graph explorer at [graphty.app](https://graphty.app): load a graph, lay it out, run algorithms and style it in 2D
+or 3D, in the browser, built on graphty-element (not published to npm). [View package](./graphty)
 
-[View package](./graphty)
-
----
-
-### @graphty/graphty-element
+#### @graphty/graphty-element
 
 [![npm version](https://img.shields.io/npm/v/@graphty/graphty-element.svg)](https://www.npmjs.com/package/@graphty/graphty-element)
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/graphty-element/)
 [![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/storybook/graphty-element/)
 
-A Web Component for 3D/2D graph visualization built with Lit and Babylon.js. Provides interactive graph visualizations with multiple layout algorithms, rich styling options, and support for large datasets through mesh instancing and GPU acceleration.
+A web component (`<graphty-element>`) that draws an interactive 2D or 3D graph, with layouts, algorithms, styling and
+optional WebGPU acceleration built in. [View package](./graphty-element)
 
-[View package](./graphty-element)
+#### @graphty/cytoscape-extensions
 
----
+[![npm version](https://img.shields.io/npm/v/@graphty/cytoscape-extensions.svg)](https://www.npmjs.com/package/@graphty/cytoscape-extensions)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/cytoscape-extensions/)
+[![Storybook](https://img.shields.io/badge/storybook-demo-ff4785)](https://graphty.app/storybook/cytoscape-extensions/)
 
-### @graphty/layout
+Every graphty layout and algorithm, plus graph generators, sample datasets and file import and export, as
+[Cytoscape.js](https://js.cytoscape.org/) extensions registered with one call. [View package](./cytoscape-extensions)
 
-[![npm version](https://img.shields.io/npm/v/@graphty/layout.svg)](https://www.npmjs.com/package/@graphty/layout)
-[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/api/generated/)
-[![Storybook](https://img.shields.io/badge/storybook-demos-ff4785)](https://graphty.app/storybook/layout/)
+### Graph computation
 
-TypeScript library for positioning nodes in graphs. A port of layout algorithms from Python's NetworkX library, supporting force-directed layouts (Spring, ForceAtlas2, Kamada-Kawai), geometric layouts (Circular, Shell, Spiral), and specialized layouts (Bipartite, Multipartite, Planar).
-
-[View package](./layout)
-
----
-
-### @graphty/algorithms
+#### @graphty/algorithms
 
 [![npm version](https://img.shields.io/npm/v/@graphty/algorithms.svg)](https://www.npmjs.com/package/@graphty/algorithms)
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/algorithms/)
 [![Storybook](https://img.shields.io/badge/storybook-demos-ff4785)](https://graphty.app/storybook/algorithms/)
 
-Comprehensive TypeScript graph algorithms library with 60+ algorithms optimized for browser environments. Includes traversal, shortest paths, centrality measures, community detection, clustering, network flow, matching, and link prediction algorithms.
+60+ graph algorithms: traversal, shortest paths, centrality, community detection, clustering, network flow, matching
+and link prediction. [View package](./algorithms)
 
-[View package](./algorithms)
+#### @graphty/layout
 
----
+[![npm version](https://img.shields.io/npm/v/@graphty/layout.svg)](https://www.npmjs.com/package/@graphty/layout)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/api/generated/)
+[![Storybook](https://img.shields.io/badge/storybook-demos-ff4785)](https://graphty.app/storybook/layout/)
 
-### @graphty/graph-format
+2D and 3D graph layouts ported from NetworkX (force-directed, circular, shell, spiral, bipartite, planar and more),
+plus steppable ForceAtlas2 and Fruchterman-Reingold simulations. [View package](./layout)
 
-[![npm version](https://img.shields.io/npm/v/@graphty/graph-format.svg)](https://www.npmjs.com/package/@graphty/graph-format)
-
-Frozen CSR graph data format over typed arrays, shared by the CPU and WebGPU graph algorithm packages. A builder with duplicate and direction policies, a node id map, typed attribute columns with validity bitmaps, lazy views (reverse, degrees, edge list), derived graphs, and a zero-copy wire form for workers and IndexedDB. Zero dependencies.
-
-[View package](./graph-format)
-
----
-
-### @graphty/graph-io
-
-[![npm version](https://img.shields.io/npm/v/@graphty/graph-io.svg)](https://www.npmjs.com/package/@graphty/graph-io)
-
-Importers and exporters for the graph-format snapshot: GEXF, GraphML, GML, DOT, Pajek, CSV, JSON (node-link, d3, JGF, Cytoscape, graphology, vis) and Neo4j admin-import CSV, each behind a per-format subpath export, plus format sniffing and an import report with aggregated issues.
-
-[View package](./graph-io)
-
----
-
-### @graphty/webgpu-graph-algorithms
+#### @graphty/webgpu-graph-algorithms
 
 [![npm version](https://img.shields.io/npm/v/@graphty/webgpu-graph-algorithms.svg)](https://www.npmjs.com/package/@graphty/webgpu-graph-algorithms)
 
-WebGPU-accelerated graph algorithms and force-directed layouts over the graph-format snapshot, for Node (Google Dawn) and browsers: a GPU context with an explicit adapter policy, upload planning and readback over the CSR arena, a kernel layer with WGSL composition, and ForceAtlas2 as a steppable layout simulation. Throws when no WebGPU device exists; never falls back to the CPU.
-
+Graph algorithms and force-directed layouts on the GPU through WebGPU, in browsers and in Node.
 [View package](./webgpu-graph-algorithms)
 
----
+### Graph data
 
-### @graphty/graph-samples
+#### @graphty/graph-format
+
+[![npm version](https://img.shields.io/npm/v/@graphty/graph-format.svg)](https://www.npmjs.com/package/@graphty/graph-format)
+
+The compact, immutable graph snapshot (typed arrays, node ids, attribute columns) that every graphty package reads and
+writes; zero dependencies. [View package](./graph-format)
+
+#### @graphty/graph-io
+
+[![npm version](https://img.shields.io/npm/v/@graphty/graph-io.svg)](https://www.npmjs.com/package/@graphty/graph-io)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/graph-io/)
+
+Read and write 13 graph file formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO and
+Cytoscape sessions). [View package](./graph-io)
+
+#### @graphty/graph-samples
 
 [![npm version](https://img.shields.io/npm/v/@graphty/graph-samples.svg)](https://www.npmjs.com/package/@graphty/graph-samples)
 
-Graphs to try things on, as typed arrays the graph-format snapshot loads in one call: seeded random-graph generators (Erdos-Renyi, Barabasi-Albert with Holme-Kim triads, Watts-Strogatz, stochastic block models, random bipartite, trees and layered DAGs) that give the same graph for the same seed on every platform, the classic deterministic families, and classic small datasets with their ground truth (karate club, Florentine families, Davis Southern Women, Les Miserables, college football, political books, dolphins), one subpath each.
+Seeded random-graph generators that give the same graph on every platform, and classic sample datasets (karate club,
+Les Miserables, college football and more) with their ground truth. [View package](./graph-samples)
 
-[View package](./graph-samples)
+### User interface
 
----
-
-### @graphty/remote-logger
-
-[![npm version](https://img.shields.io/npm/v/@graphty/remote-logger.svg)](https://www.npmjs.com/package/@graphty/remote-logger)
-
-Remote logging client and server for browser debugging. Provides a lightweight browser client for sending logs to a terminal-based server, with batching, retry logic, and session tracking. Includes a floating UI widget for capturing and exporting console output.
-
-[View package](./remote-logger)
-
----
-
-### @graphty/visual-review
-
-[![npm version](https://img.shields.io/npm/v/@graphty/visual-review.svg)](https://www.npmjs.com/package/@graphty/visual-review)
-
-Visual regression review for any Storybook, with nothing hosted: GitHub Actions screenshots every story, baselines live in git (Git LFS), and you accept or reject each change in a page served from your own machine, while a required check keeps unreviewed changes from merging. `npx visual-review init` sets a repository up. [Documentation](https://graphty.app/docs/visual-review/).
-
-[View package](./visual-review)
-
----
-
-### @graphty/compact-mantine
+#### @graphty/compact-mantine
 
 [![npm version](https://img.shields.io/npm/v/@graphty/compact-mantine.svg)](https://www.npmjs.com/package/@graphty/compact-mantine)
 [![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/storybook/compact-mantine/)
 
-Mantine theme and component library for dense, compact UIs. Provides automatic compact sizing for the Mantine components it restyles using `defaultProps`, global token overrides for font sizes, spacing, and radii, plus custom components like popouts and gradient editors.
+A [Mantine](https://mantine.dev/) theme and components for dense, compact interfaces. [View package](./compact-mantine)
 
-[View package](./compact-mantine)
+## Tools
+
+Developer tools, useful outside graphty too.
+
+#### @graphty/visual-review
+
+[![npm version](https://img.shields.io/npm/v/@graphty/visual-review.svg)](https://www.npmjs.com/package/@graphty/visual-review)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/visual-review/)
+
+Visual review for any Storybook with nothing hosted: screenshots in GitHub Actions, baselines in git, accept or reject
+each change in a page on your own machine. [View package](./visual-review)
+
+#### @graphty/remote-logger
+
+[![npm version](https://img.shields.io/npm/v/@graphty/remote-logger.svg)](https://www.npmjs.com/package/@graphty/remote-logger)
+
+Send a browser's console logs to a server in your terminal, for debugging a page remotely.
+[View package](./remote-logger)
 
 ## License
 

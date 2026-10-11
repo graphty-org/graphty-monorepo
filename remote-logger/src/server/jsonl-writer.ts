@@ -6,8 +6,8 @@
  * @module server/jsonl-writer
  */
 
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 /**
  * A JSONL log entry.

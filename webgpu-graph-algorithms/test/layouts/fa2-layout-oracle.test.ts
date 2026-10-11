@@ -70,7 +70,6 @@ const ASSERTED: Readonly<Record<"paper" | "networkx", readonly number[]>> = Obje
 });
 /** The horizon whose accuracy is measured and PRINTED, never asserted (G3-F3); determinism and finiteness still are. */
 const PRINTED = 50;
-const CASE_TIMEOUT = 300_000;
 /** The graph and horizon of the layout5 noise member (paper mode; the file header). */
 const LAYOUT5_GRAPH: ParityGraph = "random1k";
 const LAYOUT5_HORIZON = 5;
@@ -199,90 +198,82 @@ describe("FA2 vs @graphty/layout's ForceAtlas2Simulation: the second reference (
             const compat = compatOf(tuning);
             const label = `${graph}/${compat}`;
             const asserted = ASSERTED[compat];
-            it(
-                `${label}: twice bitwise; within fa2-layout-oracle of the layout simulation after ${asserted.join(", ")} iterations; ${PRINTED} printed (chaotic, G3-F3)`,
-                async (t) => {
-                    requireGpu(t);
-                    const s = paritySnapshot(graph, gpuScale(), false);
-                    try {
-                        // the SEEDED start is mandatory: layout's load() never seeds NaN rows (forceatlas2.ts:26)
-                        const start = startPositions(s, BASE_OPTIONS, false);
-                        const checkpoints = [...asserted, PRINTED];
-                        // spec 11.9 item 4: the same inputs twice, bitwise, before anything is compared
-                        const a = await gpuTrajectory(ctx, s, start, BASE_OPTIONS, tuning, checkpoints);
-                        const b = await gpuTrajectory(ctx, s, start, BASE_OPTIONS, tuning, checkpoints);
-                        for (const k of checkpoints) {
-                            expectBitwiseEqual(at(a, k), at(b, k), `${label}: iteration ${k}, run 1 vs run 2`);
-                        }
-                        const cpu = layoutTrajectory(s, start, BASE_OPTIONS, tuning, checkpoints, label);
-                        const tolerance = toleranceOf("fa2-layout-oracle");
-                        const measured = checkpoints.map((k) => {
-                            const err = stageError(true, at(a, k), at(cpu, k));
-                            return { k, rel: err.rel, abs: err.abs };
-                        });
-                        console.warn(
-                            `[fa2-layout-oracle] ${label} (tolerance ${tolerance.toExponential(3)}): ${measured
-                                .map(
-                                    (m) =>
-                                        `k=${m.k} rel ${m.rel.toExponential(3)} (ratio ${ratioOf(
-                                            m.rel,
-                                            tolerance,
-                                        ).toExponential(3)}, max abs ${m.abs.toExponential(3)})`,
-                                )
-                                .join("; ")}; k=${PRINTED} accuracy is informational, never asserted (G3-F3)`,
-                        );
-                        for (const k of asserted) {
-                            const err = stageError(true, at(a, k), at(cpu, k));
-                            assertCheckPasses({
-                                worst: ratioOf(err.rel, tolerance),
-                                worstLabel: `${label}: positions after ${k} iterations vs @graphty/layout`,
-                                samples: s.nodeCount,
-                            });
-                        }
-                        // a non-finite coordinate is a defect at any horizon, whatever the tolerance says
-                        for (const k of checkpoints) {
-                            expect(
-                                Array.from(at(a, k)).every((v) => Number.isFinite(v)),
-                                `${label}: the GPU positions are finite after ${k} iterations`,
-                            ).toBe(true);
-                            expect(
-                                Array.from(at(cpu, k)).every((v) => Number.isFinite(v)),
-                                `${label}: the layout positions are finite after ${k} iterations`,
-                            ).toBe(true);
-                        }
-                    } finally {
-                        ctx.release(s);
+            it(`${label}: twice bitwise; within fa2-layout-oracle of the layout simulation after ${asserted.join(", ")} iterations; ${PRINTED} printed (chaotic, G3-F3)`, async (t) => {
+                requireGpu(t);
+                const s = paritySnapshot(graph, gpuScale(), false);
+                try {
+                    // the SEEDED start is mandatory: layout's load() never seeds NaN rows (forceatlas2.ts:26)
+                    const start = startPositions(s, BASE_OPTIONS, false);
+                    const checkpoints = [...asserted, PRINTED];
+                    // spec 11.9 item 4: the same inputs twice, bitwise, before anything is compared
+                    const a = await gpuTrajectory(ctx, s, start, BASE_OPTIONS, tuning, checkpoints);
+                    const b = await gpuTrajectory(ctx, s, start, BASE_OPTIONS, tuning, checkpoints);
+                    for (const k of checkpoints) {
+                        expectBitwiseEqual(at(a, k), at(b, k), `${label}: iteration ${k}, run 1 vs run 2`);
                     }
-                },
-                CASE_TIMEOUT,
-            );
+                    const cpu = layoutTrajectory(s, start, BASE_OPTIONS, tuning, checkpoints, label);
+                    const tolerance = toleranceOf("fa2-layout-oracle");
+                    const measured = checkpoints.map((k) => {
+                        const err = stageError(true, at(a, k), at(cpu, k));
+                        return { k, rel: err.rel, abs: err.abs };
+                    });
+                    console.warn(
+                        `[fa2-layout-oracle] ${label} (tolerance ${tolerance.toExponential(3)}): ${measured
+                            .map(
+                                (m) =>
+                                    `k=${m.k} rel ${m.rel.toExponential(3)} (ratio ${ratioOf(
+                                        m.rel,
+                                        tolerance,
+                                    ).toExponential(3)}, max abs ${m.abs.toExponential(3)})`,
+                            )
+                            .join("; ")}; k=${PRINTED} accuracy is informational, never asserted (G3-F3)`,
+                    );
+                    for (const k of asserted) {
+                        const err = stageError(true, at(a, k), at(cpu, k));
+                        assertCheckPasses({
+                            worst: ratioOf(err.rel, tolerance),
+                            worstLabel: `${label}: positions after ${k} iterations vs @graphty/layout`,
+                            samples: s.nodeCount,
+                        });
+                    }
+                    // a non-finite coordinate is a defect at any horizon, whatever the tolerance says
+                    for (const k of checkpoints) {
+                        expect(
+                            Array.from(at(a, k)).every((v) => Number.isFinite(v)),
+                            `${label}: the GPU positions are finite after ${k} iterations`,
+                        ).toBe(true);
+                        expect(
+                            Array.from(at(cpu, k)).every((v) => Number.isFinite(v)),
+                            `${label}: the layout positions are finite after ${k} iterations`,
+                        ).toBe(true);
+                    }
+                } finally {
+                    ctx.release(s);
+                }
+            });
         }
     }
 
-    it(
-        `writes the GPU's and the CPU class's ${LAYOUT5_GRAPH}/paper positions after ${LAYOUT5_HORIZON} iterations as the layout5 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
-        async (t) => {
-            requireGpu(t);
-            const s = paritySnapshot(LAYOUT5_GRAPH, 1, false);
-            try {
-                const start = startPositions(s, BASE_OPTIONS, false);
-                const gpu = await gpuTrajectory(ctx, s, start, BASE_OPTIONS, PAPER, [LAYOUT5_HORIZON]);
-                const cpu = layoutTrajectory(s, start, BASE_OPTIONS, PAPER, [LAYOUT5_HORIZON], "noise/layout5");
-                const { kernel, fixture } = NOISE_FIXTURES.layout5;
-                expect(fixture).toBe(`${LAYOUT5_GRAPH}-paper-layout${LAYOUT5_HORIZON}`);
-                writeNoiseFixture(kernel, fixture, adapterClass(ctx.caps), at(gpu, LAYOUT5_HORIZON), "f32");
-                writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, at(cpu, LAYOUT5_HORIZON), "f32");
-                const err = stageError(true, at(gpu, LAYOUT5_HORIZON), at(cpu, LAYOUT5_HORIZON));
-                console.warn(`[fa2-layout-oracle] noise/layout5: error ${err.rel.toExponential(3)}`);
-                assertCheckPasses({
-                    worst: ratioOf(err.rel, toleranceOf("fa2-layout-oracle")),
-                    worstLabel: "noise/layout5",
-                    samples: s.nodeCount,
-                });
-            } finally {
-                ctx.release(s);
-            }
-        },
-        CASE_TIMEOUT,
-    );
+    it(`writes the GPU's and the CPU class's ${LAYOUT5_GRAPH}/paper positions after ${LAYOUT5_HORIZON} iterations as the layout5 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`, async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot(LAYOUT5_GRAPH, 1, false);
+        try {
+            const start = startPositions(s, BASE_OPTIONS, false);
+            const gpu = await gpuTrajectory(ctx, s, start, BASE_OPTIONS, PAPER, [LAYOUT5_HORIZON]);
+            const cpu = layoutTrajectory(s, start, BASE_OPTIONS, PAPER, [LAYOUT5_HORIZON], "noise/layout5");
+            const { kernel, fixture } = NOISE_FIXTURES.layout5;
+            expect(fixture).toBe(`${LAYOUT5_GRAPH}-paper-layout${LAYOUT5_HORIZON}`);
+            writeNoiseFixture(kernel, fixture, adapterClass(ctx.caps), at(gpu, LAYOUT5_HORIZON), "f32");
+            writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, at(cpu, LAYOUT5_HORIZON), "f32");
+            const err = stageError(true, at(gpu, LAYOUT5_HORIZON), at(cpu, LAYOUT5_HORIZON));
+            console.warn(`[fa2-layout-oracle] noise/layout5: error ${err.rel.toExponential(3)}`);
+            assertCheckPasses({
+                worst: ratioOf(err.rel, toleranceOf("fa2-layout-oracle")),
+                worstLabel: "noise/layout5",
+                samples: s.nodeCount,
+            });
+        } finally {
+            ctx.release(s);
+        }
+    });
 });

@@ -95,7 +95,8 @@ habit. So a finding on a changed line does not block when master already has it:
   MD5 of the line with all whitespace removed, so reformatting a line keeps it. Such issues are
   listed under "existing issues on lines you touched (not blocking)".
 - **Issues reported on a function's signature, S3776 (cognitive complexity) and S107 (too many
-  parameters):** the signature line usually changes with the edit, so its hash cannot match.
+  parameters), and on a regex, S5843 (regex complexity):** the reported line usually changes with
+  the edit, so its hash cannot match.
   Instead, match a master issue with the same rule in the same file whose line lies in the same
   diff hunk (or maps to the same line outside one), and block only when the number in the
   message went up ("from 17 to the 15 allowed" against master's 16, or 9 parameters against
@@ -176,22 +177,24 @@ the changed lines show, and is the baseline job's work.
 
 ### When the gate cannot run
 
-The rule: **the gate fails open only when the server cannot be reached.** If the server answers,
-every other problem is a misconfiguration and blocks the push, with the cause and the fix. A
-silent pass on a broken setup would skip SonarQube on every push from that worktree, and nobody
-would notice until the weekly review.
+The rule: **the gate fails open only when the server cannot be reached**, before the scan or during
+it. Every other problem is a misconfiguration and blocks the push, with the cause and the fix. A
+scanner failure is sorted by the scanner's own error lines: only one that names a network or server
+fault passes, and one the gate does not recognize blocks. A silent pass on a broken setup would
+skip SonarQube on every push from that worktree, and nobody would notice until the weekly review.
 
-| Situation                                                                                                                         | Behavior                                                                                         |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Server unreachable: `api/system/status` does not answer UP within 15 s                                                            | Passes, with the boxed warning; no token is sent                                                 |
-| Something answers, but its server id is not the pinned one (section "Configuration and secrets")                                  | Passes, with the boxed warning ("not the owner's server"); no token is sent                      |
-| No `SONAR_HOST_URL` in the environment or in `.env` (a clone without the owner's `.env`)                                          | Passes, with the boxed warning; no token is sent                                                 |
-| The step's 900 s deadline passes                                                                                                  | Passes, with the boxed warning                                                                   |
-| No pinned server id (`--setup` never ran on this machine)                                                                         | Blocks, saying to run `tools/sonar-baseline.mjs --setup` once                                    |
-| No `SONAR_TOKEN` in the environment or in `.env`                                                                                  | Blocks, saying where to set it                                                                   |
-| The token is rejected (401) (`api/users/current`)                                                                                 | Blocks, saying how to make a valid token                                                         |
-| No Java at `SONAR_SCANNER_JAVA_EXE_PATH` or on `PATH`, scanner missing, scanner or server error, `graphty-monorepo-local` missing | Blocks, naming the cause and the fix (for the last: run `tools/sonar-baseline.mjs --setup` once) |
-| Findings that block (section "What blocks")                                                                                       | Blocks                                                                                           |
+| Situation                                                                                                                     | Behavior                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Server unreachable: `api/system/status` does not answer UP within 15 s                                                        | Passes, with the boxed warning; no token is sent                                                 |
+| Something answers, but its server id is not the pinned one (section "Configuration and secrets")                              | Passes, with the boxed warning ("not the owner's server"); no token is sent                      |
+| No `SONAR_HOST_URL` in the environment or in `.env` (a clone without the owner's `.env`)                                      | Passes, with the boxed warning; no token is sent                                                 |
+| The step's 900 s deadline passes                                                                                              | Passes, with the boxed warning                                                                   |
+| After the server answered: a DNS failure, a refused, reset or timed-out connection, an HTTP 5xx, a dropped connection         | Passes, with the boxed warning and the scanner's error lines                                     |
+| No pinned server id (`--setup` never ran on this machine)                                                                     | Blocks, saying to run `tools/sonar-baseline.mjs --setup` once                                    |
+| No `SONAR_TOKEN` in the environment or in `.env`                                                                              | Blocks, saying where to set it                                                                   |
+| The token is rejected (401) (`api/users/current`)                                                                             | Blocks, saying how to make a valid token                                                         |
+| No Java at `SONAR_SCANNER_JAVA_EXE_PATH` or on `PATH`, scanner missing, other scanner error, `graphty-monorepo-local` missing | Blocks, naming the cause and the fix (for the last: run `tools/sonar-baseline.mjs --setup` once) |
+| Findings that block (section "What blocks")                                                                                   | Blocks                                                                                           |
 
 **Fail-open on an unreachable server, and why.** The owner is sometimes off the network, and
 SonarQube has no other place to run: it is not in CI. Failing closed there would make every
@@ -340,11 +343,10 @@ gate needs fixing, not more bypasses.
   ("Sonar way") and the rules to deactivate for each language, and `--setup` and the baseline job
   make the server's profile match it (creating it, setting the parent, deactivating the listed
   rules and reactivating any other). The baseline job restores it when it changes.
-- `tools/prepush.sh`: start `tools/sonar-gate.mjs` in the background (its own process group,
-  killed by an `EXIT` trap) after "Lint", join it before the summary
-  under its own flag (`SONAR_FAILED`), as the file's own rule about per-step flags requires. When
-  no package is affected, the early exit runs the step in the foreground first, so a push that
-  touches only `tools/` is still checked.
+- `tools/prepush-source-checks.sh`: run `tools/sonar-gate.mjs` as the last of the source-only
+  checks, which the push queue runs before a push waits for a gate slot and `tools/prepush.sh`
+  runs before the build (2026-10-09; it had run in the background after "Lint", so a push it
+  failed held a gate slot through the build and the tests first). It needs no build output.
 - `.husky/pre-push`: its header comment lists the new step and the bypass trailer.
 - `.gitignore`: `.scannerwork/`, in the gate's own commit, for scans run by hand (the gate and the
   baseline job write outside the worktree).
@@ -451,12 +453,15 @@ changes the profile.
 | -------------------------------------------------------------------- | ------------------: | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | typescript:S2699 (test has no assertion)                             |               5,977 | Deactivate                                      | The tests assert through Vitest's chai-style `assert.*` and through helpers the rule does not follow. The sampled tests all assert.                                                                                                                                                                                                                                                                                                                                                                                                |
 | typescript:S4782 (`?` with `\| undefined`)                           |                 624 | Deactivate                                      | graph-format, graph-io, webgpu-graph-algorithms and graphty-element typecheck their published types under `exactOptionalPropertyTypes` (`tsconfig.strict-consumer.json`). There, `prop?: T \| undefined` and `prop?: T` differ, and the `\| undefined` is deliberate. "Fixing" it breaks strict consumers who pass `undefined`.                                                                                                                                                                                                    |
+| javascript:S7772, typescript:S7772 (`node:` prefix on built-ins)     |                  94 | Fix                                             | `"fs"` and `"node:fs"` load the same module on every Node the repository supports, and the code that imports them runs only in Node (servers, scripts, build configs). Cleared in stage 3, except `vite.shared.config.ts`, left for the next change to that file because editing it reruns every package's CI.                                                                                                                                                                                                                     |
 | S2245 (`Math.random`)                                                |         22 hotspots | False positive for exact files; review the rest | Path entries only for the seeded random number generators and test-data generators where randomness is the point: `layout/src/simulation/seed.ts`, `layout/src/utils/random.ts`, `webgpu-graph-algorithms/src/layouts/seed.ts`, `graphty-element/src/simple/defineLayout.ts`, `algorithms/benchmarks/**`. Uses that make an id (`graphty-element/src/session/runs/RunsApi.ts`, `graphty-element/src/meshes/RichTextLabel.ts`, `remote-logger/src/client/RemoteLogClient.ts`) and any other use are reviewed one by one in stage 1. |
 | S4036 (command found through `PATH`) in `tools/`, package `scripts/` |         32 hotspots | False positive (path)                           | Developer tooling that runs `git`, `pnpm` and `node` from the developer's own `PATH`.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | javascript:S7735, typescript:S7735 (negated condition with `else`)   |                  71 | Deactivated until decided in stage 3            | Taste. Stays off unless a sample shows readability gains.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| javascript:S7748, typescript:S7748 (zero fraction in a number)       |                 147 | Fix                                             | `1.0` and `1` are the same number in JavaScript, so dropping the fraction changes nothing at run time. Cleared in one pass in stage 3.                                                                                                                                                                                                                                                                                                                                                                                             |
 | typescript:S4138 (`for...of` over an index loop)                     |                  34 | Deactivated until decided in stage 3            | Index loops over typed arrays are deliberate in the hot paths. Likely a path-scoped false positive for `graph-format`, `algorithms` and `webgpu-graph-algorithms`.                                                                                                                                                                                                                                                                                                                                                                 |
 | typescript:S3776 (cognitive complexity)                              |         411 + 47 js | Fix, threshold stays 15                         | No package-wide exemption. Complex kernels that cannot be split take a `NOSONAR(S3776)` with the reason. The gate blocks only a rising score (section 1).                                                                                                                                                                                                                                                                                                                                                                          |
 | S5852 (regex with super-linear backtracking) in graph-io's importers | part of 26 hotspots | Fix now, outside the stages                     | graph-io is published and parses user files, so a crafted file can hang an importer. Filed at stage 0 as a `bug` with `priority:high`, fixed in graph-io's next release.                                                                                                                                                                                                                                                                                                                                                           |
+| typescript:S6353 (verbose regex character class)                     |                 102 | Fix                                             | `[0-9]` matches exactly what `\d` matches, and `[A-Za-z0-9_]` exactly what `\w` matches, with or without the `u` and `i` flags, so the shorter form changes no match. Cleared in one pass in stage 3.                                                                                                                                                                                                                                                                                                                              |
 
 ### Stages
 
@@ -590,7 +595,7 @@ Labels: drop `needs-decision` and `blocked`; keep `infrastructure`, `priority:me
   error now block. `SONAR_REQUIRED` is gone. Every run is logged, and the weekly comment reports
   the skip rate.
 - A finding on a changed line that master already has (same rule and line hash, following
-  renames) no longer blocks. S3776 and S107 block only when the score rises. A missing baseline
+  renames) no longer blocks. S3776, S107 and S5843 block only when the score rises. A missing baseline
   falls back to blocking everything on changed lines.
 - Hotspots block from stage 0. A hotspot master has (to review or SAFE) or one on a line with a
   `NOSONAR` naming its rule is skipped.

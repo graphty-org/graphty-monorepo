@@ -46,6 +46,7 @@ function assertServable(advice: LayoutRecommendation | undefined, statistics: Gr
     assert.isString(advice?.layout.engine);
     assert.isAbove((advice?.layout.engine ?? "").length, 0, "the engine name setLayout takes");
     assert.isAbove((advice?.reason ?? "").length, 0, "a sentence saying why");
+    assert.strictEqual(advice?.fact.code, `recommend.${advice?.layout.id}`, "a code naming the rule that chose it");
 
     if (advice !== undefined && advice.layout.sizeRating !== "any") {
         assert.isAtMost(
@@ -160,6 +161,16 @@ describe("which arrangement suits a graph", () => {
         assertServable(advice, statistics);
         assert.strictEqual(advice?.layout.id, "force", "an empty graph gets the element's own default arrangement");
         empty.session.dispose();
+    });
+
+    it("says why as a code and the shape the rule read, never only as a sentence", () => {
+        const statistics = sizeOnly(40, 0);
+
+        assert.deepStrictEqual(recommendLayout(statistics, { largeGraphThreshold: 1_000 })?.fact, {
+            code: "recommend.circular",
+            params: { nodeCount: 40, edgeCount: 0, placedNodes: 0, largeGraphThreshold: 1_000 },
+        });
+        assert.strictEqual(recommendLayout(statistics, { placedNodes: 40 })?.fact.code, "recommend.fixed");
     });
 
     it("never names an arrangement the element cannot serve, whatever the graph looks like", () => {

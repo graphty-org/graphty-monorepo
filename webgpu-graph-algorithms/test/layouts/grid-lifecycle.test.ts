@@ -35,84 +35,77 @@ function tick(): Promise<void> {
 }
 
 describe("FA2 grid-tier lifecycle (spec 11.3)", () => {
-    it(
-        "dispose() leaves no live buffer (the lease's scratch included); a step() maps at most two staging slots",
-        async (t) => {
-            requireGpu(t);
-            const { device } = await acquireRaw();
-            const counter = LeakCounter.wrap(device);
-            const own = GpuContext.from(device);
-            const s = paritySnapshot("rmat14", gpuScale(), false);
-            try {
-                const sim = createSim(own, BASE_OPTIONS, GRID);
-                const positions = startPositions(s, BASE_OPTIONS, false);
-                sim.load(s, positions);
-                await sim.step(1);
-                expect(sim.tier).toBe("grid");
-                expect(own.pool.liveBytes, "the grid stage leases its scratch from the pool").toBeGreaterThan(0);
-                counter.resetMapAsync();
-                await sim.step(4);
-                expect(counter.mapAsyncCalls, "mapAsync calls of one batch").toBeLessThanOrEqual(2);
-                expect(counter.mapAsyncCalls, "a batch reads back").toBeGreaterThanOrEqual(1);
-                sim.dispose();
-                expect(sim.state).toBe("disposed");
-                expect(own.pool.liveBytes, "dispose() released the lease").toBe(0);
-                sim.dispose();
-                expect(sim.state, "dispose is idempotent").toBe("disposed");
-                const disposed = await rejectionOf(sim.step(1));
-                expect(disposed.code).toBe("E_DISPOSED");
-                own.release(s);
-                expect(own.residency.stats().buffers).toBe(0);
-            } finally {
-                own.dispose();
-            }
-            expect(counter.live, "live buffers after release + dispose").toBe(0);
-            expect(counter.destroyed).toBe(counter.created);
-            counter.restore();
-        },
-        CASE_TIMEOUT,
-    );
+    it("dispose() leaves no live buffer (the lease's scratch included); a step() maps at most two staging slots", async (t) => {
+        requireGpu(t);
+        const { device } = await acquireRaw();
+        const counter = LeakCounter.wrap(device);
+        const own = GpuContext.from(device);
+        const s = paritySnapshot("rmat14", gpuScale(), false);
+        try {
+            const sim = createSim(own, BASE_OPTIONS, GRID);
+            const positions = startPositions(s, BASE_OPTIONS, false);
+            sim.load(s, positions);
+            await sim.step(1);
+            expect(sim.tier).toBe("grid");
+            expect(own.pool.liveBytes, "the grid stage leases its scratch from the pool").toBeGreaterThan(0);
+            counter.resetMapAsync();
+            await sim.step(4);
+            expect(counter.mapAsyncCalls, "mapAsync calls of one batch").toBeLessThanOrEqual(2);
+            expect(counter.mapAsyncCalls, "a batch reads back").toBeGreaterThanOrEqual(1);
+            sim.dispose();
+            expect(sim.state).toBe("disposed");
+            expect(own.pool.liveBytes, "dispose() released the lease").toBe(0);
+            sim.dispose();
+            expect(sim.state, "dispose is idempotent").toBe("disposed");
+            const disposed = await rejectionOf(sim.step(1));
+            expect(disposed.code).toBe("E_DISPOSED");
+            own.release(s);
+            expect(own.residency.stats().buffers).toBe(0);
+        } finally {
+            own.dispose();
+        }
+        expect(counter.live, "live buffers after release + dispose").toBe(0);
+        expect(counter.destroyed).toBe(counter.created);
+        counter.restore();
+    });
 
-    it(
-        "release(snapshot) during a live simulation: the next step() rejects E_RELEASED; a load of another snapshot works; snapshots === 1",
-        async (t) => {
-            requireGpu(t);
-            const ctx = await acquire({ label: "grid-lifecycle/release" });
-            const first = paritySnapshot("rmat14", gpuScale(), false);
-            const second = paritySnapshot("karate", 1, false);
-            try {
-                await withSim(ctx, BASE_OPTIONS, GRID, async (sim) => {
-                    sim.load(first, startPositions(first, BASE_OPTIONS, false));
-                    await sim.step(2);
-                    expect(ctx.residency.stats().snapshots).toBe(1);
-                    ctx.release(first);
-                    const err = await rejectionOf(sim.step(1));
-                    expect(err.code).toBe("E_RELEASED");
-                    expect(err.details.serial).toBe(first.serial);
-                    sim.load(second, startPositions(second, BASE_OPTIONS, false));
-                    expect(sim.tier).toBe("grid");
-                    await sim.step(2);
-                    expect(ctx.residency.stats().snapshots).toBe(1);
-                    expect(sim.iterationsDone).toBe(2);
-                });
-                await withSim(ctx, BASE_OPTIONS, GRID, async (sim) => {
-                    sim.load(first, startPositions(first, BASE_OPTIONS, false));
-                    await sim.step(1);
-                    sim.load(second, startPositions(second, BASE_OPTIONS, false));
-                    expect(ctx.residency.stats().snapshots).toBe(2);
-                    ctx.release(first);
-                    expect(ctx.residency.stats().snapshots).toBe(1);
-                    await sim.step(2);
-                    expect(sim.iterationsDone).toBe(2);
-                });
-            } finally {
+    it("release(snapshot) during a live simulation: the next step() rejects E_RELEASED; a load of another snapshot works; snapshots === 1", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "grid-lifecycle/release" });
+        const first = paritySnapshot("rmat14", gpuScale(), false);
+        const second = paritySnapshot("karate", 1, false);
+        try {
+            await withSim(ctx, BASE_OPTIONS, GRID, async (sim) => {
+                sim.load(first, startPositions(first, BASE_OPTIONS, false));
+                await sim.step(2);
+                expect(ctx.residency.stats().snapshots).toBe(1);
                 ctx.release(first);
-                ctx.release(second);
-            }
-        },
-        CASE_TIMEOUT,
-    );
+                const err = await rejectionOf(sim.step(1));
+                expect(err.code).toBe("E_RELEASED");
+                expect(err.details.serial).toBe(first.serial);
+                sim.load(second, startPositions(second, BASE_OPTIONS, false));
+                expect(sim.tier).toBe("grid");
+                await sim.step(2);
+                expect(ctx.residency.stats().snapshots).toBe(1);
+                expect(sim.iterationsDone).toBe(2);
+            });
+            await withSim(ctx, BASE_OPTIONS, GRID, async (sim) => {
+                sim.load(first, startPositions(first, BASE_OPTIONS, false));
+                await sim.step(1);
+                sim.load(second, startPositions(second, BASE_OPTIONS, false));
+                expect(ctx.residency.stats().snapshots).toBe(2);
+                ctx.release(first);
+                expect(ctx.residency.stats().snapshots).toBe(1);
+                await sim.step(2);
+                expect(sim.iterationsDone).toBe(2);
+            });
+        } finally {
+            ctx.release(first);
+            ctx.release(second);
+        }
+    });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 17 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "device loss mid-run: the pending step rejects E_DEVICE_LOST, the simulation is disposed, the context is lost; a fresh context runs afterwards",
         async (t) => {

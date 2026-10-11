@@ -98,7 +98,7 @@ describe("Keyboard Controls Integration", () => {
             await operationQueueOf(graph).waitForCompletion();
 
             // Wait for camera to be activated
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForStableFrame();
         });
 
         afterEach(() => {
@@ -290,7 +290,7 @@ describe("Keyboard Controls Integration", () => {
             await operationQueueOf(graph).waitForCompletion();
 
             // Wait for camera to be activated
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForStableFrame();
         });
 
         afterEach(() => {

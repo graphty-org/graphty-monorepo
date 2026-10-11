@@ -244,7 +244,7 @@ export function parseDeclaredTemporal(text: string, spec: DeclaredTypeSpec): Tem
     return parseTemporal(text.trim(), spec.temporal);
 }
 
-const INTEGER_TEXT = /^[+-]?[0-9]+$/;
+const INTEGER_TEXT = /^[+-]?\d+$/;
 
 /**
  * Whether a long value's text lost precision when parsed to f64 (design section 5.1: a value with

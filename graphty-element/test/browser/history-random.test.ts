@@ -41,8 +41,6 @@ const SEEDS = [1, 17, 4242];
 const NUM_RUNS = 8;
 /** Longest sequence tried. */
 const MAX_COMMANDS = 20;
-/** Per seed. */
-const SEED_TIMEOUT_MS = 120_000;
 /** Frames a settle may take before the model pauses the layout instead. */
 const SETTLE_FRAMES = 300;
 
@@ -156,35 +154,31 @@ async function begin(engine: (typeof ENGINES)[number]): Promise<{ real: Real; mo
 
 describe.each(ENGINES)("random sequences on a real graph under %s", (engine) => {
     for (const seed of SEEDS) {
-        it(
-            `holds for seed ${String(seed)}`,
-            async () => {
-                await fc.assert(
-                    guardedAsyncProperty(
-                        fc.scheduler(),
-                        fc.commands(COMMANDS, { maxCommands: MAX_COMMANDS, size: "max" }),
-                        async (s, commands) => {
-                            let begun: { real: Real; model: Model } | undefined;
-                            await fc.scheduledModelRun(
-                                s,
-                                async () => {
-                                    begun = await begin(engine);
-                                    return begun;
-                                },
-                                commands,
-                            );
+        it(`holds for seed ${String(seed)}`, async () => {
+            await fc.assert(
+                guardedAsyncProperty(
+                    fc.scheduler(),
+                    fc.commands(COMMANDS, { maxCommands: MAX_COMMANDS, size: "max" }),
+                    async (s, commands) => {
+                        let begun: { real: Real; model: Model } | undefined;
+                        await fc.scheduledModelRun(
+                            s,
+                            async () => {
+                                begun = await begin(engine);
+                                return begun;
+                            },
+                            commands,
+                        );
 
-                            assert.isDefined(begun);
-                            await undoAllRedoAll(begun.model, begun.real);
-                            for (const cleanup of cleanups.splice(0)) {
-                                cleanup();
-                            }
-                        },
-                    ),
-                    { seed, numRuns: NUM_RUNS, endOnFailure: true, timeout: 20_000 },
-                );
-            },
-            SEED_TIMEOUT_MS,
-        );
+                        assert.isDefined(begun);
+                        await undoAllRedoAll(begun.model, begun.real);
+                        for (const cleanup of cleanups.splice(0)) {
+                            cleanup();
+                        }
+                    },
+                ),
+                { seed, numRuns: NUM_RUNS, endOnFailure: true, timeout: 20_000 },
+            );
+        });
     }
 });

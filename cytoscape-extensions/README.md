@@ -8,8 +8,6 @@ datasets, and import and export of GraphML, GEXF, GML, DOT, Pajek, CSV, JSON, Ne
 simulations and 17 of the algorithms run on WebGPU when the browser or Node has a usable device, with nothing extra
 to import.
 
-The package is not on npm yet. The names and install commands below are the ones it will be published under.
-
 - Documentation: [graphty.app/docs/cytoscape-extensions](https://graphty.app/docs/cytoscape-extensions/)
 - Demo: [every layout and algorithm in a live graph](https://graphty.app/storybook/cytoscape-extensions/)
 

@@ -61,13 +61,24 @@ export function floydWarshallOracle(s: GraphSnapshot, options: FloydWarshallOpti
     const blocks = Math.ceil(n / t);
     // relax block (bi, bj) through the pivots of block r, in pivot order
     const relax = (bi: number, bj: number, r: number): void => {
-        for (let k = r * t; k < Math.min((r + 1) * t, n); k++) {
-            for (let i = bi * t; i < Math.min((bi + 1) * t, n); i++) {
+        const kEnd = Math.min((r + 1) * t, n);
+        const iEnd = Math.min((bi + 1) * t, n);
+        const jStart = bj * t;
+        const jEnd = Math.min((bj + 1) * t, n);
+        for (let k = r * t; k < kEnd; k++) {
+            const kRow = k * n;
+            for (let i = bi * t; i < iEnd; i++) {
                 const dik = d[i * n + k];
-                for (let j = bj * t; j < Math.min((bj + 1) * t, n); j++) {
-                    const via = round(dik + d[k * n + j]);
-                    if (via < d[i * n + j]) {
-                        d[i * n + j] = via;
+                // Infinity + anything is never below an entry, so an unreachable pivot changes nothing: skipping it
+                // keeps the result bitwise and spares the row a pass (most of a sparse graph's early pivots)
+                if (dik === Infinity) {
+                    continue;
+                }
+                const iRow = i * n;
+                for (let j = jStart; j < jEnd; j++) {
+                    const via = round(dik + d[kRow + j]);
+                    if (via < d[iRow + j]) {
+                        d[iRow + j] = via;
                     }
                 }
             }

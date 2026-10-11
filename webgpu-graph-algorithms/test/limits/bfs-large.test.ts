@@ -60,7 +60,7 @@ describe("breadthFirstSearch at the gate's unscaled sizes (node-limits, P8-T15)"
             own.dispose();
         }
         counter.restore();
-    }, 600_000);
+    });
 
     it("the 1M / 10M R-MAT tier from node 0: an 84 MB edge queue, depth exact, order grouped, at least one direction switch", async (t) => {
         requireGpu(t);
@@ -88,5 +88,5 @@ describe("breadthFirstSearch at the gate's unscaled sizes (node-limits, P8-T15)"
         } finally {
             ctx.dispose();
         }
-    }, 600_000);
+    });
 });

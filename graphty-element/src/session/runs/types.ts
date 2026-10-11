@@ -272,7 +272,11 @@ export interface Caveats {
  * meantime.
  */
 export interface ResolvedScope {
-    /** The nodes in scope. Lazy: built on the first read, then the same set on every read. */
+    /**
+     * The nodes in scope. Lazy: built on the first read, then the same set on every read. It yields
+     * each id as the graph holds it, but `has` takes an integer id written either way: with node
+     * `34` in scope, `nodes.has("34")` is true.
+     */
     readonly nodes: ReadonlySet<NodeId>;
     /** The edges in scope. Lazy: built on the first read, then the same set on every read. */
     readonly edges: ReadonlySet<EdgeId>;

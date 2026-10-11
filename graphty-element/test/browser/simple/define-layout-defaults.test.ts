@@ -20,6 +20,7 @@ import {
 import { Graph } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
 import { expandOptions } from "../../../src/simple/options";
+import { nextFrame } from "../../helpers/real-input";
 
 const NODES = [
     { id: "a", tier: 0 },
@@ -35,22 +36,10 @@ const EDGES = [
     { src: "b", dst: "e" },
 ];
 
-const FRAME_MS = 16;
 const PATIENCE_MS = 5000;
 
 /** The tiers layout's options, as both twins declare them. */
 const TIER_OPTIONS = { tier: { type: "attribute", default: "tier" }, spacing: 2 } as const;
-
-/**
- * Wait one frame.
- * @param ms - How long.
- * @returns A promise.
- */
-function delay(ms: number): Promise<void> {
-    return new Promise((resolve) => {
-        setTimeout(resolve, ms);
-    });
-}
 
 /**
  * Wait until a condition holds.
@@ -64,7 +53,7 @@ async function until(what: string, check: () => boolean): Promise<void> {
             throw new Error(`timed out waiting for ${what}`);
         }
 
-        await delay(FRAME_MS);
+        await nextFrame();
     }
 }
 

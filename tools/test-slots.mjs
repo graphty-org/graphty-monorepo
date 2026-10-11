@@ -18,6 +18,8 @@
  *  - As a command wrapper: `node tools/test-slots.mjs <command...>` holds one slot for the whole
  *    command. tools/prepush-tests.mjs wraps each gate shard in it, so a shard's several vitest runs
  *    share one slot and its wait does not count against the shard's time limit.
+ *  - In process: a script that runs tests under a time limit of its own (webgpu-graph-algorithms'
+ *    scripts/run-browser-project.js) awaits acquire() before it starts the clock and passes HELD on.
  *
  * Mechanism: a directory of tickets (<main checkout>/tmp/test-slots, shared by every worktree), one
  * per run, named by arrival time and pid. A run proceeds once its ticket is among the oldest
@@ -237,7 +239,11 @@ function labelOf(argv) {
     return `${basename(process.cwd())}: ${short}`;
 }
 
-const off = () => process.env.GITHUB_ACTIONS === "true";
+/**
+ * Whether slots are off here (GitHub Actions: one job per runner, nothing to share).
+ * @returns true on GitHub Actions
+ */
+export const off = () => process.env.GITHUB_ACTIONS === "true";
 
 /**
  * The vitest globalSetup: hold a slot for the run, give it back at teardown or exit.

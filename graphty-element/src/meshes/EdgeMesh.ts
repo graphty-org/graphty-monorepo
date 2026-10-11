@@ -17,6 +17,7 @@ import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBu
 
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
@@ -346,8 +347,8 @@ void main() {
             return null;
         }
 
-        const size = options.size ?? 1.0;
-        const opacity = options.opacity ?? 1.0;
+        const size = options.size ?? 1;
+        const opacity = options.opacity ?? 1;
         const length = this.calculateArrowLength() * size;
 
         // Detect 2D mode
@@ -430,7 +431,7 @@ void main() {
         // CRITICAL: The sphere size must match what positioning code expects
         // calculateArrowPosition() uses actualSize = length * scaleFactor
         // So the sphere's diameter must be length * scaleFactor
-        const sphereDotScaleFactor = EdgeMesh.getArrowGeometry("sphere-dot").scaleFactor ?? 1.0;
+        const sphereDotScaleFactor = EdgeMesh.getArrowGeometry("sphere-dot").scaleFactor ?? 1;
         const sphereDiameter = length * sphereDotScaleFactor; // e.g., 0.5 * 0.25 = 0.125
 
         return FilledArrowRenderer.capOf(
@@ -680,9 +681,12 @@ void main() {
             texture.uOffset -= perFrame * scene.getAnimationRatio();
         });
 
+        const releaseFrames = animatesEveryFrame(scene);
+
         // The texture and the per-frame callback belong to this mesh alone; without this every
         // rebuilt animated line would leave both behind.
         mesh.onDisposeObservable.addOnce(() => {
+            releaseFrames();
             scene.onBeforeRenderObservable.remove(observer);
             texture.dispose();
         });
@@ -788,7 +792,7 @@ void main() {
                 return {
                     positioningMode: "tip",
                     needsRotation: false, // Billboard shaders handle orientation
-                    positionOffset: 1.0, // Move arrow backward (toward sphere) to place base at surface
+                    positionOffset: 1, // Move arrow backward (toward sphere) to place base at surface
                 };
 
             default:
@@ -814,7 +818,7 @@ void main() {
         arrowLength: number,
         geometry: ArrowGeometry,
     ): Vector3 {
-        const scaleFactor = geometry.scaleFactor ?? 1.0;
+        const scaleFactor = geometry.scaleFactor ?? 1;
 
         if (geometry.positioningMode === "center") {
             // Center-based: position center back by radius so front edge touches surface
@@ -843,7 +847,7 @@ void main() {
         geometry: ArrowGeometry,
     ): Vector3 {
         // Line gap equals actual arrow size (base size × scale factor)
-        const scaleFactor = geometry.scaleFactor ?? 1.0;
+        const scaleFactor = geometry.scaleFactor ?? 1;
         const actualSize = arrowLength * scaleFactor;
         return surfacePoint.subtract(direction.scale(actualSize));
     }
@@ -966,7 +970,7 @@ void main() {
      * @returns Flat array of coordinates forming a circular arc
      */
     private static createSelfLoopCurve(center: Vector3): number[] {
-        const radius = 2.0; // Loop radius
+        const radius = 2; // Loop radius
         const segments = 32; // Smooth circle
         const points: number[] = [];
 

@@ -92,7 +92,9 @@ describe("a columnar run result", () => {
         assert.notStrictEqual(result.node("a"), result.node("a"));
         assert.deepStrictEqual(result.node("a"), result.node("a"));
         assert.isTrue(Object.isFrozen(result.node("c")));
-        assert.strictEqual(result.node("2"), undefined);
+        assert.deepStrictEqual(result.node("2"), { onPath: true }, "an integer id is found in either spelling");
+        assert.deepStrictEqual(result.edge(7 as unknown as string), { onPath: true });
+        assert.strictEqual(result.node("2.0"), undefined);
         assert.strictEqual(result.node("zz"), undefined);
         assert.strictEqual(result.graph.length, 2);
     });

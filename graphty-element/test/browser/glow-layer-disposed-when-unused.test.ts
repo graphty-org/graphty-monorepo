@@ -16,8 +16,6 @@ import type { GraphSession } from "../../src/session";
 
 const WIDTH = 320;
 const HEIGHT = 240;
-const FRAMES = 8;
-const FRAME_MS = 10;
 
 describe("glow layer when no node glows", () => {
     let container: HTMLElement;
@@ -36,7 +34,7 @@ describe("glow layer when no node glows", () => {
         await graph.addNodes([{ id: "a" }, { id: "b" }]);
         await graph.setLayout("circular", { scale: 0.2 });
         await operationQueueOf(graph).waitForCompletion();
-    }, 60000);
+    });
 
     afterAll(() => {
         graph.dispose();
@@ -44,14 +42,9 @@ describe("glow layer when no node glows", () => {
     });
 
     async function frame(): Promise<Uint8Array> {
-        await operationQueueOf(graph).waitForCompletion();
-
-        for (let at = 0; at < FRAMES; at++) {
-            graph.scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
-        }
+        // Not a fixed number of frames: the glow layer fetches its shaders the first time a node
+        // glows, and until they arrive it composes nothing. The stable frame waits for them.
+        await graph.waitForStableFrame();
 
         const { engine } = graph;
 

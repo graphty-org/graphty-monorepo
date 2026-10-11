@@ -91,6 +91,6 @@ describe.runIf(process.env.GRAPH_IO_LARGE_FIXTURES === "1")("the Gene Ontology r
             const go = snapshot.ids.indexOf("GO:0008150");
             expect(snapshot.nodes.require("name").value(go)).toBe("biological_process");
             expect(snapshot.nodes.require("namespace").value(go)).toBe("biological_process");
-        }, 300_000);
+        });
     }
 });

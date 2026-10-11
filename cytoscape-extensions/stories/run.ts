@@ -14,6 +14,14 @@ import { colorByValue, type Outcome, PALETTE } from "./demo.js";
 type GpuMode = "auto" | "off" | "require";
 
 /**
+ * The node bound the demo passes to the layouts and algorithms that hold n x n tables, so a large network is refused
+ * with E_TOO_LARGE and a reason instead of failing to allocate: about 270 MB of f64 at 5,800 nodes. Hierarchical
+ * clustering keeps five such tables and merges in roughly cubic time, so it gets a lower bound.
+ */
+const DENSE_MAX_NODES = 5_800;
+const HIERARCHICAL_MAX_NODES = 2_000;
+
+/**
  * Runs one "graphty-<name>" layout and waits for layoutstop.
  * @param cy - the core
  * @param options - the layout options
@@ -43,6 +51,8 @@ function layoutInputs(cy: Core, layout: string): Record<string, unknown> {
         case "bfs":
         case "radial":
             return { root: nodes[0] };
+        case "kamada-kawai":
+            return { maxNodes: DENSE_MAX_NODES };
         default:
             return {};
     }
@@ -51,7 +61,7 @@ function layoutInputs(cy: Core, layout: string): Record<string, unknown> {
 interface LayoutRun {
     gpuMode: GpuMode;
     seed: number;
-    /** Simulations: the fixed iteration count (maxIter for ForceAtlas2, iterations for the others). */
+    /** Simulations: the iteration budget (iterations for Fruchterman-Reingold, maxIter for the others). */
     iterations: number;
     /** Simulations: draw every frame. Static layouts: tween from the old positions to the new (`animate: "end"`). */
     animate: boolean;
@@ -67,15 +77,12 @@ interface LayoutRun {
  */
 export async function runLayout(cy: Core, layout: string, run: LayoutRun): Promise<Outcome> {
     const simulation = (SIMULATION_LAYOUTS as readonly string[]).includes(layout);
-    if (layout === "kamada-kawai" && cy.nodes().length > 2_000) {
-        throw new Error("kamada-kawai needs memory in the square of the node count; pick 2,000 nodes or fewer");
-    }
     const options: Record<string, unknown> = { name: `graphty-${layout}`, seed: run.seed, ...layoutInputs(cy, layout) };
     if (simulation) {
         Object.assign(options, {
             gpu: run.gpuMode,
             animate: run.animate,
-            [layout === "forceatlas2" ? "maxIter" : "iterations"]: run.iterations,
+            [layout === "fruchterman-reingold" ? "iterations" : "maxIter"]: run.iterations,
         });
     } else if (run.gpuMode === "require") {
         throw new Error(`graphty-${layout} has no GPU implementation; only the force simulations do`);
@@ -190,6 +197,11 @@ function algorithmInputs(cy: Core, algorithm: string): { options: Record<string,
             return { options: { k: 4 } };
         case "syncClustering":
             return { options: { numClusters: 4 } };
+        case "teraHAC":
+            // teraHAC merges everything into one cluster unless told when to stop
+            return { options: { numClusters: 4, maxNodes: DENSE_MAX_NODES } };
+        case "hierarchicalClustering":
+            return { options: { maxNodes: HIERARCHICAL_MAX_NODES } };
         case "modularity":
             return { options: { clusters: cy.elements().graphtyLouvain() } };
         case "isGraphIsomorphic":
@@ -385,7 +397,11 @@ export async function runAlgorithm(cy: Core, algorithm: string, run: AlgorithmRu
         r = eles[method](options);
     }
     const ms = performance.now() - t0;
-    const note = paint(cy, r);
+    // a cluster count the demo chose, said beside the result so the picture is not read as the algorithm's own
+    const asked = ["k", "numClusters"]
+        .filter((k) => typeof options[k] === "number")
+        .map((k) => `${k}: ${String(options[k])}`);
+    const note = paint(cy, r) + (asked.length > 0 ? ` (${asked.join(", ")})` : "");
     const b = (r as AnyResult | null)?.backend;
     if (!b) {
         return { ran: "cpu", detail: "no GPU implementation of this algorithm", note, ms };

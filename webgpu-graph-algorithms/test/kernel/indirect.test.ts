@@ -124,7 +124,7 @@ describe("indirect-finalize and Kernel.dispatchIndirect (spec 5.4; P4-T1)", () =
             }
         }
         expect(touched, "first word an empty indirect dispatch touched").toBe(-1);
-    }, 120_000);
+    });
 
     it("a slot beyond the binding is E_INVALID_ARGUMENT { argument: 'slot' }; a BoundKernel of another kernel is E_INVALID_ARGUMENT { argument: 'bound' }", async (t) => {
         const ctx = await context(t);

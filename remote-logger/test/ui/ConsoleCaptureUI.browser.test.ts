@@ -61,7 +61,7 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             expect(showBtn?.textContent).toContain("Show");
         });
 
-        test("should toggle menu on button click", async () => {
+        test("should toggle menu on button click", () => {
             ui = new ConsoleCaptureUI();
 
             const btn = document.getElementById("console-capture-btn");
@@ -72,16 +72,14 @@ describe("ConsoleCaptureUI Browser Tests", () => {
 
             // Click to open menu
             btn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 50));
             expect(menu?.style.display).toBe("block");
 
             // Click to close menu
             btn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 50));
             expect(menu?.style.display).toBe("none");
         });
 
-        test("should close menu when clicking outside", async () => {
+        test("should close menu when clicking outside", () => {
             ui = new ConsoleCaptureUI();
 
             const btn = document.getElementById("console-capture-btn");
@@ -89,12 +87,10 @@ describe("ConsoleCaptureUI Browser Tests", () => {
 
             // Open menu
             btn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 50));
             expect(menu?.style.display).toBe("block");
 
             // Click outside (on document body)
             document.body.click();
-            await new Promise((resolve) => setTimeout(resolve, 50));
             expect(menu?.style.display).toBe("none");
         });
 
@@ -116,19 +112,17 @@ describe("ConsoleCaptureUI Browser Tests", () => {
     });
 
     describe("show logs modal in real browser", () => {
-        test("should open modal when Show Logs button is clicked", async () => {
+        test("should open modal when Show Logs button is clicked", () => {
             ui = new ConsoleCaptureUI();
             console.log("test message for modal");
 
             // Open menu first
             const btn = document.getElementById("console-capture-btn");
             btn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 50));
 
             // Click Show Logs button
             const showBtn = document.getElementById("cc-show");
             showBtn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 100));
 
             const modal = document.getElementById("console-logs-modal");
             expect(modal).not.toBeNull();
@@ -138,29 +132,26 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             expect(textarea.value).toContain("test message for modal");
         });
 
-        test("should close modal when X button is clicked", async () => {
+        test("should close modal when X button is clicked", () => {
             ui = new ConsoleCaptureUI();
 
             // Open menu and show modal
             const btn = document.getElementById("console-capture-btn");
             btn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 50));
 
             const showBtn = document.getElementById("cc-show");
             showBtn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 100));
 
             expect(document.getElementById("console-logs-modal")).not.toBeNull();
 
             // Click close button
             const closeBtn = document.getElementById("close-modal");
             closeBtn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 50));
 
             expect(document.getElementById("console-logs-modal")).toBeNull();
         });
 
-        test("modal textarea should contain all logged messages", async () => {
+        test("modal textarea should contain all logged messages", () => {
             ui = new ConsoleCaptureUI();
 
             // Log various types
@@ -173,11 +164,9 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             // Open modal
             const btn = document.getElementById("console-capture-btn");
             btn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 50));
 
             const showBtn = document.getElementById("cc-show");
             showBtn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 100));
 
             const textarea = document.getElementById("logs-textarea") as HTMLTextAreaElement;
             expect(textarea.value).toContain("log message");
@@ -189,7 +178,7 @@ describe("ConsoleCaptureUI Browser Tests", () => {
     });
 
     describe("clear logs in real browser", () => {
-        test("should clear logs when Clear button is clicked", async () => {
+        test("should clear logs when Clear button is clicked", () => {
             ui = new ConsoleCaptureUI();
 
             console.log("message to clear");
@@ -198,30 +187,26 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             // Open menu and click clear
             const btn = document.getElementById("console-capture-btn");
             btn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 50));
 
             const clearBtn = document.getElementById("cc-clear");
             clearBtn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 50));
 
             // Original message should be gone
             expect(ui.getLogs()).not.toContain("message to clear");
         });
 
-        test("menu should close after clicking Clear", async () => {
+        test("menu should close after clicking Clear", () => {
             ui = new ConsoleCaptureUI();
 
             // Open menu
             const btn = document.getElementById("console-capture-btn");
             const menu = document.getElementById("console-capture-menu");
             btn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 50));
             expect(menu?.style.display).toBe("block");
 
             // Click clear
             const clearBtn = document.getElementById("cc-clear");
             clearBtn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 50));
 
             expect(menu?.style.display).toBe("none");
         });
@@ -285,17 +270,15 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             expect(window.__console__).toBeUndefined();
         });
 
-        test("should remove modal if open when destroyed", async () => {
+        test("should remove modal if open when destroyed", () => {
             ui = new ConsoleCaptureUI();
 
             // Open modal
             const btn = document.getElementById("console-capture-btn");
             btn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 50));
 
             const showBtn = document.getElementById("cc-show");
             showBtn?.click();
-            await new Promise((resolve) => setTimeout(resolve, 100));
 
             expect(document.getElementById("console-logs-modal")).not.toBeNull();
 

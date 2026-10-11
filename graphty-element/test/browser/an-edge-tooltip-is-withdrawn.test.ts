@@ -66,7 +66,7 @@ describe("an edge tooltip, withdrawn in 2.0", () => {
         // racing a simulation that is still moving it.
         await graph.setLayout("circular", { scale: 0.2 });
         await operationQueueOf(graph).waitForCompletion();
-    }, 60000);
+    });
 
     afterAll(() => {
         graph.dispose();

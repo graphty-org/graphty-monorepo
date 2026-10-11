@@ -6,9 +6,10 @@
  * @module server/proxy
  */
 
-import type * as http from "http";
+import type * as http from "node:http";
+import * as https from "node:https";
+
 import httpProxy from "http-proxy";
-import * as https from "https";
 import { defaultTreeAdapter, type DefaultTreeAdapterMap, html as parse5Html, parse, serialize } from "parse5";
 
 const HEADERS_TO_REMOVE = [

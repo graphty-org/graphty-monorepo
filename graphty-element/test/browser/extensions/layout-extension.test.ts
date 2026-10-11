@@ -81,6 +81,7 @@ import { Graph } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
 // Not plugin code: the element's own deterministic stand-in for a device.
 import { createFakeAccelerator } from "../../../src/testing/fakeAccelerator";
+import { nextFrame } from "../../helpers/real-input";
 
 /** Five nodes, so a ring has five distinct angles and no two nodes sit opposite each other. */
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }, { id: "e" }];
@@ -92,9 +93,6 @@ const EDGES = [
     { src: "c", dst: "d" },
     { src: "d", dst: "e" },
 ];
-
-/** Roughly one animation frame, which is the granularity everything here polls at. */
-const FRAME_MS = 16;
 
 /** How long any single wait below is allowed to take before it is called a failure. */
 const PATIENCE_MS = 5000;
@@ -764,14 +762,13 @@ function distanceFromSegment(point: Coords, from: Coords, to: Coords): number {
 }
 
 /**
- * Pause for roughly one animation frame.
- * @param ms - how long to wait
- * @returns a promise that resolves after the wait
+ * Let the page draw some frames.
+ * @param count - how many frames to wait
  */
-function delay(ms: number): Promise<void> {
-    return new Promise<void>((resolve) => {
-        setTimeout(resolve, ms);
-    });
+async function frames(count: number): Promise<void> {
+    for (let frame = 0; frame < count; frame++) {
+        await nextFrame();
+    }
 }
 
 /**
@@ -787,7 +784,7 @@ async function waitFor(condition: () => boolean, what: string): Promise<void> {
             return;
         }
 
-        await delay(FRAME_MS);
+        await nextFrame();
     }
 
     throw new Error(`timed out waiting for ${what}`);
@@ -1038,7 +1035,7 @@ describe("a third party's layout engine", () => {
             assert.isAbove(settlements, 0, "the element told its consumer the graph had settled");
 
             const stepsWhenSettled = engine.stepCount;
-            await delay(FRAME_MS * 6);
+            await frames(6);
 
             assert.strictEqual(engine.stepCount, stepsWhenSettled, "and the element stopped stepping it");
         });
@@ -1146,7 +1143,7 @@ describe("a third party's layout engine", () => {
             assert.closeTo(stored.x, grabbed.x + 60, 0.5, "and the array holds where the reader left it");
             assert.closeTo(stored.y, grabbed.y + 20, 0.5);
 
-            await delay(FRAME_MS * 6);
+            await frames(6);
 
             assert.closeTo(dragged.getPosition().x, grabbed.x + 60, 0.01, "and nothing pulled it back afterwards");
             assert.closeTo(dragged.getPosition().y, grabbed.y + 20, 0.01);
@@ -1627,7 +1624,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
             compute: async (input) => {
                 snapshotInputs.push(input);
                 input.report({ fraction: 0.5, message: "half way" });
-                await new Promise((resolve) => setTimeout(resolve, 3 * FRAME_MS));
+                await frames(3);
                 return line(input);
             },
         });
@@ -1635,7 +1632,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
         registerSnapshotLayout({
             descriptor: lineDescriptor("test-snapshot-fails"),
             compute: async () => {
-                await new Promise((resolve) => setTimeout(resolve, FRAME_MS));
+                await nextFrame();
                 throw new GraphtyError({ code: "E_UNSUPPORTED", message: "cannot arrange this", source: "layout" });
             },
         });
@@ -1790,7 +1787,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
         assert.isTrue(input.signal.aborted, "replacing the layout aborted the answer");
 
         late(new Float32Array(2 * NODES.length).fill(999));
-        await new Promise((resolve) => setTimeout(resolve, 5 * FRAME_MS));
+        await frames(5);
         for (const { id } of NODES) {
             assert.deepStrictEqual(at(id), circle[id], `node ${id} is still on the circle`);
         }

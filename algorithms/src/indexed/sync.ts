@@ -8,15 +8,24 @@ import { withGroups } from "./components.js";
 export interface SyncClusteringOptions {
     /** Number of cluster centres: an integer in `[1, nodeCount]` (legacy rounds a fraction up; the port throws). */
     readonly numClusters: number;
-    /** Iteration cap; default 100. */
+    /** Iteration cap; default 1000. */
     readonly maxIterations?: number | undefined;
-    /** Stop when the loss changes by less than this between iterations; default 1e-6. */
+    /**
+     * Stop when the loss changes by less than this between iterations; default 1e-6. A run also stops once the
+     * cluster assignment has stayed the same for 10 iterations in a row.
+     */
     readonly tolerance?: number | undefined;
     /** Seed of the embedding initialisation and the centre draws; default 42. */
     readonly seed?: number | undefined;
-    /** Gradient step; default 0.01. */
+    /**
+     * Fraction of the full step each node takes; default 0.5. The full step (1) moves a node to the mean of its
+     * out-neighbors' embeddings. Below 1 every part settles; at 1 a bipartite part swaps sides at every step.
+     */
     readonly learningRate?: number | undefined;
-    /** Weight of the neighbour-reconstruction and regularisation terms; default 0.1. */
+    /**
+     * Weight of the neighbor and regularization terms in the reported loss (and its convergence test); default 0.1.
+     * The step divides it out, so it does not change the embeddings, except that 0 stops every node where it starts.
+     */
     readonly lambda?: number | undefined;
 }
 
@@ -42,9 +51,15 @@ export interface SyncClusteringResult {
     readonly previousLoss: number;
     /** Iterations run. */
     readonly iterations: number;
-    /** Whether the loss settled within the tolerance before the cap. */
+    /**
+     * Whether the run stopped before the cap: the cluster assignment stayed the same for 10 iterations in a row, or
+     * the loss settled within the tolerance.
+     */
     readonly converged: boolean;
 }
+
+/** Iterations the cluster assignment must stay the same for the run to stop. */
+const STABLE_ITERATIONS = 10;
 
 /**
  * Euclidean distance between two rows of a row-major matrix.
@@ -65,11 +80,15 @@ function distance(a: F64, i: number, b: F64, j: number, dim: number): number {
 }
 
 /**
- * SynC over a snapshot: node embeddings seeded from degree and a seeded generator, pulled toward
- * their out-neighbours by gradient steps, and clustered by k-means with k-means++ centres. The
- * arithmetic, and the order of every random draw, are the legacy `syncClustering`'s, so for the same
- * seed the labels and embeddings agree with it to rounding; the port draws from its own generator
- * instead of replacing `Math.random` for the duration of the call.
+ * SynC over a snapshot: node embeddings seeded from degree and a seeded generator, each moved part of
+ * the way to the mean of its out-neighbors' embeddings at every step, and clustered by k-means with
+ * k-means++ centers. Smoothing gathers a connected community within a few steps, and run long enough it would
+ * gather each whole connected part into one point, so the run stops once the cluster assignment has
+ * held for 10 iterations (or the loss settles). Unconnected cliques of any size come back as separate
+ * clusters, and planted communities as their own clusters. The order of every random draw is the
+ * legacy `syncClustering`'s, but legacy took a fixed gradient step that also pulled every node toward
+ * the origin, so its results differ (see issues #1600 and #1698). The port draws from its own
+ * generator instead of replacing `Math.random` for the duration of the call.
  *
  * Weights are ignored and a parallel arc pulls once per arc. The seeding degree is legacy's: in plus
  * out when directed, the stored arc count when undirected, so an undirected self-loop counts once.
@@ -80,10 +99,10 @@ function distance(a: F64, i: number, b: F64, j: number, dim: number): number {
 export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions): SyncClusteringResult {
     const {
         numClusters,
-        maxIterations = 100,
+        maxIterations = 1000,
         tolerance = 1e-6,
         seed = 42,
-        learningRate = 0.01,
+        learningRate = 0.5,
         lambda = 0.1,
     } = options;
     const n = s.nodeCount;
@@ -170,11 +189,20 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
     let loss = Infinity;
     let iterations = 0;
     let converged = false;
+    const previousLabels = new Uint32Array(n);
+    let unchanged = 0;
     while (iterations < maxIterations) {
         iterations++;
         assign();
+        unchanged = iterations > 1 && labels.every((label, u) => label === previousLabels[u]) ? unchanged + 1 : 0;
+        previousLabels.set(labels);
 
-        // Every gradient from the embeddings before this step, then one step for all.
+        // Every gradient of the neighbor term from the embeddings before this step, then one step for all. Each
+        // node's step is its gradient divided by the gradient's own slope, lambda * out-degree (a Jacobi step), so
+        // a node moves the same fraction of the way to its neighbors' mean whatever its degree. A fixed step for
+        // every node (before issue #1600) barely moved low-degree nodes and overshot high-degree ones. The pull
+        // toward the origin is left out of the step (issue #1698): scaled by degree it shrank low-degree nodes
+        // faster than high-degree ones, so after a few dozen steps k-means split on degree, not on community.
         gradient.fill(0);
         for (let u = 0; u < n; u++) {
             const row = u * dim;
@@ -184,12 +212,14 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
                     gradient[row + k] += lambda * (emb[row + k] - emb[other + k]);
                 }
             }
-            for (let k = 0; k < dim; k++) {
-                gradient[row + k] += lambda * emb[row + k];
-            }
         }
-        for (let i = 0; i < emb.length; i++) {
-            emb[i] -= learningRate * gradient[i];
+        for (let u = 0; u < n; u++) {
+            // lambda 0 has no gradient to follow and a node with no out-neighbor none to move to: they stay put.
+            const outDegree = rowPtr[u + 1] - rowPtr[u];
+            const step = lambda === 0 || outDegree === 0 ? 0 : learningRate / (lambda * outDegree);
+            for (let k = u * dim; k < (u + 1) * dim; k++) {
+                emb[k] -= step * gradient[k];
+            }
         }
 
         sums.fill(0);
@@ -228,7 +258,8 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
             previousLoss = loss;
         }
         loss = current;
-        if (Math.abs(previousLoss - loss) < tolerance) {
+        // Smoothing longer only blurs connected communities together, so a settled assignment ends the run.
+        if (Math.abs(previousLoss - loss) < tolerance || unchanged >= STABLE_ITERATIONS) {
             converged = true;
             break;
         }

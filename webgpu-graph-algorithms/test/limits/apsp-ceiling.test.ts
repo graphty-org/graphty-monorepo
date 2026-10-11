@@ -85,5 +85,5 @@ describe("all-pairs shortest paths at the real ceiling (node-limits, design 8.7)
         } finally {
             ctx.dispose();
         }
-    }, 300_000);
+    });
 });

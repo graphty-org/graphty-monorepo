@@ -20,8 +20,7 @@ async function setup2DGraph(): Promise<void> {
     await graph.setLayout("ngraph");
     setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
 
-    // Wait for camera to be activated
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await graph.waitForSettled();
 
     // Get the camera controller
     const cameraManager = graph.camera;

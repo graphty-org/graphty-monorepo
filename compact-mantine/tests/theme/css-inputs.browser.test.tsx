@@ -805,3 +805,37 @@ describe("InputClearButton - All CSS Values (Browser)", () => {
         expect(getCssVar(button, "--cb-icon-size")).toBe("10px");
     });
 });
+
+// ============================================================================
+// Input.Wrapper (a label above a SegmentedControl, say): the same label as every field
+// ============================================================================
+describe("Input.Wrapper - label matches the field labels (Browser)", () => {
+    it("draws its label, description and error exactly as Select does", () => {
+        const { container } = renderWithTheme(
+            <>
+                <Input.Wrapper label="Size" description="Pixels" error="Too big">
+                    <div />
+                </Input.Wrapper>
+                <Select label="Format" description="Pixels" error="Too big" data={["A", "B"]} />
+            </>,
+        );
+        const props = [
+            "fontSize",
+            "lineHeight",
+            "fontWeight",
+            "letterSpacing",
+            "color",
+            "marginTop",
+            "marginBottom",
+            "minHeight",
+        ] as const;
+        for (const part of ["label", "description", "error"]) {
+            const wrapper = styleOf(container, `.mantine-InputWrapper-${part}`);
+            const select = styleOf(container, `.mantine-Select-${part}`);
+            for (const prop of props) {
+                expect(wrapper[prop], `${part} ${prop}`).toBe(select[prop]);
+            }
+        }
+        expectLegendLabel(styleOf(container, ".mantine-InputWrapper-label"));
+    });
+});

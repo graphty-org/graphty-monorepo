@@ -17,6 +17,7 @@ import { DataRow, DataRowHeader, RankChip } from "../../src/components/rows/Data
 import { InlineRename, PageList, ResultRow, Tree, type TreeNodeData } from "../../src/components/tree";
 import { UiGlyph } from "../../src/icons";
 import {
+    animationsSettled,
     drive,
     expectMeasured,
     figmaAvailable,
@@ -289,7 +290,7 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         expectMeasured(lock, { x: figLock.box[0] - 57, y: 4, width: 24, height: 24, opacity: "1" }, { origin: a });
         expectMeasured(hide, { x: figLock.box[0] - 57 + 20, opacity: "0" }, { origin: a });
         await drive(a, "hover");
-        await new Promise((resolve) => setTimeout(resolve, 150));
+        await animationsSettled(a);
         expectMeasured(hide, { opacity: "1" });
     });
 

@@ -7,6 +7,7 @@
 import { EncryptStorage } from "encrypt-storage";
 
 import type { ProviderType } from "../providers";
+import { deriveKeyFromPassphrase } from "./deriveKeyFromPassphrase";
 
 type StorageType = "localStorage" | "sessionStorage";
 
@@ -16,11 +17,34 @@ type StorageType = "localStorage" | "sessionStorage";
 export interface PersistenceConfig {
     /**
      * Encryption key used to encrypt stored API keys (minimum 10 characters).
-     * Default: a built-in key, which keeps keys out of plain text at rest but does not protect them
-     * from anyone who can run script on the page. A custom key is remembered in `sessionStorage`
-     * for the rest of the tab's life, so persistence survives a reload and ends when the tab closes.
+     *
+     * Default: a built-in key. It is public in this package's source, so keys saved with it are
+     * obscured, not encrypted: they are not in plain text at rest, but anyone with access to the
+     * page or the browser profile can decrypt them. For real protection, call
+     * `enablePersistenceWithPassphrase` with a passphrase the reader types instead.
+     *
+     * A custom key is remembered in clear text in `sessionStorage` for the rest of the tab's life,
+     * so persistence survives a reload and ends when the tab closes. Anyone with access to the page
+     * can read it there while the tab is open.
      */
     encryptionKey?: string;
+    /** Storage type (default: the constructor's, which defaults to "localStorage") */
+    storage?: StorageType;
+    /** Prefix for storage keys (default: the constructor's, which defaults to "@graphty-ai-keys") */
+    prefix?: string;
+}
+
+/**
+ * Options for {@link ApiKeyManager.enablePersistenceWithPassphrase}. Every field is optional.
+ */
+export interface PassphrasePersistenceConfig {
+    /**
+     * A per-reader value mixed into the key, such as an account id or random bytes the host
+     * keeps. It need not be secret, but one per reader means a guessed passphrase cannot be tried
+     * against every reader at once. The same passphrase and salt always unlock the same keys.
+     * Default: a fixed salt shared by every reader.
+     */
+    salt?: string;
     /** Storage type (default: the constructor's, which defaults to "localStorage") */
     storage?: StorageType;
     /** Prefix for storage keys (default: the constructor's, which defaults to "@graphty-ai-keys") */
@@ -58,6 +82,10 @@ const DEFAULT_PROVIDER_ITEM = "default-provider";
  * Supports both session-only and persistent encrypted storage.
  * Uses encrypt-storage package for AES encryption when persistence is enabled.
  *
+ * Keys persisted without an `encryptionKey` are obscured, not encrypted: the built-in key is
+ * public, so anyone with access to the page or the browser profile can read them. To protect
+ * them, call `enablePersistenceWithPassphrase` with the reader's passphrase.
+ *
  * Persistence restores itself: a manager constructed after a reload finds the keys an earlier
  * page persisted (with the built-in key, or with a custom key from the same tab) and turns
  * persistence back on. A host calls `enablePersistence()`, `disablePersistence()` and `setKey()`
@@ -90,11 +118,55 @@ export class ApiKeyManager {
     /**
      * Enable persistent storage for API keys with AES encryption. Keys already in memory are
      * saved, and keys already in storage under the same encryption key are loaded.
+     * Without `config.encryptionKey` the keys are only obscured; see {@link PersistenceConfig.encryptionKey}.
+     * A key that cannot decrypt what is already stored loads nothing and leaves the stored keys as
+     * they are.
      * @param config - Persistence configuration (default: built-in encryption key)
      * @throws Error if encryption key is empty or too short (minimum 10 characters)
      */
     enablePersistence(config: PersistenceConfig = {}): void {
         const encryptionKey = config.encryptionKey ?? DEFAULT_ENCRYPTION_KEY;
+        if (this.startPersistence(encryptionKey, config)) {
+            this.rememberSessionKey(encryptionKey === DEFAULT_ENCRYPTION_KEY ? null : encryptionKey);
+        }
+    }
+
+    /**
+     * Enable persistent storage with a key derived from a passphrase the reader types, so the
+     * saved keys are encrypted rather than obscured: only someone who knows the passphrase can
+     * read them. Keys already in memory are saved, and keys already stored under the same
+     * passphrase and salt are loaded; a wrong passphrase loads nothing and leaves the stored keys
+     * as they are.
+     *
+     * The derived key is held in memory only, never in storage, so nothing restores itself after a
+     * reload: call this again with the passphrase on the next page.
+     *
+     * The key is derived with WebCrypto PBKDF2-HMAC-SHA256 (600,000 iterations), which takes a
+     * noticeable fraction of a second.
+     * @example
+     * ```typescript
+     * const keys = new ApiKeyManager();
+     * await keys.enablePersistenceWithPassphrase(passphrase, { salt: userId });
+     * ```
+     * @param passphrase - What the reader typed. Must not be empty.
+     * @param config - Where to store the keys, and the salt (see {@link PassphrasePersistenceConfig.salt})
+     * @throws Error if the passphrase is empty
+     */
+    async enablePersistenceWithPassphrase(passphrase: string, config: PassphrasePersistenceConfig = {}): Promise<void> {
+        const encryptionKey = await deriveKeyFromPassphrase(passphrase, config.salt);
+        if (this.startPersistence(encryptionKey, config)) {
+            // A key remembered for this tab by an earlier enablePersistence no longer applies
+            this.rememberSessionKey(null);
+        }
+    }
+
+    /**
+     * Point persistence at a store opened with this key. It never writes the key anywhere.
+     * @param encryptionKey - The key to encrypt the stored keys with
+     * @param config - Where the store lives
+     * @returns Whether a store was opened (false without a window)
+     */
+    private startPersistence(encryptionKey: string, config: Omit<PersistenceConfig, "encryptionKey">): boolean {
         if (encryptionKey.trim().length === 0) {
             throw new Error("Encryption key cannot be empty");
         }
@@ -110,7 +182,7 @@ export class ApiKeyManager {
         };
 
         if (typeof window === "undefined") {
-            return;
+            return false;
         }
 
         this.encryptStorage = this.openStorage(this.persistenceConfig);
@@ -119,7 +191,7 @@ export class ApiKeyManager {
             this.persistKeys();
         }
 
-        this.rememberSessionKey(encryptionKey === DEFAULT_ENCRYPTION_KEY ? null : encryptionKey);
+        return true;
     }
 
     /**

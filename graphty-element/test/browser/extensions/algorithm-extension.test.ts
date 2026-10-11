@@ -62,7 +62,7 @@
  */
 
 import { InstancedMesh } from "@babylonjs/core";
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import {
     acceleratorRegistry,
@@ -240,14 +240,14 @@ const HOP_REACH_FILLED: readonly ResultFieldSpec[] = metricFieldSpecs("node", "i
  * Cancellation is the reason this exists. "The promise rejected with an AbortError" is also what
  * a run cancelled before it ever started would produce, and that would prove nothing about
  * whether a third party's code can be stopped. So the extension says when it has begun, offers
- * to dawdle so a cancel has somewhere to land, and records whether its own abort signal is what
+ * to hold until cancelled so a cancel has somewhere to land, and records whether its own abort signal is what
  * stopped it.
  */
 const probe = {
     /** Called by the extension the first time it reaches a yield point. Reset per test. */
     begun: (): void => undefined,
-    /** Milliseconds the extension waits at each yield point, so a cancel can arrive mid-run. */
-    dawdleMs: 0,
+    /** Whether the extension waits at each yield point until it is cancelled, so a cancel lands mid-run. */
+    holdUntilCancelled: false,
     /** Whether the extension's own signal was aborted when it stopped. */
     stoppedBySignal: false,
 };
@@ -351,8 +351,16 @@ class HopReach extends DeclaredAlgorithm<HopReachOptions> {
 
                 await context.yieldNow();
 
-                if (probe.dawdleMs > 0) {
-                    await new Promise<void>((settle) => setTimeout(settle, probe.dawdleMs));
+                if (probe.holdUntilCancelled && !context.signal.aborted) {
+                    await new Promise<void>((settle) => {
+                        context.signal.addEventListener(
+                            "abort",
+                            () => {
+                                settle();
+                            },
+                            { once: true },
+                        );
+                    });
                 }
             }
         } finally {
@@ -841,17 +849,12 @@ DeclaredAlgorithm.register(SharedRank);
  * @param what - What is being waited for, for the failure message.
  */
 async function waitFor(predicate: () => boolean, what: string): Promise<void> {
-    const deadline = Date.now() + 5000;
-
-    while (Date.now() < deadline) {
-        if (predicate()) {
-            return;
-        }
-
-        await new Promise<void>((settle) => setTimeout(settle, 10));
-    }
-
-    assert.fail(`Timed out waiting for ${what}`);
+    await vi.waitFor(
+        () => {
+            assert.isTrue(predicate(), `Timed out waiting for ${what}`);
+        },
+        { timeout: 5000 },
+    );
 }
 
 /**
@@ -869,7 +872,7 @@ describe("an algorithm written outside this package", () => {
 
     beforeEach(async () => {
         probe.begun = (): void => undefined;
-        probe.dawdleMs = 0;
+        probe.holdUntilCancelled = false;
         probe.stoppedBySignal = false;
         faulty.plain = false;
 
@@ -1045,9 +1048,9 @@ describe("an algorithm written outside this package", () => {
         const started = deferred();
 
         probe.begun = started.resolve;
-        // Enough of a pause between steps that the cancel below lands while the extension's own
-        // loop is running, rather than before the work ever started.
-        probe.dawdleMs = 20;
+        // The extension holds between steps until it is cancelled, so the cancel below lands while
+        // its own loop is running, rather than before the work ever started.
+        probe.holdUntilCancelled = true;
 
         const run = graph.run("hop-reach");
 

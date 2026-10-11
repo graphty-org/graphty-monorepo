@@ -26,6 +26,7 @@ import { commands, page, userEvent } from "vitest/browser";
 
 import { AlignmentMatrix } from "../../src/components/selection/AlignmentMatrix";
 import {
+    animationsSettled,
     drive,
     type DriveState,
     expectMeasured,
@@ -100,7 +101,7 @@ async function checkboxFace(path: string): Promise<FigmaElement> {
  */
 async function settle(el: HTMLElement, state: DriveState): Promise<void> {
     await drive(el, state);
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await animationsSettled();
 }
 
 /**

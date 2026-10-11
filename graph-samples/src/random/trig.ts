@@ -45,8 +45,8 @@ function kernelCos(x: number): number {
     const w = z * z;
     const r = z * (C1 + z * (C2 + z * C3)) + w * w * (C4 + z * (C5 + z * C6));
     const hz = 0.5 * z;
-    const v = 1.0 - hz;
-    return v + (1.0 - v - hz + z * r);
+    const v = 1 - hz;
+    return v + (1 - v - hz + z * r);
 }
 
 /**

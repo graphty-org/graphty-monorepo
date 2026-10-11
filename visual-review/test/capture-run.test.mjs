@@ -11,7 +11,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { chromium } from "playwright";
 
-import { capture, CHROMIUM_ARGS, hasEmojiFont } from "../capture/capture.mjs";
+/* global requestAnimationFrame -- read only inside the page */
+
+import { capture, CHROMIUM_ARGS, hasEmojiFont, MAX_SHOT_HEIGHT, screenshotWholePage } from "../capture/capture.mjs";
 
 const PARAMS = {
     "demo--plain": {},
@@ -118,7 +120,7 @@ describe("capture", () => {
         });
         expect(items["demo--always-excluded.png"].status).toBe("excluded");
         expect(second.expected).toBe(second.items.length);
-    }, 120_000);
+    });
 
     it("marks a story with no baseline unseeded when it looks as in master's capture", async () => {
         const sb = storybook();
@@ -158,7 +160,7 @@ describe("capture", () => {
             stories: ["demo--plain"],
         });
         expect(tampered.items[0].status).toBe("new");
-    }, 120_000);
+    });
 
     it("compares a renamed story with its old id's baseline and reports a broken rename", async () => {
         const sb = storybook();
@@ -211,7 +213,7 @@ describe("capture", () => {
                 .sort(),
         ).toEqual(["demo--nowhere.dark.png", "demo--plain.png", "demo--small.png"]);
         expect(r.expected).toBe(r.items.length);
-    }, 120_000);
+    });
 
     it("refuses a renames file that is not a list of distinct renames", async () => {
         const baselines = mkdtempSync(join(tmpdir(), "vr-bl-"));
@@ -227,34 +229,32 @@ describe("capture", () => {
                 log: () => {},
             }),
         ).rejects.toThrow(/renames.json: entry 0 must be/);
-    }, 60_000);
+    });
 
     it("captures the whole canvas at scale 2, never cropped to the content", async () => {
-        const sb = storybook();
-        const run = async (story) => {
-            const out = mkdtempSync(join(tmpdir(), "vr-out-"));
-            const r = await capture({
-                project: "demo",
-                storybook: sb,
-                baselines: mkdtempSync(join(tmpdir(), "vr-bl-")),
-                out,
-                workers: 1,
-                waitFor: null,
-                stories: [story],
-                log: () => {},
-            });
-            return { size: r.items[0].size, png: PNG.sync.read(readFileSync(join(out, r.items[0].file))) };
-        };
+        // The four stories in one capture: one browser, as a project's run has.
+        const out = mkdtempSync(join(tmpdir(), "vr-out-"));
+        const r = await capture({
+            project: "demo",
+            storybook: storybook(),
+            baselines: mkdtempSync(join(tmpdir(), "vr-bl-")),
+            out,
+            workers: 1,
+            waitFor: null,
+            stories: ["demo--small", "demo--plain", "demo--tall", "demo--late-font"],
+            log: () => {},
+        });
+        const items = byFile(r);
         // A small component sits in the full 1200 x 900 viewport, doubled.
-        expect((await run("demo--small")).size).toEqual([1200 * 2, 900 * 2]);
-        expect((await run("demo--plain")).size).toEqual([1200 * 2, 900 * 2]);
+        expect(items["demo--small.png"].size).toEqual([1200 * 2, 900 * 2]);
+        expect(items["demo--plain.png"].size).toEqual([1200 * 2, 900 * 2]);
         // A story taller than the viewport is captured to its full scroll height.
-        expect((await run("demo--tall")).size).toEqual([1200 * 2, 2000 * 2]);
+        expect(items["demo--tall.png"].size).toEqual([1200 * 2, 2000 * 2]);
         // The capture waits for the page's fonts: the box drawn at (400, 300) when they settle is in it.
-        const { png } = await run("demo--late-font");
+        const png = PNG.sync.read(readFileSync(join(out, "demo--late-font.png")));
         const at = (405 * 2 + 305 * 2 * png.width) * 4;
         expect([...png.data.subarray(at, at + 3)]).toEqual([255, 0, 0]);
-    }, 120_000);
+    });
 
     it("launches every browser with GPU rasterization off, so text renders the same each time", async () => {
         expect(CHROMIUM_ARGS).toContain("--disable-gpu-rasterization");
@@ -277,7 +277,7 @@ describe("capture", () => {
         } finally {
             launch.mockRestore();
         }
-    }, 60_000);
+    });
 
     it("fails with a clear message when a baseline is a Git LFS pointer", async () => {
         const baselines = mkdtempSync(join(tmpdir(), "vr-bl-"));
@@ -297,5 +297,72 @@ describe("capture", () => {
                 log: () => {},
             }),
         ).rejects.toThrow(/demo--plain.png: baseline is an LFS pointer; run git lfs pull/);
-    }, 60_000);
+    });
+});
+
+describe("screenshotWholePage", () => {
+    // Bands 100 CSS px tall, each its own red value, so a row of the image names the band it shows.
+    // The page is 100 CSS px wide: the PNGs stay small, so the test pays for the slicing, not for
+    // encoding megapixels.
+    const bands = (n) =>
+        `<body style="margin:0">${Array.from({ length: n }, (_, i) => `<div style="height:100px;background:rgb(${i * 5},0,0)"></div>`).join("")}</body>`;
+    const redAt = (png, y) => png.data[(y * png.width + 10) * 4];
+
+    let browser;
+    beforeAll(async () => {
+        browser = await chromium.launch({ args: CHROMIUM_ARGS });
+    });
+    afterAll(async () => {
+        await browser?.close();
+    });
+
+    async function withPage(html, use) {
+        const page = await browser.newPage({ viewport: { width: 100, height: 900 }, deviceScaleFactor: 2 });
+        try {
+            await page.setContent(html);
+            // As capture does: a screenshot before the page's first frame fails in Chromium.
+            await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+            return await use(page);
+        } finally {
+            await page.close();
+        }
+    }
+
+    it("is Playwright's own full-page screenshot, byte for byte, within the limit", async () => {
+        await withPage(bands(40), async (page) => {
+            const own = await page.screenshot({ animations: "disabled", caret: "hide", fullPage: true });
+            const ours = await screenshotWholePage(page);
+            expect(ours.readUInt32BE(20)).toBe(8000);
+            expect(ours.equals(own)).toBe(true);
+        });
+    });
+
+    it("draws the bottom of a page taller than the limit, not a copy of its top", async () => {
+        // 4,200 CSS px is 8,400 device px: two slices, the second 208 px.
+        await withPage(bands(42), async (page) => {
+            const png = PNG.sync.read(await screenshotWholePage(page));
+            expect([png.width, png.height]).toEqual([200, 8400]);
+            expect(MAX_SHOT_HEIGHT).toBe(8192);
+            // Every band, both sides of the seam and the last row included, is where the page has it.
+            for (const y of [0, 199, 200, 8191, 8192, 8199, 8200, 8399]) {
+                expect(redAt(png, y), `row ${y}`).toBe(Math.floor(y / 200) * 5);
+            }
+        });
+    });
+
+    it("keeps the size it measured when the first slice shrinks the page", async () => {
+        // Chromium's first screenshot beyond the viewport lays text out again with line boxes of
+        // 'normal' height a pixel shorter: this label is 21 CSS px before it and 20 after, so the
+        // page is 4,221 CSS px when measured and 4,220 from the second slice on (#1976).
+        const label = `<div style="padding:4px 6px;font:600 11px ui-monospace, monospace">ak</div>`;
+        await withPage(`<!doctype html>${bands(42).replace('<body style="margin:0">', `$&${label}`)}`, async (page) => {
+            const png = PNG.sync.read(await screenshotWholePage(page));
+            expect([png.width, png.height]).toEqual([200, 8442]);
+            // As one screenshot of the measured size draws it: the label 20 px tall, the bands
+            // below it, and the white canvas in the last CSS px.
+            expect(redAt(png, 40)).toBe(0);
+            expect(redAt(png, 8439)).toBe(41 * 5);
+            expect(redAt(png, 8441)).toBe(255);
+        });
+    });
 });

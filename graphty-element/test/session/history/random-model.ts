@@ -346,7 +346,8 @@ function undoPassed(model: Model, from: number, to: number): void {
         const step = model.steps[at];
         step.undoneAt = model.tick++;
         if (step.before !== null) {
-            const below = model.steps[at - 1];
+            // Sealed like any capture: into the seal target, never a step that moved nothing.
+            const below = model.steps[sealTarget(model, at - 1)];
             below.arr = new Map(step.before);
             below.late = null;
         }
@@ -464,6 +465,17 @@ function sealed(model: Model): boolean {
 }
 
 /**
+ * A node's coordinates on the Z = 0 plane, where a 2D position holds every placed node: the
+ * history keeps the Z it recorded, and the lane holds 0 while the layout is 2D.
+ * @param value - `x,y,z`.
+ * @returns `x,y,0`, or the value unchanged when the node is unplaced.
+ */
+function onPlane(value: string): string {
+    const [x, y, z] = value.split(",");
+    return z === "NaN" ? value : `${x},${y},0`;
+}
+
+/**
  * Fail unless the lane holds A(position) for every node the model knows and the graph holds.
  * @param model - The model.
  * @param real - The system.
@@ -483,9 +495,14 @@ function expectArrangement(
     }
 
     const lane = laneOf(real);
+    const flat = real.session.layout.dimension === "2d";
     for (const [id, value] of expected) {
         if (lane.has(id)) {
-            assert.strictEqual(lane.get(id), value, `${when}: node ${id} at position ${String(model.position)}`);
+            assert.strictEqual(
+                lane.get(id),
+                flat ? onPlane(value) : value,
+                `${when}: node ${id} at position ${String(model.position)}`,
+            );
         }
     }
 }
@@ -875,8 +892,10 @@ class Place implements Command {
 
         sealModel(model, real);
         const entries = ids.map((id, k) => ({ id, x: this.at + k, y: this.at, z: -this.at }));
+        // In 2D the Z given is ignored: the step records the 0 the lane holds.
+        const flat = real.session.layout.dimension === "2d";
         const written = new Map(
-            entries.map((entry) => [entry.id, `${String(entry.x)},${String(entry.y)},${String(entry.z)}`]),
+            entries.map((entry) => [entry.id, `${String(entry.x)},${String(entry.y)},${String(flat ? 0 : entry.z)}`]),
         );
         const whole = 3 * ids.length > held.size;
         const outcome = await edit(model, real, this.toString(), { key: "positions" }, () =>

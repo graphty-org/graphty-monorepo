@@ -27,8 +27,11 @@ async function createGraphtyElement(): Promise<{ element: Graphty; container: HT
     graphtyElement.style.display = "block";
     container.appendChild(graphtyElement);
 
-    // Wait for element to be connected and asyncFirstUpdated to complete
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Wait for element to be connected and its graph initialised
+    await graphtyElement.updateComplete;
+    await vi.waitFor(() => {
+        assert.isTrue(graphtyElement.graph.initialized, "the element initialised its graph");
+    });
 
     return { element: graphtyElement, container };
 }
@@ -112,7 +115,7 @@ describe("Event Forwarding Regression Tests", () => {
             await graphtyElement.graph.addNodes([{ id: "1" }, { id: "2" }]);
 
             // Wait for async operations
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graphtyElement.waitForSettled();
 
             // data-added should have been emitted
             assert.isTrue(dataAddedCallback.mock.calls.length >= 1);
@@ -131,7 +134,7 @@ describe("Event Forwarding Regression Tests", () => {
 
             // First add nodes
             await graphtyElement.graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graphtyElement.waitForSettled();
 
             // Now listen for edge additions
             graphtyElement.addEventListener("data-added", dataAddedCallback);
@@ -142,7 +145,7 @@ describe("Event Forwarding Regression Tests", () => {
                 { src: "b", dst: "c" },
             ]);
 
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graphtyElement.waitForSettled();
 
             // Should have received data-added for edges
             const edgeEvent = dataAddedCallback.mock.calls.find(
@@ -432,7 +435,7 @@ describe("Event Forwarding Regression Tests", () => {
             ]);
 
             // Wait for operations to complete
-            await new Promise((resolve) => setTimeout(resolve, 300));
+            await graphtyElement.waitForSettled();
 
             // Should have received data-added events for both nodes and edges
             assert.isTrue(dataAddedEvents.length >= 2, "Should receive data-added events");

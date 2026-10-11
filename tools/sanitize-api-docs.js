@@ -3,8 +3,8 @@
 // Post-process generated TypeDoc markdown to escape angle brackets
 // that would otherwise break VitePress Vue template parsing.
 
-import { readdir, readFile, writeFile, access } from "fs/promises";
-import { join, extname } from "path";
+import { readdir, readFile, writeFile, access } from "node:fs/promises";
+import { join, extname } from "node:path";
 
 // The directories to process: the ones named on the command line (a package's own docs build
 // passes its docs/api/generated), else every package's API docs in the unified site

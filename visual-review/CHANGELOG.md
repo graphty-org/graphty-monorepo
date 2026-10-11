@@ -1,3 +1,67 @@
+## 0.2.22 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🩹 Fixes
+
+- **visual-review:** capture stories taller than 8,192 device px in stitched slices ([#1958](https://github.com/graphty-org/graphty-monorepo/issues/1958))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.21 (2026-10-10)
+
+### 🩹 Fixes
+
+- **visual-review:** document the review handler as returning a promise ([#1896](https://github.com/graphty-org/graphty-monorepo/issues/1896))
+- **visual-review:** let tests wait for the tiles the server makes in advance ([#1896](https://github.com/graphty-org/graphty-monorepo/issues/1896))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.20 (2026-10-10)
+
+### 🩹 Fixes
+
+- **visual-review:** start fewer processes in the journey, gate and commitlint tests ([#1719](https://github.com/graphty-org/graphty-monorepo/issues/1719), [#1720](https://github.com/graphty-org/graphty-monorepo/issues/1720), [#1744](https://github.com/graphty-org/graphty-monorepo/issues/1744), [#1745](https://github.com/graphty-org/graphty-monorepo/issues/1745))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.19 (2026-10-09)
+
+### 🩹 Fixes
+
+- **visual-review:** selecting the story name no longer reflows the header ([cfafa2580](https://github.com/graphty-org/graphty-monorepo/commit/cfafa2580))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.18 (2026-10-09)
+
+### 🩹 Fixes
+
+- **visual-review:** wait on the settled list in the inbox tests, and run the update without git-lfs ([#1601](https://github.com/graphty-org/graphty-monorepo/issues/1601), [#1580](https://github.com/graphty-org/graphty-monorepo/issues/1580), [#1613](https://github.com/graphty-org/graphty-monorepo/issues/1613))
+- **visual-review:** see a finished job and a first list load without a fixed wait ([#1530](https://github.com/graphty-org/graphty-monorepo/issues/1530))
+
+### 🔥 Performance
+
+- **visual-review:** make the grid's spotlit and zoomed tiles on the server ([04e9f5295](https://github.com/graphty-org/graphty-monorepo/commit/04e9f5295))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.17 (2026-10-08)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
 ## 0.2.16 (2026-10-08)
 
 ### 🩹 Fixes

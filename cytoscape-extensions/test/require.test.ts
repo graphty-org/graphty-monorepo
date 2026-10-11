@@ -43,5 +43,5 @@ describe.runIf(canRequireEsm)("require() from CommonJS", () => {
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
-    }, 60_000);
+    });
 });

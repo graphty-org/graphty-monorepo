@@ -22,6 +22,7 @@ import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
+import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -477,14 +478,26 @@ export class Node {
 
         const pos = layoutEngine?.getNodePosition(this);
         if (pos) {
-            this.mesh.position.x = pos.x;
-            this.mesh.position.y = pos.y;
-            this.mesh.position.z = pos.z ?? 0;
+            this.setMeshPosition(pos.x, pos.y, pos.z ?? 0);
         }
 
         this.syncOverlayPositions();
 
         this.context.getStatsManager().endMeasurement("Node.update");
+    }
+
+    /**
+     * Put this node's mesh at a point. The ONLY place a node mesh's position is written: the
+     * `local/node-position-funnel` lint rule reports any other, so the writers stay few and
+     * visible. A 2D view needs every node on Z = 0, and each extra writer would be one more place
+     * to re-apply that by hand.
+     * @param x - scene-unit x
+     * @param y - scene-unit y
+     * @param z - scene-unit z
+     * @internal
+     */
+    setMeshPosition(x: number, y: number, z: number): void {
+        this.mesh.position.set(x, y, z);
     }
 
     /**
@@ -735,9 +748,7 @@ export class Node {
         );
 
         // Restore the saved position to the new mesh
-        this.mesh.position.x = savedPosition.x;
-        this.mesh.position.y = savedPosition.y;
-        this.mesh.position.z = savedPosition.z;
+        this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);
 
         // Parent to graph-root for XR gesture support
         const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
@@ -758,9 +769,7 @@ export class Node {
         const layoutManager = this.context.getLayoutManager();
         const pos = layoutManager.layoutEngine?.getNodePosition(this);
         if (pos) {
-            this.mesh.position.x = pos.x;
-            this.mesh.position.y = pos.y;
-            this.mesh.position.z = pos.z ?? 0;
+            this.setMeshPosition(pos.x, pos.y, pos.z ?? 0);
         }
 
         // recreate label if needed
@@ -1393,6 +1402,8 @@ export class Node {
         // Labels that would overlap on screen are thinned out when `labels.declutter` is on; see
         // LabelDeclutter.
         LabelDeclutter.track(scene, this.context, this);
+        // Its animation starts on the next frame the layout is at rest, or when it settles.
+        oweLabelAnimations(scene);
         return new RichTextLabel(scene, labelOptions);
     }
 
@@ -1534,7 +1545,7 @@ export class Node {
         switch (location) {
             case "left":
             case "right":
-                return 1.0; // Larger offset for horizontal positions
+                return 1; // Larger offset for horizontal positions
             case "center":
                 return 0; // No offset for center
             default:

@@ -29,8 +29,6 @@ export interface LayoutMetadata {
     label: string;
     /** What the arrangement does, from the catalogue entry this engine draws. */
     description: string;
-    /** What this engine buys over the others that draw the same arrangement. */
-    engineNote: string;
     /** The public name of the arrangement, for when the element accepts those. */
     arrangement: string;
     maxDimensions: 2 | 3;
@@ -90,7 +88,6 @@ function toMetadata(entry: LayoutCatalogEntry, implementation: LayoutImplementat
         type: implementation.engine,
         label: implementation.plainName,
         description: entry.descriptor.description,
-        engineNote: implementation.reason,
         arrangement: entry.descriptor.id,
         maxDimensions: implementation.maxDimensions,
         category: entry.descriptor.family,

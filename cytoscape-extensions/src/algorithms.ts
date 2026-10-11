@@ -1481,8 +1481,8 @@ const IMPLS = {
         o: WeightedFlag<LabelPropagationOptions> & {
             /**
              * Seed labels: the node data field holding them (nodes without it are free), or one selection per label.
-             * Every free node starts with a label of its own, so a seed label spreads only where its seeds outvote
-             * their neighbors: a single seed in a dense group can end up alone in its own cluster.
+             * Free nodes start unlabeled and take a seed label when one reaches them, so every node connected to a seed
+             * ends in a seed's cluster. Each connected group of nodes no seed reaches becomes a cluster of its own.
              */
             readonly seeds: string | readonly NodeSelection[];
         },
@@ -1607,12 +1607,13 @@ const IMPLS = {
         adamicAdarScore(c.s, req(c, o.source, "source"), req(c, o.target, "target"), { directed: c.s.directed }),
     commonNeighborsPrediction: (
         c: Ctx,
-        _o: AlgorithmOptions & Omit<LinkPredictionOptions, "directed"> = {},
-    ): PredictedLink[] => links(c, commonNeighborsPrediction(c.s, { ...c.rest, directed: c.s.directed })),
+        _o: AlgorithmOptions & Omit<LinkPredictionOptions, "directed" | "uniquePairs"> = {},
+    ): PredictedLink[] =>
+        links(c, commonNeighborsPrediction(c.s, { ...c.rest, directed: c.s.directed, uniquePairs: true })),
     adamicAdarPrediction: (
         c: Ctx,
-        _o: AlgorithmOptions & Omit<LinkPredictionOptions, "directed"> = {},
-    ): PredictedLink[] => links(c, adamicAdarPrediction(c.s, { ...c.rest, directed: c.s.directed })),
+        _o: AlgorithmOptions & Omit<LinkPredictionOptions, "directed" | "uniquePairs"> = {},
+    ): PredictedLink[] => links(c, adamicAdarPrediction(c.s, { ...c.rest, directed: c.s.directed, uniquePairs: true })),
     commonNeighborsForPairs: (c: Ctx, o: AlgorithmOptions & PairsOptions): number[] =>
         Array.from(commonNeighborsForPairs(c.s, pairsOf(c, o.pairs, "pairs"), { directed: c.s.directed })),
     adamicAdarForPairs: (c: Ctx, o: AlgorithmOptions & PairsOptions): number[] =>

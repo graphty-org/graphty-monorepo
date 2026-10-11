@@ -26,9 +26,11 @@ import {
     interceptedPage,
     isolateGit,
     job,
+    keepTiles,
     makeRepo,
     onePr,
     pushCommit,
+    seedTiles,
     withMoved,
 } from "./helpers.mjs";
 
@@ -40,13 +42,29 @@ let server;
 let origin;
 let page;
 let dialogs;
+// Every URL the page requested (the page's own `performance` is Playwright's clock's).
+let requested;
 let confirmFinish = false;
+// The fixture's grid tiles, made once (keepTiles) and put in every server's tmp directory.
+let tiles = null;
+// The app open() started. Its tiles made in advance run on after the server closes: afterEach waits
+// for them, so their logs and file reads stay inside the test that started them.
+let openApp = null;
 
 beforeAll(async () => {
     isolateGit();
     // Headless Chromium can crash at start while reading system fonts without this.
     process.env.FC_FONTATIONS = "1";
     browser = await chromium.launch();
+    // One review opened and closed before the tests: the browser's first page and the server code's
+    // first run (its thumbnail processes started) cost the first test half a second the rest do not.
+    const r = await open((x) => ({ gh: onePr()(x) }));
+    await page.locator(".component").first().waitFor();
+    tiles = await keepTiles({ origin, token: TOKEN, tmp: join(r.repo, "tmp/visual-review") }, 123);
+    await page.close();
+    server.close();
+    await openApp.idle();
+    openApp = null;
 });
 afterAll(() => browser?.close());
 
@@ -68,19 +86,23 @@ const twoPrs = (r, items) =>
     });
 
 // `host` localhost: WebAuthn needs a host name (an IP address is never a passkey's site).
-// `touch`: a touch screen (an iPad), where `pointer: coarse` matches. `clock`: the page's timers
-// and clocks are Playwright's, which a test can pause.
+// `touch`: a touch screen (an iPad), where `pointer: coarse` matches. The page's timers and clocks
+// are Playwright's, which a test can pause or jump (ready).
 async function open(
     options,
-    { viewport = { width: 1000, height: 800 }, review = true, host = "127.0.0.1", touch = false, clock = false } = {},
+    { viewport = { width: 1000, height: 800 }, review = true, host = "127.0.0.1", touch = false } = {},
 ) {
     const r = makeRepo();
+    const tmp = join(r.repo, "tmp/visual-review");
+    if (tiles) {
+        seedTiles(tiles, tmp);
+    }
     server = createServer();
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
     origin = `http://${host}:${server.address().port}`;
     const app = createApp({
         repo: r.repo,
-        tmp: join(r.repo, "tmp/visual-review"),
+        tmp,
         config: CONFIG,
         token: TOKEN,
         origin,
@@ -88,8 +110,15 @@ async function open(
         ...options(r),
     });
     server.on("request", app);
+    // The list loads while the browser opens the tab: the page's first ask answers at once,
+    // instead of a quarter second later on its second (Review waits for the list either way),
+    // and the server's git work for it no longer waits for the tab, nor the tab for it.
+    const listed = review ? fetch(`${origin}/api/prs`, { headers: { "x-review-token": TOKEN } }) : null;
+    openApp = app;
     page = await interceptedPage(browser, { viewport, hasTouch: touch, isMobile: touch });
     dialogs = [];
+    requested = [];
+    page.on("request", (q) => requested.push(q.url()));
     // The page asks in its own dialog (ask in review.js). Accept all, Undo and Exclude are
     // confirmed; Finish is refused unless a test sets confirmFinish.
     await page.exposeFunction("asked", (message) => {
@@ -113,9 +142,8 @@ async function open(
         dialogs.push(`browser dialog: ${d.message()}`);
         return d.dismiss();
     });
-    if (clock) {
-        await page.clock.install();
-    }
+    await page.clock.install();
+    await listed;
     await page.goto(`${origin}/#token=${TOKEN}`);
     if (review) {
         await page.getByRole("button", { name: "Review", exact: true }).first().click();
@@ -127,7 +155,20 @@ afterEach(async () => {
     confirmFinish = false;
     await page?.close();
     server?.close();
+    await openApp?.idle();
+    openApp = null;
 });
+
+// The page's next flip of Flash, Spotlight's flash or Blink (FLASH_MS, a third of a second), now:
+// the page's clock jumps to it instead of the test waiting for it.
+const nextFlash = () => page.clock.fastForward(333);
+
+// Types `text` into Find story, and jumps the page's clock over the 200 ms the field waits for
+// more typing before it narrows the grid.
+async function narrow(text) {
+    await page.locator("#find").fill(text);
+    await page.clock.fastForward(200);
+}
 
 // Item numbers, fixed for the project (the All order): 1 menu--open (failed), 2
 // button--primary.dark (changed, area [160, 80, 40, 40]), 3 slider--sizes (changed), 4
@@ -136,6 +177,13 @@ async function openStory(number) {
     await page.locator("#find").fill(String(number));
     await page.locator("#find").press("Enter");
     await expect.poll(() => page.locator(".itemline .number").textContent()).toBe(`#${number}`);
+}
+
+// Picks a project in the header and waits for its grid. Until the project loads, the grid on the
+// screen is the one before, and a click on it lands there (#1869).
+async function pickProject(project) {
+    await page.locator("#pick-project").selectOption(project);
+    await page.locator(`.gridbar[data-project="${project}"]`).waitFor();
 }
 
 const stageClass = () => page.locator("#stage").getAttribute("class");
@@ -157,15 +205,29 @@ const box = (part = null) =>
         }
         return name ? globalThis.document.getElementById(`wait-${name}`).textContent : "open";
     }, part);
-// The item's images have been on screen long enough for a decision to count.
-const ready = () => page.locator("#stage[data-ready]").waitFor();
+// The targets screen shows the whole list: no refresh running, every capture downloaded.
+const listSettled = () => page.locator("#listline[data-settled]").waitFor();
+// The page's GUARD_MS: a decision this soon after an item's images appeared is ignored.
+const GUARD_MS = 250;
+// The item's images have been on screen long enough for a decision to count. Once they show, the
+// page's clock jumps the guard instead of the test waiting it out; a jump made before the page
+// noticed them only falls back to waiting.
+async function ready() {
+    const stage = page.locator("#stage[data-ready]");
+    await page.locator("#stage[data-ready], #stage .sheet").first().waitFor();
+    if ((await stage.count()) === 0) {
+        await page.clock.fastForward(GUARD_MS);
+    }
+    await stage.waitFor();
+}
 const progress = () => page.locator("#progress").textContent();
 const visibleTiles = () => page.locator(".tile-box:not([hidden]) .tile").count();
 // The grid's More filters menu: a status or a decision.
 const show = (value) => page.locator("#more-filters").selectOption(value);
 const option = (value) => page.locator(`#more-filters option[value="${value}"]`).textContent();
 
-// Thirty more components of six new stories each: a grid far taller than the screen.
+// Thirty more components of six new stories each (186 items with the fixture's): a project with
+// hundreds of items.
 const MANY = [];
 {
     const badge = JSON.parse(readFileSync(join(FIXTURE, "compact-mantine/results.json"), "utf8")).items.find(
@@ -178,6 +240,10 @@ const MANY = [];
         }
     }
 }
+
+// The first ten of them: a grid several screens tall on any iPad, which is what the long-grid tests
+// need. All thirty made every grid redraw cost the browser three times as much, for nothing they check.
+const LONG = MANY.slice(0, 60);
 
 describe("review page: a component's Accept in a long grid, on an iPad", () => {
     const section = (c) => page.locator(`.component[data-component="${c}"]`);
@@ -196,15 +262,15 @@ describe("review page: a component's Accept in a long grid, on an iPad", () => {
     let reloads;
 
     async function openMany(viewport) {
-        await open((r) => ({ gh: withMoved(r, MANY) }), { viewport, touch: true });
-        await section("comp20").waitFor();
+        await open((r) => ({ gh: withMoved(r, LONG) }), { viewport, touch: true });
+        await section("comp05").waitFor();
         await page.evaluate(() => {
             const { document } = globalThis;
             const app = document.getElementById("app");
             app.scrollTop +=
-                document.querySelector('.component[data-component="comp20"]').getBoundingClientRect().top - 400;
+                document.querySelector('.component[data-component="comp05"]').getBoundingClientRect().top - 400;
             // A tile of another component, to see that it is never drawn again.
-            globalThis.kept = document.querySelector('.component[data-component="comp25"] .tile-box');
+            globalThis.kept = document.querySelector('.component[data-component="comp08"] .tile-box');
         });
         reloads = 0;
         page.on("request", (req) => {
@@ -220,42 +286,43 @@ describe("review page: a component's Accept in a long grid, on an iPad", () => {
     ]) {
         it(`held ${held}: accepts in place, puts the next component where it was, and Enter takes that one too`, async () => {
             await openMany(viewport);
-            const before = await where("comp20");
-            expect(before.scroll).toBeGreaterThan(5000);
-            await section("comp20").locator("h3 .accept").click();
-            await expect.poll(status).toBe("Accepted 6 items in comp20.");
+            const before = await where("comp05");
+            // More than a screen down the grid.
+            expect(before.scroll).toBeGreaterThan(viewport.height);
+            await section("comp05").locator("h3 .accept").click();
+            await expect.poll(status).toBe("Accepted 6 items in comp05.");
             expect(dialogs).toEqual([]);
             expect(reloads).toBe(0);
-            expect(await section("comp20").count()).toBe(0);
+            expect(await section("comp05").count()).toBe(0);
             // The grid did not move: the next component slid up into the accepted one's place.
-            expect(await where("comp21")).toEqual({ scroll: before.scroll, top: before.top, focus: "comp21 Accept 6" });
+            expect(await where("comp06")).toEqual({ scroll: before.scroll, top: before.top, focus: "comp06 Accept 6" });
             expect(await page.evaluate(() => globalThis.kept.isConnected)).toBe(true);
-            expect(await progress()).toBe("6 of 186 decided");
-            expect(await page.locator("#review-undecided").textContent()).toBe("Review 180 undecided");
+            expect(await progress()).toBe("6 of 66 decided");
+            expect(await page.locator("#review-undecided").textContent()).toBe("Review 60 undecided");
             // The focus is on the next Accept: one more press takes that component, in the same place.
             await page.keyboard.press("Enter");
-            await expect.poll(status).toBe("Accepted 6 items in comp21.");
-            expect(await where("comp22")).toEqual({ scroll: before.scroll, top: before.top, focus: "comp22 Accept 6" });
+            await expect.poll(status).toBe("Accepted 6 items in comp06.");
+            expect(await where("comp07")).toEqual({ scroll: before.scroll, top: before.top, focus: "comp07 Accept 6" });
             expect(reloads).toBe(0);
             expect(await page.getByRole("button", { name: /^Finish/ }).textContent()).toBe("Finish #123 (12)");
         });
     }
 
     it("brings the next component to the top of the grid when the accepted one began above it", async () => {
-        await open((r) => ({ gh: withMoved(r, MANY) }), { viewport: { width: 1000, height: 800 } });
-        await section("comp20").waitFor();
-        // Scrolled into comp20, its heading out of sight above, its Accept reached by Tab.
+        await open((r) => ({ gh: withMoved(r, LONG) }), { viewport: { width: 1000, height: 800 } });
+        await section("comp05").waitFor();
+        // Scrolled into comp05, its heading out of sight above, its Accept reached by Tab.
         const gridTop = await page.evaluate(() => {
             const { document } = globalThis;
             const app = document.getElementById("app");
-            const s = document.querySelector('.component[data-component="comp20"]');
+            const s = document.querySelector('.component[data-component="comp05"]');
             app.scrollTop += s.getBoundingClientRect().top - app.getBoundingClientRect().top + 150;
             s.querySelector("h3 .accept").focus({ preventScroll: true });
             return Math.round(app.getBoundingClientRect().top);
         });
         await page.keyboard.press("Enter");
-        await expect.poll(status).toBe("Accepted 6 items in comp20.");
-        expect((await where("comp21")).top).toBe(gridTop);
+        await expect.poll(status).toBe("Accepted 6 items in comp05.");
+        expect((await where("comp06")).top).toBe(gridTop);
     });
 
     it("under All, marks the tiles accepted where they stand, and Undo 6 keeps the place", async () => {
@@ -264,32 +331,35 @@ describe("review page: a component's Accept in a long grid, on an iPad", () => {
         await page.evaluate(() => {
             const { document } = globalThis;
             document.getElementById("app").scrollTop +=
-                document.querySelector('.component[data-component="comp20"]').getBoundingClientRect().top - 400;
+                document.querySelector('.component[data-component="comp05"]').getBoundingClientRect().top - 400;
         });
-        const before = await where("comp20");
-        await section("comp20").locator("h3 .accept").click();
-        await expect.poll(status).toBe("Accepted 6 items in comp20.");
+        const before = await where("comp05");
+        expect(before.scroll).toBeGreaterThan(1366);
+        await section("comp05").locator("h3 .accept").click();
+        await expect.poll(status).toBe("Accepted 6 items in comp05.");
         expect(reloads).toBe(0);
-        expect(await section("comp20").locator(".decision .what").allTextContents()).toEqual(
+        expect(await section("comp05").locator(".decision .what").allTextContents()).toEqual(
             Array(6).fill("Accepted (not opened)"),
         );
-        expect(await section("comp20").locator("h3").textContent()).toBe("comp20Undo 6");
-        expect(await where("comp20")).toEqual({ ...before, focus: "comp21 Accept 6" });
+        expect(await section("comp05").locator("h3").textContent()).toBe("comp05Undo 6");
+        expect(await where("comp05")).toEqual({ ...before, focus: "comp06 Accept 6" });
         // Undo reloads the project, and the grid stays where it was.
-        await section("comp20").locator("h3 .undo-all").click();
-        await expect.poll(status).toBe("Undid 6 decisions of the component comp20.");
-        expect((await where("comp20")).scroll).toBe(before.scroll);
-        expect((await where("comp20")).top).toBe(before.top);
+        await section("comp05").locator("h3 .undo-all").click();
+        await expect.poll(status).toBe("Undid 6 decisions of the component comp05.");
+        expect((await where("comp05")).scroll).toBe(before.scroll);
+        expect((await where("comp05")).top).toBe(before.top);
     });
 });
 
-// Thirty components of three removed and three new stories each.
+// Eight components of three removed and three new stories each: comp07, the one the tests accept,
+// is far enough down the grid to scroll to on any iPad. Under Removed each component is one row of
+// tiles, so eight of them are taller than an iPad's screen either way up.
 const MIXED = [];
 {
     const items = JSON.parse(readFileSync(join(FIXTURE, "compact-mantine/results.json"), "utf8")).items;
     const card = items.find((i) => i.file === "card--legacy.png");
     const badge = items.find((i) => i.file === "badge--default.light.png");
-    for (let c = 0; c < 30; c++) {
+    for (let c = 0; c < 8; c++) {
         for (let m = 0; m < 6; m++) {
             const id = `comp${String(c).padStart(2, "0")}--s${m}`;
             MIXED.push({ ...(m < 3 ? card : badge), id, mode: null, file: `${id}.png` });
@@ -308,41 +378,46 @@ describe("review page: Accept takes what the filter shows, on an iPad", () => {
             await open((r) => ({ gh: withMoved(r, MIXED) }), { viewport, touch: true });
             await show("removed");
             const bar = page.locator("#accept-all");
-            await expect.poll(() => bar.textContent()).toBe("Accept 91 removed");
-            const comp = page.locator('.component[data-component="comp20"]');
-            expect(await comp.locator("h3").textContent()).toBe("comp20Accept 3");
+            await expect.poll(() => bar.textContent()).toBe("Accept 25 removed");
+            const comp = page.locator('.component[data-component="comp07"]');
+            expect(await comp.locator("h3").textContent()).toBe("comp07Accept 3");
             await comp.locator("h3 .accept").click();
-            await expect.poll(status).toBe("Accepted 3 items in comp20.");
+            await expect.poll(status).toBe("Accepted 3 items in comp07.");
             expect(dialogs).toEqual([]);
             expect(await comp.locator(".decision .what").allTextContents()).toEqual(
                 Array(3).fill("Accepted (not opened)"),
             );
-            expect(await comp.locator("h3").textContent()).toBe("comp20Undo 3");
-            expect(await bar.textContent()).toBe("Accept 88 removed");
-            expect(await progress()).toBe("3 of 186 decided");
-            // Find story narrows both Accepts as it narrows the grid.
-            await page.locator("#find").fill("comp05--s0");
-            await expect.poll(() => bar.textContent()).toBe("Accept 1 matching");
-            expect(await page.locator('.component[data-component="comp05"] h3').textContent()).toBe("comp05Accept 1");
-            await page.locator("#find").fill("");
-            await expect.poll(() => bar.textContent()).toBe("Accept 88 removed");
-            // Find story's short grid scrolled it to the top: down to comp20 again.
+            expect(await comp.locator("h3").textContent()).toBe("comp07Undo 3");
+            expect(await bar.textContent()).toBe("Accept 22 removed");
+            expect(await progress()).toBe("3 of 54 decided");
             await comp.evaluate((c) => c.scrollIntoView());
             const before = await scroll();
             expect(before).toBeGreaterThan(0);
             await bar.click();
-            await expect.poll(progress).toBe("91 of 186 decided");
+            await expect.poll(progress).toBe("25 of 54 decided");
             expect(dialogs).toEqual([
-                "Accept 88 removed items of compact-mantine without opening them? This includes 88 removals: " +
+                "Accept 22 removed items of compact-mantine without opening them? This includes 22 removals: " +
                     "accepting deletes their baselines.",
             ]);
             expect(await scroll()).toBe(before);
             expect(await bar.textContent()).toBe("Accept 0 removed");
-            // Nothing new was taken: the 90 new stories and the fixture's three are still undecided.
+            // Nothing new was taken: the 24 new stories and the fixture's three are still undecided.
             await page.getByRole("button", { name: /^Needs a decision/ }).click();
-            expect(await bar.textContent()).toBe("Accept all undecided (93)");
+            expect(await bar.textContent()).toBe("Accept all undecided (27)");
         });
     }
+
+    it("under Removed, Find story narrows a component's Accept and the bar's as it narrows the grid", async () => {
+        await open((r) => ({ gh: withMoved(r, MIXED) }), { viewport: { width: 1024, height: 1366 }, touch: true });
+        await show("removed");
+        const bar = page.locator("#accept-all");
+        await expect.poll(() => bar.textContent()).toBe("Accept 25 removed");
+        await narrow("comp05--s0");
+        await expect.poll(() => bar.textContent()).toBe("Accept 1 matching");
+        expect(await page.locator('.component[data-component="comp05"] h3').textContent()).toBe("comp05Accept 1");
+        await narrow("");
+        await expect.poll(() => bar.textContent()).toBe("Accept 25 removed");
+    });
 });
 
 describe("review page: the Baseline pane, on an iPad", () => {
@@ -406,25 +481,32 @@ describe("review page: the Baseline pane, on an iPad", () => {
         });
     }
 
-    it("keeps the choice for the next item and a fresh page, shows a removed item's baseline, and still flashes", async () => {
+    it("keeps the choice for the next item and a fresh page", async () => {
         await open((r) => ({ gh: onePr()(r) }), { viewport: { width: 1024, height: 1366 }, touch: true });
         await page.locator(".component").first().waitFor();
         await openStory(2);
         await (await menuOption("Baseline")).click();
         await expect.poll(labels).toEqual(["New"]);
-        // The next item opens the same way.
+        // The next item (#3, which has a baseline too) opens the same way.
         await page.keyboard.press("k");
-        await expect.poll(() => page.locator(".itemline .number").textContent()).not.toBe("#2");
+        await expect.poll(() => page.locator(".itemline .number").textContent()).toBe("#3");
         await expect.poll(labels).toEqual(["New"]);
         // A fresh page on a link that does not say: this browser's choice holds.
-        await openStoryFromGrid(2);
         const link = new URL(page.url());
         const p = new URLSearchParams(link.hash.slice(1));
         p.delete("baseline");
         link.hash = String(p);
         await page.goto("about:blank");
         await page.goto(link.href);
-        await expect.poll(position).toMatch(/^2 of /);
+        await expect.poll(() => page.locator(".itemline .number").textContent()).toBe("#3");
+        await expect.poll(labels).toEqual(["New"]);
+    });
+
+    it("still flashes, and shows a removed item's baseline, with the choice off", async () => {
+        await open((r) => ({ gh: onePr()(r) }), { viewport: { width: 1024, height: 1366 }, touch: true });
+        await page.locator(".component").first().waitFor();
+        await openStory(2);
+        await page.keyboard.press("p");
         await expect.poll(labels).toEqual(["New"]);
         // Flash alternates baseline and new in the one pane.
         await page.keyboard.press("f");
@@ -437,6 +519,7 @@ describe("review page: the Baseline pane, on an iPad", () => {
                 if (shown) {
                     seen.add(shown);
                 }
+                await nextFlash();
                 return [...seen].sort().join("|");
             })
             .toBe("Flash: baseline|Flash: new");
@@ -575,6 +658,8 @@ describe("review page: the Focus point, on an iPad", () => {
             await held;
             await route.continue();
         });
+        // Its new image, which the page may fetch ahead, before the Accept.
+        const arrived = page.waitForResponse((res) => res.url().endsWith("/capture/slider--sizes.png"));
         await page.locator(".component").first().waitFor();
         await openStory(2);
         await page.locator("#stage figure:nth-child(2) img").waitFor();
@@ -598,8 +683,8 @@ describe("review page: the Focus point, on an iPad", () => {
         });
         await page.keyboard.press("a");
         await expect.poll(() => page.locator(".itemline .number").textContent()).toBe("#3");
-        // Give the new image time to arrive while the baseline is held.
-        await page.waitForTimeout(300);
+        // The new image arrived while the baseline is held.
+        await (await arrived).finished();
         release();
         await expect.poll(() => page.evaluate(() => globalThis.firstFramed)).toBe(true);
         await expect.poll(() => centeredOn([160, 220], 12)).toBe(true);
@@ -832,11 +917,10 @@ describe("review page: a pull request", () => {
     it("loads each tile's thumbnail from the server, not the full image", async () => {
         const img = page.locator('.component[data-component="button"] .tile img');
         await expect.poll(() => img.getAttribute("src")).toMatch(/^blob:/);
-        const urls = await page.evaluate(() => globalThis.performance.getEntriesByType("resource").map((e) => e.name));
-        expect(urls.some((u) => u.includes("/api/thumb/123/compact-mantine/capture/button--primary.dark.png"))).toBe(
-            true,
-        );
-        expect(urls.some((u) => u.includes("/api/img/"))).toBe(false);
+        expect(
+            requested.some((u) => u.includes("/api/thumb/123/compact-mantine/capture/button--primary.dark.png")),
+        ).toBe(true);
+        expect(requested.some((u) => u.includes("/api/img/"))).toBe(false);
     });
 
     // Where each pane and each image is on the screen, and whether anything scrolls.
@@ -999,6 +1083,7 @@ describe("review page: a pull request", () => {
         await expect
             .poll(async () => {
                 seen.add(await flashing.evaluateAll((imgs) => imgs.findIndex((i) => i.style.visibility !== "hidden")));
+                await nextFlash();
                 return seen.size;
             })
             .toBe(2);
@@ -1054,6 +1139,7 @@ describe("review page: a pull request", () => {
         await expect
             .poll(async () => {
                 seen.add(await shown());
+                await nextFlash();
                 return [...seen].sort();
             })
             .toEqual(["0 Spotlight: baseline", "1 Spotlight: new"]);
@@ -1139,6 +1225,7 @@ describe("review page: a pull request", () => {
                 if (shown.length === 2) {
                     seen.add(shown.join());
                 }
+                await nextFlash();
                 return [...seen].sort().join("|");
             })
             .toBe("hidden,hidden|visible,visible");
@@ -1302,9 +1389,9 @@ describe("review page: a pull request", () => {
     });
 
     it("narrows by text and opens a number or a story id", async () => {
-        await page.locator("#find").fill("slider");
+        await narrow("slider");
         await expect.poll(visibleTiles).toBe(1);
-        await page.locator("#find").fill("");
+        await narrow("");
         await expect.poll(visibleTiles).toBe(5);
         await openStory(5);
         expect(await page.locator("h2").textContent()).toContain("tooltip--hover");
@@ -1341,7 +1428,7 @@ describe("review page: a pull request", () => {
     });
 
     it("Find story narrows Accept to the stories it shows, and the question says so", async () => {
-        await page.locator("#find").fill("slider");
+        await narrow("slider");
         const bar = page.locator("#accept-all");
         await expect.poll(() => bar.textContent()).toBe("Accept 1 matching");
         await bar.click();
@@ -1580,7 +1667,7 @@ describe("review page: the decision bar", () => {
             await page.locator("#accept").click({ force: true });
             await expect.poll(status).not.toBe("");
             expect(await boxes()).toEqual(seen.at(-1));
-        }, 60000);
+        });
     }
 
     it("never types a decision key into the reason box: R, type, Enter, then A accepts the next item", async () => {
@@ -1604,7 +1691,7 @@ describe("review page: the decision bar", () => {
     const stopClock = () => page.clock.pauseAt(Date.now() + 1000);
 
     it("keeps focus on a decision button it was on: Tab to Accept, Space twice", async () => {
-        await open((r) => ({ gh: onePr()(r) }), { clock: true });
+        await open((r) => ({ gh: onePr()(r) }));
         await page.locator("#review-undecided").click();
         await page.keyboard.press("k");
         await ready();
@@ -1623,7 +1710,7 @@ describe("review page: the decision bar", () => {
     });
 
     it("ignores the second tap of a double tap, which lands on the next item's Accept", async () => {
-        await open((r) => ({ gh: onePr()(r) }), { clock: true });
+        await open((r) => ({ gh: onePr()(r) }));
         await page.locator("#review-undecided").click();
         await page.keyboard.press("k");
         await ready();
@@ -1698,7 +1785,7 @@ describe("review page: waits that say what they wait for", () => {
         release();
         await page.getByRole("button", { name: "Review", exact: true }).first().waitFor({ timeout: 10000 });
         expect(await downloading.count()).toBe(0);
-    }, 30000);
+    });
 
     it("says what a slow project waits for", async () => {
         await open((r) => ({ gh: onePr()(r) }), { review: false });
@@ -1775,7 +1862,12 @@ describe("review page: the wait box", () => {
         expect(Math.abs(at.x + at.width / 2 - viewport.width / 2)).toBeLessThan(2);
         expect(Math.abs(at.y + at.height / 2 - viewport.height / 2)).toBeLessThan(2);
         expect(at.x).toBeGreaterThanOrEqual(16);
-        await new Promise((resolve) => setTimeout(resolve, 1100));
+        // Once the time spent has ticked on, it is still where it was.
+        const elapsed = await box("elapsed");
+        await page.waitForFunction(
+            (was) => globalThis.document.getElementById("wait-elapsed").textContent !== was,
+            elapsed,
+        );
         expect(await page.locator("#wait").boundingBox()).toEqual(at);
         // Cancel closes it and leaves the targets as they were; the download goes on.
         expect(await page.locator("#wait-retry").isVisible()).toBe(false);
@@ -1788,7 +1880,7 @@ describe("review page: the wait box", () => {
         await page.locator(".component").first().waitFor({ timeout: 10000 });
         expect(await box()).toBeNull();
         expect(await page.locator("#pick-project").inputValue()).toBe("graphty-element");
-    }, 30000);
+    });
 
     it("says in the box which GitHub call waits to retry, then turns a failure into an error with Retry", async () => {
         let fails = 1;
@@ -1822,7 +1914,7 @@ describe("review page: the wait box", () => {
             );
         await page.getByRole("button", { name: "Review", exact: true }).first().waitFor({ timeout: 10000 });
         expect(await box()).toBeNull();
-    }, 30000);
+    });
 
     it("turns the first load into an error with Retry when GitHub refuses, and Retry loads the list", async () => {
         let down = true;
@@ -1851,7 +1943,7 @@ describe("review page: the wait box", () => {
         await page.locator("#wait-retry").click();
         await page.getByRole("button", { name: "Review", exact: true }).first().waitFor({ timeout: 10000 });
         expect(await box()).toBeNull();
-    }, 30000);
+    });
 
     it("never shows the box for a refresh in the background: the status row says it", async () => {
         let release = () => {};
@@ -1874,10 +1966,12 @@ describe("review page: the wait box", () => {
         hold = true;
         await page.getByRole("button", { name: "Refresh" }).click();
         await expect.poll(status).toMatch(/^Checking GitHub for new CI runs Listing pull requests, \d+ s$/);
-        for (let i = 0; i < 5; i++) {
-            expect(await box()).toBeNull();
-            await new Promise((resolve) => setTimeout(resolve, 200));
-        }
+        // The box would show once a wait has taken 300 ms; the status row's own count says a
+        // whole second has gone.
+        await page.waitForFunction(() =>
+            /, [1-9]\d* s$/.test(globalThis.document.getElementById("elapsed").textContent),
+        );
+        expect(await box()).toBeNull();
         // The targets stay usable meanwhile.
         expect(await page.getByRole("button", { name: "Review", exact: true }).first().isEnabled()).toBe(true);
         // After the release the server still fetches the branches and checks the baselines, and
@@ -1888,7 +1982,7 @@ describe("review page: the wait box", () => {
         release();
         await over;
         await expect.poll(status).toBe("");
-    }, 30000);
+    });
 });
 
 describe("review page: moving on", () => {
@@ -1960,8 +2054,7 @@ describe("review page: moving on", () => {
             await expect.poll(status).toMatch(/^Excluded #/);
             await page.keyboard.press("Escape");
         }
-        await page.locator("#pick-project").selectOption("graphty-element");
-        await page.locator(".component").first().waitFor();
+        await pickProject("graphty-element");
         await page.locator("#review-undecided").click();
         await ready();
         await page.keyboard.press("a");
@@ -1974,13 +2067,12 @@ describe("review page: moving on", () => {
         await page.getByRole("button", { name: "Next: #124 (7 undecided)" }).click();
         await expect.poll(() => page.locator("#pick-target").inputValue()).toBe("124");
         await expect.poll(position).toMatch(/^1 of 6 /);
-    }, 30000);
+    });
 
     it("suggests Finish only once every project of the target is decided, and says what is left where", async () => {
         await open((r) => ({ gh: onePr()(r) }));
         await page.locator(".component").first().waitFor();
-        await page.locator("#pick-project").selectOption("graphty-element");
-        await page.locator(".component").first().waitFor();
+        await pickProject("graphty-element");
         await page.locator("#review-undecided").click();
         await ready();
         await page.keyboard.press("a");
@@ -2001,8 +2093,8 @@ describe("review page: moving on", () => {
                 "graphty-element done; compact-mantine has 6 undecided stories.Next project: compact-mantine (6 undecided)",
             );
         await page.getByRole("button", { name: "Next project: compact-mantine (6 undecided)" }).click();
-        await expect.poll(() => page.locator("#pick-project").inputValue()).toBe("compact-mantine");
-        await page.locator(".component").first().waitFor();
+        await page.locator('.gridbar[data-project="compact-mantine"]').waitFor();
+        expect(await page.locator("#pick-project").inputValue()).toBe("compact-mantine");
         await page.keyboard.press("Shift+A");
         await expect.poll(progress).toBe("4 of 6 decided");
         for (const n of [1, 5]) {
@@ -2019,7 +2111,7 @@ describe("review page: moving on", () => {
         await expect
             .poll(() => page.locator(".empty").textContent())
             .toBe("Everything is decided. Finish #123 when ready.");
-    }, 30000);
+    });
 
     it("jumps to another target and project from the header's pickers", async () => {
         await open((r) => ({ gh: twoPrs(r) }));
@@ -2148,7 +2240,7 @@ describe("review page: links and the frozen pass", () => {
         expect(Object.fromEntries(hash())).toMatchObject({ token: TOKEN, target: "123", filter: "undecided" });
         // The grid, with its filters.
         await page.getByRole("button", { name: /^All/ }).click();
-        await page.locator("#find").fill("slider");
+        await narrow("slider");
         await expect.poll(() => hash().get("q")).toBe("slider");
         const grid = page.url();
         await visit(grid);
@@ -2156,7 +2248,7 @@ describe("review page: links and the frozen pass", () => {
         expect(await page.getByRole("button", { name: /^All/ }).getAttribute("aria-pressed")).toBe("true");
         expect(await page.locator("#find").inputValue()).toBe("slider");
         // A story, with its pass, view and zoom.
-        await page.locator("#find").fill("");
+        await narrow("");
         await expect.poll(() => hash().has("q")).toBe(false);
         await openStory(2);
         await page.keyboard.press("s");
@@ -2444,7 +2536,7 @@ describe("review page: Finish", () => {
                 .getByRole("button", { name: /^Finish #123/ })
                 .getAttribute("aria-disabled"),
         ).toBe("true");
-    }, 60000);
+    });
 
     it("says a step is retrying after a network error", async () => {
         let release;
@@ -2477,7 +2569,7 @@ describe("review page: Finish", () => {
         release();
         await expect.poll(() => page.locator(".finish-outcome").textContent(), slow).toMatch(/^Finished #123\./);
         expect(await page.locator(".finish-outcome").textContent()).not.toContain("status not posted");
-    }, 60000);
+    });
 });
 
 // The passkeys file on the default branch, as merging a registration pull request leaves it.
@@ -2608,7 +2700,7 @@ describe("review page: the passkey", () => {
         expect(record).toMatchObject({ version: 2, pr: 123 });
         expect(verifyApproval(record, [entry], { origin })).toBeNull();
         expect(new Set(await page.evaluate(() => globalThis.whileAsking))).toEqual(new Set([true]));
-    }, 90000);
+    });
 
     it("says plainly that accepts are not yet protected while no passkey is registered", async () => {
         const r = await open((repo) => ({ gh: onePr()(repo) }), { review: false });
@@ -2632,7 +2724,7 @@ describe("review page: the passkey", () => {
         const files = git(r.remote, "show", "--name-only", "--format=", "feature").split("\n");
         const record = JSON.parse(git(r.remote, "show", `feature:${files.find((f) => f.includes("reviews/"))}`));
         expect(record).toMatchObject({ version: 1, unproven: true });
-    }, 60000);
+    });
 
     it("finishes rejects alone without asking for a passkey to be registered first", async () => {
         // The passkeys file is on the default branch with no key yet: what master holds once this
@@ -2659,7 +2751,7 @@ describe("review page: the passkey", () => {
             .poll(() => page.locator(".finish-outcome h2").textContent(), { timeout: 30000 })
             .toBe("Finished #123.");
         expect(dialogs.at(-1)).not.toContain("passkey");
-    }, 60000);
+    });
 });
 
 describe("review page: narrow windows, touch and wording", () => {
@@ -2854,6 +2946,34 @@ describe("review page: narrow windows, touch and wording", () => {
         await openStory(2);
         await expect.poll(() => page.locator(".itemline").textContent()).toContain("1 pixel changed");
     });
+
+    it("selects the story name to copy without moving the buttons", async () => {
+        await open((r) => ({ gh: onePr()(r) }));
+        await openStory(2);
+        const name = page.locator(".itemline .name");
+        const box = () => page.locator(".viewbar").boundingBox();
+        const before = await box();
+        // A click selects the whole name, a drag across it selects text: neither opens the row.
+        await name.click();
+        expect(await page.evaluate(() => globalThis.getSelection().toString())).toBe(await name.textContent());
+        const b = await name.boundingBox();
+        await page.mouse.move(b.x + 2, b.y + b.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(b.x + b.width - 2, b.y + b.height / 2, { steps: 5 });
+        await page.mouse.up();
+        // A drag that ends a selection outside the name does not open it either.
+        const p = await page.locator("#explain").boundingBox();
+        await page.mouse.move(p.x + 2, p.y + p.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(p.x + 60, p.y + p.height / 2, { steps: 5 });
+        await page.mouse.up();
+        expect(await page.locator(".itemline").getAttribute("class")).toBe("itemline");
+        expect(await box()).toEqual(before);
+        // A plain tap on the explanation still shows it all.
+        await page.evaluate(() => globalThis.getSelection().removeAllRanges());
+        await page.locator("#explain").click();
+        expect(await page.locator(".itemline").getAttribute("class")).toBe("itemline open");
+    });
 });
 
 describe("review page: renamed stories", () => {
@@ -2949,9 +3069,10 @@ async function openStoryFromGrid(number) {
 describe("review page: the inbox", () => {
     it("opens on what waits, counts it in the title, opens the first undecided image, and keeps the token", async () => {
         await open((r) => ({ gh: twoPrs(r, capturedItems()) }), { review: false });
+        await listSettled();
         const rows = page.locator(".inbox-row");
-        await expect.poll(() => rows.count()).toBe(2);
-        await expect.poll(() => page.title()).toBe("(2) Visual review");
+        expect(await rows.count()).toBe(2);
+        expect(await page.title()).toBe("(2) Visual review");
         expect(await page.locator(".inbox h2").textContent()).toBe("Ready for you (2)");
         expect(await rows.first().textContent()).toMatch(/^#123 PR 123\d+ images, CI, just now$/);
         const box = await rows.first().boundingBox();
@@ -2961,7 +3082,8 @@ describe("review page: the inbox", () => {
         await page.locator("#app.story-screen").waitFor();
         // The notifier's link carries no token: a browser that used the page before still opens it.
         await page.goto(`${origin}/`);
-        await expect.poll(() => page.locator(".inbox-row").count()).toBe(2);
+        await listSettled();
+        expect(await page.locator(".inbox-row").count()).toBe(2);
     });
 
     it("shows coupled pull requests as one group, and Review together decides a shared image on both", async () => {
@@ -2986,8 +3108,9 @@ describe("review page: the inbox", () => {
 
     it("lists a pull request with a failed story under Not ready with its reason, never as ready", async () => {
         await open((r) => ({ gh: twoPrs(r) }), { review: false });
+        await listSettled();
         const bad = page.locator(".inbox-bad");
-        await expect.poll(() => bad.count()).toBe(2);
+        expect(await bad.count()).toBe(2);
         expect(await page.locator(".inbox-row").count()).toBe(0);
         expect(await page.locator(".inbox h2").textContent()).toBe("Nothing waiting for you");
         expect(await bad.first().textContent()).toContain(
@@ -3148,5 +3271,49 @@ describe("review page: safe filters and the pull request's context", () => {
         expect(await page.locator("#spot-all").getAttribute("aria-pressed")).toBe("false");
         expect(await page.locator("#zoom-all").getAttribute("aria-pressed")).toBe("true");
         expect(await look()).toEqual([false, true]);
+    });
+
+    it("loads spotlit tiles the server made, and makes the same tile itself when the server cannot", async () => {
+        await open((r) => ({ gh: onePr()(r) }));
+        const tile = page.locator('.tile[data-file="button--primary.dark.png"] img');
+        await tile.waitFor({ state: "visible" });
+        const lit = () => tile.evaluate((n) => n.classList.contains("spot") && n.classList.contains("zoomed"));
+        // The tile's picture at its own size, kept in the page under `name`: 400 x 250 RGBA is
+        // 400,000 numbers, about a second to carry out of the browser as JSON.
+        const pixels = (name) =>
+            tile.evaluate(async (img, key) => {
+                await img.decode();
+                const c = new globalThis.OffscreenCanvas(img.naturalWidth, img.naturalHeight);
+                c.getContext("2d").drawImage(img, 0, 0);
+                globalThis[key] = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+            }, name);
+        let refused = 0;
+        await page.route("**/api/spot/**", (route) => {
+            refused++;
+            return route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+        });
+        await page.locator("#spot-all").click();
+        await page.locator("#zoom-all").click();
+        await expect.poll(lit).toBe(true);
+        expect(refused).toBeGreaterThan(0);
+        await pixels("own");
+        await page.unroute("**/api/spot/**");
+        // Off and on again: the tile asks the server again, which answers this time.
+        await page.locator("#zoom-all").click();
+        const answered = page.waitForResponse(
+            (res) => res.url().includes("/api/spot/123/compact-mantine/both/button--primary.dark.png") && res.ok(),
+        );
+        await page.locator("#zoom-all").click();
+        await answered;
+        await expect.poll(lit).toBe(true);
+        await pixels("served");
+        const [length, ownLength, mean] = await page.evaluate(() => {
+            const [own, served] = [globalThis.own, globalThis.served];
+            const sum = served.reduce((total, v, i) => total + Math.abs(v - own[i]), 0);
+            return [served.length, own.length, sum / own.length];
+        });
+        expect(length).toBe(ownLength);
+        // The same picture, scaled by another filter: on average within 1 of 255 per channel.
+        expect(mean).toBeLessThan(1);
     });
 });

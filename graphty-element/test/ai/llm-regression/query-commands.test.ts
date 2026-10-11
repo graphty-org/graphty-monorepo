@@ -11,8 +11,8 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { getLlmRegressionCaseTimeoutMs, skipIfNoApiKey } from "../../helpers/llm-regression-env";
+import { assertCalled, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
@@ -33,10 +33,9 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
             const result = await harness.testPrompt("How many nodes are there?");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "queryGraph");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "queryGraph");
             // Accept various query types that would give node count
-            const query = result.toolParams.query as string;
+            const query = call.arguments.query as string;
             assert.ok(
                 query === "nodeCount" || query === "summary" || query === "all",
                 `Expected query to be 'nodeCount', 'summary', or 'all' but got '${query}'`,
@@ -47,9 +46,8 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
             const result = await harness.testPrompt("How many edges exist?");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "queryGraph");
-            assert.ok(result.toolParams, "Expected tool parameters");
-            const query = result.toolParams.query as string;
+            const call = assertCalled(result, "queryGraph");
+            const query = call.arguments.query as string;
             assert.ok(
                 query === "edgeCount" || query === "summary" || query === "all",
                 `Expected query to be 'edgeCount', 'summary', or 'all' but got '${query}'`,
@@ -60,9 +58,8 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
             const result = await harness.testPrompt("What layout is being used?");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "queryGraph");
-            assert.ok(result.toolParams, "Expected tool parameters");
-            const query = result.toolParams.query as string;
+            const call = assertCalled(result, "queryGraph");
+            const query = call.arguments.query as string;
             assert.ok(
                 query === "currentLayout" || query === "summary" || query === "all",
                 `Expected query to be 'currentLayout', 'summary', or 'all' but got '${query}'`,
@@ -73,9 +70,8 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
             const result = await harness.testPrompt("Give me a summary of the graph");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "queryGraph");
-            assert.ok(result.toolParams, "Expected tool parameters");
-            const query = result.toolParams.query as string;
+            const call = assertCalled(result, "queryGraph");
+            const query = call.arguments.query as string;
             assert.ok(
                 query === "summary" || query === "all",
                 `Expected query to be 'summary' or 'all' but got '${query}'`,
@@ -88,34 +84,36 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
             const result = await harness.testPrompt("Find all server nodes");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "findNodes");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "findNodes");
             // Verify selector targets server type
-            const selector = result.toolParams.selector as string;
+            const selector = call.arguments.selector as string;
             assert.ok(selector.includes("server"), `Expected selector to include 'server' but got '${selector}'`);
         });
 
-        it("calls findNodes for 'Show nodes with type database'", async () => {
-            const result = await harness.testPrompt("Show nodes with type database");
+        // A question, not "Show ...": "show" also reads as "show me them on the canvas", which
+        // findAndStyleNodes and zoomToNodes answer just as well, and gemini at temperature 0 took
+        // that reading once (#1989). The question leaves findNodes as the only right answer.
+        it("calls findNodes for 'Which nodes have type database?'", async () => {
+            const result = await harness.testPrompt("Which nodes have type database?");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "findNodes");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "findNodes");
             // Verify selector targets database type
-            const selector = result.toolParams.selector as string;
+            const selector = call.arguments.selector as string;
             assert.ok(selector.includes("database"), `Expected selector to include 'database' but got '${selector}'`);
         });
     });
 
     describe("sampleData", () => {
-        it("calls sampleData for 'Show me some example nodes'", async () => {
-            const result = await harness.testPrompt("Show me some example nodes");
+        // Asks for whole records, not just which nodes: findNodes returns only node IDs, so
+        // "Show me some example nodes" was also a fair request for findNodes with a limit (#1991).
+        it("calls sampleData for 'Show me a few example nodes with all their data'", async () => {
+            const result = await harness.testPrompt("Show me a few example nodes with all their data");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "sampleData");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "sampleData");
             // Target should be 'nodes' or 'both'
-            const target = result.toolParams.target as string | undefined;
+            const target = call.arguments.target as string | undefined;
             if (target) {
                 assert.ok(
                     target === "nodes" || target === "both",
@@ -128,10 +126,9 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
             const result = await harness.testPrompt("Show 5 sample edges");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "sampleData");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "sampleData");
             // Target should be 'edges' or 'both'
-            const target = result.toolParams.target as string | undefined;
+            const target = call.arguments.target as string | undefined;
             if (target) {
                 assert.ok(
                     target === "edges" || target === "both",
@@ -140,7 +137,7 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
             }
 
             // Check count if provided (should be around 5)
-            const count = result.toolParams.count as number | undefined;
+            const count = call.arguments.count as number | undefined;
             if (count !== undefined) {
                 assert.ok(count >= 3 && count <= 7, `Expected count to be around 5 but got ${count}`);
             }
@@ -148,14 +145,16 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
     });
 
     describe("describeProperty", () => {
-        it("calls describeProperty for 'What values does type have?'", async () => {
-            const result = await harness.testPrompt("What values does the type property have?");
+        // Asks for the distribution, not the list of values: getSchema's nodeTypes query lists the
+        // values of `type` too, so "What values does the type property have?" had two right
+        // answers (#1991). Only describeProperty returns how often each value occurs.
+        it("calls describeProperty for 'What is the distribution of values of the type property?'", async () => {
+            const result = await harness.testPrompt("What is the distribution of values of the type property?");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "describeProperty");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "describeProperty");
             // Property should be 'type' or include 'type'
-            const property = result.toolParams.property as string;
+            const property = call.arguments.property as string;
             assert.ok(
                 property === "type" || property.includes("type"),
                 `Expected property to be or include 'type' but got '${property}'`,
@@ -166,16 +165,15 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
             const result = await harness.testPrompt("Analyze the weight property on edges");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "describeProperty");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "describeProperty");
             // Property should be 'weight'
-            const property = result.toolParams.property as string;
+            const property = call.arguments.property as string;
             assert.ok(
                 property === "weight" || property.includes("weight"),
                 `Expected property to be or include 'weight' but got '${property}'`,
             );
             // Target should be 'edges'
-            const target = result.toolParams.target as string | undefined;
+            const target = call.arguments.target as string | undefined;
             if (target) {
                 assert.strictEqual(target, "edges");
             }
@@ -200,7 +198,17 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
             const result = await harness.testPrompt("Find all server nodes");
 
             assert.ok(result.commandResult, "Expected command result");
-            assert.strictEqual(result.commandResult.success, true);
+            assertCalled(result, "findNodes");
+            // Not `success === true`: the controller reports a message as failed when ANY tool
+            // call in it failed, so a model that sends a selector that does not parse, reads the
+            // error and retries with a good one fails the message although it found the nodes.
+            // What this test owns is that findNodes returned the server nodes (ids 1 and 2).
+            const found = result.commandResult.affectedNodes ?? [];
+            assert.ok(
+                found.includes("1") && found.includes("2"),
+                `Expected findNodes to return server nodes 1 and 2; got [${found.join(", ")}]. ` +
+                    `Calls: ${JSON.stringify(result.toolCalls)}. Message: ${result.commandResult.message}`,
+            );
             assert.ok(result.commandResult.message, "Expected result message");
         });
 
@@ -208,7 +216,7 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
             const result = await harness.testPrompt("How many edges exist?");
 
             assert.ok(result.latencyMs > 0, "Expected positive latency");
-            assert.ok(result.latencyMs < 60000, "Expected latency under 60 seconds");
+            assert.ok(result.latencyMs < getLlmRegressionCaseTimeoutMs(), "Expected latency under the per-case limit");
         });
 
         it("captures token usage when available", async () => {

@@ -1,3 +1,4 @@
+import type { GraphStartedEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
@@ -16,6 +17,13 @@ function hasStartRenderLoop(manager: Manager): manager is RenderManagerWithStart
 export class LifecycleManager implements Manager {
     private initialized = false;
     private initializing = false;
+    /**
+     * Set by {@link dispose} and cleared by {@link init}. Disposal is keyed on this rather than on
+     * `initialized`, so a graph shut down before it finished initialising -- one never attached,
+     * or detached while it was opening -- still disposes its managers, and with them its Babylon
+     * engine and WebGL context (issue #1977).
+     */
+    private disposed = false;
     private logger: Logger = GraphtyLogger.getLogger(["graphty", "lifecycle"]);
 
     /**
@@ -39,6 +47,7 @@ export class LifecycleManager implements Manager {
         }
 
         this.initializing = true;
+        this.disposed = false;
         const startTime = performance.now();
 
         this.logger.info("Initializing managers", {
@@ -58,13 +67,19 @@ export class LifecycleManager implements Manager {
                     const managerStartTime = performance.now();
                     this.logger.debug(`Initializing manager: ${managerName}`);
                     await manager.init();
+                    // Disposed while this manager was initialising: the rest are disposed too.
+                    if (this.disposed) {
+                        this.initializing = false;
+                        return;
+                    }
+
                     const managerDuration = performance.now() - managerStartTime;
 
                     this.logger.debug(`Manager initialized: ${managerName}`, {
                         duration: managerDuration.toFixed(2),
                     });
 
-                    this.eventManager.emitGraphEvent("manager-initialized", {
+                    this.eventManager.emit("manager-initialized", {
                         managerName,
                         elapsedTime: performance.now() - startTime,
                     });
@@ -97,7 +112,7 @@ export class LifecycleManager implements Manager {
             });
 
             // Emit overall initialization complete event
-            this.eventManager.emitGraphEvent("lifecycle-initialized", {
+            this.eventManager.emit("lifecycle-initialized", {
                 totalTime,
                 managerCount: this.managers.size,
             });
@@ -130,9 +145,9 @@ export class LifecycleManager implements Manager {
             }
 
             // Emit graph started event
-            this.eventManager.emitGraphEvent("graph-started", {
+            this.eventManager.emit("graph-started", {
                 timestamp: Date.now(),
-            });
+            } satisfies Omit<GraphStartedEvent, "type">);
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
             this.eventManager.emitGraphError(null, err, "init", {
@@ -147,9 +162,11 @@ export class LifecycleManager implements Manager {
      * Dispose all managers in reverse initialization order
      */
     dispose(): void {
-        if (!this.initialized) {
+        if (this.disposed) {
             return;
         }
+
+        this.disposed = true;
 
         this.logger.info("Disposing managers", {
             managerCount: this.managers.size,
@@ -189,7 +206,7 @@ export class LifecycleManager implements Manager {
         });
 
         // Emit lifecycle disposed event
-        this.eventManager.emitGraphEvent("lifecycle-disposed", {
+        this.eventManager.emit("lifecycle-disposed", {
             managerCount: this.managers.size,
         });
     }

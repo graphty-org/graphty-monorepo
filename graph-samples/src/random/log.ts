@@ -59,7 +59,7 @@ export function detLog(input: number): number {
     view.setInt32(4, hx | (i0 ^ 0x3ff00000), true);
     x = view.getFloat64(0, true);
     k += i0 >> 20;
-    const f = x - 1.0;
+    const f = x - 1;
     if ((0x000fffff & (2 + hx)) < 3) {
         // |f| < 2**-20
         if (f === 0) {
@@ -68,7 +68,7 @@ export function detLog(input: number): number {
         const r = f * f * (0.5 - 0.3333333333333333 * f);
         return k === 0 ? f - r : k * LN2_HI - (r - k * LN2_LO - f);
     }
-    const s = f / (2.0 + f);
+    const s = f / (2 + f);
     const dk = k;
     const z = s * s;
     let i = hx - 0x6147a;

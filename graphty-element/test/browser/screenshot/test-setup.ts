@@ -26,8 +26,9 @@ export async function createTestGraphWithData(): Promise<Graph> {
     // This prevents waitForLayoutSettle from timing out
     await graph.setLayout("fixed");
 
-    // Wait for initial render
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait for the finished picture: the data and layout applied AND the camera done framing them,
+    // so a test that compares two camera readings is not reading a camera still in motion
+    await graph.waitForStableFrame();
 
     return graph;
 }

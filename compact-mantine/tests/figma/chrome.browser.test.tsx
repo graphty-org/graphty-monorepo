@@ -30,6 +30,7 @@ import { PANEL_GRID } from "../../src/constants/panel";
 import { PanelLabelsProvider } from "../../src/context/PanelLabelsContext";
 import { UiGlyph } from "../../src/icons";
 import {
+    animationsSettled,
     drive,
     expectMeasured,
     figmaAvailable,
@@ -90,7 +91,7 @@ async function inPanel(ui: React.ReactElement, scheme: Scheme, highContrast = fa
 
 /** Let a 100ms color transition finish. */
 async function settle(): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await animationsSettled();
 }
 
 /**

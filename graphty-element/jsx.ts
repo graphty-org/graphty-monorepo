@@ -303,6 +303,10 @@ export interface GraphtyElementJSXProps {
      */
     "acceleration-min-nodes"?: string;
     /**
+     * The assistant held a batch of its changes for the reader's approval: it was large, slow,
+     */
+    "onai-approval-requested"?: (event: CustomEvent<EventOfType<"ai-approval-requested">>) => void;
+    /**
      * Emitted when an AI command is cancelled
      */
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
@@ -318,6 +322,10 @@ export interface GraphtyElementJSXProps {
      * Emitted when an AI command starts processing
      */
     "onai-command-start"?: (event: CustomEvent<EventOfType<"ai-command-start">>) => void;
+    /**
+     * The assistant exported the graph or captured a picture or a video: the document is handed to
+     */
+    "onai-export-ready"?: (event: CustomEvent<EventOfType<"ai-export-ready">>) => void;
     /**
      * Main event for UI binding - single source of truth for AI status
      */

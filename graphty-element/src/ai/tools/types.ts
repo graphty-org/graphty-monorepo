@@ -1,0 +1,238 @@
+/**
+ * @file The shapes the assistant's generated tools are built from: a tool is a family of actions,
+ * an action is a zod object of fields plus the session call it makes, and what it reaches (an op,
+ * a door, a catalog entry) is declared beside it so the coverage test can read it. Nothing here is
+ * exported from a public entry point except through `./catalog`'s constants.
+ */
+
+import type { z } from "zod";
+
+import type {
+    AlgorithmDescriptor,
+    CameraDescriptor,
+    FormatDescriptor,
+    LayoutDescriptor,
+    PaletteDescriptor,
+    ScaleDescriptor,
+} from "../../catalog/types";
+import type { AiEvent } from "../../events";
+import type { ChannelDescriptor } from "../../session/styles/channels";
+import type { GraphSession, TransactionScope } from "../../session/types";
+import type { CommandContext } from "../commands/types";
+
+/** A value that survives `JSON.stringify` unchanged. */
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+/** A JSON object. */
+export type JsonObject = { [key: string]: JsonValue };
+
+/**
+ * What one action reaches, for the coverage test: a session op it dispatches, a public member
+ * (`<root>.<member>`, the root names of `doors.ts`) it calls, or a catalog entry
+ * (`<table>/<id>`) it offers.
+ */
+export type Reach =
+    | { readonly op: string }
+    | { readonly door: string }
+    | { readonly catalog: string }
+    /** Every option of every entry of a catalog table, which the action validates and passes on. */
+    | {
+          readonly options: "algorithms" | "layouts" | "formats" | "writers" | "scales" | "cameras";
+          /** Only these option names, when the action passes only some. */
+          readonly only?: readonly string[];
+      };
+
+/**
+ * How an action relates to undo. `read` changes nothing; `write` joins the message's step;
+ * `exempt` changes something no project file saves (the camera, the selection) and adds no step.
+ */
+export type ActionEffect = "read" | "write" | "exempt";
+
+/** What a write did, which the gate adds to the message's running totals. */
+export interface Measure {
+    readonly removeNodes?: number;
+    readonly removeEdges?: number;
+    readonly changedValues?: number;
+    /** It replaced or emptied the graph. */
+    readonly replaces?: boolean;
+    /** It cannot be undone. */
+    readonly irreversible?: boolean;
+    /** It fetched a URL the reader did not give, which a host admitted. */
+    readonly network?: string;
+}
+
+/** A page of records, as a result reports it. */
+export interface PageInfo {
+    readonly total: number;
+    readonly returned: number;
+    readonly cursor?: string;
+}
+
+/** What an action returns: a code and its facts, never English. */
+export interface ActionResult {
+    /** The session's own success code where it has one; `AI_OK` when absent. */
+    readonly code?: string;
+    readonly params?: JsonObject;
+    readonly data?: JsonValue;
+    readonly page?: PageInfo;
+    readonly measure?: Measure;
+    /** On-demand tools this result names, which the next turn offers. */
+    readonly load?: readonly string[];
+    /** Ids of nodes the action touched, for the reader-facing result. */
+    readonly affectedNodes?: readonly string[];
+}
+
+/**
+ * A coded refusal an action throws: the model reads `{ code, params }` and can fix the call in
+ * one retry. Never thrown for a bug; a bug is an ordinary error and fails the message.
+ */
+export class ToolRefusal extends Error {
+    /**
+     * A refusal.
+     * @param code - The cause code (`AI_TOOL_CAUSE_CODES`) or a session `E_*` code.
+     * @param params - The facts the model needs to fix the call.
+     */
+    constructor(
+        readonly code: string,
+        readonly params: JsonObject = {},
+    ) {
+        super(code);
+        this.name = "ToolRefusal";
+    }
+}
+
+/** What the conversation hands an action besides its arguments. */
+export interface ToolHost {
+    /** Hands the reader's application an event (an export's payload, an approval request). */
+    emit(event: AiEvent): void;
+    /** The reader's own text in this message, which an import URL must appear in verbatim. */
+    readonly readerText: string;
+    /** Admits a URL the reader did not type; absent, none is admitted. */
+    readonly allowImportUrl?: (url: URL) => boolean;
+}
+
+/** Why a batch is held for the reader's approval. */
+export type GateKind = "slow" | "large" | "replaces" | "irreversible" | "network";
+
+/**
+ * The limits past which the assistant's changes are held for the reader's approval, by the
+ * host and never by the model. `AiManagerConfig.gate` sets them; `false` turns the gate off.
+ */
+export interface AssistantGateLimits {
+    /** Nodes one message may remove. */
+    readonly removeNodes: number;
+    /** The share of the graph's nodes one message may remove, 0 to 1. */
+    readonly removeNodesShare: number;
+    /** Edges one message may remove. */
+    readonly removeEdges: number;
+    /** Attribute values one message may change. */
+    readonly changedValues: number;
+    /** Seconds an algorithm run or a layout may be estimated to take. */
+    readonly slowSeconds: number;
+}
+
+/** The gate's limits when a host sets none. */
+export const DEFAULT_ASSISTANT_GATE_LIMITS: Readonly<AssistantGateLimits> = Object.freeze({
+    removeNodes: 50,
+    removeNodesShare: 0.2,
+    removeEdges: 500,
+    changedValues: 1000,
+    slowSeconds: 30,
+});
+
+/**
+ * Thrown inside a batch to hold it for approval: the batch rolls back, and the host is asked.
+ */
+export class GateHold extends Error {
+    /**
+     * A hold.
+     * @param gate - Why.
+     * @param preview - What the reader is shown: counts, seconds, the selector, the first ids.
+     */
+    constructor(
+        readonly gate: GateKind,
+        readonly preview: JsonObject,
+    ) {
+        super(gate);
+        this.name = "GateHold";
+    }
+}
+
+/** State that lives for one message: what the gate and the undo rules count. */
+export interface MessageState {
+    /** The gate's limits, or false when it is off (and while an approved batch runs). */
+    readonly gate: Readonly<AssistantGateLimits> | false;
+    /** The message's id, its steps' `provenance.message`. */
+    readonly id: string;
+    /** Runs the assistant started in this conversation, which it may cancel without asking. */
+    readonly runs: Set<string>;
+    /** Undo or redo calls made in this message (at most one). */
+    undoCalls: number;
+    /** The message's running totals of what its writes did. */
+    readonly totals: { removeNodes: number; removeEdges: number; changedValues: number };
+}
+
+/** Everything an action runs with. */
+export interface ActionContext {
+    /** Where writes go: the batch's transaction. */
+    readonly tx: TransactionScope;
+    /** The session itself, for the history and an undo. */
+    readonly session: GraphSession;
+    /** The graph, for what only the renderer does (the camera, a capture, XR). */
+    readonly graph: CommandContext["graph"];
+    readonly signal: AbortSignal;
+    readonly message: MessageState;
+    readonly host: ToolHost;
+}
+
+/** One action of a tool. */
+export interface ActionSpec {
+    /** The `action` value. */
+    readonly name: string;
+    /** One line for the model: what it does. */
+    readonly summary: string;
+    /** Its fields, each described. `action` is added by the generator. */
+    readonly fields: z.ZodRawShape;
+    readonly effect: ActionEffect;
+    /** What it reaches, for the coverage test. */
+    readonly reaches: readonly Reach[];
+    /** Extra words `catalog` search matches it by. */
+    readonly keywords?: readonly string[];
+    /**
+     * Settle spellings before validation: a legacy or differently cased catalog name becomes the
+     * catalog's own. Returns the arguments to validate.
+     */
+    readonly prepare?: (args: Record<string, unknown>) => Record<string, unknown>;
+    /**
+     * Run it.
+     * @param context - The session and the message.
+     * @param args - Its arguments, validated.
+     * @returns Its coded result.
+     */
+    run(context: ActionContext, args: Record<string, unknown>): Promise<ActionResult>;
+}
+
+/** A tool: a family of actions. */
+export interface ToolDefinition {
+    readonly name: string;
+    /** The default name a transcript may show for it. */
+    readonly plainName: string;
+    /** Offered on every turn, or only once a `catalog` result names it. */
+    readonly core: boolean;
+    /** What it is for and when not to use it, for the model. */
+    readonly description: string;
+    /** One example call, for the description. */
+    readonly example: JsonObject;
+    readonly actions: readonly ActionSpec[];
+}
+
+/** The catalog as one build of the tools reads it: built-in and registered entries. */
+export interface CatalogView {
+    readonly algorithms: readonly AlgorithmDescriptor[];
+    readonly layouts: readonly LayoutDescriptor[];
+    readonly formats: readonly FormatDescriptor[];
+    readonly palettes: readonly PaletteDescriptor[];
+    readonly cameras: readonly CameraDescriptor[];
+    readonly scales: readonly ScaleDescriptor[];
+    readonly channels: readonly ChannelDescriptor[];
+}

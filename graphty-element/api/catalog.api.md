@@ -14,7 +14,7 @@ export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[];
 export const AI_PROVIDER_IDS: readonly ["openai", "anthropic", "google", "webllm", "mock"];
 
 // @public
-export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED"];
+export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED", "AI_CONFIRMATION_NEEDED", "AI_ROLLBACK_PARTIAL", "AI_APPROVAL_STALE", "AI_APPROVAL_DENIED"];
 
 // @public
 export const AI_STAGES: readonly ["processing", "generating", "executing"];
@@ -24,6 +24,9 @@ export const AI_STATES: readonly ["ready", "submitted", "streaming", "executing"
 
 // @public
 export const AI_TOOL_CALL_STATUSES: readonly ["pending", "executing", "complete", "error"];
+
+// @public
+export const AI_TOOL_CAUSE_CODES: readonly ["AI_OK", "AI_UNKNOWN_ACTION", "AI_ARG_INVALID", "AI_ARG_OUT_OF_RANGE", "AI_UNKNOWN_ENTRY", "AI_UNKNOWN_NODE", "AI_UNKNOWN_EDGE", "AI_UNKNOWN_COLUMN", "AI_UNKNOWN_RUN", "AI_BAD_SELECTOR", "AI_EMPTY_MATCH", "AI_NOT_AVAILABLE", "AI_CONFIRM_REQUIRED", "AI_IMPORT_URL_REFUSED", "AI_UNDO_NOTHING", "AI_UNDO_NOT_ALONE", "AI_UNDO_NOT_MINE", "AI_UNDO_IN_MESSAGE", "AI_CURSOR_STALE", "AI_TOOL_NOT_RUN", "AI_TOOL_UNKNOWN"];
 
 // @public
 export interface AiKeyShape {
@@ -88,6 +91,9 @@ export type AiResultCode = (typeof AI_RESULT_CODES)[number];
 export type AiResultParams = Readonly<Record<string, string | number>>;
 
 // @public
+export type AiToolCauseCode = (typeof AI_TOOL_CAUSE_CODES)[number] | (string & {});
+
+// @public
 export function algorithmByKey(key: string): BuiltInAlgorithmDescriptor | undefined;
 
 // @public
@@ -135,6 +141,17 @@ export interface AlgorithmDescriptor {
 
 // @public
 export type AlgorithmKey = KnownAlgorithm | (string & {});
+
+// @public
+export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[];
+
+// @public
+export interface AssistantToolDescriptor {
+    readonly actions: readonly string[];
+    readonly core: boolean;
+    readonly name: string;
+    readonly plainName: string;
+}
 
 // @public
 export const ATTRIBUTE_TYPES: readonly ["string", "number", "integer", "boolean", "time", "category", "mixed"];
@@ -242,6 +259,9 @@ export type CameraId = (typeof KNOWN_CAMERA_IDS)[number] | (string & {});
 export function camerasForMode(mode: DrawingMode): readonly CameraDescriptor[];
 
 // @public
+export const CATALOG_KINDS: readonly ["algorithm", "layout", "format", "palette", "scale", "channel", "camera", "setting", "tool"];
+
+// @public
 export interface CatalogApi {
     // (undocumented)
     algorithms(): readonly AlgorithmDescriptor[];
@@ -273,6 +293,9 @@ export interface CatalogApi {
         kind?: "selector" | "filter" | "formula";
     }): QueryValidation;
 }
+
+// @public
+export type CatalogKind = (typeof CATALOG_KINDS)[number];
 
 // @public
 export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";

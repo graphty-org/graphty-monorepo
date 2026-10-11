@@ -732,7 +732,9 @@ export type AiEvent =
     | AiStreamToolResultEvent
     | AiVoiceStartEvent
     | AiVoiceTranscriptEvent
-    | AiVoiceEndEvent;
+    | AiVoiceEndEvent
+    | AiApprovalRequestedEvent
+    | AiExportReadyEvent;
 
 /** Main event for UI binding - single source of truth for AI status */
 export interface AiStatusChangeEvent {
@@ -807,6 +809,46 @@ interface AiVoiceTranscriptEvent {
     type: "ai-voice-transcript";
     transcript: string;
     isFinal: boolean;
+}
+
+/**
+ * The assistant held a batch of its changes for the reader's approval: it was large, slow,
+ * replaced the graph, could not be undone or fetched a URL the reader did not give. Nothing it
+ * asked for has happened. Answer with `resolveAiApproval(request.id, { approve })`; the id expires
+ * at the reader's next message. A host that listens for none of these never runs a held batch.
+ */
+export interface AiApprovalRequestedEvent {
+    /** The event's name. */
+    type: "ai-approval-requested";
+    /** What the reader is asked to approve. */
+    request: AiApprovalRequest;
+}
+
+/** What the assistant asks the reader to approve. */
+export interface AiApprovalRequest {
+    /** The single-use id `resolveAiApproval` takes. */
+    readonly id: string;
+    /** Why it was held. OPEN UNION. */
+    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | (string & {}); // NOSONAR(S4335): the open-union idiom
+    /** The tool calls held, as the model made them. */
+    readonly calls: readonly { readonly tool: string; readonly arguments: Readonly<Record<string, unknown>> }[];
+    /** What the reader is shown: counts, seconds, the selector, the first affected ids. */
+    readonly preview: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * The assistant exported the graph or captured a picture or a video: the document is handed to
+ * the application, which saves or shows it. The model receives only its size.
+ */
+export interface AiExportReadyEvent {
+    /** The event's name. */
+    type: "ai-export-ready";
+    /** The format id (`graphml`, `png`, `webm`, ...). */
+    format: string;
+    /** The document: text for a graph format, a `Blob` for a picture or a video. */
+    data: string | Blob;
+    /** What the format could not carry, as coded facts. */
+    losses: readonly { readonly code: string; readonly params?: unknown }[];
 }
 
 /** Emitted when voice input ends */

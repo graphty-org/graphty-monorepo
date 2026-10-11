@@ -376,6 +376,8 @@ export { KNOWN_LOG_SINK_IDS } from "./src/catalog/types";
  * `neighbors()`, `edges()`, `edge.other(node)`, `attr(path)`, `number(path)`, `strength(path)`
  * and `weight(path)`. `compareNodeIds` is the order the view iterates in.
  */
+export type { AssistantReachCode } from "./src/ai/tools/reach";
+export { assistantReach } from "./src/ai/tools/reach";
 export type { OptionDescriptorDomain } from "./src/catalog/types";
 export type { DefaultPalettes } from "./src/session/styles";
 export { defineAlgorithm } from "./src/simple/defineAlgorithm";

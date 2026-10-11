@@ -3,8 +3,14 @@
  * @module ai/commands/CommandRegistry
  */
 
+import { ASSISTANT_TOOLS } from "../../catalog/assistant";
+import { GraphtyError } from "../../errors/GraphtyError";
 import type { ToolDefinition } from "../providers/types";
+import { isAssistantTool } from "../tools/toolset";
 import type { GraphCommand } from "./types";
+
+/** The assistant's own tool names, which a consumer command may not take. */
+const RESERVED: ReadonlySet<string> = new Set(ASSISTANT_TOOLS.map((tool) => tool.name));
 
 /**
  * Registry for graph commands that can be executed via AI.
@@ -16,9 +22,19 @@ export class CommandRegistry {
     /**
      * Register a new command.
      * @param command - The command to register
-     * @throws Error if a command with the same name is already registered
+     * @throws Error if a command with the same name is already registered, and a `GraphtyError`
+     *   coded `E_DUPLICATE_PLUGIN` for a name in `ASSISTANT_TOOLS`, the assistant's own tools.
      */
     register(command: GraphCommand): void {
+        if (RESERVED.has(command.name) && !isAssistantTool(command)) {
+            throw new GraphtyError({
+                code: "E_DUPLICATE_PLUGIN",
+                message: `"${command.name}" is the name of one of the assistant's own tools; register the command under another name.`,
+                source: "registry",
+                details: { command: command.name, tool: command.name },
+            });
+        }
+
         if (this.commands.has(command.name)) {
             throw new Error(`Command "${command.name}" is already registered`);
         }

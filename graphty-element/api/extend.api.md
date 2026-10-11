@@ -260,6 +260,14 @@ export interface AlgorithmStatics {
 }
 
 // @public
+export function assistantReach(session?: Pick<GraphSession, "catalog">, commands?: readonly {
+    readonly name: string;
+}[]): readonly CodedFact<AssistantReachCode>[];
+
+// @public
+export type AssistantReachCode = "ai.option-unoffered" | "ai.no-description" | "ai.name-reserved";
+
+// @public
 export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" | "scoped">;
 
 // @public

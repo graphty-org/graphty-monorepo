@@ -56,6 +56,8 @@ export {
 } from "./src/catalog/ai";
 export type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey, LegacyAlgorithmMapping } from "./src/catalog/algorithms";
 export { algorithmByKey, algorithmByLegacyKey, BUILT_IN_ALGORITHMS } from "./src/catalog/algorithms";
+export type { AiToolCauseCode, AssistantToolDescriptor, CatalogKind } from "./src/catalog/assistant";
+export { AI_TOOL_CAUSE_CODES, ASSISTANT_TOOLS, CATALOG_KINDS } from "./src/catalog/assistant";
 export { CAMERA_DESCRIPTORS, cameraDescriptor, camerasForMode } from "./src/catalog/cameras";
 export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";

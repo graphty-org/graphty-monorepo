@@ -16,33 +16,28 @@ served at `/?next`.
 
 ## Top of mind
 
-1. (2026-10-11) Round 4 does not start until the runner refuses a round folder without its gate
-   evidence (prompt pilots per task half, bars on the frozen build) and each check is shown
-   failing on a planted fault. Round 3 proved a written rule without a refusing gate is a wish.
-2. (2026-10-11) Watch every new check for the round 3 failure shape: a check that read 0 inputs
-   and passed. Leak check fails on fewer logs than sessions; `--end` only adds notes; each new
-   bars.mjs focus action must fail on 26f3bb968 or it does not decide change 6.
-3. (2026-10-11) Shift-click on a node adds (element, through session.selection.applyNow, as the
-   edge does). Shift only; Ctrl/Meta held. Real-input test. Watch: "Select endpoints" in "..."
-   was confounded with this defect -- re-measure it in round 4, do not credit or fault it yet.
-4. (2026-10-11) T24: prompt changed, key kept; the key names the Shift route only after it is
-   walked on the frozen build. Two pilots per half graded by the key before the round.
-5. (2026-10-11) One variant per problem is the round 4 rule. If T22, T18 or T17 still stall, do
-   not stack a second variant on top; ask which single change missed and why.
-6. (2026-10-11) T18 carries three changes (Made with readout, PathForm focus, name-first ranking);
-   T17 two (Filters icon, edge counts). Credit each by its own measure (script, focus check,
-   words.test, T17 first moves vs 5 of 8), never by T18/T17 success alone.
-7. (2026-10-11) Script-first changes (Made with after Undo, edge-step counts, disabled-reason
-   tooltip, both focus drops) are closed as not shown if the script does not reproduce on
-   26f3bb968. Watch that nobody ships them anyway.
-8. (2026-10-11) Find box: row drops "Select where" at rest; element supplies optional atLeast
-   { count, target }. App parses no number. If a row is still cut, it is a build fault before
-   freeze, not a new design.
-9. (2026-10-11) Bar 9 counter must drop data names; re-measured rounds 2 and 3 are the baseline.
-   No change may raise words at rest; the Filters icon adds none.
-10. (2026-10-11) Rejected and staying rejected without new evidence: "replaced" notice, keeping
-    both paths, Filters row in the layer list, hiding description matches, pressed "Filter to
-    neighbors" toggle, Replace as primary, Hops grouping (first in line if a second session hits it).
+1. (2026-10-11) A runner gate is still a wish: round 4 ran with no gate evidence, two rounds
+   running. Round 5 does not start until the runner itself refuses (gate exit 0, free browser
+   slot) and the leak check reads the briefings, each shown failing on a planted fault.
+2. (2026-10-11) Bare-number find: fix in the element's suggestBackticks (check the rewrite with
+   the selector's own acceptance test, not parseExpression). No app count guard around it.
+3. (2026-10-11) "Or more" for a number inside a column's range: one optional FindResult field,
+   one name, reusing atLeastOf. No Values-first reorder in the same round.
+4. (2026-10-11) atLeastOf is unreleased (absent from graphty-element@3.24.1): its rule text
+   ("data.minutes") is the team's call to fix, not an owner item.
+5. (2026-10-11) Table under a filter: scope "visible" plus a visibility re-render; no notice line.
+   Watch: table Export still writes every record (element #875/#820), a new mismatch.
+6. (2026-10-11) Off filter step turning on is code-proven (Filters.tsx unchanged needs on===true;
+   leave writes on:true). Fix the leave guard only; no "stays off" semantics change, no new line.
+7. (2026-10-11) Bar 9 (b): no word cut until a bars.json diff names the two added words; never
+   re-measure the bar's limit after seeing data, only a proven measurement fault.
+8. (2026-10-11) T22 A's prompt says "or more" and the new row says "or more": round 5 credit for
+   it comes from the other half's wording, not T22 A.
+9. Shift-click adds (Shift only; Ctrl/Meta held); toolbar Filters door; second path replaces the
+   first silently. All held by 7 of 7; do not touch.
+10. Rejected and staying rejected without new evidence: "replaced" notice, keeping both paths,
+    Filters row in the layer list, hiding description matches, pressed "Filter to neighbors"
+    toggle, Replace as primary, Hops grouping.
 11. Bare numbers in rules, backticks, edge width units: breaking, owner list. No opt-in flag.
 12. Drawn-name overlap is the element's label placement: no app font, seed or offset.
 13. Rounds are one model playing every participant: a failure is strong, a pass weak, seven
@@ -165,6 +160,19 @@ served at `/?next`.
   owning package with no new words; no objection. Reason throughout: measurement before defects,
   one change per problem, element first.
 
+- 2026-10-11 -- Tier 2 round 4 proposals attack. Code read on the studio branch:
+  predicate.ts suggestBackticks (checks only parseExpression, so a lone literal passes),
+  query.ts atLeastOf (quotePath, so "data.minutes"; commit 9b69ca650 is in no released tag),
+  TableDock.tsx:349 (scope "graph"; no visibility re-render; Export comment cites #875/#820),
+  Filters.tsx 444/501 (unchanged requires on===true; leave writes on:true). Positions: element
+  fix for the refused suggestion, rejecting the app count guard three roles proposed (a guard
+  around an element defect) and the visual designer's "only when it parses" (already true, misses
+  the cause); one FindResult field for in-range "or more", one name; reject Values-first reorder
+  (stacked); atLeastOf rule text is team's call, not breaking (visual designer wrong); table
+  "visible" plus re-render, reject the notice line; fix the off-step leave guard now (code
+  cause is solid), reject the "stays off" plus new announcement; bar 9 (b) cut nothing before a
+  bars.json diff; hold the glyph rule, Escape tracing, and every one-specialist sev 3.
+
 ## Tried: worked / did not work
 
 - 2026-09-06 to 2026-10-07 (summarized 2026-10-11) -- Worked: routing the existing neighbors
@@ -175,20 +183,10 @@ served at `/?next`.
   a wrong-count finding needs live state checked first; the runner is part of the build under
   test; once controls work, the next failures are perception and words.
 
-- 2026-10-09 -- Tier 2 round 1 dry run on success paths only: did not work as a gate. No session
-  met a broken control on the walked routes, but participants met off-route defects and four bars
-  had no script. Taught: a dry run must walk detours and prove every bar's script runs.
-
-- 2026-10-09 -- Round 1 results after skeptics: 52 of 55 valid sessions succeeded, 0 false done,
-  0 silent commits, every session.log empty. Bars 2, 7, 8, 9 unscored; 1, 5, 10, 11 fail. Worked:
-  the four-build success-path dry run (no broken control on walked routes). Did not work: no
-  detour or keyboard walk, no tool dry run. Taught: the dry run must cover the harness too.
-
-- 2026-10-09 -- Round 2 dry run (four runs, 30 detour walks, pointer and keyboard): worked for
-  the walked routes (0 grades decided by a build fault, no session error). Did not work for the
-  unlisted detour (selection styling) or for participant isolation (tasks.md read). The keyboard
-  walk found the Escape fault and handed it on instead of fixing it. Taught: a dry run finds,
-  the freeze must wait for the fix.
+- 2026-10-09 -- Tier 2 rounds 1-2 dry runs (summarized 2026-10-11): success-path and detour
+  walks worked for the walked routes, but not as gates: off-route defects, unscripted bars, the
+  tool itself and participant isolation slipped through. Taught: a dry run walks detours and the
+  harness, and the freeze waits for the fix.
 
 - 2026-10-10 -- Round 2 close: my "units question first" on width worked (a units test settled it
   before any app value change; the app reuses the element's highlight look instead). My leak fix
@@ -206,6 +204,13 @@ served at `/?next`.
   reject was carried into decisions.md unchanged. Skeptics dropped bar 6 and weakened the find
   box, second-path and "found by a guess" claims, matching my "pass weak, one voice" stance. Not
   yet shown: whether any of it works for participants; that is round 4.
+
+- 2026-10-11 -- Round 4 results of my round 3 positions: worked for participants -- Shift-click
+  (T24 2 of 4 -> 7 of 7), toolbar Filters (7 of 7 first door, 0 wrong turns), find "or more" row
+  taken when the number is a value. Did not work: my "round 4 does not start until the runner
+  refuses" -- it started anyway, three sessions were lost to browser slots, and the briefings
+  leaked file contents. Taught: a rule in my notes and in decisions.md is still not a gate; the
+  director must show the refusal before launch, and I must check for it, not assume it.
 
 ## Thinking
 
@@ -266,8 +271,17 @@ served at `/?next`.
   severity 2 fixes; the next round's value is mostly a clean measurement. Resist filling round 4
   with polish to look productive.
 
+- (2026-10-11) Round 4's two real defects were both mismatches between two checks of one thing
+  (suggestion parse vs selector acceptance; editor "unchanged" vs leave save). The pattern to
+  hunt next: anywhere the app or element answers one question with two different tests.
+- (2026-10-11) Making the table follow the filter fixes one mismatch and opens another (table
+  Export still writes all records). Fixes that align one view must list every other view of the
+  same state before landing.
+
 ## Sources
 
+- `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md`, the eight role critiques;
+  source files named in the 2026-10-11 decision entry (2026-10-11)
 - `design/ui/studio/tier2/rounds/round-3/insights.md`, `decisions.md` (closed, 2026-10-11)
 - `design/ui/studio/tier2/rounds/round-3/insights.md`, `scores.md`, the eight role critiques (2026-10-10)
 

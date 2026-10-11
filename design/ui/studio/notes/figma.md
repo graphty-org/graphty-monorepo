@@ -5,44 +5,43 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-10 (tier 2 round 3 expert walk done).
+Last updated: 2026-10-10 (tier 2 round 3 critique done).
 
 ## Top of mind
 
-1. (2026-10-10) Round 3 walk (`tier2/rounds/round-3/expert/figma.md`): 42 findings, same count
-   as round 2, but 2 at severity 3, both on running a second path: the second run silently
-   replaces the first, and Undo restores it with Made with naming the undone run's From and To
-   (app draft survives undo). Lead with these in the critique; smallest fix is in the app.
-2. (2026-10-10) Round 2's decided changes held in the build: runnable rule suggestion, rule-named
-   layer, highlight-look Color/Width, empty-canvas deselect, plain "Filter to neighbors", "minutes
-   14" row, 24 px checkbox, "full graph" only under a filter, Replace beside Load, half-made step
-   kept. Rule syntax dropped to severity 2.
-3. (2026-10-10) Tab-commit shipped half: Tab from Value lands on Save step inside the editor, so
-   Tab then Escape still loses the edit. Lesson again: a decided change must name the exact key
-   sequence it fixes, and the walk must replay that sequence.
-4. (2026-10-10) New severity 2 on task routes: an edge filter step and the chip count nodes only
-   ("20 of 20 nodes" with 21 edges hidden); the Path form forgets the weight; To accepts From
-   (0-hop run); Load stays primary when every incoming edge repeats; "Not set" weight meaning
-   behaves two ways.
-5. (2026-10-10) Carried, still unfixed: "Filter to..." focus on the tree row, inspector jumps off
-   a new step, Path popover covers the canvas, "+" empty form, Save form vs live inspector,
-   checkbox vs eye, two row grammars.
-6. (2026-10-10) Find box (from round 2): bare-number parse stays an owner question; watch whether
-   3+ of 8 still stall. Only then "Select where..." on the column menu.
-7. (2026-10-10) Selection styling: "+" Color/Width uses the element's `highlightStyle()`. Width
-   units remain with the owner; the app must not scale widths.
-8. (2026-10-10) Bar 9 (b): words go down, never up. Count before I propose.
-9. (2026-10-10) Severity 3 left to the owner: drawn names covering edges and each other, unseeded
-   overlapping nodes. No app font, seed or offset hacks. Not counted in my totals.
-10. (2026-10-10) Next walk's watch list: run every command twice and Undo it (where round 3's
-    severity 3s were); Tab and Escape at each field boundary; panel right-click; edit a saved note.
+1. (2026-10-10) Round 3 critique proposed eight changes, most severe first: Shift/Ctrl-click on a
+   node adds (graphty-element, `NodeBehavior.handleClick`; the edge click already reads
+   `shiftKey`), T24 prompt and key aligned (study), a bare number offers "is" and "is at least"
+   with the row unclipped, a second path announced with Undo plus Made with read from the run not
+   the draft, a filter icon in the toolbar, exact name first in the Analyze search, the edge step
+   counted in edges, Value blur commits.
+2. (2026-10-10) The one app-caused failure of round 3 was a Figma muscle-memory gesture
+   (Shift-click adds), missing in the element on nodes only. Figma's selection grammar is a
+   checklist, not taste: walk Shift-click, Ctrl-click, marquee and Escape on every object kind.
+3. (2026-10-10) Skeptics cut my two severity 3s to one severity 2 (a second path replacing the
+   first) and "not shown" (Undo restating the wrong From and To). Lesson: a one-specialist claim
+   needs a script before it is scored; write the script with the finding.
+4. (2026-10-10) A prompt reworded to avoid a control word ("point out", not "select") let
+   participants reach a different valid outcome. A task must name the measured end state.
+5. (2026-10-10) Tab-commit shipped half (Tab from Value lands on Save step). A decided change must
+   name the exact key sequence it fixes, and the walk must replay it.
+6. (2026-10-10) Find box: 4 of 4 typed a bare number first; offer "is at least" beside "is". Rule
+   syntax and backticks stay an owner question; do not reword the refusal again.
+7. (2026-10-10) Do NOT move: Replace (8 of 8 found it), "Select endpoints" (recheck after the
+   Shift-click fix), weight role at load (8 of 8 right), note subject, names-off default (the
+   consumer's choice; no misread).
+8. (2026-10-10) Severity 3 left to the owner: drawn names covering edges and each other, sized
+   nodes drawn inside each other. No app font, seed or offset hacks. Not counted in my totals.
+9. (2026-10-10) Bar 9 (b): words go down, never up. Count before I propose. The counter must leave
+   out data names (it counted "friends" and "team.csv").
+10. (2026-10-10) Next walk's watch list: every command twice then Undo; Tab and Escape at each
+    field boundary; modifier clicks on nodes, edges and rows; panel right-click.
 11. (2026-10-09) Deferred divergences, bring only with clean-run evidence: Save form vs live
     inspector; checkbox vs eye; two row grammars; add-first for "+".
-12. (2026-10-10) Tool: `--start` waits for a browser slot (often minutes while sessions run); wrap
-    it in `timeout 580` in the foreground, never background it. Click by name must match one
-    control; use `role=treeitem:` for step rows.
+12. (2026-10-10) Tool: `--start` waits for a browser slot; wrap it in `timeout 580` in the
+    foreground. Click by name must match one control; `role=treeitem:` for step rows.
 13. (2026-10-07) Open element asks: fit inset (toolbar covers nodes); size vs 3D perspective;
-    neighbor distance per node.
+    neighbor distance per node (now needed for the Hops 2 list).
 14. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
     graphty's ontology. Every control must visibly change canvas, key or popover.
 15. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
@@ -111,6 +110,19 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-10 (me, round 3 critique) Proposed for round 4, smallest per verified problem: (1)
+  graphty-element: Shift or Ctrl click on a node adds to the selection, as an edge click does,
+  with a real-input test (Figma's and every file browser's grammar; 4 of 4 T24 met it,
+  `r3-s41/05.png`); (2) T24 prompt and key ask for the same end state and every key route is
+  walked on the build; (3) find box: a bare number offers "is" and "is at least" rows, unclipped
+  (4 of 4 typed "10", `r3-s10/02.png`); (4) a second path keeps the replace but announces it
+  with Undo, and Made with reads the run's own inputs (`RunValues.tsx` `settingsOf(run, draft)`),
+  with a script first; (5) a filter icon in the toolbar opening Data > Filters, a door not a
+  home (5 of 8 T17 looked on Graph, `r3-s33/03.png`); (6) exact name match ranks first in the
+  Analyze search (7 sessions); (7) an edge step and the chip count edges; (8) Value blur commits.
+  Not changing: label overlap (owner), Replace, Select endpoints, weight role, note subject,
+  names-off default, the deferred divergences. Reason: one change per failure, doors not homes,
+  words at rest only down.
 - 2026-10-10 (me, round 3 walk) Severity 3 for the two second-path faults: a result lost with no
   notice, and an inspector stating inputs of a run that does not exist, both on a path task's own
   route. Rule syntax lowered to 2 because Enter now runs the suggestion. The owner items (label
@@ -128,23 +140,11 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   prompts drop "stand out"; re-run r2-s05, the three round 2 routes and the follow-ups. Reason:
   one change per failure so round 3 can attribute it; no new door where one is measured; words
   at rest only down.
-- 2026-10-09 (me, round 2 critique) Round 3 changes, smallest per verified problem: (1) the
-  find box runs what it recognizes -- one Enter-able row "Select where <rule> (n)" for a typed
-  condition, a column word or a bare number, fed by a lenient parse in graphty-element (additive:
-  accepts input refused today, returns the normalized rule or a { code, params } reason); (2) a
-  layer made from a selection starts with a visible Width and a non-gray Color and is named by
-  its rule, not its count (app defaults and words); (3) "Add to" that would duplicate every tie
-  says so and offers Replace (element reports the duplicate count as a fact); (4) bar 8: step
-  checkbox hit area 24 px in compact-mantine, the find results' scroll area focusable; (5) step
-  editor: Tab and blur commit, "Filter to..." puts the caret in Value; (6) "Filter to neighbors"
-  stays a command. Not now: label overlap (element, large), live inspector, eye vs checkbox, row
-  grammar, Replace placement and the weight route (re-run them under a clean briefing first).
-  Reason: severity 3 and bar-8 first, each in its owning package, one change per failure.
-- 2026-10-09 (me, round 2 walkthrough) Severity 3 only for backtick numbers (code syntax on the
-  rule success path, bar 10 class). The recognized-but-dead typed condition is 2: the hint gives
-  the exact line to retype, so it slows but does not mislead. Tab-then-Escape losing an edit is
-  2: the row name shows the truth. The key's text-only out-of-date mark drops to 1. Reason: rate
-  by whether a reader can be misled or stopped, not by how un-Figma it is.
+- 2026-10-09 (summarized 2026-10-10) Round 2 walk and critique: severity 3 only for backtick
+  numbers; recognized-but-dead condition, Tab-then-Escape loss at 2. Proposed: find box runs what
+  it recognizes (one Enter-able "Select where <rule>" row), selection layer starts visible and
+  rule-named, duplicate-edge count with Replace, 24 px checkbox, Tab and blur commit, "Filter to
+  neighbors" a command. Reason: severity 3 and bar 8 first, each in its owning package.
 - 2026-10-09 (summarized 2026-10-10) Tier 2 round 1: severity 3 went to Enter not committing in
   the step editor, backtick numbers, cut edge names and the key with no out-of-date mark. Round 2
   list (Director): measurement first, then reproduced defects, one door per confirmed problem;
@@ -203,6 +203,12 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-10-10 Round 3 scored. Worked: 54 of 56 succeeded; my walk's edge-step-counts-nodes and
+  Tab-then-Escape findings were confirmed by a second specialist. Did not: both my severity 3s
+  were cut (second path to 2, the Undo restatement to "not shown") because I left no script;
+  my walk never tried a modifier click on a node, which was the round's one app failure.
+  Lesson: write a repro script with every severity 3, and walk Figma's selection grammar on
+  every object kind.
 - 2026-10-10 Round 3 walk on 26f3bb968e43. Worked: 13 decided changes verified by clicking, each
   with a screenshot. Did not: Tab-commit only half-shipped (Tab stays inside the editor); a
   second path run was walked by nobody before and held both severity 3s. Lesson: walk repeat

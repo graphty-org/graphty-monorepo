@@ -11,14 +11,30 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Both scripted focus drops fixed: built** (app only). (a) The path form swapped
+  into an open Analyze popover had only `data-autofocus`, which Mantine's focus trap reads only on
+  open; From (and Find path, when the selection fills both ends) now also carry `autoFocus`, and
+  the From list stays shut (no text, no hits). (b) A selection's first Color line: the OLD Style
+  tab drew the line first, `useFocusLine` focused it and cleared the ask, then the tab remounted on
+  the new layer row and focus fell to the body (traced with logs: focus, unmount, mount, unmount).
+  Fix inside `useFocusLine`: a layout-effect cleanup (runs before the nodes leave the page) re-asks
+  for the line it handed focus to when focus is still on it; no second mechanism. Real-key tests in
+  PathForm and StyleTab real-element files fail on the old code. Fresh build:
+  `tmp/t2r3-r4-06/fresh/08.png` (ring on the Color line), `17.png` (ring in From, no list).
+  `bars.mjs` on the fresh build (`tmp/t2r3-r4-06/bars-fresh.log`): both focus actions "kept", each
+  planted drop caught. Its exit 1 is not this change: the tier 1 "node's Values with its neighbors"
+  click times out on round 3's build too, and the edge inspector is 29 of 27 words ("Settings" on
+  the rail is new since round 3).
+  Note: Escape on a focused inspector control still clears the selection -- that is the app's
+  designed Escape order (`selection.clear` on Escape), not a focus drop.
 - (2026-10-10) **`bars.mjs` now measures bars 8 and 9 as the criteria word them.** Bar 9 leaves
   out the data's names (source, file stem, tables, imported columns, node names, matched as written
   so the app's "Weight" still counts). Corrected, round 1 / 2 / 3: rest screen 49 / 51 / 45, path
   inspector 63 / 67 / 58, neighbor list 33 / 36 / 31, edge inspector 27 / 31 / 28; tier 1 36 on all.
   `bars-limits.json` now holds round 1's corrected counts; the edge inspector is still one over.
   Bar 8 runs two new focus actions, each proven on a planted drop: Enter on Shortest path typed
-  into the Analyze list, and Color from Add to Line on a rule selection. **Both FELL on 26f3bb968
-  and on the branch build 9ac5f9f3e: the focus fix (r4-06) goes ahead.** The find list keeps its
+  into the Analyze list, and Color from Add to Line on a rule selection. Both FELL on 26f3bb968
+  and 9ac5f9f3e; both fixed since (top bullet). The find list keeps its
   active option in view after 18 ArrowDowns, so axe's `scrollable-region-focusable` on its
   viewport is excused, only while that check holds (`tmp/t2r3-r4-04/`, scores.md round 3).
 - (2026-10-10) **A filter step over an edge column counts edges: built** (app only, 8ab196fb3).
@@ -32,21 +48,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   edges", Overview agrees; unticked, chip goes, row "off" (`tmp/t2r3-r4-11/fresh/04.png`,
   `05.png`). Same word count. **The T17A answer key's "19 of 20 nodes" / "20 to 19 nodes" become
   "12 of 41 edges" / "41 to 12 edges" on the next build** -- re-record it before round 4 freezes.
-- (2026-10-10) **The Add page's repeated-ties line now reads as a warning and describes Load:
-  built** (app only). The line carries the danger-colored warning glyph (as an unmatched table's
-  check does), its text has id `dp-repeats`, and Load's `aria-describedby` lists it beside
-  `dp-load-reason`. Words unchanged; Replace stays a default button. Fresh build, friends ranked,
-  Add friends-v2.csv: glyph shown, `--expect "described=41 edges in this file..."` passes; Add
-  trails.csv (no repeats): Load described as "" (`tmp/t2r3-r4-10/fresh/11.png`, `12.png`, `17.png`).
-- (2026-10-10) **A pressed "Filter to neighbors" already gives a screen reader its reason: nothing
-  built.** On 26f3bb968, keyboard focus on it reads the description "The drawing already shows
-  only this neighborhood. Its step in Filters turns it off" at once, and still after Enter
-  presses it (compact-mantine's Tooltip opens on focus; Mantine sets aria-describedby while open,
-  and the dismissed-on-key tooltip is only hidden, so the description stays). A pointer press
-  gets it after the 1 s hover delay. New tool check: `--expect "described=<text>"` reads the
-  focused control's accessible description (`tmp/t2r3-r4-12/frozen/`: 06 and 09 fail as planted,
-  10-14 pass). Still open from the audit: the hidden tooltip after a pointer press (visual only)
-  and the disabled look like an empty text field.
+- (2026-10-10, condensed) **Two screen-reader descriptions:** the Add page's repeated-ties line is
+  now a warning (danger glyph, id `dp-repeats`) that Load's `aria-describedby` lists (built,
+  `tmp/t2r3-r4-10/fresh/`); a pressed "Filter to neighbors" already reads its reason on keyboard
+  focus (nothing built; `--expect "described=<text>"` added to real.mjs, `tmp/t2r3-r4-12/`). Still
+  open: the hidden tooltip after a pointer press, and the disabled look like an empty field.
 - (2026-10-10) **"Or more" beside a typed number in the find box: built** (commit 9b69ca650).
   Element: `FindValueRow.atLeast: { count, target }` on a number value, target the typed rule
   `{ text: "=data.<col> >= \`N\`" }` (with the find's scope). App: a second row "<column> is N
@@ -70,12 +76,9 @@ items ALSO failing on round 3's build: axe `scrollable-region-focusable` on the 
 - (2026-10-10) **Hold still in round 4:** second Find path replacing the first, "Select endpoints"
   in "..." (confounded with Shift-click), the "=" hint and backtick wording (measure "or more"
   alone), round 2's routes (now passing clean), label and node overlap (element, owner's list).
-- (2026-10-10) **Round 3 screenshot audit done: 38 findings, 0 at severity 4, 2 at 3 (both
-  element label placement), 12 at 2.** `tier2/rounds/round-3/expert/engineer.md`. New this round
-  and mine to fix in the app: the disabled "Filter to neighbors" shows no reason to the person who
-  just pressed it (tooltip opens on pointer entry only) and looks like an empty text field
-  (compact-mantine's disabled Button); the repeated-ties warning (built 10-10, top bullet); Escape does nothing on the Data pages. New for the element: sized nodes drawn
-  inside each other (layout spaces centers, not sizes) -- the cause under "Farah under Chloe".
+- (2026-10-10, condensed) **Round 3 screenshot audit: 38 findings, 2 at severity 3 (element
+  label placement).** `tier2/rounds/round-3/expert/engineer.md`. Still mine: Escape does nothing on
+  the Data pages. For the element: sized nodes drawn inside each other (layout spaces centers).
 - (2026-10-10, condensed) **Round 3 changes were measured in round 3; edge inspector words 31 of
   30 still OPEN. Round 2's new routes (weight meaning at load, Replace in "...", rule hint) count
   only once a clean round re-measures them; do not reword or move them meanwhile.**
@@ -250,6 +253,11 @@ items ALSO failing on round 3's build: axe `scrollable-region-focusable` on the 
 
 ## Tried: worked / did not work
 
+- (2026-10-10) **Finding why `useFocusLine` lost a line.** Worked: `console.log` in the hook's
+  effect and a mount/unmount effect, run under the real-element test; it showed the focus landed and
+  the tab then unmounted. Rule: a module-level focus ask consumed by a component that is about to
+  remount must be re-armed in a layout cleanup (a passive cleanup runs after the nodes are gone,
+  when `activeElement` is already body).
 - (2026-10-10) **Scripting the Analyze focus drop.** Did not work: typing "shortest path" and
   Enter (the first row is Betweenness, which keeps focus on Run); Shift+A while the find box has
   focus (types "A" into the find). Worked: `--click role=button:Analyze`, type, three ArrowDowns,

@@ -1,5 +1,5 @@
 import type { Channel } from "@graphty/graphty-element/schema";
-import { type RefObject, useEffect, useRef } from "react";
+import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
 /** What can take keyboard focus inside a line. */
 const CONTROL = "button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex='-1'])";
@@ -38,11 +38,15 @@ export function focusSectionNext(from: Element, channel: Channel): void {
 }
 
 /**
- * Hands focus to the line `focusLineNext` asked for, on the first render that draws it.
+ * Hands focus to the line `focusLineNext` asked for, on the first render that draws it. The line
+ * can be drawn once by the tab that asked and again by the tab that replaces it (a selection's
+ * first line makes its layer and the tab remounts on that row), so a tab that goes away with focus
+ * still on the line it handed it to asks again, and the next tab hands it to its own copy of the line.
  * @returns the ref for the element that holds the lines.
  */
 export function useFocusLine<T extends HTMLElement>(): RefObject<T | null> {
     const scope = useRef<T>(null);
+    const handed = useRef<string | null>(null);
     // No dependency list: the line appears on whatever render the element's change causes.
     useEffect(() => {
         if (pending === null) {
@@ -50,10 +54,21 @@ export function useFocusLine<T extends HTMLElement>(): RefObject<T | null> {
         }
         const control = scope.current?.querySelector(pending)?.querySelector<HTMLElement>(CONTROL);
         if (control !== undefined && control !== null) {
+            handed.current = pending;
             pending = null;
             control.focus();
         }
     });
+    // A layout cleanup runs before the tab's nodes leave the page, while focus is still in them.
+    useLayoutEffect(() => {
+        const node = scope.current;
+        return () => {
+            const line = handed.current === null ? null : node?.querySelector(handed.current);
+            if (pending === null && line?.contains(document.activeElement) === true) {
+                pending = handed.current;
+            }
+        };
+    }, []);
     return scope;
 }
 

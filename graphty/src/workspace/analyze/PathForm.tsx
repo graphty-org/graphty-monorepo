@@ -182,8 +182,10 @@ function NodeField({
                 aria-activedescendant={hits.length > 0 ? optionId(Math.min(active, hits.length - 1)) : undefined}
                 error={error ?? undefined}
                 clearLabel={`Clear ${label}`}
-                // The popover's focus trap takes the control marked data-autofocus.
+                // The popover's focus trap takes the control marked data-autofocus when it opens;
+                // autoFocus covers the form swapped into a popover already open (Analyze's list).
                 data-autofocus={autoFocus || undefined}
+                autoFocus={autoFocus}
                 rightSection={
                     <ToggleIconButton
                         label={`Pick ${label} on the canvas`}
@@ -431,7 +433,13 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
                     }}
                 />
                 <Group justify="flex-end">
-                    <Button ref={runButton} size="xs" type="submit" data-autofocus={focus === "run" || undefined}>
+                    <Button
+                        ref={runButton}
+                        size="xs"
+                        type="submit"
+                        data-autofocus={focus === "run" || undefined}
+                        autoFocus={focus === "run"}
+                    >
                         Find path
                     </Button>
                 </Group>

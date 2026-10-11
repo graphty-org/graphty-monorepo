@@ -483,6 +483,47 @@ describe("the Path popover, on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
+        "Enter on Shortest path in the Analyze list puts focus in From; Escape goes back, then closes the popover",
+        async () => {
+            await openFriends();
+            await userEvent.click(analyzeTool());
+            const box = await screen.findByRole("combobox", { name: "Filter analyses" });
+            await userEvent.type(box, "shortest path");
+            const target = await screen.findByRole("option", { name: /^Shortest path/ });
+            // The keys walk the list to Shortest path, as a keyboard user does.
+            for (let i = 0; i < 10 && box.getAttribute("aria-activedescendant") !== target.id; i++) {
+                await userEvent.keyboard("{ArrowDown}");
+            }
+            assert.equal(box.getAttribute("aria-activedescendant"), target.id);
+            await userEvent.keyboard("{Enter}");
+
+            const form = await pathForm();
+            const from = within(form).getByRole("combobox", { name: "From node" });
+            await waitFor(() => {
+                assert.equal(document.activeElement, from, "focus is in From, not the page");
+            });
+            assert.isNull(within(form).queryByRole("listbox", { name: "From nodes" }), "the From list stays shut");
+
+            await userEvent.keyboard("{Escape}");
+            const back = await screen.findByRole("combobox", { name: "Filter analyses" });
+            await waitFor(() => {
+                assert.equal(document.activeElement, back);
+            });
+            // The list keeps what was typed; Escape clears it, and Escape again closes the popover.
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.equal((back as HTMLInputElement).value, "");
+            });
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }));
+            });
+        },
+        TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
         "opens from Analyze > Shortest path with a way back to the list",
         async () => {
             await openFriends();

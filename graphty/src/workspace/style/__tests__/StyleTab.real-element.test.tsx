@@ -718,6 +718,28 @@ describe("focus after a pick on the real element", () => {
         });
         await focusIsOnLine("node.label");
     });
+
+    it("Color from Add to Line on two selected ties focuses the new layer's Color line", async () => {
+        const { session } = await openWithGraph();
+        const ties = session.data
+            .edges()
+            .slice(0, 2)
+            .map((e) => e.id);
+        await act(async () => {
+            await session.selection.apply({ edges: ties });
+        });
+        await pickStyleTab();
+        // The selection has no row yet: this pick makes its layer, which remounts the tab.
+        await userEvent.click(
+            within(await within(styleTab()).findByRole("group", { name: "Line" }, { timeout: TIMEOUT_MS })).getByRole(
+                "button",
+                { name: "Add to Line" },
+            ),
+        );
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+        await focusIsOnLine("edge.color");
+        assert.equal(session.selection.edges.length, 2, "the selection is still there");
+    });
 });
 
 describe("editing lines on the real element", () => {

@@ -12,6 +12,7 @@ import { Box } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
+import { fixWallClock } from "../../test/fixedWallClock";
 import { createRegistry } from "../commands/registry";
 import { REGISTRATIONS } from "../registrations";
 import { createWorkspaceStore, type WorkspaceState, type WorkspaceStore } from "../state/store";
@@ -109,6 +110,16 @@ const meta: Meta<typeof Workspace> = {
     title: "Workspace/Inspector",
     component: Workspace,
     parameters: { layout: "fullscreen" },
+    // A run's header and Made with show its start to the second, so its runs start on a fixed
+    // clock. Loaders run before beforeEach, and the held-session stories start their runs in a
+    // loader: this one is called before theirs, so those runs are stamped on the fixed clock too.
+    loaders: [
+        () => {
+            fixWallClock();
+        },
+    ],
+    // Its cleanup puts the real clock back when the story ends.
+    beforeEach: fixWallClock,
 };
 
 export default meta;

@@ -4,6 +4,7 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
+import { fixWallClock } from "../../test/fixedWallClock";
 import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 import ring from "./__fixtures__/ring.json";
@@ -70,6 +71,8 @@ const meta: Meta<typeof Workspace> = {
     title: "Workspace/Style tab",
     component: Workspace,
     parameters: { layout: "fullscreen" },
+    // A run row's header shows when the run started, to the second: start runs on a fixed clock.
+    beforeEach: fixWallClock,
 };
 
 export default meta;

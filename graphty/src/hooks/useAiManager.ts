@@ -1,11 +1,18 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { AiStatus, ExecutionResult } from "@graphty/graphty-element/ai";
+import type { AiApprovalRequest, AiConversationSnapshot, AiStatus, ExecutionResult } from "@graphty/graphty-element/ai";
+import type { AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
 import { useCallback, useEffect, useState } from "react";
 
 import type { ProviderType } from "../types/ai";
 
 /** What the element answered, or why the hook could not ask it. */
-type AiCommandOutcome = ExecutionResult & { readonly error?: Error };
+export type AiCommandOutcome = ExecutionResult & { readonly error?: Error };
+
+/** A store failure the element reported with `ai-conversation-changed`. */
+export interface AiHistoryNotice {
+    readonly code: AiResultCode;
+    readonly params: AiResultParams;
+}
 
 interface UseAiManagerOptions {
     /** The element whose assistant this drives; undefined until it has mounted. */
@@ -35,12 +42,29 @@ interface UseAiManagerResult {
     error: Error | null;
     /** Clear the error */
     clearError: () => void;
+    /** The open conversation, as the element reports it; null until the assistant is on. */
+    conversation: AiConversationSnapshot | null;
+    /** The changes waiting on the reader's approval, oldest first. */
+    approvals: readonly AiApprovalRequest[];
+    /** The reader's text while its message runs, before the element has saved it. */
+    pendingInput: string | null;
+    /** The last command's or answer's result when it failed; cleared by the next one. */
+    failure: AiCommandOutcome | null;
+    /** The last store failure the element reported, if any. */
+    historyNotice: AiHistoryNotice | null;
+    /** Approve or deny a held change; resolves with the message's final result. */
+    resolveApproval: (id: string, approve: boolean) => Promise<AiCommandOutcome>;
+    /** Start a new conversation; the old one stays saved. */
+    newConversation: () => Promise<void>;
+    /** Delete every saved conversation of this assistant. */
+    clearHistory: () => Promise<void>;
 }
 
 /**
  * React hook for the element's AI assistant. The element builds, owns and disposes the assistant
- * (`enableAiControl`, `disableAiControl`); this hook switches it on for the chosen provider and
- * mirrors its status into React state.
+ * (`enableAiControl`, `disableAiControl`) and keeps its conversations in the browser; this hook
+ * switches it on for the chosen provider and mirrors its status, its open conversation and the
+ * changes waiting on approval into React state.
  * @param options - Configuration options for the AI manager
  * @returns Methods and state for managing AI operations
  */
@@ -52,6 +76,11 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
     const [status, setStatus] = useState<AiStatus | null>(null);
     const [currentProvider, setCurrentProvider] = useState<ProviderType | null>(defaultProvider ?? null);
     const [error, setError] = useState<Error | null>(null);
+    const [conversation, setConversation] = useState<AiConversationSnapshot | null>(null);
+    const [approvals, setApprovals] = useState<readonly AiApprovalRequest[]>([]);
+    const [pendingInput, setPendingInput] = useState<string | null>(null);
+    const [failure, setFailure] = useState<AiCommandOutcome | null>(null);
+    const [historyNotice, setHistoryNotice] = useState<AiHistoryNotice | null>(null);
 
     // Sync currentProvider with defaultProvider when it changes
     // This is needed because useState only uses defaultProvider as initial value
@@ -65,16 +94,33 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
     useEffect(() => {
         if (!element || !currentProvider) {
             setEnabled(null);
+            setConversation(null);
+            setApprovals([]);
 
             return undefined;
         }
 
         let cancelled = false;
         let unsubscribe: (() => void) | undefined;
+        // The element's own state is the truth: every event only says when to read it again.
+        const read = (): void => {
+            if (!cancelled && element) {
+                setConversation(element.getAiConversation());
+                setApprovals(element.getPendingAiApprovals());
+            }
+        };
+        const onConversationChanged = (event: { detail: { code?: AiResultCode; params?: AiResultParams } }): void => {
+            const { code, params } = event.detail;
+            if (code !== undefined) {
+                setHistoryNotice({ code, params: params ?? {} });
+            }
+
+            read();
+        };
 
         async function enable(target: GraphtyElement, provider: ProviderType): Promise<void> {
             try {
-                await target.enableAiControl({ provider, apiKey: getKey?.(provider) });
+                await target.enableAiControl({ provider, apiKey: getKey?.(provider), history: "browser" });
             } catch (err) {
                 console.error("[useAiManager] Failed to enable the assistant:", err);
                 return;
@@ -97,6 +143,10 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
                     setError(newStatus.error);
                 }
             });
+            target.addEventListener("ai-conversation-changed", onConversationChanged);
+            target.addEventListener("ai-approval-requested", read);
+            target.addEventListener("ai-pending-resolved", read);
+            read();
             setEnabled(target);
         }
 
@@ -105,6 +155,9 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
         return () => {
             cancelled = true;
             unsubscribe?.();
+            element.removeEventListener("ai-conversation-changed", onConversationChanged);
+            element.removeEventListener("ai-approval-requested", read);
+            element.removeEventListener("ai-pending-resolved", read);
             element.disableAiControl();
             setEnabled(null);
         };
@@ -123,17 +176,41 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             }
 
             setError(null);
+            setFailure(null);
+            setPendingInput(input);
 
-            try {
-                const { success, message, llmText, code, params } = await enabled.aiCommand(input);
-                return { success, message, llmText, code, params };
-            } catch (err) {
-                const error = err instanceof Error ? err : new Error(String(err));
-                return { success: false, message: error.message, code: "AI_FAILED", params: {}, error };
-            }
+            const outcome = await settle(() => enabled.aiCommand(input));
+            setPendingInput(null);
+            setFailure(shownFailure(outcome));
+            return outcome;
         },
         [enabled],
     );
+
+    const resolveApproval = useCallback(
+        async (id: string, approve: boolean): Promise<AiCommandOutcome> => {
+            if (!enabled) {
+                return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
+            }
+
+            setFailure(null);
+            const outcome = await settle(() => enabled.resolveAiApproval(id, { approve }));
+            setFailure(shownFailure(outcome));
+            return outcome;
+        },
+        [enabled],
+    );
+
+    const newConversation = useCallback(async (): Promise<void> => {
+        setFailure(null);
+        await enabled?.newAiConversation();
+    }, [enabled]);
+
+    const clearHistory = useCallback(async (): Promise<void> => {
+        setFailure(null);
+        setHistoryNotice(null);
+        await enabled?.clearAiHistory();
+    }, [enabled]);
 
     const cancel = useCallback(() => {
         enabled?.cancelAiCommand();
@@ -153,5 +230,42 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
         cancel,
         error,
         clearError,
+        conversation,
+        approvals,
+        pendingInput,
+        failure,
+        historyNotice,
+        resolveApproval,
+        newConversation,
+        clearHistory,
     };
+}
+
+/**
+ * What an assistant call answered, or why it threw.
+ * @param call - The call.
+ * @returns Its result, with only the fields the app reads.
+ */
+async function settle(call: () => Promise<ExecutionResult>): Promise<AiCommandOutcome> {
+    try {
+        const { success, message, llmText, code, params } = await call();
+        return { success, message, llmText, code, params };
+    } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        return { success: false, message: error.message, code: "AI_FAILED", params: {}, error };
+    }
+}
+
+/**
+ * The result to show beside the transcript: a failure the saved conversation does not already
+ * show. A held change shows as its approval card, and a declined one in the transcript.
+ * @param outcome - The result.
+ * @returns It, or null.
+ */
+function shownFailure(outcome: AiCommandOutcome): AiCommandOutcome | null {
+    if (outcome.success || outcome.code === "AI_CONFIRMATION_NEEDED" || outcome.code === "AI_APPROVAL_DENIED") {
+        return null;
+    }
+
+    return outcome;
 }

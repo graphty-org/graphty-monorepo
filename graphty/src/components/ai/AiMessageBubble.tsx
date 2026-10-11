@@ -7,7 +7,8 @@ export interface ChatMessage {
     id: string;
     role: "user" | "assistant" | "system";
     content: string;
-    timestamp: number;
+    /** When it was sent; the time is drawn only when known. */
+    timestamp?: number;
     isError?: boolean;
 }
 
@@ -85,12 +86,16 @@ export function AiMessageBubble({ message, onRetry }: AiMessageBubbleProps): Rea
                         )}
                     </Group>
                 ) : (
-                    <Text size="sm">{message.content}</Text>
+                    <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                        {message.content}
+                    </Text>
                 )}
             </Paper>
-            <Text size="xs" c="dimmed" mt={2} ta={isUser ? "right" : "left"}>
-                {new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            </Text>
+            {message.timestamp !== undefined && (
+                <Text size="xs" c="dimmed" mt={2} ta={isUser ? "right" : "left"}>
+                    {new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </Text>
+            )}
         </Box>
     );
 }

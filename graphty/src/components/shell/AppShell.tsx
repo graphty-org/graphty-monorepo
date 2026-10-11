@@ -115,8 +115,7 @@ import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../data/sampleGr
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data/sampleManifest";
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
-import type { ChatMessage } from "../ai/AiMessageBubble";
-import { aiResultText } from "../ai/aiResultText";
+import { aiTranscript } from "../ai/aiResultText";
 import { FeedbackModal } from "../FeedbackModal";
 import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
 import type { LoadDataRequest } from "../LoadDataModal";
@@ -1465,7 +1464,23 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         defaultProvider: aiProvider,
         getKey: aiKeyStorage.getKey,
     });
-    const [aiMessages, setAiMessages] = useState<readonly ChatMessage[]>([]);
+    const {
+        conversation: aiConversation,
+        pendingInput: aiPendingInput,
+        failure: aiFailure,
+        historyNotice: aiHistoryNotice,
+    } = aiManager;
+    // The element's saved conversation is the transcript; the shell keeps no copy of it.
+    const aiMessages = useMemo(
+        () =>
+            aiTranscript({
+                conversation: aiConversation,
+                pendingInput: aiPendingInput,
+                failure: aiFailure,
+                historyNotice: aiHistoryNotice,
+            }),
+        [aiConversation, aiPendingInput, aiFailure, aiHistoryNotice],
+    );
 
     /* The key store's own surface, as Settings takes it. Assembled here rather than in
        the overlay: this shell holds the ONE `useAiKeyStorage` instance, and a pane that
@@ -3885,26 +3900,30 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         providerLabel={aiManager.currentProvider ?? undefined}
                         isProcessing={aiManager.isProcessing}
                         onSend={(text) => {
-                            const id = `${Date.now()}`;
-
-                            setAiMessages((current) => [
-                                ...current,
-                                { id, role: "user", content: text, timestamp: Date.now() },
-                            ]);
-
-                            void aiManager.execute(text).then((result) => {
-                                setAiMessages((current) => [
-                                    ...current,
-                                    {
-                                        id: `${id}-reply`,
-                                        role: "assistant",
-                                        content: aiResultText(result),
-                                        timestamp: Date.now(),
-                                        isError: !result.success,
-                                    },
-                                ]);
-                            });
+                            void aiManager.execute(text);
                         }}
+                        approvals={aiManager.approvals}
+                        onApprove={(id) => {
+                            void aiManager.resolveApproval(id, true);
+                        }}
+                        onDeny={(id) => {
+                            void aiManager.resolveApproval(id, false);
+                        }}
+                        // Offered once the assistant is on: before that there is no conversation to act on.
+                        onNewConversation={
+                            aiManager.isReady
+                                ? () => {
+                                      void aiManager.newConversation();
+                                  }
+                                : undefined
+                        }
+                        onClearHistory={
+                            aiManager.isReady
+                                ? () => {
+                                      void aiManager.clearHistory();
+                                  }
+                                : undefined
+                        }
                         onCancel={aiManager.cancel}
                         onOpenSettings={() => {
                             openFullPanelOverlay("settings", "ai");

@@ -1,8 +1,10 @@
 import { ActionRow, PANEL_GRID, PANEL_INK, ProseBlock } from "@graphty/compact-mantine";
-import { ActionIcon, Box, Button, Textarea } from "@mantine/core";
+import type { AiApprovalRequest } from "@graphty/graphty-element/ai";
+import { ActionIcon, Box, Button, Group, Paper, Text, Textarea } from "@mantine/core";
 import React, { useState } from "react";
 
 import { AiMessageBubble, type ChatMessage } from "../../ai/AiMessageBubble";
+import { approvalLines } from "../../ai/aiResultText";
 import { keyChipFor } from "../bindings";
 import { AiGlyph } from "./aiGlyphs";
 import { PanelQuietButton } from "./panelButtons";
@@ -37,6 +39,12 @@ const RETRY_LABEL = "Retry";
  * setup prompt of spec 03 section 2.6 item 6, and it sits above the console.
  */
 const SETUP_PROMPT = "No provider is configured. Open Settings to connect one.";
+
+/** The approval card's heading. */
+const APPROVAL_TITLE = "Approve this change?";
+
+/** The conversation row's name. */
+const CONVERSATION_LABEL = "Conversation";
 
 /** The Provider row's name (AiPanel.dc.html). */
 const PROVIDER_LABEL = "Provider";
@@ -110,6 +118,16 @@ export interface AiPanelProps {
     readonly onListeningChange?: (listening: boolean) => void;
     /** Opens Settings, from the setup prompt and the Provider row. */
     readonly onOpenSettings?: () => void;
+    /** The changes waiting on the reader's approval; one card each. */
+    readonly approvals?: readonly AiApprovalRequest[];
+    /** Approves a held change, by its request's id. */
+    readonly onApprove?: (id: string) => void;
+    /** Declines a held change, by its request's id. */
+    readonly onDeny?: (id: string) => void;
+    /** Starts a new conversation. The row with it draws only when this or `onClearHistory` is set. */
+    readonly onNewConversation?: () => void;
+    /** Deletes every saved conversation. */
+    readonly onClearHistory?: () => void;
 }
 
 /**
@@ -139,6 +157,11 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
         onRetry,
         onListeningChange,
         onOpenSettings,
+        approvals = [],
+        onApprove,
+        onDeny,
+        onNewConversation,
+        onClearHistory,
     } = props;
 
     const [draft, setDraft] = useState("");
@@ -181,6 +204,50 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
                     <AiMessageBubble key={message.id} message={message} onRetry={onRetry} />
                 ))}
             </Box>
+
+            {approvals.length > 0 && (
+                <PanelRows>
+                    {approvals.map((request) => (
+                        <Paper
+                            key={request.id}
+                            withBorder
+                            p="xs"
+                            my={PANEL_GRID.TRIPLE_GAP}
+                            role="group"
+                            aria-label={APPROVAL_TITLE}
+                            data-testid="ai-approval"
+                        >
+                            <Text size="sm" fw={600}>
+                                {APPROVAL_TITLE}
+                            </Text>
+                            {approvalLines(request).map((line, index) => (
+                                <Text key={index} size="sm" c={PANEL_INK.CHROME} style={{ overflowWrap: "anywhere" }}>
+                                    {line}
+                                </Text>
+                            ))}
+                            <Group gap={PANEL_GRID.TRIPLE_GAP} mt={PANEL_GRID.TRIPLE_GAP} justify="flex-end">
+                                <Button
+                                    variant="default"
+                                    size="xs"
+                                    onClick={() => {
+                                        onDeny?.(request.id);
+                                    }}
+                                >
+                                    Deny
+                                </Button>
+                                <Button
+                                    size="xs"
+                                    onClick={() => {
+                                        onApprove?.(request.id);
+                                    }}
+                                >
+                                    Approve
+                                </Button>
+                            </Group>
+                        </Paper>
+                    ))}
+                </PanelRows>
+            )}
 
             {steps.length > 0 && (
                 <PanelRows>
@@ -259,6 +326,24 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
                                     {RETRY_LABEL}
                                 </PanelQuietButton>
                             )
+                        }
+                    />
+                </PanelRows>
+            )}
+
+            {(onNewConversation !== undefined || onClearHistory !== undefined) && (
+                <PanelRows>
+                    <ActionRow
+                        state={CONVERSATION_LABEL}
+                        residentActions={
+                            <>
+                                {onNewConversation !== undefined && (
+                                    <PanelQuietButton onClick={onNewConversation}>New conversation</PanelQuietButton>
+                                )}
+                                {onClearHistory !== undefined && (
+                                    <PanelQuietButton onClick={onClearHistory}>Clear history</PanelQuietButton>
+                                )}
+                            </>
                         }
                     />
                 </PanelRows>

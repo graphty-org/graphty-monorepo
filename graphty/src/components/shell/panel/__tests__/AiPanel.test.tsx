@@ -1,4 +1,6 @@
+import type { AiApprovalRequest } from "@graphty/graphty-element/ai";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { fireEvent, render, screen } from "../../../../test/test-utils";
 import type { ChatMessage } from "../../../ai/AiMessageBubble";
@@ -216,6 +218,62 @@ describe("AiPanel", () => {
             fireEvent.click(screen.getByTestId("ai-step-title"));
 
             expect(onOpenHome).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe("the approval card", () => {
+        const request: AiApprovalRequest = {
+            id: "req-1",
+            gate: "replaces",
+            calls: [{ tool: "edit_data", arguments: { action: "delete_all" } }],
+            preview: { nodes: 3, edges: 1 },
+        };
+
+        it("shows the held call as text and the preview's counts in the app's words", () => {
+            renderPanel({ approvals: [request] });
+
+            const card = screen.getByRole("group", { name: "Approve this change?" });
+            expect(card).toHaveTextContent('edit_data {"action":"delete_all"}');
+            expect(card).toHaveTextContent("Discards the graph's 3 nodes and 1 edge.");
+        });
+
+        it("draws no card when nothing waits", () => {
+            renderPanel();
+
+            expect(screen.queryByTestId("ai-approval")).not.toBeInTheDocument();
+        });
+
+        it("approves and denies by the request's id", async () => {
+            const onApprove = vi.fn();
+            const onDeny = vi.fn();
+            renderPanel({ approvals: [request], onApprove, onDeny });
+
+            await userEvent.click(screen.getByRole("button", { name: "Deny" }));
+            expect(onDeny).toHaveBeenCalledWith("req-1");
+            expect(onApprove).not.toHaveBeenCalled();
+
+            await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+            expect(onApprove).toHaveBeenCalledWith("req-1");
+        });
+    });
+
+    describe("the conversation row", () => {
+        it("starts a new conversation and clears history", async () => {
+            const onNewConversation = vi.fn();
+            const onClearHistory = vi.fn();
+            renderPanel({ onNewConversation, onClearHistory });
+
+            await userEvent.click(screen.getByRole("button", { name: "New conversation" }));
+            expect(onNewConversation).toHaveBeenCalledTimes(1);
+
+            await userEvent.click(screen.getByRole("button", { name: "Clear history" }));
+            expect(onClearHistory).toHaveBeenCalledTimes(1);
+        });
+
+        it("is not drawn without its actions", () => {
+            renderPanel();
+
+            expect(screen.queryByRole("button", { name: "New conversation" })).not.toBeInTheDocument();
         });
     });
 });

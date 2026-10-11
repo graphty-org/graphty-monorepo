@@ -1,11 +1,20 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { AiStatus } from "@graphty/graphty-element/ai";
+import type { AiApprovalRequest, AiConversationSnapshot, AiStatus } from "@graphty/graphty-element/ai";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// The element's assistant doors, as a stand-in element exposes them.
+// The element's assistant doors, as a stand-in element exposes them, on a real EventTarget so the
+// hook's listeners hear the events the test sends.
 const mockStatusCallback = vi.fn();
+const events = new EventTarget();
 const mockDoors = {
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+    getAiConversation: vi.fn((): AiConversationSnapshot | null => null),
+    getPendingAiApprovals: vi.fn((): readonly AiApprovalRequest[] => []),
+    resolveAiApproval: vi.fn().mockResolvedValue({ success: true, message: "", code: "AI_COMPLETED", params: {} }),
+    newAiConversation: vi.fn().mockResolvedValue(null),
+    clearAiHistory: vi.fn().mockResolvedValue(undefined),
     enableAiControl: vi.fn().mockResolvedValue(undefined),
     disableAiControl: vi.fn(),
     onAiStatusChange: vi.fn((callback: (status: AiStatus) => void) => {
@@ -20,6 +29,8 @@ const mockElement = mockDoors as unknown as GraphtyElement;
 describe("useAiManager", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockDoors.getAiConversation.mockReturnValue(null);
+        mockDoors.getPendingAiApprovals.mockReturnValue([]);
     });
 
     afterEach(() => {
@@ -71,6 +82,7 @@ describe("useAiManager", () => {
         expect(mockDoors.enableAiControl).toHaveBeenCalledWith({
             provider: "openai",
             apiKey: undefined,
+            history: "browser",
         });
     });
 
@@ -90,6 +102,7 @@ describe("useAiManager", () => {
             expect(mockDoors.enableAiControl).toHaveBeenCalledWith({
                 provider: "anthropic",
                 apiKey: "test-api-key",
+                history: "browser",
             });
         });
 
@@ -103,7 +116,11 @@ describe("useAiManager", () => {
             renderHook(() => useAiManager({ element: mockElement, defaultProvider: "webllm" }));
 
             await waitFor(() => {
-                expect(mockDoors.enableAiControl).toHaveBeenCalledWith({ provider: "webllm", apiKey: undefined });
+                expect(mockDoors.enableAiControl).toHaveBeenCalledWith({
+                    provider: "webllm",
+                    apiKey: undefined,
+                    history: "browser",
+                });
             });
         });
 
@@ -327,5 +344,144 @@ describe("useAiManager", () => {
         rerender({ defaultProvider: "openai" });
 
         expect(result.current.currentProvider).toBe("openai");
+    });
+
+    describe("the conversation and its approvals", () => {
+        const snapshot = (text: string, pending: readonly AiApprovalRequest[] = []): AiConversationSnapshot => ({
+            id: "c1",
+            key: "k",
+            formatVersion: 1,
+            messages: [{ id: "m1", role: "reader", text, via: "text" }],
+            pending,
+        });
+        const request: AiApprovalRequest = {
+            id: "req-1",
+            gate: "replaces",
+            calls: [{ tool: "edit_data", arguments: { action: "delete_all" } }],
+            preview: { nodes: 3, edges: 1 },
+        };
+
+        it("reads the element's snapshot and pending approvals once the assistant is on", async () => {
+            mockDoors.getAiConversation.mockReturnValue(snapshot("hello", [request]));
+            mockDoors.getPendingAiApprovals.mockReturnValue([request]);
+            const { useAiManager } = await import("../useAiManager");
+
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+
+            await waitFor(() => {
+                expect(result.current.conversation?.messages).toHaveLength(1);
+            });
+            expect(result.current.approvals.map((each) => each.id)).toEqual(["req-1"]);
+        });
+
+        it("reads them again on ai-conversation-changed, ai-approval-requested and ai-pending-resolved", async () => {
+            mockDoors.getAiConversation.mockReturnValue(snapshot("first"));
+            mockDoors.getPendingAiApprovals.mockReturnValue([]);
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            mockDoors.getAiConversation.mockReturnValue(snapshot("second"));
+            act(() => {
+                events.dispatchEvent(new CustomEvent("ai-conversation-changed", { detail: { conversationId: "c1" } }));
+            });
+            expect(result.current.conversation?.messages[0]).toMatchObject({ text: "second" });
+
+            mockDoors.getPendingAiApprovals.mockReturnValue([request]);
+            act(() => {
+                events.dispatchEvent(new CustomEvent("ai-approval-requested", { detail: { request, replayed: true } }));
+            });
+            expect(result.current.approvals).toEqual([request]);
+
+            mockDoors.getPendingAiApprovals.mockReturnValue([]);
+            act(() => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-pending-resolved", {
+                        detail: { id: "req-1", kind: "approval", code: "AI_COMPLETED", params: {} },
+                    }),
+                );
+            });
+            expect(result.current.approvals).toEqual([]);
+        });
+
+        it("keeps a store failure the element reported", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            act(() => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-conversation-changed", {
+                        detail: {
+                            conversationId: "c1",
+                            code: "AI_STORAGE_FAILED",
+                            params: { reason: "QuotaExceededError" },
+                        },
+                    }),
+                );
+            });
+
+            expect(result.current.historyNotice).toEqual({
+                code: "AI_STORAGE_FAILED",
+                params: { reason: "QuotaExceededError" },
+            });
+        });
+
+        it("answers approvals and starts and clears conversations through the element", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            let approved: { code?: string } = {};
+            await act(async () => {
+                approved = await result.current.resolveApproval("req-1", true);
+                await result.current.resolveApproval("req-2", false);
+                await result.current.newConversation();
+                await result.current.clearHistory();
+            });
+
+            expect(approved.code).toBe("AI_COMPLETED");
+            expect(mockDoors.resolveAiApproval).toHaveBeenNthCalledWith(1, "req-1", { approve: true });
+            expect(mockDoors.resolveAiApproval).toHaveBeenNthCalledWith(2, "req-2", { approve: false });
+            expect(mockDoors.newAiConversation).toHaveBeenCalledTimes(1);
+            expect(mockDoors.clearAiHistory).toHaveBeenCalledTimes(1);
+        });
+
+        it("keeps a failed command beside the transcript, but not a held one", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            mockDoors.aiCommand.mockResolvedValueOnce({
+                success: false,
+                message: "",
+                code: "AI_CONFIRMATION_NEEDED",
+                params: { gate: "replaces", request: "req-1" },
+            });
+            await act(async () => {
+                await result.current.execute("clear the graph");
+            });
+            expect(result.current.failure).toBeNull();
+            expect(result.current.pendingInput).toBeNull();
+
+            mockDoors.aiCommand.mockResolvedValueOnce({
+                success: false,
+                message: "",
+                code: "AI_PROVIDER_ERROR",
+                params: { provider: "openai" },
+            });
+            await act(async () => {
+                await result.current.execute("again");
+            });
+            expect(result.current.failure?.code).toBe("AI_PROVIDER_ERROR");
+        });
     });
 });

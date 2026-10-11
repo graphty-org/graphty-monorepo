@@ -15,12 +15,16 @@ save and reopen.
 
 ## Top of mind
 
-- 2026-10-11 **Round 4 critique, mine (four fixes, each scripted to fail on 5277e2cbe first):**
-  an off filter step must not turn on when its editor closes unedited (`Filters.tsx` leave
-  handler); the find box never offers a rule the element refuses, and the element adds an "or
-  more" row for a number inside a column's range (new optional `FindResult.ranges`, team's call);
-  the data table lists what the filter keeps (`scope: "visible"`, element already supports it);
-  New project then Discard must not show the error page (find the reader of the disposed session).
+- 2026-10-11 **Round 5 watches (round 4 closed):** "10" typed on bus stops in T22 A (the element
+  must offer only a rule it accepts, plus an "is 10 or more" row for a number inside the range);
+  T17 with the table open under a filter step (table lists what the step keeps; an off step stays
+  off when its editor closes unedited); New project then Discard by script; note editor Cancel
+  focus on "+" by script. The owed r4-s05b, r4-s20b, r4-s28b run first.
+- 2026-10-11 **Priming is in the briefings, not only the logs.** The file table leaked answers
+  ("Mo, Nia", "6 - w", s11) and histories pointed at the toolbar. Count "unprompted" only after the
+  briefings are checked; persona habits ("checks counts") are never unprompted evidence.
+- 2026-10-11 **No app copies of element logic:** the app's `columnText` goes, replaced by the
+  element's new `rulePath`; a wrong element suggestion is fixed in the element, never guarded.
 - 2026-10-11 **Do not change what worked:** Shift-click adds (7 of 7 T24), the toolbar Filters
   icon (7 of 7 T17), the Degree link opening the neighbor list as a selection (one function, two
   doors), a second path replacing the first silently (no task cost shown; a notice adds a line).
@@ -162,6 +166,19 @@ Each with its reason. A screen that breaks one is a defect.
   equivalent; it read "41 edges" beside "12 of 41". (4) New project, Discard: script, then fix the
   component that reads the disposed session. Not changed: Degree link selection, path replace
   notice, "or more" row order (no task meets the fold), Replace's visible control.
+
+- 2026-10-11 Tier 2 round 4 closed (Design Director). Decided for round 5: the runner refuses a
+  session without gate exit 0 and starts a participant only on a free slot; briefings name each
+  data file and its kind only, and the leak check reads briefings (`--shift-click` stays listed);
+  element `suggestBackticks` suggests only a rule the selector accepts (no app count guard);
+  element "or more" row for a number inside a column's range; my off-step leave fix as proposed;
+  New project, Discard scripted then traced; table `scope: "visible"` (export still writes every
+  record: known gap); element `rulePath` export so the "or more" layer name reads "minutes >=
+  \`5\`"; note Cancel focuses "+"; T17 histories say what was done, not where; bar 9 (b) by word
+  diff against round 1 before any cut (scope words like ", full graph" stay even if the bar fails).
+  Three single-source claims scripted first (missing-column rule, Escape on a selection Color
+  swatch, a label taking a tie's click). Held: replaced-path notice, Degree arrow change, one
+  warning look for load problems. Reason: one path per problem, owning package, no words added.
 
 ## Tried: worked / did not work
 

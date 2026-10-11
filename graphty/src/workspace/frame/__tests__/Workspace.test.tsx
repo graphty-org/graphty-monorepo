@@ -5,7 +5,7 @@
  */
 import userEvent from "@testing-library/user-event";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent as realInput } from "vitest/browser";
 
 import { act, render, screen, within } from "../../../test/test-utils";
 import { defineRegistration, stubCommands, type WorkspaceRegistration } from "../../commands/registry";
@@ -78,6 +78,18 @@ describe("the workspace frame", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Graph" }));
         assert.isNotNull(screen.getByRole("region", { name: "Graph place" }));
+    });
+
+    it("opens Settings from the button at the rail's foot, pressed while Settings is open", async () => {
+        renderWorkspace(OPEN);
+
+        const rail = screen.getByRole("toolbar", { name: "Places" });
+        const settings = within(rail).getByRole("button", { name: "Settings" });
+        assert.equal(settings.getAttribute("aria-expanded"), "false");
+        await realInput.click(settings);
+
+        assert.isNotNull(await screen.findByRole("dialog", { name: "Settings" }));
+        assert.equal(settings.getAttribute("aria-expanded"), "true");
     });
 
     it("lets the Data page take the panels while the element stays mounted", () => {

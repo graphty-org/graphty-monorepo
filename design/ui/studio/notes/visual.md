@@ -5,31 +5,38 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-11 (tier 2 round 4 critique).
+Last updated: 2026-10-11 (tier 2 round 4 closed).
 
 ## Top of mind
 
-1. (2026-10-11 critique) Lead fix: the data table lists everything under a filter step
-   (r4-s21, s27). One word in `TableDock.tsx` line 349: scope "graph" -> "visible" (the element
-   already offers it), and the count reads "12 of 41 edges" like the header chip.
-2. (2026-10-11) Bare number not a value: the element's backtick suggestion "`10`" is itself
-   refused. Fix in the element (offer a suggestion only when it parses); no app check around it.
-3. (2026-10-11) "data.minutes >= `5`": the element should spell columns as the app's
-   `columnText` does; move that helper into the element (additive export), delete the app copy.
-   The target text shipped in graphty-element 3.23.0, so the text change goes to the owner.
-4. Still open sev 3: drawn names covering names, ties and nodes (graphty-element). No app workaround.
-5. Held, do not change: Values rows order (not shown on a task; returning users found it at the
-   bottom), key placement, halo, selection two-looks, out-of-date mark, polish bundle.
-6. Problem marks: one rule (glyph on the line and on its table row, gone once the reader chooses).
-   Sessions confirm the "mark stays after the choice" half (r4-s50).
-7. Round 4 changes that held: toolbar Filters, one "Start here", Shift-click, edge counts, the
-   "or more" row's sibling look. Do not touch them in round 5.
-8. Rejected: "Filter to neighbors" as a pressed toggle. Do not re-propose without new evidence.
-9. Check what the element already offers before proposing (scope "visible" made the table fix one word).
-10. A claim only one specialist made (mine included) is scripted on the frozen build before fixing.
-11. Words at rest never rise. Weight and position first. One mark per problem.
-12. Walk detours and every control; type a number, not only a rule, in the find box.
-13. Never wrap `real.mjs --start` in `timeout`; start walks in the background and poll a file.
+1. (2026-10-11 round 4 closed) Round 5 waits on the study fixes: a session refuses to start
+   without the round's gate, and briefings name data files only (they leaked answers). Counts
+   from round 4 are limited by both; do not lean on them.
+2. My lead fix was adopted as change 8 (severity 2): the table under a filter step asks scope
+   "visible" and reads "12 of 41 edges". Watch in round 5: T17 with the table open under a step.
+3. Bare number "10" on bus stops (sev 3): the element offers a suggestion only when it parses
+   (change 3), and a number inside a column's range offers "is N or more" (change 4). Watch
+   whether T22 readers pick the "or more" row; it may still sit below the fold.
+4. Layer names: the element exports `rulePath`; the app's `columnText` copy is deleted (change 9).
+   The text change was NOT breaking after all: `atLeast` is in no released tag. Check tags on the
+   right commit before routing anything to the owner.
+5. Still open sev 3, owner's list: drawn names and dots covering names, ties and nodes. Bar 10
+   fails on it honestly. No app font, offset, seed or label-off setup.
+6. Bar 9 (b) edge inspector, 29 vs 27 words: diff the word lists first. Scope words (", full
+   graph", "of nodes") stay even if the bar fails; cut only a repeat.
+7. Held, first in line on a second session: one warning look for every load problem, removed once
+   the reader chooses (r4-s50 only). Bring it back only with new evidence.
+8. Held, do not change: Values rows order, key placement, halo, selection two-looks, out-of-date
+   mark, polish bundle, "Settings" rail label (a visible label for an icon button).
+9. Round 4 changes that held, do not touch: toolbar Filters (7 of 7 first door), one "Start
+   here", Shift-click (T24 7 of 7), edge counts, the "or more" row's sibling look.
+10. Rejected: "Filter to neighbors" as a pressed toggle. Do not re-propose without new evidence.
+11. One path per problem: propose one fix, not variants; the director cuts variants anyway.
+12. Check what the element already offers before proposing (scope "visible" made the fix one word).
+13. A claim only one specialist made is scripted on the frozen build before fixing (change 7:
+    missing-column rule, Escape on a swatch, a label taking a click aimed at a tie).
+14. Words at rest never rise. Weight and position first. One mark per problem.
+15. Never wrap `real.mjs --start` in `timeout`; start walks in the background and poll a file.
 
 ## Priorities and values
 
@@ -52,6 +59,18 @@ Last updated: 2026-10-11 (tier 2 round 4 critique).
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- 2026-10-11 (round 4 closed): Adopted from my critique: the table under a filter step (change 8,
+  as proposed, one word plus the "of" count), the bare-number suggestion fixed in the element
+  (change 3), and the column spelling moved into the element as `rulePath` (change 9; the red team
+  asked for no new export, the director kept it because deleting the app copy is the point).
+  Held: my one-warning-look rule (one session). Reason given: one problem, one path; second
+  session decides.
+- 2026-10-11 (round 4 closed): My "treat the `atLeast` text change as breaking" was wrong: the
+  commit is in no released tag, so the director decided it as a team change. Lesson: run
+  `git tag --contains` on the commit that introduced the exact behavior, not a neighbor.
+- 2026-10-11 (round 4 closed): Agreed that scope words on the edge inspector stay even if bar 9 (b)
+  fails: a true fact that prevents a wrong reading is not cut to pass a count.
 
 - 2026-10-11 (round 4 critique): Proposed four changes: the table under a filter (app, scope
   "visible"); the refused backtick suggestion (element); the "or more" layer name (element, owner
@@ -168,6 +187,11 @@ Last updated: 2026-10-11 (tier 2 round 4 critique).
   rounds that would move what a returning user remembers.
 
 ## Tried: worked / did not work
+
+- 2026-10-11 did not work: four variants per problem in a critique. The director picked one path
+  each and listed the rest as held; variants cost review time and none survived beside the main one.
+- 2026-10-11 did not work: citing word lists for bar 9 that were not on disk. Write the
+  `bars.mjs` output to the round folder before citing it.
 
 - 2026-10-11 worked: grepping the element's `Scope` union before proposing the table fix showed
   "visible" exists; the fix shrank from a new element query to one word in the app.

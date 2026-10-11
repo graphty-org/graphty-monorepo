@@ -132,4 +132,28 @@ describe("disposing a graph releases its WebGL context", () => {
             container.remove();
         }
     });
+
+    it("releases the engine of a graph disposed before init() was called", () => {
+        const container = makeContainer();
+        const graph = new Graph(container);
+        try {
+            graph.dispose();
+            assert.isTrue(graph.engine.isDisposed, "the engine opened in the constructor is still alive");
+        } finally {
+            container.remove();
+        }
+    });
+
+    it("releases the engine of a graph disposed while init() is running, and starts nothing", async () => {
+        const container = makeContainer();
+        const graph = new Graph(container);
+        try {
+            const init = graph.init();
+            graph.dispose();
+            await init;
+            assert.isTrue(graph.engine.isDisposed, "init() went on to start a disposed graph");
+        } finally {
+            container.remove();
+        }
+    });
 });

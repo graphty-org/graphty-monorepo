@@ -428,6 +428,12 @@ export class RenderManager implements Manager {
      * Dispose the render manager and clean up resources
      */
     dispose(): void {
+        // Twice is once: a graph shut down while it was initialising disposes this before its
+        // lifecycle manager gets to it.
+        if (this.engine.isDisposed) {
+            return;
+        }
+
         // Stop render loop
         this.stopRenderLoop();
 

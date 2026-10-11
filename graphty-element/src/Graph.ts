@@ -1129,6 +1129,10 @@ export class Graph implements GraphContext {
 
         // Dispose all managers through lifecycle manager
         this.lifecycleManager.dispose();
+        // A graph shut down before `init()` finished never had its managers initialised, so the
+        // lifecycle manager disposed none of them -- but the engine was opened in the constructor,
+        // and left alive it holds a WebGL context. Disposing it twice does nothing.
+        this.renderManager.dispose();
 
         // The buffers go after the managers, for the reason the controller goes after them too:
         // disposing the managers is what stops the running layout, so by now no simulation can be
@@ -1488,6 +1492,9 @@ export class Graph implements GraphContext {
             // Under the queued build's signal, so a layout the consumer has already asked for still
             // replaces the default before it is built. See `openingSignalFor`.
             await this.buildOpeningLayout(this.#openingSignal);
+            if (this.#teardown.signal.aborted) {
+                return;
+            }
 
             // Mark style-init as completed since styles are initialized in constructor
             // This satisfies cross-batch dependencies for operations like data-add
@@ -1495,6 +1502,12 @@ export class Graph implements GraphContext {
 
             // Initialize all managers through lifecycle manager
             await this.lifecycleManager.init();
+            // Shut down while the managers were initialising: `shutdown()` found none to dispose,
+            // so they are disposed here instead of being started on a graph that is gone.
+            if (this.#teardown.signal.aborted) {
+                this.lifecycleManager.dispose();
+                return;
+            }
 
             // The configured background reaches the scene here, whether it was set through
             // `element.background` before the element was attached or left at its default.

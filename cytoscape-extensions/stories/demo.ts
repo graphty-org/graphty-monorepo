@@ -31,7 +31,7 @@ import { type Network, NETWORKS } from "./catalog.js";
 cytoscape.use(graphtyCytoscape);
 
 /**
- * True inside a visual-review capture (its URL carries chromatic=true, as Chromatic's does). Captures leave out run
+ * True inside a visual-review capture (its URL carries chromatic=true). Captures leave out run
  * times, which differ on every run.
  */
 export const CAPTURE = /[?&]chromatic=true/.test(globalThis.location?.search ?? "");

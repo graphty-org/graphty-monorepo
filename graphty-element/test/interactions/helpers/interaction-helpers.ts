@@ -9,6 +9,7 @@ import { Matrix, Vector3 } from "@babylonjs/core";
 import { vi } from "vitest";
 
 import { Graph } from "../../../src/Graph";
+import { assertPlaced } from "../../helpers/placed-position";
 import { nextFrame } from "../../helpers/real-input";
 import { cleanupTestGraph, createTestGraph, setBehavior } from "../../helpers/testSetup";
 import type { CameraState, DragDelta, NodeData, ScreenPosition, TestGraphOptions, Vector3D } from "../types";
@@ -61,6 +62,9 @@ export function getNodeScreenPosition(graph: Graph, nodeId: string | number): Sc
 
     // Force scene render to ensure all matrices are up-to-date
     scene.render();
+
+    // A mesh no frame has placed yet is still at the template's position, far off screen
+    assertPlaced(node.mesh.position, `node ${String(nodeId)}`);
 
     // Force world matrix computation to ensure absolutePosition is up-to-date
     node.mesh.computeWorldMatrix(true);

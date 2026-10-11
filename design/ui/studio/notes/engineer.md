@@ -49,16 +49,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   ScrollArea viewport (Mantine viewport has no tabindex; the list is driven by
   aria-activedescendant, so the fix is in compact-mantine, not done here) and the edge inspector's
   31 of 30 words.
-- (2026-10-10) **After Undo of a re-run, Made with now shows the run on screen: built** in
-  graphty-element. Cause was the element, not the app's draft: `Run.params`/`seed` read the
-  handle's own definition, while undo swapped only the `runs` entry. Scripted on 26f3bb968
-  (`tmp/t2r3-r4-05/repro-26f3/09.png`: route Depot, Station, Stadium; Made with Market, Station);
-  fixed build reads Depot, Stadium after Undo and Market, Station after Redo
-  (`tmp/t2r3-r4-05/fixed/`).
-- (2026-10-10) **Shift-click on a node adds: built** in graphty-element (`SelectionManager.add`,
-  called from `NodeBehavior.handleClick` on Shift). Shift only -- Ctrl and Meta stay out (macOS
-  Ctrl-click is the context menu). Checked on a fresh build: Gus then Shift Ivan reads Selection
-  2, a plain click on Theo reads 1 (`design/ui/studio/tmp/t2r3-r4-03/`).
+- (2026-10-10, condensed) **Built in graphty-element:** after Undo of a re-run, Made with shows
+  the restored run (`Run.params`/`seed` read the handle, undo swapped only `runs`;
+  `tmp/t2r3-r4-05/fixed/`); Shift-click on a node adds (`SelectionManager.add`; Shift only,
+  macOS Ctrl-click is the context menu; `tmp/t2r3-r4-03/`).
 - (2026-10-10) **Round 3 critique: five smallest changes, in order.** (1) Shift-click on a node
   adds (built). (2) "Or more" beside a typed number (built, top bullet; rows not under a heading:
   the visible "Select where" was simply dropped). (3) Analyze filter puts name matches first,

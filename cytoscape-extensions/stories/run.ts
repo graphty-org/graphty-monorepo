@@ -1003,21 +1003,23 @@ export async function runAlgorithm(cy: Core, algorithm: string, run: AlgorithmRu
 // ---------------------------------------------------------------------------------------------------------------
 // Graphs in and out
 
-export const CPU_LAYOUT: Pick<Outcome, "ran" | "detail"> = {
-    ran: "cpu",
-    detail: 'the layout is held on the CPU (gpu: "off") so the picture is the same on every machine',
-};
-
 /**
- * The backend's reason for running on the CPU, in a reader's words: the extension's "this runtime has no WebGPU
- * (navigator.gpu is undefined)" names a browser internal a reader does not need.
- * @param reason - the extension's reason
+ * The backend's reason for running on the CPU, or a gpu: "require" run's error, in a reader's words: the extension's
+ * "this runtime has no WebGPU (navigator.gpu is undefined)" names a browser internal a reader does not need, and
+ * 'graphty: gpu: "require" but ' repeats what the story asked for.
+ * @param reason - the extension's reason or error message
  * @returns the reason to show
  */
 export function plainReason<T extends string | null>(reason: T): T {
-    return reason?.replace(
+    const plain = reason?.replace(
         "this runtime has no WebGPU (navigator.gpu is undefined)",
         "WebGPU is not available in this browser",
+    );
+    const required = 'graphty: gpu: "require" but ';
+    return (
+        plain?.startsWith(required) === true
+            ? plain.charAt(required.length).toUpperCase() + plain.slice(required.length + 1)
+            : plain
     ) as T;
 }
 

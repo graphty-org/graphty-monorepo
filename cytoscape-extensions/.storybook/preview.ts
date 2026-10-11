@@ -30,7 +30,8 @@ const preview: Preview = {
             expanded: true,
         },
         options: {
-            // the gallery first; within a page, the Overview and then its tiles in catalog order (the export order)
+            // the gallery first, then the large graphs; within a page, the Overview and then its tiles in catalog order
+            // (the export order)
             storySort: {
                 order: [
                     "Gallery",
@@ -46,7 +47,7 @@ const preview: Preview = {
                         "Datasets",
                         "Formats",
                     ],
-                    "Demo",
+                    "Large graphs",
                 ],
             },
         },

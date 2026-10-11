@@ -20,8 +20,11 @@ interface Example {
     load?(cy: Core): Promise<void> | void;
     /** Places the nodes; default: ForceAtlas2. */
     place?(cy: Core): Promise<void>;
-    /** Runs the algorithm and paints the result itself, for a picture the shared painter cannot draw. */
-    run?(cy: Core): Promise<Outcome>;
+    /**
+     * Runs the algorithm and paints the result itself, for a picture the shared painter cannot draw; `gpuMode` and
+     * `extra` are the tile's backend and options controls.
+     */
+    run?(cy: Core, settings: { gpuMode: "auto" | "off" | "require"; extra: Record<string, unknown> }): Promise<Outcome>;
 }
 
 /**
@@ -491,7 +494,8 @@ function roads(algorithm: string): Example {
         place: async () => {
             // the generator's own positions
         },
-        run: (cy) => runAlgorithm(cy, algorithm, { gpuMode: "auto", directed: false, extra: { weight: "weight" } }),
+        run: (cy, { gpuMode, extra }) =>
+            runAlgorithm(cy, algorithm, { gpuMode, directed: false, extra: { weight: "weight", ...extra } }),
     };
 }
 

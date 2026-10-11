@@ -11,87 +11,68 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-11) **A measure run's first Values section is headed "Distribution": built** (app
-  only, `RunValues.tsx`). It held the histogram and "20 of 20 have a value" line under the same
-  word as its tab. The section is a `role="group"` named by its label (compact-mantine
-  ControlSection), so tests find it with `getByRole("group", { name })`, not a button. Test:
-  `RunAlignment.real-element.test.tsx`. Fresh build: `tmp/r4-dry1-run-values-heading/T21A/02.png`,
-  `07.png`. The path run's first section stays "Summary".
-- (2026-10-11) **T12R B piloted on the fresh local build 3c257c2f7 (`tmp/r4-dry1-repilot-t12rb/
-  T12RB/`, 5 screenshots, `work.json` gone empty): success path unchanged** -- find "Medici",
-  Enter, Degree 6 lists Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni; Back
-  returns. Only the known hover-under-pointer fills (no change). Still owed: the second dry run
-  pilots it in `rounds/r4d2/pilot/` on the refrozen build, which does not exist yet (criteria
-  still name 38e180aac; `graphty/dist` lacks c9f2ceed3 and another agent has RunValues edits
-  uncommitted). The ten untracked r4 pilot folders are committed (b6f244643).
-- (2026-10-11) **The step editor's disabled submit says what is missing: built** (app only).
-  "Add step" / "Save step" / "Save and turn on" use the Filter to neighbors pattern (Tooltip,
-  aria-disabled, data-disabled; the click and Enter reach `commit()`, which returns on an
-  incomplete or unchanged rule). Words in `filterWords.ts` `missingTip`: "Choose an attribute
-  first", "Type a value first", "Select a node first", "Nothing changed since the last save".
-  The Attribute is NOT prefilled from the Data page (left to the sessions). Fresh build:
-  `tmp/r4-dry1-step-editor-reason/fresh/03.png` (toolbar tool, attribute tip), `06.png` (value
-  tip, after Enter added nothing), `08.png` (valid rule added), `09.png` (same from "+").
-- (2026-10-10) **A Filters tool on the canvas toolbar: built** (app only, commit d2280466e).
-  Icon-only (ListFilter glyph), tooltip "Filters", after Table; command `filters.open` (group
-  Data, disabled with nothing drawn) runs `openStepEditor(store, NEW)`, which already moves to
-  the Data place. A new step's editor (`id === NEW`, from the toolbar or Filters' "+") now
-  autofocuses Keep; Escape still returns focus to "+". No words at rest added. Fresh build:
-  `tmp/t2r3-r4-09/fresh/01.png` (rest), `02.png` (tooltip), `03.png` (Data place, New filter
-  step), `04.png` (ArrowDown opens Keep's list: focus is there). Round 4 should record T17's first
-  moves against round 3 (5 of 8 looked on the Graph place first).
-- (2026-10-10, condensed) **Built in the app, round 4:** Analyze ranks name and alias matches
-  first within and across headings (key and technical name count as description-level; "Start
-  here" only on a marked first result while filtering; `tmp/t2r3-r4-08/fresh/`). Two focus drops
-  fixed: the swapped-in path form needs `autoFocus` (Mantine reads `data-autofocus` only on open),
-  and `useFocusLine` re-asks in a layout cleanup when the Style tab remounts
-  (`tmp/t2r3-r4-06/fresh/`). Escape on an inspector control clearing the selection is designed.
-- (2026-10-10, condensed) **`bars.mjs` measures bars 8 and 9 as the criteria word them.** Bar 9
-  leaves out the data's names (matched as written); round 1 / 2 / 3 rest screen 49 / 51 / 45, edge
-  inspector 27 / 31 / 28 (one over). Bar 8 runs two focus actions proven on planted drops (both
-  now fixed). The find list's axe `scrollable-region-focusable` is excused only while its scroll
-  check holds (`tmp/t2r3-r4-04/`).
-- (2026-10-11) **A filter step over an edge column names both counts: built** (app words,
-  shared Tree CSS). Row "20 to 19 nodes, 41 to 12 edges", chip "19 of 20 nodes, 12 of 41 edges";
-  a node step keeps "N to M nodes"; a mix adds edges to the chip when any step that is on is over
-  an edge column. Counts are the element's (`plan` steps' `{ nodes, edges }`, the summary). The
-  longer row did not fit the 240 left panel, so compact-mantine's Tree now wraps a visible
-  description and grows the row (min 44, pill and ring follow) instead of cutting it. T17 answer
-  key updated. Fresh build: `tmp/r4-dry1-filter-counts/T17A/07.png`, `11.png`;
-  `T17B/07.png`, `11.png` (all acceptance counts match).
-- (2026-10-10, condensed) **Two screen-reader descriptions:** the Add page's repeated-ties line is
-  now a warning (danger glyph, id `dp-repeats`) that Load's `aria-describedby` lists (built,
-  `tmp/t2r3-r4-10/fresh/`); a pressed "Filter to neighbors" already reads its reason on keyboard
-  focus (nothing built; `--expect "described=<text>"` added to real.mjs, `tmp/t2r3-r4-12/`). Still
-  open: the hidden tooltip after a pointer press, and the disabled look like an empty field.
-- (2026-10-10, condensed) **"Or more" in the find box: built** (9b69ca650). Element
-  `FindValueRow.atLeast: { count, target }`; app row "<column> is N or more (count)"; Les
-  Miserables "10" selects 13 ties (`tmp/t2r3-r4-07/`). Words at rest unchanged (42).
-- (2026-10-10, condensed) **Built in graphty-element:** after Undo of a re-run, Made with shows
-  the restored run (`Run.params`/`seed` read the handle, undo swapped only `runs`;
-  `tmp/t2r3-r4-05/fixed/`); Shift-click on a node adds (`SelectionManager.add`; Shift only,
-  macOS Ctrl-click is the context menu; `tmp/t2r3-r4-03/`).
-- (2026-10-10) **Hold still in round 4:** second Find path replacing the first, "Select endpoints"
-  in "..." (confounded with Shift-click), the "=" hint and backtick wording (measure "or more"
-  alone), round 2's routes (now passing clean), label and node overlap (element, owner's list).
-  Edge inspector words 31 of 30 still OPEN; do not reword measured routes meanwhile.
-- (2026-10-10, condensed) **Round 3 screenshot audit: 38 findings, 2 at severity 3 (element
-  label placement).** `tier2/rounds/round-3/expert/engineer.md`. Still mine: Escape does nothing on
-  the Data pages. For the element: sized nodes drawn inside each other (layout spaces centers).
-- (2026-10-10) **Not mine to fix in the app, ever:** drawn names covering names and ties (element
-  label placement on an unseeded layout, owner's list); bare numbers in rules and what an edge
-  width measures (both breaking, owner's list); never scale widths or parse rules in the app.
-  "Components 1" under a filter is held so the words change is measured alone.
-- (2026-10-10) **OPEN, not reproduced: a reopen from Recent projects once drew no "Opened friends"**
-  (r3 pilot `T19A/11.png`, route `--reopen`). Eleven walks showed it; suspect the open finishing
-  late (an element question). No code without a mechanism. Evidence
-  `tmp/r3-dry1-reopen-shows-opened-notice/`.
-- (2026-10-10) **Still open from the round 2 audit, confirmed on r3d2:** two-table source has no
-  actions and no reason; "Edit source..." lands on "Replace: ..."; neighbor Back row scrolls the
-  inspector sideways; path popover covers the nodes it asks for; 900 x 700 canvas is 363 px. The
-  "Full graph" section under a filter is frozen and reads right at both sizes.
+- (2026-10-11) **Round 3 closed: 54 of 56 succeeded; the one real product failure was Shift-click
+  on a node replacing the selection (element, now fixed).** The two T24 failures were that defect
+  plus a prompt ("point out") and key (a selection only) measuring different things, and the
+  study's own gate never ran (the leak check read no log yet said "no leaks"). Lesson: check the
+  measurement before the product; a check that reads nothing must fail.
+- (2026-10-11) **All twelve round 4 changes I own are built and walked on fresh builds:** Shift-
+  click adds (element `SelectionManager.add`); Made with after Undo shows the restored run
+  (element); two focus drops (path form `autoFocus`, `useFocusLine` re-arm); find-box "N or more"
+  (element `FindValueRow.atLeast`); Analyze name matches first; toolbar Filters tool; Add page
+  repeated-ties warning in Load's description; filter step counts edges (Tree row wraps); disabled
+  reason on keyboard focus (already worked); bars 8 and 9 counted as worded. Evidence folders are
+  under `tmp/t2r3-r4-*/` and `tmp/r4-dry1-*/`.
+- (2026-10-11) **Also built after the dry run:** step editor's disabled submit says what is
+  missing (`filterWords.ts` `missingTip`); a measure run's first Values section is
+  "Distribution".
+- (2026-10-11) **Owed before round 4 starts:** the second dry run on the refrozen build pilots
+  T24 (new prompt and key, every key route walked), T22, T18, T17 on both halves and T12R B in
+  `rounds/r4d2/pilot/`. The criteria still named 38e180aac; confirm the refrozen build holds
+  c9f2ceed3 and 5277e2cbe before piloting.
+- (2026-10-11) **Watch in round 4:** T17 first moves (5 of 8 looked on the Graph place first in
+  round 3 -- does the toolbar Filters tool end that?); T22 readers type the prompt's most prominent
+  data word first, so the find box must answer a column name and a bare number; T24 with Shift-
+  click working; "Select endpoints" in "..." re-measured now that Shift works; edge inspector
+  words (31 of 30 was the counter counting data names).
+- (2026-10-11) **One variant per problem, one change per task's route:** do not stack a second
+  fix on T18 (it carries three) or T17 (two), or round 4 cannot say which worked. Words at rest
+  never rise.
+- (2026-10-11) **Held, first in line:** distance per name at Hops 2/3 (element `depth` option and
+  `hops` per `Neighbor`, additive) if a second session meets it; "4 hops" vs "5 nodes, 4 edges"
+  (sev 1); `nodesInRect(..., { labels: true })` (script autoFrame first); committing a step edit
+  on focus leaving Value (contradicts Escape innermost-first); a second Find path replacing the
+  first.
+- (2026-10-10) **Not mine to fix in the app, ever:** drawn names covering names and ties, sized
+  nodes inside each other (element label placement and layout spacing, owner's list; the only
+  confirmed sev-3 under bar 10); bare numbers in rules, backticks, what an edge width measures
+  (breaking, owner's list). Never scale widths or parse rules in the app.
+- (2026-10-11) **A one-specialist claim is scripted on the frozen build before any fix;** not
+  reproduced means closed as not shown.
+- (2026-10-10) **OPEN, not reproduced:** a reopen from Recent projects once drew no "Opened
+  friends" (`tmp/r3-dry1-reopen-shows-opened-notice/`). No code without a mechanism.
+- (2026-10-10) **Still open from audits:** Escape does nothing on the Data pages; two-table source
+  has no actions and no reason; "Edit source..." lands on "Replace: ..."; neighbor Back row scrolls
+  the inspector sideways; path popover covers the nodes it asks for; 900 x 700 canvas is 363 px;
+  the hidden tooltip after a pointer press on a disabled control.
+- (2026-10-11) **Pilot on a copied `graphty/dist`** (REAL_DIST at the copy) so another agent's
+  rebuild cannot swap the app mid-pilot; real.mjs cannot click aria-disabled buttons (prove with
+  `--key Enter` or a real-element test).
 
 ## Decisions and reasons
+
+- (2026-10-11) **Round 3 decisions I build to:** study fixed first (gate and T24 key before any
+  session); one variant per problem; every fix in its owning package; words at rest do not rise;
+  a claim only one specialist made is scripted before it is fixed. Not changed: Replace's place
+  and out-of-date marks (8 of 8), the weight's meaning at load, Recent in Analyze, the find box's
+  example rule, names not drawn by default (the app's consumer choice), "PageRank, full graph"
+  under a filter. Reason: each was read right by every session that met it.
+- (2026-10-11, condensed from Top of mind) Distribution heading: `RunValues.tsx`, section is a
+  `role="group"` (ControlSection). Disabled step-editor submit: Tooltip plus aria-disabled,
+  `commit()` returns on incomplete or unchanged; Attribute not prefilled. Toolbar Filters:
+  command `filters.open`, new step autofocuses Keep (d2280466e). Filter step over an edge column:
+  row "20 to 19 nodes, 41 to 12 edges", counts are the element's `plan` steps; compact-mantine
+  Tree wraps a visible description. "Or more" in find box: 9b69ca650.
 
 - (2026-10-11) Heading a histogram and its range "Distribution": a heading that repeats its tab's
   name tells the reader nothing, and "distribution" is the standard word for that pair.

@@ -14,8 +14,7 @@ made and evidence comes in.
   `tmp/researcher/t2r3/score.py`): 54 of 56, core four 32 of 32. Fails: bar 1 and bar 6 (both T24),
   bars 8 (find results' scroll area, axe), 9 (b) (edge inspector 31 vs 30) and 10. Bars 7 (a) and
   11 hold (T18 7 against 8). I ran `bars.mjs` on the build for scoring (`t2r3/bars/`).
-- 2026-10-10 -- The leak check read ZERO logs in all 56 sessions (`leaks.json` transcripts [] calls
-  0) and every grader wrote "no leaks". The runner's prompt named the round's `sessions/<id>`, the
+- 2026-10-10 -- The leak check read ZERO logs in all 56 sessions (`leaks.json` transcripts [] calls 0) and every grader wrote "no leaks". The runner's prompt named the round's `sessions/<id>`, the
   check looks for the participant's `tmp/studio-sessions/` folder. Re-run by hand (`leaks.py`): 55
   clean, r3-s10 read `with-browser.sh` (kept). Fix the tool: an empty check must FAIL.
 - 2026-10-10 -- `--end` (`copyBack`) deletes the round's `sessions/<id>` before copying, so step
@@ -211,7 +210,7 @@ reasons, in short:
   of `round-3/` first; no `scores.md` and no scoring script in `t2r3/` existed, so nothing was half-done.
   Worked: reading `leaks.json` for its counts, not its verdict -- all 56 read zero logs. Worked:
   finding the participants' logs by the folder their prompt names and feeding them to `real.mjs
-  --leaks <own> <log>`. Worked: reading the code before calling Shift-click a defect
+--leaks <own> <log>`. Worked: reading the code before calling Shift-click a defect
   (`NodeBehavior.handleClick` vs the edge branch in `Graph.ts`). Did not work: trusting graders'
   "leaks.json shows no leaks", and the plan's gate, which nobody enforced.
 

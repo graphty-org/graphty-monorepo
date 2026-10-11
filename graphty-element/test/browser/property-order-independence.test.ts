@@ -91,7 +91,12 @@ describe("Property Order Independence", () => {
     // Helper functions for position verification
     // =========================================================================
 
-    function getNodePositions(): Map<string, { x: number; y: number; z: number }> {
+    /**
+     * Where the layout put each node. The layout places nodes in a drawn frame, and the queue
+     * waits do not wait for one, so this waits for a stable frame first.
+     */
+    async function getNodePositions(): Promise<Map<string, { x: number; y: number; z: number }>> {
+        await graph.waitForStableFrame();
         const positions = new Map<string, { x: number; y: number; z: number }>();
         for (const node of graph.getNodes()) {
             const pos = node.getPosition();
@@ -413,7 +418,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
             // Verify circular layout
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -433,7 +438,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
             // Verify circular layout
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -471,7 +476,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -505,7 +510,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             // CRITICAL: Verify styles changed from wrong (#FF0000) to correct (#4CAF50)
             verifyFinalStyles();
@@ -557,7 +562,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -611,7 +616,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -654,7 +659,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -685,7 +690,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -712,7 +717,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -743,7 +748,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -766,7 +771,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -818,7 +823,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -850,7 +855,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -884,7 +889,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -907,7 +912,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -936,7 +941,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -977,7 +982,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -1013,7 +1018,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -1039,7 +1044,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -1061,7 +1066,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -1101,7 +1106,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -1132,7 +1137,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -1161,7 +1166,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -1404,7 +1409,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -1446,7 +1451,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -1494,7 +1499,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();
@@ -1537,7 +1542,7 @@ describe("Property Order Independence", () => {
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied to nodes");
             verifyFinalStyles();
             await verifyMeshState();

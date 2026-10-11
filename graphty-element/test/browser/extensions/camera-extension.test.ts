@@ -292,7 +292,8 @@ describe("a third party's camera view", () => {
         await graph.setLayout("fixed");
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.waitForSettled();
+        // A frame, not only the queue: the boxes below are measured from where nodes are drawn.
+        await graph.waitForStableFrame();
     });
 
     afterEach(() => {

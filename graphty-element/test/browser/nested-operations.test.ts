@@ -55,7 +55,12 @@ describe("Nested Operations", () => {
     // Helper functions for verification
     // =========================================================================
 
-    function getNodePositions(): Map<string, { x: number; y: number; z: number }> {
+    /**
+     * Where the layout put each node. The layout places nodes in a drawn frame, and the queue
+     * waits do not wait for one, so this waits for a stable frame first.
+     */
+    async function getNodePositions(): Promise<Map<string, { x: number; y: number; z: number }>> {
+        await graph.waitForStableFrame();
         const positions = new Map<string, { x: number; y: number; z: number }>();
         for (const node of graph.getNodes()) {
             const pos = node.getPosition();
@@ -320,7 +325,7 @@ describe("Nested Operations", () => {
             assert.equal(graph.getEdgeCount(), 2, "Should have 2 edges");
 
             // Verify layout was applied (positions are not all zero)
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied");
             // Verify styles are preserved after 2D/3D switch
             verifyFinalStyles();
@@ -390,7 +395,7 @@ describe("Nested Operations", () => {
             assert.equal(graph.getNodeCount(), 3, "Should have 3 nodes");
             assert.equal(graph.getEdgeCount(), 2, "Should have 2 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied");
             verifyFinalStyles();
             await verifyMeshState();

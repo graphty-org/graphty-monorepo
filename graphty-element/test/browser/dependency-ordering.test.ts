@@ -57,7 +57,12 @@ describe("Dependency Ordering", () => {
     // Helper functions for position verification
     // =========================================================================
 
-    function getNodePositions(): Map<string, { x: number; y: number; z: number }> {
+    /**
+     * Where the layout put each node. The layout places nodes in a drawn frame, and the queue
+     * waits do not wait for one, so this waits for a stable frame first.
+     */
+    async function getNodePositions(): Promise<Map<string, { x: number; y: number; z: number }>> {
+        await graph.waitForStableFrame();
         const positions = new Map<string, { x: number; y: number; z: number }>();
         for (const node of graph.getNodes()) {
             const pos = node.getPosition();
@@ -310,7 +315,7 @@ describe("Dependency Ordering", () => {
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
             assert.equal(graph.getEdgeCount(), 3, "Should have 3 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied");
             verifyFinalStyles();
             await verifyMeshState();
@@ -332,7 +337,7 @@ describe("Dependency Ordering", () => {
             assert.equal(graph.getEdgeCount(), 3, "Should have 3 edges");
 
             // Verify layout was applied
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied");
             // CRITICAL: Verify style applied correctly when set AFTER data
             verifyFinalStyles();
@@ -361,7 +366,7 @@ describe("Dependency Ordering", () => {
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
             assert.equal(graph.getEdgeCount(), 3, "Should have 3 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied");
             verifyFinalStyles();
             await verifyMeshState();
@@ -425,7 +430,7 @@ describe("Dependency Ordering", () => {
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
             assert.equal(graph.getEdgeCount(), 3, "Should have 3 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied (final layout)");
             verifyFinalStyles();
             await verifyMeshState();
@@ -485,7 +490,7 @@ describe("Dependency Ordering", () => {
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
             assert.equal(graph.getEdgeCount(), 3, "Should have 3 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied");
             verifyFinalStyles();
             await verifyMeshState();
@@ -513,7 +518,7 @@ describe("Dependency Ordering", () => {
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
             assert.equal(graph.getEdgeCount(), 3, "Should have 3 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied");
             verifyFinalStyles();
             await verifyMeshState();
@@ -578,7 +583,7 @@ describe("Dependency Ordering", () => {
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
             assert.equal(graph.getEdgeCount(), 3, "Should have 3 edges");
 
-            const positions = getNodePositions();
+            const positions = await getNodePositions();
             assert.isTrue(layoutWasApplied(positions), "Layout should have been applied");
             verifyFinalStyles();
             await verifyMeshState();

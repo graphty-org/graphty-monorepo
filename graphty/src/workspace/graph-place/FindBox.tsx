@@ -281,16 +281,23 @@ export function FindBox(): React.JSX.Element {
     } else if (typeof textAsRule === "string") {
         ruleOption = `=${textAsRule}`;
     }
-    // Each value row, then its "or more" row when the element offers one.
-    const valueOptions =
-        found?.values.flatMap((row): Option[] =>
+    // Each value row, then its "or more" row when the element offers one; then the element's
+    // "or more" rows for a typed number no value equals.
+    const valueOptions = [
+        ...(found?.values.flatMap((row): Option[] =>
             row.atLeast === undefined
                 ? [{ type: "value", row }]
                 : [
                       { type: "value", row },
                       { type: "value", row, orMore: true },
                   ],
-        ) ?? [];
+        ) ?? []),
+        ...(found?.atLeast ?? []).map((row): Option => ({
+            type: "value",
+            row: { ...row, atLeast: row },
+            orMore: true,
+        })),
+    ];
     const options: Option[] = found
         ? [
               ...hits.map((hit): Option => ({ type: "hit", hit })),
@@ -327,7 +334,7 @@ export function FindBox(): React.JSX.Element {
     }, [session, text, isRule, version]);
     // Plain text that finds nothing is asked of the element as a rule once typing pauses.
     const foundNothing =
-        found !== null && found.notSearchable === undefined && found.records.length === 0 && found.values.length === 0;
+        found !== null && found.notSearchable === undefined && found.records.length === 0 && valueOptions.length === 0;
     useEffect(() => {
         setTextAsRule(undefined);
         if (session === null || !foundNothing) {
@@ -620,7 +627,7 @@ export function FindBox(): React.JSX.Element {
                                 </div>
                             ),
                         )}
-                        {found.values.length > 0 && session !== null ? (
+                        {valueOptions.length > 0 && session !== null ? (
                             <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
                                 role="group"
                                 aria-label="Values"

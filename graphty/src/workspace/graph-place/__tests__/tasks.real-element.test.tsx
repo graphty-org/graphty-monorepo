@@ -297,6 +297,39 @@ describe("the Graph place on the real element", () => {
         assert.equal(session.selection.nodes.length, 0);
     });
 
+    it("offers 'or more' for a typed number no link takes, and picking it selects every link at or above it", async () => {
+        const { session } = await openGraph();
+        await session.data.clear();
+        // The studio's bus-stops.csv: no link takes exactly 10 minutes.
+        const links = [
+            "Depot,Market,4|Market,Library,6|Library,Harbor,5|Depot,School,9|School,Harbor,12|Market,Park,3",
+            "Park,Clinic,4|Clinic,Harbor,3|Library,Clinic,7|School,Stadium,5|Stadium,Harbor,6|Park,Museum,5",
+            "Museum,Clinic,2|Depot,Station,15|Station,Harbor,14|Station,Stadium,4|Museum,Library,4",
+        ]
+            .join("|")
+            .split("|")
+            .map((line) => line.split(","));
+        await session.data.addNodes([...new Set(links.flatMap(([from, to]) => [from, to]))].map((id) => ({ id })));
+        await session.data.addEdges(
+            links.map(([from, to, minutes]) => ({ source: from, target: to, minutes: Number(minutes) })),
+        );
+        const wanted = links.filter(([, , minutes]) => Number(minutes) >= 10).length;
+
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "10");
+        const values = within(await screen.findByRole("listbox", { name: "Find results" })).getByRole("group", {
+            name: "Values",
+        });
+        await userEvent.click(
+            within(values).getByRole("option", { name: `Select where minutes is 10 or more (${String(wanted)})` }),
+        );
+
+        await waitFor(() => {
+            assert.equal(session.selection.edges.length, wanted);
+        });
+        assert.equal(wanted, 3);
+        assert.equal(session.selection.nodes.length, 0);
+    });
+
     it("lists a run on top under Selection, hides and shows its paint as one undo step, and deletes it with Undo", async () => {
         const { session, store } = await openGraph();
         assert.deepEqual(treeRows(), ["Selection", "Everything"]);

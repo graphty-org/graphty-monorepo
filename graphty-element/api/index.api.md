@@ -1455,6 +1455,15 @@ export interface ExportResult {
 }
 
 // @public
+export interface FindAtLeastRow {
+    readonly count: number;
+    readonly kind: FindKind;
+    readonly path: Path;
+    readonly target: SelectionTarget;
+    readonly value: number;
+}
+
+// @public
 export interface FindEnd {
     readonly id: NodeId_2;
     readonly name: string;
@@ -1500,6 +1509,7 @@ export interface FindOptions {
 
 // @public
 export interface FindResult {
+    readonly atLeast?: readonly FindAtLeastRow[];
     readonly notSearchable?: "regex" | "expression";
     readonly offset: number;
     readonly records: readonly FindHit[];

@@ -30,7 +30,7 @@ import {
     type SelectorTarget,
 } from "./styles/predicate";
 import { matchText, normalizeText } from "./text";
-import type { FindEnd, FindHit, FindKind, FindResult, FindValueRow } from "./types";
+import type { FindAtLeastRow, FindEnd, FindHit, FindKind, FindResult, FindValueRow } from "./types";
 
 /** Everything the engine reads. */
 interface QueryEngineParts {
@@ -333,7 +333,7 @@ export interface SearchRequest {
 }
 
 /** What {@link QueryEngine.search} answers; the caller adds the window and the revision. */
-export type SearchAnswer = Pick<FindResult, "records" | "total" | "totals" | "values" | "notSearchable">;
+export type SearchAnswer = Pick<FindResult, "records" | "total" | "totals" | "values" | "atLeast" | "notSearchable">;
 
 /** Where a match fell, in rank order within a tier. */
 const MATCH_ORDER = ["whole", "word-start", "anywhere"] as const;
@@ -647,12 +647,64 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
         return hitOf(parts, index, best[kind], kind, kind === "node" ? order : order - nodeCount);
     });
 
+    const atLeast = atLeastRows(index, text.trim(), request);
     return {
         records,
         total: sorted.length,
         totals,
         values: rows.slice(0, VALUE_ROWS).map((row) => valueRowOf(index, row, request)),
+        ...(atLeast.length > 0 ? { atLeast } : {}),
     };
+}
+
+/**
+ * The "or more" rows for a typed number: one per number column whose lowest and highest values
+ * enclose it when it is not itself a value there, in column order, nodes first.
+ * @param index - The index for this revision.
+ * @param typed - What was typed, trimmed.
+ * @param request - The kinds and the scope.
+ * @returns At most {@link VALUE_ROWS} rows; none when the text is not a whole number.
+ */
+function atLeastRows(index: FindIndex, typed: string, request: SearchRequest): FindAtLeastRow[] {
+    if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(typed)) {
+        return [];
+    }
+
+    const value = Number(typed);
+    const rows: FindAtLeastRow[] = [];
+    const seen = new Set<Path>();
+    for (const kind of ["node", "edge"] as const) {
+        if (!request.kinds.has(kind)) {
+            continue;
+        }
+
+        for (const column of index[kind].columns) {
+            if (rows.length === VALUE_ROWS || column.path === "id" || seen.has(column.path)) {
+                continue;
+            }
+
+            let below = false;
+            let above = false;
+            let numeric = column.values.length > 0;
+            for (const { value: held } of column.values) {
+                if (typeof held !== "number" || held === value) {
+                    numeric = false;
+                    break;
+                }
+                below ||= held < value;
+                above ||= held > value;
+            }
+
+            if (!numeric || !below || !above) {
+                continue;
+            }
+
+            seen.add(column.path);
+            rows.push({ kind, path: column.path, value, ...atLeastOf(index, column.path, value, request) });
+        }
+    }
+
+    return rows;
 }
 
 /**

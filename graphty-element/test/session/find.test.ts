@@ -177,7 +177,11 @@ describe("finding without selecting", () => {
         const row = session.find("10").values.find((value) => value.path === "data.shared_chapters");
         assert.isDefined(row);
         assert.isDefined(row?.atLeast);
-        assert.deepStrictEqual(row?.atLeast?.target, { text: "=shared_chapters >= `10`" }, "the column by its bare name");
+        assert.deepStrictEqual(
+            row?.atLeast?.target,
+            { text: "=shared_chapters >= `10`" },
+            "the column by its bare name",
+        );
         const counted = await session.selection.count(row?.atLeast?.target ?? { invert: true });
         assert.strictEqual(row?.atLeast?.count, counted.edges + counted.nodes);
         assert.isAbove(row?.atLeast?.count ?? 0, row?.count ?? 0, "ties above 10 come too");
@@ -331,6 +335,55 @@ describe("finding without selecting", () => {
             codeOf(() => session.find("v", { kinds: ["value" as "node"] })),
             "E_OPTION_RANGE",
         );
+        session.dispose();
+    });
+});
+
+describe("a typed number inside a number column's range", () => {
+    /**
+     * The studio's bus-stops.csv: links between stops and the minutes each takes. No link
+     * takes exactly 10 minutes; three take 10 or more.
+     * @returns The session, loaded.
+     */
+    async function busStops(): Promise<GraphSession> {
+        const csv = `Depot,Market,4|Market,Library,6|Library,Harbor,5|Depot,School,9|School,Harbor,12|Market,Park,3
+            |Park,Clinic,4|Clinic,Harbor,3|Library,Clinic,7|School,Stadium,5|Stadium,Harbor,6|Park,Museum,5
+            |Museum,Clinic,2|Depot,Station,15|Station,Harbor,14|Station,Stadium,4|Museum,Library,4`;
+        const links = csv.split("|").map((line) => line.trim().split(","));
+        const session = createGraphSession();
+        await session.data.addNodes([...new Set(links.flatMap(([from, to]) => [from, to]))].map((id) => ({ id })));
+        await session.data.addEdges(
+            links.map(([from, to, minutes]) => ({ source: from, target: to, minutes: Number(minutes) })),
+        );
+        return session;
+    }
+
+    it("offers one 'or more' row for a number no value equals, counted as its target selects", async () => {
+        const session = await busStops();
+        const { atLeast } = session.find("10");
+        assert.deepStrictEqual(
+            atLeast?.map(({ kind, path, value }) => ({ kind, path, value })),
+            [{ kind: "edge", path: "data.minutes", value: 10 }],
+        );
+        const counted = await session.selection.count(atLeast?.[0].target ?? { invert: true });
+        assert.strictEqual(atLeast?.[0].count, counted.nodes + counted.edges);
+        assert.strictEqual(atLeast?.[0].count, 3);
+        session.dispose();
+    });
+
+    it("offers none for a value the column holds, which keeps its value row's own 'or more'", async () => {
+        const session = await busStops();
+        const found = session.find("4");
+        assert.isUndefined(found.atLeast);
+        assert.isDefined(found.values.find((row) => row.path === "data.minutes")?.atLeast);
+        session.dispose();
+    });
+
+    it("offers none outside the column's range or for text that is not a whole number", async () => {
+        const session = await busStops();
+        for (const text of ["99", "1", "10 min", "minutes:10"]) {
+            assert.isUndefined(session.find(text).atLeast, text);
+        }
         session.dispose();
     });
 });

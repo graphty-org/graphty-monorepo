@@ -22,8 +22,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-11) **Round 4 critique, six changes proposed, each with its mechanism read in source:**
   (1) DONE 2026-10-11: element `suggestBackticks` now suggests only a rewrite that parses AND
   reads an attribute; a lone `10` gets no suggestion, so the find box shows "No match" + example.
-  (2) element find: an "or more" answer for a typed number inside a quantitative column's range
-  that is not a value (additive field), so bus stops' "10" gets "minutes is 10 or more".
+  (2) DONE 2026-10-11: `FindResult.atLeast: FindAtLeastRow[]` (element `atLeastRows` in
+  `session/query.ts`); the app maps each row onto its existing "or more" value option. Bus stops
+  "10" shows "minutes is 10 or more (3)" and selects the 3 links (`tmp/t2r4-4/s1/04-05.png`).
   (3) app `FindBox.tsx`: Values section before the record sections when the text is a number.
   (4) element `atLeastOf` (`session/query.ts`) writes `data.minutes`; write the bare name as the
   app's `columnText` does (unreleased field, 9b69ca650 is only on the studio branch: not breaking).
@@ -223,6 +224,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-11) WORKED: the "or more" row for a number no value equals, all in the element. A
+  number column is one whose every indexed value is a number (id column skipped); its row is
+  offered when some value lies below N, some above, none equal, deduplicated by path across
+  kinds, at most VALUE_ROWS, only when the whole trimmed text is a decimal (`minutes:10` gets
+  none: I first tested the prefix-stripped text, and the test caught it). The app maps each row
+  to `{ type: "value", row: { ...row, atLeast: row }, orMore: true }` and counts it in
+  `foundNothing`, so "No match" no longer shows beside it. No app parsing or counting.
+- (2026-10-11) DID NOT WORK: writing test data from memory. I wrote bus-stops rows that matched
+  the file's value counts but not its rows; real.mjs's load preview showed the difference. Copy
+  fixture rows from the file (`tail -n +2 ... | tr '\n' '|'`), never reconstruct them.
+- (2026-10-11) real.mjs `--expect selected=N` counts selected TABLE rows, not graph selection;
+  with no table open it says "0 rows are selected" while the inspector says "3 edges selected".
+
 - (2026-10-11) DID NOT WORK at first: another agent rewrote `predicate.ts` from its own read while
   I edited it, and my `rulePath` vanished ("rulePath is not a function"). Re-applied as a
   targeted insert. In the shared worktree, re-check `git diff` on a shared file before building.
@@ -290,20 +304,12 @@ role=button:Analyze`, type, ArrowDowns, Enter, then `--expect role=button:<name>
   rerun. Resuming after an interruption: check `git log`, the round folder and `tmp/<task>/` first.
   Script a finding on the frozen build before reading the suspect code.
 
-- (2026-10-09, summarized 2026-10-10) **Probes before code.** Subagent logs:
-  `~/.claude/projects/<proj>/<session>/subagents/workflows/wf_*/agent-*.jsonl`. Axe probe as a
-  throwaway compact-mantine test before CSS. Pixel checks from public API only
-  (`element.captureScreenshot` at a `nodeScreenPosition`). Print the element's report before coding
-  to place a defect. App real-element tests: `--project=real-element`. Critique: `insights.md`
-  section 2 first. Seen, not mine: `bars.mjs` misses "a node's Values with its neighbors".
-
-- (2026-10-06 to 10-09, summarized again 2026-10-10) **Older tool, test and worktree lessons.**
-  Copy a script before editing it while it runs; read output, not exit codes; step N lands in
-  screenshot N+1; read `setup.log` after `--start`; pilot on a copied dist; prove "nothing
-  follows" by spying, never a sleep. Shared worktree: stage only my files or hunks, commit as soon
-  as they pass, regenerate `api:report` and commit only its lines for my change. Builds need
-  `NODE_OPTIONS=--max-old-space-size=8192`. Element facts: a `Run` is thenable; per-node values via
-  `data.nodePage({ columns: [runId] })`; `data.name()` returns the id until
+- (2026-10-06 to 10-09, summarized 2026-10-11) **Older lessons.** Subagent logs under
+  `~/.claude/projects/<proj>/<session>/subagents/`. Probe (axe, pixels from public API, the
+  element's report) before code. Copy a script before editing it while it runs; read output, not
+  exit codes; step N lands in screenshot N+1; read `setup.log` after `--start`. Shared worktree:
+  stage only my hunks, commit as soon as they pass, commit only my `api:report` lines. Builds need
+  `NODE_OPTIONS=--max-old-space-size=8192`. A `Run` is thenable; `data.name()` returns the id until
   `knownFields.nodeLabelPath` is set.
 
 ## Sources

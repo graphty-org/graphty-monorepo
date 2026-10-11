@@ -41,6 +41,7 @@ export type {
     EdgeRecordInput,
     ElementSession,
     Endpoint,
+    FindAtLeastRow,
     FindEnd,
     FindHit,
     FindHitBase,

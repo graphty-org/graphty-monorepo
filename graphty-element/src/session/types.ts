@@ -353,6 +353,20 @@ export interface FindValueRow {
     readonly atLeast?: { readonly count: number; readonly target: SelectionTarget };
 }
 
+/** A number column the typed number falls inside, and the elements at or above it there. */
+export interface FindAtLeastRow {
+    /** Whether nodes or edges carry the column. */
+    readonly kind: FindKind;
+    /** The column's literal key, such as `"data.minutes"`. */
+    readonly path: Path;
+    /** The typed number. */
+    readonly value: number;
+    /** How many elements in scope `target` selects. */
+    readonly count: number;
+    /** The typed rule `<column> >= value`, narrowed to the find's scope, for `selection.apply`. */
+    readonly target: SelectionTarget;
+}
+
 /** What {@link GraphSession.find} answers: a page of hits, in the `RecordPage` shape, and value rows. */
 export interface FindResult {
     /** The hits in this window, best first. */
@@ -367,6 +381,12 @@ export interface FindResult {
     readonly revision: string;
     /** At most three matched attribute values, commonest first. */
     readonly values: readonly FindValueRow[];
+    /**
+     * Present when the whole text is a number that some number column's values enclose but no
+     * value there equals: one row per such column, at most three, in `data.attributes()` order,
+     * nodes first. Each row's `count` and `target` read as {@link FindValueRow.atLeast}'s.
+     */
+    readonly atLeast?: readonly FindAtLeastRow[];
     /**
      * Set when the text is a pattern to run on commit, not text to find: a `regex:` or `=`
      * query. Find does not run it and lists nothing; `selection.apply({ text })` runs it.

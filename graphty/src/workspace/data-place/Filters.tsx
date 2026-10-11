@@ -34,16 +34,23 @@ import {
     chipWords,
     ENDS_LINE,
     outcomeWords,
+    overEdges,
     savedWords,
     saveLabel,
     statusWords,
 } from "./filterWords";
 import { useVisibilityVersion } from "./useVisibilityVersion";
 
-/** Nodes left before the first step and after each step that is on, by step id. */
+/** What is left: nodes and edges. */
+interface Left {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
+/** What is left before the first step and after each step that is on, by step id. */
 interface Outcomes {
-    readonly start: number;
-    readonly after: ReadonlyMap<string, number>;
+    readonly start: Left;
+    readonly after: ReadonlyMap<string, Left>;
 }
 
 /** Where focus goes once the Filters section draws the steps next: a step's row, or `PLUS` for "+". */
@@ -92,7 +99,7 @@ function useOutcomes(session: GraphSession | null, version: number): Outcomes | 
             (plan) => {
                 if (live && plan.effect.kind === "steps") {
                     const { start, steps } = plan.effect;
-                    setOutcomes({ start: start.nodes, after: new Map(steps.map((s) => [s.id, s.nodes])) });
+                    setOutcomes({ start, after: new Map(steps.map((s) => [s.id, s])) });
                 }
             },
             () => undefined,
@@ -140,7 +147,9 @@ export function FiltersSection(): React.JSX.Element {
     const items: TreeNodeData[] = steps.map((step) => {
         const words = session === null ? "" : stepWords(session, step);
         const after = step.on ? outcomes?.after.get(step.id) : undefined;
-        const outcome = outcomeWords(step.on, before, after);
+        // A step over an edge column is counted in edges; the element counts both.
+        const unit = overEdges(step) ? "edges" : "nodes";
+        const outcome = outcomeWords(step.on, before?.[unit], after?.[unit], unit);
         if (step.on && after !== undefined) {
             before = after;
         }
@@ -634,7 +643,7 @@ export function FilterChip(): React.JSX.Element | null {
     if (!session?.visibility.steps.some((step) => step.on)) {
         return null;
     }
-    const words = chipWords(session.visibility.summary);
+    const words = chipWords(session.visibility.summary, session.visibility.steps);
     const on = session.visibility.steps.filter((step) => step.on).map((step) => stepWords(session, step));
     return (
         <Tooltip label={chipTip(on)} multiline maw={280}>

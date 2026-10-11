@@ -8,6 +8,7 @@ import {
     chipWords,
     type Namer,
     outcomeWords,
+    overEdges,
     ruleWords,
     savedWords,
     saveLabel,
@@ -16,7 +17,7 @@ import {
 } from "../filterWords";
 
 const NAMES: Namer = { attribute: (path) => path.replace("data.", ""), node: (id) => String(id) };
-const SHOWING = { visibleNodes: 9, totalNodes: 22, visibleEdges: 14 };
+const SHOWING = { visibleNodes: 9, totalNodes: 22, visibleEdges: 14, totalEdges: 30 };
 
 describe("the Filters words", () => {
     it("reads each step as one sentence", () => {
@@ -44,6 +45,23 @@ describe("the Filters words", () => {
         assert.equal(outcomeWords(true, 22, 9), "22 to 9 nodes");
         assert.equal(outcomeWords(false, 22, 9), "off");
         assert.equal(outcomeWords(true, undefined, 9), "");
+        assert.equal(outcomeWords(true, 41, 20, "edges"), "41 to 20 edges");
+    });
+
+    it("counts a step over an edge column in edges, on its row and on the chip", () => {
+        const edge = {
+            id: "e",
+            on: true,
+            rule: { kind: "range", attribute: "data.weight", min: 3, nodes: "ends" },
+        } as const;
+        const node = { id: "n", on: true, rule: { kind: "range", attribute: "data.age", min: 3 } } as const;
+        assert.isTrue(overEdges(edge));
+        assert.isFalse(overEdges(node));
+        assert.equal(chipWords(SHOWING, [edge]), "14 of 30 edges");
+        // A step over nodes that is on keeps the chip in nodes; an edge step that is off does not count.
+        assert.equal(chipWords(SHOWING, [edge, node]), "9 of 22 nodes");
+        assert.equal(chipWords(SHOWING, [{ ...edge, on: false }, node]), "9 of 22 nodes");
+        assert.equal(statusWords([edge], SHOWING), "Filter on: 9 of 22 nodes, 14 edges");
     });
 
     it("names the checkbox, the chip and the status line", () => {

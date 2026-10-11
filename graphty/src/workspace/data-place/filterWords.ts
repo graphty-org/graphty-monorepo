@@ -47,17 +47,35 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
 export const ENDS_LINE = "Keeps edges that pass and the nodes at their ends.";
 
 /**
- * A step's outcome, shown after its sentence: "22 to 9 nodes", or "off" for a step that is off.
+ * Whether a step is over an edge column (its rule keeps edges and the nodes at their ends), so
+ * its outcome is counted in edges.
+ * @param step - the step.
+ * @returns true for an edge step.
+ */
+export function overEdges(step: FilterStep): boolean {
+    const { rule } = step;
+    return (rule.kind === "range" || rule.kind === "categories") && rule.nodes === "ends";
+}
+
+/**
+ * A step's outcome, shown after its sentence: "22 to 9 nodes" ("41 to 20 edges" for a step over
+ * an edge column), or "off" for a step that is off.
  * @param on - whether the step is on.
- * @param before - the nodes left before it, or undefined until counted.
- * @param after - the nodes left after it, or undefined until counted.
+ * @param before - the nodes (or edges) left before it, or undefined until counted.
+ * @param after - the nodes (or edges) left after it, or undefined until counted.
+ * @param unit - what the counts are of.
  * @returns the words, or "" while uncounted.
  */
-export function outcomeWords(on: boolean, before: number | undefined, after: number | undefined): string {
+export function outcomeWords(
+    on: boolean,
+    before: number | undefined,
+    after: number | undefined,
+    unit: "nodes" | "edges" = "nodes",
+): string {
     if (!on) {
         return "off";
     }
-    return before === undefined || after === undefined ? "" : `${String(before)} to ${String(after)} nodes`;
+    return before === undefined || after === undefined ? "" : `${String(before)} to ${String(after)} ${unit}`;
 }
 
 /**
@@ -123,15 +141,21 @@ interface Showing {
     readonly visibleNodes: number;
     readonly totalNodes: number;
     readonly visibleEdges: number;
+    readonly totalEdges: number;
 }
 
 /**
- * The header chip: "9 of 22 nodes".
+ * The header chip: "9 of 22 nodes", or "20 of 41 edges" while every step that is on is over an
+ * edge column.
  * @param showing - the element's visibility summary.
+ * @param steps - the steps.
  * @returns the words.
  */
-export function chipWords(showing: Showing): string {
-    return `${String(showing.visibleNodes)} of ${String(showing.totalNodes)} nodes`;
+export function chipWords(showing: Showing, steps: readonly FilterStep[] = []): string {
+    const on = steps.filter((step) => step.on);
+    return on.length > 0 && on.every(overEdges)
+        ? `${String(showing.visibleEdges)} of ${String(showing.totalEdges)} edges`
+        : `${String(showing.visibleNodes)} of ${String(showing.totalNodes)} nodes`;
 }
 
 /**

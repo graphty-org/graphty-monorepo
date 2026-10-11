@@ -5,50 +5,47 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-10 (tier 2 round 2 closed; decisions read).
+Last updated: 2026-10-10 (tier 2 round 3 expert walk done).
 
 ## Top of mind
 
-1. (2026-10-10) Round 3 does not start until the study is fixed: participant folders outside the
-   studio tree, a transcript check that voids any session that read a facilitator file, a dry run
-   seeded from two throwaway pilots per task, and every bar script proven on a planted fault.
-   Until a clean run, no round 2 route (weight meaning at load, Replace in "...", the rule hint)
-   is credited, reworded or moved.
-2. (2026-10-10) Find box (severity 3): a miss shows the example rule; the element's suggestion
-   shows with its "="; a shown rule is Enter's option and runs on click. My lenient element parse
-   was not taken: bare numbers change an existing call, so they stay on the owner's list. Watch:
-   does 3+ of 8 still stall? Only then "Select where..." on the column menu.
-3. (2026-10-10) Lesson kept: a decided change must name its key behavior ("Enter runs it"), or the
-   build ships the words without the act. Round 2's rule hint was exactly that failure.
-4. (2026-10-10) Selection styling: "+" Color/Width on a selection's layer starts at the element's
-   highlight look via a new additive `session.styles.highlightStyle(target)`, not an app value.
-   Width 8 as a hairline is an element units question already with the owner; the app must not
-   scale widths. Layer from a rule is named by its rule. Watch the styling detour in the dry run.
-5. (2026-10-10) Add over a loaded file: element reports repeated edges from `data.prepare()`;
-   the Add page shows the count and "Replace <source>" beside Load (same command as the "..." menu).
-6. (2026-10-10) Decided as I proposed: "Filter to neighbors" is a plain command, the step's own
-   checkbox is the only on/off; Tab and click-away commit a step edit, Escape cancels and says so;
-   24 px hit area on compact-mantine's extra-small checkbox, drawn box unchanged.
-7. (2026-10-10) Also decided: second Escape no longer blurs the find box; Follow arrows no longer
-   jump into Hops; repeated status messages announced again; Shortest path found by "linked",
-   "between", "fewest", "chain"; weighted path row reads "minutes 14", not "4 hops".
-8. (2026-10-10) Bar 9 (b) failed (words at rest rose on all four tier 2 screens). Words go down,
-   never up: the key names a run's scope only when drawing and run differ. Count before I propose.
-9. (2026-10-10) Severity 3 left to the owner: drawn names covering each other and ties (element
-   label placement, unseeded layout). No app font, seed or offset hacks.
-10. (2026-10-10) Round 3 watch list for my walk: Enter/Tab/Escape/Tab-then-Escape on every field;
-    click empty canvas while a run is selected (decides a note's subject); half-made step lost on
-    another selection; run a path twice; reopen the Path form; newer copy of a loaded file.
-11. (2026-10-09) Still my deferred divergences: step editor is a Save form, not a live inspector;
-    checkbox vs eye; two row grammars; add-first for "+". Bring only with clean-run evidence.
-12. (2026-10-09) Tool trap: run `--start` in the foreground; a backgrounded one keeps waiting for a
-    browser slot and later serves into the folder. Click by name must match one control only.
-13. (2026-10-07) Open element asks: fit inset (toolbar and key cover nodes); size encodings vs 3D
-    perspective; neighbor distance per node (to group "1 step"/"2 steps").
-14. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes
-    from graphty's ontology. Every control must visibly change canvas, key or popover.
-15. (2026-10-07) One model plays every persona: a failure is strong, a pass weak; a leaked
-    facilitator file makes passes weaker still, failures found anyway robust.
+1. (2026-10-10) Round 3 walk (`tier2/rounds/round-3/expert/figma.md`): 42 findings, same count
+   as round 2, but 2 at severity 3, both on running a second path: the second run silently
+   replaces the first, and Undo restores it with Made with naming the undone run's From and To
+   (app draft survives undo). Lead with these in the critique; smallest fix is in the app.
+2. (2026-10-10) Round 2's decided changes held in the build: runnable rule suggestion, rule-named
+   layer, highlight-look Color/Width, empty-canvas deselect, plain "Filter to neighbors", "minutes
+   14" row, 24 px checkbox, "full graph" only under a filter, Replace beside Load, half-made step
+   kept. Rule syntax dropped to severity 2.
+3. (2026-10-10) Tab-commit shipped half: Tab from Value lands on Save step inside the editor, so
+   Tab then Escape still loses the edit. Lesson again: a decided change must name the exact key
+   sequence it fixes, and the walk must replay that sequence.
+4. (2026-10-10) New severity 2 on task routes: an edge filter step and the chip count nodes only
+   ("20 of 20 nodes" with 21 edges hidden); the Path form forgets the weight; To accepts From
+   (0-hop run); Load stays primary when every incoming edge repeats; "Not set" weight meaning
+   behaves two ways.
+5. (2026-10-10) Carried, still unfixed: "Filter to..." focus on the tree row, inspector jumps off
+   a new step, Path popover covers the canvas, "+" empty form, Save form vs live inspector,
+   checkbox vs eye, two row grammars.
+6. (2026-10-10) Find box (from round 2): bare-number parse stays an owner question; watch whether
+   3+ of 8 still stall. Only then "Select where..." on the column menu.
+7. (2026-10-10) Selection styling: "+" Color/Width uses the element's `highlightStyle()`. Width
+   units remain with the owner; the app must not scale widths.
+8. (2026-10-10) Bar 9 (b): words go down, never up. Count before I propose.
+9. (2026-10-10) Severity 3 left to the owner: drawn names covering edges and each other, unseeded
+   overlapping nodes. No app font, seed or offset hacks. Not counted in my totals.
+10. (2026-10-10) Next walk's watch list: run every command twice and Undo it (where round 3's
+    severity 3s were); Tab and Escape at each field boundary; panel right-click; edit a saved note.
+11. (2026-10-09) Deferred divergences, bring only with clean-run evidence: Save form vs live
+    inspector; checkbox vs eye; two row grammars; add-first for "+".
+12. (2026-10-10) Tool: `--start` waits for a browser slot (often minutes while sessions run); wrap
+    it in `timeout 580` in the foreground, never background it. Click by name must match one
+    control; use `role=treeitem:` for step rows.
+13. (2026-10-07) Open element asks: fit inset (toolbar covers nodes); size vs 3D perspective;
+    neighbor distance per node.
+14. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
+    graphty's ontology. Every control must visibly change canvas, key or popover.
+15. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
 
 ## Priorities and values
 
@@ -114,6 +111,11 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-10 (me, round 3 walk) Severity 3 for the two second-path faults: a result lost with no
+  notice, and an inspector stating inputs of a run that does not exist, both on a path task's own
+  route. Rule syntax lowered to 2 because Enter now runs the suggestion. The owner items (label
+  overlap, bare numbers) are listed but not counted, as the round plan says. Reason: rate by
+  whether a reader is misled or stopped, not by distance from Figma.
 - 2026-10-10 (Director, round 2 closed) Fifteen round 3 changes in
   `tier2/rounds/round-2/decisions.md`, study tool first (leak, pilot-seeded dry run, bar scripts
   proven on planted faults, all rated 4), then one change per confirmed problem in its owning
@@ -201,6 +203,10 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-10-10 Round 3 walk on 26f3bb968e43. Worked: 13 decided changes verified by clicking, each
+  with a screenshot. Did not: Tab-commit only half-shipped (Tab stays inside the editor); a
+  second path run was walked by nobody before and held both severity 3s. Lesson: walk repeat
+  work (run twice, undo, reopen) on every command, because tier 2 is repeat work.
 - 2026-10-10 Round 2 closed. Did not work: the study itself (participants read the facilitator
   file; 13 of 16 follow-ups answered early), a dry run one round behind (12 of 30 build faults on
   the unwalked selection-styling detour), and a keyboard fault the dry run found but handed on
@@ -262,37 +268,13 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   must list only the layer that wins each property. Which layer wins is a graph-styling fact:
   graphty-element's to compute, the app's to word.
 
-- (2026-10-06) Where Figma's grammar is load-bearing for tier 1: the Style tab ("+" adds,
-  popover edits, bind icon, empty sections), selection driving the inspector, the find box,
-  Quick actions, the toolbar, Export from the project-name menu, Save/Save as. Where it is not:
-  the Data page, runs as rows, the paint tree's meaning, the legend. I review the first group for
-  fidelity and the second only for consistency of controls.
-- (2026-10-06) Labels. Figma's Text is a property of the object; graphty's label is a style line
-  bound to an attribute. The closest Figma move is "Apply variable" from a property row. The
-  label line with its attribute list opening at once is that move. If round 1 still shows people
-  leaving an empty line, the Figma-consistent fix is to keep the list open until a pick or Esc,
-  and to have Esc on an empty new line remove it (a "+" that was cancelled leaves nothing behind),
-  not to preselect a "name" attribute (owner: start empty).
-- (2026-10-06) The "Show labels" checkbox on the Label header: in Figma a section header holds
-  "+" and, rarely, a section-wide toggle that visibly changes the canvas. If ticking it changes
-  nothing without a line, it should not be offered then (round 8 decision). Verify the real app
-  hides it when no row beneath sets a label.
-- (2026-10-06) Tooltip delay and icon-only toolbar: the owner chose icons only. Figma backs that
-  with optional labels for learners. graphty's equivalent is the "Additional labels" toggle in the
-  framework, which is not in tier 1. If the toolbar fails first clicks, the evidence goes to the
-  owner; I do not propose text on the toolbar myself.
-- (2026-10-06) Find. Figma's Find produces a selection, and the selection is the subject of the
-  inspector. A first-time user typing "Javert" should land on Javert selected, framed and read,
-  in one Enter. Anything else (a list of rows, a filter, a hidden match) is a departure that needs
-  a reason.
-- (2026-10-06) Words. Figma's resting right panel holds about 25 words, mostly the user's content.
-  Our budget: at most 50 app words at rest, about 30 for a selected object. Node names, attribute
-  names and values must dominate; ids ("n0") read as app noise.
-- (2026-10-06) Undo notices, the Discard-unsaved-changes prompt on Close project, and Save/Save as
-  are departures from Figma's autosave, silent-undo model. They are forced by the browser file
-  model (no autosave to a user file). Keep them minimal and check each has a ledger row.
-- (2026-10-06) The study's simulated participants are generous and share blind spots; a failed
-  task is a strong signal, a passed one weak. Grade from the last screenshot, never a summary.
+- (2026-10-06, summarized 2026-10-10) Tier 1 thinking still standing: Figma's grammar is
+  load-bearing for the Style tab, selection-drives-inspector, find, Quick actions, the toolbar and
+  Save; elsewhere I review only control consistency. Labels: keep the attribute list open until
+  a pick or Esc, Esc on an empty new line removes it. Find lands on the match selected and read
+  in one Enter. Word budget about 50 at rest, 30 for a selected object. Undo notices and Save are
+  forced by the browser file model; keep them minimal. Simulated participants: a fail is strong,
+  a pass weak; grade from the last screenshot.
 
 ## Sources
 

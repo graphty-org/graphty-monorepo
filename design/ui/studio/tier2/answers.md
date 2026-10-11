@@ -123,7 +123,7 @@ screen and cites `rounds/r2/`. The notes above still hold, except:
   reruns PageRank or asks what is out of date.
 - A run's Values tab opens with a collapsible "Summary" heading over its first row ("Path 5 nodes,
   4 edges"), and the run's subtitle reads the kind word and a link-styled time ("Path ran Oct 9,
-  5:54:06 AM") (`rounds/r2/pilot/T18A/10.png`); for PageRank the kind word is "Measure" ("Measure ran Oct 9, ...", `rounds/r2d3/pilot/T21A/07.png`). On 8f0d5a6f7791 through 38e180aac230 PageRank's Values tab heads that first section (the histogram and its "20 of 20 have a value" line) "Values" instead of "Summary" (`rounds/r2d4/pilot/T21A/02.png`, `06.png`, `07.png`); on builds after 3c257c2f7398 it is headed "Distribution" (`tmp/r4-dry1-run-values-heading/T21A/02.png`, `07.png`).
+  5:54:06 AM") (`rounds/r2/pilot/T18A/10.png`); for PageRank the kind word is "Measure" ("Measure ran Oct 9, ...", `rounds/r2d3/pilot/T21A/07.png`). On 8f0d5a6f7791 through 38e180aac230 PageRank's Values tab heads that first section (the histogram and its "20 of 20 have a value" line) "Values" instead of "Summary" (`rounds/r2d4/pilot/T21A/02.png`, `06.png`, `07.png`); on builds that carry the rename (any after 16e07c800) it is headed "Distribution" (`tmp/r4-dry1-run-values-heading/T21A/02.png`, `07.png`).
 - A selected node is marked by its yellow halo only; under a style layer that colors nodes (every
   ranked start), its fill does not change (pixels identical before and after,
   `rounds/r2/pilot/T24A/03.png` against `06.png`; `T23B/04.png`).

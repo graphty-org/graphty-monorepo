@@ -276,7 +276,7 @@ function MeasureValues({
 
     return (
         <>
-            <ControlSection label="Values" defaultOpened>
+            <ControlSection label="Distribution" defaultOpened>
                 {first !== undefined && last !== undefined && (
                     <HistogramRow
                         label={runName(session, run)}

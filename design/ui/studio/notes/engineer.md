@@ -11,6 +11,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-11) **A measure run's first Values section is headed "Distribution": built** (app
+  only, `RunValues.tsx`). It held the histogram and "20 of 20 have a value" line under the same
+  word as its tab. The section is a `role="group"` named by its label (compact-mantine
+  ControlSection), so tests find it with `getByRole("group", { name })`, not a button. Test:
+  `RunAlignment.real-element.test.tsx`. Fresh build: `tmp/r4-dry1-run-values-heading/T21A/02.png`,
+  `07.png`. The path run's first section stays "Summary".
 - (2026-10-11) **T12R B piloted on the fresh local build 3c257c2f7 (`tmp/r4-dry1-repilot-t12rb/
   T12RB/`, 5 screenshots, `work.json` gone empty): success path unchanged** -- find "Medici",
   Enter, Degree 6 lists Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni; Back
@@ -65,9 +71,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the restored run (`Run.params`/`seed` read the handle, undo swapped only `runs`;
   `tmp/t2r3-r4-05/fixed/`); Shift-click on a node adds (`SelectionManager.add`; Shift only,
   macOS Ctrl-click is the context menu; `tmp/t2r3-r4-03/`).
-- (2026-10-10, condensed) **Round 3 critique's five changes:** Shift-click adds, "or more", Analyze
-  name matches first, and the toolbar Filters tool are built; still open: element `depth` on
-  `data.neighbors` and `hops` on each `Neighbor`, then the app shows each name's hops.
 - (2026-10-10) **Hold still in round 4:** second Find path replacing the first, "Select endpoints"
   in "..." (confounded with Shift-click), the "=" hint and backtick wording (measure "or more"
   alone), round 2's routes (now passing clean), label and node overlap (element, owner's list).
@@ -90,6 +93,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-11) Heading a histogram and its range "Distribution": a heading that repeats its tab's
+  name tells the reader nothing, and "distribution" is the standard word for that pair.
+- (2026-10-11) Still open from the round 3 critique: element `depth` on `data.neighbors` and `hops`
+  on each `Neighbor`, then the app shows each name's hops (Shift-click, "or more", Analyze name
+  matches and the toolbar Filters tool are built).
 - (2026-10-10) **Owner decision: the chosen segment keeps Figma's face, never an inverse fill.**
   Dark #2c2c2c face, 1px #444 edge on #383838; light white face, 1px #e6e6e6 edge on #f5f5f5;
   `highContrast` gives a 3:1 edge. See `owner-decisions.md`.
@@ -120,22 +128,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   written with `quotePath(path)` and the number as a JSON literal in backticks; non-finite numbers
   get no `atLeast`. The scope input is carried on `SearchRequest.scopeInput` so a scoped find's
   rule is scoped too. API report updated (index and session entries): additive.
-- (2026-10-10) **A run reports the parameters of the execution history put back.** `params` and
-  `seed` read the held record when one is shown (as `caveats`, `fields`, `status` already did);
-  `rerun()` adopts them before executing, and RunsApi's stored re-run command follows the restored
-  entry, so Rerun after Undo computes and records what Made with shows. Not breaking: `params` is
-  documented as "the parameters the current execution uses". The app's draft was not involved
-  (the second path came from Find path, not Made with), so no app change.
-- (2026-10-10) **Shift-click on a node adding is a defect fix; its one API change is additive.**
-  The edge click already adds on Shift; nothing documents a node replacing on Shift; `node-click`
-  still fires; a Shift-drag still drags; XR `select()` still replaces (no pointer event). Shift
-  only, per owner-decisions.md. Routed through a new `SelectionManager.add(node)` rather than
-  `session.selection.applyNow` straight from NodeBehavior: the context only exposes the public
-  `GraphSession` (no `applyNow`, and its `apply` is async with cause "api"), and bypassing the
-  manager would leave its index stale.
-- (2026-10-10) **A distance per neighbor is the element's fact, never the app's.** The 2- and
-  3-hop list reads `selection.nodes` sorted by name; splitting it by the 1-hop page would be a
-  neighbor lookup in the app (forbidden). Additive `depth` option and `hops` field instead.
+- (2026-10-10, condensed 2026-10-11) **Element calls, round 4.** A run's `params`/`seed` read the
+  held record history put back, and `rerun()` adopts them (not breaking: documented as "the
+  current execution's"). Shift-click on a node adds through a new `SelectionManager.add(node)`
+  (additive; edge clicks already did; Shift only; XR `select()` still replaces). A distance per
+  neighbor is the element's fact: additive `depth` option and `hops` field, never split in the app.
 
 - (2026-10-10) **Round 2 decisions I build to (from round 2's decisions.md).** One change per
   confirmed problem, in its owning package (graph facts in the element, shared controls in
@@ -265,9 +262,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the disabled button only retries. A person's click goes through. What worked: prove "a press adds
   nothing" in the real-element test (`Filters.real-element.test.tsx`, toolbar test, user-event
   click), and in real.mjs with `--key Enter` in the empty Value box (`06.png`: no step).
-- (2026-10-11) **Two agents editing Filters.tsx and filterWords.ts at once.** Stage only my hunks by
-  writing HEAD plus my edits to a blob and `git update-index --cacheinfo`; another agent's commit
-  can sweep up a test I added to a shared test file (my toolbar test landed in 115bc0aa4).
+- (2026-10-11) **Shared files in a shared worktree.** Stage only my hunks (HEAD plus my edits as a
+  blob, `git update-index --cacheinfo`). Another agent's commit can sweep up my uncommitted edits
+  to a shared file: a test in 115bc0aa4, answer key lines in c9f2ceed3. Commit shared edits
+  (`answers.md`, shared tests) as soon as they are made.
 
 - (2026-10-10, summarized 2026-10-11) **Focus and description proofs.** Focus after a pointer
   click draws no ring: `--key ArrowDown` opens a focused Mantine Select (`tmp/t2r3-r4-09/fresh/04.png`).

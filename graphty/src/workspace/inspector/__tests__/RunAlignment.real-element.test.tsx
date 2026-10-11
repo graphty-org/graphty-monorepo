@@ -1,6 +1,6 @@
 /**
  * The run inspector's left edges on the REAL graphty-element: the "Advanced run settings" fold's
- * chevron hangs in the section gutter with the section chevrons, and the line under the Values
+ * chevron hangs in the section gutter with the section chevrons, and the line under the measure's
  * histogram starts where the histogram's min label does.
  */
 
@@ -92,5 +92,13 @@ describe("the run inspector's left edges", () => {
             return;
         }
         assert.closeTo(left(line), left(min), 0.5);
+    });
+
+    it("heads a measure's histogram Distribution, not the name of the Values tab it sits on", async () => {
+        const inspector = await inspectRun("pagerank", {});
+        const line = await inspector.findByText(/have a value/);
+        assert.equal(inspector.getByRole("tab", { name: "Values" }).getAttribute("aria-selected"), "true");
+        assert.isTrue(inspector.getByRole("group", { name: "Distribution" }).contains(line));
+        assert.isNull(inspector.queryByRole("group", { name: "Values" }));
     });
 });

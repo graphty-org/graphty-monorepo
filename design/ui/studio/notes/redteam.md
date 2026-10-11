@@ -16,37 +16,39 @@ served at `/?next`.
 
 ## Top of mind
 
-1. (2026-10-10) Round 4 waits on the study tool, proven by a planted failure: the round 3 leak check
-   read 0 logs in 56 sessions and reported "no leaks"; the prompt pilots were skipped. A check that
-   checks nothing must fail. Same for any new bars.mjs focus action: it must fail on 26f3bb968.
-2. (2026-10-10) Node Shift-click: route the node click through the same
-   session.selection.applyNow call the edge click uses, Shift only (the one modifier the edge
-   honors). No Ctrl or Meta now (macOS Ctrl-click is the context menu; a second convention is a
-   second decision). Not breaking: no export, return or default changes; node-click still fires.
-3. (2026-10-10) T24 is a study fault first: the prompt asks for an outcome ("applies only to those
-   two"), never the control word "select"; the key's Shift route is walked on the next frozen build.
-4. (2026-10-10) Find box for a bare number: the row drops its "Select where" prefix (heading says
-   it) and graphty-element supplies an optional at-least target with its count. No wrap, no
-   refusal reword, no app-built rule text from a typed number. Credit as one path.
-5. (2026-10-10) No notice for a second path replacing the first (nothing lost in 7 of 7). Fix the
-   readout instead: "Made with" is {...run.params, ...draft} and the draft survives a re-run and
-   Undo. Script it; a stale readout is removed or fixed, never announced.
-6. (2026-10-10) Filters door on the Graph place: one toolbar icon that runs the existing Filters
-   command, no words at rest; not a layer-list row. Measure T17 first moves.
-7. (2026-10-10) Analyze search ranks name and alias matches first; it never hides description
-   matches ("brokers" must still find Betweenness). One Start-here badge while filtering.
-8. (2026-10-10) "Filter to neighbors" stays a plain command; no pressed toggle (two controls for
-   the step's one state). Its missing reason is compact-mantine Tooltip's job, if scripted.
-9. (2026-10-10) Single-specialist claims need a script before a fix: PathForm focus (code cause
-   already visible), selection-layer focus, Undo readout, edge-step counts, key over labels.
-10. Bare numbers in rules and edge width units: breaking, owner list. No opt-in flag.
-11. Drawn-name overlap is the element's label placement: no app font, seed or offset.
-12. Rounds are one model playing every participant: a failure is strong, a pass weak, a scripted
-    repro or code cause solid. Never blame load: name the mechanism.
-13. Fix by removing, not adding. One door per job; reuse the "..." header menu. Words at rest
-    only fall (bar 9 fails by one word, and its counter is broken -- fix the counter first).
-14. Graph logic and codes in the element, words in the app; check existing API first.
-15. Hops distances wait for a second participant and an element depth fact; no app grouping.
+1. (2026-10-11) Round 4 does not start until the runner refuses a round folder without its gate
+   evidence (prompt pilots per task half, bars on the frozen build) and each check is shown
+   failing on a planted fault. Round 3 proved a written rule without a refusing gate is a wish.
+2. (2026-10-11) Watch every new check for the round 3 failure shape: a check that read 0 inputs
+   and passed. Leak check fails on fewer logs than sessions; `--end` only adds notes; each new
+   bars.mjs focus action must fail on 26f3bb968 or it does not decide change 6.
+3. (2026-10-11) Shift-click on a node adds (element, through session.selection.applyNow, as the
+   edge does). Shift only; Ctrl/Meta held. Real-input test. Watch: "Select endpoints" in "..."
+   was confounded with this defect -- re-measure it in round 4, do not credit or fault it yet.
+4. (2026-10-11) T24: prompt changed, key kept; the key names the Shift route only after it is
+   walked on the frozen build. Two pilots per half graded by the key before the round.
+5. (2026-10-11) One variant per problem is the round 4 rule. If T22, T18 or T17 still stall, do
+   not stack a second variant on top; ask which single change missed and why.
+6. (2026-10-11) T18 carries three changes (Made with readout, PathForm focus, name-first ranking);
+   T17 two (Filters icon, edge counts). Credit each by its own measure (script, focus check,
+   words.test, T17 first moves vs 5 of 8), never by T18/T17 success alone.
+7. (2026-10-11) Script-first changes (Made with after Undo, edge-step counts, disabled-reason
+   tooltip, both focus drops) are closed as not shown if the script does not reproduce on
+   26f3bb968. Watch that nobody ships them anyway.
+8. (2026-10-11) Find box: row drops "Select where" at rest; element supplies optional atLeast
+   { count, target }. App parses no number. If a row is still cut, it is a build fault before
+   freeze, not a new design.
+9. (2026-10-11) Bar 9 counter must drop data names; re-measured rounds 2 and 3 are the baseline.
+   No change may raise words at rest; the Filters icon adds none.
+10. (2026-10-11) Rejected and staying rejected without new evidence: "replaced" notice, keeping
+    both paths, Filters row in the layer list, hiding description matches, pressed "Filter to
+    neighbors" toggle, Replace as primary, Hops grouping (first in line if a second session hits it).
+11. Bare numbers in rules, backticks, edge width units: breaking, owner list. No opt-in flag.
+12. Drawn-name overlap is the element's label placement: no app font, seed or offset.
+13. Rounds are one model playing every participant: a failure is strong, a pass weak, seven
+    identical asides are one voice. A scripted repro or code cause is solid. Name the mechanism.
+14. Fix by removing, not adding. One door per job. Graph logic and codes in the element, words
+    in the app; check existing API first.
 
 ## Priorities and values
 
@@ -146,53 +148,32 @@ served at `/?next`.
   path row shows "<column> <total>"; "Filter to neighbors" is a plain command, off only on the
   step checkbox; "PageRank, full graph" only under a filter; "Components 1" held for attribution.
 
-- 2026-10-10 -- Tier 2 round 3 proposals attack (my positions). Code read at 26f3bb968:
-  NodeBehavior.handleClick (selectionManager.select, single-node view), Graph.ts ~3601 (edge
-  click reads shiftKey, applyNow add/replace), session/selection/targets.ts (operations are set
-  algebra, so add is one argument), PathForm.tsx:186 data-autofocus vs AnalyzePopover autoFocus,
-  reads.ts settingsOf = {...run.params, ...draft}, types.ts Neighbor (no depth). Adopt: node click
-  through the session path, Shift only; T24 outcome prompt; find row prefix dropped plus
-  element-supplied at-least target; name-first ranking with one badge; one Filters toolbar icon
-  running the existing command; PathForm autoFocus after a failing bars.mjs check; Undo readout
-  after a script; Load aria-describedby for the repeated-ties line. Reject: a "replaced" notice
-  (notice instead of fix), Filters row in the layer list, hiding description matches, a pressed
-  "Filter to neighbors" toggle (two controls, one state; reverses round 2), Value-blur commit
-  (contradicts the Escape rule with no session), Replace as primary and nodesInRect labels on one
-  specialist each, Hops subheadings (words, one session), four stacked find-row changes
-  (unattributable), Ctrl/Meta adds (second convention). Reason: fixes over notices, one change per
-  problem, element first, evidence from two participants or a script.
+- 2026-10-10 -- Tier 2 round 3 proposals attack (summarized 2026-10-11). Code read at 26f3bb968
+  (NodeBehavior.handleClick, Graph.ts edge click, settingsOf, PathForm data-autofocus, Neighbor has
+  no depth). Positions: node Shift-click through the session path; T24 outcome prompt; find-row
+  prefix dropped plus element at-least target; name-first ranking, one badge; one Filters toolbar
+  icon; scripts before one-specialist fixes; Load aria-describedby. Rejected: notices, second
+  homes, stacked variants, Ctrl/Meta, Value-blur commit, Hops subheadings.
+
+- 2026-10-11 -- Tier 2 round 3 closed (decisions.md). Adopted all my positions above, with no
+  reversals. Went further than me: the study tool fix is rated severity 4 and made a hard start
+  gate (runner refuses without pilots and bars), and `--end` deleting notes was added; bar 8's
+  axe hit is to be settled by an ArrowDown script, not by making the list focusable (a useless
+  Tab stop) -- agreed. Added beyond my list: Add page repeated-ties warning glyph plus
+  describedby (sev 2, words unchanged), edge-step counts read from the element (script first),
+  compact-mantine Tooltip describing a disabled target (check first). All three are fixes in the
+  owning package with no new words; no objection. Reason throughout: measurement before defects,
+  one change per problem, element first.
 
 ## Tried: worked / did not work
 
-- 2026-10-06 -- Round 1 close-out: holding the Degree cue and my Summary-names idea back in favor of
-  routing the existing command was accepted into decisions.md (change 3). Worked as a removal-first
-  argument. The skeptic pass dropped both bar 5 items (each count was true) -- taught: a "wrong
-  count" finding needs the count checked against live state before it is filed.
-
-- 2026-10-07 -- Round 2 result of my round 1 position "route the existing command, no new list, no
-  Degree cue": worked. T12 failed in round 1, passed 8 of 8 in round 2 (0.9x path), through the
-  Degree row that runs the same command. Taught: one command with one visible door beat adding a
-  list. The remaining cost is a hit-area bug (chevron outside the button), not the design.
-- 2026-09-06 to 2026-10-02 (summarized 2026-10-10) -- Did not work: v1 help text and suggestion
-  strip (clutter); copying Figma literally (follow our ontology); rounds on undrawn decisions or a
-  check that inspected 0 pages (wasted, inflated); "Show labels" that changed nothing (severity-4
-  trap); counts with no names (0 of 12). Worked: removing Weight/"Change..." at load (but the owner
-  later reversed the substance); restoring a conventional File list; tiering tasks. Taught: test
-  end states, not first clicks; a removal that wins a study can still lose to the owner's model.
-
-- 2026-10-06 -- Round 1 on the real app: first real-build study. Worked: no false "done" (0 of
-  29), loading, ranking, groups, save/reopen, legend in exported picture. Did not work: the study
-  runner (40-minute agent limit counted the browser queue; 35 first runs and 7 re-runs void).
-  Taught: the runner is part of the build under test; preflight it like the app.
-
-- 2026-10-07 -- Re-pilots of round 3 changes on b7590f8de: worked. Picker-first Size cut a step
-  (T15 one step fewer, T9 8 steps), run names read "PageRank" everywhere (T7, T16), group layouts
-  enable after Louvain (T11), every name reachable (T10). Taught: removal-or-reuse fixes (reuse
-  Label's pattern, reuse element declutter, reuse optionsFor) landed cleanly; none added a door.
-  Not yet seen: whether participants find them unprompted -- that is round 3's job.
-- 2026-10-07 -- Pilots surfaced what the defects were hiding: perspective size distortion, element
-  English refusals, three names for one grouping, soft names in export. Taught: once the controls
-  work, the next layer of failure is perception and words. Expect it to dominate round 3.
+- 2026-09-06 to 2026-10-07 (summarized 2026-10-11) -- Worked: routing the existing neighbors
+  command instead of a new list (T12 0 of 8 -> 8 of 8); removal-or-reuse fixes on tier 1 re-pilots
+  (picker-first Size, run names, group layouts). Did not work: v1 help text and suggestion strip;
+  copying Figma literally; rounds on undrawn decisions or checks that inspected 0 pages; the
+  round 1 study runner (agent limit voided 35 runs). Taught: test end states, not first clicks;
+  a wrong-count finding needs live state checked first; the runner is part of the build under
+  test; once controls work, the next failures are perception and words.
 
 - 2026-10-09 -- Tier 2 round 1 dry run on success paths only: did not work as a gate. No session
   met a broken control on the walked routes, but participants met off-route defects and four bars
@@ -220,6 +201,11 @@ served at `/?next`.
   written but not enforced -- the leak check read 0 logs in every session and still passed, and the
   prompt pilots were skipped, which let T24's prompt and key disagree. Taught: a process rule
   without a refusing gate in the runner is a wish.
+
+- 2026-10-11 -- Round 3 close of my proposal positions: worked as argument -- every adopt and
+  reject was carried into decisions.md unchanged. Skeptics dropped bar 6 and weakened the find
+  box, second-path and "found by a guess" claims, matching my "pass weak, one voice" stance. Not
+  yet shown: whether any of it works for participants; that is round 4.
 
 ## Thinking
 
@@ -272,8 +258,17 @@ served at `/?next`.
   wrong fixes to stacked fixes. Four variants of the find row would land together and nothing
   could say which helped. Pick one variant per problem and log the others as held.
 
+- (2026-10-11) Round 3's strongest finding was about the study, not the app: a prompt that
+  avoids the control word lets a participant reach a different valid outcome. Any reworded prompt
+  must be piloted and graded by the key before the round; a prompt change without a pilot is the
+  same fault waiting.
+- (2026-10-11) Round 3 found 1 real app failure in 56 sessions. The returns are shrinking on
+  severity 2 fixes; the next round's value is mostly a clean measurement. Resist filling round 4
+  with polish to look productive.
+
 ## Sources
 
+- `design/ui/studio/tier2/rounds/round-3/insights.md`, `decisions.md` (closed, 2026-10-11)
 - `design/ui/studio/tier2/rounds/round-3/insights.md`, `scores.md`, the eight role critiques (2026-10-10)
 
 - `design/ui/studio/tier2/rounds/round-2/decisions.md`, `insights.md` (2026-10-10)

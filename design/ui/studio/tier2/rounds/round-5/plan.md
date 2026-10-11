@@ -430,3 +430,29 @@ round: whether a label that is not `pickable` should let a click through to what
 (an additive change would be a new option; changing today's default is a breaking change for the
 owner), and whether a pickable label should yield to an edge that the click is closer to. Where
 names are placed stays on the owner's list.
+
+## Gate evidence
+
+Checked by `real.mjs --gate` on 2026-10-11, build 8c015b806:
+
+- pilot T12RA: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T12RA/
+- pilot T12RB: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T12RB/
+- pilot T17A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T17A/
+- pilot T17B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T17B/
+- pilot T18A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T18A/
+- pilot T18B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T18B/
+- pilot T19A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T19A/
+- pilot T19B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T19B/
+- pilot T20A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T20A/
+- pilot T20B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T20B/
+- pilot T21A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T21A/
+- pilot T21B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T21B/
+- pilot T22A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T22A/
+- pilot T22B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T22B/
+- pilot T23A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T23A/
+- pilot T23B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T23B/
+- pilot T24A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T24A/
+- pilot T24B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T24B/
+- pilot T4A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T4A/
+- pilot T4B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/pilot/r5/T4B/
+- bars on 8c015b806086 graphty@0.8.65: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-5/bars/bars.json

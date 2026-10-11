@@ -1,0 +1,34 @@
+{
+ "start": {
+  "runs": [
+   "pagerank PageRank (label Influence)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "bus-stops.csv"
+  ]
+ },
+ "end": {
+  "runs": [
+   "pagerank PageRank (label Influence)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence",
+   "minutes-10_1 minutes >= `10`"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "bus-stops.csv"
+  ]
+ },
+ "gone": {}
+}

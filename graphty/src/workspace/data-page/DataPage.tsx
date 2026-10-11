@@ -390,12 +390,16 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
                 </div>
                 <MatchReport page={page} />
                 {repeats > 0 ? (
-                    <Text size="sm" className="dp-repeats" data-testid="repeats">
-                        {repeatsWords(repeats, projectName)}
-                    </Text>
+                    <Group gap={6} wrap="nowrap" className="dp-repeats">
+                        <GLYPHS.warning size={14} color="var(--cm-text-danger)" aria-hidden />
+                        <Text size="sm" id="dp-repeats" data-testid="repeats">
+                            {repeatsWords(repeats, projectName)}
+                        </Text>
+                    </Group>
                 ) : null}
                 <Footer
                     page={page}
+                    repeats={repeats > 0}
                     replace={replace}
                     action={request.intent === "replace" ? "Replace" : "Load"}
                     onCancel={cancel}
@@ -1346,6 +1350,7 @@ function loadBlocked(page: LoadDraftState): string | null {
  * @param props.page - The page state
  * @param props.action - The load button's word: "Replace" on a replace, matching the title
  * @param props.replace - Replaces the graph's source with this file instead, or null
+ * @param props.repeats - Whether the repeated-ties line shows
  * @param props.onCancel - Returns to where the reader came from
  * @param props.onLoad - Loads
  * @returns The footer
@@ -1354,10 +1359,13 @@ function Footer({
     page,
     action,
     replace,
+    repeats,
     onCancel,
     onLoad,
 }: PartProps & {
     action: "Load" | "Replace";
+    /** Whether the repeated-ties line shows, so Load's description carries it beside any blocked reason. */
+    repeats: boolean;
     replace: { readonly label: string; readonly run: () => void } | null;
     onCancel: () => void;
     onLoad: () => void;
@@ -1423,7 +1431,11 @@ function Footer({
                     size="sm"
                     data-disabled={blocked === null ? undefined : true}
                     aria-disabled={blocked === null ? undefined : true}
-                    aria-describedby={blocked === null ? undefined : "dp-load-reason"}
+                    aria-describedby={
+                        [blocked === null ? null : "dp-load-reason", repeats ? "dp-repeats" : null]
+                            .filter((id) => id !== null)
+                            .join(" ") || undefined
+                    }
                     onClick={(event) => {
                         if (blocked !== null) {
                             event.preventDefault();

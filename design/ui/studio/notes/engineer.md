@@ -11,6 +11,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **The Add page's repeated-ties line now reads as a warning and describes Load:
+  built** (app only). The line carries the danger-colored warning glyph (as an unmatched table's
+  check does), its text has id `dp-repeats`, and Load's `aria-describedby` lists it beside
+  `dp-load-reason`. Words unchanged; Replace stays a default button. Fresh build, friends ranked,
+  Add friends-v2.csv: glyph shown, `--expect "described=41 edges in this file..."` passes; Add
+  trails.csv (no repeats): Load described as "" (`tmp/t2r3-r4-10/fresh/11.png`, `12.png`, `17.png`).
 - (2026-10-10) **A pressed "Filter to neighbors" already gives a screen reader its reason: nothing
   built.** On 26f3bb968, keyboard focus on it reads the description "The drawing already shows
   only this neighborhood. Its step in Filters turns it off" at once, and still after Enter
@@ -55,20 +61,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   element label placement), 12 at 2.** `tier2/rounds/round-3/expert/engineer.md`. New this round
   and mine to fix in the app: the disabled "Filter to neighbors" shows no reason to the person who
   just pressed it (tooltip opens on pointer entry only) and looks like an empty text field
-  (compact-mantine's disabled Button); the repeated-ties warning on "Add to" is plain text with Load
-  still primary; Escape does nothing on the Data pages. New for the element: sized nodes drawn
+  (compact-mantine's disabled Button); the repeated-ties warning (built 10-10, top bullet); Escape does nothing on the Data pages. New for the element: sized nodes drawn
   inside each other (layout spaces centers, not sizes) -- the cause under "Farah under Chloe".
-- (2026-10-10, condensed) **A study that leaks proves only failures.** Round 2's three new routes
-  (weight meaning at load, Replace in the source's "...", the find box's rule hint) count only
-  once a clean round re-measures them; do not reword or move them meanwhile.
 - (2026-10-10) **The dry run must walk what participants do, not last round's list.** 12 of about
   30 build faults sat on the one detour nobody walked (styling a selection). Round 3: two
   throwaway pilots per task on the candidate build, script their routes, walk them plus round 2's
   detours, keyboard-press every control on each screen, and FIX before freeze -- never hand a
   found fault to a later pass (the find box's second Escape slipped through that way).
-- (2026-10-10, condensed) **Round 3 changes are built and were measured in round 3** (typed
-  condition as a rule, repeated-ties warning, three focus faults, highlight-start styling, rule
-  layer names, words at rest; edge inspector words 31 of 30 still OPEN).
+- (2026-10-10, condensed) **Round 3 changes were measured in round 3; edge inspector words 31 of
+  30 still OPEN. Round 2's new routes (weight meaning at load, Replace in "...", rule hint) count
+  only once a clean round re-measures them; do not reword or move them meanwhile.**
 - (2026-10-10) **Not mine to fix in the app, ever:** drawn names covering names and ties (element
   label placement on an unseeded layout, owner's list); bare numbers in rules and what an edge
   width measures (both breaking, owner's list); never scale widths or parse rules in the app.
@@ -90,6 +92,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-10) **A warning that changes what Load does is part of Load's description, and the
+  warning glyph marks it.** One `aria-describedby` list built from the ids that show (blocked
+  reason, repeats), so a screen reader on Load hears why the button may surprise; the glyph is
+  `aria-hidden` (the sentence carries the meaning). Replace is not promoted: Load adding a second
+  copy is a legitimate choice, and the round measures the words and mark alone.
 - (2026-10-10) **"Or more" counts both kinds of a column, because the rule does.** The target is
   the rule text, not an id list, so it reads every node and edge with that column; counting only
   the row's kind would let `count` and `selection.count(target)` disagree when nodes and edges
@@ -148,20 +155,10 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   let a stale node request fire on a later node view. The edge view consumes it only once the
   edge record exists, so an early render with no record does not swallow it.
 
-- (2026-10-10) **A repeated announcement is keyed in the store, not by clearing the region.**
-  The counter sits in `store.set`, the one place every writer goes through, so no caller changes;
-  a cleared-then-refilled region needs a timer between the two writes or the screen reader sees
-  no change. All writers are event-driven (selection, load, run end, filter step, note), so a
-  repeat is always a new event worth speaking. The live region itself stays mounted (only its
-  child is replaced): a region inserted already filled is often not read.
-
-- (2026-10-10) **Scope words follow the drawn count, read from the element.** `rowName` compares
-  `stale.ranOn` with `visibility.summary.visibleNodes` (equal: plain) and `totalNodes` (equal:
-  ", full graph"), else "on N nodes". The decision assumed the rest and edge screens would go
-  plain; they do not: team.csv adds 12 nodes, so PageRank ran on 20 of 32, and a filter is on.
-  The two extra cuts that cover it are redundancy only: a merged highlight's title repeated its
-  one row, and the Overview sentence restated what "showing" already set apart. Not cut: "Color:",
-  "Summary", "Edge", "4 hops" (each decided or consistent across inspectors).
+- (2026-10-10, condensed) **Announcements, scope words.** A repeated announcement is keyed by a
+  counter in `store.set` (no clear-then-refill timer; the live region stays mounted). Scope words
+  follow the element's drawn count (`stale.ranOn` against `visibility.summary` visible and total
+  nodes): plain, ", full graph", else "on N nodes".
 - (2026-10-10) A rule selection's row takes the rule's text without its "=", trimmed, not a
   sentence ("Edges where ..."): the rule is the reader's own words and the key already titles the
   section "Edge color: <row>". Only text origins starting with "=" count; a plain text search or a
@@ -172,18 +169,10 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   is a substring of name, line, aliases, key; a word in the line would also be shown. The test
   asserts Shortest path is among the results for each word, not alone: "between" rightly also
   finds Betweenness, and "linked" the community runs.
-- (2026-10-10) **Keep `selection.count`; the earlier "drop it" was wrong.** `scope.count({ where })`
-  reads a rule as a node scope, so "minutes >= `10`" (an edge column) counted 0 and the box said
-  "No match" with an example instead of offering the rule; a real-element test with real typing
-  caught it, the unit test did not (its bare-number text took the refusal path, which never counts).
-  Asking "what would Enter select" belongs to the element, so FindBox calls `selection.count`.
-- (2026-10-10) **Leaving the step editor saves; a click away no longer only keeps a draft.** A
-  whole, changed rule is written when focus leaves the form (`onBlur` with a target outside it) or
-  the editor unmounts (a click elsewhere moves the inspector on); one `keep` ref stops a double
-  write and the Esc path. After a Tab-out the editor moves on to the saved step only if the
-  inspector still shows it, so a click that opened something else is never overridden by the
-  async write. An incomplete rule still waits as the "+" draft (the a97eb3b67 behavior, kept for
-  that case only).
+- (2026-10-10, condensed) **Keep `selection.count`** (a rule over an edge column counted 0 as a
+  node scope; "what would Enter select" is the element's question). **Leaving the step editor
+  saves** a whole, changed rule on blur or unmount (one `keep` ref against double writes); an
+  incomplete rule waits as the "+" draft.
 - (2026-10-10, condensed) **Hops/Follow focus:** `NeighborList` remounts on reselect, so the
   control's `onChange` sets `refocusControl` and the effect focuses that group's checked radio
   (`CSS.escape` the ids). **Bar 10** skips VisuallyHidden lines and counts a title cut while its id
@@ -251,6 +240,12 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
 
 ## Tried: worked / did not work
 
+- (2026-10-10) **Reaching "Add to <graph>" in real.mjs.** Did not work: `--drop` on the Graph
+  canvas (nothing takes it), `--click "Add data"` in the Data place (the Sources "+" is not
+  rendered for a loaded project). Worked: `--key Control+k`, `--type "Add data"`, `--key Enter`,
+  then `--click "choose a file..." --upload <file>`. Load takes focus on a clean file, so
+  `--expect "described=..."` reads Load directly. Test of a description: resolve
+  `aria-describedby` ids to text in the real-element test (no extra dependency).
 - (2026-10-10) **Tried: checking an accessible description with `--expect` or `--sr`. Did not
   work:** neither read descriptions (`--sr`'s focus line is role, name, value, states). Worked:
   `--expect "described=<text>"` in real.mjs (CDP's AX node `description` of the focused control).
@@ -264,14 +259,9 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   `select()` skipped a click on a node when its OWN index held one node, so click C, Shift A,
   click C left {A, C}. Fixed by counting `selection.size` from the session. The interaction test
   covers both (each half fails alone without its fix, checked by reverting).
-- (2026-10-10) **Round 3 audit method.** Worked: every walk as one data line (`engineer/walks.txt`:
-  name|start|step|step...) read by an inline loop in one background Bash command, each walk its own
-  session folder calling real.mjs directly; all 34 walks queued at once and waited on the shared
-  slots (other agents held all four for about 20 minutes). Did not work: `--click "weight#1"` with
-  the list open (refused as ambiguous: use `role=option:weight`), `--click "Graph"` (rail button and
-  heading share it), plain `--rclick` on a source row (row and heading share the name: `#1`). Sources
-  has no Add control; Control+O with the loaded file reaches "Add to <graph>". A hover right after
-  the click that disabled a button reads `tooltip: null`; hover elsewhere, then back.
+- (2026-10-10, condensed) **Audit walks:** one data line per walk (`engineer/walks.txt`), each its
+  own session calling real.mjs directly, all queued at once on the shared slots. Name collisions:
+  `role=option:weight`, `"Source#1"`; "Graph" is both rail button and heading.
 - (2026-10-10, condensed) **Real.mjs and probe lessons.** A missed notice did not reproduce by
   route (11 walks); probing worked: copy the frozen build, `chmod -R u+w`, add `console.error`
   probes in the bundle (real.mjs prints them with page times). Read the pilot agent's own commands
@@ -289,27 +279,21 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   variable path); pick a fresh session folder. With all four browser slots held by others,
   `--start` waits ("waiting for a free browser slot"); it is not hung.
 
-- (2026-10-10) **Shared-worktree builds:** another agent's rebuild or a stray untracked test
-  breaks `tsc`, vitest imports and `bars.mjs` mid-run; copy the dist (`npx vite build --outDir
-tmp/<task>/dist`, `bars.mjs --dist`) and rerun after their `nx run graphty:build` exits.
-  Measure word arithmetic on screen, never trust the decision's.
+- (2026-10-10) **Shared-worktree builds:** another agent's rebuild breaks tsc, vitest imports and
+  `bars.mjs` mid-run; copy the dist or rerun after their build exits. Measure word arithmetic on
+  screen.
 - (2026-10-10) Worked: scripting a finding on the frozen build before reading the suspect: the
   task blamed the app's draft, the script (Find path twice, Control+z) showed no draft was ever
   written. A failing element test first (`test/session/history/runs.test.ts`, 'n2' for 'n1').
-- (2026-10-10) Worked: proving the rule-name test fails by disabling the branch (`&& false`)
-  gave "expected [ '2 edges' ] to deeply equal [ 'minutes >= `10`' ]". Did not work at first: a
-  rule typed with backticks gets no option row under the box (only "Rule: press Enter to select
-  matches"), so the test waits for that line, not an option.
-- (2026-10-10) Worked: a real-element test with real typing for every path a unit adds. The
-  backtick-typed condition failed only there (edge column counted as a node scope). Did not work:
-  running vitest while another agent rebuilt the shared dists (graph-io chunks missing, "Failed to
-  import test file"); wait until its `nx run graphty:build` exits, then rerun.
+- (2026-10-10, condensed) Prove a test fails without the change (`&& false`, or `git show
+  HEAD:<file>` over the source, run, copy the new file back). A backtick-typed rule shows only
+  "Rule: press Enter to select matches", no option row.
+- (2026-10-10) Worked: a real-element test with real typing for every path a unit adds (the
+  backtick-typed condition failed only there).
 - (2026-10-10) Resuming after an interrupted session: check `git log`, the round folder and
   `tmp/<session>/` before redoing a task (focus-after-actions was already on the branch, 7f61a2ab2).
-- (2026-10-10) Did not work: a Python `str.replace` to add an assertion after a line two tests
-  shared put it in both (the unweighted test then failed on "minutes 14"); anchor test edits on a
-  line unique to the test. Worked: proving the row test fails without the fix by writing
-  `git show HEAD:<file>` over the source, running, and copying the new file back.
+- (2026-10-10) Anchor scripted test edits on a line unique to the test (a shared line got the
+  assertion in two tests).
 - (2026-10-09, summarized 2026-10-10) **Probes before code.** Subagent logs:
   `~/.claude/projects/<proj>/<session>/subagents/workflows/wf_*/agent-*.jsonl`. Axe probe as a
   throwaway compact-mantine test before CSS. Pixel checks from public API only

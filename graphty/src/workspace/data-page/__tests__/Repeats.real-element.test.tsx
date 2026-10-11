@@ -1,7 +1,7 @@
 /**
  * Adding a newer copy of a loaded file on the REAL graphty-element: the Add page says how many of
  * the file's edges the graph already holds (the element's `repeated.seen`) and offers to replace
- * the graph's source with the file, beside Load. A file with no repeated edge shows neither.
+ * the graph's source with the file, beside Load, and Load's description carries that warning. A file with no repeated edge shows neither.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -19,6 +19,19 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { openDataPage } from "../request";
 import { repeatsWords } from "../words";
+
+/**
+ * The Load button's accessible description, read from its aria-describedby ids.
+ * @returns The description, "" when it has none
+ */
+function loadDescription(): string {
+    const ids = screen.getByRole("button", { name: "Load" }).getAttribute("aria-describedby") ?? "";
+    return ids
+        .split(" ")
+        .filter((id) => id !== "")
+        .map((id) => document.getElementById(id)?.textContent ?? "")
+        .join(" ");
+}
 
 /** A hang guard for the element coming up and loading, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
@@ -59,6 +72,8 @@ describe("Add a file whose edges the graph already holds", () => {
         await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
         assert.isNull(screen.queryByTestId("repeats"));
         assert.isNull(screen.queryByRole("button", { name: "Replace friends.csv" }));
+        // Only the blocked reason, if any, describes Load.
+        assert.equal(loadDescription(), document.getElementById("dp-load-reason")?.textContent ?? "");
         await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
         act(() => {
@@ -66,6 +81,7 @@ describe("Add a file whose edges the graph already holds", () => {
         });
         const line = await screen.findByTestId("repeats", {}, { timeout: TIMEOUT_MS });
         assert.equal(line.textContent, repeatsWords(41, "friends"));
+        assert.include(loadDescription(), repeatsWords(41, "friends"), "Load's description carries the warning");
         await userEvent.click(screen.getByRole("button", { name: "Replace friends.csv" }));
 
         await screen.findByRole("heading", { name: "Replace: friends-v2.csv" });

@@ -108,7 +108,7 @@ export function createHints(scene: Scene): Hints {
             const tags = hintStrings(kept.length, alphabet);
             latched = { mode, nodes: kept, tags };
             tags.forEach((t, k) => {
-                sprites[k].cellIndex = (t.charCodeAt(0) - 97) * 26 + (t.charCodeAt(1) - 97);
+                sprites[k].cellIndex = ((t.codePointAt(0) ?? 97) - 97) * 26 + ((t.codePointAt(1) ?? 97) - 97);
                 sprites[k].isVisible = true;
             });
             tint();

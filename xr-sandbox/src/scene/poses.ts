@@ -2,7 +2,7 @@
 // technique depends on -- fist (the hands' squeeze), palm up, palm toward the face, pinch -- with
 // begin and end thresholds and a 150 ms minimum hold, whether or not the gestures technique is on.
 
-import { Vector3, WebXRHandJoint, type WebXRHandTracking } from "@babylonjs/core";
+import { Vector3, type WebXRHand, WebXRHandJoint, type WebXRHandTracking } from "@babylonjs/core";
 
 import type { Hand } from "../core/arbiter";
 
@@ -88,52 +88,65 @@ export function createPoseLayer(tracking: () => WebXRHandTracking | null): PoseL
         }
     };
 
+    type OnChange = (h: Hand, p: PoseName, on: boolean) => void;
+
+    // A hand that lost tracking: every pose it held ends.
+    const lose = (hand: Hand, now: number, onChange: OnChange): void => {
+        const p = hands[hand];
+        if (p.tracked) {
+            for (const pose of ["fist", "palmUp", "palmFace", "pinch"] as const) {
+                step(hand, pose, false, true, now, onChange);
+            }
+        }
+        p.tracked = false;
+        p.pinchDistance = Infinity;
+    };
+
+    // A tracked hand: measure its joints and step each pose.
+    const measure = (hand: Hand, h: WebXRHand, head: Vector3, now: number, onChange: OnChange): void => {
+        const p = hands[hand];
+        p.tracked = true;
+        const j = (joint: WebXRHandJoint, out: Vector3): Vector3 =>
+            out.copyFrom(h.getJointMesh(joint).getAbsolutePosition());
+        j(WebXRHandJoint.WRIST, w);
+        // Fist: the four fingertips curled back near their metacarpals.
+        let curl = 0;
+        for (const [tip, base] of FINGERS) {
+            j(tip, a);
+            j(base, b);
+            curl += Vector3.Distance(a, b) / 4;
+        }
+        j(WebXRHandJoint.INDEX_FINGER_TIP, a);
+        j(WebXRHandJoint.THUMB_TIP, b);
+        p.pinchDistance = Vector3.Distance(a, b);
+        // Palm normal from the wrist and two metacarpals; mirrored for the left hand.
+        j(WebXRHandJoint.INDEX_FINGER_METACARPAL, a);
+        j(WebXRHandJoint.PINKY_FINGER_METACARPAL, b);
+        a.subtractInPlace(w);
+        b.subtractInPlace(w);
+        Vector3.CrossToRef(hand === "right" ? b : a, hand === "right" ? a : b, n);
+        n.normalize();
+        const up = n.y;
+        head.subtractToRef(w, tmp).normalize();
+        const face = Vector3.Dot(n, tmp);
+
+        step(hand, "pinch", p.pinchDistance < PINCH_M[0], p.pinchDistance > PINCH_M[1], now, onChange);
+        step(hand, "fist", curl < FIST_M[0] && !p.pinch, curl > FIST_M[1], now, onChange);
+        step(hand, "palmUp", up > PALM_DOT[0], up < PALM_DOT[1], now, onChange);
+        step(hand, "palmFace", face > PALM_DOT[0], face < PALM_DOT[1], now, onChange);
+    };
+
     return {
         hands,
         update(now, head, onChange) {
             const t = tracking();
             for (const hand of ["left", "right"] as const) {
                 const h = t?.getHandByHandedness(hand);
-                const p = hands[hand];
-                if (!h) {
-                    if (p.tracked) {
-                        for (const pose of ["fist", "palmUp", "palmFace", "pinch"] as const) {
-                            step(hand, pose, false, true, now, onChange);
-                        }
-                    }
-                    p.tracked = false;
-                    p.pinchDistance = Infinity;
-                    continue;
+                if (h) {
+                    measure(hand, h, head, now, onChange);
+                } else {
+                    lose(hand, now, onChange);
                 }
-                p.tracked = true;
-                const j = (joint: WebXRHandJoint, out: Vector3): Vector3 =>
-                    out.copyFrom(h.getJointMesh(joint).getAbsolutePosition());
-                j(WebXRHandJoint.WRIST, w);
-                // Fist: the four fingertips curled back near their metacarpals.
-                let curl = 0;
-                for (const [tip, base] of FINGERS) {
-                    j(tip, a);
-                    j(base, b);
-                    curl += Vector3.Distance(a, b) / 4;
-                }
-                j(WebXRHandJoint.INDEX_FINGER_TIP, a);
-                j(WebXRHandJoint.THUMB_TIP, b);
-                p.pinchDistance = Vector3.Distance(a, b);
-                // Palm normal from the wrist and two metacarpals; mirrored for the left hand.
-                j(WebXRHandJoint.INDEX_FINGER_METACARPAL, a);
-                j(WebXRHandJoint.PINKY_FINGER_METACARPAL, b);
-                a.subtractInPlace(w);
-                b.subtractInPlace(w);
-                Vector3.CrossToRef(hand === "right" ? b : a, hand === "right" ? a : b, n);
-                n.normalize();
-                const up = n.y;
-                head.subtractToRef(w, tmp).normalize();
-                const face = Vector3.Dot(n, tmp);
-
-                step(hand, "pinch", p.pinchDistance < PINCH_M[0], p.pinchDistance > PINCH_M[1], now, onChange);
-                step(hand, "fist", curl < FIST_M[0] && !p.pinch, curl > FIST_M[1], now, onChange);
-                step(hand, "palmUp", up > PALM_DOT[0], up < PALM_DOT[1], now, onChange);
-                step(hand, "palmFace", face > PALM_DOT[0], face < PALM_DOT[1], now, onChange);
             }
         },
     };

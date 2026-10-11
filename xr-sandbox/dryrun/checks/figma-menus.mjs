@@ -37,32 +37,32 @@ const browser = await chromium.launch({
 
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
-    const start = await page.evaluate(() => window.__sandbox.xrFrames());
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n]);
+    const start = await page.evaluate(() => globalThis.__sandbox.xrFrames());
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n]);
 };
 const sb = (page, fn, arg) => page.evaluate(fn, arg);
 const now = (page) => sb(page, () => Date.now());
 const logSince = async (page, t0, prefix) =>
-    (await sb(page, () => window.__sandbox.log(400))).filter((e) => e.time >= t0 && e.message.startsWith(prefix));
+    (await sb(page, () => globalThis.__sandbox.log(400))).filter((e) => e.time >= t0 && e.message.startsWith(prefix));
 
 /**
  * Aim the right hand at a node, "space", or a mesh by name; press and release. The press is held
  * one frame: a headless frame takes 50 to 100 ms, so a longer one reads as the node menu's hold.
  */
 const pressAt = async (page, target, kind) => {
-    await sb(page, (t) => window.__sandbox.aim("right", t), target);
+    await sb(page, (t) => globalThis.__sandbox.aim("right", t), target);
     await frames(page, 15);
-    const hover = await sb(page, () => window.__sandbox.hover("right"));
-    await sb(page, (k) => window.__sandbox.press("right", k, true), kind);
+    const hover = await sb(page, () => globalThis.__sandbox.hover("right"));
+    await sb(page, (k) => globalThis.__sandbox.press("right", k, true), kind);
     await frames(page, 1);
-    await sb(page, (k) => window.__sandbox.press("right", k, false), kind);
+    await sb(page, (k) => globalThis.__sandbox.press("right", k, false), kind);
     await frames(page, 10);
     return { context: hover.context, uiMesh: hover.uiMesh };
 };
 
 /** Press one of the module's GUI controls by name. */
 const pressControl = async (page, control, kind) => {
-    const m = await sb(page, (c) => window.__figmaMenus.mark(c), control);
+    const m = await sb(page, (c) => globalThis.__figmaMenus.mark(c), control);
     if (!m) {
         return { missing: control };
     }
@@ -86,15 +86,15 @@ const open = async (profile, query) => {
     const url = new URL(args.url);
     url.search = new URLSearchParams({ ...query, emulate: profile, still: "1" }).toString();
     await page.goto(url.toString());
-    await until(page, () => window.__sandbox?.ready === true && !!window.__figmaMenus);
+    await until(page, () => globalThis.__sandbox?.ready === true && !!globalThis.__figmaMenus);
     await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-    await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10);
+    await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10);
     await frames(page, 30);
     return { page, context, r };
 };
 
 const isOn = async (page) =>
-    (await sb(page, () => window.__sandbox.techniques())).find((t) => t.id === "figma-menus")?.on;
+    (await sb(page, () => globalThis.__sandbox.techniques())).find((t) => t.id === "figma-menus")?.on;
 
 const runOn = async (profile) => {
     const hands = profile.endsWith("hands");
@@ -106,7 +106,7 @@ const runOn = async (profile) => {
         check("moduleOn", await isOn(page), {});
 
         // 1. Toolbar below, layer list left, inspector right; no overlap with each other or a framework zone.
-        const b = await sb(page, () => window.__figmaMenus.bounds());
+        const b = await sb(page, () => globalThis.__figmaMenus.bounds());
         const mine = Object.entries(b.mine).map(([k, list]) => ({
             k,
             ...union(list),
@@ -121,7 +121,7 @@ const runOn = async (profile) => {
             }
         }
         const c = Object.fromEntries(mine.map((m) => [m.k, m.min.map((v, k) => (v + m.max[k]) / 2)]));
-        const bar = await sb(page, () => window.__figmaMenus.inspectorBar());
+        const bar = await sb(page, () => globalThis.__figmaMenus.inspectorBar());
         // Left and right along the panels' own right axis; below in world y.
         const along = (p) => p[0] * bar.right[0] + p[2] * bar.right[2];
         const arranged =
@@ -133,7 +133,7 @@ const runOn = async (profile) => {
             clashes,
             frameworkMeshes: b.framework.map((f) => f.name),
         });
-        const tex = await sb(page, () => window.__figmaMenus.textureSizes());
+        const tex = await sb(page, () => globalThis.__figmaMenus.textureSizes());
         check(
             "textures768",
             tex.every((t) => t.width <= 768 && t.height <= 768),
@@ -144,7 +144,7 @@ const runOn = async (profile) => {
         let t0 = await now(page);
         const hitShow = await pressControl(page, "figma-tb-pagerank", press);
         const runs = (await logSince(page, t0, "command")).filter((e) => e.data.technique === "figma-menus");
-        const rows = await sb(page, () => window.__figmaMenus.rows());
+        const rows = await sb(page, () => globalThis.__figmaMenus.rows());
         check(
             "showPageRank",
             runs.some((e) => e.data.code === "run" && e.data.params.result === "pagerank") &&
@@ -160,23 +160,23 @@ const runOn = async (profile) => {
             {
                 hover: hitRemove,
                 commands: removed.map((e) => `${e.data.label} (history ${e.data.history})`),
-                rows: await sb(page, () => window.__figmaMenus.rows()),
+                rows: await sb(page, () => globalThis.__figmaMenus.rows()),
             },
         );
 
         // 3. A tap on the Medici: inspector facts and a popover of three to five verbs; clearing removes it.
         const tTap = await now(page);
         const tap = await pressAt(page, "Medici", press);
-        const insp = await sb(page, () => window.__figmaMenus.inspector());
-        const pop = await sb(page, () => window.__figmaMenus.popover());
-        const sel = (await sb(page, () => window.__sandbox.state())).selection;
+        const insp = await sb(page, () => globalThis.__figmaMenus.inspector());
+        const pop = await sb(page, () => globalThis.__figmaMenus.popover());
+        const sel = (await sb(page, () => globalThis.__sandbox.state())).selection;
         // Idle with the popover up: nothing redraws or moves while the head and hands are still.
-        const idle = await sb(page, () => window.__sandbox.jitter(60));
+        const idle = await sb(page, () => globalThis.__sandbox.jitter(60));
         // Cleared with the layer list's selection row: a press on empty space can read as the
         // node menu's hold when a headless frame runs long.
         const hitClear = await pressControl(page, "figma-layer-x-selection", press);
-        const popAfter = await sb(page, () => window.__figmaMenus.popover());
-        const selAfter = (await sb(page, () => window.__sandbox.state())).selection;
+        const popAfter = await sb(page, () => globalThis.__figmaMenus.popover());
+        const selAfter = (await sb(page, () => globalThis.__sandbox.state())).selection;
         const arbiter = (await logSince(page, tTap, "")).filter(
             (e) => e.message.startsWith("arbiter") || e.message === "command" || e.message === "cancel",
         );
@@ -209,7 +209,7 @@ const runOn = async (profile) => {
         );
 
         // 4. Sieve: hands the sieve over through the tools seam, or is grayed with the reason.
-        const reason = await sb(page, () => window.__figmaMenus.toolReason("sieve"));
+        const reason = await sb(page, () => globalThis.__figmaMenus.toolReason("sieve"));
         t0 = await now(page);
         const hitSieve = await pressControl(page, "figma-tb-sieve", press);
         const click = (await logSince(page, t0, "figma-menus.click")).find((e) => e.data.item === "sieve");
@@ -220,25 +220,25 @@ const runOn = async (profile) => {
         });
 
         // 5. Dragging the inspector's bar 20 cm moves it 20 cm.
-        const cam = (await sb(page, () => window.__sandbox.debug())).camera;
+        const cam = (await sb(page, () => globalThis.__sandbox.debug())).camera;
         const start = [cam[0] + 0.15, cam[1] - 0.3, cam[2] + 0.2];
-        await sb(page, (p) => window.__sandbox.place("right", p[0], p[1], p[2]), start);
+        await sb(page, (p) => globalThis.__sandbox.place("right", p[0], p[1], p[2]), start);
         await frames(page, 5);
-        const from = await sb(page, () => window.__figmaMenus.inspectorBar());
-        await sb(page, (n) => window.__sandbox.aim("right", n), from.name);
+        const from = await sb(page, () => globalThis.__figmaMenus.inspectorBar());
+        await sb(page, (n) => globalThis.__sandbox.aim("right", n), from.name);
         await frames(page, 15);
-        const hoverBar = await sb(page, () => window.__sandbox.hover("right"));
-        await sb(page, (k) => window.__sandbox.press("right", k, true), press);
+        const hoverBar = await sb(page, () => globalThis.__sandbox.hover("right"));
+        await sb(page, (k) => globalThis.__sandbox.press("right", k, true), press);
         await frames(page, 6);
         for (let i = 1; i <= 20; i++) {
             const p = start.map((v, k) => v + from.right[k] * 0.01 * i);
-            await sb(page, (q) => window.__sandbox.place("right", q[0], q[1], q[2]), p);
+            await sb(page, (q) => globalThis.__sandbox.place("right", q[0], q[1], q[2]), p);
             await frames(page, 2);
         }
         await frames(page, 10);
-        await sb(page, (k) => window.__sandbox.press("right", k, false), press);
+        await sb(page, (k) => globalThis.__sandbox.press("right", k, false), press);
         await frames(page, 30);
-        const to = await sb(page, () => window.__figmaMenus.inspectorBar());
+        const to = await sb(page, () => globalThis.__figmaMenus.inspectorBar());
         const d = to.position.map((v, k) => v - from.position[k]);
         const movedCm = Math.hypot(...d) * 100;
         const alongCm = (d[0] * from.right[0] + d[1] * from.right[1] + d[2] * from.right[2]) * 100;
@@ -258,22 +258,22 @@ const runOn = async (profile) => {
     const off = await open(profile, { preset: args.preset, off: "figma-menus" });
     try {
         const visible = async () =>
-            Object.values((await sb(off.page, () => window.__figmaMenus.bounds())).mine)
+            Object.values((await sb(off.page, () => globalThis.__figmaMenus.bounds())).mine)
                 .flat()
                 .filter((m) => m.enabled).length;
         const wasOn = await isOn(off.page);
         const shownOff = await visible();
-        await sb(off.page, () => window.__sandbox.setOn("figma-menus", true));
+        await sb(off.page, () => globalThis.__sandbox.setOn("figma-menus", true));
         await frames(off.page, 10);
-        const fOn = await sb(off.page, () => window.__sandbox.frames(10));
+        const fOn = await sb(off.page, () => globalThis.__sandbox.frames(10));
         const shownOn = await visible();
         await pressAt(off.page, "Medici", press);
-        const popOn = (await sb(off.page, () => window.__figmaMenus.popover())).visible;
-        await sb(off.page, () => window.__sandbox.setOn("figma-menus", false));
+        const popOn = (await sb(off.page, () => globalThis.__figmaMenus.popover())).visible;
+        await sb(off.page, () => globalThis.__sandbox.setOn("figma-menus", false));
         await frames(off.page, 10);
-        const fOff = await sb(off.page, () => window.__sandbox.frames(10));
+        const fOff = await sb(off.page, () => globalThis.__sandbox.frames(10));
         const shownAfter = await visible();
-        const popAfter = (await sb(off.page, () => window.__figmaMenus.popover())).visible;
+        const popAfter = (await sb(off.page, () => globalThis.__figmaMenus.popover())).visible;
         check(
             "offAndToggle",
             !wasOn &&
@@ -309,7 +309,8 @@ for (const profile of args.profiles.split(",")) {
     const failed = Object.entries(res.checks)
         .filter(([, x]) => !x.pass)
         .map(([n]) => n);
-    console.log(`${res.pass ? "PASS" : "FAIL"} ${profile}${failed.length ? `  failed: ${failed.join(", ")}` : ""}`);
+    const failedNote = failed.length ? `  failed: ${failed.join(", ")}` : "";
+    console.log(`${res.pass ? "PASS" : "FAIL"} ${profile}${failedNote}`);
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((x) => x.pass), results };

@@ -360,8 +360,14 @@ export function createCommands(state: GraphState, deps: CommandDeps): Commands {
                 commands.undo(source);
             }
         },
-        undoLabel: () => (history.length ? `Undo: ${history[history.length - 1].label}` : null),
-        redoLabel: () => (future.length ? `Redo: ${future[future.length - 1].label}` : null),
+        undoLabel: () => {
+            const last = history.at(-1);
+            return last ? `Undo: ${last.label}` : null;
+        },
+        redoLabel: () => {
+            const next = future.at(-1);
+            return next ? `Redo: ${next.label}` : null;
+        },
     };
     return commands;
 }

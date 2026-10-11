@@ -90,7 +90,7 @@ const MAX_SPAN = 3;
 export function tokenize(text: string): string[] {
     return text
         .toLowerCase()
-        .replace(/[^a-z0-9.\s]/g, " ")
+        .replaceAll(/[^a-z0-9.\s]/g, " ")
         .split(/\s+/)
         .filter((w) => w && w !== ".");
 }
@@ -285,13 +285,7 @@ function emptySlots(verb: string, lex: Lexicon, at: number): SentenceChip[] {
 export function parse(text: string, lex: Lexicon): SentenceChip[] {
     const tokens = tokenize(text);
     const out: SentenceChip[] = [];
-    let i = 0;
-    const skipFiller = (): void => {
-        while (i < tokens.length && FILLER.has(tokens[i])) {
-            i++;
-        }
-    };
-    skipFiller();
+    let i = skipFiller(tokens, 0);
     if (i >= tokens.length) {
         return [missing("verb", 0)];
     }
@@ -301,8 +295,7 @@ export function parse(text: string, lex: Lexicon): SentenceChip[] {
         verb = fill(tokens, i, { kind: "verb" }, lex);
         if (!verb) {
             out.push(unparsed("verb", tokens[i], i));
-            i++;
-            skipFiller();
+            i = skipFiller(tokens, i + 1);
         }
     }
     if (!verb?.value) {
@@ -312,36 +305,61 @@ export function parse(text: string, lex: Lexicon): SentenceChip[] {
     i = verb.to;
     const { slots } = VERBS[verb.value];
     for (let s = 0; s < slots.length; s++) {
-        const slot = slots[s];
-        skipFiller();
-        const got = i < tokens.length ? fill(tokens, i, slot, lex) : null;
-        if (got) {
-            out.push(got);
-            i = got.to;
-            continue;
-        }
-        if (slot.kind === "word") {
-            // A word nobody said ("color these pagerank") is shown anyway.
-            out.push(chipFor("word", slot.word ?? "", lex, i, i, slot.word));
-            continue;
-        }
-        // Not said here if the word fits the next slot; else it is a misheard word for this slot.
-        const next = slots[s + 1];
-        const fitsNext = next && i < tokens.length && fill(tokens, i, next, lex);
-        if (i >= tokens.length || fitsNext) {
-            out.push(slot.fallback ? chipFor(slot.kind, slot.fallback, lex, i, i) : missing(slot.kind, i));
-            continue;
-        }
-        out.push(unparsed(slot.kind, tokens[i], i));
-        i++;
+        i = readSlot(tokens, lex, slots, s, skipFiller(tokens, i), out);
     }
-    skipFiller();
+    i = skipFiller(tokens, i);
     while (i < tokens.length) {
         out.push(unparsed("extra", tokens[i], i));
-        i++;
-        skipFiller();
+        i = skipFiller(tokens, i + 1);
     }
     return out;
+}
+
+/**
+ * Skip filler words.
+ * @param tokens - the transcript's words
+ * @param i - where to start
+ * @returns the index of the first word at or after `i` that is not filler
+ */
+function skipFiller(tokens: readonly string[], i: number): number {
+    let k = i;
+    while (k < tokens.length && FILLER.has(tokens[k])) {
+        k++;
+    }
+    return k;
+}
+
+/**
+ * Fill one of the verb's slots from the words at `i`, pushing its chip.
+ * @param tokens - the transcript's words
+ * @param lex - the graph's words
+ * @param slots - the verb's slots
+ * @param s - which slot
+ * @param i - the next word
+ * @param out - the chips so far
+ * @returns the next word after the slot
+ */
+function readSlot(tokens: string[], lex: Lexicon, slots: Slot[], s: number, i: number, out: SentenceChip[]): number {
+    const slot = slots[s];
+    const got = i < tokens.length ? fill(tokens, i, slot, lex) : null;
+    if (got) {
+        out.push(got);
+        return got.to;
+    }
+    if (slot.kind === "word") {
+        // A word nobody said ("color these pagerank") is shown anyway.
+        out.push(chipFor("word", slot.word ?? "", lex, i, i, slot.word));
+        return i;
+    }
+    // Not said here if the word fits the next slot; else it is a misheard word for this slot.
+    const next = slots[s + 1];
+    const fitsNext = next && i < tokens.length && fill(tokens, i, next, lex);
+    if (i >= tokens.length || fitsNext) {
+        out.push(slot.fallback ? chipFor(slot.kind, slot.fallback, lex, i, i) : missing(slot.kind, i));
+        return i;
+    }
+    out.push(unparsed(slot.kind, tokens[i], i));
+    return i + 1;
 }
 
 /**

@@ -67,7 +67,7 @@ const installHooks = (): void => {
             };
         },
     };
-    (window as unknown as { __physicalTools: typeof api }).__physicalTools = api;
+    (globalThis as unknown as { __physicalTools: typeof api }).__physicalTools = api;
 };
 
 let card: ReturnType<typeof createCard>;

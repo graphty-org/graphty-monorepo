@@ -168,67 +168,80 @@ export function createGraphView(
         const v = data.results[result];
         const o = data.order[result];
         const max = v[o[0]];
-        const min = v[o[o.length - 1]];
+        const min = v[o.at(-1) ?? 0];
         return max > min ? (v[i] - min) / (max - min) : 0.5;
+    };
+
+    // Node i's color before selection, hover and dimming, into tmpC.
+    const baseColor = (i: number): void => {
+        if (!state.colorBy) {
+            tmpC.copyFrom(BASE);
+        } else if (data.categorical[state.colorBy]) {
+            tmpC.copyFrom(CATEGORIES[data.results[state.colorBy][i] % CATEGORIES.length]);
+        } else {
+            Color3.LerpToRef(LOW, HIGH, valueT(state.colorBy, i), tmpC);
+        }
+    };
+
+    // Write node i's matrix and color, and show or hide its label.
+    const writeNode = (i: number, pv: ReturnType<typeof preview>): void => {
+        const visible = isVisible(state, i);
+        let scale = visible ? radius : 0;
+        baseColor(i);
+        if (state.sizeBy && !data.categorical[state.sizeBy]) {
+            scale *= 0.6 + 1.4 * valueT(state.sizeBy, i);
+        }
+        if (state.selection.has(i)) {
+            Color3.LerpToRef(tmpC, WHITE, 0.45, tmpC);
+            scale *= 1.35;
+        }
+        if (hover.left === i || hover.right === i) {
+            Color3.LerpToRef(tmpC, WHITE, 0.25, tmpC);
+            scale *= 1.2;
+        }
+        if ((pv && !pv.keep.has(i)) || (dimKeep && !dimKeep.has(i))) {
+            Color3.LerpToRef(tmpC, bg, 0.75, tmpC);
+            scale *= 0.6;
+        }
+        tmpS.setAll(scale);
+        tmpP.set(data.positions[i * 3], data.positions[i * 3 + 1], data.positions[i * 3 + 2]);
+        Matrix.ComposeToRef(tmpS, identity, tmpP, tmpM);
+        tmpM.copyToArray(nodeMatrices, i * 16);
+        nodeColors[i * 4] = tmpC.r;
+        nodeColors[i * 4 + 1] = tmpC.g;
+        nodeColors[i * 4 + 2] = tmpC.b;
+        nodeColors[i * 4 + 3] = 1;
+        labels[i]?.setEnabled(labelsOn && visible);
+    };
+
+    // Write edge k's matrix: a cylinder from its source to its target, hidden when either end is.
+    const writeEdge = (k: number): void => {
+        const a = data.src[k];
+        const b = data.dst[k];
+        tmpA.set(data.positions[a * 3], data.positions[a * 3 + 1], data.positions[a * 3 + 2]);
+        tmpB.set(data.positions[b * 3], data.positions[b * 3 + 1], data.positions[b * 3 + 2]);
+        tmpB.subtractToRef(tmpA, tmpP);
+        const len = tmpP.length();
+        const shown = len > 1e-6 && isVisible(state, a) && isVisible(state, b);
+        tmpS.set(shown ? edgeRadius : 0, shown ? len : 0, shown ? edgeRadius : 0);
+        if (len > 1e-6) {
+            tmpP.scaleInPlace(1 / len);
+            Quaternion.FromUnitVectorsToRef(up, tmpP, tmpQ);
+        } else {
+            tmpQ.copyFrom(identity);
+        }
+        tmpA.addInPlace(tmpB).scaleInPlace(0.5);
+        Matrix.ComposeToRef(tmpS, tmpQ, tmpA, tmpM);
+        tmpM.copyToArray(edgeMatrices, k * 16);
     };
 
     const rebuild = (): void => {
         const pv = preview();
         for (let i = 0; i < n; i++) {
-            const visible = isVisible(state, i);
-            let scale = visible ? radius : 0;
-            if (state.colorBy) {
-                if (data.categorical[state.colorBy]) {
-                    tmpC.copyFrom(CATEGORIES[data.results[state.colorBy][i] % CATEGORIES.length]);
-                } else {
-                    Color3.LerpToRef(LOW, HIGH, valueT(state.colorBy, i), tmpC);
-                }
-            } else {
-                tmpC.copyFrom(BASE);
-            }
-            if (state.sizeBy && !data.categorical[state.sizeBy]) {
-                scale *= 0.6 + 1.4 * valueT(state.sizeBy, i);
-            }
-            if (state.selection.has(i)) {
-                Color3.LerpToRef(tmpC, WHITE, 0.45, tmpC);
-                scale *= 1.35;
-            }
-            if (hover.left === i || hover.right === i) {
-                Color3.LerpToRef(tmpC, WHITE, 0.25, tmpC);
-                scale *= 1.2;
-            }
-            if ((pv && !pv.keep.has(i)) || (dimKeep && !dimKeep.has(i))) {
-                Color3.LerpToRef(tmpC, bg, 0.75, tmpC);
-                scale *= 0.6;
-            }
-            tmpS.setAll(scale);
-            tmpP.set(data.positions[i * 3], data.positions[i * 3 + 1], data.positions[i * 3 + 2]);
-            Matrix.ComposeToRef(tmpS, identity, tmpP, tmpM);
-            tmpM.copyToArray(nodeMatrices, i * 16);
-            nodeColors[i * 4] = tmpC.r;
-            nodeColors[i * 4 + 1] = tmpC.g;
-            nodeColors[i * 4 + 2] = tmpC.b;
-            nodeColors[i * 4 + 3] = 1;
-            labels[i]?.setEnabled(labelsOn && visible);
+            writeNode(i, pv);
         }
         for (let k = 0; edgesDirty && k < e; k++) {
-            const a = data.src[k];
-            const b = data.dst[k];
-            tmpA.set(data.positions[a * 3], data.positions[a * 3 + 1], data.positions[a * 3 + 2]);
-            tmpB.set(data.positions[b * 3], data.positions[b * 3 + 1], data.positions[b * 3 + 2]);
-            tmpB.subtractToRef(tmpA, tmpP);
-            const len = tmpP.length();
-            const shown = len > 1e-6 && isVisible(state, a) && isVisible(state, b);
-            tmpS.set(shown ? edgeRadius : 0, shown ? len : 0, shown ? edgeRadius : 0);
-            if (len > 1e-6) {
-                tmpP.scaleInPlace(1 / len);
-                Quaternion.FromUnitVectorsToRef(up, tmpP, tmpQ);
-            } else {
-                tmpQ.copyFrom(identity);
-            }
-            tmpA.addInPlace(tmpB).scaleInPlace(0.5);
-            Matrix.ComposeToRef(tmpS, tmpQ, tmpA, tmpM);
-            tmpM.copyToArray(edgeMatrices, k * 16);
+            writeEdge(k);
         }
         if (rebuilds === 0) {
             nodes.thinInstanceSetBuffer("matrix", nodeMatrices, 16, false);

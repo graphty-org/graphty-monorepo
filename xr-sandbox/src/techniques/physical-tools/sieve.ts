@@ -125,9 +125,10 @@ export function createSieve(ctx: TechniqueContext, put: () => void): Sieve {
     const range = (): void => {
         const v = data.results[result()];
         const o = data.order[result()];
-        const step = niceStep((v[o[0]] - v[o[o.length - 1]]) / 30 || 0.01);
+        const lowest = v[o.at(-1) ?? 0];
+        const step = niceStep((v[o[0]] - lowest) / 30 || 0.01);
         slider.step = step;
-        slider.minimum = Math.floor(v[o[o.length - 1]] / step) * step;
+        slider.minimum = Math.floor(lowest / step) * step;
         slider.maximum = Math.ceil(v[o[0]] / step) * step;
         slider.value = slider.minimum;
     };

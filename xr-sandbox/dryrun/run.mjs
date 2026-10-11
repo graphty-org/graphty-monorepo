@@ -62,24 +62,24 @@ const browser = await chromium.launch({
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 /** Wait until the session has rendered `n` more XR frames. */
 const frames = async (page, n) => {
-    const start = await page.evaluate(() => window.__sandbox.xrFrames());
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n]);
+    const start = await page.evaluate(() => globalThis.__sandbox.xrFrames());
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n]);
 };
 
 /**
  * Aim, press and release; return the hover at the press and the arbiter and command entries logged.
  */
 const pressAt = async (page, hand, target, kind) => {
-    await page.evaluate(([h, t]) => window.__sandbox.aim(h, t), [hand, target]);
+    await page.evaluate(([h, t]) => globalThis.__sandbox.aim(h, t), [hand, target]);
     await frames(page, 15);
     const t0 = await page.evaluate(() => Date.now());
-    const hover = await page.evaluate((h) => window.__sandbox.hover(h), hand);
+    const hover = await page.evaluate((h) => globalThis.__sandbox.hover(h), hand);
     // Pressed for two frames, timed in the page: held across Playwright round trips for six frames,
     // a press on the software renderer's 80 ms frames (the dense graph) outlasted the 300 ms hold and
     // opened the node menu instead of selecting.
     await page.evaluate(
         async ([h, k]) => {
-            const s = window.__sandbox;
+            const s = globalThis.__sandbox;
             const f = s.xrFrames();
             s.press(h, k, true);
             while (s.xrFrames() < f + 2) {
@@ -90,7 +90,7 @@ const pressAt = async (page, hand, target, kind) => {
         [hand, kind],
     );
     await frames(page, 10);
-    const log = await page.evaluate(() => window.__sandbox.log(400));
+    const log = await page.evaluate(() => globalThis.__sandbox.log(400));
     return {
         hover,
         entries: log.filter((e) => e.time >= t0 && (e.message === "command" || e.message.startsWith("arbiter"))),
@@ -126,22 +126,22 @@ const runOne = async (profile, preset) => {
                 : { preset, emulate: profile, still: "1" },
         ).toString();
         await page.goto(url.toString());
-        await until(page, () => window.__sandbox?.ready === true);
-        r.sessionId = await page.evaluate(() => window.__sandbox.sessionId);
+        await until(page, () => globalThis.__sandbox?.ready === true);
+        r.sessionId = await page.evaluate(() => globalThis.__sandbox.sessionId);
         // Enter VR the way the owner does: a click on the page's button.
         await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-        await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10);
+        await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10);
         await frames(page, 60); // warm-up
         check("startsCleanly", true, {});
 
         await frames(page, FRAMES);
-        const f = await page.evaluate((n) => window.__sandbox.frames(n), FRAMES);
+        const f = await page.evaluate((n) => globalThis.__sandbox.frames(n), FRAMES);
         check("frameTime", f.over50 === 0 && f.hooksP95 < HOOKS_P95_MS, {
             ...f,
             limits: `no frame JS over ${JS_FRAME_MS} ms; hooks p95 under ${HOOKS_P95_MS} ms`,
         });
 
-        const j = await page.evaluate(() => window.__sandbox.jitter(120));
+        const j = await page.evaluate(() => globalThis.__sandbox.jitter(120));
         check("stillHeadJitter", j.maxMm < JITTER_MM && j.maxDeg < JITTER_DEG, j);
         check("guiTexturesIdle", j.panelRenders === 0 && j.chipRedraws === 0 && j.rebuilds === 0, {
             panelRenders: j.panelRenders,
@@ -150,9 +150,9 @@ const runOne = async (profile, preset) => {
         });
 
         const hands = profile.endsWith("hands") && profile !== "galaxyxr-no-hands";
-        const top = await page.evaluate(() => window.__sandbox.topNode());
+        const top = await page.evaluate(() => globalThis.__sandbox.topNode());
         const sel = await pressAt(page, "right", top, hands ? "pinch" : "trigger");
-        const state = await page.evaluate(() => window.__sandbox.state());
+        const state = await page.evaluate(() => globalThis.__sandbox.state());
         check(hands ? "handsSelect" : "controllersSelect", state.selection.length === 1 && state.selection[0] === top, {
             target: top,
             hover: { node: sel.hover.node, context: sel.hover.context, isHand: sel.hover.isHand },
@@ -161,27 +161,27 @@ const runOne = async (profile, preset) => {
         });
 
         // The off hand held low and close to the body, as when reaching for the gear.
-        await page.evaluate(() => window.__sandbox.place("left", -0.12, 1.2, 0.08));
+        await page.evaluate(() => globalThis.__sandbox.place("left", -0.12, 1.2, 0.08));
         await pressAt(page, "left", "gear", hands ? "pinch" : "trigger");
-        const gearByRay = await page.evaluate(() => window.__sandbox.gearOpen());
+        const gearByRay = await page.evaluate(() => globalThis.__sandbox.gearOpen());
         const gear = { byRay: gearByRay };
         if (!hands) {
             // The off-hand stick click toggles it (closed again here).
-            await page.evaluate(() => window.__sandbox.press("left", "stick", true));
+            await page.evaluate(() => globalThis.__sandbox.press("left", "stick", true));
             await frames(page, 5);
-            await page.evaluate(() => window.__sandbox.press("left", "stick", false));
+            await page.evaluate(() => globalThis.__sandbox.press("left", "stick", false));
             await frames(page, 5);
-            gear.byStickClick = gearByRay && !(await page.evaluate(() => window.__sandbox.gearOpen()));
+            gear.byStickClick = gearByRay && !(await page.evaluate(() => globalThis.__sandbox.gearOpen()));
         }
         check("gearPanelReachable", gear.byRay && gear.byStickClick !== false, gear);
 
-        const techniques = await page.evaluate(() => window.__sandbox.techniques());
+        const techniques = await page.evaluate(() => globalThis.__sandbox.techniques());
         if (!hands && techniques.some((t) => t.id === "example" && t.on)) {
-            await page.evaluate(() => window.__sandbox.press("right", "a", true));
+            await page.evaluate(() => globalThis.__sandbox.press("right", "a", true));
             await frames(page, 5);
-            await page.evaluate(() => window.__sandbox.press("right", "a", false));
+            await page.evaluate(() => globalThis.__sandbox.press("right", "a", false));
             await frames(page, 5);
-            const s = await page.evaluate(() => window.__sandbox.state());
+            const s = await page.evaluate(() => globalThis.__sandbox.state());
             check("exampleModule", s.colorBy === "pagerank" && s.undoLabel === "Undo: Color by PageRank", {
                 colorBy: s.colorBy,
                 undoLabel: s.undoLabel,
@@ -225,10 +225,10 @@ if (!presets) {
     const url = new URL(base);
     url.search = "?preset=empty&emulate=quest3-controllers";
     await page.goto(url.toString());
-    await until(page, () => window.__sandbox?.ready === true);
-    presets = await page.evaluate(() => window.__sandbox.presets);
+    await until(page, () => globalThis.__sandbox?.ready === true);
+    presets = await page.evaluate(() => globalThis.__sandbox.presets);
     if (args.alone) {
-        const ids = await page.evaluate(() => window.__sandbox.techniques().map((t) => t.id));
+        const ids = await page.evaluate(() => globalThis.__sandbox.techniques().map((t) => t.id));
         presets.push(...ids.map((id) => `alone:${id}`));
     }
     await context.close();

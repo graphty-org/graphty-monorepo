@@ -12,7 +12,7 @@ import type { GraphView } from "../scene/graph-view";
 import { createPoseLayer, type PoseLayer } from "../scene/poses";
 import { type Chip, createChip, createPanel } from "../scene/ui";
 import { handTracking } from "../scene/xr";
-import { createInput, type Edge, type InputLayer } from "./input";
+import { createInput, type Edge, type HandState, type InputLayer } from "./input";
 import type { Logger } from "./logging";
 import type { Settings } from "./settings";
 import type { HoverInfo, PressSession, TargetProvider, Technique, TechniqueContext, ToolOffer } from "./technique";
@@ -122,7 +122,7 @@ export function createFramework(
         left: createChip(scene, "hint-left", 0.16, 0.02, true),
         right: createChip(scene, "hint-right", 0.16, 0.02, true),
     };
-    const badgeTimers: Record<Hand, number> = { left: 0, right: 0 };
+    const badgeTimers: Record<Hand, ReturnType<typeof setTimeout> | undefined> = { left: undefined, right: undefined };
     for (const h of ["left", "right"] as const) {
         badges[h].mesh.parent = anchors[`hand-${h}`];
         badges[h].mesh.position.set(0, 0.07, 0);
@@ -183,7 +183,7 @@ export function createFramework(
                 } else {
                     s?.end?.();
                 }
-                badgeTimers[press.hand] = window.setTimeout(() => {
+                badgeTimers[press.hand] = globalThis.setTimeout(() => {
                     badges[press.hand].hide();
                 }, 1000);
             },
@@ -232,8 +232,12 @@ export function createFramework(
             commands: {
                 run: (code, params, hand) => commands.run(code, params, source(hand)),
                 preview: (code, params, hand) => commands.startPreview(code, params, source(hand)),
-                undo: (hand) => void commands.undo(source(hand)),
-                redo: (hand) => void commands.redo(source(hand)),
+                undo: (hand) => {
+                    commands.undo(source(hand));
+                },
+                redo: (hand) => {
+                    commands.redo(source(hand));
+                },
                 undoLabel: () => commands.undoLabel(),
                 history: () => commands.history,
                 undoTo: (i, hand) => {
@@ -305,6 +309,27 @@ export function createFramework(
         };
     };
 
+    // Why the session's current inputs cannot serve a technique's needs, or null.
+    const inputReason = (needs: readonly string[]): string | null => {
+        const inputs = xr?.input.controllers ?? [];
+        if (!xr?.baseExperience.sessionManager.inXRSession || inputs.length === 0) {
+            return null;
+        }
+        if (needs.includes("controllers") && !inputs.some((c) => !c.inputSource.hand && c.inputSource.gamepad)) {
+            return "needs controllers (none connected)";
+        }
+        if (needs.includes("hand-joints") && !inputs.some((c) => c.inputSource.hand)) {
+            return "needs hand tracking";
+        }
+        if (
+            needs.includes("hover") &&
+            inputs.every((c) => (c.inputSource.targetRayMode as string) === "transient-pointer")
+        ) {
+            return "needs hover (this input is a transient pointer)";
+        }
+        return null;
+    };
+
     const reason = (id: string): string | null => {
         const t = techniques.find((x) => x.id === id);
         if (!t) {
@@ -316,22 +341,12 @@ export function createFramework(
         if (t.arm === "microphone" && !armed.microphone) {
             return "unarmed: tick the microphone on the landing page";
         }
-        const inputs = xr?.input.controllers ?? [];
-        if (xr?.baseExperience.sessionManager.inXRSession && inputs.length > 0) {
-            if (t.needs?.includes("controllers") && !inputs.some((c) => !c.inputSource.hand && c.inputSource.gamepad)) {
-                return "needs controllers (none connected)";
-            }
-            if (t.needs?.includes("hand-joints") && !inputs.some((c) => c.inputSource.hand)) {
-                return "needs hand tracking";
-            }
-            if (
-                t.needs?.includes("hover") &&
-                inputs.every((c) => (c.inputSource.targetRayMode as string) === "transient-pointer")
-            ) {
-                return "needs hover (this input is a transient pointer)";
-            }
+        const needs = t.needs ?? [];
+        const why = inputReason(needs);
+        if (why) {
+            return why;
         }
-        if (t.needs?.includes("quest-microgestures") && !/OculusBrowser/.test(navigator.userAgent)) {
+        if (needs.includes("quest-microgestures") && !/OculusBrowser/.test(navigator.userAgent)) {
             return "Quest only";
         }
         return null;
@@ -425,28 +440,70 @@ export function createFramework(
     };
 
     const hintKeys: Record<Hand, string> = { left: "", right: "" };
-    const updateHints = (): void => {
-        for (const hand of ["left", "right"] as const) {
-            const h = input?.hands[hand];
-            const show = !!h?.connected && h.context !== "ui" && settings.get("framework.hoverHints") === true;
-            const key = show && h ? `${h.context}.${h.isHand}.${on.size}` : "";
-            if (key === hintKeys[hand]) {
-                continue;
-            }
-            hintKeys[hand] = key;
-            if (!show || !h) {
-                hints[hand].hide();
-                continue;
-            }
-            const sel = arbiter.candidates(hand, "select", h.context).map((c) => nameOf(c.owner));
-            const sq = arbiter.candidates(hand, "squeeze", h.context).map((c) => nameOf(c.owner));
-            const parts = [`${h.isHand ? "pinch" : "trigger"}: ${sel.join(" / ") || "-"}`];
-            if (sq.length) {
-                parts.push(`${h.isHand ? "fist" : "grip"}: ${sq.join(" / ")}`);
-            }
-            hints[hand].set(parts.join("; "), "#2a3346");
-            hints[hand].show();
+    const updateHint = (hand: Hand): void => {
+        const h = input?.hands[hand];
+        const show = !!h?.connected && h.context !== "ui" && settings.get("framework.hoverHints") === true;
+        const key = show && h ? `${h.context}.${h.isHand}.${on.size}` : "";
+        if (key === hintKeys[hand]) {
+            return;
         }
+        hintKeys[hand] = key;
+        if (!show || !h) {
+            hints[hand].hide();
+            return;
+        }
+        const sel = arbiter.candidates(hand, "select", h.context).map((c) => nameOf(c.owner));
+        const sq = arbiter.candidates(hand, "squeeze", h.context).map((c) => nameOf(c.owner));
+        const parts = [`${h.isHand ? "pinch" : "trigger"}: ${sel.join(" / ") || "-"}`];
+        if (sq.length) {
+            parts.push(`${h.isHand ? "fist" : "grip"}: ${sq.join(" / ")}`);
+        }
+        hints[hand].set(parts.join("; "), "#2a3346");
+        hints[hand].show();
+    };
+    const updateHints = (): void => {
+        updateHint("left");
+        updateHint("right");
+    };
+
+    // Tell each press's session how long it has been held and how far its hand has moved.
+    const moveSessions = (now: number): void => {
+        for (const [id, s] of sessions) {
+            if (!s?.move) {
+                continue;
+            }
+            for (const l of live.values()) {
+                if (l.press.id === id) {
+                    s.move({ durationMs: now - l.press.time, movedM: movedOf(id) });
+                }
+            }
+        }
+    };
+
+    // Point each hand's hover and anchor at its current input.
+    const syncHands = (hands: Record<Hand, HandState>): void => {
+        for (const hand of ["left", "right"] as const) {
+            const h = hands[hand];
+            graph.setHover(hand, h.context === "node" ? h.node : -1);
+            const node = h.source?.grip ?? h.source?.pointer ?? null;
+            if (anchors[`hand-${hand}`].parent !== node) {
+                anchors[`hand-${hand}`].parent = node;
+            }
+        }
+    };
+
+    // Run the per-frame hooks of every technique that is on.
+    const runHooks = (dt: number): void => {
+        const t0 = performance.now();
+        for (const t of techniques) {
+            if (!on.has(t.id)) {
+                continue;
+            }
+            for (const fn of hooks.get(t.id) ?? []) {
+                fn(dt);
+            }
+        }
+        stats.addHookMs(performance.now() - t0);
     };
 
     let palmsSince = 0;
@@ -503,7 +560,7 @@ export function createFramework(
             x.input.onControllerRemovedObservable.add((c) => {
                 const hand = c.inputSource.handedness as Hand;
                 log.log("input", { event: "removed", handedness: hand });
-                for (const [key, l] of [...live]) {
+                for (const [key, l] of Array.from(live)) {
                     if (l.press.hand === hand) {
                         live.delete(key);
                         arbiter.cancel(l.press.id, "input removed");
@@ -511,14 +568,14 @@ export function createFramework(
                 }
             });
             const sm = x.baseExperience.sessionManager;
+            const edge = (channel: "select" | "squeeze", down: boolean) => (ev: XRInputSourceEvent) => {
+                const s = ev.inputSource;
+                if (s.handedness === "none" || (channel === "squeeze" && s.hand)) {
+                    return;
+                }
+                input?.push({ hand: s.handedness, channel, down, time: performance.now() });
+            };
             sm.onXRSessionInit.add((session) => {
-                const edge = (channel: "select" | "squeeze", down: boolean) => (ev: XRInputSourceEvent) => {
-                    const s = ev.inputSource;
-                    if (s.handedness === "none" || (channel === "squeeze" && s.hand)) {
-                        return;
-                    }
-                    input?.push({ hand: s.handedness, channel, down, time: performance.now() });
-                };
                 session.addEventListener("selectstart", edge("select", true));
                 session.addEventListener("selectend", edge("select", false));
                 session.addEventListener("squeezestart", edge("squeeze", true));
@@ -528,7 +585,7 @@ export function createFramework(
                     if (session.visibilityState === "visible-blurred") {
                         // A system gesture blurs the session: presses that just started are cancelled, not ended.
                         const now = performance.now();
-                        for (const [key, l] of [...live]) {
+                        for (const [key, l] of Array.from(live)) {
                             if (now - l.press.time < 200) {
                                 live.delete(key);
                                 arbiter.cancel(l.press.id, "session blurred");
@@ -558,15 +615,7 @@ export function createFramework(
                 handleEdge(e, now);
             }
             arbiter.tick(now, movedOf);
-            for (const [id, s] of sessions) {
-                if (s?.move) {
-                    for (const l of live.values()) {
-                        if (l.press.id === id) {
-                            s.move({ durationMs: now - l.press.time, movedM: movedOf(id) });
-                        }
-                    }
-                }
-            }
+            moveSessions(now);
             // Both palms up for 1 s opens the gear panel, even when every ray is broken.
             if (poses.hands.left.palmUp && poses.hands.right.palmUp) {
                 palmsSince ||= now;
@@ -577,24 +626,9 @@ export function createFramework(
             } else {
                 palmsSince = 0;
             }
-            for (const hand of ["left", "right"] as const) {
-                const h = input.hands[hand];
-                graph.setHover(hand, h.context === "node" ? h.node : -1);
-                const node = h.source?.grip ?? h.source?.pointer ?? null;
-                if (anchors[`hand-${hand}`].parent !== node) {
-                    anchors[`hand-${hand}`].parent = node;
-                }
-            }
+            syncHands(input.hands);
             updateHints();
-            const t0 = performance.now();
-            for (const t of techniques) {
-                if (on.has(t.id)) {
-                    for (const fn of hooks.get(t.id) ?? []) {
-                        fn(dt);
-                    }
-                }
-            }
-            stats.addHookMs(performance.now() - t0);
+            runHooks(dt);
         },
     };
     return fw;

@@ -24,7 +24,10 @@ interface Recognition {
 type RecognitionCtor = new () => Recognition;
 
 const ctor = (): RecognitionCtor | undefined => {
-    const w = window as unknown as { SpeechRecognition?: RecognitionCtor; webkitSpeechRecognition?: RecognitionCtor };
+    const w = globalThis as unknown as {
+        SpeechRecognition?: RecognitionCtor;
+        webkitSpeechRecognition?: RecognitionCtor;
+    };
     return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 };
 

@@ -35,6 +35,9 @@ const BUTTON_IDS: Record<string, string> = {
     stick: "thumbstick",
 };
 
+// Whether a mesh is drawn (the steadiness probe measures only those).
+const isShown = (m: { isEnabled(): boolean; isVisible: boolean }): boolean => m.isEnabled() && m.isVisible;
+
 /**
  * Install `window.__sandbox`.
  * @param d - what the hooks read and drive
@@ -345,7 +348,7 @@ export function installTestHooks(d: HookDeps): void {
             };
             return new Promise((resolve) => {
                 const obs = scene.onAfterRenderObservable.add(() => {
-                    const nodes = [graph.root, ...scene.meshes.filter((m) => m.isEnabled() && m.isVisible)];
+                    const nodes = [graph.root, ...scene.meshes.filter(isShown)];
                     for (const m of nodes) {
                         const w = m.computeWorldMatrix(false).m;
                         const cur = new Float64Array([
@@ -392,5 +395,5 @@ export function installTestHooks(d: HookDeps): void {
             });
         },
     };
-    (window as unknown as { __sandbox: typeof api }).__sandbox = api;
+    (globalThis as unknown as { __sandbox: typeof api }).__sandbox = api;
 }

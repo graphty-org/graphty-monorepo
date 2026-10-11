@@ -34,23 +34,23 @@ const browser = await chromium.launch({
 
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
-    const start = await page.evaluate(() => window.__sandbox.xrFrames());
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n]);
+    const start = await page.evaluate(() => globalThis.__sandbox.xrFrames());
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n]);
 };
 const sb = (page, fn, arg) => page.evaluate(fn, arg);
 /** Log entries since `t0` whose message starts with `prefix`. */
 const logSince = async (page, t0, prefix) =>
-    (await sb(page, () => window.__sandbox.log(400))).filter((e) => e.time >= t0 && e.message.startsWith(prefix));
+    (await sb(page, () => globalThis.__sandbox.log(400))).filter((e) => e.time >= t0 && e.message.startsWith(prefix));
 const now = (page) => sb(page, () => Date.now());
 
 /** Aim the right hand at `target`, press and release. */
 const pressAt = async (page, target, kind) => {
-    await sb(page, (t) => window.__sandbox.aim("right", t), target);
+    await sb(page, (t) => globalThis.__sandbox.aim("right", t), target);
     await frames(page, 15);
-    const hover = await sb(page, () => window.__sandbox.hover("right"));
-    await sb(page, (k) => window.__sandbox.press("right", k, true), kind);
+    const hover = await sb(page, () => globalThis.__sandbox.hover("right"));
+    await sb(page, (k) => globalThis.__sandbox.press("right", k, true), kind);
     await frames(page, 6);
-    await sb(page, (k) => window.__sandbox.press("right", k, false), kind);
+    await sb(page, (k) => globalThis.__sandbox.press("right", k, false), kind);
     await frames(page, 10);
     return { context: hover.context, uiMesh: hover.uiMesh };
 };
@@ -64,9 +64,9 @@ const open = async (profile, query) => {
     const url = new URL(args.url);
     url.search = new URLSearchParams({ ...query, emulate: profile, still: "1" }).toString();
     await page.goto(url.toString());
-    await until(page, () => window.__sandbox?.ready === true);
+    await until(page, () => globalThis.__sandbox?.ready === true);
     await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-    await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10);
+    await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10);
     await frames(page, 30);
     return { page, context, r };
 };
@@ -74,11 +74,11 @@ const open = async (profile, query) => {
 /** Color by PageRank as the owner would: the example module's A button, or (hands) the arranged command. */
 const colorByPageRank = async (page, hands) => {
     if (hands) {
-        await sb(page, () => window.__sandbox.run("colorBy", { result: "pagerank" }));
+        await sb(page, () => globalThis.__sandbox.run("colorBy", { result: "pagerank" }));
     } else {
-        await sb(page, () => window.__sandbox.press("right", "a", true));
+        await sb(page, () => globalThis.__sandbox.press("right", "a", true));
         await frames(page, 5);
-        await sb(page, () => window.__sandbox.press("right", "a", false));
+        await sb(page, () => globalThis.__sandbox.press("right", "a", false));
     }
     await frames(page, 5);
 };
@@ -90,7 +90,7 @@ const runOn = async (profile) => {
     const check = (name, pass, detail) => (checks[name] = { pass: !!pass, ...detail });
     const { page, context, r } = await open(profile, { preset: "example" });
     try {
-        const on = (await sb(page, () => window.__sandbox.techniques())).find((t) => t.id === "visible-undo");
+        const on = (await sb(page, () => globalThis.__sandbox.techniques())).find((t) => t.id === "visible-undo");
         check("moduleOn", on?.on, { reason: on?.reason });
 
         // 1. The toast beside the acting hand, once, for 2 s.
@@ -98,10 +98,10 @@ const runOn = async (profile) => {
         await colorByPageRank(page, hands);
         const toasts = await logSince(page, t0, "visible-undo.toast");
         const shown = toasts.filter((e) => e.message === "visible-undo.toast");
-        const idle = await sb(page, () => window.__sandbox.jitter(20));
+        const idle = await sb(page, () => globalThis.__sandbox.jitter(20));
         await until(
             page,
-            (t) => window.__sandbox.log(400).some((e) => e.time >= t && e.message === "visible-undo.toast.hidden"),
+            (t) => globalThis.__sandbox.log(400).some((e) => e.time >= t && e.message === "visible-undo.toast.hidden"),
             t0,
             10_000,
         );
@@ -129,7 +129,7 @@ const runOn = async (profile) => {
         t0 = await now(page);
         const hit = await pressAt(page, "visible-undo-undo", press);
         const undos = (await logSince(page, t0, "command")).filter((e) => e.data.code === "undo");
-        let s = await sb(page, () => window.__sandbox.state());
+        let s = await sb(page, () => globalThis.__sandbox.state());
         check(
             "undoButton",
             strip?.data.undo === "Undo: Color by PageRank" &&
@@ -155,18 +155,18 @@ const runOn = async (profile) => {
         ];
         let afterSecond;
         for (const [i, [code, params]] of steps.entries()) {
-            await sb(page, ([c, p]) => window.__sandbox.run(c, p), [code, params]);
+            await sb(page, ([c, p]) => globalThis.__sandbox.run(c, p), [code, params]);
             await frames(page, 3);
             if (i === 1) {
-                afterSecond = await sb(page, () => window.__sandbox.state());
+                afterSecond = await sb(page, () => globalThis.__sandbox.state());
             }
         }
         const fiveToasts = (await logSince(page, t0, "visible-undo.toast")).filter(
             (e) => e.message === "visible-undo.toast",
         );
-        const before = await sb(page, () => window.__sandbox.state());
+        const before = await sb(page, () => globalThis.__sandbox.state());
         const hit3 = await pressAt(page, "visible-undo-strip-2", press);
-        s = await sb(page, () => window.__sandbox.state());
+        s = await sb(page, () => globalThis.__sandbox.state());
         const pressLog = (await logSince(page, t0, "visible-undo.strip.press"))[0];
         check(
             "stripUndoTo",
@@ -191,11 +191,11 @@ const runOn = async (profile) => {
 
         // 4. Selections are never steps: a real tap select and an arranged one.
         t0 = await now(page);
-        const top = await sb(page, () => window.__sandbox.topNode());
+        const top = await sb(page, () => globalThis.__sandbox.topNode());
         await pressAt(page, top, press);
-        await sb(page, () => window.__sandbox.run("select", { ids: [1, 2], mode: "add" }));
+        await sb(page, () => globalThis.__sandbox.run("select", { ids: [1, 2], mode: "add" }));
         await frames(page, 5);
-        const sel = await sb(page, () => window.__sandbox.state());
+        const sel = await sb(page, () => globalThis.__sandbox.state());
         // A toast from the fifth step may time out meanwhile; only a new toast or strip change counts.
         const touched = (await logSince(page, t0, "visible-undo.")).filter((e) =>
             ["visible-undo.toast", "visible-undo.strip.shown"].includes(e.message),
@@ -207,11 +207,11 @@ const runOn = async (profile) => {
         });
 
         // 5. Switched off in the headset: the strip is gone and a press where it was undoes nothing.
-        await sb(page, () => window.__sandbox.setOn("visible-undo", false));
+        await sb(page, () => globalThis.__sandbox.setOn("visible-undo", false));
         await frames(page, 5);
         t0 = await now(page);
         await pressAt(page, "visible-undo-undo", press);
-        s = await sb(page, () => window.__sandbox.state());
+        s = await sb(page, () => globalThis.__sandbox.state());
         const offUndos = (await logSince(page, t0, "command")).filter((e) => e.data.code === "undo");
         check("switchedOff", offUndos.length === 0 && s.history.length === 2, {
             undos: offUndos.length,
@@ -236,13 +236,13 @@ const runOff = async (profile) => {
         await colorByPageRank(page, hands);
         await frames(page, 10);
         const mine = await logSince(page, t0, "visible-undo.");
-        const s = await sb(page, () => window.__sandbox.state());
+        const s = await sb(page, () => globalThis.__sandbox.state());
         // The framework still names the step; the module adds nothing.
         check("offAddsNothing", mine.length === 0 && s.undoLabel === "Undo: Color by PageRank", {
             visibleUndoEntries: mine.length,
             undoLabel: s.undoLabel,
         });
-        const j = await sb(page, () => window.__sandbox.jitter(60));
+        const j = await sb(page, () => globalThis.__sandbox.jitter(60));
         check("offStill", j.maxMm < 0.05 && j.maxDeg < 0.01, { maxMm: j.maxMm, maxDeg: j.maxDeg });
     } catch (e) {
         check("ran", false, { error: String(e).slice(0, 500) });
@@ -264,9 +264,8 @@ for (const profile of args.profiles.split(",")) {
         const failed = Object.entries(checks)
             .filter(([, c]) => !c.pass)
             .map(([n]) => n);
-        console.log(
-            `${pass ? "PASS" : "FAIL"} ${profile} visible-undo ${mode}${failed.length ? `  failed: ${failed.join(", ")}` : ""}`,
-        );
+        const failedNote = failed.length ? `  failed: ${failed.join(", ")}` : "";
+        console.log(`${pass ? "PASS" : "FAIL"} ${profile} visible-undo ${mode}${failedNote}`);
         results.push({ profile, mode, pass, checks });
     }
 }

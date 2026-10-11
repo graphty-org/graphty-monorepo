@@ -39,11 +39,11 @@ const browser = await chromium.launch({
 const ev = (page, fn, arg) => page.evaluate(fn, arg);
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
-    const start = await ev(page, () => window.__sandbox.xrFrames());
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n]);
+    const start = await ev(page, () => globalThis.__sandbox.xrFrames());
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n]);
 };
 const now = (page) => ev(page, () => Date.now());
-const logSince = async (page, t0) => (await ev(page, () => window.__sandbox.log(600))).filter((e) => e.time >= t0);
+const logSince = async (page, t0) => (await ev(page, () => globalThis.__sandbox.log(600))).filter((e) => e.time >= t0);
 const add = (a, b, s = 1) => a.map((v, i) => v + b[i] * s);
 
 /** One mix: a preset on a profile. */
@@ -58,18 +58,18 @@ const runMix = async (preset, profile) => {
 
     /** The right hand back at a resting reach, so a ray starts well short of every panel. */
     const rest = async () => {
-        await ev(page, () => window.__sandbox.place("right", 0.18, 1.3, 0.25));
+        await ev(page, () => globalThis.__sandbox.place("right", 0.18, 1.3, 0.25));
         await frames(page, 3);
     };
     /** Aim at a world point, press for two frames (timed in the page), release. */
     const tapPoint = async (point, kind = sel) => {
-        await ev(page, ([p]) => window.__sandbox.aimAt("right", p[0], p[1], p[2]), [point]);
+        await ev(page, ([p]) => globalThis.__sandbox.aimAt("right", p[0], p[1], p[2]), [point]);
         await frames(page, 12);
-        const hover = await ev(page, () => window.__sandbox.hover("right"));
+        const hover = await ev(page, () => globalThis.__sandbox.hover("right"));
         await ev(
             page,
             async ([k]) => {
-                const s = window.__sandbox;
+                const s = globalThis.__sandbox;
                 const f = s.xrFrames();
                 s.press("right", k, true);
                 while (s.xrFrames() < f + 2) {
@@ -85,7 +85,7 @@ const runMix = async (preset, profile) => {
     /** A GUI control on a framework or technique panel, by name. */
     const tapControl = async (name, kind) => {
         await rest();
-        const p = await ev(page, (n) => window.__sandbox.control(n), name);
+        const p = await ev(page, (n) => globalThis.__sandbox.control(n), name);
         if (!p) {
             throw new Error(`no shown control ${name}`);
         }
@@ -94,74 +94,74 @@ const runMix = async (preset, profile) => {
     /** A node or any named mesh. */
     const tapMesh = async (name, kind = sel) => {
         await rest();
-        await ev(page, (n) => window.__sandbox.aim("right", n), name);
+        await ev(page, (n) => globalThis.__sandbox.aim("right", n), name);
         await frames(page, 12);
-        const hover = await ev(page, () => window.__sandbox.hover("right"));
-        await ev(page, (k) => window.__sandbox.press("right", k, true), kind);
+        const hover = await ev(page, () => globalThis.__sandbox.hover("right"));
+        await ev(page, (k) => globalThis.__sandbox.press("right", k, true), kind);
         await frames(page, 2);
-        await ev(page, (k) => window.__sandbox.press("right", k, false), kind);
+        await ev(page, (k) => globalThis.__sandbox.press("right", k, false), kind);
         await frames(page, 10);
         return { context: hover.context, uiMesh: hover.uiMesh, node: hover.node };
     };
     /** Open the node menu on a node (or "space"): B on controllers, a 350 ms still pinch on hands. */
     const openMenu = async (what) => {
         await rest();
-        await ev(page, (n) => window.__sandbox.aim("right", n), what);
+        await ev(page, (n) => globalThis.__sandbox.aim("right", n), what);
         await frames(page, 12);
         if (hands) {
-            await ev(page, () => window.__sandbox.press("right", "pinch", true));
+            await ev(page, () => globalThis.__sandbox.press("right", "pinch", true));
             await page.waitForTimeout(400);
             await frames(page, 3);
-            await ev(page, () => window.__sandbox.press("right", "pinch", false));
+            await ev(page, () => globalThis.__sandbox.press("right", "pinch", false));
         } else {
-            await ev(page, () => window.__sandbox.press("right", "b", true));
+            await ev(page, () => globalThis.__sandbox.press("right", "b", true));
             await frames(page, 2);
-            await ev(page, () => window.__sandbox.press("right", "b", false));
+            await ev(page, () => globalThis.__sandbox.press("right", "b", false));
         }
         await frames(page, 8);
     };
     /** Write a short note into whatever text request is open: the keyboard, or the canned chips. */
     const answerText = async () => {
         await frames(page, 5);
-        const kbOpen = await ev(page, () => window.__textEntry?.open() ?? false);
+        const kbOpen = await ev(page, () => globalThis.__textEntry?.open() ?? false);
         if (!kbOpen) {
             return { by: "canned chips", hit: await tapControl("text-fallback-check") };
         }
-        const panel = await ev(page, () => window.__textEntry.panel());
-        const keys = await ev(page, () => window.__textEntry.keys());
+        const panel = await ev(page, () => globalThis.__textEntry.panel());
+        const keys = await ev(page, () => globalThis.__textEntry.keys());
         const pressKey = async (point) => {
             if (hands) {
                 // A fingertip poke: in front, through, back.
-                await ev(page, (p) => window.__textEntry.mark(p), point);
-                await ev(page, () => window.__sandbox.aim("right", "text-entry-aim"));
+                await ev(page, (p) => globalThis.__textEntry.mark(p), point);
+                await ev(page, () => globalThis.__sandbox.aim("right", "text-entry-aim"));
                 const p0 = add(point, panel.normal, -0.15);
-                await ev(page, (p) => window.__sandbox.place("right", ...p), p0);
+                await ev(page, (p) => globalThis.__sandbox.place("right", ...p), p0);
                 await frames(page, 4);
-                const tip = await ev(page, () => window.__textEntry.tip("right"));
+                const tip = await ev(page, () => globalThis.__textEntry.tip("right"));
                 const offset = tip.map((v, i) => v - p0[i]);
                 for (const d of [-0.05, 0.004, -0.06]) {
                     await ev(
                         page,
-                        (p) => window.__sandbox.place("right", ...p),
+                        (p) => globalThis.__sandbox.place("right", ...p),
                         add(add(point, offset, -1), panel.normal, d),
                     );
                     await frames(page, 5);
                 }
-                await ev(page, (p) => window.__sandbox.place("right", ...p), add(point, panel.normal, -0.25));
+                await ev(page, (p) => globalThis.__sandbox.place("right", ...p), add(point, panel.normal, -0.25));
                 await frames(page, 3);
             } else {
-                await ev(page, () => window.__sandbox.place("right", 0.15, 1.2, 0.1));
+                await ev(page, () => globalThis.__sandbox.place("right", 0.15, 1.2, 0.1));
                 await tapPoint(point);
             }
         };
         for (const k of ["o", "k"]) {
             await pressKey(keys[k].center);
         }
-        await pressKey(keys[String.fromCharCode(0x21b5)].center);
+        await pressKey(keys[String.fromCodePoint(0x21b5)].center);
         return { by: "keyboard", typed: "ok" };
     };
-    const state = () => ev(page, () => window.__sandbox.state());
-    const on = async (id) => (await ev(page, () => window.__sandbox.techniques())).find((t) => t.id === id)?.on;
+    const state = () => ev(page, () => globalThis.__sandbox.state());
+    const on = async (id) => (await ev(page, () => globalThis.__sandbox.techniques())).find((t) => t.id === id)?.on;
 
     /** Press Done, then a rating, on the step panel; return the step entry it logged. */
     const done = async (stepId) => {
@@ -176,12 +176,12 @@ const runMix = async (preset, profile) => {
         const url = new URL(args.url);
         url.search = new URLSearchParams({ preset, emulate: profile, still: "1", steps: "journey" }).toString();
         await page.goto(url.toString());
-        await until(page, () => window.__sandbox?.ready === true);
-        out.sessionId = await ev(page, () => window.__sandbox.sessionId);
+        await until(page, () => globalThis.__sandbox?.ready === true);
+        out.sessionId = await ev(page, () => globalThis.__sandbox.sessionId);
         await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-        await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10);
+        await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10);
         await frames(page, 40);
-        const opened = (await ev(page, () => window.__sandbox.log(600))).find(
+        const opened = (await ev(page, () => globalThis.__sandbox.log(600))).find(
             (e) => e.message === "step" && e.data?.event === "open",
         );
         const texts = opened?.data?.steps ?? [];
@@ -212,16 +212,16 @@ const runMix = async (preset, profile) => {
         };
 
         await doStep("orient", async () => {
-            const head = await ev(page, () => window.__sandbox.dispatch("get_transform", { device: "headset" }));
+            const head = await ev(page, () => globalThis.__sandbox.dispatch("get_transform", { device: "headset" }));
             for (const x of [-1, 1]) {
-                await ev(page, (t) => window.__sandbox.dispatch("look_at", { device: "headset", target: t }), {
+                await ev(page, (t) => globalThis.__sandbox.dispatch("look_at", { device: "headset", target: t }), {
                     x,
                     y: 1.4,
                     z: -1.5,
                 });
                 await frames(page, 10);
             }
-            await ev(page, (h) => window.__sandbox.dispatch("set_transform", { device: "headset", ...h }), {
+            await ev(page, (h) => globalThis.__sandbox.dispatch("set_transform", { device: "headset", ...h }), {
                 position: head.position,
                 orientation: head.orientation ?? head.quaternion,
             });
@@ -231,10 +231,10 @@ const runMix = async (preset, profile) => {
 
         await doStep("find", async () => {
             await rest();
-            await ev(page, (n) => window.__sandbox.aim("right", n), family);
+            await ev(page, (n) => globalThis.__sandbox.aim("right", n), family);
             await frames(page, 25);
-            const hover = await ev(page, () => window.__sandbox.hover("right"));
-            const tag = await ev(page, () => window.__hoverTag?.tags().right ?? null);
+            const hover = await ev(page, () => globalThis.__sandbox.hover("right"));
+            const tag = await ev(page, () => globalThis.__hoverTag?.tags().right ?? null);
             // hover.node is the node's index; the tag names it.
             return { pass: hover.node >= 0 && (!tag || tag.node === family), hover: hover.node, tag: tag?.text };
         });
@@ -282,11 +282,11 @@ const runMix = async (preset, profile) => {
         });
 
         await doStep("read", async () => {
-            const name = await ev(page, (k) => window.__sandbox.byRank(k), rank);
+            const name = await ev(page, (k) => globalThis.__sandbox.byRank(k), rank);
             await rest();
-            await ev(page, (n) => window.__sandbox.aim("right", n), name);
+            await ev(page, (n) => globalThis.__sandbox.aim("right", n), name);
             await frames(page, 25);
-            const tag = await ev(page, () => window.__hoverTag?.tags().right ?? null);
+            const tag = await ev(page, () => globalThis.__hoverTag?.tags().right ?? null);
             return { rank, answer: name, tag: tag?.text, pass: !tag || tag.text?.includes(`#${rank}`) };
         });
 
@@ -303,9 +303,9 @@ const runMix = async (preset, profile) => {
             if (nm) {
                 await openMenu("space");
                 const hit = await tapMesh("node-menus-graph-1BackMesh");
-                const cmd = (await ev(page, () => window.__sandbox.log(50)))
-                    .filter((e) => e.message === "command")
-                    .at(-1)?.data;
+                const cmd = (await ev(page, () => globalThis.__sandbox.log(50))).findLast(
+                    (e) => e.message === "command",
+                )?.data;
                 return {
                     how: "graph menu, Filter",
                     hit,
@@ -355,12 +355,12 @@ const runMix = async (preset, profile) => {
 
         await doStep("save", async () => {
             const t0 = await now(page);
-            await ev(page, () => window.__sandbox.place("left", -0.12, 1.2, 0.08));
-            await ev(page, () => window.__sandbox.aim("left", "gear"));
+            await ev(page, () => globalThis.__sandbox.place("left", -0.12, 1.2, 0.08));
+            await ev(page, () => globalThis.__sandbox.aim("left", "gear"));
             await frames(page, 12);
-            await ev(page, (k) => window.__sandbox.press("left", k, true), sel);
+            await ev(page, (k) => globalThis.__sandbox.press("left", k, true), sel);
             await frames(page, 4);
-            await ev(page, (k) => window.__sandbox.press("left", k, false), sel);
+            await ev(page, (k) => globalThis.__sandbox.press("left", k, false), sel);
             await frames(page, 8);
             await tapControl("gear-tab-framework");
             await tapControl("gear-save");
@@ -369,7 +369,7 @@ const runMix = async (preset, profile) => {
             return { how: "gear panel, Framework, Save", pass: saved };
         });
 
-        const finished = await ev(page, () => window.__sandbox.control("steps-close"));
+        const finished = await ev(page, () => globalThis.__sandbox.control("steps-close"));
         out.finished = !!finished;
         if (args.logs) {
             await page.waitForTimeout(1500);

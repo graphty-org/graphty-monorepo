@@ -44,16 +44,16 @@ const browser = await chromium.launch({
 
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
-    const start = await page.evaluate(() => window.__sandbox.xrFrames());
+    const start = await page.evaluate(() => globalThis.__sandbox.xrFrames());
     // Software rendering of 2,000 nodes with tracked hands can take a second a frame.
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n], 240_000);
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n], 240_000);
 };
 const ev = (page, fn, arg) => page.evaluate(fn, arg);
-const dp = (page) => ev(page, () => window.__densePicking.state());
+const dp = (page) => ev(page, () => globalThis.__densePicking.state());
 const press = async (page, hand, kind) => {
-    await ev(page, ([h, k]) => window.__sandbox.press(h, k, true), [hand, kind]);
+    await ev(page, ([h, k]) => globalThis.__sandbox.press(h, k, true), [hand, kind]);
     await frames(page, 6);
-    await ev(page, ([h, k]) => window.__sandbox.press(h, k, false), [hand, kind]);
+    await ev(page, ([h, k]) => globalThis.__sandbox.press(h, k, false), [hand, kind]);
     await frames(page, 10);
 };
 const sub = (a, b) => a.map((v, k) => v - b[k]);
@@ -76,18 +76,18 @@ const open = async (profile, query, r) => {
     url.search = new URLSearchParams({ ...query, emulate: profile, still: "1" }).toString();
     step = `open ${url.search}`;
     await page.goto(url.toString());
-    await until(page, () => window.__sandbox?.ready === true && !!window.__densePicking, undefined, 240_000);
+    await until(page, () => globalThis.__sandbox?.ready === true && !!globalThis.__densePicking, undefined, 240_000);
     step = "enter VR";
     await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-    await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10, undefined, 240_000);
+    await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10, undefined, 240_000);
     await frames(page, 60);
     return { context, page };
 };
 
 /** Hold the off hand low and aim it up, so the plate is far above the graph. */
 const parkLeft = async (page) => {
-    await ev(page, () => window.__sandbox.place("left", -0.3, 1.0, 0.05));
-    await ev(page, () => window.__sandbox.aim("left", "space"));
+    await ev(page, () => globalThis.__sandbox.place("left", -0.3, 1, 0.05));
+    await ev(page, () => globalThis.__sandbox.aim("left", "space"));
     await frames(page, 20);
 };
 
@@ -99,9 +99,9 @@ const aimOnPlate = async (page, hand, target, plate) => {
     let p = target;
     let miss = Infinity;
     for (let k = 0; k < 6 && miss > 5e-4; k++) {
-        await ev(page, ([h, x, y, z]) => window.__sandbox.aimAt(h, x, y, z), [hand, ...p]);
+        await ev(page, ([h, x, y, z]) => globalThis.__sandbox.aimAt(h, x, y, z), [hand, ...p]);
         await frames(page, 6);
-        const ray = await ev(page, (h) => window.__densePicking.ray(h), hand);
+        const ray = await ev(page, (h) => globalThis.__densePicking.ray(h), hand);
         const t = dot(sub(plate.center, ray.origin), plate.normal) / dot(ray.dir, plate.normal);
         const err = sub(
             target,
@@ -115,11 +115,11 @@ const aimOnPlate = async (page, hand, target, plate) => {
 
 /** Put the plate through a point: the off hand `reach` before it, on the line from the head. */
 const slabThrough = async (page, p, reach) => {
-    const cam = (await ev(page, () => window.__sandbox.debug())).camera;
+    const cam = (await ev(page, () => globalThis.__sandbox.debug())).camera;
     const d = norm(sub(p, cam));
     const h = p.map((v, k) => v - d[k] * reach);
-    await ev(page, ([x, y, z]) => window.__sandbox.place("left", x, y, z), h);
-    await ev(page, ([x, y, z]) => window.__sandbox.aimAt("left", x, y, z), p);
+    await ev(page, ([x, y, z]) => globalThis.__sandbox.place("left", x, y, z), h);
+    await ev(page, ([x, y, z]) => globalThis.__sandbox.aimAt("left", x, y, z), p);
 };
 
 const runOn = async (profile, r, check) => {
@@ -131,18 +131,18 @@ const runOn = async (profile, r, check) => {
         r,
     );
     try {
-        const tech = (await ev(page, () => window.__sandbox.techniques())).find((t) => t.id === "dense-picking");
+        const tech = (await ev(page, () => globalThis.__sandbox.techniques())).find((t) => t.id === "dense-picking");
         check("switchedOn", tech?.on && tech.reason === null, { tech });
-        const meshes0 = (await ev(page, () => window.__sandbox.counts())).meshes;
-        const pos = await ev(page, () => window.__densePicking.positions());
-        const beacon = await ev(page, () => window.__sandbox.topNode());
+        const meshes0 = (await ev(page, () => globalThis.__sandbox.counts())).meshes;
+        const pos = await ev(page, () => globalThis.__densePicking.positions());
+        const beacon = await ev(page, () => globalThis.__sandbox.topNode());
 
         step = "hint tags";
         await parkLeft(page);
-        await ev(page, (b) => window.__sandbox.aim("right", b), beacon);
+        await ev(page, (b) => globalThis.__sandbox.aim("right", b), beacon);
         await until(
             page,
-            (b) => Object.values(window.__densePicking.state().latched?.tags ?? {}).includes(b),
+            (b) => Object.values(globalThis.__densePicking.state().latched?.tags ?? {}).includes(b),
             beacon,
             30_000,
         );
@@ -170,18 +170,18 @@ const runOn = async (profile, r, check) => {
         const tag = tags.find((t) => s1.latched.tags[t] === beacon);
         const typedLog = [];
         for (const ch of tag) {
-            const at = await ev(page, (k) => window.__densePicking.keyWorld(k), ch);
+            const at = await ev(page, (k) => globalThis.__densePicking.keyWorld(k), ch);
             if (!at) {
                 typedLog.push(`${ch}: no key`);
                 break;
             }
-            await ev(page, ([x, y, z]) => window.__sandbox.aimAt("right", x, y, z), at);
+            await ev(page, ([x, y, z]) => globalThis.__sandbox.aimAt("right", x, y, z), at);
             await frames(page, 10);
             await press(page, "right", kind);
             typedLog.push(`${ch}: typed "${(await dp(page)).typed}"`);
         }
-        const sel = await ev(page, () => window.__sandbox.state());
-        const log = await ev(page, () => window.__sandbox.log(200));
+        const sel = await ev(page, () => globalThis.__sandbox.state());
+        const log = await ev(page, () => globalThis.__sandbox.log(200));
         const pick = log.find((e) => e.message === "dense-picking.pick");
         const cmd = log.find(
             (e) => e.message === "command" && e.data?.code === "select" && e.data?.technique === "dense-picking",
@@ -196,8 +196,8 @@ const runOn = async (profile, r, check) => {
         });
 
         step = "slab through the beacon";
-        await ev(page, () => window.__sandbox.aim("right", "space"));
-        await ev(page, () => window.__sandbox.run("select", { ids: [] }));
+        await ev(page, () => globalThis.__sandbox.aim("right", "space"));
+        await ev(page, () => globalThis.__sandbox.run("select", { ids: [] }));
         await slabThrough(page, pos[beacon], 0.3);
         await frames(page, 30);
         const s2 = (await dp(page)).slab;
@@ -225,17 +225,17 @@ const runOn = async (profile, r, check) => {
 
         step = "hover and tap on the plate";
         // The dot farthest from its nearest neighbor, so a millimeter of aim cannot pick another.
-        const dots = await ev(page, (names) => names.map((n) => window.__densePicking.dotWorld(n)), s2.slice);
+        const dots = await ev(page, (names) => names.map((n) => globalThis.__densePicking.dotWorld(n)), s2.slice);
         const gap = (k) => Math.min(...dots.map((d, m) => (m === k ? Infinity : Math.hypot(...sub(d, dots[k])))));
         const gaps = dots.map((_, k) => gap(k));
         const target = s2.slice[gaps.indexOf(Math.max(...gaps))];
-        const dotAt = await ev(page, (t) => window.__densePicking.dotWorld(t), target);
+        const dotAt = await ev(page, (t) => globalThis.__densePicking.dotWorld(t), target);
         const miss = await aimOnPlate(page, "right", dotAt, s2);
         await frames(page, 15);
         const names = Object.keys(pos);
-        const hover = await ev(page, () => window.__sandbox.hover("right"));
+        const hover = await ev(page, () => globalThis.__sandbox.hover("right"));
         await press(page, "right", kind);
-        const sel2 = await ev(page, () => window.__sandbox.state());
+        const sel2 = await ev(page, () => globalThis.__sandbox.state());
         check(
             "slabHoverAndTap",
             names[hover.node] === target &&
@@ -249,12 +249,12 @@ const runOn = async (profile, r, check) => {
                 hover: names[hover.node],
                 context: hover.context,
                 selection: sel2.selection,
-                wins: (await ev(page, () => window.__sandbox.wins())).slice(-2),
+                wins: (await ev(page, () => globalThis.__sandbox.wins())).slice(-2),
             },
         );
         await page.screenshot({ path: join(args.out, `${profile}--slab.png`) });
 
-        const f = await ev(page, () => window.__sandbox.frames(300));
+        const f = await ev(page, () => globalThis.__sandbox.frames(300));
         check("frameTime480", f.over50 === 0, {
             jsP95: f.jsP95,
             jsMax: f.jsMax,
@@ -263,11 +263,11 @@ const runOn = async (profile, r, check) => {
         });
 
         step = "switch off and on";
-        await ev(page, () => window.__sandbox.setOn("dense-picking", false));
+        await ev(page, () => globalThis.__sandbox.setOn("dense-picking", false));
         await frames(page, 15);
         const off = await dp(page);
-        const meshes1 = (await ev(page, () => window.__sandbox.counts())).meshes;
-        await ev(page, () => window.__sandbox.setOn("dense-picking", true));
+        const meshes1 = (await ev(page, () => globalThis.__sandbox.counts())).meshes;
+        await ev(page, () => globalThis.__sandbox.setOn("dense-picking", true));
         await frames(page, 15);
         const back = await dp(page);
         check(
@@ -295,12 +295,12 @@ const runOff = async (profile, r, check) => {
     const kind = profile.endsWith("hands") ? "pinch" : "trigger";
     const { context, page } = await open(profile, { preset: "empty", graph: "dense", n: "480", seed: "7" }, r);
     try {
-        const top = await ev(page, () => window.__sandbox.topNode());
-        await ev(page, (b) => window.__sandbox.aim("right", b), top);
+        const top = await ev(page, () => globalThis.__sandbox.topNode());
+        await ev(page, (b) => globalThis.__sandbox.aim("right", b), top);
         await frames(page, 40);
         const s = await dp(page);
         await press(page, "right", kind);
-        const sel = await ev(page, () => window.__sandbox.state());
+        const sel = await ev(page, () => globalThis.__sandbox.state());
         check("offNothingShown", !s.slab.shown && s.latched === null && !s.keyboard, {
             slab: s.slab.shown,
             tags: !!s.latched,
@@ -318,11 +318,11 @@ const run2000 = async (profile, r, check) => {
         r,
     );
     try {
-        const pos = await ev(page, () => window.__densePicking.positions());
-        const top = await ev(page, () => window.__sandbox.topNode());
-        await ev(page, (b) => window.__sandbox.aim("right", b), top);
-        await until(page, () => !!window.__densePicking.state().latched, undefined, 30_000);
-        const start = await ev(page, () => window.__sandbox.xrFrames());
+        const pos = await ev(page, () => globalThis.__densePicking.positions());
+        const top = await ev(page, () => globalThis.__sandbox.topNode());
+        await ev(page, (b) => globalThis.__sandbox.aim("right", b), top);
+        await until(page, () => !!globalThis.__densePicking.state().latched, undefined, 30_000);
+        const start = await ev(page, () => globalThis.__sandbox.xrFrames());
         // Sweep the plate through the graph, 15 cm either side of the top node, in 1 cm steps.
         const c = pos[top];
         let maxSlice = 0;
@@ -331,9 +331,9 @@ const run2000 = async (profile, r, check) => {
             await frames(page, 3);
             maxSlice = Math.max(maxSlice, (await dp(page)).slab.slice.length);
         }
-        const used = (await ev(page, () => window.__sandbox.xrFrames())) - start;
+        const used = (await ev(page, () => globalThis.__sandbox.xrFrames())) - start;
         const s = await dp(page);
-        const f = await ev(page, (k) => window.__sandbox.frames(k), used);
+        const f = await ev(page, (k) => globalThis.__sandbox.frames(k), used);
         check("frameTime2000", f.over50 === 0 && s.latched && s.slab.shown && maxSlice > 0, {
             maxSlice,
             frames: used,
@@ -376,7 +376,8 @@ for (const profile of args.profiles.split(",")) {
     const failed = Object.entries(r.checks)
         .filter(([, c]) => !c.pass)
         .map(([k]) => k);
-    console.log(`${r.pass ? "PASS" : "FAIL"} ${profile}${failed.length ? `  failed: ${failed.join(", ")}` : ""}`);
+    const failedNote = failed.length ? `  failed: ${failed.join(", ")}` : "";
+    console.log(`${r.pass ? "PASS" : "FAIL"} ${profile}${failedNote}`);
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((r) => r.pass), results };

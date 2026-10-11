@@ -7,7 +7,7 @@
 import { Ray, Vector3, type WebXRDefaultExperience, type WebXRInputSource } from "@babylonjs/core";
 
 import type { Channel, Hand } from "../core/arbiter";
-import type { GraphView } from "../scene/graph-view";
+import type { GraphView, NodePick } from "../scene/graph-view";
 import type { HoverInfo, TargetProvider } from "./technique";
 
 /** A press edge. */
@@ -85,7 +85,7 @@ const MICRO: [number, string][] = [
 export function createInput(
     xr: WebXRDefaultExperience,
     graph: GraphView,
-    providers: Record<Hand, TargetProvider | null> = { left: null, right: null },
+    providers: Record<Hand, TargetProvider | null>,
 ): InputLayer {
     const blank = (hand: Hand): HandState => ({
         hand,
@@ -117,41 +117,71 @@ export function createInput(
     const sourceFor = (hand: Hand): WebXRInputSource | null =>
         xr.input.controllers.find((c) => c.inputSource.handedness === hand) ?? null;
 
+    // Queue an edge when a button's state differs from the last one seen under `key`.
+    const report = (
+        h: HandState,
+        channel: Channel,
+        detail: string,
+        key: string,
+        pressed: boolean,
+        now: number,
+    ): void => {
+        if (pressed !== (buttonsDown.get(key) ?? false)) {
+            buttonsDown.set(key, pressed);
+            queue.push({ hand: h.hand, channel, detail, down: pressed, time: now });
+        }
+    };
+
     const pollGamepad = (h: HandState, now: number): void => {
         const gp = h.source?.inputSource.gamepad;
-        if (gp && h.isHand) {
-            // Quest thumb microgestures: buttons 5 to 9 of a hand's gamepad (Babylon's oculus-hand profile).
-            for (const [i, detail] of MICRO) {
-                const pressed = gp.buttons[i]?.pressed ?? false;
-                const key = `${h.hand}.micro.${detail}`;
-                if (pressed !== (buttonsDown.get(key) ?? false)) {
-                    buttonsDown.set(key, pressed);
-                    queue.push({ hand: h.hand, channel: "micro", detail, down: pressed, time: now });
-                }
-            }
-        }
-        if (!gp || h.isHand) {
+        if (!gp) {
             return;
         }
-        // Guarded: a missing index is no button.
-        for (const [i, detail] of BUTTONS[h.hand]) {
-            const pressed = gp.buttons[i]?.pressed ?? false;
-            const key = `${h.hand}.${detail}`;
-            if (pressed !== (buttonsDown.get(key) ?? false)) {
-                buttonsDown.set(key, pressed);
-                queue.push({ hand: h.hand, channel: "button", detail, down: pressed, time: now });
+        // Guarded throughout: a missing index is no button.
+        if (h.isHand) {
+            // Quest thumb microgestures: buttons 5 to 9 of a hand's gamepad (Babylon's oculus-hand profile).
+            for (const [i, detail] of MICRO) {
+                report(h, "micro", detail, `${h.hand}.micro.${detail}`, gp.buttons[i]?.pressed ?? false, now);
             }
+            return;
+        }
+        for (const [i, detail] of BUTTONS[h.hand]) {
+            report(h, "button", detail, `${h.hand}.${detail}`, gp.buttons[i]?.pressed ?? false, now);
         }
         // Stick directions as presses, with hysteresis: x for left or right, y for up or down.
         for (const [i, detail] of AXES) {
-            const v = gp.axes[i] ?? 0;
+            const v = Math.abs(gp.axes[i] ?? 0);
             const key = `${h.hand}.stick.${detail}`;
             const down = buttonsDown.get(key) ?? false;
-            if ((!down && Math.abs(v) > STICK_ON) || (down && Math.abs(v) < STICK_OFF)) {
-                buttonsDown.set(key, !down);
-                queue.push({ hand: h.hand, channel: "stick", detail, down: !down, time: now });
+            const flips = down ? v < STICK_OFF : v > STICK_ON;
+            if (flips) {
+                report(h, "stick", detail, key, !down, now);
             }
         }
+    };
+
+    // Hysteresis (rule 7): whether the hand keeps its current node rather than the new pick, because
+    // the new one is not clearly closer to the ray.
+    const keepsCurrent = (h: HandState, best: NodePick | null, minAngle: number): boolean => {
+        graph.nodeWorld(h.node, tmp).subtractInPlace(h.origin);
+        const t = Vector3.Dot(tmp, h.dir);
+        const cur = t > 0 ? Math.acos(Math.min(1, t / tmp.length())) : Math.PI;
+        const keep = Math.max(minAngle, Math.atan2(graph.radiusWorld(), Math.max(t, 1e-6))) * 1.5;
+        return cur <= keep && (!best || best.angle > cur * 0.7);
+    };
+
+    // The node a hand's ray targets, or -1.
+    const pickNode = (h: HandState, minAngle: number): number => {
+        // A technique's target provider (design section 5.2) first; the plain ray when it hits nothing.
+        const provided = providers[h.hand]?.(h.origin, h.dir, minAngle) ?? null;
+        const best = provided ?? graph.pick(h.origin, h.dir, minAngle);
+        const node = best?.index ?? -1;
+        // A provider's pick is not checked for hysteresis: it draws nodes elsewhere (the slab, the held
+        // copy), so the angle to the node's place in the graph means nothing; the provider keeps its own.
+        if (!provided && h.node >= 0 && node !== h.node && keepsCurrent(h, best, minAngle)) {
+            return h.node;
+        }
+        return node;
     };
 
     const target = (h: HandState, minAngle: number, now: number): void => {
@@ -170,24 +200,8 @@ export function createInput(
         if (ui) {
             h.context = "ui";
         } else {
-            // A technique's target provider (design section 5.2) first; the plain ray when it hits nothing.
-            const provided = providers[h.hand]?.(h.origin, h.dir, minAngle) ?? null;
-            const best = provided ?? graph.pick(h.origin, h.dir, minAngle);
-            let node = best?.index ?? -1;
-            // Hysteresis (rule 7): keep the current node unless the new one is clearly closer to the ray.
-            // A provider's pick is not checked here: it draws nodes elsewhere (the slab, the held copy), so
-            // the angle to the node's place in the graph means nothing; the provider keeps its own.
-            if (!provided && h.node >= 0 && node !== h.node) {
-                graph.nodeWorld(h.node, tmp).subtractInPlace(h.origin);
-                const t = Vector3.Dot(tmp, h.dir);
-                const cur = t > 0 ? Math.acos(Math.min(1, t / tmp.length())) : Math.PI;
-                const keep = Math.max(minAngle, Math.atan2(graph.radiusWorld(), Math.max(t, 1e-6))) * 1.5;
-                if (cur <= keep && (!best || best.angle > cur * 0.7)) {
-                    ({ node } = h);
-                }
-            }
-            h.node = node;
-            if (node >= 0) {
+            h.node = pickNode(h, minAngle);
+            if (h.node >= 0) {
                 h.context = "node";
             } else {
                 h.context = graph.inBounds(h.origin, h.dir) ? "graph" : "space";

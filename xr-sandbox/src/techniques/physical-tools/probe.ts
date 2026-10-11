@@ -78,7 +78,7 @@ export function createProbe(ctx: TechniqueContext, card: Card, sieveResult: () =
         }
         const top = o.slice(0, 3).map((i) => data.names[i]);
         return {
-            text: `${name} ${v[o[o.length - 1]].toFixed(3)} to ${v[o[0]].toFixed(3)}\ntop: ${top.join(", ")}`,
+            text: `${name} ${v[o.at(-1) ?? 0].toFixed(3)} to ${v[o[0]].toFixed(3)}\ntop: ${top.join(", ")}`,
             result,
         };
     };

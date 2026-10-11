@@ -163,7 +163,7 @@ export function createSettings(
             const text = JSON.stringify([...values].sort(([a], [b]) => a.localeCompare(b)));
             let h = 0;
             for (let i = 0; i < text.length; i++) {
-                h = (Math.imul(h, 31) + text.charCodeAt(i)) | 0;
+                h = (Math.imul(h, 31) + (text.codePointAt(i) ?? 0)) >>> 0;
             }
             return (h >>> 0).toString(36);
         },

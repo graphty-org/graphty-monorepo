@@ -53,15 +53,15 @@ const LAG_MM = 1;
 
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 20 });
 const frames = async (page, n) => {
-    const start = await page.evaluate(() => window.__sandbox.xrFrames());
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n]);
+    const start = await page.evaluate(() => globalThis.__sandbox.xrFrames());
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n]);
 };
 const sb = (page, fn, arg) => page.evaluate(fn, arg);
 const now = (page) => sb(page, () => Date.now());
 const logSince = async (page, t0, prefix) =>
-    (await sb(page, () => window.__sandbox.log(400))).filter((e) => e.time >= t0 && e.message.startsWith(prefix));
-const menu = (page) => sb(page, () => window.__wristMenu.state());
-const dispatch = (page, method, params) => sb(page, ([m, p]) => window.__sandbox.dispatch(m, p), [method, params]);
+    (await sb(page, () => globalThis.__sandbox.log(400))).filter((e) => e.time >= t0 && e.message.startsWith(prefix));
+const menu = (page) => sb(page, () => globalThis.__wristMenu.state());
+const dispatch = (page, method, params) => sb(page, ([m, p]) => globalThis.__sandbox.dispatch(m, p), [method, params]);
 const add = (p, d, s) => p.map((v, i) => v + d[i] * s);
 
 /**
@@ -69,10 +69,10 @@ const add = (p, d, s) => p.map((v, i) => v + d[i] * s);
  * to `expect` (ms, page clock), or null if it did not within 2 s.
  */
 const poseOff = async (page, device, orientation, expect) => {
-    const [t0, f0] = await sb(page, () => [performance.now(), window.__wristMenu.state().frame]);
+    const [t0, f0] = await sb(page, () => [performance.now(), globalThis.__wristMenu.state().frame]);
     await dispatch(page, "set_transform", { device, position: HELD, orientation });
     try {
-        await until(page, (e) => window.__wristMenu.state().visible === e, expect, 2000);
+        await until(page, (e) => globalThis.__wristMenu.state().visible === e, expect, 2000);
     } catch {
         return null;
     }
@@ -85,12 +85,12 @@ let lastFrames = 0;
 
 /** Poke a wrist-menu button with the right index fingertip: approach, push through, withdraw. */
 const poke = async (page, name) => {
-    const b = await sb(page, (n) => window.__wristMenu.button(n), name);
-    await sb(page, (p) => window.__sandbox.aimAt("right", p[0], p[1], p[2]), b.point);
+    const b = await sb(page, (n) => globalThis.__wristMenu.button(n), name);
+    await sb(page, (p) => globalThis.__sandbox.aimAt("right", p[0], p[1], p[2]), b.point);
     const placeTip = async (target) => {
         // The tip's offset from the hand's position is fixed for this orientation: measure, then move.
         const hand = (await dispatch(page, "get_transform", { device: "hand-right" })).position;
-        const tip = await sb(page, () => window.__wristMenu.tip("right"));
+        const tip = await sb(page, () => globalThis.__wristMenu.tip("right"));
         const delta = target.map((v, i) => v - tip[i]);
         await dispatch(page, "set_transform", {
             device: "hand-right",
@@ -106,7 +106,9 @@ const poke = async (page, name) => {
 
 /** The right hand back at arm's length, out of near-touch range of the menu. */
 const restRight = async (page) => {
-    const device = (await sb(page, () => window.__sandbox.hover("right"))).isHand ? "hand-right" : "controller-right";
+    const device = (await sb(page, () => globalThis.__sandbox.hover("right"))).isHand
+        ? "hand-right"
+        : "controller-right";
     await dispatch(page, "set_transform", { device, position: { x: 0.25, y: 1.5, z: -0.4 } });
     await frames(page, 3);
 };
@@ -114,13 +116,13 @@ const restRight = async (page) => {
 /** A ray press on a wrist-menu button by the right hand (pinch or trigger). */
 const rayPress = async (page, name, kind) => {
     await restRight(page);
-    const b = await sb(page, (n) => window.__wristMenu.button(n), name);
-    await sb(page, (p) => window.__sandbox.aimAt("right", p[0], p[1], p[2]), b.point);
+    const b = await sb(page, (n) => globalThis.__wristMenu.button(n), name);
+    await sb(page, (p) => globalThis.__sandbox.aimAt("right", p[0], p[1], p[2]), b.point);
     await frames(page, 10);
-    const hover = await sb(page, () => window.__sandbox.hover("right"));
-    await sb(page, (k) => window.__sandbox.press("right", k, true), kind);
+    const hover = await sb(page, () => globalThis.__sandbox.hover("right"));
+    await sb(page, (k) => globalThis.__sandbox.press("right", k, true), kind);
     await frames(page, 6);
-    await sb(page, (k) => window.__sandbox.press("right", k, false), kind);
+    await sb(page, (k) => globalThis.__sandbox.press("right", k, false), kind);
     await frames(page, 10);
     return { context: hover.context, uiMesh: hover.uiMesh };
 };
@@ -134,9 +136,9 @@ const open = async (profile, query) => {
     const url = new URL(args.url);
     url.search = new URLSearchParams({ ...query, emulate: profile, still: "1" }).toString();
     await page.goto(url.toString());
-    await until(page, () => window.__sandbox?.ready === true);
+    await until(page, () => globalThis.__sandbox?.ready === true);
     await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-    await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10);
+    await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10);
     await frames(page, 30);
     return { page, context, r };
 };
@@ -157,7 +159,7 @@ const runOn = async (profile) => {
     // --- Module on ---
     let { page, context, r } = await open(profile, { preset: "empty", on: "wrist-menu" });
     try {
-        const on = (await sb(page, () => window.__sandbox.techniques())).find((t) => t.id === "wrist-menu");
+        const on = (await sb(page, () => globalThis.__sandbox.techniques())).find((t) => t.id === "wrist-menu");
         check("moduleOn", on?.on, { reason: on?.reason });
 
         await dispatch(page, "look_at", { device: "headset", target: HELD });
@@ -211,7 +213,7 @@ const runOn = async (profile) => {
 
         // Undo: arrange a command, then the other hand presses Undo (poke with hands, ray with controllers).
         const shown = await showMenu(page, hands);
-        await sb(page, () => window.__sandbox.run("colorBy", { result: "pagerank" }));
+        await sb(page, () => globalThis.__sandbox.run("colorBy", { result: "pagerank" }));
         await frames(page, 4);
         const label = (await menu(page)).undo;
         let t0 = await now(page);
@@ -222,7 +224,7 @@ const runOn = async (profile) => {
         }
         let cmds = (await logSince(page, t0, "command")).map((e) => e.data);
         let items = (await logSince(page, t0, "wrist-menu.item")).map((e) => e.data);
-        let state = await sb(page, () => window.__sandbox.state());
+        let state = await sb(page, () => globalThis.__sandbox.state());
         check(hands ? "pokeUndo" : "rayUndo", cmds.some((c) => c.code === "undo") && state.colorBy !== "pagerank", {
             shownMs: shown,
             buttonText: label,
@@ -233,16 +235,16 @@ const runOn = async (profile) => {
 
         if (hands) {
             // The menu hand's own pinch does nothing on the menu.
-            await sb(page, () => window.__sandbox.run("colorBy", { result: "degree" }));
+            await sb(page, () => globalThis.__sandbox.run("colorBy", { result: "degree" }));
             await showMenu(page, hands);
             t0 = await now(page);
-            await sb(page, () => window.__sandbox.press("left", "pinch", true));
+            await sb(page, () => globalThis.__sandbox.press("left", "pinch", true));
             await frames(page, 8);
-            await sb(page, () => window.__sandbox.press("left", "pinch", false));
+            await sb(page, () => globalThis.__sandbox.press("left", "pinch", false));
             await frames(page, 8);
             cmds = (await logSince(page, t0, "command")).map((e) => e.data);
             items = await logSince(page, t0, "wrist-menu.item");
-            state = await sb(page, () => window.__sandbox.state());
+            state = await sb(page, () => globalThis.__sandbox.state());
             const stillShown = (await menu(page)).visible;
             check(
                 "menuHandPinchDoesNothing",
@@ -263,14 +265,14 @@ const runOn = async (profile) => {
         } else {
             await rayPress(page, "settings", press);
         }
-        const gearOpen = await sb(page, () => window.__sandbox.gearOpen());
+        const gearOpen = await sb(page, () => globalThis.__sandbox.gearOpen());
         await showMenu(page, hands);
         if (hands) {
             await poke(page, "settings");
         } else {
             await rayPress(page, "settings", press);
         }
-        const gearClosed = !(await sb(page, () => window.__sandbox.gearOpen()));
+        const gearClosed = !(await sb(page, () => globalThis.__sandbox.gearOpen()));
         check("settingsOpensGear", gearOpen && gearClosed, { opened: gearOpen, closedAgain: gearClosed });
 
         // Flag logs a flag entry (by ray, both kinds of input).
@@ -282,10 +284,10 @@ const runOn = async (profile) => {
 
         // Recenter re-places the graph from where the head now looks (at the wrist, down and left).
         await showMenu(page, hands);
-        const before = await sb(page, () => window.__wristMenu.graphRoot());
+        const before = await sb(page, () => globalThis.__wristMenu.graphRoot());
         t0 = await now(page);
         await rayPress(page, "recenter", press);
-        const after = await sb(page, () => window.__wristMenu.graphRoot());
+        const after = await sb(page, () => globalThis.__wristMenu.graphRoot());
         const recenters = await logSince(page, t0, "recenter");
         const moved = Math.hypot(...after.map((v, i) => v - before[i]));
         check("recenterReplacesGraph", recenters.length === 1 && moved > 0.05, {
@@ -295,7 +297,7 @@ const runOn = async (profile) => {
 
         // Held UI lag: the off hand moved with animate_to; the menu keeps its offset in the same frame.
         await showMenu(page, hands);
-        const lagP = sb(page, () => window.__wristMenu.lag(45));
+        const lagP = sb(page, () => globalThis.__wristMenu.lag(45));
         await dispatch(page, "animate_to", {
             device: off,
             position: { x: HELD.x + 0.15, y: HELD.y + 0.1, z: HELD.z },
@@ -306,9 +308,9 @@ const runOn = async (profile) => {
         check("heldUiLag", lag.maxMm < LAG_MM && lag.movedMm > 50, { ...lag, limitMm: LAG_MM });
 
         await restRight(page);
-        await sb(page, () => window.__sandbox.aim("right", "space"));
+        await sb(page, () => globalThis.__sandbox.aim("right", "space"));
         await frames(page, 20);
-        const idle = await sb(page, () => window.__sandbox.jitter(30));
+        const idle = await sb(page, () => globalThis.__sandbox.jitter(30));
         check("menuIdle", idle.panelRenders === 0 && idle.maxMm < 0.05, {
             panelRenders: idle.panelRenders,
             maxMm: idle.maxMm,
@@ -324,14 +326,14 @@ const runOn = async (profile) => {
 
     // --- Detector sanity (hands): with Babylon's default smoothing the lag check must fail ---
     if (hands) {
-        ({ page, context, r } = await open(profile, {
+        ({ page, context } = await open(profile, {
             preset: "empty",
             on: "wrist-menu",
             "s.wrist-menu.followLagMs": "100",
         }));
         try {
             await showMenu(page, hands);
-            const lagP = sb(page, () => window.__wristMenu.lag(45));
+            const lagP = sb(page, () => globalThis.__wristMenu.lag(45));
             await dispatch(page, "animate_to", {
                 device: off,
                 position: { x: HELD.x + 0.15, y: HELD.y + 0.1, z: HELD.z },
@@ -348,7 +350,7 @@ const runOn = async (profile) => {
     // --- Module off: the same pose shows nothing ---
     ({ page, context, r } = await open(profile, { preset: "empty" }));
     try {
-        const on = (await sb(page, () => window.__sandbox.techniques())).find((t) => t.id === "wrist-menu");
+        const on = (await sb(page, () => globalThis.__sandbox.techniques())).find((t) => t.id === "wrist-menu");
         await dispatch(page, "look_at", { device: "headset", target: HELD });
         await dispatch(page, "set_transform", {
             device: off,
@@ -380,9 +382,8 @@ for (const profile of args.profiles.split(",")) {
     const failed = Object.entries(res.checks)
         .filter(([, c]) => !c.pass)
         .map(([n]) => n);
-    console.log(
-        `${res.pass ? "PASS" : "FAIL"} ${profile}  ${Object.keys(res.checks).length} checks${failed.length ? `  failed: ${failed.join(", ")}` : ""}`,
-    );
+    const failedNote = failed.length ? `  failed: ${failed.join(", ")}` : "";
+    console.log(`${res.pass ? "PASS" : "FAIL"} ${profile}  ${Object.keys(res.checks).length} checks${failedNote}`);
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((x) => x.pass), results };

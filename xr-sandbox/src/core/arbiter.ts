@@ -178,7 +178,7 @@ export function createArbiter(
 
     const decideArena = (a: Arena, time: number): void => {
         const g: Gesture = { durationMs: time - a.press.time, movedM: a.moved };
-        for (const c of [...a.waiting]) {
+        for (const c of Array.from(a.waiting)) {
             const d = c.claim.decide ? c.claim.decide(g) : "take";
             if (d === "take") {
                 award(a.press, c, a.all, g.durationMs === 0 && !c.claim.decide ? "start" : "take");
@@ -223,7 +223,7 @@ export function createArbiter(
             decideArena(arena, p.time);
         },
         tick(time, movedById) {
-            for (const a of [...arenas.values()]) {
+            for (const a of Array.from(arenas.values())) {
                 a.moved = movedById(a.press.id);
                 decideArena(a, time);
             }
@@ -266,7 +266,7 @@ export function createArbiter(
             }
         },
         cancelOwner(owner, reason) {
-            for (const [id, o] of [...owned]) {
+            for (const [id, o] of Array.from(owned)) {
                 if (o.owner === owner) {
                     owned.delete(id);
                     events.cancel(o.press, owner, reason);
@@ -303,35 +303,60 @@ export function inputMapDefects(claims: readonly OwnedClaim[]): InputMapDefect[]
     const out: InputMapDefect[] = [];
     for (let i = 0; i < claims.length; i++) {
         for (let j = i + 1; j < claims.length; j++) {
-            const a = claims[i];
-            const b = claims[j];
-            if (
-                a.owner === b.owner ||
-                a.claim.channel !== b.claim.channel ||
-                (a.claim.detail ?? "") !== (b.claim.detail ?? "")
-            ) {
-                continue;
-            }
-            const handsMeet =
-                !a.claim.hand ||
-                !b.claim.hand ||
-                a.claim.hand === "any" ||
-                b.claim.hand === "any" ||
-                a.claim.hand === b.claim.hand;
-            if (!handsMeet) {
-                continue;
-            }
-            const ctxA = a.claim.contexts === "any" ? ALL_CONTEXTS : a.claim.contexts;
-            const ctxB = b.claim.contexts === "any" ? ALL_CONTEXTS : b.claim.contexts;
-            for (const context of ctxA.filter((c) => ctxB.includes(c))) {
-                const base = { a: a.owner, b: b.owner, channel: a.claim.channel, context, detail: a.claim.detail };
-                if (a.claim.priority === b.claim.priority) {
-                    out.push({ ...base, reason: "same priority" });
-                } else if (!a.claim.decide || !b.claim.decide) {
-                    out.push({ ...base, reason: "a claim without decide shares the channel" });
-                }
+            if (meet(claims[i], claims[j])) {
+                out.push(...pairDefects(claims[i], claims[j]));
             }
         }
     }
     return out;
+}
+
+/**
+ * Whether two techniques' claims can see the same press: other owners, one channel and detail, and
+ * hands that overlap.
+ * @param a - one claim
+ * @param b - the other
+ * @returns true when they meet
+ */
+function meet(a: OwnedClaim, b: OwnedClaim): boolean {
+    if (a.owner === b.owner || a.claim.channel !== b.claim.channel) {
+        return false;
+    }
+    if ((a.claim.detail ?? "") !== (b.claim.detail ?? "")) {
+        return false;
+    }
+    const ha = a.claim.hand ?? "any";
+    const hb = b.claim.hand ?? "any";
+    return ha === "any" || hb === "any" || ha === hb;
+}
+
+/**
+ * The defects of two claims that meet, one per shared context.
+ * @param a - one claim
+ * @param b - the other
+ * @returns the defects
+ */
+function pairDefects(a: OwnedClaim, b: OwnedClaim): InputMapDefect[] {
+    const ctxA = a.claim.contexts === "any" ? ALL_CONTEXTS : a.claim.contexts;
+    const ctxB = b.claim.contexts === "any" ? ALL_CONTEXTS : b.claim.contexts;
+    let reason: string | null = null;
+    if (a.claim.priority === b.claim.priority) {
+        reason = "same priority";
+    } else if (!a.claim.decide || !b.claim.decide) {
+        reason = "a claim without decide shares the channel";
+    }
+    if (!reason) {
+        return [];
+    }
+    const why = reason;
+    return ctxA
+        .filter((c) => ctxB.includes(c))
+        .map((context) => ({
+            a: a.owner,
+            b: b.owner,
+            channel: a.claim.channel,
+            context,
+            detail: a.claim.detail,
+            reason: why,
+        }));
 }

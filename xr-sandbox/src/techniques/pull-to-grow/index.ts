@@ -37,7 +37,7 @@ const tick = (hand: Hand, freq: number): void => {
     if (ctx.settings.bool("haptics")) {
         const c = ctx.xr()?.input.controllers.find((x) => x.inputSource.handedness === hand && !x.inputSource.hand);
         // pulse() resolves false on a controller without an actuator; it never throws for that.
-        void c?.motionController?.pulse(0.3, 20).catch(() => false);
+        c?.motionController?.pulse(0.3, 20).catch(() => false);
     }
 };
 
@@ -77,7 +77,7 @@ export const technique: Technique = {
         if (/[?&]emulate=/.test(location.search)) {
             // Read-only, for the dry run (dryrun/checks/pull-to-grow.mjs).
             const api = { readout: () => ({ visible: readout.visible, text: readout.text, redraws: readout.redraws }) };
-            (window as unknown as { __pullToGrow: typeof api }).__pullToGrow = api;
+            (globalThis as unknown as { __pullToGrow: typeof api }).__pullToGrow = api;
         }
     },
     activate() {

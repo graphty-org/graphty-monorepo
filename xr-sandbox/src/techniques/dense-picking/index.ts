@@ -200,58 +200,68 @@ const candidates = (r: Ray): { mode: "cone" | "slab"; nodes: number[] } => {
     return { mode: "cone", nodes: coneMembers(world, rayLike, rad, visible) };
 };
 
+// The slab: follow the holding hand, cut the slice, dim the rest (throttled), light the hovered dot.
+const updateSlab = (now: number, dom: Hand): void => {
+    const r = holdHand ? rayOf(holdHand) : null;
+    if (r) {
+        r.origin.addToRef(r.direction.scale(ctx.settings.num("reachCm") / 100), center);
+        slab.pose(center, r.direction, ctx.settings.num("sizeCm") / 100);
+    }
+    if (slab.cut(world, ctx.settings.num("thicknessCm") / 200, visible)) {
+        dimDue = true;
+    }
+    if (dimDue && now - dimAt >= DIM_EVERY_MS) {
+        dimDue = false;
+        dimAt = now;
+        setDim(slab.slice.length > 0 ? new Set(slab.slice) : null);
+    }
+    const h = ctx.hover(dom).node;
+    slab.highlight(h >= 0 && slab.slice.includes(h) ? h : -1);
+};
+
+// Hint tags: latch over the cone (or the slab's dots) once the ray has dwelt on one anchor node.
+const updateLatch = (now: number, dom: Hand): void => {
+    const hov = ctx.hover(dom);
+    const r = hov.context === "ui" || hints.typed ? null : rayOf(dom);
+    if (!r) {
+        return;
+    }
+    const c = candidates(r);
+    const anchor = c.nodes[0] ?? -1;
+    if (anchor !== candidate.anchor) {
+        candidate = { anchor, since: now };
+        return;
+    }
+    if (anchor < 0 || hints.latched?.nodes.includes(anchor) || now - candidate.since < ctx.settings.num("dwellMs")) {
+        return;
+    }
+    const l = hints.latch(c.mode, c.nodes, alphabet());
+    const { names } = ctx.graph.data;
+    lastLatch = {
+        mode: l.mode,
+        count: l.tags.length,
+        coneDeg: ctx.settings.num("coneDeg"),
+        origin: r.origin.asArray().map((v) => Math.round(v * 1e5) / 1e5),
+        dir: r.direction.asArray().map((v) => Math.round(v * 1e6) / 1e6),
+        tags: Object.fromEntries(l.tags.map((t, k) => [t, names[l.nodes[k]]])),
+    };
+    ctx.log("latch", lastLatch);
+    refreshKeys();
+};
+
 const frame = (): void => {
     const now = performance.now();
     const dom = ctx.dominant();
     refreshWorld();
 
     if (ctx.settings.bool("slab") && (holdHand || slab.pinned)) {
-        const r = holdHand ? rayOf(holdHand) : null;
-        if (r) {
-            r.origin.addToRef(r.direction.scale(ctx.settings.num("reachCm") / 100), center);
-            slab.pose(center, r.direction, ctx.settings.num("sizeCm") / 100);
-        }
-        if (slab.cut(world, ctx.settings.num("thicknessCm") / 200, visible)) {
-            dimDue = true;
-        }
-        if (dimDue && now - dimAt >= DIM_EVERY_MS) {
-            dimDue = false;
-            dimAt = now;
-            setDim(slab.slice.length > 0 ? new Set(slab.slice) : null);
-        }
-        const h = ctx.hover(dom).node;
-        slab.highlight(h >= 0 && slab.slice.includes(h) ? h : -1);
+        updateSlab(now, dom);
     }
 
     if (!ctx.settings.bool("hints")) {
         return;
     }
-    const hov = ctx.hover(dom);
-    const r = hov.context === "ui" || hints.typed ? null : rayOf(dom);
-    if (r) {
-        const c = candidates(r);
-        const anchor = c.nodes[0] ?? -1;
-        if (anchor !== candidate.anchor) {
-            candidate = { anchor, since: now };
-        } else if (
-            anchor >= 0 &&
-            !hints.latched?.nodes.includes(anchor) &&
-            now - candidate.since >= ctx.settings.num("dwellMs")
-        ) {
-            const l = hints.latch(c.mode, c.nodes, alphabet());
-            const { names } = ctx.graph.data;
-            lastLatch = {
-                mode: l.mode,
-                count: l.tags.length,
-                coneDeg: ctx.settings.num("coneDeg"),
-                origin: r.origin.asArray().map((v) => Math.round(v * 1e5) / 1e5),
-                dir: r.direction.asArray().map((v) => Math.round(v * 1e6) / 1e6),
-                tags: Object.fromEntries(l.tags.map((t, k) => [t, names[l.nodes[k]]])),
-            };
-            ctx.log("latch", lastLatch);
-            refreshKeys();
-        }
-    }
+    updateLatch(now, dom);
     const mode = hints.latched?.mode;
     hints.place(
         (i, out) =>
@@ -384,7 +394,7 @@ export const technique: Technique = {
             }
         });
         c.onFrame(frame);
-        (window as unknown as { __densePicking: typeof debug }).__densePicking = debug;
+        (globalThis as unknown as { __densePicking: typeof debug }).__densePicking = debug;
     },
     activate() {
         take(other(ctx.dominant()));

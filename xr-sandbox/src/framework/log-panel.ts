@@ -27,9 +27,9 @@ export function createLogPanel(scene: Scene, zones: Zones, log: Logger): { panel
         panel.stack.addControl(t);
     }
     let shownTime = 0;
-    let interval = 0;
+    let interval: ReturnType<typeof setInterval> | undefined;
     const refresh = (): void => {
-        const last = log.tail[log.tail.length - 1];
+        const last = log.tail.at(-1);
         if (!last || last.time === shownTime) {
             return;
         }
@@ -39,7 +39,8 @@ export function createLogPanel(scene: Scene, zones: Zones, log: Logger): { panel
         const recent = log.tail.filter((e) => e.message !== "frames").slice(-9);
         for (let i = 1; i < 10; i++) {
             const e = recent[i - 1];
-            lines[i].text = e ? `${e.level[0]} ${e.message} ${e.data ? JSON.stringify(e.data).slice(0, 110) : ""}` : "";
+            const data = e?.data ? JSON.stringify(e.data).slice(0, 110) : "";
+            lines[i].text = e ? `${e.level[0]} ${e.message} ${data}` : "";
         }
     };
     return {
@@ -48,7 +49,7 @@ export function createLogPanel(scene: Scene, zones: Zones, log: Logger): { panel
             clearInterval(interval);
             if (on) {
                 panel.show();
-                interval = window.setInterval(refresh, 500);
+                interval = globalThis.setInterval(refresh, 500);
             } else {
                 panel.hide();
             }

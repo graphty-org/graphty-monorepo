@@ -214,7 +214,7 @@ const installHooks = (): void => {
             marker.computeWorldMatrix(true);
         },
     };
-    (window as unknown as { __handling: typeof api }).__handling = api;
+    (globalThis as unknown as { __handling: typeof api }).__handling = api;
 };
 
 export const technique: Technique = {

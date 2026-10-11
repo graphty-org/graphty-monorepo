@@ -89,7 +89,7 @@ export function createLayerList(ctx: TechniqueContext): LayerList {
         rows: () => shown.map((r) => r.label),
         refresh() {
             shown = current();
-            for (const c of [...slate.body.stack.children]) {
+            for (const c of slate.body.stack.children.slice()) {
                 slate.body.stack.removeControl(c);
                 c.dispose();
             }

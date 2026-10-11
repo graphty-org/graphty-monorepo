@@ -53,8 +53,8 @@ const browser = await chromium.launch({
 
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
-    const start = await page.evaluate(() => window.__sandbox.xrFrames());
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n]);
+    const start = await page.evaluate(() => globalThis.__sandbox.xrFrames());
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n]);
 };
 const ev = (page, fn, arg) => page.evaluate(fn, arg);
 const V = (a) => Vector3.FromArray(a);
@@ -72,24 +72,24 @@ const open = async (r, profile, query) => {
     const url = new URL(args.url);
     url.search = new URLSearchParams({ preset: "empty", emulate: profile, still: "1", ...query }).toString();
     await page.goto(url.toString());
-    await until(page, () => window.__sandbox?.ready === true && !!window.__handling);
+    await until(page, () => globalThis.__sandbox?.ready === true && !!globalThis.__handling);
     await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-    await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10);
+    await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10);
     await frames(page, 60);
     return { context, page };
 };
 
 /** Point a hand straight along a direction from where it is (Babylon world). */
 const point = async (page, hand, [x, y, z], [dx, dy, dz]) => {
-    await ev(page, ([h, p]) => window.__sandbox.place(h, ...p), [hand, [x, y, z]]);
-    await ev(page, (p) => window.__handling.mark(...p), [x + dx, y + dy, z + dz]);
-    await ev(page, (h) => window.__sandbox.aim(h, "handling-aim"), hand);
+    await ev(page, ([h, p]) => globalThis.__sandbox.place(h, ...p), [hand, [x, y, z]]);
+    await ev(page, (p) => globalThis.__handling.mark(...p), [x + dx, y + dy, z + dz]);
+    await ev(page, (h) => globalThis.__sandbox.aim(h, "handling-aim"), hand);
 };
 
 /** Grip (controllers) or fist (hands), and wait until handling holds that hand or lets it go. */
 const hold = async (page, hand, hands, down) => {
-    await ev(page, ([h, k, d]) => window.__sandbox.press(h, k, d), [hand, hands ? "fist" : "squeeze", down]);
-    await until(page, ([h, d]) => window.__handling.held().includes(h) === d, [hand, down], 10_000);
+    await ev(page, ([h, k, d]) => globalThis.__sandbox.press(h, k, d), [hand, hands ? "fist" : "squeeze", down]);
+    await until(page, ([h, d]) => globalThis.__handling.held().includes(h) === d, [hand, down], 10_000);
 };
 
 const runOne = async (profile, mode) => {
@@ -106,7 +106,7 @@ const runOne = async (profile, mode) => {
             "s.handling.twoHand": mode,
             "s.handling.copy": "true",
         }));
-        const tech = (await ev(page, () => window.__sandbox.techniques())).find((t) => t.id === "handling");
+        const tech = (await ev(page, () => globalThis.__sandbox.techniques())).find((t) => t.id === "handling");
         check("switchedOn", tech?.on && tech.reason === null, { tech });
 
         // One hand: hold, move 10 cm, turn 30 degrees about the vertical, wait for the easing.
@@ -114,18 +114,18 @@ const runOne = async (profile, mode) => {
         await frames(page, 20);
         await hold(page, "right", hands, true);
         await frames(page, 5);
-        const g0 = await ev(page, () => window.__handling.grip("right"));
-        const r0 = await ev(page, () => window.__handling.root());
+        const g0 = await ev(page, () => globalThis.__handling.grip("right"));
+        const r0 = await ev(page, () => globalThis.__handling.root());
         const t = Math.PI / 6;
         await point(page, "right", [0.25, 1.3, 0.35], [Math.sin(t), 0, Math.cos(t)]);
         await frames(page, 90);
-        const g1 = await ev(page, () => window.__handling.grip("right"));
-        const r1 = await ev(page, () => window.__handling.root());
+        const g1 = await ev(page, () => globalThis.__handling.grip("right"));
+        const r1 = await ev(page, () => globalThis.__handling.root());
         await hold(page, "right", hands, false);
         await frames(page, 2);
-        const r2 = await ev(page, () => window.__handling.root());
+        const r2 = await ev(page, () => globalThis.__handling.root());
         await frames(page, 60);
-        const r3 = await ev(page, () => window.__handling.root());
+        const r3 = await ev(page, () => globalThis.__handling.root());
         // Rigid with the grip: the root's pose relative to the grip is what it was at the press.
         const turn = Q(g1.rotation).multiply(Quaternion.Inverse(Q(g0.rotation)));
         const want = V(r0.position)
@@ -150,7 +150,7 @@ const runOne = async (profile, mode) => {
         });
         const driftMm = Vector3.Distance(V(r2.position), V(r3.position)) * 1000;
         const driftDeg = deg(Q(r2.rotation), Q(r3.rotation));
-        const cameraParent = await ev(page, () => window.__handling.cameraParent());
+        const cameraParent = await ev(page, () => globalThis.__handling.cameraParent());
         check("noDriftAfterRelease", driftMm < 0.01 && driftDeg < 0.001 && cameraParent === null, {
             driftMm: r4(driftMm),
             driftDeg: r4(driftDeg),
@@ -163,24 +163,24 @@ const runOne = async (profile, mode) => {
         if (hands) {
             // Rolled 180 degrees about its pointing axis, IWER's left hand faces up (and, held below
             // the head, toward the face too, as a real palm you look at does).
-            await ev(page, () => window.__sandbox.turn("left", [0, 0, 1], 180));
+            await ev(page, () => globalThis.__sandbox.turn("left", [0, 0, 1], 180));
             await frames(page, 20);
-            roll = (await ev(page, () => window.__handling.poses("left"))).palmUp ? 180 : null;
+            roll = (await ev(page, () => globalThis.__handling.poses("left"))).palmUp ? 180 : null;
         }
         await frames(page, 10);
-        const copy = await ev(page, () => window.__handling.copy());
-        const medici = await ev(page, () => window.__handling.copyNode("Medici"));
+        const copy = await ev(page, () => globalThis.__handling.copy());
+        const medici = await ev(page, () => globalThis.__handling.copyNode("Medici"));
         await point(page, "right", [0.12, 1.25, 0.3], [0, 0, 1]);
-        await ev(page, (p) => window.__handling.mark(...p), medici);
-        await ev(page, () => window.__sandbox.aim("right", "handling-aim"));
+        await ev(page, (p) => globalThis.__handling.mark(...p), medici);
+        await ev(page, () => globalThis.__sandbox.aim("right", "handling-aim"));
         await frames(page, 20);
-        const hover = await ev(page, () => window.__sandbox.hover("right"));
-        const hoverName = await ev(page, (i) => window.__handling.name(i), hover.node);
-        await ev(page, (k) => window.__sandbox.press("right", k, true), hands ? "pinch" : "trigger");
+        const hover = await ev(page, () => globalThis.__sandbox.hover("right"));
+        const hoverName = await ev(page, (i) => globalThis.__handling.name(i), hover.node);
+        await ev(page, (k) => globalThis.__sandbox.press("right", k, true), hands ? "pinch" : "trigger");
         await frames(page, 6);
-        await ev(page, (k) => window.__sandbox.press("right", k, false), hands ? "pinch" : "trigger");
+        await ev(page, (k) => globalThis.__sandbox.press("right", k, false), hands ? "pinch" : "trigger");
         await frames(page, 10);
-        const selection = (await ev(page, () => window.__sandbox.state())).selection;
+        const selection = (await ev(page, () => globalThis.__sandbox.state())).selection;
         check(
             "heldCopy",
             copy.shown && hoverName === "Medici" && hover.context === "node" && selection.join() === "Medici",
@@ -196,7 +196,7 @@ const runOne = async (profile, mode) => {
             // Palm back down: the copy goes.
             await point(page, "left", [-0.12, 1.2, 0.3], [0, 0, 1]);
             await frames(page, 20);
-            check("copyHidesPalmDown", !(await ev(page, () => window.__handling.copy())).shown, {});
+            check("copyHidesPalmDown", !(await ev(page, () => globalThis.__handling.copy())).shown, {});
         }
 
         // Two hands: apart to twice their grip distance, held still, then ten times.
@@ -206,28 +206,28 @@ const runOne = async (profile, mode) => {
         await hold(page, "left", hands, true);
         await hold(page, "right", hands, true);
         await frames(page, 5);
-        const twoMode = await ev(page, () => window.__handling.mode());
-        const gl0 = V((await ev(page, () => window.__handling.grip("left"))).position);
-        const gr0 = V((await ev(page, () => window.__handling.grip("right"))).position);
-        const s0 = (await ev(page, () => window.__handling.root())).scale[0];
+        const twoMode = await ev(page, () => globalThis.__handling.mode());
+        const gl0 = V((await ev(page, () => globalThis.__handling.grip("left"))).position);
+        const gr0 = V((await ev(page, () => globalThis.__handling.grip("right"))).position);
+        const s0 = (await ev(page, () => globalThis.__handling.root())).scale[0];
         const d0 = Vector3.Distance(gl0, gr0);
         const u = gr0.subtract(gl0).normalize();
         const spread = async (k) => {
             const half = ((k - 1) * d0) / 2;
-            await ev(page, ([h, p]) => window.__sandbox.place(h, ...p), [
+            await ev(page, ([h, p]) => globalThis.__sandbox.place(h, ...p), [
                 "left",
                 new Vector3(-0.15, 1.3, 0.35).subtract(u.scale(half)).asArray(),
             ]);
-            await ev(page, ([h, p]) => window.__sandbox.place(h, ...p), [
+            await ev(page, ([h, p]) => globalThis.__sandbox.place(h, ...p), [
                 "right",
                 new Vector3(0.15, 1.3, 0.35).add(u.scale(half)).asArray(),
             ]);
             await frames(page, 150);
-            const gl = V((await ev(page, () => window.__handling.grip("left"))).position);
-            const gr = V((await ev(page, () => window.__handling.grip("right"))).position);
+            const gl = V((await ev(page, () => globalThis.__handling.grip("left"))).position);
+            const gr = V((await ev(page, () => globalThis.__handling.grip("right"))).position);
             return {
                 ratio: Vector3.Distance(gl, gr) / d0,
-                scale: (await ev(page, () => window.__handling.root())).scale[0] / s0,
+                scale: (await ev(page, () => globalThis.__handling.root())).scale[0] / s0,
             };
         };
         const two = await spread(2);
@@ -240,7 +240,7 @@ const runOne = async (profile, mode) => {
                 scale: r4(two.scale),
             },
         );
-        const j = await ev(page, () => window.__sandbox.jitter(120));
+        const j = await ev(page, () => globalThis.__sandbox.jitter(120));
         check("twoStillHandsJitter", j.maxMm < JITTER_MM && j.maxDeg < JITTER_DEG, {
             maxMm: r4(j.maxMm),
             maxDeg: j.maxDeg,
@@ -260,16 +260,16 @@ const runOne = async (profile, mode) => {
         // Switched off mid-hold: the hold is cancelled and the graph goes back.
         await point(page, "right", [0.15, 1.3, 0.35], [0, 0, 1]);
         await frames(page, 10);
-        const c0 = await ev(page, () => window.__handling.root());
+        const c0 = await ev(page, () => globalThis.__handling.root());
         await hold(page, "right", hands, true);
         await point(page, "right", [0.25, 1.3, 0.35], [0, 0, 1]);
         await frames(page, 30);
-        const moved = await ev(page, () => window.__handling.root());
-        await ev(page, () => window.__sandbox.setOn("handling", false));
+        const moved = await ev(page, () => globalThis.__handling.root());
+        await ev(page, () => globalThis.__sandbox.setOn("handling", false));
         await frames(page, 5);
-        const c1 = await ev(page, () => window.__handling.root());
-        await ev(page, (k) => window.__sandbox.press("right", k, false), hands ? "fist" : "squeeze");
-        await ev(page, () => window.__sandbox.setOn("handling", true));
+        const c1 = await ev(page, () => globalThis.__handling.root());
+        await ev(page, (k) => globalThis.__sandbox.press("right", k, false), hands ? "fist" : "squeeze");
+        await ev(page, () => globalThis.__sandbox.setOn("handling", true));
         check(
             "cancelRestores",
             Vector3.Distance(V(moved.position), V(c0.position)) > 0.05 &&
@@ -280,7 +280,7 @@ const runOne = async (profile, mode) => {
             },
         );
 
-        const log = await ev(page, () => window.__sandbox.log(400));
+        const log = await ev(page, () => globalThis.__sandbox.log(400));
         check(
             "logged",
             log.some((e) => e.message === "handling.grab") && log.some((e) => e.message === "handling.twoHand"),
@@ -311,14 +311,14 @@ const runOff = async (profile) => {
         ({ context, page } = await open(r, profile, {}));
         await point(page, "right", [0.15, 1.3, 0.35], [0, 0, 1]);
         await frames(page, 10);
-        const a = await ev(page, () => window.__handling.root());
-        await ev(page, (k) => window.__sandbox.press("right", k, true), hands ? "fist" : "squeeze");
+        const a = await ev(page, () => globalThis.__handling.root());
+        await ev(page, (k) => globalThis.__sandbox.press("right", k, true), hands ? "fist" : "squeeze");
         await frames(page, 20);
         await point(page, "right", [0.25, 1.3, 0.35], [0, 0, 1]);
         await frames(page, 30);
-        const b = await ev(page, () => window.__handling.root());
-        await ev(page, (k) => window.__sandbox.press("right", k, false), hands ? "fist" : "squeeze");
-        const on = (await ev(page, () => window.__sandbox.techniques())).find((t) => t.id === "handling").on;
+        const b = await ev(page, () => globalThis.__handling.root());
+        await ev(page, (k) => globalThis.__sandbox.press("right", k, false), hands ? "fist" : "squeeze");
+        const on = (await ev(page, () => globalThis.__sandbox.techniques())).find((t) => t.id === "handling").on;
         r.checks.offMovesNothing = {
             pass: !on && Vector3.Distance(V(a.position), V(b.position)) === 0,
             on,
@@ -349,9 +349,8 @@ for (const r of results) {
     const failed = Object.entries(r.checks)
         .filter(([, c]) => !c.pass)
         .map(([n]) => n);
-    console.log(
-        `${r.pass ? "PASS" : "FAIL"} ${r.profile} ${r.mode}${failed.length ? `  failed: ${failed.join(", ")}` : ""}`,
-    );
+    const failedNote = failed.length ? `  failed: ${failed.join(", ")}` : "";
+    console.log(`${r.pass ? "PASS" : "FAIL"} ${r.profile} ${r.mode}${failedNote}`);
 }
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((r) => r.pass), results };
 writeFileSync(join(args.out, "report.json"), JSON.stringify(report, null, 2));

@@ -359,7 +359,7 @@ const installDebug = (): void => {
             });
         },
     };
-    (window as unknown as { __wristMenu: typeof api }).__wristMenu = api;
+    (globalThis as unknown as { __wristMenu: typeof api }).__wristMenu = api;
 };
 
 export const technique: Technique = {

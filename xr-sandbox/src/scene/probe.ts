@@ -42,9 +42,9 @@ export async function probe(
         frameRates: sm?.supportedFrameRates ? Array.from(sm.supportedFrameRates) : null,
         foveation: sm?.isFixedFoveationSupported ? sm.fixedFoveation : "unsupported",
         nativeFramebufferScale:
-            session && "XRWebGLLayer" in window ? XRWebGLLayer.getNativeFramebufferScaleFactor(session) : null,
+            session && "XRWebGLLayer" in globalThis ? XRWebGLLayer.getNativeFramebufferScaleFactor(session) : null,
         framebuffer: layer ? { width: layer.framebufferWidth, height: layer.framebufferHeight } : null,
-        layers: "XRWebGLBinding" in window,
+        layers: "XRWebGLBinding" in globalThis,
         systemKeyboard: session
             ? ((session as unknown as { isSystemKeyboardSupported?: boolean }).isSystemKeyboardSupported ?? null)
             : null,
@@ -60,7 +60,7 @@ export async function probe(
               }))
             : [],
         webgpu: "gpu" in navigator,
-        speechRecognition: "SpeechRecognition" in window || "webkitSpeechRecognition" in window,
+        speechRecognition: "SpeechRecognition" in globalThis || "webkitSpeechRecognition" in globalThis,
         microphone,
         devicePixelRatio,
         screen: { width: screen.width, height: screen.height },

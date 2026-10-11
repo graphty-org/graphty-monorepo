@@ -49,7 +49,10 @@ export function hintStrings(count: number, chars: string, minLength = 2): string
     }
     // Sorted before the cut (Vimium sorts after it), then reversed: the first `chars.length` tags
     // differ in their first letter, so the first keystroke already narrows to one target.
-    hints = hints.slice(offset).sort().slice(0, count);
+    hints = hints
+        .slice(offset)
+        .sort((a, b) => a.localeCompare(b))
+        .slice(0, count);
     return hints.map((s) => Array.from(s).reverse().join(""));
 }
 
@@ -86,12 +89,13 @@ export function coneMembers(
         if (t <= 0) {
             continue;
         }
-        const c = t / Math.sqrt(vx * vx + vy * vy + vz * vz);
+        const c = t / Math.hypot(vx, vy, vz);
         if (c >= cos && (!include || include(i))) {
             hits.push({ i, c });
         }
     }
-    return hits.sort((a, b) => b.c - a.c || a.i - b.i).map((h) => h.i);
+    hits.sort((a, b) => b.c - a.c || a.i - b.i);
+    return hits.map((h) => h.i);
 }
 
 /**
@@ -107,5 +111,5 @@ export function nextLetters(tags: readonly string[], typed: string): string[] {
             out.add(t[typed.length]);
         }
     }
-    return [...out].sort();
+    return [...out].sort((a, b) => a.localeCompare(b));
 }

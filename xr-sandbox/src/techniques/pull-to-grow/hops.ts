@@ -56,7 +56,7 @@ export function levelCounts(depth: ArrayLike<number>, maxDepth: number): number[
             out[depth[i]]++;
         }
     }
-    while (out.length > 1 && out[out.length - 1] === 0) {
+    while (out.length > 1 && out.at(-1) === 0) {
         out.pop();
     }
     return out;

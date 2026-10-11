@@ -250,7 +250,8 @@ export const technique: Technique = {
         const head = ctx.xr()?.baseExperience.camera.globalPosition.clone() ?? new Vector3(0, 1.6, 0);
         const want = ctx.settings.str("style") === "ring" ? "ring" : "list";
         const dead = ctx.settings.num("deadZoneDeg") || 12;
-        const style = want === "ring" && ring.open(hand, verbs, t >= 0 ? name(t) : "Graph", dead) ? "ring" : "list";
+        const title = t >= 0 ? name(t) : "Graph";
+        const style = want === "ring" && ring.open(hand, verbs, title, dead) ? "ring" : "list";
         const at = listSpot(t, hand, head);
         open = { target: t, hand, verbs, style, at, lit: undefined };
         if (style === "list") {

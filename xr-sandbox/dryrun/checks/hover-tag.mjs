@@ -40,15 +40,15 @@ const browser = await chromium.launch({
 
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
-    const start = await page.evaluate(() => window.__sandbox.xrFrames());
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n]);
+    const start = await page.evaluate(() => globalThis.__sandbox.xrFrames());
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n]);
 };
 const ev = (page, fn, arg) => page.evaluate(fn, arg);
-const tag = async (page, hand = "right") => (await ev(page, () => window.__hoverTag.tags()))[hand];
+const tag = async (page, hand = "right") => (await ev(page, () => globalThis.__hoverTag.tags()))[hand];
 const press = async (page, hand, kind) => {
-    await ev(page, ([h, k]) => window.__sandbox.press(h, k, true), [hand, kind]);
+    await ev(page, ([h, k]) => globalThis.__sandbox.press(h, k, true), [hand, kind]);
     await frames(page, 6);
-    await ev(page, ([h, k]) => window.__sandbox.press(h, k, false), [hand, kind]);
+    await ev(page, ([h, k]) => globalThis.__sandbox.press(h, k, false), [hand, kind]);
     await frames(page, 10);
 };
 
@@ -66,21 +66,21 @@ const runOne = async (profile) => {
         const url = new URL(args.url);
         url.search = new URLSearchParams({ preset: "empty", on: "hover-tag", emulate: profile, still: "1" }).toString();
         await page.goto(url.toString());
-        await until(page, () => window.__sandbox?.ready === true && !!window.__hoverTag);
+        await until(page, () => globalThis.__sandbox?.ready === true && !!globalThis.__hoverTag);
         await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-        await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10);
+        await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10);
         await frames(page, 60);
-        const tech = (await ev(page, () => window.__sandbox.techniques())).find((t) => t.id === "hover-tag");
+        const tech = (await ev(page, () => globalThis.__sandbox.techniques())).find((t) => t.id === "hover-tag");
         check("switchedOn", tech?.on && tech.reason === null, { tech });
 
         // Before any result: degree and its rank.
-        await ev(page, () => window.__sandbox.aim("right", "Strozzi"));
+        await ev(page, () => globalThis.__sandbox.aim("right", "Strozzi"));
         await frames(page, 20);
         const before = await tag(page);
         check("beforeResults", before.visible && /^Strozzi degree 4, #\d+$/.test(before.text), { text: before.text });
 
         // PageRank shown (arranged): exactly the design's string.
-        await ev(page, () => window.__sandbox.run("run", { result: "pagerank" }));
+        await ev(page, () => globalThis.__sandbox.run("run", { result: "pagerank" }));
         await frames(page, 10);
         const after = await tag(page);
         check("afterPageRank", after.visible && after.text === "Strozzi 0.088, #3", { text: after.text });
@@ -95,13 +95,13 @@ const runOne = async (profile) => {
         // Constant angular size at 0.5 m and 1.5 m.
         const sizes = {};
         for (const m of [0.5, 1.5]) {
-            await ev(page, (d) => window.__hoverTag.nodeAt("Strozzi", d), m);
-            await ev(page, () => window.__sandbox.aim("right", "Strozzi"));
+            await ev(page, (d) => globalThis.__hoverTag.nodeAt("Strozzi", d), m);
+            await ev(page, () => globalThis.__sandbox.aim("right", "Strozzi"));
             await frames(page, 15);
-            const a = await ev(page, () => window.__hoverTag.angular("right"));
+            const a = await ev(page, () => globalThis.__hoverTag.angular("right"));
             sizes[m] = { ...a, node: (await tag(page)).node, error: Math.abs(a.deg / a.wantDeg - 1) };
         }
-        await ev(page, () => window.__hoverTag.restoreGraph());
+        await ev(page, () => globalThis.__hoverTag.restoreGraph());
         check(
             "angularSize",
             Object.values(sizes).every((s) => s.node === "Strozzi" && s.error < 0.1),
@@ -109,11 +109,11 @@ const runOne = async (profile) => {
         );
 
         // Seeded noisy aim: the tag's target changes at most once per second.
-        await ev(page, () => window.__sandbox.aim("right", "Strozzi"));
+        await ev(page, () => globalThis.__sandbox.aim("right", "Strozzi"));
         await frames(page, 20);
         const t0 = await ev(page, () => performance.now());
         const noise = Number(args.noise);
-        await ev(page, (sd) => window.__sandbox.noisyAim("right", "Strozzi", sd, 240, 7), noise);
+        await ev(page, (sd) => globalThis.__sandbox.noisyAim("right", "Strozzi", sd, 240, 7), noise);
         const t1 = await ev(page, () => performance.now());
         const changes = (await tag(page)).changes.filter((t) => t >= t0 && t <= t1);
         let worst = 0;
@@ -131,17 +131,17 @@ const runOne = async (profile) => {
         });
 
         // Hover unavailable: every input a transient pointer.
-        await ev(page, () => window.__sandbox.aim("right", "Strozzi"));
-        await ev(page, () => window.__hoverTag.transient(true));
+        await ev(page, () => globalThis.__sandbox.aim("right", "Strozzi"));
+        await ev(page, () => globalThis.__hoverTag.transient(true));
         await frames(page, 10);
-        const why = (await ev(page, () => window.__sandbox.techniques())).find((t) => t.id === "hover-tag").reason;
+        const why = (await ev(page, () => globalThis.__sandbox.techniques())).find((t) => t.id === "hover-tag").reason;
         const hidden = !(await tag(page)).visible;
-        await ev(page, () => window.__sandbox.place("left", -0.12, 1.2, 0.08));
-        await ev(page, () => window.__sandbox.aim("left", "gear"));
+        await ev(page, () => globalThis.__sandbox.place("left", -0.12, 1.2, 0.08));
+        await ev(page, () => globalThis.__sandbox.aim("left", "gear"));
         await frames(page, 15);
         await press(page, "left", hands ? "pinch" : "trigger");
-        const gearOpen = await ev(page, () => window.__sandbox.gearOpen());
-        const gearTexts = await ev(page, () => window.__hoverTag.guiTexts("needs hover"));
+        const gearOpen = await ev(page, () => globalThis.__sandbox.gearOpen());
+        const gearTexts = await ev(page, () => globalThis.__hoverTag.guiTexts("needs hover"));
         check("unavailableWhenTransient", /transient pointer/.test(why ?? "") && hidden && gearTexts.length > 0, {
             reason: why,
             tagHidden: hidden,
@@ -152,22 +152,22 @@ const runOne = async (profile) => {
             await page.screenshot({ path: join(args.out, `${profile}--gear-transient.png`) });
             await press(page, "left", hands ? "pinch" : "trigger");
         }
-        await ev(page, () => window.__hoverTag.transient(false));
+        await ev(page, () => globalThis.__hoverTag.transient(false));
         await frames(page, 10);
 
         // Off and on again.
-        await ev(page, () => window.__sandbox.aim("right", "Strozzi"));
+        await ev(page, () => globalThis.__sandbox.aim("right", "Strozzi"));
         await frames(page, 15);
-        const c0 = await ev(page, () => window.__sandbox.counts());
+        const c0 = await ev(page, () => globalThis.__sandbox.counts());
         const shownBefore = (await tag(page)).visible;
-        await ev(page, () => window.__sandbox.setOn("hover-tag", false));
+        await ev(page, () => globalThis.__sandbox.setOn("hover-tag", false));
         await frames(page, 20);
         const off = await tag(page);
-        const offOn = (await ev(page, () => window.__sandbox.techniques())).find((t) => t.id === "hover-tag").on;
-        await ev(page, () => window.__sandbox.setOn("hover-tag", true));
+        const offOn = (await ev(page, () => globalThis.__sandbox.techniques())).find((t) => t.id === "hover-tag").on;
+        await ev(page, () => globalThis.__sandbox.setOn("hover-tag", true));
         await frames(page, 20);
         const on = await tag(page);
-        const c1 = await ev(page, () => window.__sandbox.counts());
+        const c1 = await ev(page, () => globalThis.__sandbox.counts());
         check(
             "offAndOn",
             shownBefore &&
@@ -179,7 +179,7 @@ const runOne = async (profile) => {
                 c0.beforeRender === c1.beforeRender,
             { shownBefore, offHidden: !off.visible, onText: on.text, counts: [c0, c1] },
         );
-        const f = await ev(page, () => window.__sandbox.frames(300));
+        const f = await ev(page, () => globalThis.__sandbox.frames(300));
         check("frameTime", f.over50 === 0 && f.hooksP95 < 2, { jsP95: f.jsP95, jsMax: f.jsMax, hooksP95: f.hooksP95 });
     } catch (e) {
         check("ran", false, { error: String(e).slice(0, 500) });
@@ -200,7 +200,8 @@ for (const profile of args.profiles.split(",")) {
     const failed = Object.entries(r.checks)
         .filter(([, c]) => !c.pass)
         .map(([n]) => n);
-    console.log(`${r.pass ? "PASS" : "FAIL"} ${profile}${failed.length ? `  failed: ${failed.join(", ")}` : ""}`);
+    const failedNote = failed.length ? `  failed: ${failed.join(", ")}` : "";
+    console.log(`${r.pass ? "PASS" : "FAIL"} ${profile}${failedNote}`);
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((r) => r.pass), results };

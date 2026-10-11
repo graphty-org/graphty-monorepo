@@ -49,8 +49,8 @@ export function createStepsPanel(
     let index = 0;
     let seed = 0;
     let started = 0;
-    let interval = 0;
-    let noticeTimer = 0;
+    let interval: ReturnType<typeof setInterval> | undefined;
+    let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
     const heading = new TextBlock("steps-heading", "");
     heading.height = "34px";
@@ -162,13 +162,13 @@ export function createStepsPanel(
             notice.set(t, "#7a2d2d");
             notice.show();
             clearTimeout(noticeTimer);
-            noticeTimer = window.setTimeout(() => {
+            noticeTimer = globalThis.setTimeout(() => {
                 notice.hide();
             }, 3000);
         },
         open(l) {
             list = l;
-            seed = Math.floor(Math.random() * 1_000_000);
+            seed = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
             steps = buildSteps(l, seed, facts);
             index = 0;
             log.log("step", { list, event: "open", seed, steps: steps.map((s) => s.text) });
@@ -176,7 +176,7 @@ export function createStepsPanel(
             show();
             clearInterval(interval);
             if (!still) {
-                interval = window.setInterval(() => {
+                interval = globalThis.setInterval(() => {
                     timer.set(`${Math.floor((performance.now() - started) / 1000)} s`);
                 }, 1000);
             }

@@ -30,5 +30,6 @@ export default defineConfig({
     server: { https, host, proxy, hmr: false },
     preview: { https, host, proxy },
     optimizeDeps: { include: ["iwer", "@babylonjs/core", "@babylonjs/gui"] },
-    build: { outDir: "dist", sourcemap: true, chunkSizeWarningLimit: 8000 },
+    // ES2022 for top-level await in main.ts; both headsets' browsers are current Chromium.
+    build: { outDir: "dist", sourcemap: true, chunkSizeWarningLimit: 8000, target: "es2022" },
 });

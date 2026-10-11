@@ -111,57 +111,71 @@ const capture = (now: number): void => {
     say(ctx.dominant(), `Recorded ${NAMES[name] ?? name}`, now);
 };
 
-const frame = (): void => {
+// Read both hands' joints for this frame; per hand, why it cannot pose ("" when it can).
+const readHands = (): Record<Hand, string> => {
     const sm = ctx.xr()?.baseExperience.sessionManager;
     const f = sm?.currentFrame;
     const space = sm?.referenceSpace;
-    const now = performance.now();
     tracked.left = false;
     tracked.right = false;
     const why: Record<Hand, string> = { left: "untracked", right: "untracked" };
-    if (f && space) {
-        for (const src of f.session.inputSources) {
-            const hand = src.handedness;
-            if (!src.hand || (hand !== "left" && hand !== "right")) {
-                continue;
-            }
-            if (!readJoints(f, src.hand, space, raw[hand])) {
-                continue;
-            }
-            tracked[hand] = true;
-            const p = ctx.poses(hand);
-            // Suppressed while the hand pinches (the pose layer's pinch or the platform's select). Not on
-            // the pose layer's fist: it counts any curled fingers, so a thumbs up is a fist to it (README).
-            why[hand] = p.pinch || src.gamepad?.buttons[0]?.pressed ? "pinching" : "";
-        }
+    if (!f || !space) {
+        return why;
     }
+    for (const src of f.session.inputSources) {
+        const hand = src.handedness;
+        if (!src.hand || (hand !== "left" && hand !== "right") || !readJoints(f, src.hand, space, raw[hand])) {
+            continue;
+        }
+        tracked[hand] = true;
+        const p = ctx.poses(hand);
+        // Suppressed while the hand pinches (the pose layer's pinch or the platform's select). Not on
+        // the pose layer's fist: it counts any curled fingers, so a thumbs up is a fist to it (README).
+        why[hand] = p.pinch || src.gamepad?.buttons[0]?.pressed ? "pinching" : "";
+    }
+    return why;
+};
+
+// Match one hand against the templates, step its tracker, and expire its chip.
+const stepHand = (hand: Hand, why: string, now: number): void => {
+    let d: Record<string, number> | string = why;
+    if (!d) {
+        live[hand].set(raw[hand]);
+        normalize(live[hand]);
+        for (const [name, t] of templates) {
+            dist[hand][name] = distance(t, hand, live[hand]);
+        }
+        d = dist[hand];
+    }
+    const ev = trackers[hand].step(now, d);
+    if (ev) {
+        onPose(hand, ev, now);
+    }
+    if (chipUntil[hand] && now > chipUntil[hand]) {
+        chipUntil[hand] = 0;
+        chips[hand].hide();
+    }
+};
+
+// The recording countdown: say each second, capture at zero.
+const tickRecording = (now: number): void => {
+    const left = Math.ceil((recordAt - now) / 1000);
+    if (left <= 0) {
+        capture(now);
+    } else if (left !== recordCount) {
+        recordCount = left;
+        say(ctx.dominant(), `Hold ${NAMES[ctx.settings.str("recordAs")] ?? "the pose"}: ${left}`, now);
+    }
+};
+
+const frame = (): void => {
+    const now = performance.now();
+    const why = readHands();
     for (const hand of HANDS) {
-        let d: Record<string, number> | string = why[hand];
-        if (!d) {
-            live[hand].set(raw[hand]);
-            normalize(live[hand]);
-            for (const [name, t] of templates) {
-                dist[hand][name] = distance(t, hand, live[hand]);
-            }
-            d = dist[hand];
-        }
-        const ev = trackers[hand].step(now, d);
-        if (ev) {
-            onPose(hand, ev, now);
-        }
-        if (chipUntil[hand] && now > chipUntil[hand]) {
-            chipUntil[hand] = 0;
-            chips[hand].hide();
-        }
+        stepHand(hand, why[hand], now);
     }
     if (recordAt) {
-        const left = Math.ceil((recordAt - now) / 1000);
-        if (left <= 0) {
-            capture(now);
-        } else if (left !== recordCount) {
-            recordCount = left;
-            say(ctx.dominant(), `Hold ${NAMES[ctx.settings.str("recordAs")] ?? "the pose"}: ${left}`, now);
-        }
+        tickRecording(now);
     }
 };
 
@@ -188,7 +202,7 @@ const installHooks = (): void => {
             startRecording(delayMs);
         },
     };
-    (window as unknown as { __gestures: typeof api }).__gestures = api;
+    (globalThis as unknown as { __gestures: typeof api }).__gestures = api;
 };
 
 const commandSetting = (key: string, label: string, def: string): Technique["settings"][number] => ({
@@ -315,5 +329,6 @@ export const technique: Technique = {
  * @returns "thumbs-up: next color"
  */
 function describe(b: Binding): string {
-    return `${b.gesture}${b.palm ? `@palm-${b.palm}` : ""}: ${b.command}`;
+    const gesture = b.palm ? `${b.gesture}@palm-${b.palm}` : b.gesture;
+    return `${gesture}: ${b.command}`;
 }

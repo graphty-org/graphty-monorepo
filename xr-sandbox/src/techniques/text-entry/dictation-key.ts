@@ -32,8 +32,13 @@ export interface DictationKey {
  * @param words - the dictated words
  * @returns the joined text
  */
-const join = (base: string, words: string): string =>
-    !words ? base : `${base}${base && !base.endsWith(" ") ? " " : ""}${words}`;
+const join = (base: string, words: string): string => {
+    if (!words) {
+        return base;
+    }
+    const gap = base && !base.endsWith(" ") ? " " : "";
+    return `${base}${gap}${words}`;
+};
 
 /**
  * Build the key, hidden, beside the keyboard.

@@ -44,38 +44,38 @@ const browser = await chromium.launch({
 
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
-    const start = await page.evaluate(() => window.__sandbox.xrFrames());
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n]);
+    const start = await page.evaluate(() => globalThis.__sandbox.xrFrames());
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n]);
 };
 const ev = (page, fn, arg) => page.evaluate(fn, arg);
 const now = (page) => ev(page, () => Date.now());
-const logSince = async (page, t0) => (await ev(page, () => window.__sandbox.log(400))).filter((e) => e.time >= t0);
+const logSince = async (page, t0) => (await ev(page, () => globalThis.__sandbox.log(400))).filter((e) => e.time >= t0);
 const lastChips = async (page) =>
-    (await ev(page, () => window.__sandbox.log(400))).filter((e) => e.message === "voice.chips").at(-1)?.data?.chips ??
+    (await ev(page, () => globalThis.__sandbox.log(400))).findLast((e) => e.message === "voice.chips")?.data?.chips ??
     [];
 
 /** Galaxy XR: a stub recognizer the check speaks through. Quest: no Web Speech API, a system keyboard. */
 const initScript = ({ quest }) => {
-    delete window.webkitSpeechRecognition;
-    delete window.SpeechRecognition;
+    delete globalThis.webkitSpeechRecognition;
+    delete globalThis.SpeechRecognition;
     if (quest) {
         return;
     }
-    window.__rec = null;
-    window.SpeechRecognition = class {
+    globalThis.__rec = null;
+    globalThis.SpeechRecognition = class {
         start() {
-            window.__rec = this;
+            globalThis.__rec = this;
         }
         stop() {
             setTimeout(() => {
-                window.__rec = null;
+                globalThis.__rec = null;
                 this.onend?.();
             }, 20);
         }
     };
-    window.__say = (text, isFinal) => {
+    globalThis.__say = (text, isFinal) => {
         const result = Object.assign([{ transcript: text }], { isFinal });
-        window.__rec?.onresult?.({ resultIndex: 0, results: [result] });
+        globalThis.__rec?.onresult?.({ resultIndex: 0, results: [result] });
     };
 };
 
@@ -90,19 +90,19 @@ const open = async (profile, preset, { arm }) => {
     const url = new URL(args.url);
     url.search = new URLSearchParams({ preset, emulate: profile, still: "1" }).toString();
     await page.goto(url.toString());
-    await until(page, () => window.__sandbox?.ready === true);
+    await until(page, () => globalThis.__sandbox?.ready === true);
     if (quest) {
         // IWER's sessions always report false; report true, as Quest Browser does.
         await ev(page, () =>
-            Object.defineProperty(window.XRSession.prototype, "isSystemKeyboardSupported", { get: () => true }),
+            Object.defineProperty(globalThis.XRSession.prototype, "isSystemKeyboardSupported", { get: () => true }),
         );
     }
     if (arm) {
         await page.locator("#arm-mic").check();
-        await until(page, () => window.__sandbox.log(400).some((e) => e.message === "arm"));
+        await until(page, () => globalThis.__sandbox.log(400).some((e) => e.message === "arm"));
     }
     await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-    await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10);
+    await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10);
     // Warm-up, as the framework dry run does: first-frame shader and texture work is not pacing.
     await frames(page, 60);
     return { page, context, r };
@@ -110,11 +110,11 @@ const open = async (profile, preset, { arm }) => {
 
 /** Aim at a node or mesh by name, press and release. */
 const pressAt = async (page, hand, target, kind) => {
-    await ev(page, ([h, t]) => window.__sandbox.aim(h, t), [hand, target]);
+    await ev(page, ([h, t]) => globalThis.__sandbox.aim(h, t), [hand, target]);
     await frames(page, 12);
-    await ev(page, ([h, k]) => window.__sandbox.press(h, k, true), [hand, kind]);
+    await ev(page, ([h, k]) => globalThis.__sandbox.press(h, k, true), [hand, kind]);
     await frames(page, 6);
-    await ev(page, ([h, k]) => window.__sandbox.press(h, k, false), [hand, kind]);
+    await ev(page, ([h, k]) => globalThis.__sandbox.press(h, k, false), [hand, kind]);
     await frames(page, 10);
 };
 
@@ -142,11 +142,11 @@ const runOne = async (profile) => {
     /** Talk: `steps` are [text, final] pairs, the last one final; ends the listen the way the device does. */
     const say = async (page, steps) => {
         if (hands) {
-            await ev(page, () => window.__sandbox.aim("right", "voice-mic"));
+            await ev(page, () => globalThis.__sandbox.aim("right", "voice-mic"));
             await frames(page, 12);
-            await ev(page, (k) => window.__sandbox.press("right", k, true), kind);
+            await ev(page, (k) => globalThis.__sandbox.press("right", k, true), kind);
         } else {
-            await ev(page, () => window.__sandbox.press("left", "x", true));
+            await ev(page, () => globalThis.__sandbox.press("left", "x", true));
         }
         await frames(page, 6);
         const shown = [];
@@ -154,9 +154,9 @@ const runOne = async (profile) => {
         if (quest) {
             if (hands) {
                 // The release of the pinch is the select event that opens the keyboard.
-                await ev(page, (k) => window.__sandbox.press("right", k, false), kind);
+                await ev(page, (k) => globalThis.__sandbox.press("right", k, false), kind);
             } else {
-                await ev(page, () => window.__sandbox.press("left", "x", false));
+                await ev(page, () => globalThis.__sandbox.press("left", "x", false));
                 await frames(page, 4);
                 await pressAt(page, "right", "space", "trigger");
             }
@@ -178,14 +178,14 @@ const runOne = async (profile) => {
             await ev(page, () => document.activeElement?.blur());
         } else {
             for (const [text, final] of steps) {
-                await ev(page, ([t, f]) => window.__say(t, f), [text, final]);
+                await ev(page, ([t, f]) => globalThis.__say(t, f), [text, final]);
                 await frames(page, 4);
                 shown.push(await lastChips(page));
             }
             if (hands) {
-                await ev(page, (k) => window.__sandbox.press("right", k, false), kind);
+                await ev(page, (k) => globalThis.__sandbox.press("right", k, false), kind);
             } else {
-                await ev(page, () => window.__sandbox.press("left", "x", false));
+                await ev(page, () => globalThis.__sandbox.press("left", "x", false));
             }
         }
         await frames(page, 10);
@@ -198,11 +198,11 @@ const runOne = async (profile) => {
     try {
         const { page } = s;
         const t0 = await now(page);
-        const on = (await ev(page, () => window.__sandbox.techniques())).find((t) => t.id === "voice");
+        const on = (await ev(page, () => globalThis.__sandbox.techniques())).find((t) => t.id === "voice");
         check("armedSwitchesOn", on?.on, { voice: on });
 
-        const f = await ev(page, () => window.__sandbox.frames(200));
-        const j = await ev(page, () => window.__sandbox.jitter(120));
+        const f = await ev(page, () => globalThis.__sandbox.frames(200));
+        const j = await ev(page, () => globalThis.__sandbox.jitter(120));
         check("framesAndJitter", f.over50 === 0 && j.maxMm < 0.05 && j.maxDeg < 0.01, {
             jsP95: f.jsP95,
             jsMax: f.jsMax,
@@ -217,10 +217,10 @@ const runOne = async (profile) => {
         });
 
         if (hands) {
-            await ev(page, () => window.__sandbox.place("right", 0.15, 1.3, 0.1));
+            await ev(page, () => globalThis.__sandbox.place("right", 0.15, 1.3, 0.1));
         }
         await pressAt(page, "right", "Medici", kind);
-        const sel = await ev(page, () => window.__sandbox.state().selection);
+        const sel = await ev(page, () => globalThis.__sandbox.state().selection);
 
         const heard = await say(page, [
             ["color these", false],
@@ -328,16 +328,16 @@ const runOne = async (profile) => {
     try {
         const { page } = s;
         // The same preset with voice off, for comparison with the armed run's frames.
-        const f = await ev(page, () => window.__sandbox.frames(200));
+        const f = await ev(page, () => globalThis.__sandbox.frames(200));
         check("framesWithVoiceOff", true, { jsP95: f.jsP95, jsMax: f.jsMax, over50: f.over50 });
-        const t = (await ev(page, () => window.__sandbox.techniques())).find((x) => x.id === "voice");
-        await ev(page, () => window.__sandbox.setOn("voice", true));
-        const still = (await ev(page, () => window.__sandbox.techniques())).find((x) => x.id === "voice");
-        await ev(page, () => window.__sandbox.place("left", -0.12, 1.2, 0.08));
+        const t = (await ev(page, () => globalThis.__sandbox.techniques())).find((x) => x.id === "voice");
+        await ev(page, () => globalThis.__sandbox.setOn("voice", true));
+        const still = (await ev(page, () => globalThis.__sandbox.techniques())).find((x) => x.id === "voice");
+        await ev(page, () => globalThis.__sandbox.place("left", -0.12, 1.2, 0.08));
         await pressAt(page, "left", "gear", hands ? "pinch" : "trigger");
         check("unarmedRefused", !t.on && !still.on && /^unarmed/.test(t.reason ?? ""), {
             reason: t.reason,
-            gearOpen: await ev(page, () => window.__sandbox.gearOpen()),
+            gearOpen: await ev(page, () => globalThis.__sandbox.gearOpen()),
         });
     } catch (e) {
         check("ranUnarmed", false, { error: String(e).slice(0, 500) });
@@ -352,9 +352,9 @@ const runOne = async (profile) => {
         if (hands) {
             await pressAt(page, "right", "space", "pinch");
         } else {
-            await ev(page, () => window.__sandbox.press("left", "x", true));
+            await ev(page, () => globalThis.__sandbox.press("left", "x", true));
             await frames(page, 6);
-            await ev(page, () => window.__sandbox.press("left", "x", false));
+            await ev(page, () => globalThis.__sandbox.press("left", "x", false));
             await frames(page, 6);
         }
         const log = await logSince(page, t0);
@@ -381,7 +381,8 @@ for (const profile of args.profiles.split(",")) {
     const failed = Object.entries(r.checks)
         .filter(([, c]) => !c.pass)
         .map(([n]) => n);
-    console.log(`${r.pass ? "PASS" : "FAIL"} ${profile}${failed.length ? `  failed: ${failed.join(", ")}` : ""}`);
+    const failedNote = failed.length ? `  failed: ${failed.join(", ")}` : "";
+    console.log(`${r.pass ? "PASS" : "FAIL"} ${profile}${failedNote}`);
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((r) => r.pass), results };

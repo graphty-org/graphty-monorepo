@@ -45,8 +45,8 @@ const browser = await chromium.launch({
 
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
-    const start = await page.evaluate(() => window.__sandbox.xrFrames());
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n]);
+    const start = await page.evaluate(() => globalThis.__sandbox.xrFrames());
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n]);
 };
 const ev = (page, fn, arg) => page.evaluate(fn, arg);
 
@@ -63,21 +63,21 @@ const runOne = async (profile) => {
     page.on("pageerror", (e) => r.pageErrors.push(String(e).slice(0, 300)));
 
     const press = async (hand, kind, hold = 6) => {
-        await ev(page, ([h, k]) => window.__sandbox.press(h, k, true), [hand, kind]);
+        await ev(page, ([h, k]) => globalThis.__sandbox.press(h, k, true), [hand, kind]);
         await frames(page, hold);
-        await ev(page, ([h, k]) => window.__sandbox.press(h, k, false), [hand, kind]);
+        await ev(page, ([h, k]) => globalThis.__sandbox.press(h, k, false), [hand, kind]);
         await frames(page, 10);
     };
     const place = async (hand, [x, y, z]) => {
-        await ev(page, ([h, p]) => window.__sandbox.place(h, ...p), [hand, [x, y, z]]);
+        await ev(page, ([h, p]) => globalThis.__sandbox.place(h, ...p), [hand, [x, y, z]]);
     };
     const aim = async (hand, what) => {
-        await ev(page, ([h, w]) => window.__sandbox.aim(h, w), [hand, what]);
+        await ev(page, ([h, w]) => globalThis.__sandbox.aim(h, w), [hand, what]);
         await frames(page, 15);
     };
-    const since = async (t0) => (await ev(page, () => window.__sandbox.log(600))).filter((e) => e.time >= t0);
+    const since = async (t0) => (await ev(page, () => globalThis.__sandbox.log(600))).filter((e) => e.time >= t0);
     const now = () => ev(page, () => Date.now());
-    const look = () => ev(page, () => window.__physicalTools.look());
+    const look = () => ev(page, () => globalThis.__physicalTools.look());
     const RIGHT = [0.15, 1.35, 0.25];
     const LEFT = [-0.15, 1.35, 0.25];
 
@@ -86,15 +86,15 @@ const runOne = async (profile) => {
         const t = await now();
         await place("right", RIGHT);
         await aim("right", `physical-tools-${tool}`);
-        await ev(page, ([h, k]) => window.__sandbox.press(h, k, true), ["right", click]);
+        await ev(page, ([h, k]) => globalThis.__sandbox.press(h, k, true), ["right", click]);
         await frames(page, 8);
         await place("right", [RIGHT[0], RIGHT[1] + 0.02, RIGHT[2] - 0.05]);
         await frames(page, 40);
-        await ev(page, ([h, k]) => window.__sandbox.press(h, k, false), ["right", click]);
+        await ev(page, ([h, k]) => globalThis.__sandbox.press(h, k, false), ["right", click]);
         await frames(page, 10);
         await place("right", RIGHT);
         await frames(page, 10);
-        const got = (await ev(page, () => window.__physicalTools.held())).right;
+        const got = (await ev(page, () => globalThis.__physicalTools.held())).right;
         r.takes = [
             ...(r.takes ?? []),
             {
@@ -116,11 +116,11 @@ const runOne = async (profile) => {
         let aimAt = value;
         let after;
         for (let k = 0; k < 4; k++) {
-            const mark = await ev(page, (v) => window.__physicalTools.sliderMark(v), aimAt);
+            const mark = await ev(page, (v) => globalThis.__physicalTools.sliderMark(v), aimAt);
             await place("left", LEFT);
             await aim("left", mark);
             await press("left", click);
-            after = await ev(page, () => window.__physicalTools.sieve());
+            after = await ev(page, () => globalThis.__physicalTools.sieve());
             r.sets = [...(r.sets ?? []), { value, aimAt, after }];
             if (Math.abs(after.value - value) < 1e-6) {
                 break;
@@ -162,15 +162,15 @@ const runOne = async (profile) => {
             still: "1",
         }).toString();
         await page.goto(url.toString());
-        await until(page, () => window.__sandbox?.ready === true && !!window.__physicalTools);
+        await until(page, () => globalThis.__sandbox?.ready === true && !!globalThis.__physicalTools);
         await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-        await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10);
+        await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10);
         await frames(page, 60);
         await place("left", [-0.3, 1.1, 0.1]);
         await aim("left", "space");
-        const tech = (await ev(page, () => window.__sandbox.techniques())).find((t) => t.id === "physical-tools");
+        const tech = (await ev(page, () => globalThis.__sandbox.techniques())).find((t) => t.id === "physical-tools");
         check("switchedOn", tech?.on && tech.reason === null, { tech });
-        check("rackShown", await ev(page, () => window.__physicalTools.rackVisible()), {});
+        check("rackShown", await ev(page, () => globalThis.__physicalTools.rackVisible()), {});
 
         // 1. Take the sieve, set 0.070, read and look, commit on the handle.
         const look0 = await look();
@@ -212,12 +212,12 @@ const runOne = async (profile) => {
         await press("left", click);
         let log = await since(t0);
         const filterCmd = log.find((e) => e.message === "command" && e.data?.code === "filter");
-        let state = await ev(page, () => window.__sandbox.state());
+        let state = await ev(page, () => globalThis.__sandbox.state());
         check(
             "handleCommits",
             filterCmd?.data?.label === "Keep PageRank at least 0.070 (5 of 15)" &&
                 state.history.includes("Keep PageRank at least 0.070 (5 of 15)") &&
-                (await ev(page, () => window.__physicalTools.held())).right === null,
+                (await ev(page, () => globalThis.__physicalTools.held())).right === null,
             { label: filterCmd?.data?.label, history: state.history },
         );
         await place("left", [-0.3, 1.1, 0.1]);
@@ -281,22 +281,22 @@ const runOne = async (profile) => {
         const probe = await take("probe");
         check("probeTaken", probe === "probe", { probe });
         // 35 cm from the Medici, toward the head.
-        const medici = await ev(page, () => window.__physicalTools.node("Medici"));
+        const medici = await ev(page, () => globalThis.__physicalTools.node("Medici"));
         const head = [0, 1.6, 0];
         const away = Math.hypot(...head.map((v, k) => v - medici[k]));
         const P0 = medici.map((v, k) => v + ((head[k] - v) / away) * 0.35);
         await place("right", P0);
         await aim("right", "Medici");
         t0 = await now();
-        const tip = await ev(page, () => window.__physicalTools.probeTip());
+        const tip = await ev(page, () => globalThis.__physicalTools.probeTip());
         await place(
             "right",
             P0.map((v, k) => v + medici[k] - tip[k]),
         );
         await frames(page, 15);
         const touch = {
-            reading: await ev(page, () => window.__physicalTools.reading()),
-            card: await ev(page, () => window.__physicalTools.card()),
+            reading: await ev(page, () => globalThis.__physicalTools.reading()),
+            card: await ev(page, () => globalThis.__physicalTools.card()),
         };
         await page.screenshot({ path: join(args.out, `${profile}--probe-touch.png`) });
         const facts = (t) =>
@@ -312,8 +312,8 @@ const runOne = async (profile) => {
         await place("right", P0);
         await aim("right", "Medici");
         const point = {
-            reading: await ev(page, () => window.__physicalTools.reading()),
-            card: await ev(page, () => window.__physicalTools.card()),
+            reading: await ev(page, () => globalThis.__physicalTools.reading()),
+            card: await ev(page, () => globalThis.__physicalTools.card()),
         };
         check(
             "probePoint",
@@ -322,8 +322,8 @@ const runOne = async (profile) => {
         );
         await aim("right", "space");
         const space = {
-            reading: await ev(page, () => window.__physicalTools.reading()),
-            card: await ev(page, () => window.__physicalTools.card()),
+            reading: await ev(page, () => globalThis.__physicalTools.reading()),
+            card: await ev(page, () => globalThis.__physicalTools.card()),
         };
         check(
             "probeSpace",
@@ -332,7 +332,7 @@ const runOne = async (profile) => {
             space,
         );
         log = await since(t0);
-        state = await ev(page, () => window.__sandbox.state());
+        state = await ev(page, () => globalThis.__sandbox.state());
         const probes = log.filter((e) => e.message === "command" && e.data?.code === "probe");
         const readings = log.filter((e) => e.message === "physical-tools.reading");
         check(
@@ -350,8 +350,8 @@ const runOne = async (profile) => {
         await press("right", hands ? "pinch" : "squeeze");
         check(
             "probePutBack",
-            (await ev(page, () => window.__physicalTools.held())).right === null &&
-                !(await ev(page, () => window.__physicalTools.card())).visible,
+            (await ev(page, () => globalThis.__physicalTools.held())).right === null &&
+                !(await ev(page, () => globalThis.__physicalTools.card())).visible,
             {},
         );
 
@@ -360,26 +360,26 @@ const runOne = async (profile) => {
         await take("sieve");
         await setSieve(0.1);
         t0 = await now();
-        await ev(page, () => window.__sandbox.setOn("physical-tools", false));
+        await ev(page, () => globalThis.__sandbox.setOn("physical-tools", false));
         await frames(page, 5);
         log = await since(t0);
         const look6 = await look();
-        const reasonOff = await ev(page, () => window.__physicalTools.reason("sieve"));
+        const reasonOff = await ev(page, () => globalThis.__physicalTools.reason("sieve"));
         check(
             "switchOff",
             same(look5, look6) &&
-                !(await ev(page, () => window.__physicalTools.rackVisible())) &&
-                (await ev(page, () => window.__physicalTools.held())).right === null &&
+                !(await ev(page, () => globalThis.__physicalTools.rackVisible())) &&
+                (await ev(page, () => globalThis.__physicalTools.held())).right === null &&
                 log.some((e) => e.data?.label === "cancel") &&
                 reasonOff === "Physical tools is off",
             { reasonOff, log: log.map((e) => `${e.message} ${e.data?.label ?? e.data?.tool ?? ""}`) },
         );
-        await ev(page, () => window.__sandbox.setOn("physical-tools", true));
+        await ev(page, () => globalThis.__sandbox.setOn("physical-tools", true));
         await frames(page, 5);
         check(
             "switchOnAgain",
-            (await ev(page, () => window.__physicalTools.rackVisible())) &&
-                (await ev(page, () => window.__physicalTools.reason("sieve"))) === null,
+            (await ev(page, () => globalThis.__physicalTools.rackVisible())) &&
+                (await ev(page, () => globalThis.__physicalTools.reason("sieve"))) === null,
             {},
         );
         check("noErrors", r.consoleErrors.length === 0 && r.pageErrors.length === 0, {
@@ -406,7 +406,8 @@ for (const profile of args.profiles.split(",")) {
     const failed = Object.entries(r.checks)
         .filter(([, c]) => !c.pass)
         .map(([n]) => n);
-    console.log(`${r.pass ? "PASS" : "FAIL"} ${profile}${failed.length ? `  failed: ${failed.join(", ")}` : ""}`);
+    const failedNote = failed.length ? `  failed: ${failed.join(", ")}` : "";
+    console.log(`${r.pass ? "PASS" : "FAIL"} ${profile}${failedNote}`);
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((r) => r.pass), results };

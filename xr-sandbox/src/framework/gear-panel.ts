@@ -190,109 +190,128 @@ export function createGearPanel(scene: Scene, zones: Zones, fw: Framework): Gear
         return r;
     };
 
+    /** The Techniques tab: each technique with its switch, its name (opens its settings) and a note. */
+    const renderTechniques = (): void => {
+        for (const t of fw.techniques) {
+            const r = row();
+            const isOn = fw.isOn(t.id);
+            const why = fw.reason(t.id);
+            const toggle = guiButton(
+                `tech-${t.id}`,
+                isOn ? "On" : "Off",
+                () => {
+                    fw.setOn(t.id, !isOn);
+                    render();
+                },
+                ROW,
+                70,
+            );
+            toggle.isEnabled = !t.unavailable && !(t.arm === "microphone" && !fw.armed.microphone && !isOn);
+            toggle.background = isOn ? "#3f6b3a" : "#34405a";
+            r.addControl(toggle);
+            const name = guiButton(
+                `tech-${t.id}-name`,
+                t.name,
+                () => {
+                    if (t.settings.length) {
+                        tab = `settings:${t.id}`;
+                        render();
+                    }
+                },
+                ROW,
+                280,
+            );
+            name.color = t.color;
+            r.addControl(name);
+            const note = guiText(
+                why ?? (t.settings.length ? `${t.settings.length} settings` : ""),
+                ROW,
+                why ? "#d98c8c" : "#9fb3d9",
+            );
+            note.width = "380px";
+            r.addControl(note);
+            body.addControl(r);
+        }
+    };
+
+    /** One technique's settings, with a Back button. */
+    const renderSettings = (): void => {
+        const t = fw.techniques.find((x) => `settings:${x.id}` === tab);
+        body.addControl(
+            guiButton(
+                "gear-back",
+                `Back  (${t?.name ?? ""})`,
+                () => {
+                    tab = "techniques";
+                    render();
+                },
+                ROW,
+                400,
+            ),
+        );
+        for (const spec of t?.settings ?? []) {
+            body.addControl(settingRow(spec.key, spec, t?.id ?? ""));
+        }
+    };
+
+    /** The Framework tab: framework settings and actions. */
+    const renderFramework = (): void => {
+        for (const spec of FRAMEWORK_SETTINGS) {
+            body.addControl(settingRow(spec.key, spec, "framework"));
+        }
+        const actions: [string, keyof Framework["actions"]][] = [
+            ["Recenter", "recenter"],
+            ["Reset view", "resetView"],
+            ["Flag", "flag"],
+            ["Steps", "toggleSteps"],
+            ["Save", "save"],
+            ["Save as preset", "saveAsPreset"],
+        ];
+        for (let i = 0; i < actions.length; i += 3) {
+            const r = row();
+            for (const [text, key] of actions.slice(i, i + 3)) {
+                const run = (): void => {
+                    fw.actions[key]();
+                };
+                r.addControl(guiButton(`gear-${text.toLowerCase().replaceAll(" ", "-")}`, text, run, ROW, 230));
+            }
+            body.addControl(r);
+        }
+    };
+
+    /** The Input map tab: the live claims, highest priority first. */
+    const renderInputMap = (): void => {
+        const lines = fw.claims().map(({ owner, claim }) => {
+            const name =
+                owner === "framework" ? "Framework tap" : (fw.techniques.find((t) => t.id === owner)?.name ?? owner);
+            const ctx = claim.contexts === "any" ? "any" : claim.contexts.join(", ");
+            const channel = claim.detail ? `${claim.channel} ${claim.detail}` : claim.channel;
+            return `${claim.priority}  ${name}: ${channel} on ${ctx} -- ${claim.note ?? "take at start"}`;
+        });
+        lines.unshift(
+            "Reserved: UI first; off-hand stick click or both palms up 1 s opens this panel; both stick clicks flag",
+        );
+        for (const line of lines) {
+            const t = new TextBlock(undefined, line);
+            t.height = `${ROW}px`;
+            t.color = "#e8ecf4";
+            t.fontSize = 18;
+            t.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+            t.paddingLeft = "10px";
+            body.addControl(t);
+        }
+    };
+
     const render = (): void => {
         body.clearControls();
         if (tab === "techniques") {
-            for (const t of fw.techniques) {
-                const r = row();
-                const isOn = fw.isOn(t.id);
-                const why = fw.reason(t.id);
-                const toggle = guiButton(
-                    `tech-${t.id}`,
-                    isOn ? "On" : "Off",
-                    () => {
-                        fw.setOn(t.id, !isOn);
-                        render();
-                    },
-                    ROW,
-                    70,
-                );
-                toggle.isEnabled = !t.unavailable && !(t.arm === "microphone" && !fw.armed.microphone && !isOn);
-                toggle.background = isOn ? "#3f6b3a" : "#34405a";
-                r.addControl(toggle);
-                const name = guiButton(
-                    `tech-${t.id}-name`,
-                    t.name,
-                    () => {
-                        if (t.settings.length) {
-                            tab = `settings:${t.id}`;
-                            render();
-                        }
-                    },
-                    ROW,
-                    280,
-                );
-                name.color = t.color;
-                r.addControl(name);
-                const note = guiText(
-                    why ?? (t.settings.length ? `${t.settings.length} settings` : ""),
-                    ROW,
-                    why ? "#d98c8c" : "#9fb3d9",
-                );
-                note.width = "380px";
-                r.addControl(note);
-                body.addControl(r);
-            }
+            renderTechniques();
         } else if (tab.startsWith("settings:")) {
-            const t = fw.techniques.find((x) => `settings:${x.id}` === tab);
-            body.addControl(
-                guiButton(
-                    "gear-back",
-                    `Back  (${t?.name ?? ""})`,
-                    () => {
-                        tab = "techniques";
-                        render();
-                    },
-                    ROW,
-                    400,
-                ),
-            );
-            for (const spec of t?.settings ?? []) {
-                body.addControl(settingRow(spec.key, spec, t?.id ?? ""));
-            }
+            renderSettings();
         } else if (tab === "framework") {
-            for (const spec of FRAMEWORK_SETTINGS) {
-                body.addControl(settingRow(spec.key, spec, "framework"));
-            }
-            const actions: [string, keyof Framework["actions"]][] = [
-                ["Recenter", "recenter"],
-                ["Reset view", "resetView"],
-                ["Flag", "flag"],
-                ["Steps", "toggleSteps"],
-                ["Save", "save"],
-                ["Save as preset", "saveAsPreset"],
-            ];
-            for (let i = 0; i < actions.length; i += 3) {
-                const r = row();
-                for (const [text, key] of actions.slice(i, i + 3)) {
-                    const run = (): void => {
-                        fw.actions[key]();
-                    };
-                    r.addControl(guiButton(`gear-${text.toLowerCase().replaceAll(" ", "-")}`, text, run, ROW, 230));
-                }
-                body.addControl(r);
-            }
+            renderFramework();
         } else {
-            const lines = fw.claims().map(({ owner, claim }) => {
-                const name =
-                    owner === "framework"
-                        ? "Framework tap"
-                        : (fw.techniques.find((t) => t.id === owner)?.name ?? owner);
-                const ctx = claim.contexts === "any" ? "any" : claim.contexts.join(", ");
-                return `${claim.priority}  ${name}: ${claim.channel}${claim.detail ? ` ${claim.detail}` : ""} on ${ctx} -- ${claim.note ?? "take at start"}`;
-            });
-            lines.unshift(
-                "Reserved: UI first; off-hand stick click or both palms up 1 s opens this panel; both stick clicks flag",
-            );
-            for (const line of lines) {
-                const t = new TextBlock(undefined, line);
-                t.height = `${ROW}px`;
-                t.color = "#e8ecf4";
-                t.fontSize = 18;
-                t.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-                t.paddingLeft = "10px";
-                body.addControl(t);
-            }
+            renderInputMap();
         }
     };
 

@@ -56,7 +56,7 @@ const installHooks = (): void => {
     // An empty, unpickable mesh the dry run aims a ray at (`__sandbox.aim(hand, "text-entry-aim")`).
     const aim = new Mesh("text-entry-aim", ctx.scene);
     aim.isPickable = false;
-    (window as unknown as { __textEntry: unknown }).__textEntry = {
+    (globalThis as unknown as { __textEntry: unknown }).__textEntry = {
         /**
          * Arrange: ask for a note on a node, as a node menu would, and log the note it returns.
          * @param name - the node's name

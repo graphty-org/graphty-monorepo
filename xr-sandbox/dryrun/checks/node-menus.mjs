@@ -35,34 +35,35 @@ const browser = await chromium.launch({
 const TARGET = "Medici";
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
-    const start = await page.evaluate(() => window.__sandbox.xrFrames());
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n]);
+    const start = await page.evaluate(() => globalThis.__sandbox.xrFrames());
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n]);
 };
 const sb = (page, fn, arg) => page.evaluate(fn, arg);
 const now = (page) => sb(page, () => Date.now());
 /** The longest frame's JavaScript since frame `f0` (to tell which step made a long frame). */
 const jsMaxSince = async (page, f0) =>
-    (await sb(page, (k) => window.__sandbox.frames(window.__sandbox.xrFrames() - k), f0)).jsMax;
-const frameNo = (page) => sb(page, () => window.__sandbox.xrFrames());
+    (await sb(page, (k) => globalThis.__sandbox.frames(globalThis.__sandbox.xrFrames() - k), f0)).jsMax;
+const frameNo = (page) => sb(page, () => globalThis.__sandbox.xrFrames());
 /** Log entries since `t0` whose message starts with `prefix`. */
 const logSince = async (page, t0, prefix) =>
-    (await sb(page, () => window.__sandbox.log(400))).filter((e) => e.time >= t0 && e.message.startsWith(prefix));
+    (await sb(page, () => globalThis.__sandbox.log(400))).filter((e) => e.time >= t0 && e.message.startsWith(prefix));
 const commandsSince = async (page, t0) => (await logSince(page, t0, "command")).map((e) => e.data);
-const press = (page, hand, kind, down) => sb(page, ([h, k, d]) => window.__sandbox.press(h, k, d), [hand, kind, down]);
+const press = (page, hand, kind, down) =>
+    sb(page, ([h, k, d]) => globalThis.__sandbox.press(h, k, d), [hand, kind, down]);
 const aim = async (page, hand, what) => {
-    await sb(page, ([h, w]) => window.__sandbox.aim(h, w), [hand, what]);
+    await sb(page, ([h, w]) => globalThis.__sandbox.aim(h, w), [hand, what]);
     await frames(page, 15);
 };
 /** Aim, press and release quickly (a tap or a click on a button). */
 const tap = async (page, hand, what, kind) => {
     await aim(page, hand, what);
-    const hover = await sb(page, (h) => window.__sandbox.hover(h), hand);
+    const hover = await sb(page, (h) => globalThis.__sandbox.hover(h), hand);
     // Pressed for two frames, timed in the page: round trips from here must not stretch a tap past
     // the 300 ms hold on a slow emulated frame.
     const heldMs = await sb(
         page,
         async ([h, k]) => {
-            const s = window.__sandbox;
+            const s = globalThis.__sandbox;
             const f = s.xrFrames();
             const t = performance.now();
             s.press(h, k, true);
@@ -99,7 +100,7 @@ const rotate = (q, v) => {
     ];
 };
 const transform = async (page, device) => {
-    const t = await sb(page, (d) => window.__sandbox.dispatch("get_transform", { device: d }), device);
+    const t = await sb(page, (d) => globalThis.__sandbox.dispatch("get_transform", { device: d }), device);
     const p = t.position;
     const q = t.orientation ?? t.quaternion;
     return { pos: [p.x, p.y, -p.z], fwd: (([x, y, z]) => [x, y, -z])(rotate(q, [0, 0, -1])) };
@@ -115,7 +116,7 @@ const turnRight = async (page, hand, device, deg) => {
     const right = norm([fwd[2], 0, -fwd[0]]);
     const a = (deg * Math.PI) / 180;
     const dir = fwd.map((c, i) => c * Math.cos(a) + right[i] * Math.sin(a));
-    await sb(page, ([h, p]) => window.__sandbox.aimAt(h, p[0], p[1], p[2]), [
+    await sb(page, ([h, p]) => globalThis.__sandbox.aimAt(h, p[0], p[1], p[2]), [
         hand,
         pos.map((c, i) => c + dir[i] * 0.5),
     ]);
@@ -144,9 +145,9 @@ const open = async (profile, query) => {
     const url = new URL(args.url);
     url.search = new URLSearchParams({ ...query, emulate: profile, still: "1" }).toString();
     await page.goto(url.toString());
-    await until(page, () => window.__sandbox?.ready === true);
+    await until(page, () => globalThis.__sandbox?.ready === true);
     await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-    await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10);
+    await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10);
     await frames(page, 30);
     return { page, context, r };
 };
@@ -168,14 +169,14 @@ const runList = async (profile) => {
     const { context, r } = o;
     f0 = await frameNo(page);
     try {
-        const t = (await sb(page, () => window.__sandbox.techniques())).find((x) => x.id === "node-menus");
+        const t = (await sb(page, () => globalThis.__sandbox.techniques())).find((x) => x.id === "node-menus");
         await check("moduleOn", t?.on, { reason: t?.reason });
 
         if (hands) {
             // A quick tap selects and opens no menu.
             let t0 = await now(page);
             const hit = await tap(page, "right", TARGET, "pinch");
-            const s = await sb(page, () => window.__sandbox.state());
+            const s = await sb(page, () => globalThis.__sandbox.state());
             const opened = await logSince(page, t0, "node-menus.open");
             await check("tapSelectsNoMenu", s.selection.join() === TARGET && opened.length === 0, {
                 hover: hit,
@@ -244,9 +245,9 @@ const runList = async (profile) => {
         const hitNote = await tap(page, "right", "node-menus-node-3BackMesh", sel);
         const req = (await logSince(page, t0, "text.request")).at(-1)?.data;
         const p = await cannedCheckPoint(page);
-        await sb(page, ([h, q]) => window.__sandbox.aimAt(h, q[0], q[1], q[2]), ["right", p]);
+        await sb(page, ([h, q]) => globalThis.__sandbox.aimAt(h, q[0], q[1], q[2]), ["right", p]);
         await frames(page, 15);
-        const onChip = await sb(page, () => window.__sandbox.hover("right"));
+        const onChip = await sb(page, () => globalThis.__sandbox.hover("right"));
         await press(page, "right", sel, true);
         await frames(page, 2);
         await press(page, "right", sel, false);
@@ -286,9 +287,8 @@ const runList = async (profile) => {
             },
         );
         // Show PageRank from it colors by PageRank, and undo names it.
-        t0 = await now(page);
         const hitShow = await tap(page, "right", "node-menus-graph-0BackMesh", sel);
-        const s = await sb(page, () => window.__sandbox.state());
+        const s = await sb(page, () => globalThis.__sandbox.state());
         await check("graphVerbRuns", s.colorBy === "pagerank" && s.undoLabel === "Undo: Color by PageRank", {
             hover: hitShow,
             colorBy: s.colorBy,
@@ -297,12 +297,12 @@ const runList = async (profile) => {
 
         // Choosing closed the list: its buttons are no longer UI under the ray.
         await aim(page, "right", "node-menus-graph-0BackMesh");
-        const gone = await sb(page, () => window.__sandbox.hover("right"));
+        const gone = await sb(page, () => globalThis.__sandbox.hover("right"));
         await check("listClosesAfterChoice", gone.context !== "ui", { context: gone.context, uiMesh: gone.uiMesh });
 
-        const f = await sb(page, () => window.__sandbox.frames(600));
+        const f = await sb(page, () => globalThis.__sandbox.frames(600));
         await check("noLongFrames", f.over50 === 0, { jsMax: f.jsMax, jsP95: f.jsP95, hooksP95: f.hooksP95 });
-        const j = await sb(page, () => window.__sandbox.jitter(60));
+        const j = await sb(page, () => globalThis.__sandbox.jitter(60));
         await check("stillAfter", j.maxMm < 0.05 && j.maxDeg < 0.01 && j.chipRedraws === 0, j);
     } catch (e) {
         await check("ran", false, { error: String(e).slice(0, 500) });
@@ -362,7 +362,7 @@ const runRing = async (profile) => {
             dismissed,
             commands: after.map((c) => c.label),
         });
-        const f = await sb(page, () => window.__sandbox.frames(600));
+        const f = await sb(page, () => globalThis.__sandbox.frames(600));
         await check("noLongFrames", f.over50 === 0, { jsMax: f.jsMax, jsP95: f.jsP95 });
     } catch (e) {
         await check("ran", false, { error: String(e).slice(0, 500) });
@@ -391,7 +391,7 @@ const runOff = async (profile) => {
         await frames(page, 8);
         const mine = await logSince(page, t0, "node-menus.");
         const wins = (await logSince(page, t0, "arbiter.win")).map((e) => e.data.technique);
-        const s = await sb(page, () => window.__sandbox.state());
+        const s = await sb(page, () => globalThis.__sandbox.state());
         check("offOpensNothing", mine.length === 0 && !wins.includes("node-menus"), {
             nodeMenuEntries: mine.length,
             wins,
@@ -402,7 +402,7 @@ const runOff = async (profile) => {
         const hit = await tap(page, "right", "node-menus-node-2BackMesh", hands ? "pinch" : "trigger");
         const probes = (await commandsSince(page, t1)).filter((c) => c.code === "probe");
         check("offListHidden", hit.context !== "ui" && probes.length === 0, { hover: hit, probes: probes.length });
-        const j = await sb(page, () => window.__sandbox.jitter(60));
+        const j = await sb(page, () => globalThis.__sandbox.jitter(60));
         check("offStill", j.maxMm < 0.05 && j.maxDeg < 0.01, { maxMm: j.maxMm, maxDeg: j.maxDeg });
     } catch (e) {
         check("ran", false, { error: String(e).slice(0, 500) });
@@ -424,9 +424,8 @@ for (const profile of args.profiles.split(",")) {
         const failed = Object.entries(checks)
             .filter(([, c]) => !c.pass)
             .map(([n]) => n);
-        console.log(
-            `${pass ? "PASS" : "FAIL"} ${profile} node-menus ${mode}${failed.length ? `  failed: ${failed.join(", ")}` : ""}`,
-        );
+        const failedNote = failed.length ? `  failed: ${failed.join(", ")}` : "";
+        console.log(`${pass ? "PASS" : "FAIL"} ${profile} node-menus ${mode}${failedNote}`);
         results.push({ profile, mode, pass, checks });
     }
 }

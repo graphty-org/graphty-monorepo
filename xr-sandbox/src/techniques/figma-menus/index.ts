@@ -159,7 +159,7 @@ const installHooks = (): void => {
             return null;
         },
     };
-    (window as unknown as { __figmaMenus: typeof api }).__figmaMenus = api;
+    (globalThis as unknown as { __figmaMenus: typeof api }).__figmaMenus = api;
 };
 
 export const technique: Technique = {

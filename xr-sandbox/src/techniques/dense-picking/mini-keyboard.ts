@@ -86,9 +86,7 @@ export function createMiniKeyboard(
         panel,
         setKeys(letters, typed) {
             for (const r of rows.slice(0, 3)) {
-                for (const c of [...r.children]) {
-                    r.removeControl(c);
-                }
+                r.clearControls();
             }
             for (const b of keys.values()) {
                 b.isVisible = false;

@@ -53,6 +53,48 @@ const PALM_PINCH: Record<string, string> = {
 };
 
 /**
+ * Why one parsed extra definition is refused.
+ * @param gesture - the gesture name
+ * @param palm - the palm direction, if any
+ * @param pinch - "+pinch" when the definition asks for a pinch
+ * @param command - the command name
+ * @param micro - whether the gesture is a microgesture
+ * @param poses - the pose names a template exists for
+ * @returns the reason, or null when the definition is accepted
+ */
+function refusal(
+    gesture: string,
+    palm: string | undefined,
+    pinch: string | undefined,
+    command: string,
+    micro: boolean,
+    poses: readonly string[],
+): string | null {
+    if (!(COMMANDS as readonly string[]).includes(command)) {
+        return `unknown command "${command}"; one of ${COMMANDS.join(", ")}`;
+    }
+    if (gesture === "fist") {
+        return "the fist is the squeeze channel (grab), never a pose binding";
+    }
+    if (!micro && !poses.includes(gesture)) {
+        return `unknown gesture "${gesture}"; one of ${[...poses, ...MICRO].join(", ")}`;
+    }
+    if (micro && (palm || pinch)) {
+        return "a microgesture takes no palm or pinch";
+    }
+    if (pinch && palm && PALM_PINCH[palm]) {
+        return `needs a palm-${palm} pinch: ${PALM_PINCH[palm]}`;
+    }
+    if (pinch) {
+        return "poses are suppressed while the hand pinches (the pinch is the select channel)";
+    }
+    if (palm && palm !== "up" && palm !== "face") {
+        return `palm ${palm} is not detected; the pose layer has palm up and palm toward the face`;
+    }
+    return null;
+}
+
+/**
  * Parse and check extra definitions: `<gesture>[@palm-<up|face|forward|down>][+pinch]:<command>`,
  * separated by `;` (for example `shaka@palm-up:redo`).
  * @param text - the definitions
@@ -76,20 +118,9 @@ export function parseExtra(text: string, poses: readonly string[]): { bindings: 
         }
         const [, gesture, palm, pinch, command] = m;
         const micro = (MICRO as readonly string[]).includes(gesture);
-        if (!(COMMANDS as readonly string[]).includes(command)) {
-            refuse(`unknown command "${command}"; one of ${COMMANDS.join(", ")}`);
-        } else if (gesture === "fist") {
-            refuse("the fist is the squeeze channel (grab), never a pose binding");
-        } else if (!micro && !poses.includes(gesture)) {
-            refuse(`unknown gesture "${gesture}"; one of ${[...poses, ...MICRO].join(", ")}`);
-        } else if (micro && (palm || pinch)) {
-            refuse("a microgesture takes no palm or pinch");
-        } else if (pinch && palm && PALM_PINCH[palm]) {
-            refuse(`needs a palm-${palm} pinch: ${PALM_PINCH[palm]}`);
-        } else if (pinch) {
-            refuse("poses are suppressed while the hand pinches (the pinch is the select channel)");
-        } else if (palm && palm !== "up" && palm !== "face") {
-            refuse(`palm ${palm} is not detected; the pose layer has palm up and palm toward the face`);
+        const why = refusal(gesture, palm, pinch, command, micro, poses);
+        if (why) {
+            refuse(why);
         } else {
             bindings.push({
                 gesture,

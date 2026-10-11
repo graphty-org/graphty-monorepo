@@ -412,10 +412,12 @@ function landing(params: ReturnType<typeof parseParams>, current: string): void 
     }
 }
 
-boot().catch((e: unknown) => {
+try {
+    await boot();
+} catch (e: unknown) {
     console.error("boot failed", e);
     const status = document.getElementById("status");
     if (status) {
         status.textContent = `Boot failed: ${String(e)}`;
     }
-});
+}

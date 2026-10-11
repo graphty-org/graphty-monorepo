@@ -36,28 +36,28 @@ const browser = await chromium.launch({
 const ENTER = "↵";
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
-    const start = await page.evaluate(() => window.__sandbox.xrFrames());
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n]);
+    const start = await page.evaluate(() => globalThis.__sandbox.xrFrames());
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n]);
 };
 const ev = (page, fn, arg) => page.evaluate(fn, arg);
 const now = (page) => ev(page, () => Date.now());
-const logSince = async (page, t0) => (await ev(page, () => window.__sandbox.log(400))).filter((e) => e.time >= t0);
+const logSince = async (page, t0) => (await ev(page, () => globalThis.__sandbox.log(400))).filter((e) => e.time >= t0);
 const add = (a, b, s = 1) => a.map((v, i) => v + b[i] * s);
 
 /** Init scripts: a prompt() that counts (any call fails the run), and an optional stub recognizer. */
 const initScript = ({ stubSpeech, noSpeech }) => {
-    window.__promptCalls = 0;
-    window.prompt = () => {
-        window.__promptCalls++;
+    globalThis.__promptCalls = 0;
+    globalThis.prompt = () => {
+        globalThis.__promptCalls++;
         return null;
     };
     if (noSpeech) {
         // Quest Browser has no Web Speech API; headless Chromium does.
-        delete window.webkitSpeechRecognition;
-        delete window.SpeechRecognition;
+        delete globalThis.webkitSpeechRecognition;
+        delete globalThis.SpeechRecognition;
     }
     if (stubSpeech) {
-        window.SpeechRecognition = class {
+        globalThis.SpeechRecognition = class {
             start() {
                 setTimeout(() => {
                     const interim = Object.assign([{ transcript: "three word" }], { isFinal: false });
@@ -69,7 +69,9 @@ const initScript = ({ stubSpeech, noSpeech }) => {
                     }, 150);
                 }, 150);
             }
-            stop() {}
+            stop() {
+                // The fake recognizer ends on its own timers; there is nothing to stop.
+            }
         };
     }
 };
@@ -84,35 +86,35 @@ const open = async (profile, query, { stubSpeech = false, systemKeyboard = false
     const url = new URL(args.url);
     url.search = new URLSearchParams({ ...query, emulate: profile, still: "1" }).toString();
     await page.goto(url.toString());
-    await until(page, () => window.__sandbox?.ready === true && !!window.__textEntry);
+    await until(page, () => globalThis.__sandbox?.ready === true && !!globalThis.__textEntry);
     if (systemKeyboard) {
         // IWER's sessions always report false; report true, as Quest Browser does.
         await ev(page, () =>
-            Object.defineProperty(window.XRSession.prototype, "isSystemKeyboardSupported", { get: () => true }),
+            Object.defineProperty(globalThis.XRSession.prototype, "isSystemKeyboardSupported", { get: () => true }),
         );
     }
     await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-    await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10);
+    await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10);
     await frames(page, 30);
     return { page, context, r };
 };
 
 /** A fingertip poke: aim the hand at the point, bring the index tip in front of it, through, back. */
 const poke = async (page, hand, point, normal) => {
-    await ev(page, (p) => window.__textEntry.mark(p), point);
-    await ev(page, ([h]) => window.__sandbox.aim(h, "text-entry-aim"), [hand]);
+    await ev(page, (p) => globalThis.__textEntry.mark(p), point);
+    await ev(page, ([h]) => globalThis.__sandbox.aim(h, "text-entry-aim"), [hand]);
     const p0 = add(point, normal, -0.15);
-    await ev(page, ([h, p]) => window.__sandbox.place(h, ...p), [hand, p0]);
+    await ev(page, ([h, p]) => globalThis.__sandbox.place(h, ...p), [hand, p0]);
     await frames(page, 4);
-    const tip = await ev(page, (h) => window.__textEntry.tip(h), hand);
+    const tip = await ev(page, (h) => globalThis.__textEntry.tip(h), hand);
     const offset = tip.map((v, i) => v - p0[i]);
     const at = (d) => add(add(point, offset, -1), normal, d);
     for (const d of [-0.05, 0.004, -0.06]) {
-        await ev(page, ([h, p]) => window.__sandbox.place(h, ...p), [hand, at(d)]);
+        await ev(page, ([h, p]) => globalThis.__sandbox.place(h, ...p), [hand, at(d)]);
         await frames(page, 5);
     }
     // Park the hand away from the panel, so the next poke starts clear of it.
-    await ev(page, ([h, p]) => window.__sandbox.place(h, ...p), [hand, add(point, normal, -0.25)]);
+    await ev(page, ([h, p]) => globalThis.__sandbox.place(h, ...p), [hand, add(point, normal, -0.25)]);
     await frames(page, 3);
 };
 
@@ -121,13 +123,13 @@ const poke = async (page, hand, point, normal) => {
  * panel first: within 10 cm of it Babylon's near interaction turns the ray off and the tip pokes.
  */
 const rayPress = async (page, hand, point, kind) => {
-    await ev(page, ([h]) => window.__sandbox.place(h, 0.15, 1.2, 0.1), [hand]);
-    await ev(page, (p) => window.__textEntry.mark(p), point);
-    await ev(page, ([h]) => window.__sandbox.aim(h, "text-entry-aim"), [hand]);
+    await ev(page, ([h]) => globalThis.__sandbox.place(h, 0.15, 1.2, 0.1), [hand]);
+    await ev(page, (p) => globalThis.__textEntry.mark(p), point);
+    await ev(page, ([h]) => globalThis.__sandbox.aim(h, "text-entry-aim"), [hand]);
     await frames(page, 10);
-    await ev(page, ([h, k]) => window.__sandbox.press(h, k, true), [hand, kind]);
+    await ev(page, ([h, k]) => globalThis.__sandbox.press(h, k, true), [hand, kind]);
     await frames(page, 6);
-    await ev(page, ([h, k]) => window.__sandbox.press(h, k, false), [hand, kind]);
+    await ev(page, ([h, k]) => globalThis.__sandbox.press(h, k, false), [hand, kind]);
     await frames(page, 10);
 };
 
@@ -155,18 +157,18 @@ const runOne = async (profile) => {
     try {
         const { page } = s;
         const t0 = await now(page);
-        await ev(page, () => window.__textEntry.requestNote("Medici"));
+        await ev(page, () => globalThis.__textEntry.requestNote("Medici"));
         await frames(page, 5);
-        const panel = await ev(page, () => window.__textEntry.panel());
-        const dbg = await ev(page, () => window.__sandbox.debug());
+        const panel = await ev(page, () => globalThis.__textEntry.panel());
+        const dbg = await ev(page, () => globalThis.__sandbox.debug());
         const head = dbg.camera;
         const d = panel.center.map((v, i) => v - head[i]);
         const horizontal = Math.hypot(d[0], d[2]);
         const below = -d[1];
-        const tip = hands ? await ev(page, () => window.__textEntry.tip("right")) : null;
+        const tip = hands ? await ev(page, () => globalThis.__textEntry.tip("right")) : null;
         check(
             "opensAtReach",
-            (await ev(page, () => window.__textEntry.open())) &&
+            (await ev(page, () => globalThis.__textEntry.open())) &&
                 horizontal > 0.3 &&
                 horizontal < 0.5 &&
                 below > 0.15 &&
@@ -178,7 +180,7 @@ const runOne = async (profile) => {
                 fromRightHandM: tip ? +Math.hypot(...panel.center.map((v, i) => v - tip[i])).toFixed(3) : null,
             },
         );
-        const keys = await ev(page, () => window.__textEntry.keys());
+        const keys = await ev(page, () => globalThis.__textEntry.keys());
         const small = Object.entries(keys).filter(([, k]) => k.widthM < 0.02 || k.heightM < 0.02);
         const minW = Math.min(...Object.values(keys).map((k) => k.widthM));
         check("keysAtLeast2cm", small.length === 0, { keys: Object.keys(keys).length, minWidthM: +minW.toFixed(4) });
@@ -186,7 +188,7 @@ const runOne = async (profile) => {
         for (const key of ["c", "a", "t"]) {
             await press(page, keys[key].center, panel.normal);
         }
-        const typed = await ev(page, () => window.__textEntry.field());
+        const typed = await ev(page, () => globalThis.__textEntry.field());
         await press(page, keys[ENTER].center, panel.normal);
         const log = await logSince(page, t0);
         const note = log.find((e) => e.message === "command" && e.data?.code === "note");
@@ -195,7 +197,7 @@ const runOne = async (profile) => {
             "typesCat",
             note?.data?.params?.text === "cat" &&
                 note?.data?.label === "Note on Medici" &&
-                !(await ev(page, () => window.__textEntry.open())),
+                !(await ev(page, () => globalThis.__textEntry.open())),
             {
                 typed,
                 note: note ? { label: note.data.label, text: note.data.params?.text } : null,
@@ -205,16 +207,16 @@ const runOne = async (profile) => {
 
         // Dictation with the stub recognizer: the words are added to the field.
         const t1 = await now(page);
-        await ev(page, () => window.__textEntry.requestNote("Strozzi"));
+        await ev(page, () => globalThis.__textEntry.requestNote("Strozzi"));
         await frames(page, 5);
         await press(page, keys.o.center, panel.normal);
-        const dk = await ev(page, () => window.__textEntry.dictateKey());
-        const p2 = await ev(page, () => window.__textEntry.panel());
+        const dk = await ev(page, () => globalThis.__textEntry.dictateKey());
+        const p2 = await ev(page, () => globalThis.__textEntry.panel());
         await press(page, p2.dictate, p2.normal);
-        await until(page, () => window.__textEntry.field().endsWith("three word note"), undefined, 10_000).catch(
+        await until(page, () => globalThis.__textEntry.field().endsWith("three word note"), undefined, 10_000).catch(
             () => undefined,
         );
-        const dictated = await ev(page, () => window.__textEntry.field());
+        const dictated = await ev(page, () => globalThis.__textEntry.field());
         await press(page, keys[ENTER].center, panel.normal);
         const log2 = await logSince(page, t1);
         const note2 = log2.find((e) => e.message === "command" && e.data?.code === "note");
@@ -225,13 +227,13 @@ const runOne = async (profile) => {
         });
 
         // Switched off while open: the request ends with nothing and the keyboard hides.
-        await ev(page, () => window.__textEntry.requestNote("Medici"));
+        await ev(page, () => globalThis.__textEntry.requestNote("Medici"));
         await frames(page, 3);
-        await ev(page, () => window.__sandbox.setOn("text-entry", false));
+        await ev(page, () => globalThis.__sandbox.setOn("text-entry", false));
         await frames(page, 3);
-        check("offWhileOpen", !(await ev(page, () => window.__textEntry.open())), {});
-        check("promptNeverCalled", (await ev(page, () => window.__promptCalls)) === 0, {
-            calls: await ev(page, () => window.__promptCalls),
+        check("offWhileOpen", !(await ev(page, () => globalThis.__textEntry.open())), {});
+        check("promptNeverCalled", (await ev(page, () => globalThis.__promptCalls)) === 0, {
+            calls: await ev(page, () => globalThis.__promptCalls),
         });
     } catch (e) {
         check("ranOn", false, { error: String(e).slice(0, 500) });
@@ -243,16 +245,18 @@ const runOne = async (profile) => {
     try {
         const { page } = s;
         const t0 = await now(page);
-        await ev(page, () => window.__textEntry.requestNote("Medici"));
+        await ev(page, () => globalThis.__textEntry.requestNote("Medici"));
         await frames(page, 5);
         // The framework's fallback: a row of canned chips; press "check".
-        const geo = await ev(page, () => window.__textEntry.fallback());
+        const geo = await ev(page, () => globalThis.__textEntry.fallback());
         await press(page, geo.check, geo.normal);
         const log = await logSince(page, t0);
         const note = log.find((e) => e.message === "command" && e.data?.code === "note");
         check(
             "offCannedChips",
-            geo.visible && !(await ev(page, () => window.__textEntry.open())) && note?.data?.params?.text === "check",
+            geo.visible &&
+                !(await ev(page, () => globalThis.__textEntry.open())) &&
+                note?.data?.params?.text === "check",
             {
                 fallbackVisible: geo.visible,
                 note: note?.data?.params?.text ?? null,
@@ -270,19 +274,19 @@ const runOne = async (profile) => {
         try {
             const { page } = s;
             const t0 = await now(page);
-            await ev(page, () => window.__textEntry.requestNote("Medici"));
+            await ev(page, () => globalThis.__textEntry.requestNote("Medici"));
             await frames(page, 5);
-            const panel = await ev(page, () => window.__textEntry.panel());
-            const keys = await ev(page, () => window.__textEntry.keys());
+            const panel = await ev(page, () => globalThis.__textEntry.panel());
+            const keys = await ev(page, () => globalThis.__textEntry.keys());
             await poke(page, "right", keys.a.center, panel.normal);
-            const dk = await ev(page, () => window.__textEntry.dictateKey());
+            const dk = await ev(page, () => globalThis.__textEntry.dictateKey());
             // Pinch with the hand's ray on the key, from well away from the panel.
-            await ev(page, () => window.__sandbox.place("right", 0.2, 1.3, 0.05));
-            await ev(page, (n) => window.__sandbox.aim("right", n), dk.name);
+            await ev(page, () => globalThis.__sandbox.place("right", 0.2, 1.3, 0.05));
+            await ev(page, (n) => globalThis.__sandbox.aim("right", n), dk.name);
             await frames(page, 10);
-            await ev(page, () => window.__sandbox.press("right", "pinch", true));
+            await ev(page, () => globalThis.__sandbox.press("right", "pinch", true));
             await frames(page, 6);
-            await ev(page, () => window.__sandbox.press("right", "pinch", false));
+            await ev(page, () => globalThis.__sandbox.press("right", "pinch", false));
             await frames(page, 6);
             const focused = await ev(page, () => document.activeElement?.tagName ?? null);
             // The system keyboard types "dog" (each showing starts empty) and is dismissed.
@@ -294,7 +298,7 @@ const runOne = async (profile) => {
             });
             await frames(page, 3);
             await ev(page, () => new Promise((res) => setTimeout(res, 500)));
-            const field = await ev(page, () => window.__textEntry.field());
+            const field = await ev(page, () => globalThis.__textEntry.field());
             const log = await logSince(page, t0);
             const opened = log.find((e) => e.message === "text-entry.systemKeyboard.open");
             // A pinch that opened the keyboard must not also show the "pinch me" hint meant for pokes.
@@ -328,7 +332,8 @@ for (const profile of args.profiles.split(",")) {
     const failed = Object.entries(r.checks)
         .filter(([, c]) => !c.pass)
         .map(([n]) => n);
-    console.log(`${r.pass ? "PASS" : "FAIL"} ${profile}${failed.length ? `  failed: ${failed.join(", ")}` : ""}`);
+    const failedNote = failed.length ? `  failed: ${failed.join(", ")}` : "";
+    console.log(`${r.pass ? "PASS" : "FAIL"} ${profile}${failedNote}`);
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((r) => r.pass), results };

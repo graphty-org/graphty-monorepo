@@ -150,7 +150,8 @@ const place = (): void => {
     // interaction would take it over and switch its far ray off (the gear became unreachable).
     // Babylon's own exclusion, as its HandMenu uses it.
     const carrier = xr?.input.controllers.find((s) => s.inputSource.handedness === hand)?.uniqueId;
-    const store = (prism.root.reservedDataStore ??= {}) as { nearInteraction?: { excludedControllerId?: string } };
+    prism.root.reservedDataStore ??= {};
+    const store = prism.root.reservedDataStore as { nearInteraction?: { excludedControllerId?: string } };
     if (store.nearInteraction?.excludedControllerId !== carrier) {
         store.nearInteraction = { excludedControllerId: carrier };
     }
@@ -189,7 +190,7 @@ const installProbe = (): void => {
         return;
     }
     const w = (n: Node): number[] => (n as TransformNode).getAbsolutePosition().asArray();
-    (window as unknown as { __palette: unknown }).__palette = {
+    (globalThis as unknown as { __palette: unknown }).__palette = {
         face: () => prism.face,
         faceName: () => FACES[prism.face],
         visible: () => shown && prism.root.isEnabled(),

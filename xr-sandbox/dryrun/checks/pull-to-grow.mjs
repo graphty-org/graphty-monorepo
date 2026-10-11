@@ -43,8 +43,8 @@ const browser = await chromium.launch({
 
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
-    const start = await page.evaluate(() => window.__sandbox.xrFrames());
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n]);
+    const start = await page.evaluate(() => globalThis.__sandbox.xrFrames());
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n]);
 };
 const ev = (page, fn, arg) => page.evaluate(fn, arg);
 // A committed neighbors command; a cancelled preview logs code neighbors with the label "cancel".
@@ -68,7 +68,7 @@ const runOne = async (profile) => {
 
     const now = () => ev(page, () => Date.now());
     const logSince = async (t0) =>
-        (await ev(page, () => window.__sandbox.log(400))).filter(
+        (await ev(page, () => globalThis.__sandbox.log(400))).filter(
             (e) =>
                 e.time >= t0 &&
                 (e.message === "command" ||
@@ -76,24 +76,24 @@ const runOne = async (profile) => {
                     e.message.startsWith("arbiter") ||
                     e.message.startsWith("pull-to-grow.")),
         );
-    const readout = () => ev(page, () => window.__pullToGrow.readout());
-    const state = () => ev(page, () => window.__sandbox.state());
+    const readout = () => ev(page, () => globalThis.__pullToGrow.readout());
+    const state = () => ev(page, () => globalThis.__sandbox.state());
     /** Move the hand to `cm` of pull over `ms`, through IWER's animate_to (XR z is Babylon's -z). */
     const pullTo = (cm, ms) =>
-        ev(page, ([d, p, s]) => window.__sandbox.dispatch("animate_to", { device: d, position: p, duration: s }), [
+        ev(page, ([d, p, s]) => globalThis.__sandbox.dispatch("animate_to", { device: d, position: p, duration: s }), [
             device,
             { x: P0.x, y: P0.y, z: -(P0.z - cm / 100) },
             ms / 1000,
         ]);
     /** Put the hand at the start, aim at the Medici and press. */
     const grab = async () => {
-        await ev(page, ([p]) => window.__sandbox.place("right", p.x, p.y, p.z), [P0]);
-        await ev(page, () => window.__sandbox.aim("right", "Medici"));
+        await ev(page, ([p]) => globalThis.__sandbox.place("right", p.x, p.y, p.z), [P0]);
+        await ev(page, () => globalThis.__sandbox.aim("right", "Medici"));
         await frames(page, 15);
-        await ev(page, ([k]) => window.__sandbox.press("right", k, true), [kind]);
+        await ev(page, ([k]) => globalThis.__sandbox.press("right", k, true), [kind]);
     };
     const release = async () => {
-        await ev(page, ([k]) => window.__sandbox.press("right", k, false), [kind]);
+        await ev(page, ([k]) => globalThis.__sandbox.press("right", k, false), [kind]);
         await frames(page, 10);
     };
     /** Hold still until the filtered pull distance settles. */
@@ -103,11 +103,11 @@ const runOne = async (profile) => {
         const url = new URL(args.url);
         url.search = new URLSearchParams({ preset: args.preset, emulate: profile, still: "1" }).toString();
         await page.goto(url.toString());
-        await until(page, () => window.__sandbox?.ready === true && !!window.__pullToGrow);
+        await until(page, () => globalThis.__sandbox?.ready === true && !!globalThis.__pullToGrow);
         await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-        await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10);
+        await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10);
         await frames(page, 60);
-        const techs = await ev(page, () => window.__sandbox.techniques());
+        const techs = await ev(page, () => globalThis.__sandbox.techniques());
         const on = (id) => techs.find((t) => t.id === id)?.on;
         check("switchedOn", on("pull-to-grow"), { reason: techs.find((t) => t.id === "pull-to-grow")?.reason });
 
@@ -229,7 +229,7 @@ const runOne = async (profile) => {
         await pullTo(10, 150);
         await settle();
         const during = (await state()).preview;
-        await ev(page, () => window.__sandbox.setOn("pull-to-grow", false));
+        await ev(page, () => globalThis.__sandbox.setOn("pull-to-grow", false));
         await frames(page, 5);
         log = await logSince(t0);
         st = await state();
@@ -262,7 +262,7 @@ const runOne = async (profile) => {
             { winner: offWin?.data.technique ?? null, how: offWin?.data.how, log: log.map((e) => e.message) },
         );
 
-        const f = await ev(page, () => window.__sandbox.frames(300));
+        const f = await ev(page, () => globalThis.__sandbox.frames(300));
         check("frameTime", f.over50 === 0, { jsP95: f.jsP95, jsMax: f.jsMax, hooksP95: f.hooksP95, over50: f.over50 });
         check("noErrors", r.consoleErrors.length === 0 && r.pageErrors.length === 0, {
             consoleErrors: r.consoleErrors,
@@ -288,7 +288,8 @@ for (const profile of args.profiles.split(",")) {
     const failed = Object.entries(r.checks)
         .filter(([, c]) => !c.pass)
         .map(([n]) => n);
-    console.log(`${r.pass ? "PASS" : "FAIL"} ${profile}${failed.length ? `  failed: ${failed.join(", ")}` : ""}`);
+    const failedNote = failed.length ? `  failed: ${failed.join(", ")}` : "";
+    console.log(`${r.pass ? "PASS" : "FAIL"} ${profile}${failedNote}`);
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((r) => r.pass), results };

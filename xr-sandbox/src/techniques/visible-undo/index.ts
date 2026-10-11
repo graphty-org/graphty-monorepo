@@ -38,7 +38,7 @@ const handOf = (e: HistoryEntry): Hand => (e.hand === "left" || e.hand === "righ
 /** Follow the history: toast a new step, redraw the strip when anything changed. O(1) when idle. */
 const follow = (): void => {
     const history = ctx.commands.history();
-    const top = history[history.length - 1];
+    const top = history.at(-1);
     if (history.length === lastLength && top === lastTop) {
         return;
     }

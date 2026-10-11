@@ -29,7 +29,7 @@ const SOUND = 0.85;
  * @param s - the text
  * @returns the squashed text ("Page Rank" becomes "pagerank")
  */
-export const squash = (s: string): string => s.toLowerCase().replace(/[^a-z0-9.]/g, "");
+export const squash = (s: string): string => s.toLowerCase().replaceAll(/[^a-z0-9.]/g, "");
 
 /**
  * How alike a heard text and a spoken form are, 0 to 1.

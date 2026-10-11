@@ -164,7 +164,7 @@ export function decode(b64: string): Float32Array {
     const bin = atob(b64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) {
-        bytes[i] = bin.charCodeAt(i);
+        bytes[i] = bin.codePointAt(i) ?? 0;
     }
     return new Float32Array(bytes.buffer);
 }
@@ -178,7 +178,7 @@ export function encode(t: Float32Array): string {
     const bytes = new Uint8Array(t.buffer, t.byteOffset, t.byteLength);
     let bin = "";
     for (const b of bytes) {
-        bin += String.fromCharCode(b);
+        bin += String.fromCodePoint(b);
     }
     return btoa(bin);
 }

@@ -81,8 +81,8 @@ const place = (t: HandTag, cam: Vector3): void => {
     m.scaling.setAll(s);
 };
 
-const frame = (): void => {
-    const now = performance.now();
+// Notice a change of input kind (transient pointers have no hover) and of what the tag text shows.
+const noteChanges = (): void => {
     const isTransient = allTransient();
     if (isTransient !== transient) {
         transient = isTransient;
@@ -95,41 +95,55 @@ const frame = (): void => {
         drawnShownSize = st.shown.size;
         textDirty = true;
     }
-    const cam = camera();
-    const dwell = ctx.settings.num("dwellMs");
-    const linger = ctx.settings.num("lingerMs");
-    const dom = ctx.dominant();
-    for (const hand of HANDS) {
-        const t = tags[hand];
-        const h = ctx.hover(hand);
-        if (transient || !h.connected) {
-            if (t.visible || t.target.shown >= 0) {
-                hide(t);
-            }
-            continue;
+};
+
+// Show or hide a tag's chip when that changes.
+const setShown = (t: HandTag, show: boolean): void => {
+    if (show === t.visible) {
+        return;
+    }
+    t.visible = show;
+    if (show) {
+        t.chip.show();
+    } else {
+        t.chip.hide();
+    }
+};
+
+// Show, hide, redraw and place one hand's tag.
+const updateTag = (hand: Hand, now: number, cam: Vector3): void => {
+    const t = tags[hand];
+    const h = ctx.hover(hand);
+    if (transient || !h.connected) {
+        if (t.visible || t.target.shown >= 0) {
+            hide(t);
         }
-        const changed = t.target.update(h.context === "node" ? h.node : -1, now, dwell, linger);
-        // Both hands on one node: one tag, the dominant hand's.
-        const other = tags[hand === "left" ? "right" : "left"];
-        const dup = hand !== dom && other.target.shown === t.target.shown;
-        const show = t.target.shown >= 0 && !dup;
-        if (show && (changed || textDirty || !t.visible)) {
+        return;
+    }
+    const target = h.context === "node" ? h.node : -1;
+    const changed = t.target.update(target, now, ctx.settings.num("dwellMs"), ctx.settings.num("lingerMs"));
+    // Both hands on one node: one tag, the dominant hand's.
+    const other = tags[hand === "left" ? "right" : "left"];
+    const dup = hand !== ctx.dominant() && other.target.shown === t.target.shown;
+    const show = t.target.shown >= 0 && !dup;
+    if (show) {
+        if (changed || textDirty || !t.visible) {
             redraw(t);
         }
-        if (show) {
-            place(t, cam);
-        }
-        if (show !== t.visible) {
-            t.visible = show;
-            if (show) {
-                t.chip.show();
-            } else {
-                t.chip.hide();
-            }
-        }
-        if (changed) {
-            ctx.log("target", { hand, node: t.target.shown >= 0 ? ctx.graph.data.names[t.target.shown] : null });
-        }
+        place(t, cam);
+    }
+    setShown(t, show);
+    if (changed) {
+        ctx.log("target", { hand, node: t.target.shown >= 0 ? ctx.graph.data.names[t.target.shown] : null });
+    }
+};
+
+const frame = (): void => {
+    const now = performance.now();
+    noteChanges();
+    const cam = camera();
+    for (const hand of HANDS) {
+        updateTag(hand, now, cam);
     }
     textDirty = false;
 };
@@ -215,7 +229,7 @@ const installHooks = (): void => {
             return out;
         },
     };
-    (window as unknown as { __hoverTag: typeof api }).__hoverTag = api;
+    (globalThis as unknown as { __hoverTag: typeof api }).__hoverTag = api;
 };
 
 export const technique: Technique = {

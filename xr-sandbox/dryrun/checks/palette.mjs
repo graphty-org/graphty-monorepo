@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The palette's own checks (plan section 3.10), on an emulated headset with the module on and off,
-// with controllers and with hands. Arrange through the hooks (window.__sandbox, and the module's
-// window.__palette), act through emulated input (IWER stick axes, trigger, pinch, a fingertip poke,
+// with controllers and with hands. Arrange through the hooks (globalThis.__sandbox, and the module's
+// globalThis.__palette), act through emulated input (IWER stick axes, trigger, pinch, a fingertip poke,
 // animate_to), assert through the log and the hooks.
 //
 //   <main>/.worktrees/design-studio-tier1/design/ui/studio/tool/with-browser.sh \
@@ -35,13 +35,13 @@ const browser = await chromium.launch({
 
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
-    const start = await page.evaluate(() => window.__sandbox.xrFrames());
-    await until(page, ([s, k]) => window.__sandbox.xrFrames() >= s + k, [start, n]);
+    const start = await page.evaluate(() => globalThis.__sandbox.xrFrames());
+    await until(page, ([s, k]) => globalThis.__sandbox.xrFrames() >= s + k, [start, n]);
 };
 const ev = (page, fn, arg) => page.evaluate(fn, arg);
-const pal = (page, method, arg) => page.evaluate(([m, a]) => window.__palette[m](a), [method, arg]);
+const pal = (page, method, arg) => page.evaluate(([m, a]) => globalThis.__palette[m](a), [method, arg]);
 const logSince = async (page, t0, prefix) =>
-    (await ev(page, () => window.__sandbox.log(400))).filter((e) => e.time >= t0 && e.message.startsWith(prefix));
+    (await ev(page, () => globalThis.__sandbox.log(400))).filter((e) => e.time >= t0 && e.message.startsWith(prefix));
 const now = (page) => ev(page, () => Date.now());
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -52,19 +52,19 @@ const mm = (v) => Math.round(v * 10000) / 10;
 
 /** IWER pose of a device, in Babylon world coordinates (z flipped). */
 const posOf = async (page, device) => {
-    const t = await ev(page, (d) => window.__sandbox.dispatch("get_transform", { device: d }), device);
+    const t = await ev(page, (d) => globalThis.__sandbox.dispatch("get_transform", { device: d }), device);
     return [t.position.x, t.position.y, -t.position.z];
 };
-const setPos = (page, hand, p) => ev(page, ([h, q]) => window.__sandbox.place(h, q[0], q[1], q[2]), [hand, p]);
+const setPos = (page, hand, p) => ev(page, ([h, q]) => globalThis.__sandbox.place(h, q[0], q[1], q[2]), [hand, p]);
 const press = async (page, hand, kind, down) =>
-    ev(page, ([h, k, d]) => window.__sandbox.press(h, k, d), [hand, kind, down]);
+    ev(page, ([h, k, d]) => globalThis.__sandbox.press(h, k, d), [hand, kind, down]);
 
 /** One flick of the left stick to the given side, held for a few frames, then released. */
 const flick = async (page, x) => {
     await ev(
         page,
         (v) =>
-            window.__sandbox.dispatch("set_gamepad_state", {
+            globalThis.__sandbox.dispatch("set_gamepad_state", {
                 device: "controller-left",
                 axes: [{ index: 0, value: v }],
             }),
@@ -72,7 +72,10 @@ const flick = async (page, x) => {
     );
     await frames(page, 8);
     await ev(page, () =>
-        window.__sandbox.dispatch("set_gamepad_state", { device: "controller-left", axes: [{ index: 0, value: 0 }] }),
+        globalThis.__sandbox.dispatch("set_gamepad_state", {
+            device: "controller-left",
+            axes: [{ index: 0, value: 0 }],
+        }),
     );
     await frames(page, 25);
 };
@@ -86,9 +89,9 @@ const open = async (profile, query) => {
     const url = new URL(args.url);
     url.search = new URLSearchParams({ ...query, emulate: profile, still: "1" }).toString();
     await page.goto(url.toString());
-    await until(page, () => window.__sandbox?.ready === true);
+    await until(page, () => globalThis.__sandbox?.ready === true);
     await page.locator("#enter-vr:not([disabled])").click({ timeout: 30_000 });
-    await until(page, () => window.__sandbox.inXR() && window.__sandbox.xrFrames() > 10);
+    await until(page, () => globalThis.__sandbox.inXR() && globalThis.__sandbox.xrFrames() > 10);
     await frames(page, 40);
     return { page, context, r };
 };
@@ -98,13 +101,14 @@ const rimTurn = async (page, hand, kind, steps) => {
     const turns = [];
     for (let i = 0; i < steps; i++) {
         const rim = await pal(page, "rim");
-        const at = await posOf(
-            page,
-            hand === "right" ? (kind === "pinch" ? "hand-right" : "controller-right") : "hand-left",
-        );
-        await ev(page, ([h, p]) => window.__sandbox.aimAt(h, p[0], p[1], p[2]), [hand, rim]);
+        let source = "hand-left";
+        if (hand === "right") {
+            source = kind === "pinch" ? "hand-right" : "controller-right";
+        }
+        const at = await posOf(page, source);
+        await ev(page, ([h, p]) => globalThis.__sandbox.aimAt(h, p[0], p[1], p[2]), [hand, rim]);
         await frames(page, 10);
-        const hover = await ev(page, (h) => window.__sandbox.hover(h), hand);
+        const hover = await ev(page, (h) => globalThis.__sandbox.hover(h), hand);
         const t0 = await now(page);
         const before = await pal(page, "face");
         await press(page, hand, kind, true);
@@ -155,12 +159,12 @@ const runOn = async (profile) => {
         await setPos(page, "left", [-0.12, 1.25, 0.32]);
         await setPos(page, "right", [0.18, 1.15, 0.22]);
         await frames(page, 15);
-        const t = (await ev(page, () => window.__sandbox.techniques())).find((x) => x.id === "palette");
+        const t = (await ev(page, () => globalThis.__sandbox.techniques())).find((x) => x.id === "palette");
         check("moduleOn", t?.on && (await pal(page, "visible")), { reason: t?.reason });
 
         // The front card looks at the eyes: its normal (toward the viewer) against the way to the head.
         const facing = async () => {
-            const cam = await ev(page, () => window.__sandbox.debug().camera);
+            const cam = await ev(page, () => globalThis.__sandbox.debug().camera);
             const name = { Analyze: "palette-analyze-pagerank", Style: "palette-style-color-pagerank" }[
                 await pal(page, "faceName")
             ];
@@ -174,7 +178,7 @@ const runOn = async (profile) => {
         if (!hands) {
             // Above the off controller: the anchor is the off grip.
             const root = await pal(page, "root");
-            const a = await ev(page, () => window.__palette.anchorMatrix());
+            const a = await ev(page, () => globalThis.__palette.anchorMatrix());
             const grip = [a[12], a[13], a[14]];
             // In the grip's own frame: its up axis is the matrix's second row.
             const d = sub(root, grip);
@@ -208,7 +212,7 @@ const runOn = async (profile) => {
             await ev(
                 page,
                 (p) =>
-                    window.__sandbox.dispatch("animate_to", {
+                    globalThis.__sandbox.dispatch("animate_to", {
                         device: "controller-left",
                         position: { x: p[0] + 0.25, y: p[1] + 0.12, z: -p[2] - 0.1 },
                         duration: 0.5,
@@ -219,7 +223,7 @@ const runOn = async (profile) => {
             await ev(
                 page,
                 (p) =>
-                    window.__sandbox.dispatch("animate_to", {
+                    globalThis.__sandbox.dispatch("animate_to", {
                         device: "controller-left",
                         position: { x: p[0], y: p[1], z: -p[2] },
                         duration: 0.3,
@@ -261,7 +265,7 @@ const runOn = async (profile) => {
             how = "poke";
         } else {
             const c = await pal(page, "control", "palette-style-color-pagerank");
-            await ev(page, (p) => window.__sandbox.aimAt("right", p[0], p[1], p[2]), c.pos);
+            await ev(page, (p) => globalThis.__sandbox.aimAt("right", p[0], p[1], p[2]), c.pos);
             await frames(page, 10);
             await press(page, "right", "trigger", true);
             await frames(page, 5);
@@ -270,7 +274,7 @@ const runOn = async (profile) => {
             how = "ray and trigger";
         }
         const cmds = (await logSince(page, t0, "command")).filter((e) => e.data.code === "colorBy");
-        const s = await ev(page, () => window.__sandbox.state());
+        const s = await ev(page, () => globalThis.__sandbox.state());
         check(
             "styleColorByPageRank",
             cmds.length === 1 && cmds[0].data.technique === "palette" && s.colorBy === "pagerank",
@@ -290,9 +294,9 @@ const runOn = async (profile) => {
             /** Grab the bar by ray and trigger; move sideways by dx, or steer the card home; release. */
             const drag = async (dx) => {
                 const c = await card();
-                await ev(page, (p) => window.__sandbox.aimAt("right", p[0], p[1], p[2]), c.pos);
+                await ev(page, (p) => globalThis.__sandbox.aimAt("right", p[0], p[1], p[2]), c.pos);
                 await frames(page, 10);
-                const hover = await ev(page, () => window.__sandbox.hover("right"));
+                const hover = await ev(page, () => globalThis.__sandbox.hover("right"));
                 let at = await posOf(page, "controller-right");
                 await press(page, "right", "trigger", true);
                 await frames(page, 5);
@@ -355,7 +359,7 @@ const runOn = async (profile) => {
 
         // The Filter face hands over the sieve through ctx.tools, or is grayed with the reason.
         const sieve = await pal(page, "control", "palette-filter-sieve");
-        const phys = (await ev(page, () => window.__sandbox.techniques())).find((x) => x.id === "physical-tools");
+        const phys = (await ev(page, () => globalThis.__sandbox.techniques())).find((x) => x.id === "physical-tools");
         check("filterFaceSieve", sieve && sieve.enabled === (sieve.text === "Take the sieve"), {
             physicalTools: phys?.on ? "on" : `off (${phys?.reason ?? "not in preset"})`,
             button: sieve?.text,
@@ -387,7 +391,7 @@ const runOn = async (profile) => {
     await context.close();
 
     // --- Physical tools off: the Filter face's sieve is grayed and says why.
-    ({ page, context, r } = await open(profile, { preset: "palette", off: "physical-tools" }));
+    ({ page, context } = await open(profile, { preset: "palette", off: "physical-tools" }));
     try {
         await frames(page, 20);
         const sieve = await pal(page, "control", "palette-filter-sieve");
@@ -403,7 +407,7 @@ const runOn = async (profile) => {
     // --- Module OFF: the same preset with the palette switched off.
     ({ page, context, r } = await open(profile, { preset: "palette", off: "palette" }));
     try {
-        const t = (await ev(page, () => window.__sandbox.techniques())).find((x) => x.id === "palette");
+        const t = (await ev(page, () => globalThis.__sandbox.techniques())).find((x) => x.id === "palette");
         const t0 = await now(page);
         if (!hands) {
             await flick(page, 0.95);
@@ -437,7 +441,8 @@ for (const profile of args.profiles.split(",")) {
     const failed = Object.entries(res.checks)
         .filter(([, c]) => !c.pass)
         .map(([n]) => n);
-    console.log(`${res.pass ? "PASS" : "FAIL"} ${profile}${failed.length ? `  failed: ${failed.join(", ")}` : ""}`);
+    const failedNote = failed.length ? `  failed: ${failed.join(", ")}` : "";
+    console.log(`${res.pass ? "PASS" : "FAIL"} ${profile}${failedNote}`);
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((x) => x.pass), results };

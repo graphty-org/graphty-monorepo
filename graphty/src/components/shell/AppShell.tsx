@@ -1464,22 +1464,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         defaultProvider: aiProvider,
         getKey: aiKeyStorage.getKey,
     });
-    const {
-        conversation: aiConversation,
-        pendingInput: aiPendingInput,
-        failure: aiFailure,
-        historyNotice: aiHistoryNotice,
-    } = aiManager;
+    const { conversation: aiConversation, historyNotice: aiHistoryNotice } = aiManager;
     // The element's saved conversation is the transcript; the shell keeps no copy of it.
     const aiMessages = useMemo(
         () =>
             aiTranscript({
                 conversation: aiConversation,
-                pendingInput: aiPendingInput,
-                failure: aiFailure,
                 historyNotice: aiHistoryNotice,
             }),
-        [aiConversation, aiPendingInput, aiFailure, aiHistoryNotice],
+        [aiConversation, aiHistoryNotice],
     );
 
     /* The key store's own surface, as Settings takes it. Assembled here rather than in

@@ -453,7 +453,7 @@ describe("useAiManager", () => {
             expect(mockDoors.clearAiHistory).toHaveBeenCalledTimes(1);
         });
 
-        it("keeps a failed command beside the transcript, but not a held one", async () => {
+        it("returns the element's result and keeps no copy of the message beside its conversation", async () => {
             const { useAiManager } = await import("../useAiManager");
             const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
             await waitFor(() => {
@@ -463,25 +463,18 @@ describe("useAiManager", () => {
             mockDoors.aiCommand.mockResolvedValueOnce({
                 success: false,
                 message: "",
-                code: "AI_CONFIRMATION_NEEDED",
-                params: { gate: "replaces", request: "req-1" },
-            });
-            await act(async () => {
-                await result.current.execute("clear the graph");
-            });
-            expect(result.current.failure).toBeNull();
-            expect(result.current.pendingInput).toBeNull();
-
-            mockDoors.aiCommand.mockResolvedValueOnce({
-                success: false,
-                message: "",
                 code: "AI_PROVIDER_ERROR",
                 params: { provider: "openai" },
             });
+            let outcome: { code?: string } = {};
             await act(async () => {
-                await result.current.execute("again");
+                outcome = await result.current.execute("again");
             });
-            expect(result.current.failure?.code).toBe("AI_PROVIDER_ERROR");
+
+            expect(outcome.code).toBe("AI_PROVIDER_ERROR");
+            // The transcript, the failed message included, is the element's conversation alone.
+            expect(Object.keys(result.current)).not.toContain("failure");
+            expect(Object.keys(result.current)).not.toContain("pendingInput");
         });
     });
 });

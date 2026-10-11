@@ -153,38 +153,41 @@ export function approvalLines(request: AiApprovalRequest): string[] {
 /** What the transcript is drawn from, as `useAiManager` holds it. */
 export interface AiTranscriptSource {
     readonly conversation: AiConversationSnapshot | null;
-    readonly pendingInput: string | null;
-    readonly failure: (ExecutionResult & { readonly error?: Error }) | null;
     readonly historyNotice: { readonly code: AiResultCode; readonly params: AiResultParams } | null;
 }
 
 /**
- * The AI panel's transcript: the element's saved conversation, then what it has not saved yet
- * (the message being sent) and what it never saves (a failure, a store problem).
- * @param source - The conversation and the transient state.
+ * The AI panel's transcript: the element's saved conversation (the message being sent included,
+ * and how a failed one ended), then what it never saves (a store problem).
+ * @param source - The conversation and the store's last notice.
  * @returns The messages, oldest first.
  */
 export function aiTranscript(source: AiTranscriptSource): ChatMessage[] {
     const waiting = new Set(source.conversation?.pending.map((request) => request.messageId));
-    const messages: ChatMessage[] = (source.conversation?.messages ?? []).map((message) =>
-        message.role === "reader"
-            ? { id: message.id, role: "user", content: message.text }
-            : {
-                  id: message.id,
-                  role: "assistant",
-                  content: [message.text, ...message.calls.map((call) => callRecordText(call, waiting.has(message.id)))]
-                      .filter((line) => line !== "")
-                      .join("\n"),
-              },
-    );
+    const messages: ChatMessage[] = (source.conversation?.messages ?? []).flatMap((message): ChatMessage[] => {
+        if (message.role === "reader") {
+            return [{ id: message.id, role: "user", content: message.text }];
+        }
 
-    if (source.pendingInput !== null) {
-        messages.push({ id: "pending-input", role: "user", content: source.pendingInput });
-    }
+        if (message.role !== "assistant") {
+            // A role a newer element added: nothing this release knows how to draw.
+            return [];
+        }
 
-    if (source.failure !== null) {
-        messages.push({ id: "failure", role: "assistant", content: aiResultText(source.failure), isError: true });
-    }
+        const lines = [message.text, ...message.calls.map((call) => callRecordText(call, waiting.has(message.id)))];
+        if (message.outcome !== undefined) {
+            lines.push(aiResultText({ success: false, message: "", ...message.outcome }));
+        }
+
+        return [
+            {
+                id: message.id,
+                role: "assistant",
+                content: lines.filter((line) => line !== "").join("\n"),
+                ...(message.outcome === undefined ? {} : { isError: true }),
+            },
+        ];
+    });
 
     if (source.historyNotice !== null) {
         messages.push({

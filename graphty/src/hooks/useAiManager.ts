@@ -46,10 +46,6 @@ interface UseAiManagerResult {
     conversation: AiConversationSnapshot | null;
     /** The changes waiting on the reader's approval, oldest first. */
     approvals: readonly AiApprovalRequest[];
-    /** The reader's text while its message runs, before the element has saved it. */
-    pendingInput: string | null;
-    /** The last command's or answer's result when it failed; cleared by the next one. */
-    failure: AiCommandOutcome | null;
     /** The last store failure the element reported, if any. */
     historyNotice: AiHistoryNotice | null;
     /** Approve or deny a held change; resolves with the message's final result. */
@@ -78,8 +74,6 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
     const [error, setError] = useState<Error | null>(null);
     const [conversation, setConversation] = useState<AiConversationSnapshot | null>(null);
     const [approvals, setApprovals] = useState<readonly AiApprovalRequest[]>([]);
-    const [pendingInput, setPendingInput] = useState<string | null>(null);
-    const [failure, setFailure] = useState<AiCommandOutcome | null>(null);
     const [historyNotice, setHistoryNotice] = useState<AiHistoryNotice | null>(null);
 
     // Sync currentProvider with defaultProvider when it changes
@@ -176,13 +170,8 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             }
 
             setError(null);
-            setFailure(null);
-            setPendingInput(input);
-
-            const outcome = await settle(() => enabled.aiCommand(input));
-            setPendingInput(null);
-            setFailure(shownFailure(outcome));
-            return outcome;
+            // The element saves the reader's words as the message starts, and how it ended.
+            return settle(() => enabled.aiCommand(input));
         },
         [enabled],
     );
@@ -193,21 +182,16 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
                 return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
             }
 
-            setFailure(null);
-            const outcome = await settle(() => enabled.resolveAiApproval(id, { approve }));
-            setFailure(shownFailure(outcome));
-            return outcome;
+            return settle(() => enabled.resolveAiApproval(id, { approve }));
         },
         [enabled],
     );
 
     const newConversation = useCallback(async (): Promise<void> => {
-        setFailure(null);
         await enabled?.newAiConversation();
     }, [enabled]);
 
     const clearHistory = useCallback(async (): Promise<void> => {
-        setFailure(null);
         setHistoryNotice(null);
         await enabled?.clearAiHistory();
     }, [enabled]);
@@ -232,8 +216,6 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
         clearError,
         conversation,
         approvals,
-        pendingInput,
-        failure,
         historyNotice,
         resolveApproval,
         newConversation,
@@ -254,18 +236,4 @@ async function settle(call: () => Promise<ExecutionResult>): Promise<AiCommandOu
         const error = err instanceof Error ? err : new Error(String(err));
         return { success: false, message: error.message, code: "AI_FAILED", params: {}, error };
     }
-}
-
-/**
- * The result to show beside the transcript: a failure the saved conversation does not already
- * show. A held change shows as its approval card, and a declined one in the transcript.
- * @param outcome - The result.
- * @returns It, or null.
- */
-function shownFailure(outcome: AiCommandOutcome): AiCommandOutcome | null {
-    if (outcome.success || outcome.code === "AI_CONFIRMATION_NEEDED" || outcome.code === "AI_APPROVAL_DENIED") {
-        return null;
-    }
-
-    return outcome;
 }

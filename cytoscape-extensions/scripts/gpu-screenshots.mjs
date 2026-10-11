@@ -154,7 +154,9 @@ async function shoot(browser, url) {
             png: null,
             status: "",
             adapter: null,
-            error: `${e.message.split("\n")[0]}${lines.length ? ` (console: ${lines.slice(-3).join(" | ")})` : ""}`,
+            error: lines.length
+                ? `${e.message.split("\n")[0]} (console: ${lines.slice(-3).join(" | ")})`
+                : e.message.split("\n")[0],
         };
     } finally {
         await context.close();
@@ -177,7 +179,8 @@ function diffImage(a, b) {
     return PNG.sync.write(out);
 }
 
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const esc = (s) =>
+    String(s).replaceAll(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 /**
  * The report page: one row per story, its reference, capture and diff.
@@ -201,6 +204,72 @@ function page(report) {
 .ok{color:var(--ok)}.bad{color:var(--bad)}pre{white-space:pre-wrap}@media (prefers-color-scheme:dark){:root{--ok:#6ee7a0;--bad:#ff8a9a}}</style></head>
 <body><h1>GPU screenshots: ${esc(report.mode)}, ${esc(report.summary)}</h1><p>${esc(report.when)}; adapter ${esc(JSON.stringify(report.adapter))}</p>
 ${rows}</body></html>\n`;
+}
+
+const DONE = { check: "passed", update: "updated" };
+
+/**
+ * Captures one story into its report entry, which keeps the reason when it cannot.
+ * @param {object} entry the story's report entry
+ * @param {{ browser: import("playwright").Browser, base: string, log: string, storybook: string }} ctx where to run
+ * @returns {Promise<object | null>} shoot()'s result, or null when the Storybook has no such story
+ */
+async function captureStory(entry, { browser, base, log, storybook }) {
+    if (!entry.id) {
+        const tried = FOLDERS.map((f) => `${f}--${entry.name}`).join(" or ");
+        entry.detail = `no story ${tried} in ${storybook}`;
+        return null;
+    }
+    journal(log, `STORY BEGIN ${entry.id}`);
+    const t0 = Date.now();
+    const shot = await shoot(browser, `${base}${storyUrl(entry.id, null)}`);
+    journal(log, `STORY END ${entry.id} ${Date.now() - t0} ms ${shot.error ?? "captured"}`);
+    entry.status = shot.status;
+    entry.seconds = Math.round((Date.now() - t0) / 1000);
+    entry.detail = shot.error ?? "";
+    return shot;
+}
+
+/**
+ * Writes a capture, then either makes it the reference (update) or compares it with the reference (check).
+ * @param {object} entry the story's report entry, given its result and detail
+ * @param {Buffer} png the capture
+ * @param {"check" | "update"} mode the mode
+ * @param {string} out the output directory
+ */
+async function judge(entry, png, mode, out) {
+    const { name } = entry;
+    entry.capture = `captures/${name}.png`;
+    await writeFile(join(out, entry.capture), png);
+    const refPath = join(REFERENCES, `${name}.png`);
+    if (mode === "update") {
+        await mkdir(REFERENCES, { recursive: true });
+        await writeFile(refPath, png);
+        entry.result = "UPDATED";
+        entry.detail = `wrote ${refPath}`;
+        return;
+    }
+    const ref = existsSync(refPath) ? await readBaseline(refPath) : null;
+    if (!ref) {
+        entry.detail = `no reference ${refPath}: run --update on a GPU machine`;
+        return;
+    }
+    entry.reference = `references/${name}.png`;
+    await copyFile(refPath, join(out, entry.reference));
+    const r = compareImages(ref, png, { threshold: DEFAULT_THRESHOLD, includeAA: false });
+    entry.changedPixels = r.changedPixels;
+    entry.bbox = r.bbox;
+    if (r.status === "unchanged") {
+        entry.result = "PASS";
+        entry.detail = r.baseline === r.capture ? "byte-identical" : "no pixel past the threshold";
+        return;
+    }
+    const diff = diffImage(ref, png);
+    if (diff) {
+        entry.diff = `diffs/${name}.png`;
+        await writeFile(join(out, entry.diff), diff);
+    }
+    entry.detail = `${r.changedPixels} pixels differ (reference ${r.baselineSize.join("x")}, capture ${r.size.join("x")}, box ${JSON.stringify(r.bbox)})`;
 }
 
 async function main() {
@@ -242,10 +311,9 @@ async function main() {
     let adapter = null;
     try {
         for (const name of names) {
-            const id = ids.get(name);
             const entry = {
                 name,
-                id,
+                id: ids.get(name),
                 result: "FAIL",
                 detail: "",
                 status: "",
@@ -254,58 +322,14 @@ async function main() {
                 diff: null,
             };
             stories.push(entry);
-            if (!id) {
-                entry.detail = `no story ${FOLDERS.map((f) => `${f}--${name}`).join(" or ")} in ${values.storybook}`;
-                console.log(`FAIL ${name}: ${entry.detail}`);
-                continue;
+            const shot = await captureStory(entry, { browser, base, log, storybook: values.storybook });
+            adapter ??= shot?.adapter ?? null;
+            if (shot?.png) {
+                await judge(entry, shot.png, mode, out);
             }
-            journal(log, `STORY BEGIN ${id}`);
-            const t0 = Date.now();
-            const shot = await shoot(browser, `${base}${storyUrl(id, null)}`);
-            journal(log, `STORY END ${id} ${Date.now() - t0} ms ${shot.error ?? "captured"}`);
-            adapter ??= shot.adapter;
-            entry.status = shot.status;
-            entry.seconds = Math.round((Date.now() - t0) / 1000);
-            if (!shot.png) {
-                entry.detail = shot.error;
-                console.log(`FAIL ${name}: ${entry.detail}`);
-                continue;
-            }
-            entry.capture = `captures/${name}.png`;
-            await writeFile(join(out, entry.capture), shot.png);
-            const refPath = join(REFERENCES, `${name}.png`);
-            if (mode === "update") {
-                await mkdir(REFERENCES, { recursive: true });
-                await writeFile(refPath, shot.png);
-                entry.result = "UPDATED";
-                entry.detail = `wrote ${refPath}`;
-                console.log(`UPDATED ${name}`);
-                continue;
-            }
-            const ref = existsSync(refPath) ? await readBaseline(refPath) : null;
-            if (!ref) {
-                entry.detail = `no reference ${refPath}: run --update on a GPU machine`;
-                console.log(`FAIL ${name}: ${entry.detail}`);
-                continue;
-            }
-            entry.reference = `references/${name}.png`;
-            await copyFile(refPath, join(out, entry.reference));
-            const r = compareImages(ref, shot.png, { threshold: DEFAULT_THRESHOLD, includeAA: false });
-            entry.changedPixels = r.changedPixels;
-            entry.bbox = r.bbox;
-            if (r.status === "unchanged") {
-                entry.result = "PASS";
-                entry.detail = r.baseline === r.capture ? "byte-identical" : "no pixel past the threshold";
-                console.log(`PASS ${name} (${entry.detail})`);
-                continue;
-            }
-            const diff = diffImage(ref, shot.png);
-            if (diff) {
-                entry.diff = `diffs/${name}.png`;
-                await writeFile(join(out, entry.diff), diff);
-            }
-            entry.detail = `${r.changedPixels} pixels differ (reference ${r.baselineSize.join("x")}, capture ${r.size.join("x")}, box ${JSON.stringify(r.bbox)})`;
-            console.log(`FAIL ${name}: ${entry.detail}`);
+            console.log(
+                entry.result === "PASS" ? `PASS ${name} (${entry.detail})` : `${entry.result} ${name}: ${entry.detail}`,
+            );
         }
     } finally {
         await browser.close();
@@ -320,7 +344,7 @@ async function main() {
         threshold: DEFAULT_THRESHOLD,
         summary: failed.length
             ? `${failed.length} of ${stories.length} failed: ${failed.join(", ")}`
-            : `all ${stories.length} ${mode === "check" ? "passed" : "updated"}`,
+            : `all ${stories.length} ${DONE[mode]}`,
         failed,
         stories,
     };

@@ -7,35 +7,32 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- 2026-10-11 Round 3 closed. 54 of 56; no confirmed failure is a word failure. The real failures
-  were Shift-click on a node (element, fixed for round 4) and T24's prompt disagreeing with its key.
-- 2026-10-11 Round 4 word changes I own: find value row loses "Select where" (accessible name keeps
-  it) plus a "<column> is 10 or more (N)" row from the element's new `atLeast` fact; the app parses
-  no number. Acceptance: no cut find row on either dataset, words at rest unchanged.
-- 2026-10-11 T24 prompt is now "point out Gus and Ivan, and nobody else, so that whatever you do
-  next applies only to those two" -- names the outcome, not the control. A prompt names the
-  measured outcome; pilots must run before a round (now a gate).
-- 2026-10-11 Held this round, do not re-raise without new evidence: backtick refusal rewording
-  (tied to the owner's bare-number question), ">=10" rewrite per column, "4 hops" -> "4 edges"
-  (sev 1, T18 crowded), Hops 2 grouping (needs element `hops` fact; first in line on a 2nd session),
-  "second path replaced" notice (adds speech).
-- 2026-10-11 Repeated-ties line keeps its words; it gains a warning glyph and joins Load's
-  aria-describedby. Fix weight and reachability before rewording.
-- 2026-10-11 Watch in round 4: does "10 or more" get picked first on Les Miserables; T17 first
-  moves with the "Filters" toolbar tooltip (round 3: 5 of 8 looked on the Graph place); "Start
-  here" badge once only; filter-step counts naming edges ("20 of 41 edges").
-- 2026-10-11 Bar 9 counter now leaves out data names; re-measured figures replace the old 31.
-  Never cut a needed word to pass a broken count.
+- 2026-10-11 Round 4 closed: 53 of 53; bars 9 (b) and 10 fail. No failed task is a word failure.
+  My critique leads with ONE change per problem (round 3 lesson), in this order:
+- 2026-10-11 (1) Bare "10" on bus stops: the element offers "=`10`" and then refuses it ("Not a
+  rule Find can read (at character 2)"). Mechanism: `suggestBackticks` (predicate.ts) checks the
+  rewrite with `parseExpression`, but the run refuses a literal-only rule -- two checks disagree.
+  Element fix (its doc already promises it) + `atLeast` for any in-range number. Zero app words.
+- 2026-10-11 (2) "or more" layer named "data.minutes >= `5`" (`atLeastOf` uses `quotePath(path)`);
+  one rule, two spellings. Element: same column spelling as a typed rule. Branch-only field.
+- 2026-10-11 (3) Bar 9 (b): edge inspector 29 vs 27 is the key repeating ", full graph" three
+  times (`legendWords.ts rowName`), while the run row says "out of date" and its tooltip "Ran on
+  20 nodes; 10 shown now" -- three names for one state. Say the scope once, in the tooltip's words.
+- 2026-10-11 Do NOT change this round: backticks (owner), "4 hops" (insights: sev 1, 7 of 7 read
+  it right), "Weight: none (each edge counts 1)" (r4-s32: it sent him to the column), "Local only"
+  (rest screen 48 of 49), second-path notice, "Capacity", "Select endpoints", "Filters" tooltip.
+- 2026-10-11 Needs a fact before words: CSV "As the file says" (resolved direction), a rule on a
+  missing column (element code; script r4-s12 first), saved state (app fact; rest budget).
+- 2026-10-11 The study's own words leak: briefings' file table named Mo and Nia and the inverted
+  weights. File table names each file and its kind only. Read the briefing before crediting a word.
+- 2026-10-11 Shift-click took T24 to 7 of 7: behavior beat every word change I made on that task.
 - 2026-10-10 Readers type the prompt's most prominent data word first (column name or bare
   number). 0 of 16 typed "=": the rule language is copied from hints -- hints must be runnable.
-- 2026-10-10 Do NOT reword: "PageRank, full graph"; "Higher means: Not set" on Replace; Hops,
-  Degree; "Select endpoints" (re-measure after the Shift fix).
 - 2026-10-10 Backticks in rules stay until the element takes bare numbers (owner list). Stripping
   them in the app would be a workaround.
 - 2026-10-10 A word proposal ships with its bars.mjs count before and after, per screen.
 - 2026-10-09 The ELEMENT decides if text is a rule; the app reads no syntax.
-- 2026-10-07 Element English leaks are element defects (code + params); CSV headers may be a format
-  contract -- one-way door.
+- 2026-10-07 Element English leaks are element defects (code + params).
 - 2026-10-06 Words cannot fix a missing route; a word never promises what the screen does not do;
   task wording never echoes a fix.
 - 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40). Simulated: fail strong, pass weak.
@@ -173,7 +170,25 @@ I read this file at the start of every session and update it as I decide and lea
   Tooltip fix, no word change). Reason: one variant per problem so round 4 can credit it; words at
   rest must not rise; claims from one specialist scripted before fixing. Studio, reversible.
 
+- 2026-10-11 Round 4 critique (mine, to the studio, reversible, untested). (1) Bare number: the
+  element's backtick suggestion must pass the same check the run uses, and `atLeast` covers any
+  number inside a numeric column's range; the app adds no words. (2) `atLeastOf` writes the rule
+  with the column's short spelling, as a typed rule ("minutes >= `5`"). (3) The key names a run's
+  scope once: drop ", full graph" from each entry and put one line under the key's title, "Ran on
+  20 nodes" (the tooltip's and inspector bar's words); the run row's accessible name "PageRank, out
+  of date" for a scope change becomes "PageRank, ran on 20 nodes". Reverses my 2026-10-10 "do not
+  reword 'PageRank, full graph'": new evidence (bar 9 fails on it; T17 r4-s24..26 and T23 r4-s45,
+  s46, s48 unsure whether sizes describe the drawn subset; engineer 17 three names). Reason: one
+  term per state, fewer words, no promise the screen does not keep.
+
 ## Tried: worked / did not work
+
+- 2026-10-11 WORKED (round 4): "<column> is 10 or more (13)" taken at once by the one reader who
+  typed a bare number (r4-s10); value row without "Select where" no longer cut; "Weight: none (each
+  edge counts 1)" sent r4-s32 to the column. DID NOT WORK: the "or more" layer's field-path name
+  (visual 1, a11y 5); "=`10`" offered then refused on bus stops (figma 2); ", full graph" on every
+  key entry (bar 9 b, two over). LEARNED: a fact that exists only for exact values leaves the task's
+  own number (bus stops has no 10) with no row -- test a new fact against each task file's prompt.
 
 - 2026-10-11 LEARNED (round 3 close): six word proposals became one change. The Director takes one
   variant per problem and drops anything that blurs credit on a crowded task. Lead with the one
@@ -190,27 +205,13 @@ I read this file at the start of every session and update it as I decide and lea
   in programmer words; the generic example after ">=10"; "4 hops" beside "5 nodes, 4 edges";
   the Hops 2 list with no distance per name; T24's "point out" prompt against a selection key.
 
-- 2026-10-10 LEARNED (round 2 close): my proposal set was meant to lower words at rest, but the
-  Director wrote the deletions as a separate change (9) with a count acceptance. Lesson: a word
-  proposal ships with its bars.mjs count before and after, per screen.
-- 2026-10-10 LEARNED: the study's own words (prompt and task file) moved behavior more than any
-  screen word this round. Read the prompt before blaming a label.
-
-- 2026-10-09 DID NOT WORK (tier 2 round 2): bare "No match" for a condition in the reader's
-  words (6 of 8, r2-s12 six wrong turns); "Put numbers in backticks:" without "=" (r2-s15 "I
-  don't know what a backtick is"); a selection layer named "13 edges" / "2 nodes" (7 sessions);
-  "Shortest path 4 hops" beside minutes (5 doubted the weight); "PageRank on 20 nodes" with 15
-  drawn (8 stopped); my round 2 additions raised words at rest on every tier 2 screen (bar 9 b).
-- 2026-10-09 HELD (weak evidence, facilitator text read): the find hint once reached (7 of 8),
-  "Higher means: Not set" left correctly on Replace (8 of 8, quoting the line under it).
-
-- 2026-10-09 WORKED (tier 2 round 1): "Higher means" on the load page (every participant who
-  reached it chose right); "Loaded weight minutes (farther)"; the Replace page title and "Was N;
-  now M"; the filter chip agreeing with the Filters row; the Analyze line "The fewest steps ...
-  between two nodes" led most T18 participants. 0 false "done", 0 weights read backwards.
-- 2026-10-09 DID NOT WORK: "No match for ..." on a typed condition (4 of 4); "Total distance 14"
-  (7 of 7); the "Not read --" weight note (4); "Select endpoints" guessed (4 of 4, all found it);
-  "As the file says" on a CSV, which loads directed (behavior first: graph-io/element fact).
+- **Tier 2 rounds 1-2 (summarized 2026-10-11).** WORKED: "Higher means" on the load page;
+  "Loaded weight minutes (farther)"; Replace title and "Was N; now M"; filter chip agreeing with
+  the Filters row; "Higher means: Not set" left on Replace. DID NOT WORK: bare "No match" for a
+  condition; "Put numbers in backticks:" without "="; selection layers named "13 edges"; "Shortest
+  path 4 hops" beside minutes; "PageRank on 20 nodes" with 15 drawn; "Total distance 14"; "As the
+  file says" on a CSV (needs a direction fact). LEARNED: the study's own words moved behavior more
+  than screen words; a word proposal ships with its bars.mjs count; additions raised words at rest.
 
 - **Tier 2 round 1 and tier 1 rounds 1-2 lessons (summarized 2026-10-11).** WORKED: method
   names on every run surface; "Show all labels"; "N labels, M hidden to avoid overlap" (no false
@@ -260,6 +261,13 @@ I read this file at the start of every session and update it as I decide and lea
   1000 ms is compact-mantine's.
 
 ## Sources
+
+- `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md` (bar 9 b, bar 10), `expert/`
+  (figma 2, 23; visual 1, 9, 26, 40; engineer 17, 30; a11y 5, 9, 18); screenshots
+  `expert/figma/find/08.png`, `expert/visual/find/09.png`, `expert/visual/path/22.png`; code
+  `graphty/src/workspace/canvas/legendWords.ts` rowName, `graph-place/FindBox.tsx` ruleFromText,
+  `graphty-element/src/session/styles/predicate.ts` suggestBackticks, `session/query.ts` atLeastOf
+  (2026-10-11)
 
 - `design/ui/studio/tier2/rounds/round-3/decisions.md`, `insights.md` (2026-10-11)
 

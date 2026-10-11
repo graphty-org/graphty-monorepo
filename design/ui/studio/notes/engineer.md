@@ -233,8 +233,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the copy, so another agent's rebuild cannot swap the app mid-pilot; delete the copy after
   `--end`. The start queued for a browser slot and then ran; no wrapper around real.mjs needed.
 - (2026-10-11) Worked: wrapping the Tree description in compact-mantine (`overflow-wrap:
-  anywhere`, row `height: auto; min-height: 44px; padding-block: 6px`, pill and ring `bottom:
-  4px`). One-line rows look the same (44). Did not do: no-break spaces inside each count phrase so
+anywhere`, row `height: auto; min-height: 44px; padding-block: 6px`, pill and ring `bottom:
+4px`). One-line rows look the same (44). Did not do: no-break spaces inside each count phrase so
   "41 to 12" and "edges" stay together; the wrap puts "edges" alone on a third line, which reads
   fine and the acceptance allows.
 
@@ -252,7 +252,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   click draws no ring: `--key ArrowDown` opens a focused Mantine Select (`tmp/t2r3-r4-09/fresh/04.png`).
   Toolbar real-element tests go inside the describe that sets 1366 x 768. A module-level focus ask
   consumed by a component about to remount is re-armed in a layout cleanup. Analyze rows: `--click
-  role=button:Analyze`, type, ArrowDowns, Enter, then `--expect role=button:<name>`; `--click` is
+role=button:Analyze`, type, ArrowDowns, Enter, then `--expect role=button:<name>`; `--click` is
   refused under `--sr`. "Add to <graph>": `--key Control+k`, type "Add data", Enter. Descriptions:
   `--expect "described=<text>"` (CDP AX description); reach the control by Tab to hear what a
   keyboard user hears. A new tool check goes in `measure.mjs` with a planted case and a browser test.

@@ -252,7 +252,7 @@ export const RULES = Object.freeze([
     UPDATE_RULE,
     LIVE_RULE,
     "Never stash, reset, check out a file, clean or rebase, never use --no-verify, never put an attribution line in a commit message, and never weaken a test, limit or threshold to make it pass.",
-    "Work only in this worktree. Do not edit githerd, .claude, .github/workflows, .husky, tools/prepush.sh or visual-baselines.",
+    "Work only in this worktree. Do not edit githerd, .claude, .github/workflows, .husky, tools/prepush.sh or visual-baselines, unless your job is about that area (then follow the githerd fix handoff below for githerd).",
     "githerd never merges and you cannot: Mergify merges once checks and githerd/merge pass.",
     "Never comment on, react to, or open an issue or pull request in any Cytoscape.js repository; reading them is fine.",
     "Only the owner approves visual changes: never accept a baseline or change what a visual check captures. Never advance a breaking change; the owner groups majors. Bring a branch up to date by merging, never by rebasing.",

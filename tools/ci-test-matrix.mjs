@@ -84,15 +84,20 @@ export const SHARDS = [
     // same coverage it wrote in series: the coverage thresholds apply to the `node` invocation alone
     // (vitest.config.ts, thresholdsActive), exactly as before, and the device-error invocation's report
     // still uploads as coverage-webgpu-graph-algorithms-node-device-errors for coverage.yml to merge.
+    // `--project=node-gpu-alone` beside `--project=node` is the rest of the main suite: the files that hold the GPU
+    // for seconds per submission, run after the node project and one at a time (vitest.config.ts, issue #1884).
     ...[
-        ["webgpu-graph-algorithms-node", "node scripts/run-node-shard.js --project=node --coverage"],
+        [
+            "webgpu-graph-algorithms-node",
+            "node scripts/run-node-shard.js --project=node --project=node-gpu-alone --coverage",
+        ],
         [
             "webgpu-graph-algorithms-node-device-errors",
             "COVERAGE_DIR=.coverage-parts/device-errors node scripts/run-node-shard.js --project=node-device-errors --coverage",
         ],
         [
             "webgpu-graph-algorithms-node-no-subgroups",
-            "GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node test/primitives test/layouts test/algorithms --passWithNoTests",
+            "GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone test/primitives test/layouts test/algorithms --passWithNoTests",
         ],
         [
             "webgpu-graph-algorithms-node-no-subgroups-device-errors",
@@ -204,7 +209,7 @@ export const SHARDS = [
         shard: "graphty-element-default",
         package: "graphty-element",
         "test-command":
-            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} --coverage",
+            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} --coverage",
         "needs-browser": false,
     },
     // graphty-element browser tests (5 shards)
@@ -212,7 +217,7 @@ export const SHARDS = [
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} --coverage`,
         "needs-browser": true,
         // 935 s for the ten browser and storybook shards together (2026-10-06); a push that changes
         // only the element's source is left to CI here.
@@ -231,7 +236,7 @@ export const SHARDS = [
     ...[1, 2, 3, 4].map((n) => ({
         shard: `graphty-element-storybook-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/4 --reporter=blob --reporter=default \${CI:+--reporter=junit} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/4 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} --coverage`,
         "needs-browser": true,
         local: "when-paths-change",
         // Storybook's own config (the vitest project's configDir) and the story helpers.

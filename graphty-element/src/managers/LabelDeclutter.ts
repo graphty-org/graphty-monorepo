@@ -1,6 +1,7 @@
 import { type Camera, Matrix, type Mesh, type Observer, type Scene, Vector3, Viewport } from "@babylonjs/core";
 
 import type { Node } from "../Node";
+import { animatesEveryFrame } from "./everyFrameAnimations";
 import type { GraphContext } from "./GraphContext";
 
 /**
@@ -141,6 +142,12 @@ export class LabelDeclutter {
     private wasOn = false;
     /** Frames since the last pass; publishing happens once, when this reaches QUIET_FRAMES. */
     private quiet = 0;
+    /**
+     * Holds the frames from a pass until its counts are published: the publish is counted in
+     * frames, so a graph drawn on demand that stopped drawing at the pass would never announce
+     * the counts it drew, and a wait for the finished picture would wait for ever.
+     */
+    private releaseFrames: (() => void) | null = null;
     private published: NodeLabelCounts = NO_NODE_LABELS;
     /** Callers of {@link LabelDeclutter.whenPublished} waiting for the next publish. */
     private readonly waiters: (() => void)[] = [];
@@ -214,6 +221,8 @@ export class LabelDeclutter {
     /** Stop running before frames. */
     dispose(): void {
         this.scene.onBeforeRenderObservable.remove(this.observer);
+        this.releaseFrames?.();
+        this.releaseFrames = null;
         this.release();
         if (this.scene.metadata?.labelDeclutter === this) {
             this.scene.metadata.labelDeclutter = undefined;
@@ -241,8 +250,11 @@ export class LabelDeclutter {
             }
 
             this.quiet = 0;
+            this.releaseFrames ??= animatesEveryFrame(this.scene);
         } else if (++this.quiet === QUIET_FRAMES) {
             this.publish();
+            this.releaseFrames?.();
+            this.releaseFrames = null;
         }
     }
 

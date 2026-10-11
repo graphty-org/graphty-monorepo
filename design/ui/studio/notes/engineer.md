@@ -11,6 +11,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **"Or more" beside a typed number in the find box: built** (commit 9b69ca650).
+  Element: `FindValueRow.atLeast: { count, target }` on a number value, target the typed rule
+  `{ text: "=data.<col> >= \`N\`" }` (with the find's scope). App: a second row "<column> is N
+  or more (count)"; visible rows drop "Select where", accessible names keep it. Fresh build, Les
+  Miserables, "10": rows "shared_chapters is 10 (2)" and "... 10 or more (13)", neither cut;
+  picking it selects the 13 ties the file holds at 10 or more (`tmp/t2r3-r4-07/lesmis/03.png`,
+  `04.png`). Bars on that build (`tmp/t2r3-r4-07/bars/`): bar 10 no cut text anywhere, find box
+  included; words at rest identical to round 3 (42; tier 2 screens 49/61/33/31). It exits 1 on two
+  items ALSO failing on round 3's build: axe `scrollable-region-focusable` on the find list's
+  ScrollArea viewport (Mantine viewport has no tabindex; the list is driven by
+  aria-activedescendant, so the fix is in compact-mantine, not done here) and the edge inspector's
+  31 of 30 words.
 - (2026-10-10) **After Undo of a re-run, Made with now shows the run on screen: built** in
   graphty-element. Cause was the element, not the app's draft: `Run.params`/`seed` read the
   handle's own definition, while undo swapped only the `runs` entry. Scripted on 26f3bb968
@@ -22,13 +34,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Ctrl-click is the context menu). Checked on a fresh build: Gus then Shift Ivan reads Selection
   2, a plain click on Theo reads 1 (`design/ui/studio/tmp/t2r3-r4-03/`).
 - (2026-10-10) **Round 3 critique: five smallest changes, in order.** (1) Shift-click on a node
-  adds (built, above) -- the round's only confirmed app-caused severity 3 (4 of 4 T24). (2) Element adds an optional "or more" target
-  to a numeric `FindValueRow`; the app shows "is 10" and "is 10 or more" under a "Select where"
-  heading so the value is not cut. (3) Analyze filter puts name matches first ("path" finds
-  Shortest path before Betweenness), app-only in `analyze/words.ts`. (4) Element adds `depth` to
-  `data.neighbors` and `hops` to each `Neighbor`; the app shows each name's hops (today it lists
-  the selection by name and cannot know distance without computing over the graph). (5) A Filter
-  button on the Graph toolbar opening the Data place's Filters (5 of 8 T17 looked there first).
+  adds (built). (2) "Or more" beside a typed number (built, top bullet; rows not under a heading:
+  the visible "Select where" was simply dropped). (3) Analyze filter puts name matches first,
+  app-only in `analyze/words.ts`. (4) Element adds `depth` to `data.neighbors` and `hops` to each
+  `Neighbor`; the app shows each name's hops. (5) A Filter button on the Graph toolbar opening the
+  Data place's Filters (5 of 8 T17 looked there first).
 - (2026-10-10) **Hold still in round 4:** second Find path replacing the first, "Select endpoints"
   in "..." (confounded with Shift-click), the "=" hint and backtick wording (measure "or more"
   alone), round 2's routes (now passing clean), label and node overlap (element, owner's list).
@@ -50,19 +60,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   throwaway pilots per task on the candidate build, script their routes, walk them plus round 2's
   detours, keyboard-press every control on each screen, and FIX before freeze -- never hand a
   found fault to a later pass (the find box's second Escape slipped through that way).
-- (2026-10-10) **Round 3 changes, built (verify on the next frozen build):** find box offers a
-  typed condition as a rule Enter runs, with the "=" kept; Add warns on repeated ties with Replace
-  beside Load; three focus faults (second Escape, Hops/Follow arrows, Tab out of the step editor
-  saves); selection layer Color/Width start at `styles.highlightStyle`; a rule's layer named by its
-  rule; words at rest under round 1 (edge inspector 31 of 30 -- OPEN which scope phrase goes); 24 px
-  xs checkbox; path aliases; weighted path row shows its total; Filter to neighbors a plain
-  command, disabled with its reason when its step is on; repeated status keyed in the store.
-- (2026-10-10) **Watch in round 3.** (1) Find box: do 3 or more of 8 still stall after a typed
-  condition? That alone unlocks "Select where..." on a column. (2) Highlight-start styling: the
-  walk once showed edge Color 000000, not the highlight band's 0077BB, and width 24 may cover the
-  tie -- check before freeze. (3) Paths cost at or under 8 steps (bar 11). (4) Bar 9 (b) words at
-  rest on all four tier 2 screens. (5) Leak check lists 0 unvoided reads. (6) Reworded T22/T24
-  compared with round 2 on outcome only, not steps.
+- (2026-10-10, condensed) **Round 3 changes are built and were measured in round 3** (typed
+  condition as a rule, repeated-ties warning, three focus faults, highlight-start styling, rule
+  layer names, words at rest; edge inspector words 31 of 30 still OPEN).
 - (2026-10-10) **Not mine to fix in the app, ever:** drawn names covering names and ties (element
   label placement on an unseeded layout, owner's list); bare numbers in rules and what an edge
   width measures (both breaking, owner's list); never scale widths or parse rules in the app.
@@ -84,6 +84,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-10) **"Or more" counts both kinds of a column, because the rule does.** The target is
+  the rule text, not an id list, so it reads every node and edge with that column; counting only
+  the row's kind would let `count` and `selection.count(target)` disagree when nodes and edges
+  share a column name. A value row stays one kind (its exact target is ids of that kind). Rule
+  written with `quotePath(path)` and the number as a JSON literal in backticks; non-finite numbers
+  get no `atLeast`. The scope input is carried on `SearchRequest.scopeInput` so a scoped find's
+  rule is scoped too. API report updated (index and session entries): additive.
 - (2026-10-10) **A run reports the parameters of the execution history put back.** `params` and
   `seed` read the held record when one is shown (as `caveats`, `fields`, `status` already did);
   `rerun()` adopts them before executing, and RunsApi's stored re-run command follows the restored
@@ -238,6 +245,10 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
 
 ## Tried: worked / did not work
 
+- (2026-10-10) **Tried: test data keyed `shared_chapters` in an element unit test. Did not work
+  as written:** lint's camelcase rule flags the key, prettier strips quotes, and a literal
+  computed key trips no-useless-computed-key. Worked: a `const WEIGHT = "shared_chapters"` and
+  `[WEIGHT]:`.
 - (2026-10-10) **Tried: Shift-add through the session only. Did not work.** The manager's
   `select()` skipped a click on a node when its OWN index held one node, so click C, Shift A,
   click C left {A, C}. Fixed by counting `selection.size` from the session. The interaction test
@@ -295,19 +306,14 @@ tmp/<task>/dist`, `bars.mjs --dist`) and rerun after their `nx run graphty:build
   to place a defect. App real-element tests: `--project=real-element`. Critique: `insights.md`
   section 2 first. Seen, not mine: `bars.mjs` misses "a node's Values with its neighbors".
 
-- (2026-10-06 to 10-09, summarized 2026-10-10) **Older tool, test and worktree lessons.** Never
-  edit a running script (copy it); read script output, not exit codes; step N lands in screenshot
-  N+1; read `setup.log` after `--start`; pilot on a copied dist; `--sr` tells "not focused" from
-  "focused, no ring"; hover tooltips need `{ timeout: 3000 }`; `pgrep -f` matches itself. Where
-  text is drawn: a Range over the contents; a point on a name: walk up from `nodeScreenPosition`
-  past its `radius` to the first `elementAt` hit. Probe computed CSS under `with-browser.sh` before
-  a CSS fix; prove "nothing follows" by spying, never a sleep; a second test load needs `{ mode:
-"merge" }`. Shared worktree: stage only my hunks (`git apply --cached` or `update-index
---cacheinfo`), commit as soon as they pass (`17bf87085` swept mine), never commit `api:report`
-  wholesale, wait for a clean `tsc`; read a file before opening it for write. Builds:
+- (2026-10-06 to 10-09, summarized again 2026-10-10) **Older tool, test and worktree lessons.**
+  Copy a script before editing it while it runs; read output, not exit codes; step N lands in
+  screenshot N+1; read `setup.log` after `--start`; pilot on a copied dist; prove "nothing
+  follows" by spying, never a sleep. Shared worktree: stage only my files or hunks, commit as soon
+  as they pass, regenerate `api:report` and commit only its lines for my change. Builds need
   `NODE_OPTIONS=--max-old-space-size=8192`. Element facts: a `Run` is thenable; per-node values via
-  `data.nodePage({ columns: [runId] })`; `selection.apply` throws synchronously on a bad selector;
-  `data.name()` returns the id until `knownFields.nodeLabelPath` is set.
+  `data.nodePage({ columns: [runId] })`; `data.name()` returns the id until
+  `knownFields.nodeLabelPath` is set.
 
 ## Sources
 

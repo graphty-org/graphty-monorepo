@@ -609,6 +609,11 @@ jobs:
             - name: Release hold list
               run: pnpm run check:release-hold
 
+            # A published package's peer dependencies change only in a major (tools/check-peer-deps-stable.mjs).
+            # The same check runs in tools/prepush.sh.
+            - name: Peer dependencies stable
+              run: pnpm run check:peer-deps
+
             # Element data sources read files through @graphty/graph-io importers, not their own
             # parsers. The same check runs in tools/prepush.sh.
             - name: Element data sources on graph-io

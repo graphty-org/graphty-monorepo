@@ -19,7 +19,12 @@
  *      spec files, tsbuildinfo);
  *   5. the same name in both dependencies and peerDependencies, except `@graphty/graph-format`,
  *      where it is deliberate (design/graph-format/graph-format-design.md, the packaging rule:
- *      the dependency makes an install work, the wider peer lets an application share one copy).
+ *      the dependency makes an install work, the wider peer lets an application share one copy);
+ *   6. a shipped .js or .d.ts that imports an AI framework or provider package
+ *      (tools/ai-framework-packages.mjs), except what FRAMEWORK_IMPORTS_ALLOWED lists with its
+ *      reason, and a shipped .d.ts that names graphty-element's adapter folder (engine/tanstack):
+ *      graphty-element keeps every framework behind its engine seam and builds the frameworks it
+ *      uses into its own chunks (design/ai/tanstack-ai-harness-design.md, section 7, rule 1).
  *
  * Why this exists: @graphty/algorithms shipped `pupt` as a runtime dependency for several
  * releases (GitHub issue #1), graphty-element's WebGPU peer range fell four breaking releases
@@ -27,6 +32,8 @@
  *
  * Needs a build first: it packs whatever is in each package's dist/.
  * Usage: node tools/check-published-deps.mjs [package-dir ...]
+ *        node tools/check-published-deps.mjs --self-test   plants one violation of each kind and
+ *                                                           fails unless each is reported
  */
 
 import { execFileSync } from "node:child_process";
@@ -38,6 +45,7 @@ import { fileURLToPath } from "node:url";
 
 import semver from "semver";
 
+import { frameworkFamily, packageName } from "./ai-framework-packages.mjs";
 import { workspaceDirs } from "./workspace-files.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -55,6 +63,34 @@ const FORBIDDEN_FILES = [
     /\.tsbuildinfo$/,
 ];
 
+/**
+ * AI framework imports a package may still ship, by family and file, each with its reason. The
+ * AI SDK's entry goes when milestone 2 of design/ai/tanstack-ai-harness-design.md removes it.
+ */
+const FRAMEWORK_IMPORTS_ALLOWED = {
+    "@graphty/graphty-element": [
+        {
+            family: "ai-sdk",
+            files: /\.js$/,
+            reason: "VercelAiProvider and WebLlmProvider run on the AI SDK 5 until the TanStack AI engine replaces it",
+        },
+        {
+            family: "webllm",
+            files: /\.js$/,
+            reason: "WebLlmProvider loads the optional @mlc-ai/web-llm peer on first use: the in-browser engine",
+        },
+    ],
+};
+
+/**
+ * Declared peer dependencies a package may keep although no shipped file imports them: removing a
+ * peer is a breaking change, so it waits for the next major (tools/check-peer-deps-stable.mjs).
+ */
+const UNUSED_PEERS_ALLOWED = {
+    // The AI SDK 5, which graphty-element stops importing once its TanStack AI engine lands.
+    "@graphty/graphty-element": new Set(["ai", "@ai-sdk/anthropic", "@ai-sdk/google", "@ai-sdk/openai"]),
+};
+
 const builtins = new Set(builtinModules.flatMap((m) => [m, `node:${m}`]));
 
 // Static imports and re-exports start at column 0 in both tsc and rollup output; anything
@@ -70,11 +106,6 @@ const IMPORT_PATTERNS = [
 ];
 
 const VALID_NAME = /^(@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*$/;
-
-function packageName(specifier) {
-    const parts = specifier.split("/");
-    return specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
-}
 
 function walk(dir, out = []) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -115,14 +146,32 @@ function check(dir, packed, workspaceVersions) {
     }
 
     const imported = new Map(); // name -> first file that imports it
+    const frameworkAllowed = FRAMEWORK_IMPORTS_ALLOWED[manifest.name] ?? [];
+    const frameworkReported = new Set();
     for (const file of files) {
         // The top-level src/ is shipped for source maps; it is what dist was built FROM, not what runs.
         if (file.startsWith("src/")) continue;
         if (!/\.(c|m)?js$|\.d\.(c|m)?ts$/.test(file)) continue;
         const text = fs.readFileSync(path.join(packed, file), "utf8");
+        const declaration = /\.d\.[cm]?ts$/.test(file);
+        if (declaration && (/(^|\/)engine\/tanstack\//.test(file) || /(?:engine\/|["']\.\/)tanstack\//.test(text))) {
+            problems.push(`${file} names the AI adapter folder (engine/tanstack), which ships no declarations`);
+        }
         for (const re of IMPORT_PATTERNS) {
             for (const m of text.matchAll(re)) {
                 const spec = m[1];
+                const family = frameworkFamily(spec);
+                if (
+                    family !== undefined &&
+                    !frameworkAllowed.some((a) => a.family === family && a.files.test(file)) &&
+                    !frameworkReported.has(`${file} ${packageName(spec)}`)
+                ) {
+                    frameworkReported.add(`${file} ${packageName(spec)}`);
+                    problems.push(
+                        `${file} imports "${packageName(spec)}", an AI framework or provider package; only graphty-element's ` +
+                            "own chunks may hold one, built in, never imported (tools/ai-framework-packages.mjs)",
+                    );
+                }
                 if (spec.startsWith(".") || spec.startsWith("/") || /^[a-z]+:\/\//.test(spec)) continue;
                 if (builtins.has(spec) || builtins.has(packageName(spec)) || spec.startsWith("node:")) continue;
                 let name = packageName(spec);
@@ -139,7 +188,7 @@ function check(dir, packed, workspaceVersions) {
             problems.push(`${file} imports "${name}", which is neither a dependency nor a peer dependency`);
     }
     for (const name of declared) {
-        if (!imported.has(name)) {
+        if (!imported.has(name) && !UNUSED_PEERS_ALLOWED[manifest.name]?.has(name)) {
             const kind = name in deps ? "dependency" : "peer dependency";
             problems.push(`declares ${kind} "${name}", which no shipped file imports`);
         }
@@ -161,6 +210,56 @@ function check(dir, packed, workspaceVersions) {
         }
     }
     return problems;
+}
+
+/**
+ * Plants one violation of the framework rule of each kind in a fake packed package, and fails
+ * unless each is reported and nothing allowed is.
+ */
+function selfTest() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "check-published-deps-self-test-"));
+    try {
+        const write = (file, text) => {
+            fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+            fs.writeFileSync(path.join(dir, file), text);
+        };
+        write(
+            "package.json",
+            JSON.stringify({
+                name: "@graphty/graphty-element",
+                peerDependencies: { ai: "*", "@ai-sdk/openai": "*", "@mlc-ai/web-llm": "*" },
+            }),
+        );
+        write("dist/ai.d.ts", 'import type { ChatOptions } from "@tanstack/ai";\n');
+        write("dist/chunks/openai-x.js", 'import OpenAI from "openai";\n');
+        write("dist/src/ai/engine/load.d.ts", 'export type Adapter = typeof import("./tanstack/index.js");\n');
+        write("dist/src/ai/engine/tanstack/index.d.ts", "export {};\n");
+        write("dist/chunks/webllm-x.js", 'await import("@mlc-ai/web-llm");\n');
+        write("dist/chunks/vercel-x.js", 'import { generateText } from "ai";\n');
+        const problems = check(".", dir, new Map());
+        const expected = [
+            /^dist\/ai\.d\.ts imports "@tanstack\/ai"/,
+            /^dist\/chunks\/openai-x\.js imports "openai"/,
+            /^dist\/src\/ai\/engine\/load\.d\.ts names the AI adapter folder/,
+            /^dist\/src\/ai\/engine\/tanstack\/index\.d\.ts names the AI adapter folder/,
+        ];
+        const missing = expected.filter((re) => !problems.some((p) => re.test(p)));
+        const extra = problems.filter((p) => !expected.some((re) => re.test(p)));
+        if (missing.length > 0 || extra.length > 0) {
+            console.error("check-published-deps self-test FAILED");
+            for (const re of missing) console.error(`  not reported: ${re}`);
+            for (const p of extra) console.error(`  reported but allowed: ${p}`);
+            process.exit(1);
+        }
+        console.log(`check-published-deps self-test: each planted violation was reported (${expected.length})`);
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+}
+
+if (process.argv.includes("--self-test")) {
+    selfTest();
+    process.exit(0);
 }
 
 const only = process.argv.slice(2);

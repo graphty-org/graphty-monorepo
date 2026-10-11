@@ -144,7 +144,7 @@ export const ALGORITHM_GROUPS = {
         ],
     },
 } as const satisfies Record<string, AlgorithmGroup>;
-export type AlgorithmGroupName = keyof typeof ALGORITHM_GROUPS;
+type AlgorithmGroupName = keyof typeof ALGORITHM_GROUPS;
 
 /**
  * A generator's preset with the seed added when the generator takes one: the deterministic ones (ak, petersen, ...)
@@ -281,7 +281,7 @@ const IMPORT_FORMATS = Object.keys({
 } satisfies Record<Exclude<ImportFormat, "auto">, 0>) as Exclude<ImportFormat, "auto">[];
 
 /** The bundled datasets, smallest first; the hosted ones are downloads and stay out of the snapshots. */
-export const BUNDLED_DATASETS = DATASETS.filter((d) => d.hosting !== "remote")
+const BUNDLED_DATASETS = DATASETS.filter((d) => d.hosting !== "remote")
     .sort((a, b) => a.nodes - b.nodes)
     .map((d) => d.name);
 

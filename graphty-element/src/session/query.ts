@@ -666,11 +666,12 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
  * @returns At most {@link VALUE_ROWS} rows; none when the text is not a whole number.
  */
 function atLeastRows(index: FindIndex, typed: string, request: SearchRequest): FindAtLeastRow[] {
-    if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(typed)) {
+    // Digits, signs and points only, then a finite number: "1e3", "0x10" and "1.2.3" are not.
+    const value = Number(typed);
+    if (!/^[-+.\d]+$/.test(typed) || !Number.isFinite(value)) {
         return [];
     }
 
-    const value = Number(typed);
     const rows: FindAtLeastRow[] = [];
     const seen = new Set<Path>();
     for (const kind of ["node", "edge"] as const) {
@@ -683,19 +684,7 @@ function atLeastRows(index: FindIndex, typed: string, request: SearchRequest): F
                 continue;
             }
 
-            let below = false;
-            let above = false;
-            let numeric = column.values.length > 0;
-            for (const { value: held } of column.values) {
-                if (typeof held !== "number" || held === value) {
-                    numeric = false;
-                    break;
-                }
-                below ||= held < value;
-                above ||= held > value;
-            }
-
-            if (!numeric || !below || !above) {
+            if (!encloses(column.values, value)) {
                 continue;
             }
 
@@ -705,6 +694,26 @@ function atLeastRows(index: FindIndex, typed: string, request: SearchRequest): F
     }
 
     return rows;
+}
+
+/**
+ * Whether a column holds only numbers, none of them `value`, with some below it and some above.
+ * @param values - The column's distinct values.
+ * @param value - The typed number.
+ * @returns True when the column's range encloses `value` without holding it.
+ */
+function encloses(values: readonly { value: unknown }[], value: number): boolean {
+    let below = false;
+    let above = false;
+    for (const { value: held } of values) {
+        if (typeof held !== "number" || held === value) {
+            return false;
+        }
+        below ||= held < value;
+        above ||= held > value;
+    }
+
+    return below && above;
 }
 
 /**

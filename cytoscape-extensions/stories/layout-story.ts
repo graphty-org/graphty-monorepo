@@ -60,15 +60,18 @@ export async function layOutNetwork(
     const cpuOnly = gpuMode === "off" || !("gpu" in navigator);
     const simulation = (SIMULATION_LAYOUTS as readonly string[]).includes(args.layout);
     const stepped = simulation && large && !args.animate && cpuOnly;
-    // the overlay hides the canvas, so a stepped run need not draw it: unmounted, the core keeps the positions and
-    // draws nothing until it is mounted again (drawing 2,000 nodes every frame cost six times the layout itself)
+    // the overlay hides the canvas while a large network is laid out without animation, so the core need not draw it:
+    // unmounted, the core keeps the positions and draws nothing until it is mounted again (drawing 2,000 nodes every
+    // frame of a stepped run cost six times the layout itself, and the first draw of the 50,000-node network under
+    // the overlay held the page for 6 s before the timer could count)
+    const covered = large && !args.animate && simulation;
     const container = cy.container();
-    if (stepped) {
+    if (covered) {
         cy.unmount();
     }
     // after unmount(), which empties the container
-    const hide =
-        container && large && !args.animate && simulation
+    const working =
+        container && covered
             ? showWorking(container, cy, `graphty-${args.layout} on ${cy.nodes().length.toLocaleString()} nodes`)
             : undefined;
     try {
@@ -79,10 +82,12 @@ export async function layOutNetwork(
             animate: args.animate || stepped,
             // about a quarter second of CPU work per frame (the simulations cost about n^2 per iteration: 35 ms
             // at 2,000 nodes), since writing the positions back costs about 90 ms a frame at 2,000 nodes; fit:
-            // false, as there is no view to fit
-            extra: stepped
-                ? { refresh: Math.max(2, Math.round(3e7 / SIZES[args.size] ** 2)), fit: false, ...extra }
-                : extra,
+            // false, as there is no view to fit (the story fits the result once the core is mounted again)
+            extra: {
+                ...(stepped ? { refresh: Math.max(2, Math.round(3e7 / SIZES[args.size] ** 2)) } : {}),
+                ...(covered ? { fit: false } : {}),
+                ...extra,
+            },
         });
     } catch (e) {
         const { message } = e as Error;
@@ -107,9 +112,13 @@ export async function layOutNetwork(
         }
         throw e;
     } finally {
-        if (stepped && container) {
+        // say what the page does next, painted, before mounting the core and fitting it hold the page (seconds at
+        // 50,000 nodes)
+        await working?.end(`drawing ${cy.nodes().length.toLocaleString()} nodes...`);
+        // a core destroyed meanwhile (the reader opened another story) is not drawn again
+        if (covered && container && !cy.destroyed()) {
             cy.mount(container);
         }
-        hide?.();
+        working?.remove();
     }
 }

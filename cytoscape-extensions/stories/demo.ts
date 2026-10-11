@@ -20,6 +20,7 @@ import cytoscape, {
     type Core,
     type EdgeSingular,
     type ElementDefinition,
+    type NodeCollection,
     type NodeSingular,
     type StylesheetJson,
 } from "cytoscape";
@@ -30,7 +31,7 @@ import { type Network, NETWORKS } from "./catalog.js";
 cytoscape.use(graphtyCytoscape);
 
 /**
- * True inside a visual-review capture (its URL carries chromatic=true, as Chromatic's does). Captures leave out run
+ * True inside a visual-review capture (its URL carries chromatic=true). Captures leave out run
  * times, which differ on every run.
  */
 export const CAPTURE = /[?&]chromatic=true/.test(globalThis.location?.search ?? "");
@@ -296,29 +297,92 @@ export function newCore(container: HTMLElement, elements: ElementDefinition[] = 
 const FIT_PADDING = 30;
 
 /**
- * Fits the graph to the container's current size: cy.resize() reads the size, cy.fit() zooms and pans to it. The
- * view is fitted to the largest connected component when it holds most of the nodes, not to the farthest node: a
- * force layout pushes isolated nodes and small pieces far out (ForceAtlas2's gravity, Fruchterman-Reingold has none),
- * and fitted to them the main graph shrank to a few percent of the picture. They are still drawn, outside the view.
+ * The nodes of the largest connected component, by union-find over the edges' endpoints. Cytoscape's components()
+ * walks every element as a collection and took 7.7 s of the main thread on the 210,000 elements of the 50,000-node
+ * network, after the layout had finished and while its working panel still showed the last second it counted.
+ * @param cy - the core
+ * @returns the component's nodes
+ */
+export function mainComponent(cy: Core): NodeCollection {
+    const nodes = cy.nodes();
+    const index = new Map<string, number>();
+    nodes.forEach((n, i) => {
+        index.set(n.id(), i);
+    });
+    const parent = Int32Array.from({ length: nodes.length }, (_, i) => i);
+    const root = (i: number): number => {
+        while (parent[i] !== i) {
+            parent[i] = parent[parent[i]];
+            i = parent[i];
+        }
+        return i;
+    };
+    cy.edges().forEach((e) => {
+        const a = root(index.get(e.data("source") as string) ?? 0);
+        const b = root(index.get(e.data("target") as string) ?? 0);
+        parent[Math.max(a, b)] = Math.min(a, b);
+    });
+    const size = new Int32Array(nodes.length);
+    let best = 0;
+    for (let i = 0; i < nodes.length; i++) {
+        const r = root(i);
+        size[r]++;
+        if (size[r] > size[best]) {
+            best = r;
+        }
+    }
+    return nodes.filter((_n, i) => root(i) === best);
+}
+
+/**
+ * Zooms and pans so the centers of `nodes` fill the container, read straight from their positions: cy.fit measures
+ * every element's bounding box first, which takes seconds on a network of 50,000 nodes.
+ * @param cy - the core
+ * @param nodes - the nodes to fit
+ */
+function fitCenters(cy: Core, nodes: NodeCollection): void {
+    let [x1, y1, x2, y2] = [Infinity, Infinity, -Infinity, -Infinity];
+    nodes.forEach((n) => {
+        const { x, y } = n.position();
+        [x1, y1, x2, y2] = [Math.min(x1, x), Math.min(y1, y), Math.max(x2, x), Math.max(y2, y)];
+    });
+    const zoom = Math.min(
+        (cy.width() - 2 * FIT_PADDING) / (x2 - x1 || 1),
+        (cy.height() - 2 * FIT_PADDING) / (y2 - y1 || 1),
+    );
+    cy.viewport({
+        zoom,
+        pan: { x: cy.width() / 2 - (zoom * (x1 + x2)) / 2, y: cy.height() / 2 - (zoom * (y1 + y2)) / 2 },
+    });
+}
+
+/**
+ * Fits the graph to the container's current size: cy.resize() reads the size, cy.fit() zooms and pans to it (on a
+ * large network, the nodes' centers instead of every element's bounding box). The view is fitted to the largest
+ * connected component when it holds most of the nodes, not to the farthest node: a force layout pushes isolated
+ * nodes and small pieces far out (ForceAtlas2's gravity, Fruchterman-Reingold has none), and fitted to them the main
+ * graph shrank to a few percent of the picture. They are still drawn, outside the view.
  * @param cy - the core
  * @returns how many nodes lie outside the view
  */
 export function fitToContainer(cy: Core): number {
     cy.resize();
     const nodes = cy.nodes();
-    let main = cy.collection();
-    for (const c of cy.elements().components()) {
-        if (c.nodes().length > main.nodes().length) {
-            main = c;
+    const fit = (eles: NodeCollection): void => {
+        if (nodes.length > LARGE) {
+            fitCenters(cy, eles);
+        } else {
+            cy.fit(eles.union(eles.edgesWith(eles)), FIT_PADDING);
         }
-    }
-    cy.fit(undefined, FIT_PADDING);
+    };
+    const main = mainComponent(cy);
+    fit(nodes);
     const all = cy.zoom();
-    if (main.nodes().length * 2 > nodes.length) {
-        cy.fit(main, FIT_PADDING);
+    if (main.length * 2 > nodes.length) {
+        fit(main);
         // pieces set close to the main one (no farther than its own size) are part of the picture: keep them in view
         if (all / cy.zoom() > 0.5) {
-            cy.fit(undefined, FIT_PADDING);
+            fit(nodes);
         }
     }
     const s = SCALE.get(cy) ?? { network: 1, zoom: 1, view: 1 };
@@ -335,28 +399,15 @@ export function fitToContainer(cy: Core): number {
 }
 
 /**
- * Fits the view to the nodes' centers, read straight from their positions: cy.fit measures every element's bounding
- * box first, which takes seconds on a network of 50,000 nodes.
+ * Fits the view to every node's center, skipping the search for the main piece.
  * @param cy - the core
  */
 function fitToPositions(cy: Core): void {
     cy.resize();
-    let [x1, y1, x2, y2] = [Infinity, Infinity, -Infinity, -Infinity];
-    cy.nodes().forEach((n) => {
-        const { x, y } = n.position();
-        [x1, y1, x2, y2] = [Math.min(x1, x), Math.min(y1, y), Math.max(x2, x), Math.max(y2, y)];
-    });
-    const zoom = Math.min(
-        (cy.width() - 2 * FIT_PADDING) / (x2 - x1 || 1),
-        (cy.height() - 2 * FIT_PADDING) / (y2 - y1 || 1),
-    );
-    cy.viewport({
-        zoom,
-        pan: { x: cy.width() / 2 - (zoom * (x1 + x2)) / 2, y: cy.height() / 2 - (zoom * (y1 + y2)) / 2 },
-    });
+    fitCenters(cy, cy.nodes());
     // as fitToContainer does: nodes keep their least size on screen at this zoom
     const s = SCALE.get(cy) ?? { network: 1, zoom: 1, view: 1 };
-    SCALE.set(cy, { ...s, zoom: 1, view: zoom });
+    SCALE.set(cy, { ...s, zoom: 1, view: cy.zoom() });
     cy.style().update();
 }
 
@@ -582,9 +633,15 @@ export function renderDemo(
  * @param canvas - the canvas element to cover
  * @param cy - the core, whose node positions are sampled
  * @param what - what runs, for the first line
- * @returns removes the overlay
+ * @returns end(next) stops the timer and shows `next` in its place, resolving once the browser has painted it, so the
+ * panel says what the page does next before a long synchronous step (drawing 50,000 nodes) holds it; remove() takes
+ * the panel away
  */
-export function showWorking(canvas: HTMLElement, cy: Core, what: string): () => void {
+export function showWorking(
+    canvas: HTMLElement,
+    cy: Core,
+    what: string,
+): { end(next: string): Promise<void>; remove(): void } {
     const panel = document.createElement("div");
     panel.dataset.testid = "working";
     panel.style.cssText =
@@ -621,9 +678,18 @@ export function showWorking(canvas: HTMLElement, cy: Core, what: string): () => 
     };
     update();
     const timer = setInterval(update, 500);
-    return () => {
-        clearInterval(timer);
-        panel.remove();
+    return {
+        end: async (next) => {
+            clearInterval(timer);
+            const seconds = Math.round((performance.now() - t0) / 1_000);
+            text.textContent = `${what}\nlaid out in ${seconds} s\n${next}`;
+            // requestAnimationFrame runs before the frame's paint; the timeout after it runs once the frame is out
+            await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+        },
+        remove: () => {
+            clearInterval(timer);
+            panel.remove();
+        },
     };
 }
 

@@ -32,6 +32,10 @@
  *   test prints the factor when `COST_GUARD_VERBOSE` is set); on a machine twice as slow every
  *   estimate doubles. The probe is re-run on both sides of each size's runs and its fastest
  *   reading kept, for the same reason the runs keep their fastest (see `machineSpeed`).
+ * - The probe stays in cache, so it cannot see a cloud runner's memory loaded by another tenant,
+ *   which slows the rows that walk large graphs 3 to 6x and leaves the rest alone. Each size's
+ *   memory is checked on both sides of its runs, and a size timed while it was loaded is skipped
+ *   with a warning instead of judged (see `memorySpeed`).
  *
  * Rows on other graph shapes are the worst cases found for each model when it was fitted: a model
  * can be tight on the default random graph and optimistic elsewhere, and only a row on the shape
@@ -600,18 +604,67 @@ async function machineSpeed(): Promise<number> {
     return speeds.sort((a, b) => a - b)[1];
 }
 
+/** A table larger than any machine's last-level cache: 64 MB, against 32 to 36 MB. */
+const FAR_TABLE = new Uint32Array(1 << 24);
+
 /**
- * The default rates scaled to a machine of this speed, which is what `calibrateCost` produces.
+ * Milliseconds the reference machine takes for {@link memorySpeed}'s increments: 29 to 34 on its
+ * P-cores. A cache miss waits on DRAM, which is about as fast on a cloud runner as on a desktop:
+ * an unloaded 0.51x CI runner takes about 34.
+ */
+const REFERENCE_SCATTER_MS = 29;
+
+/**
+ * How fast this machine's memory is right now against the reference machine's, timed by 4M
+ * increments at pseudo-random places in {@link FAR_TABLE} (the same work as the degree row's
+ * counting loop), the fastest of three on {@link runningMs}.
+ *
+ * The calibration probe works on a graph of 20,000 nodes that stays in cache, so it measures the
+ * cores and cannot see the memory behind them. On a cloud runner that memory (the last-level cache
+ * and the DRAM bandwidth) is shared with other tenants, and one of them can load it hard: on
+ * 2026-10-11 (issue #2025) a runner's probe read 1.2x slower than usual while every row that
+ * walks a large graph at random -- degree at 800,000 nodes, PageRank and Louvain on random graphs,
+ * eigenvector on scale-free -- ran 3 to 6x slower, and the rows that stay in cache (betweenness,
+ * closeness, paths, stars) ran as usual. No estimate that scales by the probe can be held to a
+ * stopwatch on such a machine, so a reading under {@link MIN_MEMORY_SPEED} skips the size.
+ * @returns The speed factor; 1 on the reference machine, 0.5 with memory twice as slow.
+ */
+function memorySpeed(): number {
+    const once = (): number => {
+        let state = 1;
+        const started = runningMs();
+        for (let i = 0; i < 1 << 22; i++) {
+            state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+            FAR_TABLE[state >>> 8]++;
+        }
+
+        return runningMs() - started;
+    };
+
+    return REFERENCE_SCATTER_MS / Math.min(once(), once(), once());
+}
+
+/**
+ * The slowest memory a size is timed on, against the reference machine's. Unloaded CI runners
+ * read about 0.85; the loaded one slowed the degree row's same increments 4 to 5x.
+ */
+const MIN_MEMORY_SPEED = 0.5;
+
+/**
+ * The default rates scaled to a machine of this speed, with this memory reading, which is what
+ * `calibrateCost` produces. Its memory probe makes the same increments into a table of the same
+ * size, against the same 29 ms, so the two readings are on one scale.
  * @param speed - The machine's speed factor.
+ * @param memory - The memory speed factor, from {@link memorySpeed}.
  * @returns A calibration to estimate with.
  */
-function calibrationAt(speed: number): MachineCalibration {
+function calibrationAt(speed: number, memory: number): MachineCalibration {
     const rates = { ...DEFAULT_COST_RATES };
     for (const key of Object.keys(rates) as (keyof CostRates)[]) {
         rates[key] *= speed;
     }
 
-    return { rates, at: new Date().toISOString(), machine: "this test", basis: "probe" };
+    return { rates, at: new Date().toISOString(), machine: "this test", basis: "probe", memorySpeed: memory };
 }
 
 /** This process's CPU affinity before the guard pinned it, restored afterwards; undefined if unpinned. */
@@ -647,7 +700,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
             const bounds =
                 row.optimismOnly === undefined ? `[${MAX_OPTIMISM}, ${MAX_PESSIMISM}]` : `at least ${MAX_OPTIMISM}`;
             // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a row is timed runs on graphs of up to 800,000 nodes between calibration probes of about 2.3 s each; degree takes 6.4 s locally and about twice that on CI's 0.5x-speed runners, more than a third of the 30 s budget; tracked in #1636
-            it(`${row.key} on ${row.shapeName ?? "random, m = 5n"}: estimate / measured stays ${bounds}`, async () => {
+            it(`${row.key} on ${row.shapeName ?? "random, m = 5n"}: estimate / measured stays ${bounds}`, async (context) => {
                 const descriptor = algorithmByKey(row.key);
                 const graphs = row.sizes.map((nodes) => measuredGraph(row.shape ?? random(5), nodes));
                 const once = (index: number): unknown => row.run(graphs[index].data, row.sizes[index]);
@@ -659,9 +712,12 @@ describe.runIf(process.env.COST_GUARD === "1")(
                     // Probed on both sides of the runs, keeping the faster reading, so a burst of load
                     // during one probe window does not read as a slow machine.
                     const before = await machineSpeed();
+                    const memoryBefore = memorySpeed();
                     const measured = Math.min(...[0, 1, 2].map(() => seconds(() => once(index))));
+                    // Either side loaded means the runs between them may have been.
+                    const memory = Math.min(memoryBefore, memorySpeed());
                     const speed = Math.max(before, await machineSpeed());
-                    const calibration = calibrationAt(speed);
+                    const calibration = calibrationAt(speed, memory);
                     const estimate = estimateCost({
                         algorithm: row.key,
                         descriptor,
@@ -673,7 +729,15 @@ describe.runIf(process.env.COST_GUARD === "1")(
                     const ratio = estimate.seconds / measured;
                     const facts = `${row.key} on ${row.shapeName ?? "random, m = 5n"} n=${nodes} m=${edges} T=${transitivity.toFixed(3)}: estimated ${estimate.seconds.toFixed(3)} s, measured ${measured.toFixed(3)} s, ratio ${ratio.toFixed(2)}`;
                     if (process.env.COST_GUARD_VERBOSE !== undefined) {
-                        process.stdout.write(`${facts}, machine speed ${speed.toFixed(2)}x the reference\n`);
+                        process.stdout.write(
+                            `${facts}, machine speed ${speed.toFixed(2)}x the reference, memory ${memory.toFixed(2)}x\n`,
+                        );
+                    }
+
+                    if (memory < MIN_MEMORY_SPEED) {
+                        const note = `not timed: another tenant is loading this machine's memory (${memory.toFixed(2)}x the reference, under ${MIN_MEMORY_SPEED}). ${facts}`;
+                        process.stdout.write(`::warning title=Cost Estimate Accuracy::${note}\n`);
+                        context.skip(note);
                     }
 
                     assert.isAtLeast(ratio, MAX_OPTIMISM, `too optimistic. ${facts}`);

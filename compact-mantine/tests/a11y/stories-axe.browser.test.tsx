@@ -38,7 +38,7 @@ describe.each(Object.entries(MODULES))("%s stories have no axe violations", (_na
         ["light", "high"],
         ["dark", "high"],
     ] as const)("%s, %s contrast", (theme, contrast) => {
-        // `schemes: "single"` renders a BOTH_SCHEMES story once, in this scheme, as Chromatic does.
+        // `schemes: "single"` renders a BOTH_SCHEMES story once, in this scheme, as the visual capture does.
         const stories = composeStories(module, { initialGlobals: { theme, contrast, schemes: "single" } });
         const off = OFF_BY_DESIGN[module.default.title ?? ""] ?? [];
 

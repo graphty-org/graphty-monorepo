@@ -32,13 +32,13 @@ import {
     type StandardMaterial,
     Vector3,
 } from "@babylonjs/core";
-import isChromatic from "chromatic/isChromatic";
 import { expect } from "storybook/test";
 
 import type { Edge } from "../src/Edge";
 import type { Graph } from "../src/Graph";
 import type { Graphty } from "../src/graphty-element";
 import type { GraphSession } from "../src/session";
+import { isVisualCapture } from "./helpers";
 
 /** How long a story may wait for its graph to arrive and its style stack to come to rest. */
 const SETTLE_BUDGET_MS = 15000;
@@ -522,13 +522,13 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     const { graph, session } = live;
     const deadline = Date.now() + SETTLE_BUDGET_MS;
 
-    // Pre-stepping is for Chromatic's repeatable snapshot only. Anywhere else a pre-stepped
+    // Pre-stepping is for the visual capture's repeatable snapshot only. Anywhere else a pre-stepped
     // layout is already settled on the first frame, and the reader never sees it animate.
     const preSteps = live.layoutBehavior?.layout?.preSteps ?? 0;
 
     await holds(
-        isChromatic() || preSteps === 0,
-        `${story}: the layout runs ${String(preSteps)} steps before the first frame outside Chromatic, ` +
+        isVisualCapture() || preSteps === 0,
+        `${story}: the layout runs ${String(preSteps)} steps before the first frame outside a capture, ` +
             "so the reader never sees it animate",
     );
 
@@ -1237,7 +1237,7 @@ const pictures = new Map<string, Map<string, string>>();
 /**
  * No two stories in this family draw the same picture.
  *
- * THE ONLY THING THAT CAN SEE THE REPORTED SYMPTOM. Chromatic compares a story to its own past
+ * THE ONLY THING THAT CAN SEE THE REPORTED SYMPTOM. Visual review compares a story to its own past
  * and never to its siblings, so "these fourteen stories render identically to one another" is
  * invisible to it, and was invisible to every test in this package. The digest is built from what
  * the SCENE drew -- shape, geometry, size, opacity, colour, label ink -- and deliberately not

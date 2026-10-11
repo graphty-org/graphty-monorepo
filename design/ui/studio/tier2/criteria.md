@@ -1,5 +1,5 @@
-The study runs on build 38e180aac230 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r4-38e180aac/`
-(graphty@0.8.64, commit 38e180aac), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build 5277e2cbe served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r4d1-5277e2cbe/`
+(graphty@0.8.64, commit 5277e2cbe), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -869,3 +869,13 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   count is shown changed. T12R B was not walked (no browser slot came free) and keeps
   26f3bb968e43's notes until it is. No prompt was wrong, so `tasks.md` is unchanged. No bar, floor,
   step limit or success path's end state changed.
+- **2026-10-11, before round 4: the build moved from 38e180aac230 to 5277e2cbe.** The previous
+  build, served from `.study-builds/tier2-r4-38e180aac/`, stays frozen as it was. The new build
+  (`.study-builds/tier2-r4d1-5277e2cbe/`) is a fresh build of the worktree's current commit. It
+  carries these changes to what a participant meets, all in the app and compact-mantine: the
+  filter step editor's Add step, Save step and Save and turn on are disabled with a tooltip naming
+  what the rule lacks; a filter step over an edge column names both its node and edge counts on its
+  row and in the header chip, and compact-mantine's Tree wraps a long row description instead of
+  cutting it; a measure run's histogram section is headed "Distribution", not "Values". Every
+  new-build preflight item runs on this build before round 4's first session. No bar, floor, step
+  limit or prompt changed.

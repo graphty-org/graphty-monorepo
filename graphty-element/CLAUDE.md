@@ -490,6 +490,32 @@ coding agent needs in order to drive the element -- the algorithms, layouts, for
 and scales, with every option each accepts -- is published as plain JSON by
 `@graphty/graphty-element/catalog` instead.
 
+**The AI engine seam.** Model calls go through `AiEngine` (`src/ai/engine/`, one call per turn):
+`runConversation` is the loop, `ToolExecutor` runs each batch of tool calls, and today every
+provider runs through `LlmProviderEngine`; `FakeEngine` is the scripted engine new tests are
+written on. Only `src/ai/engine/tanstack/` may import `@tanstack/*`, `@ag-ui/*` or a vendor SDK
+(the AI SDK 5 files and WebLLM's provider keep theirs until the TanStack engine replaces the
+SDK); it is reached only through `load.ts` and ships no declarations. The rules that keep a
+framework switch cheap, each with a check that plants a violation in its self-test:
+
+- No framework or provider type in an API report or a shipped file: `tools/api-report.mjs` and
+  `tools/check-published-deps.mjs`, reading the list in `tools/ai-framework-packages.mjs`.
+- Saved data only in graphty's versioned format: `formats.test.ts`, with the saved conversation
+  format.
+- Providers configured with named graphty fields, never an open pass-through (`unknown`, `any`,
+  `object`, a record of unknown, an index signature) on `AiManagerConfig`, `ProviderOptions` or a
+  type they reach: `tools/api-report.mjs`.
+- Loop, policies, plans and retries in graphty code: the import rules in
+  `eslint-rules/ai-engine-boundary.mjs`, and the engine contract case that one turn is one request.
+- Tests on `FakeEngine` or `MockLlmProvider`: the engine contract suite
+  (`test/ai/engine/contract.ts`, Node and browser), which every engine passes.
+- Frameworks loaded lazily, one provider per chunk: `test/packaging/ai-lazy-chunks.test.ts`, over
+  the build's `build/chunks.json`.
+
+Framework pins are exact (`test/packaging/ai-pins.test.ts`) and upgraded together with the
+contract suite and the paid `llm-regression` run; peers change only in a major
+(`tools/check-peer-deps-stable.mjs`). Design: `design/ai/tanstack-ai-harness-design.md`.
+
 ## XR Support
 
 The `src/xr/` directory provides VR/AR support:

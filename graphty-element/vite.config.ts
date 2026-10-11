@@ -146,6 +146,7 @@ export function stubAnthropicNodeToolset(): Plugin {
  * @returns The plugin.
  */
 export function thirdPartyLicenses(): Plugin {
+    const SECTION_BREAK = ["", "", "-".repeat(80), "", ""].join("\n");
     return {
         name: "graphty-third-party-licenses",
         apply: "build",
@@ -173,14 +174,14 @@ export function thirdPartyLicenses(): Plugin {
                     };
                     const texts = readdirSync(dir)
                         .filter((file) => /^(?:licen[cs]e|notice|copying)(?:[.-]|$)/i.test(file))
-                        .sort()
+                        .sort((a, b) => a.localeCompare(b))
                         .map((file) => readFileSync(`${dir}/${file}`, "utf8").trim());
                     return [`${name}@${version} (${license ?? "see below"})`, ...texts].join("\n\n");
                 });
             this.emitFile({
                 type: "asset",
                 fileName: "THIRD-PARTY-LICENSES.txt",
-                source: `${sections.join(`\n\n${"-".repeat(80)}\n\n`)}\n`,
+                source: `${sections.join(SECTION_BREAK)}\n`,
             });
         },
     };

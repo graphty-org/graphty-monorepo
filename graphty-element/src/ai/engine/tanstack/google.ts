@@ -20,7 +20,7 @@ const SKIP_SIGNATURE = "skip_thought_signature_validator";
 function checksSignatures(model: string): boolean {
     return (
         /(^|\/)gemini-/i.test(model) &&
-        !/(^|\/)gemini-(?:1|2)(?:[.-]|$)/i.test(model) &&
+        !/(^|\/)gemini-[12](?:[.-]|$)/i.test(model) &&
         !/(^|\/)gemini-pro(?:-vision)?$/i.test(model)
     );
 }

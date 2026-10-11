@@ -213,6 +213,117 @@ function failure(
     };
 }
 
+/** A tool call while its arguments stream. */
+interface PendingCall {
+    readonly name: string;
+    args: string;
+    readonly metadata?: Record<string, unknown>;
+}
+
+/** Reads one turn's TanStack chunks as turn events: each tool call as it completes, then the end. */
+class ChunkReader {
+    /** Whether the turn has ended, with a finish or an error. */
+    done = false;
+    private readonly pending = new Map<string, PendingCall>();
+    private calls = 0;
+
+    /**
+     * A reader for one turn.
+     * @param settings - The turn's provider and model, which the provider state names.
+     * @param response - What graphty's fetch saw, for an error's code.
+     * @param signal - The turn's signal.
+     */
+    constructor(
+        private readonly settings: ProviderApiSettings,
+        private readonly response: ResponseRecord,
+        private readonly signal: AbortSignal,
+    ) {}
+
+    /**
+     * The events one chunk makes.
+     * @param chunk - The chunk.
+     * @returns Its events, often none.
+     */
+    read(chunk: StreamChunk): TurnEvent[] {
+        switch (chunk.type) {
+            case EventType.TEXT_MESSAGE_CONTENT:
+                return [{ type: "text", delta: chunk.delta }];
+            case EventType.TOOL_CALL_START: {
+                const { tanstack: _tanstack, ...metadata } = (chunk.metadata ?? {}) as Record<string, unknown>;
+                this.pending.set(chunk.toolCallId, {
+                    name: chunk.toolCallName,
+                    args: "",
+                    ...(Object.keys(metadata).length > 0 && { metadata }),
+                });
+                return [];
+            }
+            case EventType.TOOL_CALL_ARGS: {
+                const call = this.pending.get(chunk.toolCallId);
+                if (call) {
+                    call.args += chunk.delta;
+                }
+                return [];
+            }
+            case EventType.TOOL_CALL_END:
+                return this.callEnded(chunk.toolCallId, (chunk as { input?: unknown }).input);
+            case EventType.RUN_ERROR:
+                this.done = true;
+                return [failure(chunk.message, this.response, this.settings, this.signal)];
+            case EventType.RUN_FINISHED:
+                this.done = true;
+                return this.finished((chunk as { usage?: { promptTokens?: number; completionTokens?: number } }).usage);
+            default:
+                return [];
+        }
+    }
+
+    /**
+     * A tool call whose arguments are complete.
+     * @param id - Its id.
+     * @param input - TanStack's parsed arguments, when they parsed.
+     * @returns The call's event.
+     */
+    private callEnded(id: string, input: unknown): TurnEvent[] {
+        const call = this.pending.get(id);
+        if (!call) {
+            return [];
+        }
+
+        this.calls++;
+        const { provider, model } = this.settings;
+        return [
+            {
+                type: "tool-call",
+                id,
+                name: call.name,
+                arguments: callArguments(input, call.args),
+                ...(call.metadata && {
+                    providerState: { engine: ENGINE, provider, model, data: call.metadata },
+                }),
+            },
+        ];
+    }
+
+    /**
+     * The end of a turn that finished: its usage and its finish, or a cancel that came first.
+     * @param usage - The turn's token counts.
+     * @returns The events.
+     */
+    private finished(usage: { promptTokens?: number; completionTokens?: number } | undefined): TurnEvent[] {
+        const events: TurnEvent[] = [];
+        if (usage?.promptTokens !== undefined && usage.completionTokens !== undefined) {
+            events.push({ type: "usage", inputTokens: usage.promptTokens, outputTokens: usage.completionTokens });
+        }
+
+        events.push(
+            this.signal.aborted
+                ? failure("The turn was cancelled.", this.response, this.settings, this.signal)
+                : { type: "finish", reason: this.calls > 0 ? "tool-calls" : "stop" },
+        );
+        return events;
+    }
+}
+
 /**
  * One model turn on TanStack AI: one request to the provider, no tool run.
  * @param settings - The provider, key, model and options, as they are now.
@@ -226,8 +337,6 @@ export async function* providerApiTurn(
     signal: AbortSignal,
 ): AsyncIterable<TurnEvent> {
     const response: ResponseRecord = { networkError: false };
-    const pending = new Map<string, { name: string; args: string; metadata?: Record<string, unknown> }>();
-    let calls = 0;
     // chat() takes a controller; the turn's signal cancels it.
     const controller = new AbortController();
     const cancel = (): void => {
@@ -254,55 +363,10 @@ export async function* providerApiTurn(
             debug: false,
         }) as AsyncIterable<StreamChunk>;
 
+        const reader = new ChunkReader(settings, response, signal);
         for await (const chunk of stream) {
-            if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
-                yield { type: "text", delta: chunk.delta };
-            } else if (chunk.type === EventType.TOOL_CALL_START) {
-                const { tanstack: _tanstack, ...metadata } = (chunk.metadata ?? {}) as Record<string, unknown>;
-                pending.set(chunk.toolCallId, {
-                    name: chunk.toolCallName,
-                    args: "",
-                    ...(Object.keys(metadata).length > 0 && { metadata }),
-                });
-            } else if (chunk.type === EventType.TOOL_CALL_ARGS) {
-                const call = pending.get(chunk.toolCallId);
-                if (call) {
-                    call.args += chunk.delta;
-                }
-            } else if (chunk.type === EventType.TOOL_CALL_END) {
-                const call = pending.get(chunk.toolCallId);
-                if (call) {
-                    calls++;
-                    yield {
-                        type: "tool-call",
-                        id: chunk.toolCallId,
-                        name: call.name,
-                        arguments: callArguments((chunk as { input?: unknown }).input, call.args),
-                        ...(call.metadata && {
-                            providerState: {
-                                engine: ENGINE,
-                                provider: settings.provider,
-                                model: settings.model,
-                                data: call.metadata,
-                            },
-                        }),
-                    };
-                }
-            } else if (chunk.type === EventType.RUN_ERROR) {
-                yield failure(chunk.message, response, settings, signal);
-                return;
-            } else if (chunk.type === EventType.RUN_FINISHED) {
-                const { usage } = chunk as { usage?: { promptTokens?: number; completionTokens?: number } };
-                if (usage?.promptTokens !== undefined && usage.completionTokens !== undefined) {
-                    yield { type: "usage", inputTokens: usage.promptTokens, outputTokens: usage.completionTokens };
-                }
-
-                if (signal.aborted) {
-                    yield failure("The turn was cancelled.", response, settings, signal);
-                    return;
-                }
-
-                yield { type: "finish", reason: calls > 0 ? "tool-calls" : "stop" };
+            yield* reader.read(chunk);
+            if (reader.done) {
                 return;
             }
         }

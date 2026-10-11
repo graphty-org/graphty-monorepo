@@ -10,33 +10,33 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-11 -- Round 4 scored (`tier2/rounds/round-4/scores.md`): 53 of 53 valid S/SD, 3 void
-  (r4-s05, s20, s28) NOT re-run; bar 1 and bar 6 now hold (T24 7 of 7). Fails: 5 (unfiltered data
-  table, conservative reading), 9 (b) (edge inspector 29 vs 27), 10 (5 confirmed sev 3). Bars
-  7a and 8 hold on my after-the-fact bars.mjs run (`tmp/researcher/t2r4/bars/`).
-- 2026-10-11 -- OWED before round 5: r4-s05b, r4-s20b, r4-s28b; and a runner fix. Mechanism: the
-  runner started participants with no free slot; `--start` outlasted the shell limit, went to the
-  background, the participant armed a monitor and ended its turn, which is a workflow agent's
-  return. Logs: `wf_893310e3-28b/agent-a1b284d02fae1037a.jsonl`, `agent-a1bedbc37d9933b28.jsonl`.
-- 2026-10-11 -- The gate did not pass and sessions ran anyway, two rounds running: no "Gate
-  evidence" in plan.md, no `round-4/bars/`. I ran bars.mjs after the fact into
-  `tmp/researcher/t2r4/bars/`. The runner must refuse to start without gate exit 0.
-- 2026-10-11 -- T24: 7 of 7 by Shift-click from habit; Select endpoints 0 of 7; prompt-decided 0.
-  T17: toolbar Filters 7 of 7, wrong turns 0. Habit-matching doors get used; menu commands do not.
-- 2026-10-11 -- New confirmed sev 3s: data table ignores a filter (r4-s21, s27); "or more" layer
-  named "data.minutes >= `5`" (visual 1, a11y 5); "or more" row under the fold (audit 1, visual 5);
-  bare non-value number offers "=`10`" then refuses it (controls 2, visual 27).
-- 2026-10-11 -- One-specialist sev 3s to script first: off step turns itself on when its editor
-  closes (a11y 1, `Filters.tsx`); New project > Discard crash (controls 1); one-session sev 3:
-  rule on a missing column says only "Nothing matches" (r4-s12).
-- 2026-10-11 -- Segmented chosen face: 0 misreads of 4 on T4. Close the predicted sev 3.
-- 2026-10-11 -- T22 steps median 8 vs 6 (route choice: table, Style); "=" typed unprompted 0 of 24
-  over three rounds. Rule language is copied, never learned.
-- 2026-10-11 -- Bar 5 read conservatively: a reader's own check counts, so the study cannot pass
-  on "not on the key's path". Skeptics may weaken; record their reasons.
-- 2026-10-11 -- Drawn-name overlaps that cost T24 clicks are label-over-tie and label-over-dot;
-  declutter (label-on-label only) would not remove them. Element owner item stands.
-- 2026-10-11 -- A check that inspects zero items must fail; leak check now reads 1 log per session.
+- 2026-10-11 -- Round 4 closed (`tier2/rounds/round-4/insights.md`): 53 of 53 valid; bars 9 (b)
+  and 10 fail; bar 5 holds by its words (table problem open at sev 2). Bar 10 rests on two sev 3s:
+  drawn names over ties and dots (element), and the find box suggesting "=`10`" then refusing it
+  (app + element), which sits on T22 A's natural route (no 10 in bus-stops minutes).
+- 2026-10-11 -- STUDY FIX FIRST: every briefing carries `tool/README.md`'s data-file table, which
+  states answers (Mo and Nia, `6 - w`, `s11`) and lists `--shift-click`. Replace with name + kind
+  only. r4-s38 named Mo and Nia before the screen did. The leak check cannot see briefings.
+- 2026-10-11 -- OWED before round 5: r4-s05b, r4-s20b, r4-s28b; runner starts a participant only
+  on a free slot, and refuses to run without gate exit 0 and "Gate evidence" in plan.md.
+- 2026-10-11 -- Priming lives in personas and histories too: the nonprofit analyst "checks counts",
+  the student "counts the rows", 6 of 7 T17 histories name "the toolbar". Grep persona, history AND
+  briefing before writing "Priming: none/low".
+- 2026-10-11 -- T24 7 of 7 by Shift-click (round 3: 2 of 4). Habit-matching controls get used;
+  "menu commands are never used" is NOT shown (round 3: 2 of 4 found Select endpoints).
+- 2026-10-11 -- Data table ignores a filter step: sev 2, app, out of bar 10 (no specialist).
+  "Or more" layer named by field path and "or more" row under the fold: both sev 2 now.
+- 2026-10-11 -- Still to script before fixing: off step turns itself on (`Filters.tsx`), New
+  project > Discard crash, rule on a missing column says only "Nothing matches" (r4-s12).
+- 2026-10-11 -- Specialist totals rising (139 to 153) is new ground walked, not regression; do not
+  cite raw totals as a trend. Score bar 10 on confirmed findings.
+- 2026-10-11 -- Click-by-name refusals added a step in ~15 sessions (7 of 8 T20): step medians run
+  about one high; T18 sits on bar 11's limit.
+- 2026-10-11 -- Raising a severity because participants "named a risk" breaks the opinion rule
+  (held one level down); and near-identical lines across sessions are one template, not N people.
+- 2026-10-11 -- Drawn-name overlaps that cost clicks are label-over-tie and label-over-dot;
+  declutter would not remove them. Element owner item stands.
+- 2026-10-11 -- A check that inspects zero items must fail; leak check reads 1 log per session.
 
 ## Priorities and values
 
@@ -77,38 +77,23 @@ reasons, in short:
 
 ## Decisions and reasons
 
-- 2026-10-11 (researcher, tier 2 round 4 scored) -- `round-4/scores.md` from 53 graded sessions,
-  3 voids, four expert reports, and my own bars.mjs run on 5277e2cbe (the gate's run never
-  happened). Voids scored beside, not as failures; bar 1 checked worst case (all owed re-runs
-  fail: still holds). Bar 5 scored FAILS on two participants' own table check under a filter,
-  with the strict "key's path" reading (holds) given beside it, because a technicality must not
-  pass the study. Bar 10 confirmed list: 4 two-specialist sev 3s plus the two-session table one,
-  flagged as needing a specialist under bar 10's own rule. Ease and steps kept round 3's readings so
-  rounds compare; T12R path 4 on this build. Mechanism of the voids traced in the participants'
-  own logs before writing it, rather than repeating the graders' "agent ended".
+- 2026-10-11 (researcher, round 4 skeptic verdicts) -- Wrote `round-4/insights.md`. Rule: two
+  drops = dropped, one drop or weaken = weakened unless the other answers with evidence. Verified
+  the disputed priming claims myself before applying: the file table is in every briefing (4
+  answer lines in each T21 one), r4-s38's transcript names Mo and Nia at the Replace page, the
+  nonprofit persona file says "Checks counts before and after", 6 of 7 T17 briefings say "toolbar".
+  Kept bar 10 failing on two sev 3s; bar 5 holds by its words; dropped the "Shortest path"
+  shared name (same command). Cited only screenshots I viewed. Top five for the owner: overlaps,
+  bare-number refusal, study faults, unfiltered table, Shift-click.
 
-- 2026-10-11 (researcher, round 4 plan) -- Sizes from the frozen rule: bar 1 says full size is
-  8 for every task, so T24 (below its bar) runs at 8, not round 3's 4; core four 32; tasks a change
-  touched at 4 (T22, T23, T4), T12R at its full 2: 54, and the last 2 to T19 (untouched, but the
-  task list asks for every task). Every persona on the other half from round 3 (asserted against
-  `round-3/sessions.json`). Starts are setups (tasks.md rules out saved projects). Walked T24's
-  key routes on 5277e2cbe myself (scripted, not a participant) and named the Shift route in the
-  key with a criteria log entry. Recorded the missing T24 prompt pilots as NOT MET in the plan,
-  with the mitigation (T24 first, "prompt-decided" flag, reported with and without), rather than
-  letting the gate fail, because a gate failure ends the tier and lands the branch.
+- 2026-10-11 (round 4 plan, scoring and key matches, folded) -- Sizes from the frozen rule (T24
+  at 8, core four 32, changed tasks 4, T12R 2, last 2 to T19; personas swapped vs round 3). Missing
+  T24 prompt pilots recorded NOT MET with a mitigation rather than failing the gate. Scored from 53
+  grades, 3 voids beside, my own after-the-fact bars.mjs run; bar 5 scored failing on a reader's own
+  check (skeptics then held it to the bar's words). Voids traced in the participants' own logs. Key
+  edits per build as a build section plus in-place notes; the screen wins over a change note
+  (pixels sampled first); drawn-names sev 3 measured with declutter off.
 
-- 2026-10-11 (researcher, round 3 closed) -- Read insights.md and decisions.md. Adopted: study
-  fixed first (gate, T24 prompt/key) because round 3 skipped its pilots and a zero-read leak check
-  said "no leaks"; one variant per problem so round 4 can credit each fix; one-specialist claims
-  scripted before fixing. Not changed: label placement (element, owner list), rule syntax
-  (breaking), Replace, weight at load, Recent, find-box example. Top of mind rewritten.
-
-- 2026-10-11 (key matches to 5277e2cbe and 38e180aac230, drawn-names finding, folded) -- Build
-  section plus in-place notes, old wording kept as "on earlier builds"; the screen wins over a
-  build's change note (pixels sampled before contradicting it); T17 people count only in Overview
-  for an edge step; drawn-names sev 3 in round 3 was measured with declutter off (setups tick "Show
-  all labels"), so tick it only where a task reads every name; dots as label obstacles would be an
-  additive element option.
 - 2026-10-10 (researcher, T24 wording before round 4) -- Changed the prompt, not the key: both
   halves end "so that whatever you do next applies only to those two"; words-changed log in
   `tasks.md`; criteria log entry. Removed the key's Shift route rather than leaving it: on
@@ -193,31 +178,19 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
-- 2026-10-11 (round 4 scoring, after a token-limit stop) -- Worked: `git status` and a listing
-  first (no scores.md, sessions untracked, so nothing half-done); `score.py` asserting voids have no
-  session.json or screenshots and every leaks.json read exactly one log; grepping each grade's
-  "## Measures" into one scratch file and reading it once; finding void participants' logs by
-  grepping agent logs in the round's time window for the session path. Did not work: matching
-  participant logs by their first lines (the harness prefix hides the session path).
+- 2026-10-11 (round 4 verdicts, after a token-limit stop) -- Worked: `git status` and a listing
+  first (no insights.md, nothing half-done); grepping briefings for the skeptics' priming claims
+  instead of trusting either skeptic; viewing each screenshot before citing it. Did not work: my
+  scores' "Priming: none/low" lines, written from prompts alone.
 
-- 2026-10-11 (round 4 plan, after a token-limit stop) -- Worked: `git status`, the round
-  listing and `real.mjs` gateCheck read first; no round-4 folder existed, so nothing was half-done.
-  Worked: reading what the runner does after a failed gate (it reports and lands) before choosing
-  how to treat a missing gate item. Worked: `--gate` run before the plan returned, to see it
-  finds all 20 pilots and lacks only the bars. Worked: briefing all 56 rows in scratch
-  (`t2r4/brief-all.py`; only kept-on-purpose words hit).
+- 2026-10-11 (round 4 plan, key matches and scoring, after token-limit stops, folded) -- Worked:
+  `git status`, `git log` and the round listing first every time; asserted (old, new) scripts
+  (`tmp/researcher/r4/edit-answers.py`); `score.py` asserting voids and one log per leak check;
+  one grep of every grade's "## Measures"; finding void participants' logs by grepping agent logs
+  in the round's window for the session path; briefing all rows in scratch; sampling pixels before
+  contradicting a change note; explicit pathspec commits. Did not work: matching participant logs
+  by first lines (the harness prefix hides the path).
 
-- 2026-10-11 (5277e2cbe key match, after a token-limit stop) -- Worked: `git status`/`git log`
-  first; answers.md clean and the r4d1 pilot folders untracked, so nothing had landed. Worked:
-  one asserted (old, new) python run; committing with an explicit pathspec so other agents'
-  uncommitted tool edits stay out.
-
-- 2026-10-11 (r4 key match, after a token-limit stop) -- Worked: `git status` and `git log` on
-  answers.md first; nothing of this batch had landed, so it was applied whole. Worked: sampling
-  the toggle pixels in `r4/pilot/T4A/07.png` against `r3d1/pilot/T4B/07.png` before writing a
-  claim that contradicts the build's own change note. Worked: one asserted (old, new) script
-  (`tmp/researcher/r4/edit-answers.py`); one match failed on a wrapped line and nothing was
-  written until it was fixed.
 - 2026-10-10 (T24 wording, round 3 critique, verdicts and scoring, after token-limit stops,
   folded) -- Worked: `git status`, `git log` and a listing of the round folder first, every time
   (nothing was half-done); grepping for copies of an old prompt; reading each fix's and each
@@ -256,6 +229,12 @@ reasons, in short:
   once; editing a script while it runs; a harness that exits 0 printing nothing; mocks.
 
 ## Thinking
+
+- 2026-10-11 -- Priming has four sources, not one: the prompt, the history, the persona's playing
+  rules, and the tool's own reference table in the briefing. A leak check over participant logs
+  sees none of the last three. Every "unprompted" claim needs all four grepped.
+- 2026-10-11 -- A sev 3 that no session met can still be the task's most likely route (bare "10"
+  on bus stops). Check the task's data for whether the prompt's own number is a value.
 
 - 2026-10-10 -- A reworded prompt can stop one unwanted route and open another: "point out"
   ended the styling detour on T22 (5 of 8 to 1 of 8) and let T24 participants mark two people with

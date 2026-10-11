@@ -10,27 +10,28 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-11 -- Round 5 planned (`tier2/rounds/round-5/plan.md`, `sessions.py`): 56 on 8c015b806.
-  Core four 32, T22 8 (bar 10 on its route), T19 4 and T23 4 (touched), T24 4 (names over its tie),
-  T4 2, T12R 2. Every persona swapped half vs round 4; no Ruth on T19, no Dana on T17. T22 first.
-- 2026-10-11 -- Round 5 watch: T22 A credit by "10" reaching the 3 stops with no refusal, not by an
-  "or more" pick (prompt echo); T17 table counts under a step; T18 bar 11 at its limit (8 of 8).
-- 2026-10-11 -- The three claims (unknown column, Escape on swatch, label over tie) reproduced on
-  5277e2cbe and are NOT fixed on 8c015b806; graders record them when met (plan "Grading").
-- 2026-10-11 -- Owed r4-s05b, s20b, s28b were never run. Round 4 bar 1 holds even if all fail, and
-  round 5 re-runs their halves, so latest-result scoring no longer needs them. Said so in the plan.
-- 2026-10-11 -- Gate needs pilots under `round-N/pilot/`: copied `r5/pilot` to `round-5/pilot/r5`
-  (diff -r clean) as round 4 did; the gate agent writes "Gate evidence", never by hand.
-- 2026-10-11 -- Round 5 key vs pilots on 8c015b806: every value held; only T18 legend notes changed.
-  Check mtimes before calling a pilot lost (a sibling was mid-run by another agent).
-- 2026-10-11 -- Bar 9 (b) edge inspector: the rise is the rail's "Settings" label plus "on N
-  nodes" (`round-4/bars/edge-inspector-words.md`). Diff word lists before blaming a wording.
+- 2026-10-11 -- **Round 5 is void, 0 of 56 valid** (`tier2/rounds/round-5/scores.md`). The gate
+  (bars.mjs into `bars/`, then `real.mjs --gate`) never ran after the usage-limit restart, yet 56
+  sessions were launched; `--start` refused 51, 5 stopped after the briefing. Re-run all 56 as
+  `<id>b` on 8c015b806 after the gate exits 0; the plan, pilots and briefings stand.
+- 2026-10-11 -- A void round is incomplete, not stalled: never apply the stall rule to a round
+  whose every session was voided for a run reason.
+- 2026-10-11 -- After any usage-limit stop, check the round folder for `bars/bars.json` and the
+  plan's "## Gate evidence" heading BEFORE anything else; the runner must resume at the gate.
+- 2026-10-11 -- Round 5 experts (same build, they stand): bar 10 fails on 2 confirmed sev 3 --
+  drawn names over names and ties (owner item), "or more" row under the fold on friends. Fixed on
+  8c015b806 by specialist checks: unfiltered table, field-path layer name, bare "10" refusal, off
+  step turning on, New project > Discard, note Cancel focus. Credit only when readers meet them.
+- 2026-10-11 -- New confirmed sev 2: the out-of-date note counts nodes only, so an edge-only step
+  says "Ran on 20 nodes; 20 shown now" (audit 5, visual 3). Element fact needs edge counts.
+- 2026-10-11 -- Claim a (unknown column) now sev 2 by three specialists; claim b reproduces by keys
+  only; claim c (name takes the tie click) did not reproduce at the tie's midpoint.
+- 2026-10-11 -- Round 5 watch, when it re-runs: T22 A credit by "10" reaching the 3 stops with no
+  refusal, not an "or more" pick (prompt echo); T17 table counts under a step; T18 bar 11 at 8 of 8.
 - 2026-10-11 -- Priming has four sources: prompt, history, persona playing rules, briefing. Grep
-  all four before "unprompted". Briefings now name file and kind only (tool commit 2d085d627).
-- 2026-10-11 -- Habit-matching fixes land at once (Shift-click T24 2/4 to 7/7; toolbar Filters 7/7
-  first door). A rule written down fails; a refusal in the tool works (gate in `--start`).
-- 2026-10-11 -- Drawn-name overlaps that cost clicks are label-over-tie and label-over-dot;
-  declutter would not remove them. Element owner item stands.
+  all four before "unprompted".
+- 2026-10-11 -- Habit-matching fixes land at once; a rule written down fails; a refusal in the tool
+  works for a session but must also stop the runner.
 - 2026-10-11 -- Raising a severity because participants "named a risk" breaks the opinion rule;
   near-identical lines across sessions are one template, not N people.
 
@@ -72,6 +73,15 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-11 (researcher, round 5 scored) -- Wrote `round-5/scores.md` from 56 VOID grades and four
+  expert reports; `tmp/researcher/t2r5/score.py` asserts 56 planned, every grade VOID, no
+  screenshot anywhere, no gate section, no bars.json. Every session bar "not scored" (does not
+  hold); 7 (a), 8, 9 not scored (no bars run); bar 10 fails on two confirmed sev 3. Did NOT apply
+  the stall rule: criteria void and re-run run faults, so a fully void round measured nothing.
+  Kept "or more under the fold" at sev 3 on a 3/2 split, as round 4 did. Expert findings stand
+  for the re-run (same build). Recommended: gate, then 56 `b` re-runs, runner stops on the first
+  refusal and resumes at the gate after a usage limit.
 
 - 2026-10-11 (researcher, round 5 plan) -- Sized by the frozen rule, not by the director's "what
   round 5 re-runs" list where they differ: the core four at 8 always (decisions listed only T22 and
@@ -156,54 +166,13 @@ reasons, in short:
   on T18 A) added as a grader instruction; tier 1's frozen key untouched. T24's key was NOT
   re-walked on 26f3bb968e43, which round 3 paid for (its Shift route does not exist).
 
-- 2026-10-09 (round 1 critique, round 2 key, plan and scoring, folded) -- Round 2: 56 sessions
-  at the cap, core four and T22 at full size with halves swapped; route credits graded like the
-  success path with bar 11 kept on old counts; scored with asserted scripts (`tmp/researcher/t2r2/`),
-  the 13 early follow-ups kept but every pass called weak; bar 10 failed on drawn names and
-  backticks. Round 1 critique: smallest change per sev 3, reusing a working route (find hint,
-  Replace in "...", meaning at the column).
-
-- 2026-10-09 (researcher, round 1 closed) -- Read `rounds/round-1/insights.md` and
-  `decisions.md`. Taught: a dry run removes faults only where it walks; the commonest detours and
-  the tool itself must be walked too, else sessions spend time on build and tool faults instead of
-  on what returning users need. Decided (director): measurement first (tool, scripts, detour dry
-  run, all sev 4), then 11 app/element changes, one door per confirmed problem, no feature moves,
-  words at rest do not rise; "Select where" waits unless the hint fails for 3+ in one place;
-  drawn-name overlap filed against the element. Nothing new for the owner.
-
-- 2026-10-09 (key matched to builds 8f0d5a6f7791 and four before, folded) -- Each time a build
-  section plus scoped edits; delete notes for screens no longer drawn (they prime graders);
-  re-point citations a newer pilot overwrote; read the build's own change list first.
-
-- 2026-10-09 (researcher, tier 2 round 1 skeptic verdicts) -- Wrote `rounds/round-1/insights.md`.
-  Applied: two weakens = weakened; one drop + one weaken = weakened; a split resolved by checking
-  the evidence myself. Checked: Tom's persona file does script the exit (skeptic 2 read only the
-  roster briefing) -- so bar 3 holds; `r1-s45/26.png` shows width 30 thick after deselect --
-  "thick only while selected" refuted; T18 B pilot screenshots exist with no report; no "..."
-  drawn at rest or after a left click (`r1-s29/08.png`). Kept the defects but not the habits in
-  T20; demoted fill tint / selection mark to one sev 2 design finding. Rejected: calling the
-  popover a build defect from one session at load 158 without a script.
-
-- 2026-10-09 (researcher, tier 2 round 1 scoring, folded) -- One asserted row per session
-  (`tmp/researcher/t2r1/score.py`); steps = screenshots after the start; success-path steps from the
-  key's commands; bar 3 strict (2+ participants confirm, severity = worst outcome) with the lenient
-  reading beside it; "not scored" bars do not hold, per the frozen rule.
-
-- 2026-10-08 (round 1 plan and key vs dry runs, folded) -- No saved-project starts (frozen
-  tasks.md wins); key edits by asserted (old, new) pairs; checked cited screenshots myself.
-
-- 2026-10-07 to 10-08 (tier 2 preparation, criteria review, round 1 plan and round 3 skeptics,
-  folded) -- Wrote `tier2/` (T22 bus >= 10 min = 3, Les Mis >= 10 = 13; T23 Ava 14, Medici 11;
-  T24 Gus-Ivan 1, Station-Stadium 4), each piloted and hand-counted; bars 10 and 11 added, "not
-  scored" fails, bar 7 (a) over every algorithm and meaning; 56 sessions with halves alternating;
-  key sentences name the build they are true on. Split skeptic rule: one weakening stands unless
-  the other answers its reason with evidence. Rejected: raising ease to 5.5, changing prompts.
-
-- 2026-10-02 to 10-07 (tier 1 rounds and the owner's rules, folded) -- Real app only (owner
-  2026-10-03); criteria frozen before a round; every task walked first; voids re-run with a `b`
-  suffix; scored on valid sessions with voids beside; a change credited only on its route; keys
-  kept from participants; task words never echo the screen; neutral facts in the element, words in
-  the app; personas validate, never generate features.
+- 2026-10-02 to 10-09 (tier 1, tier 2 preparation and rounds 1-2, folded) -- Real app only
+  (owner 2026-10-03); criteria frozen before a round; every task walked first; voids re-run with a
+  `b` suffix; scored on valid sessions with voids beside; keys kept from participants; task words
+  never echo the screen; keys get a build section plus scoped edits per build; deleted notes for
+  screens no longer drawn; skeptic rule: two drops = dropped, one drop or weaken = weakened unless
+  answered with evidence; "not scored" fails; bars 10 and 11 added at the freeze; personas
+  validate, never generate features.
 
 - 2026-10-11 -- **T17 histories say what was done, not where.** Seven T17 histories said earlier
   rankings ran "from the analysis button in the toolbar", the same place narrowing starts, so the
@@ -213,6 +182,12 @@ reasons, in short:
   toolbar; reword it if Dana is ever given a task that starts there.
 
 ## Tried: worked / did not work
+
+- 2026-10-11 (round 5 scoring, after a token-limit stop) -- Worked: `git status`, `git log` and
+  the round listing first showed 56 grades, no `bars/`, no gate section, no scores.md; one asserted
+  script over grades, both transcript locations and screenshots; matching expert findings across
+  the four reports by screen and mechanism. Did not work: the round's own recovery -- the restart
+  launched sessions past an unpassed gate, and nobody looked for `bars/` first.
 
 - 2026-10-11 (round 5 plan, after a token-limit stop) -- Worked: `git log`, `git status` and the
   round folder listing first: plan.md held only the claims section (committed), pilots complete on

@@ -66,7 +66,9 @@ overrides:
     "uuid@<11.1.1": ^11.1.1
     # storybook 9.1.20 pins @vitest/mocker 3.2.4; GHSA-82fw-gwwq-j7x9 is patched only in 4.1.11.
     "@vitest/mocker@>=2.1.0 <4.1.11": ^4.1.11
-    # graphty-element's @ai-sdk/* -> @ai-sdk/provider-utils 2.x pins undici 5.
+    # graphty-element's optional @ai-sdk/* peers -> @ai-sdk/provider-utils 2.x pin undici 5. The
+    # element no longer imports the AI SDK, but the peers stay declared until the next major, and
+    # auto-install-peers (.npmrc) still installs them in this workspace.
     "undici@<6.28.0": ^6.28.0
     # vitepress 1.x depends on vite 5, which the Vite 6.4.3 advisories do not patch.
     "vite@<6.4.3": ^6.4.3

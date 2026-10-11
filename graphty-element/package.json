@@ -172,9 +172,6 @@
         "docs:preview": "vitepress preview docs --port ${PORT:?start it through servherd, which sets PORT}"
     },
     "devDependencies": {
-        "@ai-sdk/anthropic": "^2.0.107",
-        "@ai-sdk/google": "^2.0.100",
-        "@ai-sdk/openai": "^2.0.132",
         "@babylonjs/core": "^8.36.1",
         "@graphty/graph-samples": "workspace:^",
         "@graphty/remote-logger": "workspace:^",
@@ -196,7 +193,6 @@
         "@types/react": "^19.1.8",
         "@types/toposort": "^2.0.7",
         "@vitest/browser-playwright": "catalog:",
-        "ai": "^5.0.270",
         "ajv": "^8.20.0",
         "ajv-formats": "^3.0.1",
         "encrypt-storage": "^2.14.7",
@@ -221,14 +217,14 @@
         "vitest": "catalog:"
     },
     "peerDependencies": {
-        "@ai-sdk/anthropic": "^2.0.50",
-        "@ai-sdk/google": "^2.0.44",
-        "@ai-sdk/openai": "^2.0.74",
+        "@ai-sdk/anthropic": "*",
+        "@ai-sdk/google": "*",
+        "@ai-sdk/openai": "*",
         "@babylonjs/core": "^8.0.0",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@mlc-ai/web-llm": ">=0.2.0",
         "@types/react": "*",
-        "ai": "^5.0.104",
+        "ai": "*",
         "encrypt-storage": "^2.14.7",
         "lit": "^3.0.0"
     },

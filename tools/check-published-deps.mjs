@@ -66,16 +66,11 @@ const FORBIDDEN_FILES = [
 /**
  * The packages whose shipped files are scanned for AI framework imports, each with the imports it
  * may still ship, by family and file, and the reason. Only graphty-element keeps frameworks behind
- * an engine seam; compact-mantine's TanStack Table is not an AI framework. The AI SDK's entry goes
- * when milestone 2 of design/ai/tanstack-ai-harness-design.md removes it.
+ * an engine seam; compact-mantine's TanStack Table is not an AI framework. TanStack AI and the
+ * provider SDKs are built into graphty-element's own chunks, so no shipped file imports them.
  */
 const FRAMEWORK_IMPORTS_ALLOWED = {
     "@graphty/graphty-element": [
-        {
-            family: "ai-sdk",
-            files: /\.js$/,
-            reason: "VercelAiProvider and WebLlmProvider run on the AI SDK 5 until the TanStack AI engine replaces it",
-        },
         {
             family: "webllm",
             files: /\.js$/,
@@ -89,7 +84,8 @@ const FRAMEWORK_IMPORTS_ALLOWED = {
  * peer is a breaking change, so it waits for the next major (tools/check-peer-deps-stable.mjs).
  */
 const UNUSED_PEERS_ALLOWED = {
-    // The AI SDK 5, which graphty-element stops importing once its TanStack AI engine lands.
+    // The AI SDK 5, which graphty-element no longer imports (its TanStack AI engine replaced it);
+    // the peers stay declared, optional, until the next major.
     "@graphty/graphty-element": new Set(["ai", "@ai-sdk/anthropic", "@ai-sdk/google", "@ai-sdk/openai"]),
 };
 
@@ -259,6 +255,7 @@ function selfTest() {
             /^dist\/chunks\/openai-x\.js imports "openai"/,
             /^dist\/src\/ai\/engine\/load\.d\.ts names the AI adapter folder/,
             /^dist\/src\/ai\/engine\/tanstack\/index\.d\.ts names the AI adapter folder/,
+            /^dist\/chunks\/vercel-x\.js imports "ai"/,
         ];
         const missing = expected.filter((re) => !problems.some((p) => re.test(p)));
         const extra = problems.filter((p) => !expected.some((re) => re.test(p)));

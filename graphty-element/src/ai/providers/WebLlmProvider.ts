@@ -4,10 +4,9 @@
  * @module ai/providers/WebLlmProvider
  */
 
-import { asSchema } from "ai";
-
 import { aiProviderDescriptor } from "../../catalog/ai";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { toolJsonSchema } from "../engine/jsonSchema";
 import type {
     LlmProvider,
     LlmResponse,
@@ -687,7 +686,7 @@ export class WebLlmProvider implements LlmProvider {
                 name: t.name,
                 description: t.description,
                 // WebLLM writes the tools into the model's prompt as JSON, so it needs JSON Schema, not Zod
-                parameters: asSchema(t.parameters).jsonSchema,
+                parameters: toolJsonSchema(t.parameters),
             },
         }));
     }

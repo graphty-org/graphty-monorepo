@@ -1,10 +1,8 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
-import { generateText, type LanguageModel, type ModelMessage, streamText, type Tool } from "ai";
-
 import { aiProviderDescriptor, type AiProviderId } from "../../catalog/ai";
-import { API_KEY_MISSING_ERROR, toSafeError } from "../safeError";
+import { toolJsonSchema } from "../engine/jsonSchema";
+import { registerProviderApiEngine } from "../engine/load";
+import { ProviderApiEngine } from "../engine/ProviderApiEngine";
+import type { SavedMessage, TurnError, TurnRequest } from "../engine/types";
 import type {
     LlmProvider,
     LlmResponse,
@@ -30,8 +28,74 @@ const DEFAULT_MODELS: Readonly<Record<VercelProviderType, string>> = {
 };
 
 /**
- * LLM provider implementation using the Vercel AI SDK.
- * Supports OpenAI, Anthropic, and Google providers.
+ * A provider's messages and tools as one engine turn: the system messages become the system
+ * prompt, and each tool message the result of the call it answers.
+ * @param messages - The conversation.
+ * @param tools - The tools the model may call.
+ * @param toolMode - "none" for a text answer only.
+ * @returns The turn.
+ */
+function toTurnRequest(messages: Message[], tools: ToolDefinition[], toolMode: "auto" | "none"): TurnRequest {
+    const saved: SavedMessage[] = [];
+    for (const [index, message] of messages.entries()) {
+        const id = `m${index + 1}`;
+        if (message.role === "user") {
+            saved.push({ id, role: "user", parts: [{ type: "text", origin: "reader", text: message.content }] });
+        } else if (message.role === "assistant") {
+            saved.push({
+                id,
+                role: "assistant",
+                parts: [
+                    ...(message.content
+                        ? [{ type: "text" as const, origin: "model" as const, text: message.content }]
+                        : []),
+                    ...(message.toolCalls ?? []).map((call) => ({
+                        type: "tool-call" as const,
+                        origin: "model" as const,
+                        callId: call.id,
+                        command: call.name,
+                        arguments: call.arguments,
+                    })),
+                ],
+            });
+        } else if (message.role === "tool") {
+            saved.push({
+                id,
+                role: "tool",
+                parts: [
+                    {
+                        type: "tool-result",
+                        origin: "graph-data",
+                        callId: message.toolCallId ?? "",
+                        code: "AI_COMPLETED",
+                        params: {},
+                        content: message.content,
+                    },
+                ],
+            });
+        }
+    }
+
+    return {
+        system: messages.flatMap((message) => (message.role === "system" ? [message.content] : [])).join("\n\n"),
+        messages: saved,
+        tools: tools.map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            schema: tool.parameters,
+            jsonSchema: toolJsonSchema(tool.parameters),
+        })),
+        toolMode,
+    };
+}
+
+/** What a turn came to: the response, or the coded error it ended with. */
+type TurnOutcome = { readonly response: LlmResponse } | { readonly error: TurnError };
+
+/**
+ * The LLM provider for OpenAI, Anthropic and Google: it holds the key, the model and the options,
+ * and calls the provider's API directly from the page. (The name is historical: the Vercel AI SDK
+ * no longer runs underneath.)
  */
 export class VercelAiProvider implements LlmProvider {
     readonly name: string;
@@ -44,6 +108,8 @@ export class VercelAiProvider implements LlmProvider {
     private maxTokens?: number;
     private temperature?: number;
     private providerType: VercelProviderType;
+    /** Reads this provider's configuration at every turn. */
+    private readonly engine: ProviderApiEngine;
 
     /**
      * Creates a new VercelAiProvider instance.
@@ -52,6 +118,21 @@ export class VercelAiProvider implements LlmProvider {
     constructor(providerType: VercelProviderType) {
         this.name = providerType;
         this.providerType = providerType;
+        this.engine = new ProviderApiEngine(() => ({
+            provider: this.providerType,
+            apiKey: this.apiKey,
+            model: this.model ?? DEFAULT_MODELS[this.providerType],
+            baseUrl: this.baseUrl,
+            maxTokens: this.maxTokens,
+            temperature: this.temperature,
+        }));
+        // The assistant runs this provider on that engine, unless a subclass replaced `generate`,
+        // whose override then answers every turn.
+        registerProviderApiEngine(this, () =>
+            Reflect.get(this, "generate") === Reflect.get(VercelAiProvider.prototype, "generate")
+                ? this.engine
+                : undefined,
+        );
     }
 
     /**
@@ -67,38 +148,42 @@ export class VercelAiProvider implements LlmProvider {
     }
 
     /**
-     * Get the configured model for the Vercel AI SDK.
-     * @returns Language model instance
+     * One turn on the engine.
+     * @param request - The turn.
+     * @param signal - Cancels it.
+     * @param callbacks - Told of each text delta and tool call as it arrives.
+     * @returns The response, or the error the turn ended with.
      */
-    private getModel(): LanguageModel {
-        if (!this.apiKey) {
-            const error = new Error(`API key not configured for ${this.name}`);
-            error.name = API_KEY_MISSING_ERROR;
-            throw error;
+    private async run(
+        request: TurnRequest,
+        signal: AbortSignal,
+        callbacks?: Pick<StreamCallbacks, "onChunk" | "onToolCall">,
+    ): Promise<TurnOutcome> {
+        let text = "";
+        const toolCalls: ToolCall[] = [];
+        let usage: LlmResponse["usage"];
+        for await (const event of this.engine.turn(request, signal)) {
+            switch (event.type) {
+                case "text":
+                    text += event.delta;
+                    callbacks?.onChunk(event.delta);
+                    break;
+                case "tool-call":
+                    toolCalls.push({ id: event.id, name: event.name, arguments: { ...event.arguments } });
+                    callbacks?.onToolCall(event.name, event.arguments);
+                    break;
+                case "usage":
+                    usage = { promptTokens: event.inputTokens, completionTokens: event.outputTokens };
+                    break;
+                case "error":
+                    return { error: event };
+                case "finish":
+                default:
+                    break;
+            }
         }
 
-        switch (this.providerType) {
-            case "openai": {
-                const openai = createOpenAI({ apiKey: this.apiKey, baseURL: this.baseUrl });
-                return openai(this.model ?? DEFAULT_MODELS.openai);
-            }
-            case "anthropic": {
-                const anthropic = createAnthropic({
-                    apiKey: this.apiKey,
-                    baseURL: this.baseUrl,
-                    // Enable browser support - Anthropic requires this header for CORS
-                    headers: {
-                        "anthropic-dangerous-direct-browser-access": "true",
-                    },
-                });
-                return anthropic(this.model ?? DEFAULT_MODELS.anthropic);
-            }
-            case "google":
-            default: {
-                const google = createGoogleGenerativeAI({ apiKey: this.apiKey, baseURL: this.baseUrl });
-                return google(this.model ?? DEFAULT_MODELS.google);
-            }
-        }
+        return { response: { text, toolCalls, usage } };
     }
 
     /**
@@ -115,51 +200,15 @@ export class VercelAiProvider implements LlmProvider {
         tools: ToolDefinition[],
         options?: { signal?: AbortSignal; toolChoice?: "auto" | "none" },
     ): Promise<LlmResponse> {
-        try {
-            return await this.generateUnsafe(messages, tools, options);
-        } catch (error) {
-            throw toSafeError(error, [this.apiKey]);
+        const outcome = await this.run(
+            toTurnRequest(messages, tools, options?.toolChoice ?? "auto"),
+            options?.signal ?? new AbortController().signal,
+        );
+        if ("error" in outcome) {
+            throw outcome.error.cause;
         }
-    }
 
-    /**
-     * {@link generate} without the error cleaning: what it throws may carry the request and the
-     * response, so it never leaves this class.
-     * @param messages - Conversation messages
-     * @param tools - Available tools for the LLM
-     * @param options - Generation options
-     * @param options.signal - Optional abort signal
-     * @param options.toolChoice - "none" for a text answer only; "auto" (default) lets the model call tools
-     * @returns Promise resolving to LLM response
-     */
-    private async generateUnsafe(
-        messages: Message[],
-        tools: ToolDefinition[],
-        options?: { signal?: AbortSignal; toolChoice?: "auto" | "none" },
-    ): Promise<LlmResponse> {
-        const model = this.getModel();
-        const convertedMessages = this.convertMessages(messages);
-        const convertedTools = this.convertTools(tools);
-
-        const result = await generateText({
-            model,
-            messages: convertedMessages,
-            tools: convertedTools,
-            toolChoice: options?.toolChoice,
-            maxOutputTokens: this.maxTokens,
-            temperature: this.temperature,
-            abortSignal: options?.signal,
-        });
-
-        const { usage } = result;
-        return {
-            text: result.text,
-            toolCalls: this.convertToolCalls(result.toolCalls),
-            usage:
-                usage.inputTokens !== undefined && usage.outputTokens !== undefined
-                    ? { promptTokens: usage.inputTokens, completionTokens: usage.outputTokens }
-                    : undefined,
-        };
+        return outcome.response;
     }
 
     /**
@@ -175,221 +224,39 @@ export class VercelAiProvider implements LlmProvider {
         callbacks: StreamCallbacks,
         signal?: AbortSignal,
     ): Promise<void> {
-        const model = this.getModel();
-        const convertedMessages = this.convertMessages(messages);
-        const convertedTools = this.convertTools(tools);
-
-        const result = streamText({
-            model,
-            messages: convertedMessages,
-            tools: convertedTools,
-            maxOutputTokens: this.maxTokens,
-            temperature: this.temperature,
-            abortSignal: signal,
-            // The SDK's default writes the raw error, request and response included, to
-            // console.error, where an error reporter's console breadcrumbs pick it up. The error
-            // still arrives below as an "error" part, cleaned.
-            onError: () => undefined,
-        });
-
-        let accumulatedText = "";
-        const toolCalls: ToolCall[] = [];
-
-        try {
-            for await (const event of result.fullStream) {
-                switch (event.type) {
-                    case "text-delta":
-                        accumulatedText += event.text;
-                        callbacks.onChunk(event.text);
-                        break;
-
-                    case "tool-call": {
-                        // Tool calls may have 'input' or 'args' depending on SDK version
-                        let args: Record<string, unknown> = {};
-                        if ("input" in event) {
-                            ({ input: args } = event as { input: Record<string, unknown> });
-                        } else if ("args" in event) {
-                            ({ args } = event);
-                        }
-
-                        const toolCall: ToolCall = {
-                            id: event.toolCallId,
-                            name: event.toolName,
-                            arguments: args,
-                        };
-                        toolCalls.push(toolCall);
-                        callbacks.onToolCall(event.toolName, args);
-                        break;
-                    }
-
-                    case "tool-result": {
-                        // Tool results may have 'output' or 'result' depending on SDK version
-                        let output: unknown;
-                        if ("output" in event) {
-                            ({ output } = event as { output: unknown });
-                        } else if ("result" in event) {
-                            ({ result: output } = event);
-                        }
-
-                        callbacks.onToolResult(event.toolName, output);
-                        break;
-                    }
-
-                    case "error":
-                        callbacks.onError(toSafeError(event.error, [this.apiKey]));
-                        break;
-
-                    default:
-                        // Ignore other event types
-                        break;
-                }
-            }
-
-            // Get final usage from the result
-            const finalUsage = await result.usage;
-
-            callbacks.onComplete({
-                text: accumulatedText,
-                toolCalls,
-                usage:
-                    finalUsage.inputTokens !== undefined && finalUsage.outputTokens !== undefined
-                        ? { promptTokens: finalUsage.inputTokens, completionTokens: finalUsage.outputTokens }
-                        : undefined,
-            });
-        } catch (error) {
-            const safe = toSafeError(error, [this.apiKey]);
-            callbacks.onError(safe);
-            throw safe;
-        }
-    }
-
-    /**
-     * Convert our Message format to Vercel AI SDK's ModelMessage format.
-     * @param messages - Messages to convert
-     * @returns Array of ModelMessage objects
-     */
-    private convertMessages(messages: Message[]): ModelMessage[] {
-        // A tool result names its tool: Google refuses a function response with an empty name.
-        // The name is the one the assistant's call with the same id gave.
-        const toolNames = new Map<string, string>();
-        for (const msg of messages) {
-            for (const call of msg.toolCalls ?? []) {
-                toolNames.set(call.id, call.name);
-            }
+        const outcome = await this.run(
+            toTurnRequest(messages, tools, "auto"),
+            signal ?? new AbortController().signal,
+            callbacks,
+        );
+        if ("error" in outcome) {
+            callbacks.onError(outcome.error.cause);
+            throw outcome.error.cause;
         }
 
-        return messages.map((msg): ModelMessage => {
-            switch (msg.role) {
-                case "system":
-                    return { role: "system", content: msg.content };
-
-                case "user":
-                    return { role: "user", content: msg.content };
-
-                case "assistant":
-                    if (msg.toolCalls && msg.toolCalls.length > 0) {
-                        return {
-                            role: "assistant",
-                            content: [
-                                ...(msg.content ? [{ type: "text" as const, text: msg.content }] : []),
-                                ...msg.toolCalls.map((tc) => ({
-                                    type: "tool-call" as const,
-                                    toolCallId: tc.id,
-                                    toolName: tc.name,
-                                    input: tc.arguments,
-                                })),
-                            ],
-                        };
-                    }
-
-                    return { role: "assistant", content: msg.content };
-
-                case "tool":
-                default:
-                    return {
-                        role: "tool",
-                        content: [
-                            {
-                                type: "tool-result" as const,
-                                toolCallId: msg.toolCallId ?? "",
-                                toolName: toolNames.get(msg.toolCallId ?? "") ?? "",
-                                output: { type: "text" as const, value: msg.content },
-                            },
-                        ],
-                    };
-            }
-        });
-    }
-
-    /**
-     * Convert our ToolDefinition format to Vercel AI SDK's tool format.
-     * We create plain tool objects to avoid complex generic inference issues with the AI SDK's
-     * tool() helper function which causes "Type instantiation is excessively deep" errors.
-     * @param tools - Tool definitions to convert
-     * @returns Record mapping tool names to Tool objects
-     */
-    private convertTools(tools: ToolDefinition[]): Record<string, Tool> {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const result: Record<string, any> = {};
-
-        for (const t of tools) {
-            // Create tool object directly without using the tool() helper
-            // to avoid TypeScript's excessive type instantiation depth error
-            result[t.name] = {
-                description: t.description,
-                inputSchema: t.parameters,
-            };
-        }
-
-        return result as Record<string, Tool>;
-    }
-
-    /**
-     * Convert Vercel AI SDK tool calls to our ToolCall format.
-     * @param toolCalls - Tool calls from Vercel AI SDK
-     * @returns Array of ToolCall objects
-     */
-    private convertToolCalls(
-        toolCalls: { toolCallId: string; toolName: string; input?: unknown; args?: unknown }[] | undefined,
-    ): ToolCall[] {
-        if (!toolCalls) {
-            return [];
-        }
-
-        return toolCalls.map((tc) => ({
-            id: tc.toolCallId,
-            name: tc.toolName,
-            arguments: (tc.input ?? tc.args ?? {}) as Record<string, unknown>,
-        }));
+        callbacks.onComplete(outcome.response);
     }
 
     /**
      * Validate the configured API key by making a minimal API call.
      * This sends a simple prompt to verify the key works.
-     * @returns Promise resolving to true if valid, false if invalid
-     * @throws Error if not configured or network error occurs
+     * @returns Promise resolving to true if valid, false if invalid (refused, or none configured)
+     * @throws Error if a network error or another provider error occurs
      */
     async validateApiKey(): Promise<boolean> {
-        try {
-            await this.generate([{ role: "user", content: "hi" }], [], {});
-
+        const outcome = await this.run(
+            toTurnRequest([{ role: "user", content: "hi" }], [], "auto"),
+            new AbortController().signal,
+        );
+        if (!("error" in outcome)) {
             return true;
-        } catch (error) {
-            // Check for authentication errors (401, 403, invalid_api_key, etc.)
-            const errorMessage = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-            if (
-                errorMessage.includes("401") ||
-                errorMessage.includes("403") ||
-                errorMessage.includes("unauthorized") ||
-                (errorMessage.includes("invalid") && errorMessage.includes("key")) ||
-                errorMessage.includes("authentication") ||
-                errorMessage.includes("api key")
-            ) {
-                return false;
-            }
-
-            // Re-throw non-auth errors (network issues, etc.)
-            throw error;
         }
+
+        const { code, cause } = outcome.error;
+        if (code === "AI_KEY_REJECTED" || code === "AI_KEY_MISSING") {
+            return false;
+        }
+
+        throw cause;
     }
 }

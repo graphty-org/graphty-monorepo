@@ -26,15 +26,8 @@ const semver = createRequire(join(REPO_ROOT, "package.json"))("semver") as {
 
 const EXACT = /^\d+\.\d+\.\d+(?:-[\w.]+)?$/;
 
-/**
- * Direct devDependencies that need no exact pin yet, with the reason. The AI SDK goes when the
- * TanStack engine replaces it (milestone 2), and this list with it.
- */
+/** Direct devDependencies that need no exact pin, with the reason. */
 const PIN_EXEMPT: Readonly<Record<string, string>> = {
-    ai: "the AI SDK 5, removed with milestone 2",
-    "@ai-sdk/anthropic": "the AI SDK 5, removed with milestone 2",
-    "@ai-sdk/google": "the AI SDK 5, removed with milestone 2",
-    "@ai-sdk/openai": "the AI SDK 5, removed with milestone 2",
     "@mlc-ai/web-llm": "an optional peer the consumer installs, never built in",
 };
 

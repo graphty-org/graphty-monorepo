@@ -38,7 +38,14 @@ function broken(file, code) {
 describe("refused", () => {
     const cases = [
         ["a TanStack import outside the adapter", "src/ai/AiController.ts", 'import { chat } from "@tanstack/ai";'],
-        ["the AI SDK outside its files", "src/ai/AiManager.ts", 'import { generateText } from "ai";'],
+        ["the AI SDK", "src/ai/AiManager.ts", 'import { generateText } from "ai";'],
+        [
+            "the AI SDK in the provider that once ran on it",
+            "src/ai/providers/VercelAiProvider.ts",
+            'import { generateText } from "ai";',
+        ],
+        ["the AI SDK beside WebLLM", "src/ai/providers/WebLlmProvider.ts", 'import { asSchema } from "ai";'],
+        ["the AI SDK mocked in a test", "test/ai/providers/VercelAiProvider.test.ts", 'vi.mock("ai");'],
         ["an AI SDK subpath", "src/Graph.ts", 'import { x } from "ai/rsc";'],
         ["a vendor SDK by import()", "src/ai/runConversation.ts", 'const m = await import("openai");'],
         ["a vendor SDK type", "src/ai/engine/types.ts", 'type T = import("@google/genai").GoogleGenAI;'],
@@ -70,7 +77,7 @@ describe("refused", () => {
             'import { x } from "@tanstack/ai-persistence";',
         ],
         ["the AI SDK in the adapter", "src/ai/engine/tanstack/openai.ts", 'import { generateText } from "ai";'],
-        ["a vendor SDK beside the AI SDK", "src/ai/providers/VercelAiProvider.ts", 'import OpenAI from "openai";'],
+        ["a vendor SDK outside the adapter", "src/ai/providers/VercelAiProvider.ts", 'import OpenAI from "openai";'],
         ["a zod subpath (the root's rule, kept)", "src/ai/engine/types.ts", 'import { z } from "zod/v4";'],
         ["the package's own restricted syntax (kept)", "src/ai/AiController.ts", "__layersGuard__;"],
     ];
@@ -103,16 +110,7 @@ describe("allowed", () => {
             "test/ai/engine/tanstack/openai.test.ts",
             'import { chat } from "@tanstack/ai"; vi.mock("openai");',
         ],
-        [
-            "the AI SDK where it still runs",
-            "src/ai/providers/VercelAiProvider.ts",
-            'import { generateText } from "ai";',
-        ],
-        [
-            "WebLLM and the AI SDK in WebLlmProvider",
-            "src/ai/providers/WebLlmProvider.ts",
-            'import { asSchema } from "ai"; await import("@mlc-ai/web-llm");',
-        ],
+        ["WebLLM in WebLlmProvider", "src/ai/providers/WebLlmProvider.ts", 'await import("@mlc-ai/web-llm");'],
         [
             "WebLLM mocked in its test",
             "test/ai/providers/loadWebLlmProvider.test.ts",

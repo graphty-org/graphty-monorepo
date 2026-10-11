@@ -14,8 +14,9 @@
  *   graphty code.
  * - The adapter folder is imported only by load.ts, and under src/ai/ every `import()` names a
  *   literal module, so nothing loads a framework by a computed name.
- * - Until the TanStack engine replaces it, the files that run on the AI SDK 5 may import it, and
- *   WebLlmProvider and its tests may import WebLLM, the in-browser engine.
+ * - The AI SDK 5 (`ai`, `@ai-sdk/*`) is refused everywhere: the TanStack engine replaced it, and its
+ *   peers stay declared, unused, until the next major. WebLlmProvider and its tests may import
+ *   WebLLM, the in-browser engine.
  *
  * ESLint keeps only the last setting of a rule for a file, so every block here carries the whole
  * rule: the root's restricted imports (zod) and the package's restricted syntax (layers) too.
@@ -25,15 +26,6 @@
 import { frameworkSpecifierSource } from "../../tools/ai-framework-packages.mjs";
 
 const FAMILIES = ["ai-sdk", "tanstack", "vendor", "webllm"];
-
-/** Files that run on the AI SDK 5. The TanStack engine (milestone 2) removes the SDK and this list. */
-export const AI_SDK_FILES = [
-    "src/ai/providers/VercelAiProvider.ts",
-    "src/ai/providers/WebLlmProvider.ts",
-    "test/ai/providers/VercelAiProvider.test.ts",
-    "test/ai/providers/VercelAiProvider.errors.test.ts",
-    "test/ai/commands/command-json-schemas.test.ts",
-];
 
 /** WebLLM, the in-browser engine, is loaded by WebLlmProvider; these files are it and its tests. */
 export const WEBLLM_FILES = [
@@ -148,19 +140,9 @@ export function aiEngineBoundary(rootConfig, syntax) {
             rules: rules({ loader: true, anyImport: false }, base),
         },
         {
-            name: "ai-engine-boundary/ai-sdk",
-            files: AI_SDK_FILES,
-            rules: rules({ allow: ["ai-sdk"], anyImport: false }, base),
-        },
-        {
             name: "ai-engine-boundary/webllm",
             files: WEBLLM_FILES,
             rules: rules({ allow: ["webllm"], anyImport: false }, base),
-        },
-        {
-            name: "ai-engine-boundary/webllm-on-ai-sdk",
-            files: AI_SDK_FILES.filter((f) => WEBLLM_FILES.includes(f)),
-            rules: rules({ allow: ["ai-sdk", "webllm"], anyImport: false }, base),
         },
         {
             name: "ai-engine-boundary/adapter",

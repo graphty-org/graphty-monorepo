@@ -1,11 +1,12 @@
 /**
- * The JSON Schema every AI command's parameters convert to, through the AI SDK's `asSchema` (what
- * VercelAiProvider and WebLlmProvider hand the model). A change to the committed file is a change
- * in what the model is told, so it fails here first. Keys are sorted, so only content counts.
+ * The JSON Schema every AI command's parameters convert to, through graphty's own conversion
+ * (what the provider-API engine and WebLlmProvider hand the model). The committed file was written
+ * by the AI SDK 5's `asSchema` and the conversion reproduced it exactly before the SDK was removed,
+ * so a change to it is a change in what the model is told, and fails here first. Keys are sorted,
+ * so only content counts.
  * @module test/ai/commands/command-json-schemas.test
  */
 
-import { asSchema } from "ai";
 import { describe, expect, it } from "vitest";
 
 import * as AlgorithmCommands from "../../../src/ai/commands/AlgorithmCommands";
@@ -56,21 +57,11 @@ const commands = modules
 
 describe("AI command JSON Schemas", () => {
     it("match the committed schemas", async () => {
-        const schemas = Object.fromEntries(commands.map((c) => [c.name, sortKeys(asSchema(c.parameters).jsonSchema)]));
+        const schemas = Object.fromEntries(commands.map((c) => [c.name, sortKeys(toolJsonSchema(c.parameters))]));
 
         expect(commands.length).toBeGreaterThan(10);
         await expect(`${JSON.stringify(schemas, null, 4)}\n`).toMatchFileSnapshot(
             "./__snapshots__/command-json-schemas.json",
         );
-    });
-
-    // The engine seam's own conversion, which the provider-API engine declares tools with, tells
-    // the model exactly what the AI SDK tells it today.
-    it("are what graphty's own conversion makes, for every command", () => {
-        for (const command of commands) {
-            expect(toolJsonSchema(command.parameters), command.name).toStrictEqual(
-                asSchema(command.parameters).jsonSchema,
-            );
-        }
     });
 });

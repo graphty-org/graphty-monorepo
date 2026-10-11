@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 
 import { assert, describe, it } from "vitest";
 
-import { type FrameworkFamily, frameworkFamily, packageName } from "../../../tools/ai-framework-packages.mjs";
+import { frameworkFamily, packageName } from "../../../tools/ai-framework-packages.mjs";
 
 const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const META = resolve(PACKAGE_ROOT, "build/chunks.json");
@@ -40,17 +40,6 @@ function exportedEntries(): string[] {
         typeof target === "object" && target.import !== undefined ? [target.import.replace(/^\.\/dist\//, "")] : [],
     );
 }
-
-/**
- * Framework families a chunk an entry reaches may still import as an external package, by entry,
- * with the reason. The TanStack engine (milestone 2) loads every framework with import() and
- * empties this.
- */
-const STATIC_EXTERNAL_ALLOWED: Readonly<Record<string, Partial<Record<FrameworkFamily, string>>>> = {
-    "ai.js": {
-        "ai-sdk": "VercelAiProvider imports the AI SDK 5 (an optional peer) until the TanStack engine replaces it",
-    },
-};
 
 /** The provider each provider package serves: one chunk may hold one provider's code. */
 const PROVIDER_OF: readonly [RegExp, string][] = [
@@ -105,8 +94,7 @@ function lazyChunkProblems(chunks: readonly Chunk[], entries: readonly string[])
             }
 
             for (const spec of chunk.imports.filter((i) => !byFile.has(i))) {
-                const family = frameworkFamily(spec);
-                if (family !== undefined && STATIC_EXTERNAL_ALLOWED[entry]?.[family] === undefined) {
+                if (frameworkFamily(spec) !== undefined) {
                     problems.push(`${entry} loads ${file} up front, which imports ${spec}`);
                 }
             }

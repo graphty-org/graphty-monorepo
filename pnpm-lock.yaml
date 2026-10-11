@@ -695,6 +695,15 @@ importers:
 
   graphty-element:
     dependencies:
+      '@ai-sdk/anthropic':
+        specifier: '*'
+        version: 2.0.108(zod@4.6.5)
+      '@ai-sdk/google':
+        specifier: '*'
+        version: 2.0.101(zod@4.6.5)
+      '@ai-sdk/openai':
+        specifier: '*'
+        version: 2.0.133(zod@4.6.5)
       '@graphty/algorithms':
         specifier: workspace:^
         version: link:../algorithms
@@ -713,6 +722,9 @@ importers:
       '@mlc-ai/web-llm':
         specifier: '>=0.2.0'
         version: 0.2.85
+      ai:
+        specifier: '*'
+        version: 5.0.271(zod@4.6.5)
       colorjs.io:
         specifier: ^0.5.2
         version: 0.5.2
@@ -741,15 +753,6 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
-      '@ai-sdk/anthropic':
-        specifier: ^2.0.107
-        version: 2.0.108(zod@4.6.5)
-      '@ai-sdk/google':
-        specifier: ^2.0.100
-        version: 2.0.101(zod@4.6.5)
-      '@ai-sdk/openai':
-        specifier: ^2.0.132
-        version: 2.0.133(zod@4.6.5)
       '@babylonjs/core':
         specifier: ^8.36.1
         version: 8.56.2
@@ -813,9 +816,6 @@ importers:
       '@vitest/browser-playwright':
         specifier: 'catalog:'
         version: 4.1.11(playwright@1.63.0)(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)
-      ai:
-        specifier: ^5.0.270
-        version: 5.0.271(zod@4.6.5)
       ajv:
         specifier: ^8.20.0
         version: 8.20.0

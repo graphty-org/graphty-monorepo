@@ -76,7 +76,7 @@ export class CommandRegistry {
     }
 
     /**
-     * Convert all registered commands to Vercel AI SDK tool definitions.
+     * Convert all registered commands to tool definitions, as an `LlmProvider` takes them.
      * @returns Array of tool definitions for use with LLM providers
      */
     toToolDefinitions(): ToolDefinition[] {

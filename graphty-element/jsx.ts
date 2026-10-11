@@ -303,7 +303,7 @@ export interface GraphtyElementJSXProps {
      */
     "acceleration-min-nodes"?: string;
     /**
-     * The assistant held a batch of its changes for the reader's approval: it was large, slow,
+     * The assistant held a batch of its changes for the reader's approval: it was large, slow, replaced the graph, could not be undone or fetched a URL the reader did not give. Nothing it asked for has happened. Answer with `resolveAiApproval(request.id, { approve })`; the id expires at the reader's next message. A host that listens for none of these never runs a held batch.
      */
     "onai-approval-requested"?: (event: CustomEvent<EventOfType<"ai-approval-requested">>) => void;
     /**
@@ -323,7 +323,7 @@ export interface GraphtyElementJSXProps {
      */
     "onai-command-start"?: (event: CustomEvent<EventOfType<"ai-command-start">>) => void;
     /**
-     * The assistant exported the graph or captured a picture or a video: the document is handed to
+     * The assistant exported the graph or captured a picture or a video: the document is handed to the application, which saves or shows it. The model receives only its size.
      */
     "onai-export-ready"?: (event: CustomEvent<EventOfType<"ai-export-ready">>) => void;
     /**
@@ -359,7 +359,7 @@ export interface GraphtyElementJSXProps {
     "oncamera-state-changed"?: (event: CustomEvent<EventOfType<"camera-state-changed">>) => void;
     "ondata-added"?: (event: CustomEvent<EventOfType<"data-added">>) => void;
     /**
-     * Emitted once every time the graph's data is cleared -- by `clearData()`, and by a load that
+     * Emitted once every time the graph's data is cleared -- by `clearData()`, and by a load that replaces the dataset -- after every node and edge is gone. It carries nothing, so it survives structured cloning; a consumer that wants the new counts reads them.
      */
     "ondata-cleared"?: (event: CustomEvent<EventOfType<"data-cleared">>) => void;
     "ondata-loaded"?: (event: CustomEvent<EventOfType<"data-loaded">>) => void;

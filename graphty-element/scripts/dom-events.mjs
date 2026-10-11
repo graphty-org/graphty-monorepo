@@ -53,7 +53,8 @@ function stringLiterals(node) {
 }
 
 /**
- * Reads the first line of an interface's JSDoc comment, if it has one.
+ * Reads the first paragraph of an interface's JSDoc comment, if it has one, as one line: a
+ * sentence wrapped over several lines is kept whole.
  * @param {ts.InterfaceDeclaration} declaration The interface to read.
  * @returns {string} The description, or an empty string when the interface carries no JSDoc.
  */
@@ -62,7 +63,12 @@ function description(declaration) {
     const comment = docs[0]?.comment;
 
     if (typeof comment === "string") {
-        return comment.split("\n")[0].trim();
+        return comment
+            .split(/\n\s*\n/)[0]
+            .split("\n")
+            .map((line) => line.trim())
+            .join(" ")
+            .trim();
     }
 
     return "";

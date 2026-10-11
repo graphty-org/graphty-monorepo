@@ -104,7 +104,8 @@ const BEFORE_VALUE = /(==|!=|<=|>=|<|>)\s*$/;
  * @returns The literal.
  */
 export function rawString(value: string): string {
-    return `'${value.replaceAll("\\", String.raw`\\`).replaceAll("'", String.raw`\'`)}'`;
+    const escaped = value.replaceAll("\\", String.raw`\\`).replaceAll("'", String.raw`\'`);
+    return `'${escaped}'`;
 }
 
 /**

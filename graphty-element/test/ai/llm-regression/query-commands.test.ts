@@ -90,8 +90,11 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
             assert.ok(selector.includes("server"), `Expected selector to include 'server' but got '${selector}'`);
         });
 
-        it("calls findNodes for 'Show nodes with type database'", async () => {
-            const result = await harness.testPrompt("Show nodes with type database");
+        // A question, not "Show ...": "show" also reads as "show me them on the canvas", which
+        // findAndStyleNodes and zoomToNodes answer just as well, and gemini at temperature 0 took
+        // that reading once (#1989). The question leaves findNodes as the only right answer.
+        it("calls findNodes for 'Which nodes have type database?'", async () => {
+            const result = await harness.testPrompt("Which nodes have type database?");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             const call = assertCalled(result, "findNodes");

@@ -70,7 +70,9 @@ export const NOT_YET_COVERED_ISSUE = 1643;
  */
 export const NOT_YET_COVERED: readonly string[] = [
     "AiController.execute",
+    "AiController.resolveAiApproval",
     "AiManager.execute",
+    "AiManager.resolveAiApproval",
     "AiManager.retry",
     "Algorithm.publishResult",
     "Algorithm.run",
@@ -125,6 +127,7 @@ export const NOT_YET_COVERED: readonly string[] = [
     "Graph.removeEdges",
     "Graph.removeNodes",
     "Graph.render",
+    "Graph.resolveAiApproval",
     "Graph.retryLastAiCommand",
     "Graph.run",
     "Graph.runAlgorithm",
@@ -171,6 +174,7 @@ export const NOT_YET_COVERED: readonly string[] = [
     "Graphty.removeEdges",
     "Graphty.removeNodes",
     "Graphty.render",
+    "Graphty.resolveAiApproval",
     "Graphty.retryLastAiCommand",
     "Graphty.run",
     "Graphty.runAlgorithm",

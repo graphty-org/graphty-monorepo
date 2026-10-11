@@ -16,7 +16,9 @@
 
 export const MUTATING: readonly string[] = [
     "AiController.execute",
+    "AiController.resolveAiApproval",
     "AiManager.execute",
+    "AiManager.resolveAiApproval",
     "AiManager.retry",
     "Algorithm.publishResult",
     "Algorithm.run",
@@ -73,6 +75,7 @@ export const MUTATING: readonly string[] = [
     "Graph.removeEdges",
     "Graph.removeNodes",
     "Graph.render",
+    "Graph.resolveAiApproval",
     "Graph.retryLastAiCommand",
     "Graph.run",
     "Graph.runAlgorithm",
@@ -121,6 +124,7 @@ export const MUTATING: readonly string[] = [
     "Graphty.removeEdges",
     "Graphty.removeNodes",
     "Graphty.render",
+    "Graphty.resolveAiApproval",
     "Graphty.retryLastAiCommand",
     "Graphty.run",
     "Graphty.runAlgorithm",

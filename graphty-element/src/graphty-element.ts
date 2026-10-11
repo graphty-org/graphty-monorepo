@@ -3990,6 +3990,31 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Answer a request the assistant made for the reader's approval (`ai-approval-requested`): a
+     * change it held because it was large, slow, replaced the graph, could not be undone or
+     * fetched a URL the reader did not give. Approve runs it as one more step of its message; deny
+     * drops it. A request expires at the reader's next message.
+     * @param id - The request's id, from the event.
+     * @param answer - The reader's answer.
+     * @param answer.approve - True to run the change.
+     * @returns The change's result, `AI_APPROVAL_DENIED`, `AI_APPROVAL_STALE` or `AI_NOT_ENABLED`.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * element.addEventListener("ai-approval-requested", async (event) => {
+     *     const { request } = event.detail;
+     *     await element.resolveAiApproval(request.id, { approve: window.confirm("Apply it?") });
+     * });
+     * ```
+     */
+    async resolveAiApproval(
+        id: string,
+        answer: { readonly approve: boolean },
+    ): Promise<import("./ai/AiController").ExecutionResult> {
+        return this.#graph.resolveAiApproval(id, answer);
+    }
+
+    /**
      * Get the AI manager.
      * @returns The AI manager, or null if not enabled
      * @since 1.5.0

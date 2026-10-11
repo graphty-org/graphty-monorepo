@@ -112,19 +112,19 @@ describe("runConversation", () => {
         });
         const call = { type: "tool-call", id: "t", name: "look", arguments: {} } as const;
         const engine = new FakeEngine(
-            Array.from({ length: 6 }, () => [call, { type: "finish", reason: "tool-calls" } as const]),
+            Array.from({ length: 9 }, () => [call, { type: "finish", reason: "tool-calls" } as const]),
         );
         const { result } = await run(engine, "look around", registry);
-        // Five tool rounds run; the sixth turn may only answer, so its call does not run.
-        assert.strictEqual(ran, 5);
+        // Eight tool rounds run; the ninth turn may only answer, so its call does not run.
+        assert.strictEqual(ran, 8);
         assert.deepStrictEqual(
             engine.requests.map((r) => r.toolMode),
-            ["auto", "auto", "auto", "auto", "auto", "none"],
+            [...Array.from({ length: 8 }, () => "auto"), "none"],
         );
         const last = engine.requests.at(-1);
         assert.strictEqual(last?.messages.at(-2)?.role, "tool");
         assert.strictEqual(last?.messages.at(-1)?.parts[0].type, "text");
-        assert.strictEqual(result.params?.toolCalls, 5);
+        assert.strictEqual(result.params?.toolCalls, 8);
     });
 
     it("keeps a call's provider state with it, so the next turn can send it back", async () => {
@@ -154,7 +154,7 @@ describe("runConversation", () => {
         assert.deepStrictEqual(call?.type === "tool-call" ? call.providerState : undefined, providerState);
     });
 
-    it("records each call's own outcome: the one that failed, and the one that did not run after it", async () => {
+    it("records each call's own outcome: the failure, and the others rolled back with it or never run", async () => {
         const registry = new CommandRegistry();
         for (const [name, success] of [
             ["ok", true],
@@ -182,9 +182,10 @@ describe("runConversation", () => {
         const results = conv.messages
             .flatMap((m) => m.parts)
             .flatMap((p) => (p.type === "tool-result" ? [[p.callId, p.code, p.params]] : []));
+        // The batch is all or nothing: the failure rolls back the call before it, too.
         assert.deepStrictEqual(results, [
-            ["t1", "AI_COMPLETED", {}],
-            ["t2", "AI_TOOL_FAILED", { tool: "broken" }],
+            ["t1", "AI_TOOL_NOT_RUN", { tool: "ok" }],
+            ["t2", "AI_TOOL_FAILED", { tool: "broken", cause: "AI_TOOL_FAILED" }],
             ["t3", "AI_TOOL_NOT_RUN", { tool: "later" }],
         ]);
     });
@@ -215,7 +216,7 @@ describe("runConversation", () => {
         assert.strictEqual(result.code, "AI_TOOL_INVALID_ARGUMENTS");
         const [part] = conv.messages.flatMap((m) => m.parts).filter((p) => p.type === "tool-result");
         assert.strictEqual(part.type === "tool-result" && part.code, "AI_TOOL_INVALID_ARGUMENTS");
-        assert.include(part.type === "tool-result" ? part.content : "", "not a complete JSON object");
+        assert.include(part.type === "tool-result" ? part.content : "", "AI_TOOL_INVALID_ARGUMENTS");
     });
 
     it("runs no call of a turn whose stream stops without a finish", async () => {

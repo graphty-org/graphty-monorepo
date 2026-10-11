@@ -15,6 +15,8 @@ import { ApiKeyManager } from "./keys";
 import { createProvider, type ProviderType } from "./providers";
 import type { LlmProvider } from "./providers/types";
 import { SchemaManager } from "./schema";
+import { ASSISTANT_TOOL_NAMES } from "./tools/toolset";
+import type { AssistantGateLimits } from "./tools/types";
 
 /** Default debounce delay for schema updates in milliseconds */
 const SCHEMA_UPDATE_DEBOUNCE_MS = 300;
@@ -49,10 +51,37 @@ export interface AiManagerConfig {
     model?: string;
     /** Whether to register built-in commands (default: true) */
     registerBuiltinCommands?: boolean;
+    /**
+     * Which tools a model is offered: `"standard"` (eleven core tools plus those a catalog search
+     * loads), `"small"` (four tools, for a model that breaks past a handful), or `"auto"` (the
+     * default: `"small"` for WebLLM, `"standard"` otherwise).
+     */
+    toolProfile?: "standard" | "small" | "auto";
+    /**
+     * The limits past which the assistant's changes are held for the reader's approval (the
+     * `ai-approval-requested` event, answered with `resolveAiApproval`), or `false` to run every
+     * change without asking. A host that handles no approval events never runs a held change.
+     * Default `DEFAULT_ASSISTANT_GATE_LIMITS`.
+     */
+    gate?: Partial<AssistantGateLimits> | false;
+    /**
+     * Admits a URL the reader did not type for an import (an admitted URL is still held for
+     * approval). Absent, the assistant imports only URLs that appear in the reader's own message.
+     */
+    allowImportUrl?: (url: URL) => boolean;
     /** Optional custom provider instance (e.g., pre-initialized WebLlmProvider) */
     providerInstance?: LlmProvider;
     /** Key persistence configuration for encrypted storage */
     keyPersistence?: KeyPersistenceConfig;
+}
+
+/**
+ * The profile `"auto"` picks.
+ * @param smallModel - Whether the provider runs a small in-browser model.
+ * @returns The profile.
+ */
+function toolProfileFor(smallModel: boolean): "standard" | "small" {
+    return smallModel ? "small" : "standard";
 }
 
 /**
@@ -131,12 +160,17 @@ export class AiManager {
         // Initialize schema manager and set up data change listeners
         this.initializeSchemaManager();
 
-        // Create the controller
+        // Create the controller. WebLLM's models break past a handful of tools.
+        const profile = config.toolProfile ?? "auto";
+        const smallModel = config.provider === "webllm";
         this.controller = new AiController({
             provider: this.provider,
             commandRegistry: this.commandRegistry,
             graph: this.graph,
             schemaManager: this.schemaManager,
+            toolProfile: profile === "auto" ? toolProfileFor(smallModel) : profile,
+            ...(config.gate === undefined ? {} : { gate: config.gate }),
+            ...(config.allowImportUrl === undefined ? {} : { allowImportUrl: config.allowImportUrl }),
             // Onto the graph's own event channel, so `addListener` and the element's DOM
             // forwarder both deliver every AI event.
             emitEvent: (event) => {
@@ -201,9 +235,27 @@ export class AiManager {
      * @param command - The command to register
      */
     registerCommand(command: Parameters<CommandRegistry["register"]>[0]): void {
-        if (!this.commandRegistry.has(command.name)) {
+        // A name the assistant's own tools hold is refused (E_DUPLICATE_PLUGIN), never skipped.
+        if (!this.commandRegistry.has(command.name) || ASSISTANT_TOOL_NAMES.has(command.name)) {
             this.commandRegistry.register(command);
         }
+    }
+
+    /**
+     * Answer a request the assistant made for the reader's approval (`ai-approval-requested`):
+     * approve runs the held change as one more step of its message; deny drops it. A request
+     * expires at the reader's next message.
+     * @param id - The request's id.
+     * @param answer - The reader's answer.
+     * @param answer.approve - True to run the change.
+     * @returns The change's result, `AI_APPROVAL_DENIED` or `AI_APPROVAL_STALE`.
+     */
+    async resolveAiApproval(id: string, answer: { readonly approve: boolean }): Promise<ExecutionResult> {
+        if (!this.controller) {
+            return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
+        }
+
+        return this.controller.resolveAiApproval(id, answer);
     }
 
     /**

@@ -13,15 +13,22 @@ import type { CommandContext, CommandResult } from "./commands/types";
 import { ENGINE_OVERRIDE, engineFor } from "./engine/load";
 import type { AiEngine } from "./engine/types";
 import type { LlmProvider } from "./providers/types";
-import { type Conversation, MessageRolledBack, runConversation, TurnFailed } from "./runConversation";
+import { type Conversation, latestStepOf, MessageRolledBack, runConversation, TurnFailed } from "./runConversation";
 import { toSafeError } from "./safeError";
 import type { SchemaManager } from "./schema";
-import type { Outcome } from "./ToolExecutor";
+import { type HeldBatch, type Outcome, runToolBatch } from "./ToolExecutor";
+import { hasAssistantTools, installAssistantTools } from "./tools/install";
+import { assistantInstructions, factsBlock } from "./tools/prompt";
+import { isAssistantTool } from "./tools/toolset";
+import { type AssistantGateLimits, DEFAULT_ASSISTANT_GATE_LIMITS } from "./tools/types";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
 
 /** Numbers each message, so its steps can be found in the history by their provenance. */
 let messageCount = 0;
+
+/** Numbers each approval request. */
+let approvalCount = 0;
 
 /**
  * Whether one of a message's steps has been undone.
@@ -40,16 +47,36 @@ function undoneStepOf(session: GraphSession, message: string): boolean {
  * is: reverting under it could clobber it, so the message's older steps stay, undoable in order.
  * @param session - The session.
  * @param message - The message's number.
+ * @returns How many of the message's steps remain applied: zero when it was taken back whole.
  */
-async function revertMessage(session: GraphSession, message: string): Promise<void> {
+async function revertMessage(session: GraphSession, message: string): Promise<number> {
     for (;;) {
         const next = session.history.nextUndo;
         if (next?.kind !== "undo" || next.step.provenance.message !== message) {
-            return;
+            const { steps, position } = session.history;
+            return steps.slice(0, position).filter((step) => step.provenance.message === message).length;
         }
 
         await session.undo();
     }
+}
+
+/** A batch held for the host's approval, until the reader's next message. */
+interface PendingApproval {
+    readonly message: string;
+    readonly label: string;
+    readonly calls: HeldBatch["calls"];
+    readonly revision: string;
+    readonly readerText: string;
+}
+
+/**
+ * The session's revision: it moves on every edit, undo and selection change.
+ * @param session - The session.
+ * @returns The revision.
+ */
+function revisionOf(session: GraphSession): string {
+    return session.data.nodePage({ limit: 0 }).revision;
 }
 
 /** Event emitter callback type */
@@ -67,6 +94,23 @@ export interface AiControllerOptions {
     emitEvent?: AiEventEmitter;
     /** Optional schema manager for data schema in prompts */
     schemaManager?: SchemaManager | null;
+    /**
+     * Which tools a model is offered when the registry holds the generated ones: `"standard"` (the
+     * core tools plus those a catalog search loads) or `"small"` (catalog, query, call and undo,
+     * for a model that breaks past a handful of tools). Default `"standard"`.
+     */
+    toolProfile?: "standard" | "small";
+    /**
+     * The limits past which the assistant's changes are held for the reader's approval
+     * (`ai-approval-requested`), or `false` to run every change without asking. Default
+     * `DEFAULT_ASSISTANT_GATE_LIMITS`.
+     */
+    gate?: Partial<AssistantGateLimits> | false;
+    /**
+     * Admits a URL the reader did not type for an import; an admitted URL is still held for
+     * approval. Absent, only URLs in the reader's own message are imported.
+     */
+    allowImportUrl?: (url: URL) => boolean;
 }
 
 /** Combined result from execution */
@@ -100,6 +144,13 @@ export class AiController {
     private lastError: Error | null = null;
     /** The messages `cancel()` ended, so their results say cancelled, not undone. */
     private readonly cancelled = new WeakSet<AbortController>();
+    /** Batches held for approval, by request id, until the reader's next message. */
+    private readonly approvals = new Map<string, PendingApproval>();
+    private readonly profile: "standard" | "small";
+    private readonly gate: Readonly<AssistantGateLimits> | false;
+    private readonly allowImportUrl: ((url: URL) => boolean) | undefined;
+    /** Runs the assistant started, which it may cancel without asking. */
+    private readonly assistantRuns = new Set<string>();
 
     /**
      * Creates a new AiController instance.
@@ -115,6 +166,9 @@ export class AiController {
         this.statusManager = new AiStatusManager();
         this.schemaManager = options.schemaManager ?? null;
         this.emitEvent = options.emitEvent;
+        this.profile = options.toolProfile ?? "standard";
+        this.gate = options.gate === false ? false : { ...DEFAULT_ASSISTANT_GATE_LIMITS, ...options.gate };
+        this.allowImportUrl = options.allowImportUrl;
 
         // Subscribe to status changes to emit events
         this.statusManager.subscribe((status) => {
@@ -177,9 +231,15 @@ export class AiController {
         // batch after the first continues the message's step (`after`), merging into it while it
         // is the newest step. An undo of one of its steps while the message is going ends it.
         const message = String(++messageCount);
+        // A held batch's approval expires when the reader says something new.
+        this.approvals.clear();
         let stopWatching: (() => void) | undefined;
         try {
             const session = this.graph.getSession();
+            if (hasAssistantTools(this.commandRegistry)) {
+                // A plugin registered since the last message reaches the model now.
+                installAssistantTools(this.commandRegistry, session);
+            }
             stopWatching = session.on("history:changed", () => {
                 if (!abortController.signal.aborted && undoneStepOf(session, message)) {
                     abortController.abort(new DOMException("The message was undone.", "AbortError"));
@@ -188,8 +248,11 @@ export class AiController {
 
             let result: ExecutionResult;
             try {
+                const emit = (event: AiEvent): void => {
+                    this.emitAiEvent(event);
+                };
                 result = await runConversation({
-                    conversation: this.startConversation(input),
+                    conversation: this.startConversation(input, session),
                     engine: this.engine,
                     tools: this.commandRegistry,
                     graph: this.graph,
@@ -197,22 +260,34 @@ export class AiController {
                     label: input,
                     message,
                     abort: abortController,
-                    sink: {
-                        emit: (event) => {
-                            this.emitAiEvent(event);
-                        },
-                        status: this.statusManager,
+                    sink: { emit, status: this.statusManager },
+                    profile: this.profile,
+                    state: {
+                        id: message,
+                        gate: this.gate,
+                        runs: this.assistantRuns,
+                        undoCalls: 0,
+                        totals: { removeNodes: 0, removeEdges: 0, changedValues: 0 },
                     },
+                    host: {
+                        emit,
+                        readerText: input,
+                        ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
+                    },
+                    hold: (held) => this.hold(held, message, input, session),
                 });
             } catch (error) {
                 // A tool threw, the message was cancelled or undone, or the model failed: what the
                 // message's earlier batches recorded is taken back, as one transaction's rollback was.
-                await revertMessage(session, message);
+                const remaining = await revertMessage(session, message);
                 if (!(error instanceof MessageRolledBack)) {
                     throw error;
                 }
 
                 ({ result } = error);
+                if (remaining > 0) {
+                    result = { ...result, code: "AI_ROLLBACK_PARTIAL", params: { ...result.params, steps: remaining } };
+                }
                 // The batch's rollback aborts the message too, so only a cancel overrides the tool's code.
                 if (this.cancelled.has(abortController)) {
                     result = { ...result, code: "AI_CANCELLED", params: {} };
@@ -289,6 +364,93 @@ export class AiController {
     }
 
     /**
+     * Store a held batch and ask the host about it.
+     * @param held - The batch.
+     * @param message - The message that made it.
+     * @param label - The message's text, its step's label.
+     * @param session - The session, for its revision.
+     * @returns The request's id.
+     */
+    private hold(held: HeldBatch, message: string, label: string, session: GraphSession): string {
+        const id = `approval-${String(++approvalCount)}`;
+        this.approvals.set(id, { message, label, calls: held.calls, revision: revisionOf(session), readerText: label });
+        this.emitAiEvent({
+            type: "ai-approval-requested",
+            request: {
+                id,
+                gate: held.gate,
+                calls: held.calls.map((call) => ({ tool: call.name, arguments: call.arguments })),
+                preview: held.preview,
+            },
+        });
+        return id;
+    }
+
+    /**
+     * Answer an approval request: approve runs the held change as one more step of its message;
+     * deny drops it. A request expires at the reader's next message, and one answered after the
+     * graph changed is refused as stale.
+     * @param id - The request's id, from `ai-approval-requested`.
+     * @param answer - Whether the reader approves.
+     * @param answer.approve - True to run the change.
+     * @returns What happened: the batch's result, `AI_APPROVAL_DENIED` or `AI_APPROVAL_STALE`.
+     */
+    async resolveAiApproval(id: string, answer: { readonly approve: boolean }): Promise<ExecutionResult> {
+        const pending = this.approvals.get(id);
+        this.approvals.delete(id);
+        const session = this.graph.getSession();
+        if (pending === undefined || revisionOf(session) !== pending.revision) {
+            return { success: false, message: "", code: "AI_APPROVAL_STALE", params: { request: id } };
+        }
+
+        if (!answer.approve) {
+            return { success: true, message: "", code: "AI_APPROVAL_DENIED", params: { request: id } };
+        }
+
+        const abort = new AbortController();
+        const emit = (event: AiEvent): void => {
+            this.emitAiEvent(event);
+        };
+        const batch = await runToolBatch({
+            calls: pending.calls,
+            registry: this.commandRegistry,
+            graph: this.graph,
+            session,
+            label: pending.label,
+            message: {
+                id: pending.message,
+                gate: false,
+                runs: this.assistantRuns,
+                undoCalls: 0,
+                totals: { removeNodes: 0, removeEdges: 0, changedValues: 0 },
+            },
+            after: latestStepOf(session, pending.message),
+            abort,
+            sink: { emit, status: this.statusManager },
+            host: {
+                emit,
+                readerText: pending.readerText,
+                ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
+            },
+        });
+        const results = batch.results.filter((result) => result !== undefined);
+        return batch.failure === undefined
+            ? {
+                  success: true,
+                  message: "",
+                  data: results.at(-1)?.data,
+                  code: "AI_COMPLETED",
+                  params: { request: id, toolCalls: results.length },
+              }
+            : {
+                  success: false,
+                  message: "",
+                  code: batch.failure.code,
+                  params: { ...batch.failure.params, request: id },
+              };
+    }
+
+    /**
      * Get the last input that was executed.
      * @returns The last input or null if no command has been executed
      */
@@ -312,12 +474,33 @@ export class AiController {
     }
 
     /**
-     * A new conversation for one message: the instructions, with the commands and the data's
-     * schema, and the reader's request.
+     * A new conversation for one message: the instructions, the facts about the graph and the
+     * reader's request.
      * @param input - User input
+     * @param session - The session, for the facts.
      * @returns The conversation
      */
-    private startConversation(input: string): Conversation {
+    private startConversation(input: string, session: GraphSession): Conversation {
+        if (hasAssistantTools(this.commandRegistry)) {
+            // The generated tools: fixed instructions, and the facts as graph data, never in them.
+            const consumer = this.commandRegistry
+                .getAll()
+                .filter((command) => !isAssistantTool(command) && (command.load ?? "always") === "always");
+            return {
+                system: assistantInstructions(this.profile, consumer),
+                messages: [
+                    {
+                        id: "m1",
+                        role: "user",
+                        parts: [
+                            { type: "text", origin: "graph-data", text: factsBlock(session, this.profile) },
+                            { type: "text", origin: "reader", text: input },
+                        ],
+                    },
+                ],
+            };
+        }
+
         const commands = this.commandRegistry.getAll();
         const commandDescriptions = commands.map((cmd) => `- ${cmd.name}: ${cmd.description}`).join("\n");
         const schemaSection = this.buildSchemaSection();

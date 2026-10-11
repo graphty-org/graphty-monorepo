@@ -12,7 +12,15 @@
 import { chat, EventType, type ModelMessage, type StreamChunk } from "@tanstack/ai";
 
 import { providerFailure } from "../LlmProviderEngine";
-import type { ProviderApiSettings, ProviderState, SavedMessage, TurnError, TurnEvent, TurnRequest } from "../types";
+import {
+    type ProviderApiSettings,
+    type ProviderState,
+    type SavedMessage,
+    textOf,
+    type TurnError,
+    type TurnEvent,
+    type TurnRequest,
+} from "../types";
 
 /** Marks the provider state this engine wrote. */
 const ENGINE = "provider-api";
@@ -137,7 +145,7 @@ function toModelMessages(
     module: ProviderModule,
 ): ModelMessage[] {
     return messages.flatMap((message): ModelMessage[] => {
-        const text = message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
+        const text = textOf(message.parts);
         if (message.role === "user") {
             return [{ role: "user", content: text }];
         }

@@ -40,6 +40,12 @@ export { AiController } from "./src/ai/index";
 export type { AiManagerConfig, KeyPersistenceConfig } from "./src/ai/index";
 export { AiManager, createAiManager } from "./src/ai/index";
 
+// The assistant's approval gate: the limits past which a change waits for the reader, and what
+// the host is asked and handed.
+export type { AssistantGateLimits } from "./src/ai/tools/types";
+export { DEFAULT_ASSISTANT_GATE_LIMITS } from "./src/ai/tools/types";
+export type { AiApprovalRequest, AiApprovalRequestedEvent, AiExportReadyEvent } from "./src/events";
+
 // AI Commands
 export type { CommandContext, CommandExample, CommandResult, GraphCommand } from "./src/ai/index";
 export {

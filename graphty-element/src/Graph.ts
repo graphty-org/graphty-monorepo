@@ -6335,6 +6335,28 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Answer a request the assistant made for the reader's approval: a change it held because it
+     * was large, slow, replaced the graph, could not be undone or fetched a URL the reader did not
+     * give (the `ai-approval-requested` event). Approve runs it as one more step of its message;
+     * deny drops it. A request expires at the reader's next message.
+     * @param id - The request's id, from the event.
+     * @param answer - The reader's answer.
+     * @param answer.approve - True to run the change.
+     * @returns The change's result, `AI_APPROVAL_DENIED`, `AI_APPROVAL_STALE` or `AI_NOT_ENABLED`.
+     * @since 4.0.0
+     */
+    async resolveAiApproval(
+        id: string,
+        answer: { readonly approve: boolean },
+    ): Promise<import("./ai/AiController").ExecutionResult> {
+        if (!this.aiManager) {
+            return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
+        }
+
+        return this.aiManager.resolveAiApproval(id, answer);
+    }
+
+    /**
      * Get the AI manager for advanced configuration.
      * Returns null if AI is not enabled.
      * @returns The AI manager or null

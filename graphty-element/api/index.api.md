@@ -1659,6 +1659,9 @@ export class Graph implements GraphContext {
     get rendererRequest(): RendererRequest;
     get rendererStatus(): RendererStatus | null;
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
+    resolveAiApproval(id: string, answer: {
+        readonly approve: boolean;
+    }): Promise<ExecutionResult>;
     resolveCameraPreset(preset: string, options?: {
         nodes?: Iterable<string | number>;
         params?: Readonly<Record<string, unknown>>;
@@ -2096,6 +2099,9 @@ export class Graphty extends LitElement {
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
+    resolveAiApproval(id: string, answer: {
+        readonly approve: boolean;
+    }): Promise<ExecutionResult>;
     resolveCameraPreset(preset: string, options?: {
         nodes?: Iterable<string | number>;
         params?: Readonly<Record<string, unknown>>;

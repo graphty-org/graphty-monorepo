@@ -157,9 +157,7 @@ describe("AiController", () => {
 
             const result = await controller.execute("unknown command");
             assert.strictEqual(result.success, false);
-            assert.ok(
-                result.message.toLowerCase().includes("unknown") || result.message.toLowerCase().includes("not found"),
-            );
+            assert.strictEqual(result.code, "AI_TOOL_UNKNOWN");
         });
 
         it("handles command execution failure", async () => {
@@ -203,7 +201,7 @@ describe("AiController", () => {
 
             const result = await controller.execute("make it throw");
             assert.strictEqual(result.success, false);
-            assert.ok(result.message.toLowerCase().includes("error"));
+            assert.strictEqual(result.code, "AI_TOOL_THREW");
         });
     });
 
@@ -275,9 +273,10 @@ describe("AiController", () => {
             );
             assert.strictEqual(second.at(-1)?.role, "tool");
             assert.strictEqual(second.at(-1)?.toolCallId, "t1");
+            // A command with no code of its own shows the model its message, as params.message.
             assert.deepStrictEqual(JSON.parse(second.at(-1)?.content ?? "{}"), {
-                success: true,
-                message: "look servers",
+                code: "AI_OK",
+                params: { message: "look servers" },
                 data: { seen: "servers" },
             });
             assert.strictEqual(result.success, true);
@@ -310,7 +309,7 @@ describe("AiController", () => {
 
             await multi.execute("do it");
 
-            assert.strictEqual(JSON.parse(provider.asks[1].at(-1)?.content ?? "{}").success, false);
+            assert.strictEqual(JSON.parse(provider.asks[1].at(-1)?.content ?? "{}").code, "AI_TOOL_FAILED");
             assert.deepStrictEqual(fixed, ["b"]);
         });
 
@@ -336,30 +335,30 @@ describe("AiController", () => {
                 toolMessages.map((message) => message.toolCallId),
                 ["t1", "t2"],
             );
-            assert.include(toolMessages[1].content, "Not run");
+            assert.include(toolMessages[1].content, "AI_TOOL_NOT_RUN");
         });
 
-        it("stops running tools after five turns, then asks for a text answer only", async () => {
+        it("stops running tools after eight turns, then asks for a text answer only", async () => {
             const ran = registerEcho("again");
             const forever = { text: "", toolCalls: [{ id: "t", name: "again", arguments: { value: "x" } }] };
             const answer = {
                 text: "I looked at the data; what should change?",
                 toolCalls: [{ id: "t", name: "again", arguments: { value: "x" } }],
             };
-            const provider = scriptedProvider([...Array.from({ length: 5 }, () => forever), answer, forever]);
+            const provider = scriptedProvider([...Array.from({ length: 8 }, () => forever), answer, forever]);
             const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
 
             const result = await multi.execute("loop");
 
-            assert.strictEqual(provider.asks.length, 6);
-            assert.deepStrictEqual(provider.choices, ["auto", "auto", "auto", "auto", "auto", "none"]);
+            assert.strictEqual(provider.asks.length, 9);
+            assert.deepStrictEqual(provider.choices, [...Array.from({ length: 8 }, () => "auto"), "none"]);
             // only the answer-only ask ends with the request to answer, and it is not kept in the history
             const lasts = provider.asks.map((ask) => ask.at(-1));
-            assert.strictEqual(lasts[5]?.role, "user");
-            assert.include(lasts[5]?.content, "No more tools can run");
-            assert.ok(lasts.slice(0, 5).every((m) => !m?.content.includes("No more tools can run")));
+            assert.strictEqual(lasts[8]?.role, "user");
+            assert.include(lasts[8]?.content, "No more tools can run");
+            assert.ok(lasts.slice(0, 8).every((m) => !m?.content.includes("No more tools can run")));
             // the answer-only ask's tool call, from a provider that ignored toolChoice, does not run
-            assert.strictEqual(ran.length, 5);
+            assert.strictEqual(ran.length, 8);
             assert.strictEqual(result.success, true);
             assert.strictEqual(result.llmText, "I looked at the data; what should change?");
         });

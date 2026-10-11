@@ -52,6 +52,25 @@ import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
 
 // @public
+export interface AiApprovalRequest {
+    readonly calls: readonly {
+        readonly tool: string;
+        readonly arguments: Readonly<Record<string, unknown>>;
+    }[];
+    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | (string & {});
+    readonly id: string;
+    readonly preview: Readonly<Record<string, unknown>>;
+}
+
+// @public
+export interface AiApprovalRequestedEvent {
+    // (undocumented)
+    request: AiApprovalRequest;
+    // (undocumented)
+    type: "ai-approval-requested";
+}
+
+// @public
 export class AiController {
     constructor(options: AiControllerOptions);
     cancel(): void;
@@ -62,19 +81,37 @@ export class AiController {
     getLastInput(): string | null;
     getStatus(): AiStatus;
     onStatusChange(callback: StatusChangeCallback): () => void;
+    resolveAiApproval(id: string, answer: {
+        readonly approve: boolean;
+    }): Promise<ExecutionResult>;
 }
 
 // @public
 export interface AiControllerOptions {
+    allowImportUrl?: (url: URL) => boolean;
     commandRegistry: CommandRegistry;
     emitEvent?: AiEventEmitter;
+    gate?: Partial<AssistantGateLimits> | false;
     graph: CommandContext["graph"];
     provider: LlmProvider;
     schemaManager?: SchemaManager | null;
+    toolProfile?: "standard" | "small";
 }
 
 // @public
 export type AiEventEmitter = (event: AiEvent) => void;
+
+// @public
+export interface AiExportReadyEvent {
+    data: string | Blob;
+    format: string;
+    losses: readonly {
+        readonly code: string;
+        readonly params?: unknown;
+    }[];
+    // (undocumented)
+    type: "ai-export-ready";
+}
 
 // @public
 export class AiManager {
@@ -92,18 +129,24 @@ export class AiManager {
     init(graph: Graph, config: AiManagerConfig): void;
     onStatusChange(callback: StatusChangeCallback): () => void;
     registerCommand(command: Parameters<CommandRegistry["register"]>[0]): void;
+    resolveAiApproval(id: string, answer: {
+        readonly approve: boolean;
+    }): Promise<ExecutionResult>;
     retry(): Promise<ExecutionResult>;
     setApiKey(provider: ProviderType, key: string): void;
 }
 
 // @public
 export interface AiManagerConfig {
+    allowImportUrl?: (url: URL) => boolean;
     apiKey?: string;
+    gate?: Partial<AssistantGateLimits> | false;
     keyPersistence?: KeyPersistenceConfig;
     model?: string;
     provider: ProviderType;
     providerInstance?: LlmProvider;
     registerBuiltinCommands?: boolean;
+    toolProfile?: "standard" | "small" | "auto";
 }
 
 // @public
@@ -170,6 +213,15 @@ export interface ApiKeyManagerOptions {
 }
 
 // @public
+export interface AssistantGateLimits {
+    readonly changedValues: number;
+    readonly removeEdges: number;
+    readonly removeNodes: number;
+    readonly removeNodesShare: number;
+    readonly slowSeconds: number;
+}
+
+// @public
 export interface AttributeHistogramBin {
     // (undocumented)
     count: number;
@@ -221,8 +273,10 @@ export class CommandRegistry {
 export interface CommandResult {
     affectedEdges?: string[];
     affectedNodes?: string[];
+    code?: AiToolCauseCode;
     data?: unknown;
     message: string;
+    params?: Readonly<Record<string, unknown>>;
     success: boolean;
 }
 
@@ -237,6 +291,9 @@ export function createSystemPromptBuilder(): SystemPromptBuilder;
 
 // @public
 export function createWebLlmProvider(): Promise<LlmProvider>;
+
+// @public
+export const DEFAULT_ASSISTANT_GATE_LIMITS: Readonly<AssistantGateLimits>;
 
 // @public
 export const describeProperty: GraphCommand;
@@ -266,8 +323,11 @@ export function getWebLlmProviderClass(): Promise<WebLlmProvider>;
 // @public
 export interface GraphCommand {
     readonly description: string;
+    readonly effect?: "read" | "write" | "exempt";
     readonly examples: CommandExample[];
     execute(graph: Graph, params: Record<string, unknown>, context?: CommandContext): Promise<CommandResult>;
+    readonly keywords?: readonly string[];
+    readonly load?: "always" | "on-demand";
     readonly name: string;
     readonly parameters: z.ZodType;
 }

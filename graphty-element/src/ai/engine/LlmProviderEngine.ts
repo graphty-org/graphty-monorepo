@@ -5,14 +5,15 @@
 
 import type { LlmProvider, Message, ToolDefinition } from "../providers/types";
 import { API_KEY_MISSING_ERROR, toSafeError } from "../safeError";
-import type {
-    AiEngine,
-    EngineCapabilities,
-    EngineOutcome,
-    SavedMessage,
-    TurnError,
-    TurnEvent,
-    TurnRequest,
+import {
+    type AiEngine,
+    type EngineCapabilities,
+    type EngineOutcome,
+    type SavedMessage,
+    textOf,
+    type TurnError,
+    type TurnEvent,
+    type TurnRequest,
 } from "./types";
 
 /**
@@ -75,7 +76,7 @@ function toProviderMessages(request: TurnRequest, systemWithTools: boolean): Mes
  * @returns The provider's messages.
  */
 function toProviderMessage(message: SavedMessage): Message[] {
-    const text = message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
+    const text = textOf(message.parts);
     switch (message.role) {
         case "user":
             return [{ role: "user", content: text }];

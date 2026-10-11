@@ -236,8 +236,16 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_UNDONE` -- the command was undone while it ran; what it changed is taken back.
  * - `AI_TOOL_UNKNOWN` -- the model called a tool that does not exist. `{ tool }`.
  * - `AI_TOOL_INVALID_ARGUMENTS` -- the model called a tool with arguments it refused. `{ tool }`.
- * - `AI_TOOL_FAILED` -- a tool ran and reported failure. `{ tool }`.
+ * - `AI_TOOL_FAILED` -- a tool ran and reported failure, and the message's changes were taken
+ *   back. `{ tool, cause, rolledBack }`: `cause` is the tool's own code (`AI_TOOL_CAUSE_CODES`),
+ *   `rolledBack` how many of the message's batches were undone.
  * - `AI_TOOL_THREW` -- a tool threw; what the command changed is taken back. `{ tool }`.
+ * - `AI_CONFIRMATION_NEEDED` -- a change was held for the reader's approval and nothing of it
+ *   happened. `{ gate, request }`: answer with `resolveAiApproval(request, { approve })`.
+ * - `AI_ROLLBACK_PARTIAL` -- taking the message back stopped at someone else's step. `{ steps }`.
+ * - `AI_APPROVAL_STALE` -- an approval answered after the graph changed, or after it expired.
+ *   `{ request }`.
+ * - `AI_APPROVAL_DENIED` -- the reader declined a held change. `{ request }`.
  * - `AI_FAILED` -- anything else went wrong while the command ran.
  *
  * OPEN UNION: codes may be added in a minor release. Handle a code you do not know, for example
@@ -258,6 +266,10 @@ export const AI_RESULT_CODES = Object.freeze([
     "AI_TOOL_FAILED",
     "AI_TOOL_THREW",
     "AI_FAILED",
+    "AI_CONFIRMATION_NEEDED",
+    "AI_ROLLBACK_PARTIAL",
+    "AI_APPROVAL_STALE",
+    "AI_APPROVAL_DENIED",
 ] as const);
 
 /**

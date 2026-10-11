@@ -31,6 +31,30 @@ export interface ProviderState {
 /** Where a part of a message came from. */
 export type PartOrigin = "reader" | "model" | "graph-data" | "graphty";
 
+/**
+ * The text of a message's text parts as a model is shown it. A `graph-data` part -- the facts
+ * block, anything read from the graph -- is wrapped in a fixed envelope the system prompt names as
+ * data, so text planted in a label or a note reads as data, never as an instruction. Every engine
+ * flattens text through this.
+ * @param parts - The message's parts.
+ * @returns The text.
+ */
+export function textOf(parts: readonly SavedPart[]): string {
+    return parts
+        .flatMap((part) => {
+            if (part.type !== "text") {
+                return [];
+            }
+
+            return [
+                part.origin === "graph-data"
+                    ? `<graph-data>\n${part.text.replaceAll("</graph-data>", "")}\n</graph-data>`
+                    : part.text,
+            ];
+        })
+        .join("\n");
+}
+
 /** One part of a message the engine is shown. */
 export type SavedPart =
     | { readonly type: "text"; readonly origin: PartOrigin; readonly text: string }

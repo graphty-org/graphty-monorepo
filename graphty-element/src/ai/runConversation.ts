@@ -3,39 +3,54 @@
  * repeat until it answers. Everything it works on is passed in, so several conversations (a
  * helper beside the main one, later) can run it at once.
  *
- * The shape: the conversation so far, one model turn, the calls of that turn run in order in one
- * short transaction, their results added to the conversation; up to `MAX_TOOL_TURNS` such rounds,
- * then one turn that may only answer in text.
+ * The shape: the conversation so far, one model turn, the calls of that turn run as one batch
+ * (all or nothing) in one short transaction, their results added to the conversation; up to
+ * `MAX_ASSISTANT_TOOL_TURNS` such rounds, then one turn that may only answer in text.
+ *
+ * Each turn offers the profile's always-loaded tools plus the on-demand tools a `catalog` result
+ * of this conversation named, most recent first: tool search lives here, in graphty's own loop,
+ * so it works on every engine.
  */
 
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession, HistoryStepId } from "../session/types";
 import type { ExecutionResult } from "./AiController";
 import type { CommandRegistry } from "./commands";
-import type { CommandContext, CommandResult, GraphCommand } from "./commands/types";
+import type { CommandContext, GraphCommand } from "./commands/types";
 import { toolJsonSchema } from "./engine/jsonSchema";
 import { providerFailure } from "./engine/LlmProviderEngine";
 import type {
     AiEngine,
     JsonSchema,
     SavedMessage,
+    SavedPart,
     ToolResultOutcome,
     ToolSpec,
     TurnError,
     TurnRequest,
 } from "./engine/types";
-import { MAX_TOOL_TURNS } from "./prompt/SystemPromptBuilder";
 import {
     type BatchOutcome,
     BatchThrew,
+    type CallResult,
     type ConversationSink,
+    type HeldBatch,
     knownToolName,
+    modelView,
     type Outcome,
     runToolBatch,
     type ToolCallRequest,
 } from "./ToolExecutor";
+import { MAX_LOADED_TOOLS, SMALL_PROFILE_TOOLS } from "./tools/install";
+import type { ToolProfile } from "./tools/prompt";
+import { resultText } from "./tools/shape";
+import { isAssistantTool } from "./tools/toolset";
+import { DEFAULT_ASSISTANT_GATE_LIMITS, type MessageState, type ToolHost } from "./tools/types";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
+
+/** How many tool rounds one message may take before it must answer in text. */
+export const MAX_ASSISTANT_TOOL_TURNS = 8;
 
 /** The last ask's closing message, after the tool turns ran out: answer, do not call another tool. */
 const ANSWER_NOW: SavedMessage = {
@@ -50,8 +65,8 @@ const ANSWER_NOW: SavedMessage = {
     ],
 };
 
-/** How much of one tool result is handed back to the model, so a large graph's answer stays a bounded prompt. */
-const MAX_TOOL_RESULT_CHARS = 8000;
+/** How much of one tool result is handed back to the model, by profile. */
+const RESULT_CAP: Readonly<Record<ToolProfile, number>> = { standard: 8000, small: 1500 };
 
 /** A conversation: the instructions and the messages so far. The loop appends to `messages`. */
 export interface Conversation {
@@ -76,6 +91,17 @@ export interface ConversationRun {
     readonly sink: ConversationSink;
     /** The model, when the engine does not hold its own. */
     readonly model?: string;
+    /** Which tools a turn offers; standard when absent. */
+    readonly profile?: ToolProfile;
+    /** The message's state; one with the default gate when absent. */
+    readonly state?: MessageState;
+    /** Where export payloads go, the reader's text, the URL policy. */
+    readonly host?: ToolHost;
+    /**
+     * Store a held batch for the host's approval.
+     * @returns The approval request's id, or undefined when nothing can approve it.
+     */
+    readonly hold?: (held: HeldBatch) => string | undefined;
 }
 
 /** The model's turn failed: the provider refused or failed, or the turn was cancelled. */
@@ -90,8 +116,8 @@ export class TurnFailed extends Error {
 }
 
 /**
- * A tool threw, so its batch's transaction rolled back, and the message's earlier batches are to
- * be taken back too. Carries the result the reader is told, which reports the failure.
+ * The message is to be taken back: a tool threw, or its last write batch failed with no later
+ * write batch succeeding. Carries the result the reader is told, which reports the failure.
  */
 export class MessageRolledBack extends Error {
     /**
@@ -101,22 +127,6 @@ export class MessageRolledBack extends Error {
     constructor(readonly result: ExecutionResult) {
         super(result.message);
     }
-}
-
-/**
- * What the model is told a tool did: its success, its message and its data, as JSON.
- * @param result - The tool's result, or undefined for a tool that did not run because an earlier one failed.
- * @returns The tool message's content.
- */
-function toolResultContent(result: CommandResult | undefined): string {
-    if (result === undefined) {
-        return JSON.stringify({ success: false, message: "Not run: an earlier tool call in this step failed." });
-    }
-
-    const content = JSON.stringify({ success: result.success, message: result.message, data: result.data });
-    return content.length > MAX_TOOL_RESULT_CHARS
-        ? `${content.slice(0, MAX_TOOL_RESULT_CHARS)}... (truncated)`
-        : content;
 }
 
 /**
@@ -134,7 +144,7 @@ function joinTexts(texts: readonly string[]): string | undefined {
  * @param message - The message's id, as its steps' `provenance.message` carries it.
  * @returns The step, or undefined when the message has recorded none that is applied.
  */
-function latestStepOf(session: GraphSession, message: string): HistoryStepId | undefined {
+export function latestStepOf(session: GraphSession, message: string): HistoryStepId | undefined {
     const { steps, position } = session.history;
     for (let index = position - 1; index >= 0; index--) {
         if (steps[index].provenance.message === message) {
@@ -157,20 +167,127 @@ function toolSpec(command: GraphCommand): ToolSpec {
         description: command.description,
         schema: command.parameters,
         get jsonSchema(): JsonSchema {
-            jsonSchema ??= toolJsonSchema(command.parameters);
+            // A generated tool sends its own compact schema; any other command's is derived.
+            jsonSchema ??= isAssistantTool(command) ? command.jsonSchema : toolJsonSchema(command.parameters);
             return jsonSchema;
         },
     };
 }
 
 /**
+ * The on-demand tools a conversation's catalog results named, most recent first.
+ * @param messages - The conversation.
+ * @returns The tool names.
+ */
+function loadedTools(messages: readonly SavedMessage[]): string[] {
+    const named: string[] = [];
+    for (const message of [...messages].reverse()) {
+        for (const part of message.parts) {
+            if (part.type !== "tool-result") {
+                continue;
+            }
+
+            try {
+                const { params } = JSON.parse(part.content) as { params?: { load?: unknown } };
+                for (const tool of Array.isArray(params?.load) ? params.load : []) {
+                    if (typeof tool === "string" && !named.includes(tool)) {
+                        named.push(tool);
+                    }
+                }
+            } catch {
+                // A result that is not JSON names nothing.
+            }
+        }
+    }
+
+    return named.slice(0, MAX_LOADED_TOOLS);
+}
+
+/**
+ * The tools one turn offers: the profile's always-loaded ones, the consumer's always-offered
+ * commands, and the on-demand tools this conversation loaded.
+ * @param registry - Every command.
+ * @param profile - The profile.
+ * @param messages - The conversation, for what it loaded.
+ * @returns The tools.
+ */
+export function turnTools(
+    registry: CommandRegistry,
+    profile: ToolProfile,
+    messages: readonly SavedMessage[],
+): GraphCommand[] {
+    const all = registry.getAll();
+    if (!all.some(isAssistantTool)) {
+        // A registry of the consumer's own commands only: every one, every turn, as before.
+        return all;
+    }
+
+    if (profile === "small") {
+        return all.filter((command) => SMALL_PROFILE_TOOLS.includes(command.name));
+    }
+
+    const loaded = new Set(loadedTools(messages));
+    return all.filter((command) => {
+        if (command.name === "call") {
+            return false;
+        }
+
+        return (command.load ?? "always") === "always" || loaded.has(command.name);
+    });
+}
+
+/**
+ * For the small profile: only the last two rounds of tool results kept in full.
+ * @param messages - The conversation.
+ * @returns The messages the model is shown.
+ */
+function trimmedHistory(messages: readonly SavedMessage[]): SavedMessage[] {
+    const rounds = messages.filter((message) => message.role === "tool");
+    const keep = new Set(rounds.slice(-2));
+    return messages.map((message) =>
+        message.role !== "tool" || keep.has(message)
+            ? message
+            : {
+                  ...message,
+                  parts: message.parts.map((part): SavedPart =>
+                      part.type === "tool-result"
+                          ? { ...part, content: JSON.stringify({ code: part.code, trimmed: true }) }
+                          : part,
+                  ),
+              },
+    );
+}
+
+/** What the message's batches added up to. */
+interface MessageTally {
+    readonly results: CallResult[];
+    failure?: Outcome;
+    /** The failure of the last write batch, cleared by a later successful one. */
+    pending?: Outcome;
+    /** Write batches committed. */
+    committed: number;
+    /** The approval request a held batch made, and its gate. */
+    held?: { readonly request: string | undefined; readonly gate: string };
+}
+
+/**
  * Combine the results of every tool that ran into the message's result.
- * @param results - Results from executed commands
+ * @param tally - What the batches did.
  * @param llmText - Optional text from the model
- * @param failure - Why the tool that failed failed, when one did
  * @returns Combined execution result
  */
-function combineResults(results: CommandResult[], llmText?: string, failure?: Outcome): ExecutionResult {
+function combineResults(tally: MessageTally, llmText?: string): ExecutionResult {
+    const { results, failure, held } = tally;
+    if (held !== undefined) {
+        return {
+            success: true,
+            message: llmText ?? "",
+            llmText,
+            code: "AI_CONFIRMATION_NEEDED",
+            params: { gate: held.gate, ...(held.request === undefined ? {} : { request: held.request }) },
+        };
+    }
+
     if (results.length === 0) {
         return {
             success: true,
@@ -182,8 +299,9 @@ function combineResults(results: CommandResult[], llmText?: string, failure?: Ou
         };
     }
 
-    const allSucceeded = results.every((r) => r.success);
-    const messages = results.map((r) => r.message);
+    // Earlier failures the model got past do not fail the message; only an unresolved one does.
+    const allSucceeded = failure === undefined;
+    const messages = results.map((r) => r.message).filter((message) => message !== "");
     if (llmText) {
         messages.unshift(llmText);
     }
@@ -257,13 +375,44 @@ async function modelTurn(
 }
 
 /**
+ * The outcome a tool-result part records for one call.
+ * @param call - The call.
+ * @param result - Its result, or undefined when it did not run.
+ * @param batch - The batch it was in.
+ * @returns The outcome.
+ */
+function partOutcome(call: ToolCallRequest, result: CallResult | undefined, batch: BatchOutcome): ToolResultOutcome {
+    if (batch.held !== undefined) {
+        return { code: "AI_CONFIRMATION_NEEDED", params: { tool: call.name, gate: batch.held.gate } };
+    }
+
+    if (result === undefined || (result.success && batch.failure !== undefined)) {
+        // Not run, or rolled back with the batch.
+        return { code: "AI_TOOL_NOT_RUN", params: { tool: call.name } };
+    }
+
+    if (result.success) {
+        return { code: "AI_COMPLETED", params: {} };
+    }
+
+    return batch.failure ?? { code: "AI_TOOL_FAILED", params: { tool: call.name, cause: result.code } };
+}
+
+/**
  * Add one round to the conversation: the model's text and calls, then each call's result.
  * @param conversation - The conversation.
  * @param text - The model's text this turn.
  * @param calls - The calls it made.
  * @param batch - What running them did.
+ * @param cap - The most characters one result may take.
  */
-function appendRound(conversation: Conversation, text: string, calls: ToolCallRequest[], batch: BatchOutcome): void {
+function appendRound(
+    conversation: Conversation,
+    text: string,
+    calls: ToolCallRequest[],
+    batch: BatchOutcome,
+    cap: number,
+): void {
     const { messages } = conversation;
     const id = messages.length + 1;
     messages.push(
@@ -289,22 +438,17 @@ function appendRound(conversation: Conversation, text: string, calls: ToolCallRe
             role: "tool",
             parts: calls.map((call, index) => {
                 const result = batch.results.at(index);
-                let outcome: ToolResultOutcome;
-                if (result === undefined) {
-                    // Not run: an earlier call in the batch failed.
-                    outcome = { code: "AI_TOOL_NOT_RUN", params: { tool: call.name } };
-                } else if (result.success) {
-                    outcome = { code: "AI_COMPLETED", params: {} };
-                } else {
-                    outcome = batch.failure ?? { code: "AI_TOOL_FAILED", params: { tool: call.name } };
-                }
-
+                const outcome = partOutcome(call, result, batch);
+                const view =
+                    outcome.code === "AI_TOOL_NOT_RUN" && result?.success === true
+                        ? { code: "AI_TOOL_NOT_RUN", params: { tool: call.name, rolledBack: true } }
+                        : modelView(result, call.name);
                 return {
                     type: "tool-result" as const,
                     origin: "graph-data" as const,
                     callId: call.id,
                     ...outcome,
-                    content: toolResultContent(result),
+                    content: resultText(view, cap),
                 };
             }),
         },
@@ -315,6 +459,7 @@ function appendRound(conversation: Conversation, text: string, calls: ToolCallRe
  * Run one batch of calls in its transaction.
  * @param run - The loop's run.
  * @param calls - The calls.
+ * @param state - The message's state.
  * @param resultOf - The message's result once a call threw, given what the batch ran.
  * @returns What the batch did.
  * @throws {MessageRolledBack} When a call threw.
@@ -322,6 +467,7 @@ function appendRound(conversation: Conversation, text: string, calls: ToolCallRe
 async function runBatch(
     run: ConversationRun,
     calls: ToolCallRequest[],
+    state: MessageState,
     resultOf: (threw: BatchOutcome) => ExecutionResult,
 ): Promise<BatchOutcome> {
     const { session, message } = run;
@@ -332,10 +478,16 @@ async function runBatch(
             graph: run.graph,
             session,
             label: run.label,
-            message,
+            message: state,
             after: latestStepOf(session, message),
             abort: run.abort,
             sink: run.sink,
+            host: run.host ?? {
+                emit: (event) => {
+                    run.sink.emit(event);
+                },
+                readerText: run.label,
+            },
         });
     } catch (error) {
         if (error instanceof BatchThrew) {
@@ -347,16 +499,49 @@ async function runBatch(
 }
 
 /**
+ * Add what a batch did to the message's tally.
+ * @param tally - The tally.
+ * @param batch - The batch.
+ * @param run - The loop's run, for its approval store.
+ */
+function tallyBatch(tally: MessageTally, batch: BatchOutcome, run: ConversationRun): void {
+    tally.results.push(...batch.results.filter((result): result is CallResult => result !== undefined));
+    if (batch.held !== undefined) {
+        tally.held = { request: run.hold?.(batch.held), gate: batch.held.gate };
+        return;
+    }
+
+    // The message's outcome is its last batch's: a failure a later batch got past is not the message's.
+    tally.failure = batch.failure;
+    if (batch.failure !== undefined) {
+        if (batch.writes) {
+            tally.pending = batch.failure;
+        }
+    } else if (batch.writes) {
+        tally.pending = undefined;
+        tally.committed++;
+    }
+}
+
+/**
  * Run the loop for one message: ask the model, then run the tools it calls, each batch in a short
  * transaction that joins the message's one undo step.
  * @param run - What to run, and where.
  * @returns The message's result.
  * @throws {TurnFailed} When a model turn failed.
- * @throws {MessageRolledBack} When a tool threw; its batch is rolled back, earlier batches are the caller's to take back.
+ * @throws {MessageRolledBack} When a tool threw, or the message's last write batch failed; the
+ *   caller takes the message's earlier batches back.
  */
 export async function runConversation(run: ConversationRun): Promise<ExecutionResult> {
     const { conversation, tools, sink } = run;
-    const specs = tools.getAll().map(toolSpec);
+    const profile = run.profile ?? "standard";
+    const state: MessageState = run.state ?? {
+        id: run.message,
+        gate: DEFAULT_ASSISTANT_GATE_LIMITS,
+        runs: new Set(),
+        undoCalls: 0,
+        totals: { removeNodes: 0, removeEdges: 0, changedValues: 0 },
+    };
 
     logger.debug("Request", {
         messageCount: conversation.messages.length + 1,
@@ -364,32 +549,31 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
             (sum, m) => sum + m.parts.reduce((n, p) => n + (p.type === "text" ? p.text.length : 0), 0),
             conversation.system.length,
         ),
-        tools: specs.map((t) => t.name),
     });
 
     sink.status.startStreaming();
 
     // Every tool result goes back to the model, which then calls more tools or answers. A model
-    // that looks before it acts -- findNodes, then zoomToNodes on what it found -- gets to act;
-    // asked only once, it would stop after looking and the person would get nothing.
-    const results: CommandResult[] = [];
+    // that looks before it acts -- query, then view on what it found -- gets to act; asked only
+    // once, it would stop after looking and the person would get nothing.
+    const tally: MessageTally = { results: [], committed: 0 };
     const texts: string[] = [];
-    let failure: Outcome | undefined;
 
     for (let turn = 1; ; turn++) {
-        // Past the tool turns, a text answer only: a model that spent every turn looking
-        // (sampleData, describeProperty, findNodes) and never acted would otherwise end the
-        // message with nothing said, and the person would get no answer at all.
-        // toolMode "none" alone is not enough: gemini-3.8-flash still answers it with a tool
-        // call and no text, so the ask also says, in words, that it is time to answer.
-        const answerOnly = turn > MAX_TOOL_TURNS;
+        // Past the tool turns, a text answer only: a model that spent every turn looking and never
+        // acted would otherwise end the message with nothing said. toolMode "none" alone is not
+        // enough: gemini-3.8-flash still answers it with a tool call and no text, so the ask also
+        // says, in words, that it is time to answer.
+        const answerOnly = turn > MAX_ASSISTANT_TOOL_TURNS;
+        const offered = turnTools(tools, profile, conversation.messages);
+        const history = profile === "small" ? trimmedHistory(conversation.messages) : [...conversation.messages];
         const { text, calls } = await modelTurn(
             run,
             {
                 model: run.model,
                 system: conversation.system,
-                messages: answerOnly ? [...conversation.messages, ANSWER_NOW] : [...conversation.messages],
-                tools: specs,
+                messages: answerOnly ? [...history, ANSWER_NOW] : history,
+                tools: offered.map(toolSpec),
                 toolMode: answerOnly ? "none" : "auto",
             },
             texts,
@@ -412,20 +596,25 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
 
         sink.status.startExecuting();
 
-        const batch = await runBatch(run, calls, (threw) => {
-            results.push(...threw.results);
-            failure ??= threw.failure;
-            return combineResults(results, joinTexts(texts), failure);
+        const batch = await runBatch(run, calls, state, (threw) => {
+            tally.results.push(...threw.results.filter((result): result is CallResult => result !== undefined));
+            tally.failure ??= threw.failure;
+            return combineResults(tally, joinTexts(texts));
         });
-        results.push(...batch.results);
-        failure ??= batch.failure;
-
-        if (turn === MAX_TOOL_TURNS) {
-            logger.debug("Out of tool turns: asking for a text answer only", { turns: turn });
-        }
-
-        appendRound(conversation, text, calls, batch);
+        tallyBatch(tally, batch, run);
+        appendRound(conversation, text, calls, batch, RESULT_CAP[profile]);
     }
 
-    return combineResults(results, joinTexts(texts), failure);
+    const result = combineResults(tally, joinTexts(texts));
+    if (tally.pending !== undefined && tally.held === undefined && tally.committed > 0) {
+        // The last write batch failed and nothing fixed it: the message's writes are taken back.
+        throw new MessageRolledBack({
+            ...result,
+            success: false,
+            code: "AI_TOOL_FAILED",
+            params: { ...tally.pending.params, rolledBack: tally.committed },
+        });
+    }
+
+    return result;
 }

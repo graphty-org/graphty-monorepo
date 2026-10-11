@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vite";
 
-import { stubAnthropicNodeToolset } from "./vite.config";
+import { stubAnthropicNodeToolset, thirdPartyLicenses } from "./vite.config";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 
@@ -25,8 +25,8 @@ const here = fileURLToPath(new URL(".", import.meta.url));
  */
 export default defineConfig({
     // The AI providers' SDKs are built in; this one needs its Node-only toolset stubbed (vite.config.ts).
-    // The AI providers' SDKs are built in; this one needs its Node-only toolset stubbed (vite.config.ts).
-    plugins: [stubAnthropicNodeToolset()],
+    // Everything is copied in here, so its license list is the package's whole list.
+    plugins: [stubAnthropicNodeToolset(), thirdPartyLicenses()],
     define: {
         // A page loading this from a CDN is running the shipped build, never a dev build, and
         // Lit's dev-mode warning would otherwise fire on every load.

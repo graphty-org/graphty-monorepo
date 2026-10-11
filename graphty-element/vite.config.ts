@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
 import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
@@ -138,6 +138,54 @@ export function stubAnthropicNodeToolset(): Plugin {
     };
 }
 
+/**
+ * Writes `THIRD-PARTY-LICENSES.txt` beside the build: the license and notice files of every package
+ * whose code the build copies into its own output (TanStack AI and the provider SDKs in the AI
+ * chunks, lodash, and in the `./bundle` build everything), so the package ships the notices their
+ * licenses ask for. The `./bundle` build runs second and writes the full list.
+ * @returns The plugin.
+ */
+export function thirdPartyLicenses(): Plugin {
+    return {
+        name: "graphty-third-party-licenses",
+        apply: "build",
+        generateBundle(_options, bundle): void {
+            const packages = new Map<string, string>();
+            for (const output of Object.values(bundle)) {
+                // A virtual module (`\0`, a CommonJS proxy) stands beside the real file, which counts.
+                const ids = output.type === "chunk" ? Object.keys(output.modules) : [];
+                for (const id of ids.filter((m) => !m.startsWith("\0"))) {
+                    const at = id.lastIndexOf("/node_modules/") + "/node_modules/".length;
+                    const parts = id.slice(at).split("/");
+                    const name = parts[0].startsWith("@") ? `${parts[0]}/${parts[1]}` : parts[0];
+                    if (at >= "/node_modules/".length) {
+                        packages.set(name, `${id.slice(0, at)}${name}`);
+                    }
+                }
+            }
+
+            const sections = [...packages]
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([name, dir]) => {
+                    const { version, license } = JSON.parse(readFileSync(`${dir}/package.json`, "utf8")) as {
+                        version: string;
+                        license?: string;
+                    };
+                    const texts = readdirSync(dir)
+                        .filter((file) => /^(?:licen[cs]e|notice|copying)(?:[.-]|$)/i.test(file))
+                        .sort()
+                        .map((file) => readFileSync(`${dir}/${file}`, "utf8").trim());
+                    return [`${name}@${version} (${license ?? "see below"})`, ...texts].join("\n\n");
+                });
+            this.emitFile({
+                type: "asset",
+                fileName: "THIRD-PARTY-LICENSES.txt",
+                source: `${sections.join(`\n\n${"-".repeat(80)}\n\n`)}\n`,
+            });
+        },
+    };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
     // Load env file from monorepo root (one level up from this package).
@@ -153,6 +201,7 @@ export default defineConfig(({ mode }) => {
             }),
             chunkMeta(),
             stubAnthropicNodeToolset(),
+            thirdPartyLicenses(),
         ],
         define: {
             // Disable Lit dev mode warning

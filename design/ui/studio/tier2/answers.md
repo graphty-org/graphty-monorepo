@@ -1311,11 +1311,14 @@ second half reads "point out ... so that whatever you do next applies only to th
   B, "4" lists the four ties of 4 minutes (Depot -> Market, Park -> Clinic, Station -> Stadium,
   Museum -> Library), each with "minutes: 4", and "Select where minutes is 4 (4)" (`08.png`).
   Tie titles in the list use "->", as the inspector does. A tie opened from there shows the same
-  inspector, and is not a detour. Selecting the two nodes one after the other with Shift
-  held is not named as a route yet: on 26f3bb968e43 a Shift-click on a node replaces the
-  selection instead of adding to it. It is named here only once the element change that makes
-  it add is on the frozen round 4 build and the route has been walked there. Until then a
-  participant who tries it is graded by the end state like any other route.
+  inspector, and is not a detour. Selecting the two nodes one after the other, the second
+  with Shift held, is a route from 5277e2cbe (on 26f3bb968e43 a Shift-click on a node replaced
+  the selection). Walked on 5277e2cbe: a click on Gus, then a Shift-click on Ivan, reads "2 nodes
+  selected", Nodes 2, "Edges joining these nodes 1" and the left panel's Selection row 2, with
+  both ringed, the same end state as Select endpoints (`rounds/round-4/pilot/T24A/06.png`,
+  `07.png`); B, Station then Shift on Stadium, likewise (`T24B/06.png`, `07.png`). A Ctrl-click
+  on the second node still replaces the selection with that node alone, Selection row 1
+  (`T24A/10.png`, `T24B/08.png`); a participant who ends that way has fewer than the two.
 - **Known on this build:** the title's arrow is the file's direction, not a fact about the bus.
   The app's words here are "Edge", "Select endpoints" and "Edges joining these nodes", which the
   prompt avoids on purpose; record how the participant got from "the two on this tie" to "Select

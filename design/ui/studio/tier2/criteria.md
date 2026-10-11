@@ -893,3 +893,10 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   tie inspector holds no number, and the neighborhood section's group is named by its whole
   content (T12R). T12R B, owed since the previous build, is now walked. No prompt was wrong, so
   `tasks.md` is unchanged. No bar, floor, step limit or success path's end state changed.
+- **2026-10-11, before round 4: T24's Shift route walked and named.** On 5277e2cbe a click on one
+  end and a Shift-click on the other selects both, the same end state as "Select endpoints"
+  (`rounds/round-4/pilot/T24A/`, `T24B/`), so `answers.md` now names it as a T24 route, as the
+  entry of 2026-10-10 required; a Ctrl-click still replaces, and the key says so. Every route the
+  key names for T24 was walked on that build. The new prompt's briefed pilots (two a half) were
+  not run before the round; the round 4 plan says why and how T24 is reported because of it. No
+  bar, floor, step limit, prompt or success path's end state changed.

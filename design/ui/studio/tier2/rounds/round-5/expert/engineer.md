@@ -73,7 +73,8 @@ control where compact-mantine has one. Nothing was found at severity 4.
    told nothing changed and asked to rerun. The key, by contrast, says plain "PageRank". The run did
    change in substance (PageRank over 20 edges is a different answer), so the words name the wrong
    count. Evidence: `crops/edgeonly09-stale-20-of-20.png`, `1200x900/edgeonly/09.png`,
-   `1200x900/edgeonly.log`. Owner: graphty-element if `run.stale` has no edge counts to say what
+   `1200x900/edgeonly.log`; the same words at 900 x 700 in `900x700/edgeonly/09.png`, where the
+   step row's "41 to 20 edges" also wraps (`900x700/edgeonly/06.png`). Owner: graphty-element if `run.stale` has no edge counts to say what
    changed (`StaleNote` carries `ranOn`/`nowVisible` nodes only; additive edge fields); graphty app
    for the words (`inspector/words.ts` `staleWords`).
 6. **The table's new "12 of 41 edges" is cut to "12 of 41 ed..." at 900 x 700, and "Columns: 3 of 3"

@@ -14,7 +14,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-11) **Round 5 audit on 8c015b806 done** (`tier2/rounds/round-5/expert/engineer.md`): five
   round 4 fixes hold; new: an edge-only filter step marks runs "out of date" with "Ran on 20 nodes;
   20 shown now" (needs edge counts in `run.stale`, element, additive); table count cut at 900.
-  "Or more" row still below the find list's fold (sev 3, app).
+  "Or more" row still below the find list's fold (sev 3, app). Edge-only walk added at 900 x 700
+  the same day (same words); every walk now exists at both sizes.
 - (2026-10-11) **Round 5 runs on frozen build 8c015b806** (graphty@0.8.65, `.study-builds/tier2-r5-8c015b806/`);
   the first dry run is triaged with no fixes (d2440153c). Never touch that build; fixes go to round 6.
 - (2026-10-11) **Owed before round 5's sessions: r4-s05b, r4-s20b, r4-s28b** on 5277e2cbe, new
@@ -184,6 +185,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-11) WORKED: completing a committed audit instead of redoing it: list both size folders
+  side by side, run only the missing walk, take its commands from the earlier transcript. `--hover
+  "role=treeitem:PageRank"` prints `tooltip: null` (the tooltip lives on the row's icon; use
+  `--hover-at` on the icon), but the inspector bar shows the same words, so no hover is needed.
 - (2026-10-11) WORKED: re-running last round's audit walks by pulling their exact commands out of
   the earlier subagent transcript (`~/.claude/projects/<proj>/<session>/subagents/workflows/*/agent-*.jsonl`,
   Bash inputs containing `real.mjs --start`); session folders do not record steps. Four chains (two
@@ -239,9 +244,6 @@ edge attribute"` reaches the row.
   `.kill()`. flock hands the lock fd to the sleep it forks, so killing flock left the lock held and
   the test's start waited. Spawn it `detached` and kill the process group (`process.kill(-pid)`);
   `--start`'s own give-up kills its session process the same way.
-- (2026-10-11) Another agent edited `real.mjs` (answer-key facts in briefings) while I did; their
-  two in-progress leak checks failed in my `--prove` run. Not mine: read `git diff` before blaming
-  a run, and stage only my hunks.
 - (2026-10-11) WORKED: the "or more" row for a number no value equals, all in the element. A
   number column is one whose every indexed value is a number (id column skipped); its row is
   offered when some value lies below N, some above, none equal, deduplicated by path across

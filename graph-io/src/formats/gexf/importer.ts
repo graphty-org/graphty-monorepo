@@ -67,6 +67,7 @@ import {
     UNKNOWN_ELEMENT_CODE,
     UNKNOWN_PARENT_CODE,
     UNKNOWN_XML_ATTRIBUTE_CODE,
+    XML_NESTING_CODE,
     XML_SYNTAX_CODE,
 } from "../../common/codes.js";
 import { type DeclaredTypeSpec, overflowsToInfinity, parseDecimalText } from "../../common/declared-types.js";
@@ -91,6 +92,7 @@ import {
     xmlDeclaredEncoding,
     XmlEmptyInputError,
     type XmlHandler,
+    XmlNestingError,
     XmlSyntaxError,
 } from "../../common/xml.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
@@ -2891,7 +2893,9 @@ export const gexfImporter: GraphImporter<GexfImportOptions> = Object.freeze({
                 report.fail(EMPTY_INPUT_CODE, "the input is empty (no markup at all)", { line: err.line });
             }
             if (err instanceof XmlSyntaxError) {
-                report.fail(XML_SYNTAX_CODE, err.message, { line: err.line });
+                report.fail(err instanceof XmlNestingError ? XML_NESTING_CODE : XML_SYNTAX_CODE, err.message, {
+                    line: err.line,
+                });
             }
             throw err;
         }

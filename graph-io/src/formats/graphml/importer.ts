@@ -61,6 +61,7 @@ import {
     xmlDeclaredEncoding,
     XmlEmptyInputError,
     type XmlHandler,
+    XmlNestingError,
     XmlSyntaxError,
 } from "../../common/xml.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
@@ -2679,7 +2680,11 @@ async function importGraphml(
             report.fail(GRAPHML_ISSUE.EMPTY_INPUT, "the input is empty (no markup at all)", { line: err.line });
         }
         if (err instanceof XmlSyntaxError) {
-            report.fail(GRAPHML_ISSUE.XML_SYNTAX, err.message, { line: err.line });
+            report.fail(
+                err instanceof XmlNestingError ? GRAPHML_ISSUE.XML_NESTING : GRAPHML_ISSUE.XML_SYNTAX,
+                err.message,
+                { line: err.line },
+            );
         }
         throw err;
     }

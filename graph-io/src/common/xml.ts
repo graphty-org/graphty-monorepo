@@ -91,6 +91,29 @@ export class XmlSyntaxError extends Error {
 }
 
 /**
+ * The most elements open at once that the XML tokenizer reads; a deeper document stops with an `XmlNestingError`.
+ * @category Plugin helpers
+ */
+export const MAX_XML_DEPTH = 100_000;
+
+/**
+ * Elements are nested deeper than `MAX_XML_DEPTH`: an importer reports it as E_XML_NESTING rather than as a syntax
+ * error.
+ * @category Plugin helpers
+ */
+export class XmlNestingError extends XmlSyntaxError {
+    /**
+     * Create the error.
+     * @param name - the element that opened one level too many
+     * @param line - the 1-based line
+     */
+    constructor(name: string, line: number) {
+        super(`<${name}> is nested more than ${String(MAX_XML_DEPTH)} elements deep`, line);
+        this.name = "XmlNestingError";
+    }
+}
+
+/**
  * The input holds no markup at all (empty, whitespace only, a byte order mark only): an importer
  * reports it as E_EMPTY_INPUT rather than as a syntax error.
  * @category Plugin helpers
@@ -1515,6 +1538,9 @@ export class XmlTokenizer {
                     this.bindings.push({ prefix: key.slice(6), uri, depth: this.stack.length });
                 }
             }
+        }
+        if (this.stack.length >= MAX_XML_DEPTH) {
+            throw new XmlNestingError(name, this.line);
         }
         this.stack.push(name);
         this.handler.start(name, attrs, this.line, this.namespaceOf(name));

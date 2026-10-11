@@ -12,7 +12,7 @@ import { declareResolved, DictHeuristic, uniqueColumnName } from "../../common/a
 import { type ImportReportBuilder, type IssueLocation } from "../../common/report.js";
 import { inferTextDtype, parseTextCell } from "../../common/text.js";
 import { CYTOSCAPE_ORIGIN_NAMESPACE, FORMAT, XGMML_ISSUE } from "./constants.js";
-import { type AttRec, isListLike } from "./document.js";
+import { type AttRec, attTree } from "./document.js";
 import { attType, elementKind, parseScalar, type ScalarKind, widenScalar } from "./values.js";
 
 /** A table of the snapshot. */
@@ -153,6 +153,14 @@ export class ColumnSet {
             if (cell !== null) {
                 plan.declared.add("string");
             }
+        } else if ((type.kind === "list" || type.kind === "map") && deeperThan(att, MAX_JSON_ATT_DEPTH)) {
+            // a json value that deep cannot be written as JSON text (or read back) without overflowing the stack
+            this.badAtt(
+                `"${name}" is nested more than ${String(MAX_JSON_ATT_DEPTH)} atts deep; it is skipped`,
+                att,
+                "depth",
+            );
+            cell = null;
         } else if (type.kind === "list") {
             cell = this.listCell(att, name, plan, at);
             plan.declared.add("list");
@@ -698,19 +706,41 @@ function recordOf(att: AttRec): Record<string, unknown> {
     return out;
 }
 
+/** The deepest list or map att kept, as a json value. */
+const MAX_JSON_ATT_DEPTH = 64;
+
 /**
- * An att as a json value: its value text, its children as an array or a record, or its XML.
+ * Whether an att tree is deeper than a limit, walked with an explicit stack.
+ * @param root - the att
+ * @param limit - the most levels allowed
+ * @returns true when deeper
+ */
+function deeperThan(root: AttRec, limit: number): boolean {
+    const stack: [AttRec, number][] = [[root, 1]];
+    for (let top = stack.pop(); top !== undefined; top = stack.pop()) {
+        const [att, depth] = top;
+        if (depth > limit) {
+            return true;
+        }
+        for (const child of att.children) {
+            stack.push([child, depth + 1]);
+        }
+    }
+    return false;
+}
+
+/**
+ * An att as a json value: its XML, its value text, or its children as an array or a record.
  * @param att - the att
  * @returns the value
  */
 function jsonOfAtt(att: AttRec): unknown {
-    if (att.xml !== null) {
-        return att.xml;
-    }
-    if (att.children.length === 0) {
-        return att.value;
-    }
-    return isListLike(att) ? att.children.map(jsonOfAtt) : recordOf(att);
+    return attTree(att, (a) => {
+        if (a.xml !== null) {
+            return { value: a.xml };
+        }
+        return a.children.length === 0 ? { value: a.value } : null;
+    });
 }
 
 /**

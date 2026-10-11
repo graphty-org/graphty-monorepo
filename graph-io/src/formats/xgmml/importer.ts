@@ -26,7 +26,14 @@ import {
 } from "../../common/options.js";
 import { agree, elementCount } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
-import { isWhitespace, tokenizeXml, xmlDeclaredEncoding, type XmlRepairs, XmlSyntaxError } from "../../common/xml.js";
+import {
+    isWhitespace,
+    tokenizeXml,
+    xmlDeclaredEncoding,
+    XmlNestingError,
+    type XmlRepairs,
+    XmlSyntaxError,
+} from "../../common/xml.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -204,7 +211,11 @@ export async function parseXgmml(
             if (!seen.content) {
                 report.fail(XGMML_ISSUE.EMPTY_INPUT, "the input is empty");
             }
-            report.fail(XGMML_ISSUE.XML_SYNTAX, err.message, { line: err.line });
+            report.fail(
+                err instanceof XmlNestingError ? XGMML_ISSUE.XML_NESTING : XGMML_ISSUE.XML_SYNTAX,
+                err.message,
+                { line: err.line },
+            );
         }
         throw err;
     }

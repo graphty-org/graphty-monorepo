@@ -42,6 +42,7 @@ import {
     UNKNOWN_ENCODING_CODE,
     UNKNOWN_PARENT_CODE,
     UNKNOWN_XML_ATTRIBUTE_CODE,
+    XML_NESTING_CODE,
     XML_SYNTAX_CODE,
 } from "../../common/codes.js";
 import {
@@ -85,6 +86,8 @@ export const GEXF_ISSUE = Object.freeze({
     COLUMN_TYPE: COLUMN_TYPE_CODE,
     /** The XML is not well-formed. The import stops. */
     XML_SYNTAX: XML_SYNTAX_CODE,
+    /** Elements are nested more than 100,000 deep. The import stops. */
+    XML_NESTING: XML_NESTING_CODE,
     /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
     /**

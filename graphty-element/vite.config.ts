@@ -1,7 +1,7 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
 
-import { defineConfig, loadEnv, UserConfig } from "vite";
+import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
 import VitePluginCustomElementsManifest from "vite-plugin-cem";
 // import eslint from "vite-plugin-eslint";
 
@@ -86,6 +86,38 @@ function externalDependencies(): RegExp[] {
         .map((name) => new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(/.*)?$`));
 }
 
+/**
+ * Writes `build/chunks.json`: for every chunk of the library build, its file, whether it is an
+ * entry, the modules built into it, and the chunks and packages it imports statically and with
+ * `import()`. `test/packaging/ai-lazy-chunks.test.ts` reads it to prove that what an entry point
+ * loads up front holds no AI framework or provider SDK (design/ai/tanstack-ai-harness-design.md,
+ * section 7, rule 6). `build/` is git-ignored and not published.
+ * @returns The plugin.
+ */
+function chunkMeta(): Plugin {
+    return {
+        name: "graphty-chunk-meta",
+        apply: "build",
+        writeBundle(_options, bundle): void {
+            const chunks = Object.values(bundle).flatMap((output) =>
+                output.type === "chunk"
+                    ? [
+                          {
+                              fileName: output.fileName,
+                              isEntry: output.isEntry,
+                              modules: Object.keys(output.modules).map((id) => relative(__dirname, id)),
+                              imports: output.imports,
+                              dynamicImports: output.dynamicImports,
+                          },
+                      ]
+                    : [],
+            );
+            mkdirSync(resolve(__dirname, "build"), { recursive: true });
+            writeFileSync(resolve(__dirname, "build/chunks.json"), `${JSON.stringify({ chunks }, null, 1)}\n`);
+        },
+    };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
     // Load env file from monorepo root (one level up from this package).
@@ -99,6 +131,7 @@ export default defineConfig(({ mode }) => {
                 files: ["./src/graphty-element.ts"],
                 lit: true,
             }),
+            chunkMeta(),
         ],
         define: {
             // Disable Lit dev mode warning

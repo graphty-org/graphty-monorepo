@@ -10,28 +10,31 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-11 -- **Round 5 is void, 0 of 56 valid** (`tier2/rounds/round-5/scores.md`). The gate
-  (bars.mjs into `bars/`, then `real.mjs --gate`) never ran after the usage-limit restart, yet 56
-  sessions were launched; `--start` refused 51, 5 stopped after the briefing. Re-run all 56 as
-  `<id>b` on 8c015b806 after the gate exits 0; the plan, pilots and briefings stand.
-- 2026-10-11 -- A void round is incomplete, not stalled: never apply the stall rule to a round
-  whose every session was voided for a run reason.
-- 2026-10-11 -- After any usage-limit stop, check the round folder for `bars/bars.json` and the
-  plan's "## Gate evidence" heading BEFORE anything else; the runner must resume at the gate.
-- 2026-10-11 -- Round 5 experts (same build, they stand): bar 10 fails on 2 confirmed sev 3 --
-  drawn names over names and ties (owner item), "or more" row under the fold on friends. Fixed on
-  8c015b806 by specialist checks: unfiltered table, field-path layer name, bare "10" refusal, off
-  step turning on, New project > Discard, note Cancel focus. Credit only when readers meet them.
-- 2026-10-11 -- New confirmed sev 2: the out-of-date note counts nodes only, so an edge-only step
-  says "Ran on 20 nodes; 20 shown now" (audit 5, visual 3). Element fact needs edge counts.
-- 2026-10-11 -- Claim a (unknown column) now sev 2 by three specialists; claim b reproduces by keys
-  only; claim c (name takes the tie click) did not reproduce at the tie's midpoint.
-- 2026-10-11 -- Round 5 watch, when it re-runs: T22 A credit by "10" reaching the 3 stops with no
-  refusal, not an "or more" pick (prompt echo); T17 table counts under a step; T18 bar 11 at 8 of 8.
+- 2026-10-11 -- **Round 5 measured nothing: 0 of 56 valid, all 56 refused at `--start`** (journal
+  results quote "no Gate evidence" in all 56). Cause: the running workflow executes
+  `tmp/studio-resume/workflow-tier2-continue.js` (main checkout), forked 2026-10-10 before the gate
+  existed; launched once, never relaunched. Gate and start steps live only in the UNCOMMITTED
+  `tier2/rounds/workflow-tier2.js`.
+- 2026-10-11 -- A continuation script is a fork. After any usage-limit stop: find which script the
+  run actually executes (journal + script mtime), diff it against the main script, and check the
+  journal for "Round N: gate" before any session -- not just the round folder.
+- 2026-10-11 -- Next: commit workflow-tier2.js, stop and relaunch from it at round 5; owed r4-s05b,
+  s20b, s28b first; then 56 `b` re-runs on 8c015b806; runner stops on the first refusal.
+- 2026-10-11 -- Bar 10 fails on ONE confirmed sev 3: names over names and nodes (Chloe/Farah,
+  Dev/Eli). Name-over-tie click reproduced only on 5277e2cbe; re-script on 8c015b806.
+- 2026-10-11 -- "Or more" row below the fold: confirmed but sev 2 (3/2 split, carry-forward is not
+  evidence). Round 4 deferred that half on purpose.
+- 2026-10-11 -- Confirmed sev 2: edge-only step says "Ran on 20 nodes; 20 shown now" (owner unsettled
+  -- element fact vs app words, script it); unknown column answers "Nothing matches" (3 specialists).
+- 2026-10-11 -- Fixed on 8c015b806 by specialists only (credit when readers meet them): filtered
+  table, rule-named "or more" layer, bare "10", off step stays off, New project > Discard, note Cancel.
+- 2026-10-11 -- A void round is incomplete, not stalled: never apply the stall rule to it.
+- 2026-10-11 -- Round 5 watch on re-run: T22 A credit by "10" reaching the 3 stops (not an "or more"
+  pick echoing the prompt); T17 table counts under a step; T18 bar 11 at 8 of 8.
 - 2026-10-11 -- Priming has four sources: prompt, history, persona playing rules, briefing. Grep
   all four before "unprompted".
 - 2026-10-11 -- Habit-matching fixes land at once; a rule written down fails; a refusal in the tool
-  works for a session but must also stop the runner.
+  works for a session, but only the runner's own gate step protects a round.
 - 2026-10-11 -- Raising a severity because participants "named a risk" breaks the opinion rule;
   near-identical lines across sessions are one template, not N people.
 
@@ -73,6 +76,14 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-11 (researcher, round 5 skeptic verdicts) -- Wrote `round-5/insights.md`. Rule: two
+  drops = dropped, one drop or weaken = weakened. Verified myself before applying: journal has one
+  "launched" event and no "Round 5: gate" step; all 56 participant results quote the refusal; the
+  continuation script has no "gate"; workflow-tier2.js has no git history; no r4 `b` folders exist;
+  claim c screenshots carry build 5277e2cbe. Dropped "restart skipped the gate" as a replay; kept the
+  fork mechanism. Bar 10 on one sev 3; "or more" to sev 2; table count split into three unconfirmed;
+  "Edit source" to sev 1; swatch Escape one specialist. Viewed every screenshot cited.
 
 - 2026-10-11 (researcher, round 5 scored) -- Wrote `round-5/scores.md` from 56 VOID grades and four
   expert reports; `tmp/researcher/t2r5/score.py` asserts 56 planned, every grade VOID, no
@@ -183,23 +194,15 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
-- 2026-10-11 (round 5 scoring, after a token-limit stop) -- Worked: `git status`, `git log` and
-  the round listing first showed 56 grades, no `bars/`, no gate section, no scores.md; one asserted
-  script over grades, both transcript locations and screenshots; matching expert findings across
-  the four reports by screen and mechanism. Did not work: the round's own recovery -- the restart
-  launched sessions past an unpassed gate, and nobody looked for `bars/` first.
+- 2026-10-11 (round 5 verdicts) -- Worked: reading the workflow journal (event types, step labels,
+  each participant's result) and the script the run executes, instead of the round folder alone;
+  it overturned my own scores' "cut off" and "restart skipped the gate". Did not work: inferring
+  the run mechanism from the round folder and the main script's text in `scores.md`.
 
-- 2026-10-11 (round 5 plan, after a token-limit stop) -- Worked: `git log`, `git status` and the
-  round folder listing first: plan.md held only the claims section (committed), pilots complete on
-  8c015b806, no session folders; reusing round 4's `sessions.py` with new asserts (Dana off T17,
-  swap vs round 4) and `brief-all.py` pointed at round 5. Did not work: a grep for answer facts
-  that matched the session id in a path.
-
-- 2026-10-11 (round 5 key match, after a token-limit stop) -- Worked: `git status`, `git log`
-  and a pilot-folder listing with mtimes first (nothing half-done; T12R A and B still being
-  written by other agents); asserted (old, new) pairs in `tmp/researcher/r5/edit-answers.py`;
-  fixing a stale note in place with the old wording as a parenthetical. Did not work: trusting a
-  pilot's word about its sibling folders.
+- 2026-10-11 (round 5 plan, key match and scoring, after token-limit stops, folded) -- Worked:
+  `git status`, `git log` and round listings first; asserted (old, new) edit scripts; one asserted
+  score script; matching expert findings by screen and mechanism. Did not work: trusting a pilot's
+  word about its siblings; a grep matching the session id in a path; not checking the runner.
 
 - 2026-10-11 -- Worked: diffing per-round bars.json word lists showed the edge-inspector rise is
   the rail's "Settings" label plus data names moving to "left"; scores.md had blamed scope words.

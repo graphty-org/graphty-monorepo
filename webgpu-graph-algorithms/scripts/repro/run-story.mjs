@@ -38,12 +38,9 @@ for (let i = 0; i < g.nodeCount; i++) els.push({ group: "nodes", data: { id: `n$
 for (let e = 0; e < g.src.length; e++)
     els.push({ group: "edges", data: { id: `e${e}`, source: `n${g.src[e]}`, target: `n${g.dst[e]}` } });
 const cap = Math.max(1_000, Math.round(20 * Math.sqrt(g.nodeCount)));
-const budget =
-    layout === "fruchterman-reingold"
-        ? { iterations: cap, cooling: "adaptive" }
-        : layout === "spring-electrical"
-          ? { maxIter: 5 * cap }
-          : { maxIter: cap };
+let budget = { maxIter: cap };
+if (layout === "fruchterman-reingold") budget = { iterations: cap, cooling: "adaptive" };
+if (layout === "spring-electrical") budget = { maxIter: 5 * cap };
 const extra = layout === "forceatlas2" && n >= 10_000 ? { linlog: true } : {};
 // the story canvas: 1200 wide, 900 - the 76 px status bar - its 1 px border high
 const W = 1200;

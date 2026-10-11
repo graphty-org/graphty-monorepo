@@ -35,6 +35,11 @@ import { defineConfig } from "vitest/config";
 import { ciJunitReporter } from "../vitest.ci-junit.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
+/** Whether this run names the paid llm-regression project (`--project llm-regression`). */
+const LLM_REGRESSION_ASKED = process.argv.some(
+    (arg, i, argv) => arg === "--project=llm-regression" || (arg === "--project" && argv[i + 1] === "llm-regression"),
+);
+
 /**
  * Babylon modules the element imports only for their side effects (see
  * test/packaging/babylon-side-effects.test.ts). Pre-bundled in every browser project: a
@@ -688,9 +693,11 @@ export default defineConfig({
             // runs; openai and anthropic also work) and its key variable (VITE_GOOGLE_API_KEY, ...). Its seven real test
             // files sit inside describe.skipIf(skipIfNoApiKey()), so without a key they skip; the release
             // job checks the key is set first and fails if it is not. Locally the key comes from the
-            // repository's .env, the one the dev server reads (envDir); CI sets it in the environment.
+            // repository's .env, the one the dev server reads (envDir), but only for a run that asks for
+            // this project by name (npm run test:llm-regression): a plain `vitest run test/ai/` must not
+            // spend money. CI sets the key in the environment.
             {
-                envDir: "..",
+                ...(LLM_REGRESSION_ASKED ? { envDir: ".." } : {}),
                 test: {
                     name: "llm-regression",
                     setupFiles: ["./test/ai/llm-regression/setup.ts"],

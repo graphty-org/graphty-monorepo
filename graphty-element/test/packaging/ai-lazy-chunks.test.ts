@@ -27,19 +27,19 @@ interface Chunk {
     dynamicImports: string[];
 }
 
-/** The entry points whose static imports are walked: the element, the AI entry and every Node-safe one. */
-const ENTRIES = [
-    "graphty.js",
-    "ai.js",
-    "session.js",
-    "schema.js",
-    "catalog.js",
-    "commands.js",
-    "extend.js",
-    "format.js",
-    "logging.js",
-    "react.js",
-];
+/**
+ * The entry points whose static imports are walked: every one package.json exports with an
+ * `import` file, as its file name in the build.
+ * @returns The entries' file names, such as "ai.js".
+ */
+function exportedEntries(): string[] {
+    const { exports } = JSON.parse(readFileSync(resolve(PACKAGE_ROOT, "package.json"), "utf8")) as {
+        exports: Record<string, string | { import?: string }>;
+    };
+    return Object.values(exports).flatMap((target) =>
+        typeof target === "object" && target.import !== undefined ? [target.import.replace(/^\.\/dist\//, "")] : [],
+    );
+}
 
 /**
  * Framework families a chunk an entry reaches may still import as an external package, by entry,
@@ -74,14 +74,20 @@ function moduleOwner(id: string): string | undefined {
 /**
  * Everything wrong with a build's chunks.
  * @param chunks - The chunks.
+ * @param entries - The entry points to walk; each must be an entry chunk of the build.
  * @returns One message per problem.
  */
-function lazyChunkProblems(chunks: readonly Chunk[]): string[] {
+function lazyChunkProblems(chunks: readonly Chunk[], entries: readonly string[]): string[] {
     const byFile = new Map(chunks.map((c) => [c.fileName, c]));
     const problems: string[] = [];
-    for (const entry of ENTRIES) {
+    for (const entry of entries) {
+        if (byFile.get(entry)?.isEntry !== true) {
+            problems.push(`${entry} is exported but is no entry chunk of the build`);
+            continue;
+        }
+
         const reached = new Set<string>();
-        const queue = byFile.has(entry) ? [entry] : [];
+        const queue = [entry];
         for (let file = queue.pop(); file !== undefined; file = queue.pop()) {
             if (reached.has(file)) {
                 continue;
@@ -144,7 +150,9 @@ describe("AI chunks load lazily", () => {
             chunks.some((c) => c.modules.some((id) => id.startsWith("src/ai/"))),
             "the metadata names modules, so the walk can see them",
         );
-        assert.deepEqual(lazyChunkProblems(chunks), []);
+        const entries = exportedEntries();
+        assert.include(entries, "webgpu.js", "the walk reads every exported entry");
+        assert.deepEqual(lazyChunkProblems(chunks, entries), []);
     });
 
     it("refuses each planted violation", () => {
@@ -174,12 +182,13 @@ describe("AI chunks load lazily", () => {
             }),
             chunk("catalog.js", { isEntry: true, imports: ["ai"] }),
         ];
-        assert.deepEqual(lazyChunkProblems(planted).sort(), [
+        assert.deepEqual(lazyChunkProblems(planted, ["ai.js", "catalog.js", "renamed.js"]).sort(), [
             "ai.js loads ai.js up front, which imports @tanstack/ai",
             "ai.js loads chunks/loop.js up front, which holds @tanstack/ai",
             "catalog.js loads catalog.js up front, which imports ai",
             "chunks/both.js holds the code of several providers: anthropic, openai",
             "chunks/loop.js is an AI chunk and imports node:fs, which no browser has",
+            "renamed.js is exported but is no entry chunk of the build",
         ]);
     });
 });

@@ -309,6 +309,52 @@ export interface Unrelated {
         }
     });
 
+    it("fails an open type wrapped, unioned, in a function, behind an alias or as a type parameter default", () => {
+        for (const member of [
+            "extras?: Partial<Record<string, unknown>>;",
+            "extras?: Record<PropertyKey, unknown>;",
+            "extras?: Map<string, unknown>;",
+            "extras?: unknown[];",
+            "extras?: Record<string, unknown> | string;",
+            "extras?: (raw: Record<string, unknown>) => void;",
+            "extras?: () => Readonly<Record<string, any>>;",
+            "extras?: {\n        nested: object;\n    };",
+        ]) {
+            assert.deepEqual(
+                check({ config: `\n    ${member}` }).map((m) => m.split(" ")[0]),
+                ["AiManagerConfig.extras"],
+                member,
+            );
+        }
+
+        const aliased = (alias) =>
+            openOptionFieldAdditions(
+                [report()],
+                [
+                    `${report({ provider: "\n    extras?: ProviderExtras;" })}\n// @public\nexport type ProviderExtras = ${alias};\n`,
+                ],
+            );
+        assert.match(
+            aliased("Readonly<Record<string, unknown>>")[0],
+            /^ProviderExtras\.\[alias\] is a new open-ended member/,
+        );
+        assert.deepEqual(aliased('"low" | "high"'), []);
+
+        const generic = report().replace(
+            "export interface AiManagerConfig {",
+            "export interface AiManagerConfig<T = unknown> {",
+        );
+        assert.match(
+            openOptionFieldAdditions([report()], [generic])[0],
+            /^AiManagerConfig\.\[type parameter\] is a new open-ended member/,
+        );
+    });
+
+    it("passes a string-literal union naming any, and a property named object", () => {
+        assert.deepEqual(check({ config: '\n    mode?: "any" | "all";' }), []);
+        assert.deepEqual(check({ config: "\n    target?: {\n        object: string;\n    };" }), []);
+    });
+
     it("fails an index signature, and a member of a type the configuration reaches", () => {
         assert.match(
             check({ provider: "\n    [key: string]: unknown;" })[0],

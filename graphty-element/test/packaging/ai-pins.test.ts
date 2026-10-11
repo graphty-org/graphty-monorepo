@@ -1,7 +1,8 @@
 /**
  * The AI frameworks graphty-element builds into its own chunks run exactly the versions the
  * contract suite and the paid regression run tested: every direct TanStack AI or provider SDK
- * devDependency is pinned to one version, and every override scoped to the TanStack chain
+ * devDependency or optional dependency is pinned to one version, none is a dependency (they are
+ * built into graphty-element's own chunks, never installed for consumers), and every override scoped to the TanStack chain
  * (`"@tanstack/ai-openai>openai": "7.32.0"` in pnpm-workspace.yaml) is a version its dependent
  * accepts (design/ai/tanstack-ai-harness-design.md, section 3.1 and section 7, rule 7).
  * @module test/packaging/ai-pins.test
@@ -37,22 +38,40 @@ const PIN_EXEMPT: Readonly<Record<string, string>> = {
     "@mlc-ai/web-llm": "an optional peer the consumer installs, never built in",
 };
 
+/** The dependency lists of a package.json the pins are read from. */
+interface Manifest {
+    readonly dependencies?: Readonly<Record<string, string>>;
+    readonly devDependencies?: Readonly<Record<string, string>>;
+    readonly optionalDependencies?: Readonly<Record<string, string>>;
+}
+
 /**
  * Everything wrong with the pins.
- * @param devDependencies - graphty-element's devDependencies.
+ * @param manifest - graphty-element's package.json.
  * @param overrides - The workspace's overrides, key -> version.
  * @param dependentRange - The range a package declares for one of its dependencies, or undefined.
  * @returns One message per problem.
  */
 function pinProblems(
-    devDependencies: Readonly<Record<string, string>>,
+    manifest: Manifest,
     overrides: Readonly<Record<string, string>>,
     dependentRange: (dependent: string, dependency: string) => string | undefined,
 ): string[] {
     const problems: string[] = [];
-    for (const [name, range] of Object.entries(devDependencies)) {
-        if (frameworkFamily(name) !== undefined && !(name in PIN_EXEMPT) && !EXACT.test(range)) {
-            problems.push(`devDependency ${name} is "${range}", not one exact version`);
+    for (const name of Object.keys(manifest.dependencies ?? {})) {
+        if (frameworkFamily(name) !== undefined) {
+            problems.push(`dependency ${name} would be installed for every consumer: build it in, as a devDependency`);
+        }
+    }
+
+    for (const [list, label] of [
+        [manifest.devDependencies, "devDependency"],
+        [manifest.optionalDependencies, "optionalDependency"],
+    ] as const) {
+        for (const [name, range] of Object.entries(list ?? {})) {
+            if (frameworkFamily(name) !== undefined && !(name in PIN_EXEMPT) && !EXACT.test(range)) {
+                problems.push(`${label} ${name} is "${range}", not one exact version`);
+            }
         }
     }
 
@@ -117,11 +136,9 @@ function installedRange(dependent: string, dependency: string): string | undefin
 }
 
 describe("AI framework pins", () => {
-    it("pins every TanStack and provider devDependency, and every scoped override fits its dependent", () => {
-        const { devDependencies } = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")) as {
-            devDependencies: Record<string, string>;
-        };
-        assert.deepEqual(pinProblems(devDependencies, workspaceOverrides(), installedRange), []);
+    it("pins every TanStack and provider package, and every scoped override fits its dependent", () => {
+        const manifest = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")) as Manifest;
+        assert.deepEqual(pinProblems(manifest, workspaceOverrides(), installedRange), []);
     });
 
     it("reads the workspace's overrides", () => {
@@ -134,7 +151,11 @@ describe("AI framework pins", () => {
             "@tanstack/ai-gemini @google/genai": "^2.0.0",
         };
         const problems = pinProblems(
-            { "@tanstack/ai": "^0.68.0", "@tanstack/ai-openai": "0.29.1", openai: "~7.32.0", lit: "^3.0.0" },
+            {
+                dependencies: { "@tanstack/ai-gemini": "0.12.0", zod: "^4.6.5" },
+                devDependencies: { "@tanstack/ai": "^0.68.0", "@tanstack/ai-openai": "0.29.1", lit: "^3.0.0" },
+                optionalDependencies: { openai: "~7.32.0" },
+            },
             {
                 "@tanstack/ai-openai>openai": "7.32.0",
                 "@tanstack/ai-gemini>@google/genai": "2.28.0",
@@ -144,8 +165,9 @@ describe("AI framework pins", () => {
             (dependent, dependency) => ranges[`${dependent} ${dependency}`],
         );
         assert.deepEqual(problems, [
+            "dependency @tanstack/ai-gemini would be installed for every consumer: build it in, as a devDependency",
             'devDependency @tanstack/ai is "^0.68.0", not one exact version',
-            'devDependency openai is "~7.32.0", not one exact version',
+            'optionalDependency openai is "~7.32.0", not one exact version',
             'override @tanstack/ai-openai>openai: 7.32.0 is outside the range @tanstack/ai-openai declares, "^6.0.0"',
             'override @tanstack/ai-anthropic>@anthropic-ai/sdk is "^0.97.1", not one exact version',
         ]);

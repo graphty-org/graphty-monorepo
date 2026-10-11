@@ -323,9 +323,49 @@ export const OPTION_ROOTS = ["AiManagerConfig", "ProviderOptions"];
  */
 export const OPEN_OPTION_EXCEPTIONS = new Map([]);
 
-const OPEN_MEMBER =
-    /^\s+(?:readonly )?([A-Za-z_$][\w$]*)\??: (unknown|any|object|\{\}|(?:Readonly<)?Record<string, (?:unknown|any)>>?)(?: \| (?:undefined|null))*;$/;
-const INDEX_MEMBER = /^\s+(?:readonly )?\[[A-Za-z_$][\w$]*: (?:string|number|symbol)\]\??: /;
+/** `unknown`, `any` or `object` anywhere in a type (not a property name), or an empty object type `{}`. */
+const OPEN_TYPE = /(?<![\w$.])(?:unknown|any|object)(?![\w$]|\??:)|\{\s*\}/;
+const INDEX_MEMBER = /^\s+(?:readonly )?\[[A-Za-z_$][\w$]*: (?:string|number|symbol|PropertyKey)\]\??: /;
+const MEMBER_NAME = /^\s+(?:readonly )?([A-Za-z_$][\w$]*)\??/;
+
+/**
+ * Whether a type text is open-ended: it admits anything somewhere, as a union member, a type
+ * argument (`Record<string, unknown>`, `Map<string, any>`, `unknown[]`), a parameter or return of a
+ * function type, or a property of an inline object type.
+ * @param type - the type text
+ * @returns true when it is open-ended
+ */
+function isOpenType(type) {
+    return OPEN_TYPE.test(type.replaceAll(/(["'`])(?:\\.|(?!\1)[^\\])*\1/g, '""'));
+}
+
+/**
+ * A type text as the failure names it: trimmed, without its `;` and trailing `| undefined`.
+ * @param type - the type text
+ * @returns the text
+ */
+function typeLabel(type) {
+    return type
+        .trim()
+        .replace(/;$/, "")
+        .replace(/(?: \| (?:undefined|null))+$/, "")
+        .replaceAll(/\s+/g, " ");
+}
+
+/**
+ * The type-parameter list at the start of a declaration's text after its name, such as `<T = unknown>`.
+ * @param text - the declaration line after its name
+ * @returns the list, or "" when there is none
+ */
+function typeParameters(text) {
+    if (!text.startsWith("<")) return "";
+    let depth = 0;
+    for (let i = 0; i < text.length; i++) {
+        if (text[i] === "<") depth++;
+        else if (text[i] === ">" && --depth === 0) return text.slice(0, i + 1);
+    }
+    return text;
+}
 
 /**
  * Every declaration of several reports, the later report winning a name both declare.
@@ -358,19 +398,33 @@ export function optionReachable(declarations) {
 }
 
 /**
- * Every open-ended member of the given declarations.
+ * Every open-ended member of the given declarations: a member whose type is open anywhere in it,
+ * an index signature, a type alias whose right-hand side is open, and a type parameter that
+ * defaults to `unknown` or `any`.
  * @param declarations - from parseReports
  * @param names - the declarations to read, or undefined for every one
- * @returns `Type.member` (`Type.[index]` for an index signature) -> what makes it open
+ * @returns `Type.member` (`Type.[index]`, `Type.[alias]`, `Type.[type parameter]`) -> what makes it open
  */
 export function openOptionFields(declarations, names) {
     const found = new Map();
-    for (const [name, lines] of declarations) {
+    for (const [name, [head, ...rest]] of declarations) {
         if (names && !names.has(name)) continue;
-        for (const line of members(lines.slice(1)).map(receivedType).join("\n").split("\n")) {
-            const open = OPEN_MEMBER.exec(line);
-            if (open) found.set(`${name}.${open[1]}`, open[2]);
-            else if (INDEX_MEMBER.test(line)) found.set(`${name}.[index]`, "an index signature");
+        const afterName = head.replace(DECLARATION, "");
+        const parameters = typeParameters(afterName);
+        if (/=\s*(?:unknown|any)\b/.test(parameters)) found.set(`${name}.[type parameter]`, parameters);
+        if (/^(?:export )?(?:declare )?type /.test(head)) {
+            const body = [afterName.slice(parameters.length).replace(/^\s*=/, ""), ...rest].join("\n");
+            if (isOpenType(body)) found.set(`${name}.[alias]`, typeLabel(body));
+            continue;
+        }
+        for (const member of members(rest)) {
+            if (INDEX_MEMBER.test(member)) {
+                found.set(`${name}.[index]`, "an index signature");
+                continue;
+            }
+            const named = MEMBER_NAME.exec(member);
+            const type = named ? member.slice(named[0].length).replace(/^\s*:/, "") : member;
+            if (named && isOpenType(type)) found.set(`${name}.${named[1]}`, typeLabel(type));
         }
     }
     return found;

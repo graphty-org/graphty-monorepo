@@ -201,9 +201,10 @@ function ViewFace({ session }: Readonly<{ session: GraphSession | null }>): Reac
 }
 
 /**
- * The canvas toolbar (tier1-design.md 2.3): Analyze | Layout, View | Legend, Table | Quick actions,
- * at the canvas's bottom center; a selection never changes it. Legend and Table are toggles, pressed
- * while what they switch is showing. Analyze, Layout and Quick actions open
+ * The canvas toolbar (tier1-design.md 2.3): Analyze | Layout, View | Legend, Table, Filters | Quick
+ * actions, at the canvas's bottom center; a selection never changes it. Legend and Table are
+ * toggles, pressed while what they switch is showing; Filters opens the Data place's step editor
+ * on a new step. Analyze, Layout and Quick actions open
  * popovers above it and View opens its flyout; each holds the store's one `dialog` slot, so only
  * one is open at a time and Esc or a click outside closes it. A popover's body is mounted only
  * while it is open, so each opening starts fresh (Analyze on its list, the filter empty).
@@ -320,6 +321,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
             <Toolbar.Divider />
             <CommandTool command="view.legend" icon={<GLYPHS.legend size={20} />} selected={legendShown} />
             <CommandTool command="table.toggle" icon={<GLYPHS.table size={20} />} selected={dockOpen} />
+            <CommandTool command="filters.open" icon={<GLYPHS.filter size={20} />} />
             <Toolbar.Divider />
             <Popover {...popoverProps("quick-actions")}>
                 <Popover.Target>

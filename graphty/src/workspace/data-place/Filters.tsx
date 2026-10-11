@@ -536,6 +536,9 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
         >
             <Select
                 label="Keep"
+                // A new step's editor takes focus, from "+" or the toolbar's Filters, so a key
+                // reader is in the form it asked for.
+                autoFocus={id === NEW}
                 data={keepChoices}
                 value={fields.keep}
                 allowDeselect={false}

@@ -1,6 +1,7 @@
 import { type GraphSession, isGraphtyError, type NodeId } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
+import { NEW, openStepEditor } from "../data-place/filterSteps";
 import { neighborhoodKey } from "../inspector/inspected";
 import { xrEntryFailureWords, xrReasonWords } from "../inspector/words";
 import { togglePopover } from "./popover";
@@ -221,6 +222,16 @@ export const registration = defineRegistration({
             disabled: ({ session }) => (immersiveMode(session) === null ? "Not in VR or AR" : null),
             run: async ({ session }) => {
                 await session?.execute({ op: "view.immersive", mode: null });
+            },
+        },
+        {
+            // A way to Filters from the canvas: the Data place, its step editor open on a new step.
+            id: "filters.open",
+            label: "Filters",
+            group: "Data",
+            disabled: ({ session }) => nothingDrawn(session),
+            run: ({ workspace }) => {
+                openStepEditor(workspace, NEW);
             },
         },
         {

@@ -29,14 +29,14 @@ describe("the canvas toolbar", () => {
         await page.viewport(1366, 768);
     });
 
-    it("draws Analyze, Layout, View, Legend, Table and Quick actions in order", () => {
+    it("draws Analyze, Layout, View, Legend, Table, Filters and Quick actions in order", () => {
         render(<Workspace initialState={OPEN} />);
 
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
         const names = within(toolbar)
             .getAllByRole("button")
             .map((button) => button.getAttribute("aria-label"));
-        assert.deepEqual(names, ["Analyze", "Layout", "View", "Legend", "Table", "Quick actions"]);
+        assert.deepEqual(names, ["Analyze", "Layout", "View", "Legend", "Table", "Filters", "Quick actions"]);
     });
 
     it("draws Layout as a network chart and Quick actions as a search", () => {

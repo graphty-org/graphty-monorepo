@@ -466,6 +466,22 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             );
         });
     });
+
+    it("opens Filters from the Graph place with the toolbar's Filters, focus in a new step's Keep", async () => {
+        await openKarate();
+        assert.isNull(screen.queryByRole("region", { name: "Data place" }));
+        const filters = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
+            name: "Filters",
+        });
+
+        await realInput.click(filters);
+        await screen.findByRole("region", { name: "Data place" });
+        const keep = await screen.findByRole("combobox", { name: "Keep" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, keep);
+        });
+        assert.isNotNull(screen.getByRole("button", { name: "Add step" }));
+    });
 });
 it("shows and hides the legend and the table from their own toolbar buttons, pressed while showing", async () => {
     const session = await openKarate();

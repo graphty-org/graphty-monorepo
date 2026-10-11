@@ -27,6 +27,7 @@ import { Camera } from "@babylonjs/core";
 import { afterEach, assert, describe, test, vi } from "vitest";
 
 import { Graph } from "../../src/Graph";
+import { assertPlaced } from "../helpers/placed-position";
 
 /** How long to wait for the element to connect and finish `Graph.init()`: the test's own budget. */
 const INIT_BUDGET_MS = 10_000;
@@ -177,6 +178,7 @@ describe("a graph that opens in 2D", () => {
 
         assert.isAbove(nodes.length, 0, "the graph should have nodes");
         for (const node of nodes) {
+            assertPlaced(node.mesh.position, `node ${String(node.id)}`);
             assert.closeTo(node.mesh.position.z, 0, 0.01, `node ${String(node.id)} should be flat`);
         }
     });
@@ -237,6 +239,7 @@ describe("a graph that opens in 2D", () => {
 
         assertDrawnIn2D(graph, "back to 2D");
         for (const node of graph.getNodes()) {
+            assertPlaced(node.mesh.position, `node ${String(node.id)}`);
             assert.closeTo(node.mesh.position.z, 0, 0.01, `node ${String(node.id)} should be flat again`);
         }
     });

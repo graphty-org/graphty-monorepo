@@ -94,10 +94,8 @@ describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
             const retryOptions: RetryOptions = {
                 maxRetries: 2,
                 retryDelayMs: 1000,
-                retryOn: (error: Error) => {
-                    // Would retry on rate limit errors
-                    return error.message.includes("rate") || error.message.includes("429");
-                },
+                // Would retry on a rate limit
+                retryOn: (failure) => failure.code === "AI_PROVIDER_ERROR" && failure.params?.status === 429,
             };
 
             // Normal operation should work fine

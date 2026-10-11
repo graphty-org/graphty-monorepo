@@ -7,15 +7,16 @@
  */
 
 import { Color3 } from "@babylonjs/core";
-import { APICallError, RetryError } from "ai";
 
-import { AiController } from "../../src/ai/AiController";
+import { AiController, type AiControllerOptions } from "../../src/ai/AiController";
 import { CommandRegistry } from "../../src/ai/commands";
 import { BUILTIN_COMMANDS } from "../../src/ai/commands/builtin";
 import type { CommandResult } from "../../src/ai/commands/types";
-import type { ToolCall } from "../../src/ai/providers/types";
+import { ENGINE_OVERRIDE, engineFor } from "../../src/ai/engine/load";
+import type { AiEngine, EngineCapabilities, EngineOutcome, TurnEvent, TurnRequest } from "../../src/ai/engine/types";
 import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
 import { SchemaManager } from "../../src/ai/schema";
+import type { AiResultCode, AiResultParams } from "../../src/catalog/ai";
 import type { Graph } from "../../src/Graph";
 import {
     getLlmRegressionApiKey,
@@ -74,6 +75,16 @@ export interface TestExpectations {
 }
 
 /**
+ * A message that failed outside its tools, as the element reports it: its result code and facts,
+ * and the cleaned error's message.
+ */
+export interface RequestFailure {
+    code?: AiResultCode;
+    params?: AiResultParams;
+    message: string;
+}
+
+/**
  * Options for retry behavior when API calls fail
  */
 export interface RetryOptions {
@@ -81,8 +92,8 @@ export interface RetryOptions {
     maxRetries?: number;
     /** Delay between retry attempts in milliseconds (default: 1000) */
     retryDelayMs?: number;
-    /** Custom function to determine if an error should trigger a retry */
-    retryOn?: (error: Error) => boolean;
+    /** Custom function to determine if a failure should trigger a retry */
+    retryOn?: (failure: RequestFailure) => boolean;
 }
 
 /**
@@ -94,29 +105,43 @@ export const ACCOUNT_REFUSED_MARKER = "[llm-regression] provider refused the acc
 
 /**
  * Why the provider refused the account behind a request, or null when it refused only the request.
- * @param error - What the request failed with.
+ * Read from the element's own codes: a rejected key is `AI_KEY_REJECTED`; an empty balance is a
+ * provider error whose message says so.
+ * @param failure - What the request failed with.
  * @returns A short reason, such as "HTTP 401", or null.
  */
-export function accountRefusalOf(error: unknown): string | null {
-    const last = RetryError.isInstance(error) ? error.lastError : error;
-    const cause = last instanceof Error && !APICallError.isInstance(last) ? last.cause : last;
-    if (!APICallError.isInstance(cause)) {
-        return null;
-    }
-
-    const status = cause.statusCode;
-    if (status === 401 || status === 403) {
-        return `HTTP ${status}`;
+export function accountRefusalOf(failure: RequestFailure): string | null {
+    const status = failure.params?.status;
+    if (failure.code === "AI_KEY_REJECTED") {
+        return `HTTP ${status ?? "?"}`;
     }
 
     // Anthropic answers an empty balance with 400 ("credit balance is too low"), OpenAI with 429
     // insufficient_quota, Google with 429 RESOURCE_EXHAUSTED on a billing quota.
-    const text = `${cause.message} ${cause.responseBody ?? ""}`.toLowerCase();
-    if (/credit balance|insufficient_quota|no credits|billing|exceeded your current quota/.test(text)) {
+    const text = failure.message.toLowerCase();
+    if (
+        failure.code === "AI_PROVIDER_ERROR" &&
+        /credit balance|insufficient_quota|no credits|billing|exceeded your current quota/.test(text)
+    ) {
         return `HTTP ${status ?? "?"}, out of credit or quota`;
     }
 
     return null;
+}
+
+/**
+ * Whether a failure is worth asking again: the provider was rate limited (429), failed on its side
+ * (5xx), or could not be reached at all (no status).
+ * @param failure - What the request failed with.
+ * @returns True for a transient failure.
+ */
+export function isTransientFailure(failure: RequestFailure): boolean {
+    if (failure.code !== "AI_PROVIDER_ERROR") {
+        return false;
+    }
+
+    const { status } = failure.params ?? {};
+    return status === undefined || status === 429 || (typeof status === "number" && status >= 500);
 }
 
 /**
@@ -148,39 +173,48 @@ export interface CapturedToolCall {
 }
 
 /**
- * Custom provider wrapper that captures tool calls before execution
+ * An engine decorator that records what the model did on every turn -- its tool calls, in order,
+ * and its token usage -- and counts the requests, without changing anything that passes through.
  */
-class ToolCallCapturingProvider extends VercelAiProvider {
+export class RecordingEngine implements AiEngine {
+    readonly kind: AiEngine["kind"];
     capturedToolCalls: CapturedToolCall[] = [];
     capturedTokenUsage?: { prompt: number; completion: number };
 
-    async generate(
-        messages: Parameters<VercelAiProvider["generate"]>[0],
-        tools: Parameters<VercelAiProvider["generate"]>[1],
-        options?: Parameters<VercelAiProvider["generate"]>[2],
-    ): ReturnType<VercelAiProvider["generate"]> {
+    constructor(private readonly inner: AiEngine) {
+        this.kind = inner.kind;
+    }
+
+    capabilities(model: string): EngineCapabilities {
+        return this.inner.capabilities(model);
+    }
+
+    async *turn(request: TurnRequest, signal: AbortSignal): AsyncIterable<TurnEvent> {
         // Counted per test file and printed by setup.ts, so a run reports what it cost.
         const counter = globalThis as { __LLM_REGRESSION_API_CALLS__?: number };
         counter.__LLM_REGRESSION_API_CALLS__ = (counter.__LLM_REGRESSION_API_CALLS__ ?? 0) + 1;
-        const result = await super.generate(messages, tools, options);
+        for await (const event of this.inner.turn(request, signal)) {
+            if (event.type === "tool-call") {
+                // Every turn's tool calls, in order: one prompt may ask the model several times.
+                this.capturedToolCalls.push({ name: event.name, arguments: { ...event.arguments } });
+            } else if (event.type === "usage") {
+                // Token usage, summed over the prompt's turns
+                this.capturedTokenUsage = {
+                    prompt: (this.capturedTokenUsage?.prompt ?? 0) + event.inputTokens,
+                    completion: (this.capturedTokenUsage?.completion ?? 0) + event.outputTokens,
+                };
+            }
 
-        // Every turn's tool calls, in order: one prompt may ask the model several times.
-        this.capturedToolCalls.push(
-            ...result.toolCalls.map((tc: ToolCall) => ({
-                name: tc.name,
-                arguments: tc.arguments,
-            })),
-        );
-
-        // Token usage, summed over the prompt's turns
-        if (result.usage) {
-            this.capturedTokenUsage = {
-                prompt: (this.capturedTokenUsage?.prompt ?? 0) + result.usage.promptTokens,
-                completion: (this.capturedTokenUsage?.completion ?? 0) + result.usage.completionTokens,
-            };
+            yield event;
         }
+    }
 
-        return result;
+    checkKey(signal: AbortSignal): Promise<EngineOutcome> {
+        return this.inner.checkKey(signal);
+    }
+
+    dispose(): void {
+        this.inner.dispose();
     }
 
     clearCaptured(): void {
@@ -197,13 +231,13 @@ class ToolCallCapturingProvider extends VercelAiProvider {
  */
 export class LlmRegressionTestHarness {
     private controller: AiController;
-    private provider: ToolCallCapturingProvider;
+    private engine: RecordingEngine;
     private graph: Graph;
     private disposed = false;
 
-    private constructor(controller: AiController, provider: ToolCallCapturingProvider, graph: Graph) {
+    private constructor(controller: AiController, engine: RecordingEngine, graph: Graph) {
         this.controller = controller;
-        this.provider = provider;
+        this.engine = engine;
         this.graph = graph;
     }
 
@@ -222,7 +256,7 @@ export class LlmRegressionTestHarness {
         }
 
         // The provider VITE_LLM_REGRESSION_PROVIDER names (google by default)
-        const provider = new ToolCallCapturingProvider(getLlmRegressionProvider());
+        const provider = new VercelAiProvider(getLlmRegressionProvider());
         provider.configure({
             apiKey,
             model: options.model ?? getLlmRegressionModel(),
@@ -242,9 +276,18 @@ export class LlmRegressionTestHarness {
 
         const schemaManager = new SchemaManager(graph);
         schemaManager.extract();
-        const controller = new AiController({ provider, commandRegistry, graph, schemaManager });
+        // The provider's own engine, wrapped so every turn is recorded.
+        const engine = new RecordingEngine(engineFor(provider));
+        const controllerOptions: AiControllerOptions & { [ENGINE_OVERRIDE]: AiEngine } = {
+            provider,
+            commandRegistry,
+            graph,
+            schemaManager,
+            [ENGINE_OVERRIDE]: engine,
+        };
+        const controller = new AiController(controllerOptions);
 
-        return Promise.resolve(new LlmRegressionTestHarness(controller, provider, graph));
+        return Promise.resolve(new LlmRegressionTestHarness(controller, engine, graph));
     }
 
     /**
@@ -292,11 +335,11 @@ export class LlmRegressionTestHarness {
 
         const maxRetries = retryOptions?.maxRetries ?? DEFAULT_RETRY_OPTIONS.maxRetries;
         const retryDelayMs = retryOptions?.retryDelayMs ?? DEFAULT_RETRY_OPTIONS.retryDelayMs;
-        const shouldRetry = retryOptions?.retryOn ?? this.defaultRetryCondition;
+        const shouldRetry = retryOptions?.retryOn ?? isTransientFailure;
         const startTime = Date.now();
 
         for (let attempt = 0; ; attempt++) {
-            this.provider.clearCaptured();
+            this.engine.clearCaptured();
             const executionResult = await this.controller.execute(prompt);
 
             // The controller never throws: a message that failed outside its tools -- the API
@@ -305,12 +348,17 @@ export class LlmRegressionTestHarness {
             // A test reading only `toolWasCalled` would see "no tool was called" and nothing
             // else, so such a failure throws here with its real cause. A tool that failed is
             // NOT this: it is part of what the model did, and stays in `commandResult`.
-            const failure = this.controller.getLastError();
-            if (failure) {
+            const error = this.controller.getLastError();
+            if (error) {
+                const failure: RequestFailure = {
+                    code: executionResult.code,
+                    params: executionResult.params,
+                    message: error.message,
+                };
                 const refusal = accountRefusalOf(failure);
                 if (refusal !== null) {
                     // Retrying cannot help, and the message carries the marker the release job reads.
-                    throw new Error(`${ACCOUNT_REFUSED_MARKER} (${refusal}): ${failure.message}`, { cause: failure });
+                    throw new Error(`${ACCOUNT_REFUSED_MARKER} (${refusal}): ${failure.message}`, { cause: error });
                 }
 
                 if (attempt < maxRetries && shouldRetry(failure)) {
@@ -319,11 +367,11 @@ export class LlmRegressionTestHarness {
                 }
 
                 throw new Error(`LLM regression request failed before any tool ran: ${failure.message}`, {
-                    cause: failure,
+                    cause: error,
                 });
             }
 
-            const toolCalls = [...this.provider.capturedToolCalls];
+            const toolCalls = [...this.engine.capturedToolCalls];
             const lastToolCall = toolCalls.at(-1) ?? null;
             const result: LlmRegressionResult = {
                 prompt,
@@ -340,7 +388,7 @@ export class LlmRegressionTestHarness {
                 },
                 llmText: executionResult.llmText ?? null,
                 latencyMs: Date.now() - startTime,
-                tokenUsage: this.provider.capturedTokenUsage,
+                tokenUsage: this.engine.capturedTokenUsage,
             };
 
             if (expectations) {
@@ -349,20 +397,6 @@ export class LlmRegressionTestHarness {
 
             return result;
         }
-    }
-
-    /**
-     * Default retry condition - retries on rate limit and transient errors.
-     */
-    private defaultRetryCondition(error: Error): boolean {
-        const message = error.message.toLowerCase();
-        return (
-            message.includes("rate") ||
-            message.includes("429") ||
-            message.includes("503") ||
-            message.includes("timeout") ||
-            message.includes("econnreset")
-        );
     }
 
     /**

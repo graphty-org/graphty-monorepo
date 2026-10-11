@@ -296,8 +296,7 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
             controller.abort();
             const out = await pending;
             const last = out.at(-1);
-            assert.strictEqual(last?.type, "error");
-            assert.strictEqual(last.type === "error" ? last.code : undefined, "AI_CANCELLED");
+            assert.strictEqual(last?.type === "error" ? last.code : undefined, "AI_CANCELLED");
             assert.notOk(out.slice(0, -1).some((e) => e.type === "tool-call" || e.type === "finish"));
         });
 

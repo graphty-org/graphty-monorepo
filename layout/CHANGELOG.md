@@ -1,3 +1,24 @@
+## 2.4.0 (2026-10-11)
+
+### 🚀 Features
+
+- **layout:** add NetworkX's rotate to shell and radial, and opt-in sector placement ([#1664](https://github.com/graphty-org/graphty-monorepo/issues/1664))
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🩹 Fixes
+
+- **layout:** give every radial node its own angle inside its parent's sector ([#1664](https://github.com/graphty-org/graphty-monorepo/issues/1664))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.27
+- Updated graph-format to 1.3.12
+- Updated algorithms to 3.4.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.3.1 (2026-10-11)
 
 ### 🩹 Fixes

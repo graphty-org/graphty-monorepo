@@ -651,17 +651,20 @@ function memorySpeed(): number {
 const MIN_MEMORY_SPEED = 0.5;
 
 /**
- * The default rates scaled to a machine of this speed, which is what `calibrateCost` produces.
+ * The default rates scaled to a machine of this speed, with this memory reading, which is what
+ * `calibrateCost` produces. Its memory probe makes the same increments into a table of the same
+ * size, against the same 29 ms, so the two readings are on one scale.
  * @param speed - The machine's speed factor.
+ * @param memory - The memory speed factor, from {@link memorySpeed}.
  * @returns A calibration to estimate with.
  */
-function calibrationAt(speed: number): MachineCalibration {
+function calibrationAt(speed: number, memory: number): MachineCalibration {
     const rates = { ...DEFAULT_COST_RATES };
     for (const key of Object.keys(rates) as (keyof CostRates)[]) {
         rates[key] *= speed;
     }
 
-    return { rates, at: new Date().toISOString(), machine: "this test", basis: "probe" };
+    return { rates, at: new Date().toISOString(), machine: "this test", basis: "probe", memorySpeed: memory };
 }
 
 /** This process's CPU affinity before the guard pinned it, restored afterwards; undefined if unpinned. */
@@ -714,7 +717,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
                     // Either side loaded means the runs between them may have been.
                     const memory = Math.min(memoryBefore, memorySpeed());
                     const speed = Math.max(before, await machineSpeed());
-                    const calibration = calibrationAt(speed);
+                    const calibration = calibrationAt(speed, memory);
                     const estimate = estimateCost({
                         algorithm: row.key,
                         descriptor,

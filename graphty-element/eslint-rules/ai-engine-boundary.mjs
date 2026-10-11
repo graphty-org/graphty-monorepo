@@ -56,12 +56,13 @@ const FRAMEWORK_MESSAGE =
     "everything else talks to a model through AiEngine (src/ai/engine/types.ts).";
 const ADAPTER_MESSAGE = "The AI adapter folder is loaded only by src/ai/engine/load.ts, with import().";
 
+const ESCAPED_SLASH = String.raw`\/`;
+
 /**
  * An esquery regular expression literal from a regular expression source.
  * @param source - The source.
  * @returns The literal, `/` escaped.
  */
-const ESCAPED_SLASH = String.raw`\/`;
 const literal = (source) => `/${source.replaceAll(/(?<!\\)\//g, ESCAPED_SLASH)}/`;
 
 /**

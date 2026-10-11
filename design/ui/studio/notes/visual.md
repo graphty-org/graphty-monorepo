@@ -5,38 +5,35 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-11 (tier 2 round 3 closed; decisions read).
+Last updated: 2026-10-11 (tier 2 round 4 walk).
 
 ## Top of mind
 
-1. (2026-10-11) Round 4 checks for me: the find box's value row with "Select where" dropped from
-   its visible text must fit on both datasets (bars.mjs counts no cut row); a cut row left is a
-   build fault before the freeze, not a cue for the two-line row.
-2. (2026-10-11) Round 4: the new "at least" value row ("shared_chapters is 10 or more (N)") must
-   look like a sibling of the "is" row -- same row shape, same glyph -- not a new pattern.
-3. (2026-10-11) Round 4: the Filters toolbar icon is icon-only with a "Filters" tooltip; check it
-   reads as one of the toolbar's family and that T17 first moves drop below round 3's 5 of 8.
-4. (2026-10-11) Round 4: one "Start here" badge while a filter is typed, and Shortest path first
-   for "path"; check no second badge appears for "linked".
-5. (2026-10-11) Round 4: repeated-ties line gets the warning glyph in the danger color; check it
-   matches the unmatched-row warning exactly (one idea, one look).
-6. (2026-10-11) Rejected: "Filter to neighbors" as a pressed toggle. Round 2 made it a command whose
-   state lives on the step's checkbox; the fix is a compact-mantine Tooltip that describes a
-   disabled target, only if the check fails. Do not re-propose without new session evidence.
-7. (2026-10-11) Held: the key's label-aware overlap test (`nodesInRect` with labels). Script first
-   whether `autoFrame` was off; one specialist is not enough.
-8. Only confirmed sev 3 left on screen: drawn names covering names and ties. graphty-element's;
-   never a font, seed or offset change in the app.
-9. Shift-click on a node is an element fix (Shift only, not Ctrl/Meta); no app hint, and
-   re-measure "Select endpoints" in the "..." menu after it lands.
-10. Words at rest never rise. Weight and position first; bar 9's counter now leaves out data names.
-11. One variant per problem: lead with one mark; keep alternatives as a fallback, unstated.
-12. A claim only one specialist made (mine included) is scripted on the frozen build before it is
+1. (2026-10-11) Round 4 walk: 3 sev 3. New: the "or more" row names its layer "data.minutes >=
+   `5`" (element `atLeastOf` spells the stored key); typed rules say "minutes >= `10`". Propose the
+   element's target in the find box's own rule form; a fix in the app would hide it.
+2. Still open sev 3: drawn names covering names, ties and nodes (graphty-element; Quinn drawn on the
+   path line reads as on the path), and the key growing over "Depot" (graphty app).
+3. (2026-10-11) Problem marks are inverted, not unified: the Add page glyph is on the footer line
+   with a green check on the table row; the unmatched row has the glyph on the table row only. The
+   fix is one rule for every load problem (glyph on the line and on its table row), not another glyph.
+4. (2026-10-11) Values rows sit under the hit rows: below the fold at 1280 x 800 (7 edges), and on a
+   30-character column both rows cut to the same text. Order and cut, not width.
+5. (2026-10-11) Neighbor list ignores an active filter (one-specialist claim): script it before
+   proposing; it may be the element's neighborhood query.
+6. Round 4 changes that held on screen: toolbar Filters, one "Start here", edge counts on chip and
+   step, repeated-ties glyph, the "or more" row's sibling look.
+7. Rejected: "Filter to neighbors" as a pressed toggle. Do not re-propose without new session
+   evidence; the disabled-gray done state is still my sev 2.
+8. Held: the key's label-aware overlap test until a script rules out `autoFrame`.
+9. Words at rest never rise. Weight and position first.
+10. One variant per problem: lead with one mark; keep alternatives as a fallback, unstated.
+11. A claim only one specialist made (mine included) is scripted on the frozen build before it is
     fixed; if the script does not reproduce it, it closes.
-13. Held and still open: out-of-date mark, halo, selection two-looks, two-table "...", hop distance
-    in the neighbor list, ragged digits, popover cover. No session paid for them.
-14. Walk detours and every control on a screen, not only answer-key routes.
-15. Never wrap `real.mjs --start` in `timeout`; start walks in the background and poll.
+12. Held and still open: out-of-date mark (three looks now), halo, selection two-looks, two-table
+    "...", hop distance in the neighbor list, ragged digits, popover cover.
+13. Walk detours and every control on a screen; type a number, not only a rule, in the find box.
+14. Never wrap `real.mjs --start` in `timeout`; start walks in the background and poll a file.
 
 ## Priorities and values
 
@@ -59,6 +56,16 @@ Last updated: 2026-10-11 (tier 2 round 3 closed; decisions read).
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- 2026-10-11 (round 4 walk): Rated the "data.minutes" layer name severity 3: the criteria rate a raw
+  field path on a success path 3, and T22's new "or more" row is that path
+  (`round-4/expert/visual/find/07.png`). Owner graphty-element, read from `atLeastOf` at 5277e2cbe.
+- 2026-10-11 (round 4 walk): Raised the toolbar covering the bottom node from 1 to 2: it now covers,
+  not touches (`longnames/04.png`).
+- 2026-10-11 (round 4 walk): Kept the warning finding at 2 though the glyph landed: the page still
+  shows a green check and a warning about one table, and the unmatched line has no glyph.
+- 2026-10-11 (round 4 walk): Left the neighbor-list-vs-filter finding with an open owner: I saw it
+  on screen but did not read which package asks for the unfiltered neighborhood.
 
 - 2026-10-11 (round 3 closed): Of my five critique proposals, three were adopted as proposed (toolbar
   Filters icon, one "Start here" badge, warning glyph on the repeated-ties line -- plus Load's
@@ -155,6 +162,16 @@ Last updated: 2026-10-11 (tier 2 round 3 closed; decisions read).
 
 ## Tried: worked / did not work
 
+- 2026-10-11 worked: typing a bare number (not only a rule) in the find box and following the new
+  row through to a styled layer found the field-path name; checking a change only on its own row
+  would have passed it.
+- 2026-10-11 worked: comparing the two import pages' problem lines side by side showed the glyph fix
+  inverted the inconsistency rather than closing it.
+- 2026-10-11 did not work: the Add page is not reached from Tables "+" on Edit source (that is the
+  Replace page); Control+O with a file while a graph is open opens "Add to <name>".
+- 2026-10-11 worked: one session per walk, several screens per session (path walk covered filters,
+  path, neighbors, notes and edge) kept within the browser slots while others' sessions held three.
+
 - 2026-10-11 worked: proposing the smallest visual change per problem; 4 of 5 landed. Did not work:
   proposing a new look for a state another role had settled a round earlier (the pressed toggle).
   Check the previous round's decisions before proposing a state treatment.
@@ -222,6 +239,9 @@ Last updated: 2026-10-11 (tier 2 round 3 closed; decisions read).
   designers too.
 
 ## Sources
+
+- `design/ui/studio/tier2/rounds/round-4/expert/visual.md` (round 4 findings)
+- `graphty-element/src/session/query.ts` `atLeastOf` at 5277e2cbe (the "or more" target text)
 
 - `design/ui/studio/tier2/rounds/round-3/decisions.md` (round 4 change list, held items)
 

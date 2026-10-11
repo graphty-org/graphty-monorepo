@@ -335,6 +335,12 @@ export interface CheckExtras {
      * W_ID_TEXT_TYPE. Omit it when the format records each id's type.
      */
     readonly idsReadBack?: IdCoercion | undefined;
+    /**
+     * True for a format that writes a column with the role `color`, `size`, `shape` or `thickness` as a plain
+     * attribute when it has no slot for it: its W_VIZ_DROPPED note then says the value is kept and the role is lost.
+     * Default false: the note says the column cannot be written.
+     */
+    readonly vizAsAttributes?: boolean | undefined;
 }
 
 /** The roles checkCapabilities() treats structurally rather than as attribute columns. */
@@ -693,7 +699,14 @@ function checkColumns(
         }
         if (role !== null && VIZ_ROLES.has(role)) {
             if (!caps.viz) {
-                note(LOSS.VIZ, `${label} (${role}) cannot be written`, name, column.length - column.nullCount);
+                note(
+                    LOSS.VIZ,
+                    extras.vizAsAttributes === true
+                        ? `${label} (${role}) is written as a plain attribute; the format has no ${role} slot and the role is lost on re-import`
+                        : `${label} (${role}) cannot be written`,
+                    name,
+                    column.length - column.nullCount,
+                );
             }
             continue;
         }

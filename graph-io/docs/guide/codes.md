@@ -124,6 +124,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="E_UNSUPPORTED_ID"></a>`E_UNSUPPORTED_ID`: A node id is a JSON boolean or null, which graph-io cannot use as an id; the node is skipped. With `ids: "string"` it is read as the text "true", "false" or "null". Import: [json](./formats/json.md).
 - <a id="E_XGMML_VIEW_DOCUMENT"></a>`E_XGMML_VIEW_DOCUMENT`: The file is a Cytoscape session view (`cy:view="1"`), which holds only view settings and no nodes or edges. The import stops. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
 - <a id="E_XML_ILLEGAL_CHAR"></a>`E_XML_ILLEGAL_CHAR`: A text value holds a character XML 1.0 forbids (most control characters); the save fails with `E_COLUMN_TYPE`. Save: any format.
+- <a id="E_XML_NESTING"></a>`E_XML_NESTING`: Elements are nested deeper than graph-io reads (`MAX_XML_DEPTH`, 100,000 levels); the message says where. The import stops. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
 - <a id="E_XML_SYNTAX"></a>`E_XML_SYNTAX`: The XML is not well-formed; the message says where. The import stops. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
 
 ## Warnings

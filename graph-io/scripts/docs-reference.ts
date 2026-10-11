@@ -653,6 +653,14 @@ function capabilityCell(v: unknown): string {
     if (Array.isArray(v)) {
         return v.length === 0 ? "none" : v.join(", ");
     }
+    if (v === undefined || v === null) {
+        // an optional capability the format does not have (a writer of no styles)
+        return "none";
+    }
+    if (typeof v === "object" && "block" in v) {
+        // the styles a writer holds: where its graphty.styles block goes
+        return `block ${String((v as { block: unknown }).block)}`;
+    }
     return String(v);
 }
 

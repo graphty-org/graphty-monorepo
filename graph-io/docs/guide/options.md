@@ -68,16 +68,17 @@ An option whose default is the same in every format (`duplicateEdges: "keep"`, `
 
 `ImportGraphOptions`: everything above, plus these, plus the chosen format's own import options.
 
-| Option                                        | Type               | Default    |
-| --------------------------------------------- | ------------------ | ---------- |
-| [`format`](#importgraph-format)               | `"auto" \| string` | `"auto"`   |
-| [`filename`](#importgraph-filename)           | `null \| string`   |            |
-| [`mimeType`](#importgraph-mimetype)           | `null \| string`   |            |
-| [`builder`](#importgraph-builder)             | `BuilderSeed`      |            |
-| [`freeze`](#importgraph-freeze)               | `FreezeOptions`    |            |
-| [`maxEmptyCells`](#importgraph-maxemptycells) | `number`           | `16777216` |
-| [`graphIndex`](#importgraph-graphindex)       | `number`           | `0`        |
-| [`graphName`](#importgraph-graphname)         | `string`           |            |
+| Option                                        | Type                            | Default    |
+| --------------------------------------------- | ------------------------------- | ---------- |
+| [`format`](#importgraph-format)               | `"auto" \| string`              | `"auto"`   |
+| [`filename`](#importgraph-filename)           | `null \| string`                |            |
+| [`mimeType`](#importgraph-mimetype)           | `null \| string`                |            |
+| [`builder`](#importgraph-builder)             | `BuilderSeed`                   |            |
+| [`freeze`](#importgraph-freeze)               | `FreezeOptions`                 |            |
+| [`maxEmptyCells`](#importgraph-maxemptycells) | `number`                        | `16777216` |
+| [`styles`](#importgraph-styles)               | `boolean \| StyleImportOptions` | `false`    |
+| [`graphIndex`](#importgraph-graphindex)       | `number`                        | `0`        |
+| [`graphName`](#importgraph-graphname)         | `string`                        |            |
 
 - <a id="importgraph-format"></a>`format`: The format to read the input as ("graphml", "csv", ...; `listFormats()` names them all), or "auto" to work it out from `filename`, `mimeType` and the first bytes of the input. Name it to be strict: detection reads a file graph-io cannot place as the closest format it recognizes.
 - <a id="importgraph-filename"></a>`filename`: The file name or full path the input came from; only its extension is used, as a format hint. loadFromUrl() takes it from the URL and loadFromFile() from a File's name when you do not pass it.
@@ -85,6 +86,7 @@ An option whose default is the same in every format (`duplicateEdges: "keep"`, `
 - <a id="importgraph-builder"></a>`builder`: Settings for building the graph: `weighted` ("auto", true or false: whether the graph gets weights), `expectedNodes` and `expectedEdges` (room to make up front for a large file). Most programs never set it.
 - <a id="importgraph-freeze"></a>`freeze`: Settings for the last step of an import, which turns what was read into the snapshot: `label` (a name for debugging, read back as `snapshot.label`), `prepare` (views of the graph to compute up front, such as `["reverse"]`), `checksum` (record checksums, which `snapshot.validate({ checksum: true })` compares later to catch changed memory) and `profile` (record how long each step took, in `result.freeze.timings`). Most programs never set it.
 - <a id="importgraph-maxemptycells"></a>`maxEmptyCells`: The most attribute slots that hold no value the import may allocate before it stops with an ImportError whose `issue.code` is `E_TOO_MANY_EMPTY_CELLS`. Every attribute is a column with one slot per node (or edge), so a file whose nodes each have a differently named attribute would otherwise need nodes x attributes memory. Infinity turns the check off. Files whose elements mostly share their attributes are never stopped.
+- <a id="importgraph-styles"></a>`styles`: Read the file's styles too: `true`, or `{ toolDefaults: false }` to leave out the defaults of the program that wrote the file. The styles are in `result.styles`; the graph, the report and every export are the same either way.
 - <a id="importgraph-graphindex"></a>`graphIndex`: The 0-based position of the graph to read from a file that holds several (`listGraphs()` gives each graph's `index`). A position past the last graph stops the import with an ImportError whose `issue.code` is `E_GRAPH_NOT_FOUND`; its message lists the file's graphs.
 - <a id="importgraph-graphname"></a>`graphName`: The name of the graph to read from a file that holds several (`listGraphs()` gives each graph's `name`). A name no graph has stops the import with an ImportError whose `issue.code` is `E_GRAPH_NOT_FOUND`, and a name two graphs share with one whose `issue.code` is `E_AMBIGUOUS_GRAPH_NAME`.
 
@@ -110,11 +112,13 @@ An option whose default is the same in every format (`duplicateEdges: "keep"`, `
 
 `DownloadGraphOptions`: everything the other save functions take, plus:
 
-| Option                           | Type     | Default                             |
-| -------------------------------- | -------- | ----------------------------------- |
-| [`filename`](#download-filename) | `string` | "graph" plus the format's extension |
+| Option                           | Type                      | Default                             |
+| -------------------------------- | ------------------------- | ----------------------------------- |
+| [`filename`](#download-filename) | `string`                  | "graph" plus the format's extension |
+| [`styles`](#download-styles)     | `null \| ExtractedStyles` |                                     |
 
 - <a id="download-filename"></a>`filename`: The file name the browser saves as. The default is "graph" plus the first entry of the format's `extensions` ("graph.graphml"), or "graph.&lt;format&gt;" when it lists none.
+- <a id="download-styles"></a>`styles`: Write these styles too (`result.styles` of an import, or styles built for this graph): each element's look in the format's own style slots and, where the format can keep them, the rules, so importing the file back rebuilds them. What the format cannot hold is a W_STYLE_ note of checkExport(). Styles read from or built for a different graph fail with `E_STYLES_MISMATCH` before anything is written.
 
 ## Each format's own options
 

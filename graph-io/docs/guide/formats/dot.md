@@ -123,6 +123,7 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                    |
 | [`positions`](./index.md#positions)             | yes                    |
 | [`viz`](./index.md#viz)                         | no                     |
+| [`styles`](./index.md#styles)                   | none                   |
 
 <!-- generated:end -->
 

@@ -23,6 +23,7 @@ import {
     FETCH_CODE,
     OPTION_IGNORED_CODE,
     SELF_LOOPS_DROPPED_CODE,
+    STYLES_NOT_IMPORTED_CODE,
     UNKNOWN_OPTION_CODE,
     WEIGHT_NOT_FOUND_CODE,
 } from "./common/codes.js";
@@ -45,6 +46,9 @@ import { oboExporter, oboImporter } from "./formats/obo/index.js";
 import { pajekExporter, pajekImporter } from "./formats/pajek/index.js";
 import { xgmmlExporter, xgmmlImporter } from "./formats/xgmml/index.js";
 import { type FormatName, rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
+import { extractStyles, type StyleImportOptions } from "./styles/io/generic.js";
+import { prepareStyleExport } from "./styles/io/writer.js";
+import type { ExtractedStyles } from "./styles/types.js";
 import {
     type CommonExportOptions,
     type CommonImportOptions,
@@ -137,6 +141,13 @@ export interface ImportGraphOptions extends CommonImportOptions, GraphChoiceOpti
      * @defaultValue 16777216
      */
     readonly maxEmptyCells?: number | undefined;
+    /**
+     * Read the file's styles too: `true`, or `{ toolDefaults: false }` to leave out the defaults of the program
+     * that wrote the file. The styles are in `result.styles`; the graph, the report and every export are the same
+     * either way.
+     * @defaultValue false
+     */
+    readonly styles?: boolean | StyleImportOptions | undefined;
     /** Format-specific options, passed to the importer as they are. */
     readonly [formatOption: string]: unknown;
 }
@@ -172,6 +183,12 @@ export interface ImportGraphResult {
      * can ignore it. It is not enumerable, so `console.log(result)` and `{ ...result }` leave it out.
      */
     readonly freeze: FreezeReport;
+    /**
+     * The file's styles, when you passed the `styles` option: the rules that reproduce how the program that wrote
+     * the file draws each node and edge, read by the importer that read the file. Null when the file has none.
+     * Absent without the option.
+     */
+    readonly styles?: ExtractedStyles | null;
 }
 
 /**
@@ -239,6 +256,13 @@ export interface FormatInfo {
  * @category Saving
  */
 export interface ExportGraphOptions extends CommonExportOptions {
+    /**
+     * Write these styles too (`result.styles` of an import, or styles built for this graph): each element's look in
+     * the format's own style slots and, where the format can keep them, the rules, so importing the file back
+     * rebuilds them. What the format cannot hold is a W_STYLE_ note of checkExport(). Styles read from or built for a
+     * different graph fail with E_STYLES_MISMATCH before anything is written.
+     */
+    readonly styles?: ExtractedStyles | null | undefined;
     /** Format-specific options, passed to the exporter as they are. */
     readonly [formatOption: string]: unknown;
 }
@@ -272,6 +296,7 @@ const FUNCTION_OPTIONS: ReadonlySet<string> = new Set([
     "sanitizeIds",
     "selfLoops",
     "signal",
+    "styles",
     "weightDtype",
     "weightFrom",
 ]);
@@ -284,6 +309,7 @@ const REGISTRY_KEYS: ReadonlySet<string> = new Set([
     "builder",
     "freeze",
     "maxEmptyCells",
+    "styles",
 ]);
 
 /**
@@ -687,7 +713,43 @@ export class FormatRegistry {
         format: FormatName,
         options?: ExportGraphOptions | CommonExportOptions,
     ): AsyncIterable<Uint8Array> {
-        return this.exporter(format).export(snapshot, options);
+        const styled = this.styled(snapshot, format, options);
+        if (styled === null) {
+            return this.exporter(format).export(snapshot, options);
+        }
+        if (styled.refusal !== null) {
+            return refuse(styled.refusal);
+        }
+        return styled.exporter.export(styled.snapshot, styled.options);
+    }
+
+    /**
+     * An export with styles worked out, or null when no styles were given (the export is then exactly as before).
+     * @param snapshot - the graph
+     * @param format - the format name
+     * @param options - the caller's options
+     * @returns the exporter, the snapshot and options to hand it, the style losses and any refusal
+     */
+    private styled(
+        snapshot: GraphSnapshot,
+        format: FormatName,
+        options: ExportGraphOptions | CommonExportOptions | undefined,
+    ): StyledExport | null {
+        const styles = (options as ExportGraphOptions | undefined)?.styles;
+        if (styles === undefined || styles === null) {
+            return null;
+        }
+        const exporter = this.exporter(format);
+        const { styles: _given, ...rest } = options as ExportGraphOptions;
+        const prepared = prepareStyleExport(snapshot, exporter, styles);
+        return {
+            exporter,
+            snapshot: prepared.snapshot,
+            options: prepared.input === null ? rest : { ...rest, styles: prepared.input },
+            plain: rest,
+            notes: prepared.notes,
+            refusal: prepared.refusal,
+        };
     }
 
     /**
@@ -702,7 +764,14 @@ export class FormatRegistry {
         format: FormatName,
         options?: ExportGraphOptions | CommonExportOptions,
     ): Promise<string> {
-        return this.exporter(format).exportToString(snapshot, options);
+        const styled = this.styled(snapshot, format, options);
+        if (styled === null) {
+            return this.exporter(format).exportToString(snapshot, options);
+        }
+        if (styled.refusal !== null) {
+            throw refusalError(styled.refusal);
+        }
+        return styled.exporter.exportToString(styled.snapshot, styled.options);
     }
 
     /**
@@ -754,7 +823,15 @@ export class FormatRegistry {
         format: FormatName,
         options?: ExportGraphOptions | CommonExportOptions,
     ): readonly LossNote[] {
-        const notes = this.exporter(format).check(snapshot, options);
+        const styled = this.styled(snapshot, format, options);
+        let notes: readonly LossNote[];
+        if (styled === null) {
+            notes = this.exporter(format).check(snapshot, options);
+        } else if (styled.refusal === null) {
+            notes = [...styled.exporter.check(styled.snapshot, styled.options), ...styled.notes];
+        } else {
+            notes = [...styled.exporter.check(snapshot, styled.plain), styled.refusal];
+        }
         const unknown = this.unknownOptions(options);
         if (unknown.length === 0) {
             return notes;
@@ -845,7 +922,7 @@ export class FormatRegistry {
                 mimeTypes: importer?.mimeTypes ?? exporter?.mimeTypes ?? [],
                 canImport: importer !== undefined,
                 canExport: exporter !== undefined,
-                capabilities: exporter?.capabilities ?? null,
+                capabilities: capabilitiesOf(exporter),
             });
         });
     }
@@ -1405,6 +1482,16 @@ function result(
         throw freezeFailure(err, report);
     }
     const { warnings } = chosen;
+    const wanted = options.styles;
+    let styles: ExtractedStyles | null | undefined;
+    if (wanted !== undefined && wanted !== false) {
+        styles = extractStyles(chosen.importer, frozen.snapshot, report, {
+            signal: options.signal,
+            toolDefaults: typeof wanted === "object" ? wanted.toolDefaults : undefined,
+        });
+    }
+    const read =
+        styles !== undefined && chosen.importer.styles !== undefined ? withoutStylesNotImported(report) : report;
     const result = {
         format: chosen.importer.format,
         sniff: chosen.sniff,
@@ -1412,11 +1499,11 @@ function result(
         report: withFreezeWarnings(
             weightNotFound(
                 warnings.length === 0
-                    ? report
+                    ? read
                     : Object.freeze({
-                          ...report,
-                          issues: Object.freeze([...warnings, ...report.issues]),
-                          warningCount: report.warningCount + warnings.length,
+                          ...read,
+                          issues: Object.freeze([...warnings, ...read.issues]),
+                          warningCount: read.warningCount + warnings.length,
                       }),
                 frozen.snapshot,
                 options.weightFrom,
@@ -1424,9 +1511,80 @@ function result(
             frozen.report,
         ),
     };
+    if (styles !== undefined) {
+        Object.assign(result, { styles });
+    }
     // not enumerable: it holds one entry per edge, and console.log(result) should show the graph, not that
     Object.defineProperty(result, "freeze", { value: frozen.report, enumerable: false });
     return Object.freeze(result as ImportGraphResult);
+}
+
+/**
+ * A report without its W_STYLES_NOT_IMPORTED warnings: the importer read the styles it would have named.
+ * @param report - the importer's report
+ * @returns the report, a copy only when it held such a warning
+ */
+function withoutStylesNotImported(report: ImportReport): ImportReport {
+    const issues = report.issues.filter((i) => i.code !== STYLES_NOT_IMPORTED_CODE);
+    if (issues.length === report.issues.length) {
+        return report;
+    }
+    return Object.freeze({
+        ...report,
+        issues: Object.freeze(issues),
+        warningCount: report.warningCount - (report.issues.length - issues.length),
+    });
+}
+
+/** An export with styles, worked out by FormatRegistry.styled(). */
+interface StyledExport {
+    /** The exporter. */
+    readonly exporter: GraphExporter;
+    /** The snapshot to hand it. */
+    readonly snapshot: GraphSnapshot;
+    /** The options to hand it: the caller's, with `styles` replaced by the exporter's input or left out. */
+    readonly options: ExportGraphOptions;
+    /** The caller's options without `styles`. */
+    readonly plain: ExportGraphOptions;
+    /** The style losses. */
+    readonly notes: readonly LossNote[];
+    /** E_STYLES_MISMATCH, or null. */
+    readonly refusal: LossNote | null;
+}
+
+/**
+ * The error an export refused for its styles throws.
+ * @param note - the refusal note
+ * @returns the error
+ */
+function refusalError(note: LossNote): GraphFormatError {
+    return new GraphFormatError("E_UNSUPPORTED", note.message, { code: note.code });
+}
+
+/**
+ * Chunks that fail on the first read, before any byte: an export refused for its styles.
+ * @param note - the refusal note
+ * @returns chunks whose first read rejects
+ */
+function refuse(note: LossNote): AsyncIterable<Uint8Array> {
+    return {
+        [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(refusalError(note)) }),
+    };
+}
+
+/**
+ * The capabilities listFormats() reports for an exporter: its table plus, when it writes styles, their capabilities.
+ * @param exporter - the exporter, or undefined
+ * @returns the capabilities, or null
+ */
+function capabilitiesOf(exporter: GraphExporter | undefined): ExportCapabilities | null {
+    if (exporter === undefined) {
+        return null;
+    }
+    if (exporter.styles === undefined) {
+        return exporter.capabilities;
+    }
+    return Object.freeze({ ...exporter.capabilities, styles: exporter.styles.capabilities });
 }
 
 /**

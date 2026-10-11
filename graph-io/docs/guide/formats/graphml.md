@@ -122,6 +122,7 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                         |
 | [`positions`](./index.md#positions)             | no                          |
 | [`viz`](./index.md#viz)                         | no                          |
+| [`styles`](./index.md#styles)                   | none                        |
 
 <!-- generated:end -->
 
@@ -159,6 +160,7 @@ The codes this format's import report can hold. They are also exported as `GRAPH
 - `E_DUPLICATE_EDGE_ID` (error): An edge id already used by another edge.
 - `E_COLUMN_TYPE` (error): A value that does not parse as the type its attribute declares ("x" in an integer attribute). The value is left unset; the node or edge is kept.
 - `E_XML_SYNTAX` (error): The input is not well-formed XML. The import stops.
+- `E_XML_NESTING` (error): Elements are nested more than 100,000 deep. The import stops.
 - `E_INVALID_UTF8` (error): The input is not valid UTF-8. The import stops.
 - `E_INVALID_ENCODING` (error): Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the `encoding` option). The import stops.
 - `W_ENCODING_FALLBACK` (warning): Bytes that are not UTF-8 and declare no encoding were read as windows-1252.

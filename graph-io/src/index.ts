@@ -304,6 +304,7 @@ export {
     ImportReportBuilder,
     isAbortError,
     type IssueLocation,
+    keptForStyles,
     type MutableCounts,
     PARSE_ERROR_CODE,
 } from "./common/report.js";
@@ -333,10 +334,16 @@ export {
 } from "./common/writer.js";
 export {
     hasIllegalXmlChar,
+    MAX_XML_DEPTH,
     tokenizeXml,
     type XmlHandler,
     xmlIllegalTextNotes,
+    XmlNestingError,
     type XmlRepairs,
     XmlSyntaxError,
     XmlTokenizer,
 } from "./common/xml.js";
+
+// ============================================================ styles through the importer and exporter contracts
+export type { StyleImportOptions } from "./styles/io/generic.js";
+export type { ExporterStyleInput, ExporterStyleOptions } from "./styles/io/writer.js";

@@ -150,6 +150,7 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                                |
 | [`positions`](./index.md#positions)             | yes                                |
 | [`viz`](./index.md#viz)                         | no                                 |
+| [`styles`](./index.md#styles)                   | none                               |
 
 <!-- generated:end -->
 
@@ -183,6 +184,7 @@ The codes this format's import report can hold. They are also exported as `CYS_I
 - `W_ENCODING_FALLBACK` (warning): A session XML entry that is not UTF-8 and declares no encoding was read as windows-1252.
 - `W_UNKNOWN_ENCODING` (warning): A session XML entry declares an encoding the platform cannot decode; read as UTF-8.
 - `E_XML_SYNTAX` (error): The XML is not well-formed; the message says where. The import stops.
+- `E_XML_NESTING` (error): Elements are nested deeper than graph-io reads (`MAX_XML_DEPTH`, 100,000 levels); the message says where. The import stops.
 - `E_INVALID_UTF8` (error): The input is not valid UTF-8. The import stops.
 - `E_INVALID_ENCODING` (error): Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's own declaration or the `encoding` option). The import stops.
 - `E_NO_GRAPH` (error): The session holds no network.

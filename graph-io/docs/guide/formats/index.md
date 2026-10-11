@@ -146,4 +146,8 @@ Whether the file can hold node positions. When false, the layout is lost.
 
 Whether the file can hold node and edge color, size, shape and thickness. When false, they are lost.
 
+#### styles
+
+What the format's writer can hold of a graph's styles (the exporter's `styles.capabilities`): per target the properties written natively, and where the `graphty.styles` block goes. Absent for a format that writes no styles: every style is then reported as `W_STYLE_NOT_WRITTEN` and `W_STYLE_RULES_NOT_KEPT`.
+
 <!-- generated:end -->

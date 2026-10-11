@@ -206,6 +206,7 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                    | no                     | yes                    | yes                    | yes                    | no                     | no          |
 | [`positions`](./index.md#positions)             | no                     | no                     | no                     | yes                    | no                     | no                     | no          |
 | [`viz`](./index.md#viz)                         | no                     | no                     | no                     | no                     | no                     | no                     | no          |
+| [`styles`](./index.md#styles)                   | none                   | none                   | none                   | none                   | none                   | none                   | none        |
 
 <!-- generated:end -->
 

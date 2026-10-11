@@ -112,6 +112,7 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                                              |
 | [`positions`](./index.md#positions)             | yes                                              |
 | [`viz`](./index.md#viz)                         | no                                               |
+| [`styles`](./index.md#styles)                   | none                                             |
 
 <!-- generated:end -->
 
@@ -155,6 +156,7 @@ The codes this format's import report can hold. They are also exported as `XGMML
 - `E_UNKNOWN_NODE` (error): An edge endpoint that names no node (addMissingNodes false); the edge is skipped.
 - `E_DUPLICATE_EDGE_ID` (error): An edge id used twice; the second edge is skipped.
 - `E_XML_SYNTAX` (error): The input is not well-formed XML. The import stops.
+- `E_XML_NESTING` (error): Elements are nested more than 100,000 deep. The import stops.
 - `E_INVALID_UTF8` (error): The input is not valid UTF-8. The import stops.
 - `E_INVALID_ENCODING` (error): Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the `encoding` option). The import stops.
 - `W_ENCODING_FALLBACK` (warning): Undeclared non-UTF-8 bytes were read as windows-1252.

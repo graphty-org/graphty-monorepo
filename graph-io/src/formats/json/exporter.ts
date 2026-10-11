@@ -651,6 +651,7 @@ function plan(snapshot: GraphSnapshot, resolved: Resolved): Plan {
     const notes = checkCapabilities(snapshot, caps, resolved.common, {
         roles: SLOT_ROLES[dialect],
         positionDtype: "f64",
+        vizAsAttributes: true,
     }).filter((n) => n.code !== LOSS.POSITIONS && n.code !== LOSS.EDGE_IDS_DROPPED);
     const note: NoteFn = (code, message, column = null, count = null): void => {
         notes.push(Object.freeze({ code, message, column, count }));

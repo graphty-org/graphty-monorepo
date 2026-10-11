@@ -141,6 +141,7 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | no    |
 | [`positions`](./index.md#positions)             | no    |
 | [`viz`](./index.md#viz)                         | no    |
+| [`styles`](./index.md#styles)                   | none  |
 
 <!-- generated:end -->
 

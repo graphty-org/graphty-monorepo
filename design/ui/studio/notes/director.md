@@ -5,10 +5,18 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-11 (round 4 first dry run triaged: `tier2/dry-run-r4-1.md`).
+Last updated: 2026-10-11 (round 4 second dry run triaged: `tier2/dry-run-r4-2.md`; 0 fixes).
 
 ## Top of mind
 
+- 2026-10-11: ROUND 4 DRY RUN TWO (`tier2/dry-run-r4-2.md`): 91 items, 0 fixes, every half piloted
+  (T12R B included). The four "new" items did not hold on the build. 5277e2cbe is the round 4
+  build; no refreeze. Next: the round 4 sessions, with the gate evidence the runner demands.
+- 2026-10-11: A PILOT SCREENSHOT CANNOT PROVE A TOOLTIP IS MISSING. "Grayed with no hint" was a
+  photo taken without pointing; one `--hover` on the build showed the reason. Walk the claim
+  before classing it.
+- 2026-10-11: The study tool names an ambiguous match by its whole text, which read as a
+  screen-reader defect. Check the accessible name in source before calling an a11y fault.
 - 2026-10-11: ROUND 4 DRY RUN ONE (`tier2/dry-run-r4-1.md`): 71 items, 4 fixes in 3 app units.
   Both real defects were made by round 3's own changes: the edge-step count swapped people for
   edges instead of adding edges, and the new Filters tool opened an editor whose grayed "Add step"
@@ -25,16 +33,9 @@ Last updated: 2026-10-11 (round 4 first dry run triaged: `tier2/dry-run-r4-1.md`
   passed; `--end` deleted step notes; the pilots were skipped. Round 4 does not start until the
   runner refuses a round folder without pilot results and the bars run, and each check fails on a
   planted fault. A rule I wrote down but no script enforces is a wish.
-- 2026-10-10: One variant per problem. Eight roles converged on five problems with up to four
-  variants each (find box: wrap, drop prefix, "or more", reword refusal). Took one path each so
-  round 4 can credit it; held the rest with the reason named once.
-- 2026-10-10: A one-specialist claim is scripted before it is fixed: "Made with" after Undo, the
-  two focus drops, edge-step counts, the disabled reason. No repro on 26f3bb968, no fix.
 - 2026-10-10: WATCH IN ROUND 4: (1) T24 pilots pass on both halves before the round; (2) T22's
   "or more" row picked by the bare-number typers; (3) T17 first moves vs round 3's 5 of 8 on the
   Graph place; (4) Shortest path first for "path"; (5) bar 9 re-measured without data names.
-- 2026-10-10: Held twice now: distance per name at Hops 2 (one session, needs an element `hops`
-  fact). First in line if a second session meets it.
 - 2026-10-10: Open for after the study: graphty-element's `data.attributes()` declares
   `origin: "result"` and never sets it. If sessions say results belong in Attributes, that changes
   what an existing method returns (owner), not an app patch.
@@ -149,6 +150,17 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
   source: focus is on Degree, ring by `:focus-visible` only). T12R B never ran (browser slots
   full); it goes into dry run two.
 
+- 2026-10-11 -- Round 4 dry run two (me, `tier2/dry-run-r4-2.md`). No fixes: 38 design, 40 no
+  change, 7 owner, 6 process. Checked the four items that read as new: (1) the Filters tool's
+  grayed "Add step" shows "Choose an attribute first" on hover (walked on 5277e2cbe in a scratch
+  session; the pilots never pointed at it); (2) the neighborhood group's accessible name is its
+  heading (`ControlSection`, `aria-labelledby`); the run-together text was `real.mjs` describing
+  an ambiguous match by `aria-label || textContent`; (3) the tie inspector's gray values measure
+  7.3:1; (4) the note card's ring after Escape was classed in round 3 dry run one. The first dry
+  run's three fixes hold on their screenshots (T17A/07 both counts, T21A/07 "Distribution").
+  Reason: a dry run that finds only known items means the build is ready; a fourth refreeze
+  would spend a day for nothing a participant could hit.
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-08 (summarized; full text in git history) -- Worked: piloting every task on each
@@ -195,6 +207,13 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
   reads the value, not a word budget. Did not work: running 20 pilots at once against a 4-browser
   cap -- one start never got a slot and printed nothing.
 
+- 2026-10-11 (round 4 dry run two) -- Worked: all twenty halves ran when started in waves under
+  the 4-browser cap; one `--hover` settled a claim four screenshots could not; measuring contrast
+  from the PNG instead of guessing from "dim gray". Worked: the token-limit stop lost nothing --
+  the pilots were complete on disk and the key was already matched to them (611e8c62b); only the
+  triage and these notes were missing. Did not work: pilots reporting "no hint" from a still
+  screenshot; their reports must say whether they pointed at the control.
+
 ## Thinking
 
 - **2026-10-10, after round 3:** the product's remaining problems are small doors and orderings;
@@ -229,3 +248,5 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
 - Builds: tier 2 round 1 9d6598eea, round 2 4a7a1a7fb, round 3 26f3bb968 (served from
   `.study-builds/tier2-r3d2-26f3bb968/`); round 4 candidate 38e180aac (`.study-builds/tier2-r4-38e180aac/`).
 - Round 4 dry run one: `tier2/dry-run-r4-1.md` (pilots in `tier2/rounds/r4/pilot/`).
+- Round 4 dry run two: `tier2/dry-run-r4-2.md` (pilots in `tier2/rounds/r4d1/pilot/`); round 4
+  build 5277e2cbe (`.study-builds/tier2-r4d1-5277e2cbe/`).

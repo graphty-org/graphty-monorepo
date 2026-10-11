@@ -40,12 +40,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-10) **"Or more" beside a typed number in the find box: built** (commit 9b69ca650).
   Element: `FindValueRow.atLeast: { count, target }` on a number value, target the typed rule
   `{ text: "=data.<col> >= \`N\`" }` (with the find's scope). App: a second row "<column> is N
-  or more (count)"; visible rows drop "Select where", accessible names keep it. Fresh build, Les
-  Miserables, "10": rows "shared_chapters is 10 (2)" and "... 10 or more (13)", neither cut;
-  picking it selects the 13 ties the file holds at 10 or more (`tmp/t2r3-r4-07/lesmis/03.png`,
-  `04.png`). Bars on that build (`tmp/t2r3-r4-07/bars/`): bar 10 no cut text anywhere, find box
-  included; words at rest identical to round 3 (42; tier 2 screens 49/61/33/31). It exits 1 on two
-  items ALSO failing on round 3's build: axe `scrollable-region-focusable` on the find list's
+or more (count)"; visible rows drop "Select where", accessible names keep it. Fresh build, Les
+Miserables, "10": rows "shared_chapters is 10 (2)" and "... 10 or more (13)", neither cut;
+picking it selects the 13 ties the file holds at 10 or more (`tmp/t2r3-r4-07/lesmis/03.png`,
+`04.png`). Bars on that build (`tmp/t2r3-r4-07/bars/`): bar 10 no cut text anywhere, find box
+included; words at rest identical to round 3 (42; tier 2 screens 49/61/33/31). It exits 1 on two
+items ALSO failing on round 3's build: axe `scrollable-region-focusable` on the find list's
   ScrollArea viewport (Mantine viewport has no tabindex; the list is driven by
   aria-activedescendant, so the fix is in compact-mantine, not done here) and the edge inspector's
   31 of 30 words.
@@ -291,7 +291,7 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   task blamed the app's draft, the script (Find path twice, Control+z) showed no draft was ever
   written. A failing element test first (`test/session/history/runs.test.ts`, 'n2' for 'n1').
 - (2026-10-10, condensed) Prove a test fails without the change (`&& false`, or `git show
-  HEAD:<file>` over the source, run, copy the new file back). A backtick-typed rule shows only
+HEAD:<file>` over the source, run, copy the new file back). A backtick-typed rule shows only
   "Rule: press Enter to select matches", no option row.
 - (2026-10-10) Worked: a real-element test with real typing for every path a unit adds (the
   backtick-typed condition failed only there).

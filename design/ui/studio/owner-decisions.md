@@ -4,6 +4,41 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-10 -- Decided by the team: a numeric find value row also offers "at least" (`FindValueRow.atLeast`)
+
+**What.** To build for tier 2 round 4. A `FindValueRow` whose value is a number in a number column
+carries an optional `atLeast: { count, target }`: how many elements in scope have that column at
+or above the value, and a selection target naming them as the rule "`<column> >= N`", in the same
+rule form the find box's rule option applies. Rows for text or boolean values have no `atLeast`.
+Additive: a new optional property on an existing result type.
+
+**Why.** On the Les Miserables half of round 3, 4 of 4 participants typed "10" into the find box
+first, meaning "10 or more", and were offered only the ties of exactly 10. The app must not parse
+the number or count matches itself, so the element, which already reads the column and counts the
+exact value, also answers the "at least" question.
+
+**Alternatives.** The app writing `>=` rule text from the typed number and asking
+`selection.count` (the app parsing input, a workaround the architecture forbids); the element
+accepting bare numbers in rules (changes what an existing call accepts, so it stays on the owner's
+list under "Why a selector was refused, as a code").
+
+## 2026-10-10 -- Decided by the team: Shift-click on a node adds it to the selection
+
+**What.** To build for tier 2 round 4. A click on a node with Shift held adds the node to the
+selection through `session.selection.applyNow({ nodes: [id] }, "add", "user")`, exactly as a
+Shift-click on an edge already does (`Graph.ts`). A plain click still replaces, `node-click` still
+fires, and the XR `select()` call keeps replacing. Ctrl and Meta are not added.
+
+**Why.** A node click always called `selectionManager.select(node)`, which replaces the selection,
+while an edge click honored Shift. All 4 sessions of round 3's "point out two people" task met the
+difference, and two gave up. This is treated as a defect fix, not a breaking change: no export,
+option, return value or default changes, and no graphty-element guide promises that a node click
+replaces. If a consumer is shown relying on replace, this moves to the owner's list.
+
+**Alternatives.** A modifier option on the selection manager (a second selection path beside the
+session's); Ctrl and Meta as well (on macOS Ctrl-click opens the context menu, and a second key
+convention is a separate decision).
+
 ## 2026-10-10 -- Decided by the owner: every breaking row of #1727 ships as a minor
 
 **What.** The owner judged every open row of #1727's breaking-changes table a minor change and a

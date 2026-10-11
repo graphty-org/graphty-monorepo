@@ -231,15 +231,12 @@ export function summarizeRun(session: Pick<GraphSession, "data">, run: Run): Jso
  * @returns The JSON text.
  */
 export function resultText(result: ActionResult & { code: string }, cap: number): string {
-    const body: JsonObject = { code: result.code, params: result.params ?? {} };
-    if (result.data !== undefined) {
-        body.data = result.data;
-    }
-
-    if (result.page !== undefined) {
-        body.page = toJson(result.page);
-    }
-
+    const body: JsonObject = {
+        code: result.code,
+        params: result.params ?? {},
+        ...(result.data === undefined ? {} : { data: result.data }),
+        ...(result.page === undefined ? {} : { page: toJson(result.page) }),
+    };
     let text = JSON.stringify(body);
     if (text.length <= cap) {
         return text;

@@ -6,7 +6,7 @@ import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 import { aliases } from "./vite.aliases";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -45,7 +45,7 @@ export default defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
-        reporters: ["default", ...ciJunitReporter()],
+        reporters: ["default", ...ciReporters()],
         globals: true,
         exclude: BASE_EXCLUDE,
         // The tests that mount the real graphty-element get a project of their own, run after

@@ -10,8 +10,12 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-11 -- r4 key matched for T4, T12R A, T17, T19 B, T20 A, T21 A, T24 B on 38e180aac230.
-  OWED before round 4's first session: T12R B pilot (never got a browser slot).
+- 2026-10-11 -- Key matched on 5277e2cbe for T4 A, T12R A/B, T17 A, T18 A, T24 A/B: every value
+  held, only citations and finer descriptions changed. T12R B is no longer owed.
+- 2026-10-11 -- Outlined-chosen segment (T4 Add/Leave out, T12R Hops) still on 5277e2cbe on both
+  T12R halves; still the likely sev 3, fix in compact-mantine.
+- 2026-10-11 -- T12R neighborhood group is named by its whole content (heading + Hops + every
+  name): screen-reader finding for the app; also makes `--hover` by heading match two elements.
 - 2026-10-11 -- New likely sev 3 on 38e180aac230: the chosen segment is dark/outlined and the
   unchosen one keeps the gray fill (T4 Add/Leave out, "a node"/"an edge", T12R Hops). Fix in
   compact-mantine; the build note says it was restored, the pixels say otherwise.
@@ -90,6 +94,15 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-11 (researcher, key matched to the first pilots on 5277e2cbe) -- T4 A, T12R A/B, T17 A,
+  T18 A, T24 A/B. No value changed, so only citations and finer descriptions: T4's first summary
+  line stays after "Show the 1 unmatched row" (the key said "only"); T18's follow-up tie through
+  Quinn placed by coordinates, because "Ravi to Pia" cannot be confirmed without names on, and
+  a grader must not be told more than the screen says; T24 A has B's curved-line icon, the
+  Stadium label covers its ring too; T12R B tie inspector has no number (so no 6-from-the-tie
+  misread on B). The tmp-folder citation for T17's new counts kept beside the pilot one: the
+  pilot is the committed evidence. No prompt was wrong; tasks.md unchanged; no bar changed.
+
 - 2026-10-11 (researcher, key matched to the first r4 pilots on 38e180aac230) -- T4 A/B, T12R A,
   T17 A/B, T19 B, T20 A, T21 A, T24 B. A build section plus in-place notes, old wording kept as
   "on earlier builds". Two real changes: (1) the chosen segment is now dark with a light outline
@@ -116,36 +129,13 @@ reasons, in short:
   would credit an attempt the app cannot finish). Pilots not run: no round 4 build is frozen yet
   (latest is tier2-r3d2-26f3bb968), and piloting the new words on the round 3 build would not
   meet the acceptance; recorded as owed in criteria.md instead of claimed. No bar changed.
-- 2026-10-10 (researcher, tier 2 round 3 critique) -- Proposed six changes, one per verified
-  problem, each the smallest in its owning package. (1) graphty-element `NodeBehavior.handleClick`:
-  with Shift, `session.selection.applyNow({ nodes: [id] }, "add", "user")`, the edge branch's own
-  call in `Graph.ts`; Shift only, since Ctrl-click is a right-click on macOS; a defect fix that
-  matches the edge's documented behavior, so not held for the owner; real-input test. Still unfixed
-  on origin/master (checked). (2) T24: `tasks.md` says T24 measures the two ends selected, so the
-  prompt changes, not the key: "point out ... so that whatever you do next applies only to those
-  two" (a path does not satisfy it); key drops the Shift route until a frozen build has the fix;
-  4 pilots before the round. (3) Find box: for a bare number on a number column, offer the rule
-  option `col >= N` the box already builds (`exampleRule`, rule option) beside the equal row, and
-  let Values rows wrap instead of cutting; app words only, the element evaluates. (4)
-  `groupAlgorithms` (`analyze/words.ts`) lists headings in a fixed order, so Rank (Betweenness)
-  precedes Paths; with filter text, put the group holding a name match first -- order is the app's.
-  (5) A filter icon on the canvas toolbar opening Data place Filters "+": 3 of 5 detours were the
-  toolbar; an icon adds no words at rest. (6) Study tool items from insights. Deferred: Hops 2
-  distances (needs an additive `Neighbor` depth field; one session), second path (app's choice,
-  cost nothing), PathForm `data-autofocus` focus drop (mechanism verified in code, but one
-  specialist: script first).
-- 2026-10-10 (researcher, tier 2 round 3 skeptic verdicts) -- Wrote `rounds/round-3/insights.md`.
-  Applied: two drops = dropped (bar 6's false "done"; the T24 "path used to mark the two" problem);
-  one drop or weaken = weakened unless the other answered with evidence (bare number 3 to 2, Add
-  page warning 3 to 2, second path 2 and out of the fault list, Replace/out-of-date/T4/T19/T12R to
-  sev 1, insights 2 to 7). Kept: Shift-click sev 3, the prompt/key mismatch, drawn names sev 3,
-  Filters sev 2, Hops 2 distances sev 2, Shortest path rank sev 2. Rewrote insight 2 (one drop) as
-  "readers type the prompt's most prominent data word", which both skeptics' evidence supports.
-  Checked myself: `FindBox.tsx` at 26f3bb968 is a combobox with `aria-activedescendant` and
-  scrollIntoView (so axe's hit is likely false); `NodeBehavior.handleClick` line 637 always
-  `select`s; r3-s10 only hovered the "is 10" row (grade lines 37-42), only r3-s16 selected; viewed
-  `r3-s41/05`, `r3-s43/01`, `r3-s43/13`, `r3-s10/02`, `r3-s33/03`. Rejected: dropping "no names
-  drawn" (it is the app's default) -- weakened to sev 1 instead.
+- 2026-10-10 (round 3 critique and skeptic verdicts, folded) -- Six changes, each the smallest
+  in its owning package: element Shift-click on a node adds (as an edge does; real-input test);
+  T24 prompt reworded to an outcome; bare number gets an "at least" rule option; name matches lead
+  the Analyze list; filter icon on the canvas toolbar; study tool fixes. Deferred: Hops 2
+  distances, second path, PathForm focus drop. Verdicts in `rounds/round-3/insights.md`: two drops
+  = dropped, one drop or weaken = weakened unless answered with evidence; every disputed claim
+  checked in code at the build commit or in the grade file; "no names drawn" weakened, not dropped.
 
 - 2026-10-10 (researcher, tier 2 round 3 scored, folded) -- `rounds/round-3/scores.md` from 56
   grades, four expert reports and my own `bars.mjs` run; leak check re-run per participant log
@@ -215,6 +205,11 @@ reasons, in short:
   the app; personas validate, never generate features.
 
 ## Tried: worked / did not work
+
+- 2026-10-11 (5277e2cbe key match, after a token-limit stop) -- Worked: `git status`/`git log`
+  first; answers.md clean and the r4d1 pilot folders untracked, so nothing had landed. Worked:
+  one asserted (old, new) python run; committing with an explicit pathspec so other agents'
+  uncommitted tool edits stay out.
 
 - 2026-10-11 (r4 key match, after a token-limit stop) -- Worked: `git status` and `git log` on
   answers.md first; nothing of this batch had landed, so it was applied whole. Worked: sampling

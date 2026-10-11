@@ -879,3 +879,17 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   cutting it; a measure run's histogram section is headed "Distribution", not "Values". Every
   new-build preflight item runs on this build before round 4's first session. No bar, floor, step
   limit or prompt changed.
+- **2026-10-11, before round 4: the answer key matched to the first pilots on build 5277e2cbe.**
+  T4 A, T12R A and B, T17 A, T18 A and T24 A and B were piloted on the new build from their starts
+  (`rounds/r4d1/pilot/`). Every success path landed on the first try with no script errors,
+  console errors or failed requests, and every reference value held. `answers.md` now cites those
+  screens and describes them more exactly: after "Show the 1 unmatched row" only the summary's
+  second line changes, and A's "Show all rows" sits on the caption's line as B's does (T4); the
+  counts of a step over an edge column cite this build's pilot (T17); the open Weight list leaves
+  the top few pixels of its label showing, and the follow-up tie through Quinn is placed by its
+  coordinates, since without names the screen does not say which end is Ben (T18); A's edge
+  inspector has the same curved-line icon as B's, and the "Stadium" label box covers the top of
+  Stadium's ring as "Station" covers Station's (T24); B's chosen Hops segment is drawn as A's, B's
+  tie inspector holds no number, and the neighborhood section's group is named by its whole
+  content (T12R). T12R B, owed since the previous build, is now walked. No prompt was wrong, so
+  `tasks.md` is unchanged. No bar, floor, step limit or success path's end state changed.

@@ -17,6 +17,7 @@ import type { GraphSession, HistoryStepId } from "../session/types";
 import type { ExecutionResult } from "./AiController";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, GraphCommand } from "./commands/types";
+import { DEFAULT_HISTORY_BUDGET_TOKENS, historyWindow } from "./conversation/Conversation";
 import { toolJsonSchema } from "./engine/jsonSchema";
 import { providerFailure } from "./engine/LlmProviderEngine";
 import type {
@@ -93,6 +94,8 @@ export interface ConversationRun {
     readonly model?: string;
     /** Which tools a turn offers; standard when absent. */
     readonly profile?: ToolProfile;
+    /** How many tokens of history a turn is shown; the profile's default when absent. */
+    readonly historyBudgetTokens?: number;
     /** The message's state; one with the default gate when absent. */
     readonly state?: MessageState;
     /** Where export payloads go, the reader's text, the URL policy. */
@@ -572,7 +575,11 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
         // write would move the history under the request and make the reader's approval stale.
         const answerOnly = turn > MAX_ASSISTANT_TOOL_TURNS || tally.held !== undefined;
         const offered = turnTools(tools, profile, conversation.messages);
-        const history = profile === "small" ? trimmedHistory(conversation.messages) : [...conversation.messages];
+        const shown = historyWindow(
+            conversation.messages,
+            run.historyBudgetTokens ?? DEFAULT_HISTORY_BUDGET_TOKENS[profile],
+        );
+        const history = profile === "small" ? trimmedHistory(shown) : shown;
         const { text, calls } = await modelTurn(
             run,
             {

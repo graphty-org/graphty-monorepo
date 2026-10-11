@@ -254,11 +254,12 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_TOOL_NOT_RUN` -- a saved tool result: the call did not run, because an earlier call in its
  *   batch failed or the batch was taken back. `{ tool }`.
  * - `AI_HISTORY_UNAVAILABLE` -- saved history cannot be used. `{ reason }`: `"invalid-record"`
- *   for a saved conversation that is not a valid record (it is skipped, never thrown).
+ *   for a saved conversation that is not a valid record (it is skipped, never thrown);
+ *   `"storage-unavailable"` when the browser's storage cannot open, and history is kept in memory.
  * - `AI_HISTORY_NEWER_FORMAT` -- a saved conversation was written by a newer release, in a format
  *   version this one cannot read; it is left untouched. `{ version }`.
  * - `AI_STORAGE_FAILED` -- saving the conversation failed (quota, private mode); it continues in
- *   memory.
+ *   memory. `{ reason }`: the error's name, such as `"QuotaExceededError"`.
  *
  * OPEN UNION: codes may be added in a minor release. Handle a code you do not know, for example
  * by `success` alone.

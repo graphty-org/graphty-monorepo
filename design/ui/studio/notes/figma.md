@@ -5,37 +5,41 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-11 (tier 2 round 4 critique).
+Last updated: 2026-10-11 (tier 2 round 4 closed).
 
 ## Top of mind
 
-1. (2026-10-11) Round 4 critique: five changes, all root-cause and one per failure. Table lists
-   the "visible" scope (one word in `TableDock.tsx`); the find box offers a backtick rewrite only
-   if the rewrite itself counts; an element "or more" row for a number inside a column's range;
-   the "or more" rule written with the bare column name; key drops ", full graph" (bar 9 b).
-2. (2026-10-11) Label and node overlap (sev 3) stays on the owner's list: element label
-   placement, not an app patch. Do not move it in round 5.
-3. (2026-10-11) Script before fixing: New project > Discard crash (script in my walk), off step
-   turning itself on (accessibility), rule on a missing column (r4-s12).
-4. (2026-10-11) Study faults come first: runner refuses without gate exit 0, starts only on a
-   free slot, briefing file table names files and kinds only. Every "unprompted" count is weak.
-5. (2026-10-11) Held with no session behind them: Shift-click toggle-off, Width band, Delete key
-   on a step, N swallowed by the run row, Value-blur commit, second-path notice.
-6. (2026-10-11) Shift-click is the round's proof: a fix that matches a habit is used at once
-   (T24 2 of 4 to 7 of 7). Prefer the habit over a menu command.
-7. (2026-10-10) A one-specialist claim needs a script before it is scored; write it with the
-   finding. When a crash appears, rerun the minimal state in its own folder at once.
-8. (2026-10-10) Walk Figma's selection grammar on every object kind and every command twice
-   then Undo; tier 2 is repeat work.
-9. (2026-10-11) Words at rest only go down (bar 9); a scope word belongs where the run is read,
-   not in the key.
-10. (2026-10-10) Do NOT move: Replace, weight role at load, note subject, names-off default,
-    Recent in Analyze, Filters door, Analyze ranking.
-11. (2026-10-09) Deferred divergences, only with clean-run evidence: Save form vs live inspector;
+1. (2026-10-11) Round 5 does not start until the study is fixed: the runner refuses without the
+   gate, a participant starts only on a free browser slot, briefings name files and kinds only.
+   Every "unprompted" count from round 4 is discounted; read round 5 passes as weak too.
+2. (2026-10-11) Round 5 watched move: "10" on bus stops reaches the right stops with no refusal.
+   Credit the new "or more" row by that, not by a pick (the prompt and the row share "or more").
+3. (2026-10-11) A suggestion must pass the consumer's own acceptance test (parse AND an attribute
+   read), fixed in graphty-element's `suggestBackticks`, never guarded in the app. Not "has
+   matches": a valid rule that matches nothing is still a rule.
+4. (2026-10-11) Diff before cutting words: bar 9 (b) gets both builds' word lists first. Scope
+   words that prevent a wrong reading stay even if the bar fails. My ", full graph" cut was held.
+5. (2026-10-11) Delete app copies of element logic by adding the element export (`rulePath`).
+   Additive exports are the team's call; record them, do not ask.
+6. (2026-10-11) Label and node overlap (sev 3, bar 10) stays an element fix on the owner's list.
+   No app font, offset, seed or names-off setup. Bar 10 fails honestly until then.
+7. (2026-10-11) A source-visible mechanism needs no extra script (off step turning on); a
+   single-source claim does (r4-s12 missing column, Shift toggle-off): script first.
+8. (2026-10-11) Shift-click carried T24 2 of 4 to 7 of 7: a habit-matching control is used at
+   once. Weakened as evidence (briefing named it); do not claim menus go unused.
+9. (2026-10-11) Round 5 checks: table under a filter step reads "12 of 41 edges" and lists 12;
+   Cancel in a note focuses "+"; New project > Discard shows no error page.
+10. (2026-10-11) Held with no session behind them: Shift-click toggle-off, Width band, Delete key
+    on a step, N swallowed by the run row, Value-blur commit, second-path notice.
+11. (2026-10-10) Walk Figma's selection grammar on every object kind and every command twice then
+    Undo; when a crash appears, rerun the minimal state in its own folder at once.
+12. (2026-10-10) Do NOT move: Replace, weight role at load, note subject, names-off default,
+    Recent in Analyze, Filters door, Analyze ranking, "Settings" rail label.
+13. (2026-10-09) Deferred divergences, only with clean-run evidence: Save form vs live inspector;
     checkbox vs eye; two row grammars; add-first for "+".
-12. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
+14. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
     graphty's ontology. Every control must visibly change canvas, key or popover.
-13. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
+15. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
 
 ## Priorities and values
 
@@ -101,6 +105,17 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-11 (Director, round 4 closed, `tier2/rounds/round-4/decisions.md`) Twelve round 5
+  changes: runner gate and slot refusal, file-and-kind-only briefings (sev 4); suggestion only if
+  the selector accepts it, an element `atLeast` row for a number inside a range, off step stays
+  off on leave, New project > Discard crash (sev 3); scripts for three single-source claims;
+  table scope "visible" with "12 of 41", `rulePath` export for the bare column name, note Cancel
+  focus, T17 histories, bar 9 (b) by diff (sev 2). Versus my critique: taken -- table scope,
+  "or more" row, bare column name (as a new export so the app copy is deleted); changed -- my
+  "only if it counts with matches" became "only if the selector accepts it", in the element not
+  `FindBox`; not taken -- dropping ", full graph" (diff first; true scope words stay). Reason:
+  one change per problem, owning package, words at rest do not rise, a single-source claim is
+  scripted first.
 - 2026-10-11 (me, round 4 critique) Proposed for round 5: (1) the data table reads scope
   "visible", not "graph", and counts "12 of 41 edges" like the top bar (`TableDock.tsx` line
   349; the element already has the scope); (2) `ruleFromText` in `FindBox.tsx` returns the
@@ -116,21 +131,13 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   doing nothing on a step, the dead "This step is gone" inspector, N swallowed by the run row,
   Shift-click not toggling, the Width band, To = From via Made with, focus left in Attribute.
   Reason: each stops or misleads on a path a returning user takes; all in their owning package.
-- 2026-10-11 (Director, round 3 closed, `tier2/rounds/round-3/decisions.md`) Twelve round 4
-  changes: study gate and T24 prompt first (sev 4), Shift-click on a node adds (element), bars 8/9
-  fixed, Made with scripted, two focus drops (PathForm `autoFocus`, Color line), find box
-  `atLeast` row, Analyze ranking, toolbar Filters door, repeated-ties warning, edge step counts
-  edges, disabled reason via compact-mantine Tooltip. Versus my proposal: taken -- Shift-click,
-  T24, find box, Filters door, ranking, edge counts; changed -- Shift only, not Ctrl; second-path
-  notice dropped, only Made with kept; not taken -- Value blur commit (contradicts Escape rule).
-  Reason: one variant per problem, fix in owning package, words at rest do not rise.
 - 2026-10-07 to 10-11, summarized 2026-10-11. Rounds 1 to 3 of tier 2: each round's list was one
   change per confirmed failure in its owning package (Director: `tier2/rounds/round-N/decisions.md`).
   Taken from me: find box runs what it recognizes, Replace in the source "...", duplicate-edge
   count, 24 px checkbox, Tab commits, "Filter to neighbors" a command, rule-named layers,
-  Shift-click adds, Filters door, name-first ranking, edge counts. Not taken: Value blur commit,
-  second-path notice, column-menu "Select where...". Element asks still open: numbers without
-  backticks (owner), a fit inset.
+  Shift-click adds (Shift only, not Ctrl), Filters door, name-first ranking, edge counts. Not
+  taken: Value blur commit (contradicts the Escape rule), second-path notice, column-menu
+  "Select where...".
 - 2026-09-25 (owner) Figma studied in depth by capture: components, measurements, styles, dark
   mode, flows, saved in `design/ui/figma/`. Reason: compact-mantine replicates them and the app
   borrows their grammar.
@@ -177,6 +184,12 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   position: 1000 ms is Figma's measured value; change only on study evidence.
 
 ## Tried: worked / did not work
+
+- 2026-10-11 Round 4 closed. Worked: critique items backed by a session plus a source line were
+  all taken (table scope, "or more" row, bare column name). Did not: a word cut chosen before a
+  diff named the added words (", full graph") was held; my suggestion guard was set at "has
+  matches", one rule too strict, and in the app's file. Lesson: put a guard where the defect is
+  and at the consumer's exact acceptance test; measure before choosing words to cut.
 
 - 2026-10-11 Recovery after a token limit. Found my round 4 walk and notes uncommitted and one
   placeholder left in finding 1; filled it from the repro folders (a plain load shows no

@@ -1,3 +1,10 @@
+## 0.8.66 (2026-10-11)
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.17
+- Updated graphty-element to 3.24.2
+
 ## 0.8.65 (2026-10-11)
 
 ### 🚀 Features

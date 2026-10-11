@@ -41,7 +41,6 @@ node_modules/
 
 # Storybook
 storybook-static/
-chromatic-output/
 
 # Debug files
 src/debug/

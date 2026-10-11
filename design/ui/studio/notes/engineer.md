@@ -62,9 +62,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-11) **Not to change after round 4:** Shift-click, toolbar Filters door, Replace place,
   scope words, names off in setups, T18 (8 against 8: no new step there), second path replacing
   the first (no task needs both; decided), any label placement in the app.
-- (2026-10-11) **Script first, from round 4:** a
-  rule on a missing column answering only "Nothing matches" (element has `E_UNKNOWN_ATTRIBUTE`;
-  a coded fact would let the app say the column is missing).
+- (2026-10-11) **All three single-source claims reproduced on 5277e2cbe; fix them in round 5**
+  (`tier2/rounds/round-5/plan.md`, screenshots in `round-5/claims/`): (a) "weight >= 10" on Les Mis
+  runs and says only "Nothing matches this rule" -> element refuses with `E_UNKNOWN_ATTRIBUTE`,
+  app names the column; (b) Escape on a focused Color swatch reaches `useCommandKeys` (a button is
+  neither typing nor overlay) -> `selection.clear`, inspector swaps, focus to page -> app keeps a
+  panel's Escape; (c) a click on the "Stadium" chip over the tie selects Stadium (app sets
+  `label.pickable`; an unset label plane still stops the ray, `Node.ts`) -> element question.
 - (2026-10-11) **Watch in round 5:** T22 A on bus stops typing "10"; T17 with the table open
   under a step.
 - (2026-10-11) **Held, first in line:** distance per name at Hops 2/3 (element `depth` option and
@@ -196,6 +200,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-11) Claim scripts by pointer, not `--sr`: a pointer route to the same focus (click
+  `role=menuitem:Color`) plus `--read` after the Escape showed focus on the page (whole page read).
+  Worked, and far shorter than a keys-only walk. For a label-vs-edge pick, hover/click three
+  points (centers' midpoint, on the tie inside the chip, on the tie outside it): the third is the
+  control that proves the tie itself is clickable.
+
 - (2026-10-11) Worked, built: `rulePath` (element, `./session`); the find box and "or more" both use it.
   On a fresh build, bus stops "5" -> "minutes is 5 or more (10)" -> Style, Width: the layer is
   "minutes >= `5`" (`tmp/t2r4-9/s1/08.png`).
@@ -264,20 +274,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   list's lower rows need `--wheel x,y,800` before a screenshot shows them; `--hover-at` on a tree
   row's icon prints its accessible name and tooltip (how the "out of date" name was found).
 
-- (2026-10-11) Worked: copying `graphty/dist` into the session folder and pointing REAL_DIST at
-  the copy, so another agent's rebuild cannot swap the app mid-pilot; delete the copy after
-  `--end`. The start queued for a browser slot and then ran; no wrapper around real.mjs needed.
 - (2026-10-11) Worked: wrapping the Tree description in compact-mantine (`overflow-wrap:
 anywhere`, row `height: auto; min-height: 44px; padding-block: 6px`, pill and ring `bottom:
 4px`). One-line rows look the same (44). Did not do: no-break spaces inside each count phrase so
   "41 to 12" and "edges" stay together; the wrap puts "edges" alone on a third line, which reads
   fine and the acceptance allows.
 
-- (2026-10-11) **real.mjs cannot click an aria-disabled button.** Its click is Playwright's, which
-  waits for an "enabled" element and treats aria-disabled as disabled, so `--click "Add step"` on
-  the disabled button only retries. A person's click goes through. What worked: prove "a press adds
-  nothing" in the real-element test (`Filters.real-element.test.tsx`, toolbar test, user-event
-  click), and in real.mjs with `--key Enter` in the empty Value box (`06.png`: no step).
 - (2026-10-11) **Shared files in a shared worktree.** Stage only my hunks (HEAD plus my edits as a
   blob, `git update-index --cacheinfo`). Another agent's commit can sweep up my uncommitted edits
   to a shared file: a test in 115bc0aa4, answer key lines in c9f2ceed3. Commit shared edits

@@ -569,7 +569,8 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The parameters.
      */
     get params(): Readonly<Record<string, unknown>> {
-        return this.definition.params;
+        // An undo or a redo can put back another execution's entry: its record says what made it.
+        return this.heldRecord()?.params ?? this.definition.params;
     }
 
     /**
@@ -577,7 +578,8 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The seed.
      */
     get seed(): number | null {
-        return this.definition.seed;
+        const held = this.heldRecord();
+        return held === undefined ? this.definition.seed : held.seed;
     }
 
     /**
@@ -944,6 +946,21 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             return this;
         }
 
+        // After an undo or a redo the entry may hold another execution's parameters: the run goes
+        // on from what it reports.
+        const held = this.heldRecord();
+        if (held !== undefined) {
+            this.definition = { ...this.definition, params: held.params, seed: held.seed };
+        }
+
+        return this.restart();
+    }
+
+    /**
+     * Execute again with the definition as it stands.
+     * @returns This run, restarted.
+     */
+    private restart(): Run<T> {
         // Before the result goes: what held references keep of it is captured now.
         this.heldValue = this.surroundings.captureHeld?.(this.held) ?? this.heldValue;
         this.beginExecution();
@@ -992,7 +1009,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
         this.definition = { ...this.definition, params, seed, caveats };
 
-        return this.rerun();
+        return isTerminalRunStatus(this.status) ? this.restart() : this;
     }
 
     /**

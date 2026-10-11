@@ -11,6 +11,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **After Undo of a re-run, Made with now shows the run on screen: built** in
+  graphty-element. Cause was the element, not the app's draft: `Run.params`/`seed` read the
+  handle's own definition, while undo swapped only the `runs` entry. Scripted on 26f3bb968
+  (`tmp/t2r3-r4-05/repro-26f3/09.png`: route Depot, Station, Stadium; Made with Market, Station);
+  fixed build reads Depot, Stadium after Undo and Market, Station after Redo
+  (`tmp/t2r3-r4-05/fixed/`).
 - (2026-10-10) **Shift-click on a node adds: built** in graphty-element (`SelectionManager.add`,
   called from `NodeBehavior.handleClick` on Shift). Shift only -- Ctrl and Meta stay out (macOS
   Ctrl-click is the context menu). Checked on a fresh build: Gus then Shift Ivan reads Selection
@@ -78,6 +84,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-10) **A run reports the parameters of the execution history put back.** `params` and
+  `seed` read the held record when one is shown (as `caveats`, `fields`, `status` already did);
+  `rerun()` adopts them before executing, and RunsApi's stored re-run command follows the restored
+  entry, so Rerun after Undo computes and records what Made with shows. Not breaking: `params` is
+  documented as "the parameters the current execution uses". The app's draft was not involved
+  (the second path came from Find path, not Made with), so no app change.
 - (2026-10-10) **Shift-click on a node adding is a defect fix; its one API change is additive.**
   The edge click already adds on Shift; nothing documents a node replacing on Shift; `node-click`
   still fires; a Shift-drag still drags; XR `select()` still replaces (no pointer event). Shift
@@ -188,11 +200,8 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   rest. **Label picks** are an opt-in per-layer style field resolved in `pickNodeId` (click, hover,
   drag and `elementAt` agree), recorded under "decided by the team".
 
-- (2026-10-09, summarized) **Smaller standing facts:** the path's Weight list starts on the loaded
-  weight; a live region is in the page before its words arrive (`Frame.tsx`); the selection halo
-  draws only back faces (`createOverlaySource`); ", out of date" only on `data-changed`; the
-  Filters step editor is a `<form>` (`focusNext`/`focusStep`).
-- (2026-10-09, summarized 2026-10-10) **Standing calls from 10-09:** the neighbor list opens at
+- (2026-10-09, summarized 2026-10-10) **Standing calls from 10-09:** path Weight list starts on the loaded weight; live regions
+  exist before their words; the halo draws back faces only; the neighbor list opens at
   the ON filter step's depth (an off step is the reader's choice); sentence headings wrap by
   per-section `wrapLabel` opt-in; every control but a link shows the arrow cursor (compact-mantine
   `00-foundation.css.ts`); the chosen segment's inverse fill was undone on 10-10 (below); a start-screen data file goes through the Data page; a
@@ -258,10 +267,13 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   variable path); pick a fresh session folder. With all four browser slots held by others,
   `--start` waits ("waiting for a free browser slot"); it is not hung.
 
-- (2026-10-10) Did not work: `npm run build` while another agent's untracked
-  `graphty/src/zz-probe/` test broke `tsc`; worked: `npx vite build --outDir tmp/<task>/dist`
-  and `bars.mjs --dist` on it. Did not work: trusting the decision's word arithmetic -- measure
-  first; the screens' filters and added tables decide which scope words show.
+- (2026-10-10) **Shared-worktree builds:** another agent's rebuild or a stray untracked test
+  breaks `tsc`, vitest imports and `bars.mjs` mid-run; copy the dist (`npx vite build --outDir
+tmp/<task>/dist`, `bars.mjs --dist`) and rerun after their `nx run graphty:build` exits.
+  Measure word arithmetic on screen, never trust the decision's.
+- (2026-10-10) Worked: scripting a finding on the frozen build before reading the suspect: the
+  task blamed the app's draft, the script (Find path twice, Control+z) showed no draft was ever
+  written. A failing element test first (`test/session/history/runs.test.ts`, 'n2' for 'n1').
 - (2026-10-10) Worked: proving the rule-name test fails by disabling the branch (`&& false`)
   gave "expected [ '2 edges' ] to deeply equal [ 'minutes >= `10`' ]". Did not work at first: a
   rule typed with backticks gets no option row under the box (only "Rule: press Enter to select
@@ -272,24 +284,16 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   import test file"); wait until its `nx run graphty:build` exits, then rerun.
 - (2026-10-10) Resuming after an interrupted session: check `git log`, the round folder and
   `tmp/<session>/` before redoing a task (focus-after-actions was already on the branch, 7f61a2ab2).
-- (2026-10-10) Did not work: running `bars.mjs` on `graphty/dist` of the shared worktree; another
-  agent rebuilt it mid-run (ENOENT on index.html). Copy the dist into the task folder and pass
-  `--dist`. Seen, not mine: tier 1's "a node's Values with its neighbors" step misses (click on
-  "Degree" times out) on 7fe0a48412cc.
 - (2026-10-10) Did not work: a Python `str.replace` to add an assertion after a line two tests
   shared put it in both (the unweighted test then failed on "minutes 14"); anchor test edits on a
   line unique to the test. Worked: proving the row test fails without the fix by writing
   `git show HEAD:<file>` over the source, running, and copying the new file back.
-- (2026-10-09, summarized 2026-10-10) **Probes before code.** Workflow subagent logs live in
-  `~/.claude/projects/<proj>/<session>/subagents/workflows/wf_*/agent-*.jsonl` (read every user
-  line before the first assistant line; filter by mtime). An axe probe as a throwaway
-  compact-mantine test before choosing CSS. A pixel check from public API only:
-  `element.captureScreenshot` at a `nodeScreenPosition` midpoint scaled by bitmap over CSS width,
-  9 px mean, styled against unstyled. Print `JSON.stringify(await draft.report(...))` before
-  coding to place a defect. `data.import` takes `{ config: { file } }`; app real-element tests run
-  with `--project=real-element`; `?raw` imports of `tool/files/*.csv` work. For a critique read
-  `insights.md` section 2 first, then grep to place each fix in its package. Seen, not mine:
-  `bars.mjs` misses "a node's Values with its neighbors" (Degree click times out).
+- (2026-10-09, summarized 2026-10-10) **Probes before code.** Subagent logs:
+  `~/.claude/projects/<proj>/<session>/subagents/workflows/wf_*/agent-*.jsonl`. Axe probe as a
+  throwaway compact-mantine test before CSS. Pixel checks from public API only
+  (`element.captureScreenshot` at a `nodeScreenPosition`). Print the element's report before coding
+  to place a defect. App real-element tests: `--project=real-element`. Critique: `insights.md`
+  section 2 first. Seen, not mine: `bars.mjs` misses "a node's Values with its neighbors".
 
 - (2026-10-06 to 10-09, summarized 2026-10-10) **Older tool, test and worktree lessons.** Never
   edit a running script (copy it); read script output, not exit codes; step N lands in screenshot

@@ -739,6 +739,10 @@ class Runs implements SessionRunsApi {
 
                 if (now !== undefined) {
                     this.dropped.delete(id);
+                    if (cause !== "command") {
+                        // A later re-run dispatches the command of the execution history put back.
+                        this.commands.set(id, now.command);
+                    }
                 } else if (was !== undefined && cause !== "command") {
                     // Its result went with it on undo, redo or a rollback: what read it reads
                     // again. A forward removal told them as it was written.

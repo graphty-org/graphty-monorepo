@@ -141,6 +141,29 @@ describe("a run is one step", () => {
         session.dispose();
     });
 
+    it("reports the restored execution's parameters when a re-run with other parameters is undone", async () => {
+        const { session, calls } = await gated();
+        const run = session.runs.start("shortest-path", { source: "n1", target: "n2" }, { as: "route" });
+        await run;
+        await session.runs.start("shortest-path", { source: "n2", target: "n3" }, { as: "route" });
+        assert.strictEqual(run.params.source, "n2");
+
+        await session.undo();
+
+        assert.strictEqual(run.params.source, "n1", "the parameters of the result on screen");
+        assert.strictEqual(run.params.target, "n2");
+
+        // A re-run of the restored run computes with what it reports, not with the undone parameters.
+        const computed = calls();
+        run.rerun();
+        await run;
+        assert.strictEqual(calls(), computed + 1);
+        assert.strictEqual(run.params.source, "n1");
+        const entry = entryOf(session, "route") as { command: { params?: Record<string, unknown> } };
+        assert.strictEqual(entry.command.params?.source, "n1", "the re-run records the command it ran");
+        session.dispose();
+    });
+
     it("keeps the last result readable while a re-run computes", async () => {
         const { session, open } = await gated();
         const run = session.runs.start("betweenness", {}, { as: "bet" });

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { LAYOUT_SEED } from "../layout/methods";
-import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useWorkspaceState } from "../state/WorkspaceContext";
 
 /**
  * The element's force layout (its catalog id; the element picks the engine), from the app's
@@ -74,7 +74,10 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
     const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
     // A size bound to data is compared across nodes, so in 3D every node is drawn at one depth's
     // scale: otherwise perspective draws a nearer, smaller value larger than a farther, larger one.
-    const sizeBound = useSizeBound(useWorkspace().session);
+    // Read from this host's own element: the workspace still holds the previous project's session,
+    // disposed with its element, until this one hands its own up.
+    const [hosted, setHosted] = useState<GraphSession | null>(null);
+    const sizeBound = useSizeBound(hosted);
     const layoutBehavior = useMemo(
         () => ({
             labels: { declutter: !allLabelsShown },
@@ -94,6 +97,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
             const session: GraphSession | undefined = element?.session;
             if (!disposed && element !== null && session !== undefined) {
                 session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR);
+                setHosted(session);
                 onReady(element, session);
             }
         };

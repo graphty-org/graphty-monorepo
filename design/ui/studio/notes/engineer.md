@@ -11,6 +11,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-11) **FIXED: New project, then Discard, no longer shows the error page.** Reproduced on
+  5277e2cbe first (`tmp/t2r4-6/frozen/05.png`). Mechanism: the new project's `ElementHost` mounts
+  in the same commit that removes the old element, and its size-bound check read
+  `useWorkspace().session`, still the old, disposed session, so `styles.legend()` threw
+  `E_DISPOSED`. `ElementHost` now reads its own element's session. Fresh build: an empty Untitled
+  project ("No nodes to draw", Add data... / Open a sample), no console output
+  (`tmp/t2r4-6/fresh/05.png`); real-element test in `Project.real-element.test.tsx`.
+
 - (2026-10-11) **A briefing never holds what a task asks the participant to find.** The README's
   file table now names each file and its kind only; the answer key's "Facts no briefing may hold"
   lists the facts (`Mo`, `Nia`, `6 - w`, `p13`, `s11`), and `--brief` refuses, `--leaks` voids,
@@ -33,9 +41,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   state on both builds (round 1's build recounts 27). Added "Settings" (rail), ", full graph" and
   "on 20 nodes" (key scope words); removed "On the path". "of nodes" was never new. No repeat on
   screen, so nothing to cut (`tier2/rounds/round-4/bars/edge-inspector-words.md`).
-- (2026-10-11) **Built: `rulePath` (element, `./session`)**; the find box and "or more" both use it.
-  On a fresh build, bus stops "5" -> "minutes is 5 or more (10)" -> Style, Width: the layer is
-  "minutes >= `5`" (`tmp/t2r4-9/s1/08.png`).
 - (2026-10-11) **Round 4 closed: 53 of 53 valid sessions succeeded; bars 9 (b) and 10 fail.** Bar 10
   on two confirmed severity 3s: drawn names and nodes covering ties and dots (element, owner's
   list, not mine in the app) and the find box offering "=`10`" for a bare number and then refusing
@@ -57,7 +62,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-11) **Not to change after round 4:** Shift-click, toolbar Filters door, Replace place,
   scope words, names off in setups, T18 (8 against 8: no new step there), second path replacing
   the first (no task needs both; decided), any label placement in the app.
-- (2026-10-11) **Script first, from round 4:** New project then Discard showing the error page; a
+- (2026-10-11) **Script first, from round 4:** a
   rule on a missing column answering only "Nothing matches" (element has `E_UNKNOWN_ATTRIBUTE`;
   a coded fact would let the app say the column is missing).
 - (2026-10-11) **Watch in round 5:** T22 A on bus stops typing "10"; T17 with the table open
@@ -76,6 +81,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Delete does nothing on a step; Analyze box jumps as the list narrows.
 
 ## Decisions and reasons
+
+- (2026-10-11) **A component mounted with a new element reads that element's session, never the
+  workspace's.** The workspace hands the session up through state, so for one commit after an
+  element is replaced it still holds the disposed one; anything that mounts in that commit (keyed by
+  project) and reads it at once throws. Root cause is the app's hand-up, not the element: the
+  element is right to refuse a disposed session. Other workspace readers re-run only when the
+  session changes, so they never see the gap.
 
 - (2026-10-11) **Answer-key facts live in `answers.md`, never in `real.mjs`.** A participant may
   read `real.mjs` (the leak check allows it), so the self-test plants the first two listed facts
@@ -183,6 +195,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   is "replace"); weigh those findings up, not down.
 
 ## Tried: worked / did not work
+
+- (2026-10-11) Worked, built: `rulePath` (element, `./session`); the find box and "or more" both use it.
+  On a fresh build, bus stops "5" -> "minutes is 5 or more (10)" -> Style, Width: the layer is
+  "minutes >= `5`" (`tmp/t2r4-9/s1/08.png`).
+- (2026-10-11) Worked: the real-element test of New project then Discard failed with the same
+  `E_DISPOSED` stack (`ElementHost.tsx` `useSizeBound` -> `styles.legend()` -> `data.attributes()`)
+  before the change and passes after; it also cleared the follow-on unhandled rejection from the
+  old element's Lit update. `real.mjs` cuts a console error at 300 characters, so the full stack
+  came from the test, not the study tool.
 
 - (2026-10-11) WORKED: proving an app fix fails without it by copying the fixed file aside,
   writing `git show HEAD:<file>` over it, running the one test (`-t`), and copying the fix back --

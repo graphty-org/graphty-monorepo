@@ -398,6 +398,28 @@ describe("T14: save and reopen, on the real element", () => {
         );
         assert.isNull(store.get().project);
     });
+
+    it("New project, then Discard, opens an empty project on a new element with no error", async () => {
+        const errors = vi.spyOn(console, "error");
+        const store = createWorkspaceStore();
+        const { session } = await buildProject(store);
+        assert.isTrue(session.project.dirty);
+
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "New project" }));
+        const asked = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+        await userEvent.click(within(asked).getByRole("button", { name: "Discard" }));
+
+        const fresh = await elementSession(session);
+        assert.equal(store.get().project?.name, "Untitled");
+        assert.equal(fresh.data.statistics().nodeCount, 0);
+        assert.isNotNull(await screen.findByRole("button", { name: "Project: Untitled" }));
+        // React's act() warnings are the test harness's own; the element's errors are not.
+        assert.deepEqual(
+            errors.mock.calls.map((call) => String(call[0])).filter((text) => text.includes("disposed")),
+            [],
+        );
+    });
 });
 
 /**

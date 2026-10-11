@@ -4,6 +4,30 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-11 -- Decided by the team: "or more" for a number inside a column's range, one rule spelling, and no refused suggestion
+
+**What.** To build for tier 2 round 5, all in graphty-element's `./session` entry.
+
+- `FindResult` gains an optional `atLeast: readonly FindAtLeastRow[]`, where `FindAtLeastRow` is
+  `{ kind, path, value, count, target }`, built like `FindValueRow.atLeast`. It holds one row per
+  number column whose lowest and highest values enclose the typed number when that number is not
+  itself a value there. It is set only when the whole typed text is a finite number, and holds at
+  most as many rows as `values`.
+- A new export `rulePath(path)` beside `quotePath`: the shortest text a rule reads as that column
+  (the bare name for a plain data column, else the quoted path). The "or more" targets use it, so
+  their rule reads "minutes >= \`5\`", not "data.minutes >= \`5\`".
+- The `number-needs-backticks` refusal carries `details.suggestion` only when the rewrite is a rule
+  the selector accepts (it parses and reads at least one attribute), not merely one that parses.
+
+**Why.** T22 asks for bus stops "10 minutes or more", and no stop has exactly 10. Typing "10"
+offered "=\`10\`", which the selector then refused, and no "or more" row. The app must not parse
+the number, scan columns or decide how a column name resolves, so the element answers all three.
+`rulePath` lets the app delete its own copy of that name rule (`columnText` in `FindBox.tsx`).
+
+**Not breaking.** Two new exports and a new optional field. `FindValueRow.atLeast` and the
+`number-needs-backticks` suggestion are in no released graphty-element tag, so changing their text
+or when the suggestion appears breaks no consumer.
+
 ## 2026-10-10 -- Decided by the team: a numeric find value row also offers "at least" (`FindValueRow.atLeast`)
 
 **What.** To build for tier 2 round 4. A `FindValueRow` whose value is a number in a number column

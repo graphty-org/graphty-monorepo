@@ -5,49 +5,44 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-11 (round 4 second dry run triaged: `tier2/dry-run-r4-2.md`; 0 fixes).
+Last updated: 2026-10-11 (tier 2 round 4 decided: `tier2/rounds/round-4/decisions.md`; 12 changes).
 
 ## Top of mind
 
-- 2026-10-11: ROUND 4 DRY RUN TWO (`tier2/dry-run-r4-2.md`): 91 items, 0 fixes, every half piloted
-  (T12R B included). The four "new" items did not hold on the build. 5277e2cbe is the round 4
-  build; no refreeze. Next: the round 4 sessions, with the gate evidence the runner demands.
-- 2026-10-11: A PILOT SCREENSHOT CANNOT PROVE A TOOLTIP IS MISSING. "Grayed with no hint" was a
-  photo taken without pointing; one `--hover` on the build showed the reason. Walk the claim
-  before classing it.
-- 2026-10-11: The study tool names an ambiguous match by its whole text, which read as a
-  screen-reader defect. Check the accessible name in source before calling an a11y fault.
-- 2026-10-11: ROUND 4 DRY RUN ONE (`tier2/dry-run-r4-1.md`): 71 items, 4 fixes in 3 app units.
-  Both real defects were made by round 3's own changes: the edge-step count swapped people for
-  edges instead of adding edges, and the new Filters tool opened an editor whose grayed "Add step"
-  gave no reason. Refreeze, then dry run two pilots every half again, T12R B included.
-- 2026-10-11: A FIX THAT REPLACES ONE COUNT WITH ANOTHER IS A NEW HALF-TRUTH. When a count misses
-  what changed, add the missing unit; never swap it. Check the fix against the task that reads it.
-- 2026-10-11: A new door inherits every pattern the old doors have (disabled reason, focus). Walk
-  the new door with nothing chosen before calling it done.
-- 2026-10-10: TIER 2 ROUND 3 DECIDED (`tier2/rounds/round-3/decisions.md`): 12 changes, study
-  first. 54 of 56 succeeded; the one real product failure is Shift-click on a node replacing the
-  selection (graphty-element). The T24 failures were the study's: prompt and key measured
-  different outcomes, and the skipped prompt pilots would have caught it.
-- 2026-10-10: THE GATE IS THE BLOCKER NOW, not the leak. Round 3's leak check read 0 logs and
-  passed; `--end` deleted step notes; the pilots were skipped. Round 4 does not start until the
-  runner refuses a round folder without pilot results and the bars run, and each check fails on a
-  planted fault. A rule I wrote down but no script enforces is a wish.
-- 2026-10-10: WATCH IN ROUND 4: (1) T24 pilots pass on both halves before the round; (2) T22's
-  "or more" row picked by the bare-number typers; (3) T17 first moves vs round 3's 5 of 8 on the
-  Graph place; (4) Shortest path first for "path"; (5) bar 9 re-measured without data names.
+- 2026-10-11: TIER 2 ROUND 4 DECIDED (`tier2/rounds/round-4/decisions.md`): 12 changes, study
+  first. 53 of 53 valid succeeded; T24 2 of 4 to 7 of 7 on the Shift-click fix. Product items:
+  the find box's refused bare-number suggestion (element), "or more" for any in-range number
+  (element `FindResult.atLeast`), an off filter step turning on when its editor closes (app), the
+  table ignoring a filter step (app, scope "visible").
+- 2026-10-11: THE GATE MUST LIVE WHERE EVERY SESSION PASSES. `--gate` and the runner check both
+  existed and round 4 still ran ungated (a continuation or hand start skips a runner check). Move
+  the refusal into `real.mjs --start`. Round 5 waits for it, shown on a planted fault.
+- 2026-10-11: THE BRIEFING LEAKED ANSWERS for two rounds (the data-file table named Mo, Nia,
+  6 - w, s11). Every "noticed unprompted" count from rounds 3-4 is discounted. Leak checks must
+  read briefings, not only logs.
+- 2026-10-11: Both new severity 3 defects were ONE QUESTION ANSWERED BY TWO TESTS (suggestion's
+  parse vs the selector's acceptance; the editor's "unchanged" vs the save on leave). Look for
+  more pairs like that before adding features.
+- 2026-10-11: Keep the tool's modifier clicks in the briefing. Removing `--shift-click` would make
+  T24 measure the tool; discount the priming instead.
+- 2026-10-11: Bar 9 (b): no word cut before a diff names the added words; a true scope fact is
+  never cut to pass a count. If the diff names only scope words, the bar fails honestly.
+- 2026-10-11: Owed before round 5: r4-s05b, r4-s20b, r4-s28b from new folders, scored into round 4.
+- 2026-10-11: A PILOT SCREENSHOT CANNOT PROVE A TOOLTIP IS MISSING; walk the claim (`--hover`)
+  before classing it. Check an accessible name in source before calling an a11y fault.
+- 2026-10-11: A FIX THAT REPLACES ONE COUNT WITH ANOTHER IS A NEW HALF-TRUTH. Add the missing unit.
+  A new door inherits every pattern the old doors have; walk it with nothing chosen.
 - 2026-10-10: Open for after the study: graphty-element's `data.attributes()` declares
-  `origin: "result"` and never sets it. If sessions say results belong in Attributes, that changes
-  what an existing method returns (owner), not an app patch.
+  `origin: "result"` and never sets it (owner item if results belong in Attributes).
 - 2026-10-10: Verify a fix by its acceptance screenshot, not its commit; name the look, not the
-  component (`ControlSection` for a heading, never a column caption).
-- 2026-10-09: A walk list copied from last round is always one round behind. Seed every dry run
-  from throwaway pilots on the candidate build; press every control by keyboard; fix before freeze.
+  component.
+- 2026-10-09: Seed every dry run from throwaway pilots on the candidate build; press every control
+  by keyboard; fix before freeze. A walk list copied from last round is one round behind.
 - 2026-10-09: Before calling a "defect" an app job, read the element; expose the fact, never
-  compute or scale in the app. Bar 10 label overlap stays the element's (owner list).
+  compute in the app. Label overlap stays the element's (owner list).
 - 2026-10-09: A pattern fixed in one place is a defect wherever it is missing. Grep for siblings.
 - 2026-10-07: Words: glossary wins. Severity 4 needs a wrong conclusion a reader would act on.
-  Before a new element API, grow an existing method. Remove before adding; words at rest never rise.
+  Before a new element API, grow an existing method. Words at rest never rise.
 
 ## Priorities and values
 
@@ -161,6 +156,30 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
   Reason: a dry run that finds only known items means the build is ready; a fourth refreeze
   would spend a day for nothing a participant could hit.
 
+- 2026-10-11 -- Tier 2 round 4 decisions (me, `tier2/rounds/round-4/decisions.md`), from the
+  insights, nine proposals and the red team; every code claim checked in source at 5277e2cbe.
+  Twelve changes: (1) the gate refusal moves into `real.mjs --start`, the runner takes the
+  machine browser slot before starting a participant, an unstarted session is re-run; (2) the
+  briefing's file table names file and kind only, the leak check reads briefings; (3)
+  `suggestBackticks` uses the selector's acceptance test (parse plus an attribute read); (4)
+  `FindResult.atLeast` for an in-range number not a value; (5) the filter editor's leave returns
+  early on the step's own rule; (6) New project > Discard crash, script then trace; (7) three
+  single-source claims scripted (missing column, Escape on a swatch, label vs tie click); (8) the
+  table uses scope "visible", "12 of 41 edges", `useVisibilityVersion`; (9) element export
+  `rulePath`, app's `columnText` deleted; (10) note Cancel focuses "+"; (11) T17 histories stop
+  naming the toolbar; (12) bar 9 (b) word diff before any cut. Took the red team on: element fix
+  not app guard for the suggestion; one field name (`atLeast`); no Values-first reorder; no table
+  notice line; no `on: s.on`; fix the off-step now (the code proves it); hold the warning-mark
+  rule. Over the red team on two points: a new `rulePath` export (without it the app copy of the
+  name rule cannot be deleted), and keeping `--shift-click` in the briefing (three roles wanted
+  it out; removing it makes Shift-click impossible in the tool). Over Researcher, Figma and
+  Content: ", full graph" stays unless the diff shows it is not the added word and not a fact.
+  Checked: `suggestBackticks` (79b7000b4) and `atLeast` (9b69ca650) are in no released tag, so all
+  element changes are the team's call (`owner-decisions.md`, 2026-10-11 entry).
+- 2026-10-11 -- State after the token limit: every role's critique and notes were committed
+  before it; the round 4 session folders (56, 56 MB, all graded) were left uncommitted and are
+  committed with these decisions, as round 3's were.
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-08 (summarized; full text in git history) -- Worked: piloting every task on each
@@ -214,6 +233,14 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
   triage and these notes were missing. Did not work: pilots reporting "no hint" from a still
   screenshot; their reports must say whether they pointed at the control.
 
+- 2026-10-11 (round 4 decisions) -- Worked: reading each proposed mechanism in source before
+  ranking it (the Visual Designer's "only when it parses" is already the code; `TableDock` has no
+  visibility subscription; the export comment shows Export will not follow the table). Worked:
+  `git tag --contains` settled "breaking or not" in one command for both element changes. Did not
+  work: the researcher's bars.json word lists cited as evidence were not on disk; a diagnosis
+  without its file is a claim, so change 12 makes the diff first. Did not work, again: a gate
+  enforced only by the runner (rounds 3 and 4).
+
 ## Thinking
 
 - **2026-10-10, after round 3:** the product's remaining problems are small doors and orderings;
@@ -234,6 +261,10 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
 - **Open tension:** "a run paints as soon as it finishes" vs a reader's Everything color
   suppressing it. Owner item.
 
+- **2026-10-11, after round 4:** the product is down to small mismatches between two checks of one
+  fact; the study's faults are still the larger risk, and they hide themselves the same way (a
+  check in one place, the act in another). Put each refusal in the one path every action takes.
+
 ## Sources
 
 - Tier 2 round 3 (2026-10-10): `tier2/rounds/round-3/{plan,scores,insights,decisions}.md`;
@@ -250,3 +281,5 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
 - Round 4 dry run one: `tier2/dry-run-r4-1.md` (pilots in `tier2/rounds/r4/pilot/`).
 - Round 4 dry run two: `tier2/dry-run-r4-2.md` (pilots in `tier2/rounds/r4d1/pilot/`); round 4
   build 5277e2cbe (`.study-builds/tier2-r4d1-5277e2cbe/`).
+- Tier 2 round 4 (2026-10-11): `tier2/rounds/round-4/{plan,scores,insights,decisions}.md`;
+  sessions in `round-4/sessions/`; proposals in `notes/*.md` (commits 6171f0486 to 90ea5b8e8).

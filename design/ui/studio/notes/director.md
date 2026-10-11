@@ -5,35 +5,37 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-11 (tier 2 report drafted after round 5 came back void; state recovered after the token limit).
+Last updated: 2026-10-11 (tier 2 report rewritten after the valid round 5 re-run).
 
 ## Top of mind
 
-- 2026-10-11: ROUND 5 IS VOID (0 of 56): the run in flight is the 2026-10-10 continuation script
-  (main checkout `tmp/studio-resume/workflow-tier2-continue.js`), which has no gate step; the gate
-  lives only in `tier2/rounds/workflow-tier2.js` (kept out of git by `.git/info/exclude`). STOP
-  that run and RELAUNCH from `workflow-tier2.js` at round 5; confirm a round 5 gate step in the
-  journal and "Gate evidence" at the end of `round-5/plan.md` before any session.
-- 2026-10-11: Then, in order: owed r4-s05b, r4-s20b, r4-s28b on 5277e2cbe (scored into round 4);
-  all 56 round 5 sessions as `<id>b` on 8c015b806; runner ends a round on the first refusal.
-- 2026-10-11: A CONTINUATION SCRIPT IS A FORK. After any usage-limit restart, diff it against the
-  main script before the next round, or relaunch from the main script.
-- 2026-10-11: The `--start` refusal WORKED (56 of 56 refused): the gate now lives in the one
-  command every session runs. A refusal must also stop the runner, not only the session.
-- 2026-10-11: Tier 2 report: the owner-facing text was returned to the orchestrator (the tool
-  refused a subagent writing `tier2/report.md`); the file still needs writing from that text.
-- 2026-10-11: Round 5 specialists, same build: six round 4 items fixed (table under a step, "or
-  more" for a non-value, off step stays off, Discard, note Cancel, rule-named layer). Open: names
-  over names/dots (sev 3, element declutter to dots, additive, team's call); "or more" row below
-  the ties (sev 2, app); missing column reads as empty (sev 2, element fact then app); edge-only
-  out-of-date note counts nodes (sev 2, owner unsettled until scripted).
-- 2026-10-11: Owner items (6, unchanged by round 5): bare numbers in rules; edge width unit;
-  camera in the project file; compact-mantine number box `value={undefined}`, fold region, stat
-  row growth. The 2026-10-10 ruling settled the 18 graphty-element breaking rows (minor).
+- 2026-10-11: ROUND 5 RE-RUN IS VALID: 55 of 55 on 8c015b806, gate passed, leak check read one log
+  per session. Fails only bar 9 (b) (edge inspector 29 vs 27) and bar 10 (drawn names/nodes
+  overlapping, element). Owed: r5-s02bb (Ruth, T22 B). Round 4's three owed sessions were never
+  run; round 5 re-ran their halves, so they are dropped, not owed.
+- 2026-10-11: THE TASKS HIT THEIR CEILING. Strict stall rule met: every task succeeds, and the
+  round 4 fixes (table under a step etc.) sit where no task routes a reader. Next useful signal is
+  new tasks through the fixed screens, or real people. Do not run another round on these tasks
+  unchanged.
+- 2026-10-11: STUDY ARTIFACTS IN ROUND 5 SCORES, fix before any comparison: step counting
+  (type+pick is one step in the key, two for participants; "T18 on the limit" was this);
+  histories steer first moves (Style tab); T19/T21 setups never save while histories say saved;
+  T20/T22 prompts name what they measure; T17 prompt never needs the table.
+- 2026-10-11: Owner items are THREE, not six: bare numbers in rules, edge width unit, camera in
+  the project file. #1727's table (2026-10-10 ruling) settled histogram banding, the edge's blue
+  band and all three compact-mantine rows (20, 21).
+- 2026-10-11: Tier 2 report: the Write tool refuses a subagent writing `tier2/report.md` (twice
+  now); the full text goes back to the orchestrator to save. Do not route around it with Bash.
+- 2026-10-11: Bar 9 (b): the diff (`round-4/bars/edge-inspector-words.md`) shows +"full graph",
+  +"on nodes": true scope facts. Decide on merits -- raise that screen's limit with a change-log
+  reason rather than cut them; it has failed honestly at 29 vs 27 for two rounds.
+- 2026-10-11: Round 5 severity 2 (app unless noted): no names drawn by default; Replace has no
+  visible control; Add lands with Load filled when every tie repeats; Add leaves new people out,
+  naming node rows the file lacks (maybe element fact); note subject not choosable; Hops count
+  mismatch; Filter to neighbors has no way back. Specialist-only: "or more" row placement,
+  missing column reads as empty, edge-only out-of-date note.
 - 2026-10-11: Both round 4 severity 3s were ONE QUESTION ANSWERED BY TWO TESTS; round 5 found two
   more (the out-of-date note's counts vs the step's; the missing column vs a true empty). Hunt pairs.
-- 2026-10-11: Bar 9 (b): diff done (`round-4/bars/edge-inspector-words.md`): +Settings, +"full
-  graph", +"on nodes"; true scope facts, not cut. The bar fails honestly at 29 against 27.
 - 2026-10-11: MEASURE OR WALK A CLAIM BEFORE CLASSING IT (`--hover`, source for names, ratios
   across undo for sizes). A key note names the mechanism once known.
 - 2026-10-11: The briefing leaked answers in rounds 3-4; discount every "noticed unprompted" count
@@ -126,6 +128,21 @@ Last updated: 2026-10-11 (tier 2 report drafted after round 5 came back void; st
   save. Owner list kept to breaking changes and one-way doors: bare numbers in rules, edge width
   unit, camera in the project file, and three compact-mantine behavior changes outside the table
   the 2026-10-10 ruling covered. Label overlap is NOT on it (additive declutter, team's call).
+- 2026-10-11 -- Round 5 re-run (55 of 55 valid, gate passed) read: the product is at the tasks'
+  ceiling; strict stall rule met. Decision: no further simulated round on these tasks unchanged;
+  next is (a) fix the study's four self-measurements (step counts, histories, setups, prompts),
+  (b) the smallest severity 2 fixes in their packages plus element label placement, (c) real
+  people on the core four, or new tasks that route readers through the round 4-5 fixes. Reason:
+  `round-5/insights.md` items 2-3; both skeptics weakened "not stalled".
+- 2026-10-11 -- Round 4's owed sessions (r4-s05b, s20b, s28b) are dropped, not owed: round 5
+  re-ran their halves on the newer build and no round 4 verdict depends on them.
+- 2026-10-11 -- Owner list cut to three (bare numbers, edge width unit, camera in the project
+  file). Checked #1727's breaking table: rows 7 (edge band), 10 (histogram), 20-21 (compact-mantine)
+  are all "Decided by the owner (2026-10-10): ships as a minor". The earlier draft's "six" was wrong.
+- 2026-10-11 -- Tier 2 report rewritten for the re-run (summary, five per-round tables, eight
+  lessons, changes by package with confirmation, deferred, three owner items, next steps). The
+  Write tool again refused a subagent writing `tier2/report.md`; full text returned to the
+  orchestrator to save.
 - 2026-10-11 -- State after the token limit, checked: the only uncommitted work was round 5's 56
   void session folders (graders finished by 07:16); committed them as the record of the void round,
   as rounds 3 and 4's folders were. `workflow-tier2.js` stays out of git on purpose
@@ -160,6 +177,12 @@ Last updated: 2026-10-11 (tier 2 report drafted after round 5 came back void; st
   `workflow-tier2.js` while a continuation script was the one running -- the fix never reached the
   run. Did not work: the runner starting all 56 sessions in parallel with nothing to stop on.
 
+- 2026-10-11 (round 5 re-run) -- Worked: relaunching from the main script; the gate ran and every
+  session read the build stamp; leak check read one log per session and both flags cleared on
+  reading. Did not work: histories, setups and prompts written without grepping them against what
+  the round scores (four artifacts reached `scores.md`); counting steps differently for the key and
+  for participants (made a false "T18 on the limit").
+
 ## Thinking
 
 - **2026-10-10, after round 3:** the product's remaining problems are small doors and orderings;
@@ -187,6 +210,11 @@ Last updated: 2026-10-11 (tier 2 report drafted after round 5 came back void; st
   the run on another. Recovery after a limit is part of the study, not housekeeping; the first
   step after any restart is to diff what is running against what we last fixed.
 
+- **2026-10-11, after the round 5 re-run:** the instrument, not the product, now limits what we
+  learn. Simulated readers succeed everywhere the tasks send them; the fixes sit where tasks do not
+  go. The honest next move is real people, or tasks rebuilt around the fixed screens, after the
+  histories, setups, prompts and step counts are checked against what each round scores.
+
 ## Sources
 
 - Tier 2 round 3 (2026-10-10): `tier2/rounds/round-3/{plan,scores,insights,decisions}.md`;
@@ -207,6 +235,6 @@ Last updated: 2026-10-11 (tier 2 report drafted after round 5 came back void; st
   build 5277e2cbe (`.study-builds/tier2-r4d1-5277e2cbe/`).
 - Tier 2 round 4 (2026-10-11): `tier2/rounds/round-4/{plan,scores,insights,decisions}.md`;
   sessions in `round-4/sessions/`; proposals in `notes/*.md` (commits 6171f0486 to 90ea5b8e8).
-- Tier 2 round 5 (void): `tier2/rounds/round-5/{plan,scores,insights,table}.md`, `expert/`,
-  `claims/`; build 8c015b806. Run scripts: `tier2/rounds/workflow-tier2.js` (main, excluded from
+- Tier 2 round 5 (first run void, re-run valid): `tier2/rounds/round-5/{plan,scores,insights,table}.md`,
+  `expert/`, `claims/`, sessions `r5-s01b`..`r5-s56b`; build 8c015b806. PR #1727 (breaking table). Run scripts: `tier2/rounds/workflow-tier2.js` (main, excluded from
   git) and the main checkout's `tmp/studio-resume/workflow-tier2-continue.js` (the stale fork).

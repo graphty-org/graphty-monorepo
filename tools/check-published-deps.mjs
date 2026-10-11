@@ -20,9 +20,9 @@
  *   5. the same name in both dependencies and peerDependencies, except `@graphty/graph-format`,
  *      where it is deliberate (design/graph-format/graph-format-design.md, the packaging rule:
  *      the dependency makes an install work, the wider peer lets an application share one copy);
- *   6. a shipped .js or .d.ts that imports an AI framework or provider package
+ *   6. in graphty-element, a shipped .js or .d.ts that imports an AI framework or provider package
  *      (tools/ai-framework-packages.mjs), except what FRAMEWORK_IMPORTS_ALLOWED lists with its
- *      reason, and a shipped .d.ts that names graphty-element's adapter folder (engine/tanstack):
+ *      reason, and a shipped .d.ts that names its adapter folder (engine/tanstack):
  *      graphty-element keeps every framework behind its engine seam and builds the frameworks it
  *      uses into its own chunks (design/ai/tanstack-ai-harness-design.md, section 7, rule 1).
  *
@@ -64,8 +64,10 @@ const FORBIDDEN_FILES = [
 ];
 
 /**
- * AI framework imports a package may still ship, by family and file, each with its reason. The
- * AI SDK's entry goes when milestone 2 of design/ai/tanstack-ai-harness-design.md removes it.
+ * The packages whose shipped files are scanned for AI framework imports, each with the imports it
+ * may still ship, by family and file, and the reason. Only graphty-element keeps frameworks behind
+ * an engine seam; compact-mantine's TanStack Table is not an AI framework. The AI SDK's entry goes
+ * when milestone 2 of design/ai/tanstack-ai-harness-design.md removes it.
  */
 const FRAMEWORK_IMPORTS_ALLOWED = {
     "@graphty/graphty-element": [
@@ -146,7 +148,7 @@ function check(dir, packed, workspaceVersions) {
     }
 
     const imported = new Map(); // name -> first file that imports it
-    const frameworkAllowed = FRAMEWORK_IMPORTS_ALLOWED[manifest.name] ?? [];
+    const frameworkAllowed = FRAMEWORK_IMPORTS_ALLOWED[manifest.name];
     const frameworkReported = new Set();
     for (const file of files) {
         // The top-level src/ is shipped for source maps; it is what dist was built FROM, not what runs.
@@ -154,7 +156,11 @@ function check(dir, packed, workspaceVersions) {
         if (!/\.(c|m)?js$|\.d\.(c|m)?ts$/.test(file)) continue;
         const text = fs.readFileSync(path.join(packed, file), "utf8");
         const declaration = /\.d\.[cm]?ts$/.test(file);
-        if (declaration && (/(^|\/)engine\/tanstack\//.test(file) || /(?:engine\/|["']\.\/)tanstack\//.test(text))) {
+        if (
+            frameworkAllowed &&
+            declaration &&
+            (/(^|\/)engine\/tanstack\//.test(file) || /(?:engine\/|["']\.\/)tanstack\//.test(text))
+        ) {
             problems.push(`${file} names the AI adapter folder (engine/tanstack), which ships no declarations`);
         }
         for (const re of IMPORT_PATTERNS) {
@@ -162,6 +168,7 @@ function check(dir, packed, workspaceVersions) {
                 const spec = m[1];
                 const family = frameworkFamily(spec);
                 if (
+                    frameworkAllowed &&
                     family !== undefined &&
                     !frameworkAllowed.some((a) => a.family === family && a.files.test(file)) &&
                     !frameworkReported.has(`${file} ${packageName(spec)}`)

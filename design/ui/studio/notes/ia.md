@@ -7,43 +7,38 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-1. (2026-10-10) Round 3 starts only after the study is fixed: participant folders outside the
-   studio tree, a transcript leak check that voids a session, pilot-route dry runs. Round 2's
-   three new routes (load-time Higher means, Replace in the source "...", find's rule hint) are
-   NOT credited; they are re-run. Problems found anyway in round 2 stand.
-2. (2026-10-10) Decided for round 3, IA-relevant: find's miss shows the example rule and Enter
-   runs a shown rule (one path, credited together); Add over repeated edges shows the element's
-   repeat count and "Replace <source>" beside Load; rule-made layer named by its rule; path
-   aliases in Analyze; weighted path row shows its total; Filter to neighbors is a plain command,
-   the step's checkbox the one on/off home.
-3. (2026-10-10) Rejected for round 3 from my proposal: column rows in plain find (second door into
-   the same rule while the hint is measured); matching file names (the element reports the fact);
-   Hops grouped by step and Edit-source retitle not taken. Re-propose columns or "Select where..."
-   on a column only if 3+ of 8 still stall after the hint fix.
-4. (2026-10-10) Watch in round 3: do people who type "chapters 10" reach and run the example
-   rule; does anyone pick "Replace <source>" from the Add page vs the source "..."; does "linked"
-   reach Shortest path (paths cost <= 8); does the rule-named layer read right in the key.
-5. (2026-10-10) Rule of the round: no feature moves, no second door where one is measured, words
-   at rest go down (bar 9 b failed: 4 screens rose). Every IA fix I propose must cut or replace
-   words, never add.
-6. (2026-10-10) Credited routes are frozen until a clean run re-measures them: do not reword or
-   move them.
-7. (2026-10-09) The homes still hold (Filters 8 of 8, Replace 8 of 8, Higher means 7 of 7). The
-   failures are doors that answer "No match" or open the wrong verb.
-8. (2026-10-09) Element-first: repeat-edge count (now decided), highlight look for a selection
-   layer (decided), bare numbers in rules (owner's list, breaking). The app never parses rules,
-   counts duplicates or matches names.
+1. (2026-10-10) Round 3 verdict: the homes hold again (54 of 56; Filters, Replace, Higher means,
+   find's hint all at or near the success path). The one real severity-3 is Shift-click on a node
+   replacing the selection -- graphty-element's, not mine. Do not paper over it with app hints.
+2. (2026-10-10) Proposed for round 4, IA: (a) Analyze search -- name or alias match beats a
+   description match; (b) find's bare number gets "is at least" beside "is", rows read
+   "<column> is 10" with the count right, no "Select where" prefix; (c) a Filters door on the Graph
+   place's toolbar (icon only); (d) step distance in the Hops 2-3 list, from the element.
+3. (2026-10-10) Do NOT change for round 4: Filters' home, Replace's home, load-time Higher means,
+   find's example-rule hint and Enter, rule-named layers, path aliases, Analyze's Recent entry,
+   Filter to neighbors as a command, the Neighborhood doors, "Select endpoints" (confounded with
+   Shift-click until the element fix lands).
+4. (2026-10-10) T24 is a study fault (prompt "point out" vs a key that credits only a selection).
+   Path-marking the two people is a valid answer; nothing in the app to fix there.
+5. (2026-10-10) Readers type the prompt's most prominent data word first: a column name OR a bare
+   number. The find box must turn both into a working rule.
+6. (2026-10-10) A description match is a weak signal; a name or alias match is a strong one. "linked"
+   marked Louvain (description) over Shortest path (alias).
+7. (2026-10-10) Rule of the round still holds: no feature moves, no second door where one is being
+   measured, words at rest go down. Words shown only while typing are not "at rest".
+8. (2026-10-10) Second Find path replacing the first is the interaction designer's call; my one
+   IA point: a command that makes a run should make a new row, never overwrite a sibling.
 9. (2026-10-09) The column is every user's second place. Treat it as a door to existing homes,
-   never a new home.
-10. (2026-10-09) Do NOT change: Filters under Data, Replace's home in the source "...", load-time
-    Higher means, rail, Analyze order, Path popover, P key, Notes place.
-11. (2026-10-10) Note subject waits on the dry run's script of an empty-canvas click while a run
-    is selected (now a required preflight result). Decide from it, then fix one thing.
-12. (2026-10-09) Style lines go only to the layer the row names. One home per layer.
-13. (2026-10-09) A number names its unit and whole; a count under a filter names whose numbers
-    (key says "full graph" only when drawing and run differ).
-14. (2026-10-07) One popover per job, every door opens it; a working door nobody sees is not a door.
-15. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
+   never a new home. Re-propose column rows in plain find only if 3+ of 8 still stall.
+10. (2026-10-09) Element-first: repeat-edge count, highlight look, hop distance, bare numbers in
+    rules (owner's list, breaking). The app never parses rules, counts duplicates or measures
+    distance.
+11. (2026-10-09) Style lines go only to the layer the row names. One home per layer.
+12. (2026-10-09) A number names its unit and whole; a count under a filter names whose numbers.
+    Open: an edge-only filter step counts only nodes ("20 of 20") -- the chip and step line must
+    count what the step hid.
+13. (2026-10-07) One popover per job, every door opens it; a working door nobody sees is not a door.
+14. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
     in the Summary; a Style-tab pointer to Label; Size pre-bound to the row's result.
 
 ## Priorities and values
@@ -113,35 +108,14 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   order and the find list's groups are app IA decisions, not element ones.
 - 2026-10-03 (owner): stop the mock rounds and build tier 1 as the real app; study the real app.
 
-- 2026-10-06 (IA proposal for round 2, after round 1): fix the doors to the neighbor list (G
-  opens it for one node; clickable rows carry a chevron; Degree value "N connections"), fix or
-  remove the three dead-end doors (Selection row, Sources tables, empty Size list), add a link
-  from the whole graph's Style tab to Everything. Leave the rail, Analyze, export and intake
-  alone. Reason: these are the only round 1 failures or severity-3 costs on tier 1 that trace to
-  structure; everything else passed.
-
-- 2026-10-06 (Design Director, round 1 decisions): adopted from my proposal -- Neighborhood (G)
-  opens the list for one node; Selection row and Sources tables stop dead-ending; empty combo has
-  no "Open list"; one name per run (method word). Rejected for round 2 -- the Degree-row chevron and
-  "N connections" (two changes at once would hide which one helped) and the Style-tab link to
-  Everything (one model's shared guess, recovered in 1 step). I accept both: a clean single-variable
-  test of the door fix is worth more than shipping my cue now.
-
-- 2026-10-07 (IA proposal for round 3, after round 2): bind a Size line added on a result row
-  to that result; "Size and shape" section heading; the Degree row's chevron inside the button;
-  partition candidates from the element; hidden-label words that say what brings names back;
-  method word in the run's inspector subtitle; neighborhood heading that includes the node.
-  Reason: these are the round 2 costs on the first-time core path that trace to structure or
-  words; everything else passed or belongs to other roles (focus return, export fidelity).
-
-- 2026-10-07 (Design Director, round 2 decisions, on my proposal): adopted -- chevron inside the
-  row (as a shared compact-mantine DataRow fix, not app-only); partition candidates from the
-  element's existing `optionsFor` (no new export). Replaced -- bound Size by "Size + opens its
-  picker" (bound Size would size by a group id on a community run); hidden-label words by a "Show
-  all labels" switch (the element already had the setting); subtitle method word by the method
-  name everywhere (no third naming state). Rejected -- "Size and shape" heading (confounds the
-  sizing change), "Javert and his 17 connections" (gender unknowable). I accept all: each reason
-  is a graph fact or a one-home argument, not taste.
+- 2026-10-06 to 2026-10-07 (tier 1 rounds 1-3, summarized 2026-10-10): adopted from my proposals
+  -- G opens the neighbor list for one node, no dead-end doors (Selection row, Sources tables,
+  empty combo), the chevron inside the Degree row (a compact-mantine DataRow fix), partition
+  candidates from the element's `optionsFor`. Replaced -- bound Size by "Size + opens its picker",
+  hidden-label words by a "Show all labels" switch, subtitle method word by the method name
+  everywhere. Rejected -- "N connections" plus chevron at once, a Style-tab link to Everything,
+  "Size and shape" heading, "Javert and his 17 connections". Reason throughout: one variable per
+  path, and graph facts over taste.
 
 - 2026-10-07 (IA proposal for tier 2, from the tier 2 audit): build each gap where refined B
   already put it (Data > Filters plus the header chip; Path popover; Notes place; Sources row
@@ -192,6 +166,21 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   Rejected -- file-name matching (guess vs element fact). Not taken this round -- Edit source
   retitle, Hops grouped by step. I accept: each keeps one variable per path and puts facts in
   the element.
+
+- 2026-10-10 (IA proposal for tier 2 round 4, after round 3): four door and word fixes, no new
+  places, no moves. (1) Analyze search shows only name or alias matches when any exist (a
+  description-only match shows only when nothing else does); evidence: "path" and "shortest path"
+  ranked Betweenness first in 7 sessions plus 2 experts, "linked" marked Louvain
+  (`visual/path/02.png`); file `analyze/words.ts` `matches`/`groupAlgorithms`. (2) A bare number in
+  find: the Values row reads "<column> is 10" and, for a numeric column, "<column> is at least 10",
+  each with the element's count at the right; drops "Select where" (cut at the panel edge,
+  `r3-s10/02.png`; 4 of 4 typed "10" first, 2 took "is 10"). Shown only while typing, so no words
+  at rest. File `graph-place/FindBox.tsx`. (3) A Filters icon in the canvas toolbar that opens Data
+  > Filters (5 of 8 T17 looked on the Graph place first: toolbar Layout and Everything's style,
+  `r3-s33/03.png`). A door, not a home. (4) At Hops 2 or 3 the neighbor list's value column is the
+  step count (1, 2, 3) from the element (an additive fact on the neighborhood selection); evidence
+  r3-s48, figma 18, visual 16 (`visual/path/10.png`). Reason for all: each is a door or a word for an
+  existing home, and each puts the fact in the element.
 
 ## Tried: worked / did not work
 
@@ -253,6 +242,15 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 - 2026-10-10 -- Adding words to fix doors: did not work for bar 9 (b); every tier 2 screen's
   count rose. Fixes must replace words.
 
+- 2026-10-10 (tier 2 round 3, first clean round) -- find's example-rule hint plus Enter running a
+  shown rule: worked (T22 8 of 8, steps 16 to 5, no dead end). Load-time Higher means through the
+  Data page: worked (T20 8 of 8). "Replace <source>" beside Load: not reached (no session met the
+  Add page). Path aliases: found Shortest path but ranked it last. Rule-named layer: worked.
+- 2026-10-10 -- Hiding a capability's door only in "..." menus: costs one guess each (Replace 8 of
+  8, Neighborhood 4 of 4), but everyone found them. Leave them; the measured cost is small.
+- 2026-10-10 -- A task word ("point out") that differs from the key's measure: did not work as a
+  study; readers reached another valid answer (path). Check prompt and key together.
+
 ## Thinking
 
 - **Tier 1 IA questions (2026-10-06)** were answered by rounds 1-3: the intake, names and
@@ -280,6 +278,11 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   picture, export the numbers, save and reopen.
 
 ## Sources
+
+- `tier2/rounds/round-3/insights.md`, `scores.md`, `expert/figma.md`, `expert/visual.md`,
+  `expert/a11y.md`; screenshots `r3-s10/02.png`, `r3-s33/03.png`, `r3-s43/13.png`,
+  `expert/visual/path/02.png`, `10.png`; `graphty/src/workspace/analyze/words.ts`,
+  `graph-place/FindBox.tsx`, `inspector/NodeValues.tsx` (2026-10-10)
 
 - `tier2/rounds/round-2/decisions.md` (changes 1-15, "Not changed") (2026-10-10)
 

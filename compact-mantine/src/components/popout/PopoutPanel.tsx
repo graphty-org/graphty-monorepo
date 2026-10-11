@@ -322,34 +322,32 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         // style; nothing else tells a child that its parent has moved.
         const moveObserver = new MutationObserver(schedule);
 
+        // A panel the person has deliberately dragged stays where they put it; only the panel it
+        // opened from still moves it, so a nested stack stays attached while its parent is dragged.
+        // A sidebar anchor, the trigger, the window, a scroll or a late font no longer does.
         const { inline, block } = resolveAnchors();
+        const parent = hasDragged ? findPanelElement(parentId) : null;
         for (const element of new Set([inline, block].filter((el): el is HTMLElement => el !== null))) {
+            if (hasDragged && element !== parent) {
+                continue;
+            }
             resizeObserver.observe(element);
             moveObserver.observe(element, { attributes: true, attributeFilter: ["style", "class"] });
         }
 
-        // The panel's own size decides where its inline edge falls.
-        if (panelRef.current) {
-            resizeObserver.observe(panelRef.current);
-        }
-
-        const handleViewportChange = (): void => {
-            // A panel the person has deliberately dragged stays where they put
-            // it; only a change to what it is anchored to still moves it.
-            if (hasDragged) {
-                return;
-            }
-            schedule();
-        };
-
-        window.addEventListener("resize", handleViewportChange);
-        window.addEventListener("scroll", handleViewportChange, true);
-
-        // A web font that finishes loading after the panel opened reflows the text beside its
-        // anchor ("Resolution" before an InfoCircle), which moves the anchor without resizing
-        // it, so neither observer fires and the panel stayed where the fallback font put it.
         const fonts = typeof document !== "undefined" ? document.fonts : undefined;
-        fonts?.addEventListener("loadingdone", schedule);
+        if (!hasDragged) {
+            // The panel's own size decides where its inline edge falls.
+            if (panelRef.current) {
+                resizeObserver.observe(panelRef.current);
+            }
+            window.addEventListener("resize", schedule);
+            window.addEventListener("scroll", schedule, true);
+            // A web font that finishes loading after the panel opened reflows the text beside its
+            // anchor ("Resolution" before an InfoCircle), which moves the anchor without resizing
+            // it, so neither observer fires and the panel stayed where the fallback font put it.
+            fonts?.addEventListener("loadingdone", schedule);
+        }
 
         return () => {
             if (frame !== 0) {
@@ -358,11 +356,11 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             panelRef.current?.removeAttribute("data-cm-repositioning");
             resizeObserver.disconnect();
             moveObserver.disconnect();
-            window.removeEventListener("resize", handleViewportChange);
-            window.removeEventListener("scroll", handleViewportChange, true);
+            window.removeEventListener("resize", schedule);
+            window.removeEventListener("scroll", schedule, true);
             fonts?.removeEventListener("loadingdone", schedule);
         };
-    }, [isOpen, updatePosition, resolveAnchors, hasDragged]);
+    }, [isOpen, updatePosition, resolveAnchors, hasDragged, parentId]);
 
     // Focus management: move focus to panel on open, return to trigger on close.
     useEffect(() => {

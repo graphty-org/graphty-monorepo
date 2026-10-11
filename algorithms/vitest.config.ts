@@ -1,7 +1,7 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 
 export default defineConfig({
     test: {
@@ -35,6 +35,11 @@ export default defineConfig({
             {
                 test: {
                     name: "browser",
+                    // Three pages at a time, as on a 4-core CI runner (Vitest's default is
+                    // min(12, cores - 1); a --maxWorkers flag does not reach a browser project).
+                    maxWorkers: 3,
+                    // Vitest refuses two projects with different maxWorkers in one group order.
+                    sequence: { groupOrder: 1 },
                     browser: {
                         enabled: true,
                         headless: true,
@@ -77,7 +82,7 @@ export default defineConfig({
                           statements: 80,
                       },
         },
-        reporters: ["verbose", ...ciJunitReporter()],
+        reporters: ["verbose", ...ciReporters()],
         slowTestThreshold: 5000,
         // Force exit after tests complete to prevent hanging
         teardownTimeout: 10000,

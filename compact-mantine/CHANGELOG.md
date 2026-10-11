@@ -1,3 +1,29 @@
+## 0.9.17 (2026-10-11)
+
+### 🩹 Fixes
+
+- **compact-mantine:** end the Toolbar Keyboard story after Move's tooltip opens ([#1997](https://github.com/graphty-org/graphty-monorepo/issues/1997))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.16 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🩹 Fixes
+
+- **compact-mantine:** keep a dragged pop-out where it was put when its sidebar anchor changes ([#1971](https://github.com/graphty-org/graphty-monorepo/issues/1971))
+- **compact-mantine:** make the focusable ScrollArea viewport opt-in ([#1599](https://github.com/graphty-org/graphty-monorepo/issues/1599))
+- **compact-mantine:** name unlabeled controls and make ScrollArea keyboard scrollable ([a95b241e0](https://github.com/graphty-org/graphty-monorepo/commit/a95b241e0))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.15 (2026-10-10)
 
 ### 🩹 Fixes

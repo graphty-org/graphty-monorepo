@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty",
-    "version": "0.8.63",
+    "version": "0.8.66",
     "private": true,
     "description": "React application for graph visualization built with Mantine and graphty-element",
     "author": "Adam Powers <apowers@ato.ms>",
@@ -23,9 +23,6 @@
         "samples:write": "tsx scripts/write-sample-gml.ts",
         "storybook": "storybook dev -p ${PORT:?start it through servherd, which sets PORT} ${HOST:+--host $HOST} --no-open --https --ssl-cert ${HTTPS_CERT_PATH:?graphty Storybook needs HTTPS: set HTTPS_CERT_PATH, servherd passes httpsCert} --ssl-key ${HTTPS_KEY_PATH:?graphty Storybook needs HTTPS: set HTTPS_KEY_PATH, servherd passes httpsKey}",
         "build-storybook": "storybook build",
-        "test:visual": "../tools/chromatic.sh graphty",
-        "test:visual:debug": "../tools/chromatic.sh graphty --debug",
-        "chromatic": "../tools/chromatic.sh graphty",
         "husky:prepush": "echo no prepush check",
         "ready:commit": "npm run build && npm run lint && npm run test:run"
     },

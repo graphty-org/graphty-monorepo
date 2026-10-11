@@ -11,7 +11,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { chromium } from "playwright";
 
-import { capture, CHROMIUM_ARGS, hasEmojiFont } from "../capture/capture.mjs";
+/* global document, requestAnimationFrame -- read only inside the page */
+
+import { capture, CHROMIUM_ARGS, hasEmojiFont, MAX_SHOT_HEIGHT, screenshotWholePage } from "../capture/capture.mjs";
 
 const PARAMS = {
     "demo--plain": {},
@@ -295,5 +297,88 @@ describe("capture", () => {
                 log: () => {},
             }),
         ).rejects.toThrow(/demo--plain.png: baseline is an LFS pointer; run git lfs pull/);
+    });
+});
+
+describe("screenshotWholePage", () => {
+    // Bands 100 CSS px tall, each its own red value, so a row of the image names the band it shows.
+    // The page is 100 CSS px wide: the PNGs stay small, so the test pays for the slicing, not for
+    // encoding megapixels.
+    const bands = (n) =>
+        `<body style="margin:0">${Array.from({ length: n }, (_, i) => `<div style="height:100px;background:rgb(${i * 5},0,0)"></div>`).join("")}</body>`;
+    const redAt = (png, y) => png.data[(y * png.width + 10) * 4];
+
+    let browser;
+    beforeAll(async () => {
+        browser = await chromium.launch({ args: CHROMIUM_ARGS });
+    });
+    afterAll(async () => {
+        await browser?.close();
+    });
+
+    async function withPage(html, use) {
+        const page = await browser.newPage({ viewport: { width: 100, height: 900 }, deviceScaleFactor: 2 });
+        try {
+            await page.setContent(html);
+            // As capture does: a screenshot before the page's first frame fails in Chromium.
+            await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+            return await use(page);
+        } finally {
+            await page.close();
+        }
+    }
+
+    it("is Playwright's own full-page screenshot, byte for byte, within the limit", async () => {
+        await withPage(bands(40), async (page) => {
+            const own = await page.screenshot({ animations: "disabled", caret: "hide", fullPage: true });
+            const ours = await screenshotWholePage(page);
+            expect(ours.readUInt32BE(20)).toBe(8000);
+            expect(ours.equals(own)).toBe(true);
+        });
+    });
+
+    it("draws the bottom of a page taller than the limit, not a copy of its top", async () => {
+        // 4,200 CSS px is 8,400 device px: two slices, the second 208 px.
+        await withPage(bands(42), async (page) => {
+            const png = PNG.sync.read(await screenshotWholePage(page));
+            expect([png.width, png.height]).toEqual([200, 8400]);
+            expect(MAX_SHOT_HEIGHT).toBe(8192);
+            // Every band, both sides of the seam and the last row included, is where the page has it.
+            for (const y of [0, 199, 200, 8191, 8192, 8199, 8200, 8399]) {
+                expect(redAt(png, y), `row ${y}`).toBe(Math.floor(y / 200) * 5);
+            }
+        });
+    });
+
+    it("is the settled page's height when the first capture shrinks a page within the limit", async () => {
+        // Chromium's first screenshot beyond the viewport lays text out again: 11px monospace
+        // with line-height: normal is 21 CSS px a row before it and 20 after, so these 150 rows
+        // are 3,160 CSS px on load and 3,010 once captured (#1982). The image is the settled page,
+        // ending on its red block, with no background below it.
+        const rows = Array.from(
+            { length: 150 },
+            (_, i) => `<div style="padding:4px 6px;font:11px monospace">${i}</div>`,
+        );
+        const html = `<body style="margin:0">${rows.join("")}<div style="height:10px;background:rgb(200,0,0)"></div></body>`;
+        await withPage(html, async (page) => {
+            const png = PNG.sync.read(await screenshotWholePage(page));
+            const height = await page.evaluate(() => document.documentElement.scrollHeight);
+            expect(height).toBe(150 * 20 + 10);
+            expect([png.width, png.height]).toEqual([200, height * 2]);
+            expect(redAt(png, png.height - 1)).toBe(200);
+        });
+    });
+
+    it("is the settled page's height when the first capture shrinks a page taller than the limit", async () => {
+        // The label is 21 CSS px before the first capture beyond the viewport and 20 after, so the
+        // page is 4,221 CSS px on load and 4,220 once captured (#1976, #1982).
+        const label = `<div style="padding:4px 6px;font:600 11px ui-monospace, monospace">ak</div>`;
+        await withPage(`<!doctype html>${bands(42).replace('<body style="margin:0">', `$&${label}`)}`, async (page) => {
+            const png = PNG.sync.read(await screenshotWholePage(page));
+            expect([png.width, png.height]).toEqual([200, 8440]);
+            // The label 20 px tall, the bands below it, and the last band down to the last row.
+            expect(redAt(png, 40)).toBe(0);
+            expect(redAt(png, 8439)).toBe(41 * 5);
+        });
     });
 });

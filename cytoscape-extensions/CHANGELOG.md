@@ -1,3 +1,50 @@
+## 0.0.10 (2026-10-11)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** load the GEXF color parser with the file formats ([b277792a0](https://github.com/graphty-org/graphty-monorepo/commit/b277792a0))
+- **cytoscape-extensions:** keep node and edge colors through a GEXF export and import ([#1983](https://github.com/graphty-org/graphty-monorepo/issues/1983))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.9 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.45
+- Updated graph-samples to 0.1.27
+- Updated graph-format to 1.3.12
+- Updated algorithms to 3.4.2
+- Updated graph-io to 0.3.35
+- Updated layout to 2.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.8 (2026-10-11)
+
+### 🩹 Fixes
+
+- **algorithms:** stop SynC blurring connected communities together ([#1698](https://github.com/graphty-org/graphty-monorepo/issues/1698))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.44
+- Updated algorithms to 3.4.1
+- Updated graph-io to 0.3.34
+- Updated layout to 2.3.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.7 (2026-10-10)
 
 ### 🚀 Features

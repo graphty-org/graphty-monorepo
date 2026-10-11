@@ -18,7 +18,7 @@ const preview: Preview = {
                 method: "alphabetical",
             },
         },
-        // Chromatic visual testing configuration
+        // Visual capture settings (visual-review reads them)
         chromatic: {
             // Delay for graph layout to settle
             delay: 300,

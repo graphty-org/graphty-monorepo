@@ -135,7 +135,7 @@ export const Random: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Click reset button to apply the seeded layout (deterministic for Chromatic tests)
+        // Click reset button to apply the seeded layout (deterministic for the visual capture)
         const resetButton = canvas.getByRole("button", { name: /reset/i });
         await userEvent.click(resetButton);
 

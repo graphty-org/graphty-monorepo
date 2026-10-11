@@ -12,6 +12,10 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
+- 2026-10-11 -- Round 4 closed (Director): 12 changes, study first. Round 5 waits until the gate
+  refuses a gateless session and briefings name files and kinds only, each shown on a planted fault.
+  Watch round 5: T22 A "10" on bus-stops (no refused suggestion; "is 10 or more" offered), T17
+  table under a filter step, and the owed r4-s05b, r4-s20b, r4-s28b scored first.
 - 2026-10-11 -- Round 4 after checks: 53 of 53 valid sessions passed; bar 10 fails on two sev 3s
   (drawn names over ties and dots; find box offering a rule it refuses), bar 9 (b) by two words.
 - 2026-10-11 -- Find box: the element's "add backticks" suggestion for a bare "10" is "`10`", a
@@ -96,6 +100,17 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- 2026-10-11 (Design Director, round 4 close; my position after) -- Twelve changes: study gate
+  and slot start (sev 4); briefings name file and kind only, leak check reads briefings (sev 4);
+  element refusal suggests only a rule the selector accepts; "is N or more" for a number in a
+  numeric column's range (element + app); off filter step stays off after an editor with no
+  edit; New project then Discard no error page; three single-source claims scripted first; table
+  lists what a filter step keeps; the "or more" rule names its column like a typed rule; note
+  Cancel focus on "+"; T17 histories stop naming the toolbar; bar 9 (b) added words named by
+  diff before any cut. Held: one load-warning look, "out of date" accessible name, second-path
+  notice, Degree arrow, Ctrl/Meta. Not changed: label overlap (owner). My view: all four of my
+  asks landed, and the bar 9 rule matches mine (diff first, no trust words cut).
+
 - 2026-10-11 (me, tier 2 round 4 critique) -- Four changes, smallest first: (1) the element's
   `number-needs-backticks` refusal suggests a rewrite only when it reads as a condition (a bare
   "10" gives "`10`", which the box then refuses: expert/figma/find/08.png); (2) additive optional
@@ -120,19 +135,9 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 - 2026-10-10 (me, tier 2 round 3 critique) -- Seven changes, smallest first; folded 2026-10-11 into
   the entry above (5 of 7 matched the final list).
-- 2026-10-10 (Design Director, round 2 close; my position after) -- Fifteen changes, study first
-  (sev 4: leak closed, pilot-route dry run with keyboard faults fixed, bar scripts proven), then
-  one per confirmed problem in its owning package: find-box miss shows the example, hint runnable
-  by Enter (app); repeat-edge count from `data.prepare()` with Replace beside Load (element,
-  additive; app); three focus faults (app); selection-layer Color/Width start at
-  `styles.highlightStyle()` (element, additive; app); rule layers named by the rule; words at rest
-  cut; 24 px checkbox hit area (compact-mantine); path aliases; weighted run row total; "Filter to
-  neighbors" not a toggle; repeated status re-announced; T22/T24 reworded. Not changed: label
-  overlap (element, owner), bare numbers and width units (breaking, owner), routes that held on
-  weak evidence, "Components 1" under a filter. My view: matches my four asks, and better on two:
-  the starting look comes from the element's own highlight (no app-invented value), and my opt-in
-  bare-number idea is rightly dropped (a capability, not a choice). I accept holding "Select
-  where..." until round 3 shows 3+ of 8 still stall.
+- 2026-10-10 (Design Director, round 2 close; summarized 2026-10-11) -- Fifteen changes, study
+  first; one per confirmed problem in its owning package (element highlight look, repeat-edge
+  count, rule-named layers, focus faults). Matched my four asks; I dropped opt-in bare numbers.
 - 2026-10-09 (me, tier 2 round 2 critique; summarized 2026-10-11) -- Asked: a visible starting
   look for a new line row, element facts for a bare number and an unknown column, a repeat-edge
   count with Replace on the Add page, rule-named layers. Three of four landed in round 3.
@@ -272,10 +277,10 @@ something, or change my mind. Summarize when it passes about 25 KB.
   answer that literal input on any file, not only when the number happens to be a stored value.
   Watch round 5: T22 A on bus-stops, first move "10".
 
-- 2026-10-11 -- Round 4 watch list: T24 (prompt pilots pass the key? anyone try Ctrl?), T22 (picks
-  the "or more" row first?), T17 (first move on the new toolbar icon or still Layout?), T18 (one
-  move to Shortest path; "Made with" true after Undo). If T24 still splits on "point out", the
-  prompt is still the fault, not the people.
+- 2026-10-11 -- Round 4 answered its watch list: T24 7 of 7 with Shift-click, nobody tried
+  Ctrl; Filters icon first door 7 of 7. Lesson: a written study rule failed twice (gate, leaks);
+  only a refusal in the command every session runs works. Round 5 counts mean little if the
+  briefing check is not proven on a planted leak.
 
 - 2026-10-06, folded 2026-10-07 -- Standing expectations, still open: names off at rest hurts
   Elena (she clicks prominent nodes and searches names she knows); words at rest written for

@@ -5,10 +5,12 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-11 (tier 2 round 4 decided: `tier2/rounds/round-4/decisions.md`; 12 changes).
+Last updated: 2026-10-11 (round 5 dry run one: `tier2/dry-run-r5-1.md`; 0 fixes, 8c015b806 stays the build).
 
 ## Top of mind
 
+- 2026-10-11: ROUND 5 DRY RUN ONE: 0 FIXES (`tier2/dry-run-r5-1.md`, 96 items: 48 design, 38 no
+  change, 6 owner, 4 process). 8c015b806 stays the round 5 build; the sessions can start.
 - 2026-10-11: TIER 2 ROUND 4 DECIDED (`tier2/rounds/round-4/decisions.md`): 12 changes, study
   first. 53 of 53 valid succeeded; T24 2 of 4 to 7 of 7 on the Shift-click fix. Product items:
   the find box's refused bare-number suggestion (element), "or more" for any in-range number
@@ -23,13 +25,12 @@ Last updated: 2026-10-11 (tier 2 round 4 decided: `tier2/rounds/round-4/decision
 - 2026-10-11: Both new severity 3 defects were ONE QUESTION ANSWERED BY TWO TESTS (suggestion's
   parse vs the selector's acceptance; the editor's "unchanged" vs the save on leave). Look for
   more pairs like that before adding features.
-- 2026-10-11: Keep the tool's modifier clicks in the briefing. Removing `--shift-click` would make
-  T24 measure the tool; discount the priming instead.
 - 2026-10-11: Bar 9 (b): no word cut before a diff names the added words; a true scope fact is
   never cut to pass a count. If the diff names only scope words, the bar fails honestly.
 - 2026-10-11: Owed before round 5: r4-s05b, r4-s20b, r4-s28b from new folders, scored into round 4.
-- 2026-10-11: A PILOT SCREENSHOT CANNOT PROVE A TOOLTIP IS MISSING; walk the claim (`--hover`)
-  before classing it. Check an accessible name in source before calling an a11y fault.
+- 2026-10-11: MEASURE OR WALK A CLAIM BEFORE CLASSING IT. A screenshot cannot prove a tooltip
+  missing (`--hover`); an accessible name is read in source; a "stale size after undo" in the key
+  since round 2 was 3D perspective (every leaf shrank by one factor across the redo).
 - 2026-10-11: A FIX THAT REPLACES ONE COUNT WITH ANOTHER IS A NEW HALF-TRUTH. Add the missing unit.
   A new door inherits every pattern the old doors have; walk it with nothing chosen.
 - 2026-10-10: Open for after the study: graphty-element's `data.attributes()` declares
@@ -180,6 +181,17 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
   before it; the round 4 session folders (56, 56 MB, all graded) were left uncommitted and are
   committed with these decisions, as round 3's were.
 
+- 2026-10-11 -- Round 5 dry run one (me, `tier2/dry-run-r5-1.md`). No fixes. Six items read as
+  new or never classed; each was checked on its screenshot: (1) the "Add a table" menu's "gray bar"
+  is the covered "Each row is" switch showing past the menu edge; (2) node sizes after undoing "Size
+  on PageRank" are 3D perspective (each leaf shrinks by the same 0.8 to 0.9 on the redo; a stale
+  size would not); (3) the Attributes subhead carets measure 3.5:1, above WCAG 1.4.11's 3:1,
+  compact-mantine's Tree caret; (4) the route edge behind Pine Fork is a layout overlap like
+  Castellani's; (5) B's Selection row keeps focus after Escape as A's Everything row does; (6) the
+  doubled "Florentine families" is a design question plus the tool refusing an ambiguous click.
+  Items 2 to 5 added to the key's watch list. Reason for no refreeze: as in round 4's second dry
+  run, a dry run that finds only known items means the build is ready.
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-08 (summarized; full text in git history) -- Worked: piloting every task on each
@@ -241,6 +253,12 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
   without its file is a claim, so change 12 makes the diff first. Did not work, again: a gate
   enforced only by the runner (rounds 3 and 4).
 
+- 2026-10-11 (round 5 dry run one) -- Worked: classing 96 items against the key and the round
+  3-4 triages first, so only six needed a look; a ratio across undo and redo settled a size claim
+  without a browser session; enlarging a crop settled the "scrollbar". Did not work: a watch item
+  ("not drawn at one size") sat in the key for three rounds with no mechanism named, so every pilot
+  re-reported it; a key note should name the mechanism once it is known.
+
 ## Thinking
 
 - **2026-10-10, after round 3:** the product's remaining problems are small doors and orderings;
@@ -279,6 +297,8 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
 - Builds: tier 2 round 1 9d6598eea, round 2 4a7a1a7fb, round 3 26f3bb968 (served from
   `.study-builds/tier2-r3d2-26f3bb968/`); round 4 candidate 38e180aac (`.study-builds/tier2-r4-38e180aac/`).
 - Round 4 dry run one: `tier2/dry-run-r4-1.md` (pilots in `tier2/rounds/r4/pilot/`).
+- Round 5 dry run one: `tier2/dry-run-r5-1.md` (pilots in `tier2/rounds/r5/pilot/`); round 5
+  build 8c015b806 (`.study-builds/tier2-r5-8c015b806/`).
 - Round 4 dry run two: `tier2/dry-run-r4-2.md` (pilots in `tier2/rounds/r4d1/pilot/`); round 4
   build 5277e2cbe (`.study-builds/tier2-r4d1-5277e2cbe/`).
 - Tier 2 round 4 (2026-10-11): `tier2/rounds/round-4/{plan,scores,insights,decisions}.md`;

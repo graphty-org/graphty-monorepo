@@ -286,6 +286,9 @@ Screens this key did not describe, all the same on 2dcea6dd5bba where it was wal
   `rounds/r3d1/pilot/T20B/14.png`, `15.png`) and Summit at about 755,645 (`rounds/r2d4/pilot/T20B/14.png`). The "Higher means" label sits at
   about y 270 and its choice buttons at about y 283 to 305 (`05.png`): a point at y 272 lands on
   the label, not a choice.
+  On 8c015b806 the thick black Creek-to-Meadow route edge passes behind the large blue Pine Fork
+  node, which is not on the route (about 633,517, `rounds/r5/pilot/T20B/14.png`); record any
+  participant who names Pine Fork as part of the walk.
 - T22: with a lone "=" typed, the first column row ("id, Node column") is drawn filled, as the
   marked option (`rounds/r2d4/pilot/T22A/03.png`, `T22B/03.png`). What Enter does there has not
   been walked; record any participant who presses it.
@@ -295,7 +298,16 @@ Screens this key did not describe, all the same on 2dcea6dd5bba where it was wal
   the highest-ranked (Valjean, Myriel) are among the smallest dots and many low-ranked ones are
   larger, the same after the camera turns, while the Everything layer reads Size 1
   (`rounds/r2d4/pilot/T22B/13.png`, `15.png` to `17.png`; the same on `rounds/r2/pilot/T22B/13.png`).
-  Record any participant who reads node sizes after that undo.
+  That is the 3D view's perspective: every node is size 1, and a node farther from the camera is
+  drawn smaller (on 8c015b806 the leaves measure 14 to 17 px after the undo, and each shrinks by
+  the same 0.8 to 0.9 when the redo puts the PageRank sizes back, `rounds/r5/pilot/T22B/14.png`
+  against `16.png`). Record any participant who reads node sizes after that undo. On B, focus
+  on the Selection row, that row keeps its focus ring after Escape clears the selection, as A's
+  Everything row does (`rounds/r5/pilot/T22B/13.png` to `16.png`).
+- T21 B: on the Data page the expand carets of the Nodes and Edges subheads under Attributes are
+  small and gray (#808080 on #2c2c2c, 3.5:1 at their brightest pixel), unlike the white carets of
+  the section headings (`rounds/r5/pilot/T21B/03.png`). Both subheads start open; nothing in T21
+  needs them closed.
 - T23 A: hovering the PageRank row in the left panel shows an eye (visibility) icon at the row's
   right edge as well as the history icon (`rounds/r2d4/pilot/T23A/09.png`).
 - T24 B: the setup's key reads "Size: PageRank" and "Color: PageRank", both 0.04282 to 0.3273

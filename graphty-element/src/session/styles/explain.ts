@@ -38,7 +38,7 @@ import type { Channel, ChannelValue, EdgeId, Encoding, LayerId, LayerSpec, NodeI
 import { GraphtyError } from "../../errors";
 import type { CodedFact } from "../shared";
 import { CHANNELS, type ChannelValues, isChannel } from "./channels";
-import { type PreparedBinding, requireChannel } from "./encoding";
+import { type PreparedBinding, requireChannel, type StyleAdjustmentCode } from "./encoding";
 import type { CompiledLayer, Layer, PathDirectory } from "./Layer";
 import type { EncodingLookup } from "./legend";
 import { columnsFor, type ElementColumns, type SelectorSource, type SelectorTarget } from "./predicate";
@@ -195,6 +195,14 @@ export interface StyleCounts {
      * scale does not clamp.
      */
     readonly outsideScale: number;
+    /**
+     * What the element draws differently from what the layer worked out on its matched elements,
+     * one fact per code and channel, with `params` `{ channel, count }`: how many elements. See
+     * {@link StyleAdjustmentCode}. Empty when everything is drawn as worked out. Always present on
+     * counts graphty-element returns; optional only so that counts written by hand before it
+     * existed still type-check.
+     */
+    readonly adjusted?: readonly CodedFact<StyleAdjustmentCode>[];
     /**
      * Changes whenever these counts may have changed: on every `style:changed`, and on every change
      * to the data or the run results the layers read. Equal revisions mean equal counts.
@@ -739,6 +747,35 @@ function readValues(
 }
 
 /**
+ * Count what the element draws differently from what a layer worked out for one element.
+ * @param own - The layer's prepared bindings.
+ * @param columns - What the session can read about elements of the layer's kind.
+ * @param index - The element.
+ * @param tally - The counts so far, keyed by code and channel.
+ */
+function countAdjustments(
+    own: readonly PreparedBinding[],
+    columns: ElementColumns,
+    index: number,
+    tally: Map<string, { code: StyleAdjustmentCode; channel: Channel; count: number }>,
+): void {
+    for (const prepared of own) {
+        const code = prepared.adjustment(prepared.path === null ? undefined : columns.value(index, prepared.path));
+        if (code === undefined) {
+            continue;
+        }
+
+        const key = `${code} ${prepared.channel}`;
+        const entry = tally.get(key);
+        if (entry === undefined) {
+            tally.set(key, { code, channel: prepared.channel, count: 1 });
+        } else {
+            entry.count++;
+        }
+    }
+}
+
+/**
  * Count the channels one layer wins on one element, through the same walk `explain` takes.
  * @param stack - The stack with its bindings.
  * @param at - Where the element sits.
@@ -791,6 +828,7 @@ export function styleCounts(
     let matched = 0;
     let noValue = 0;
     let outsideScale = 0;
+    const adjusted = new Map<string, { code: StyleAdjustmentCode; channel: Channel; count: number }>();
 
     for (const index of layer.target === "node" ? elements.nodes : elements.edges) {
         if (selector.test !== null && !selector.test(index)) {
@@ -801,13 +839,26 @@ export function styleCounts(
         const { missing, outside } = readValues(own, columns, index);
         noValue += missing ? 1 : 0;
         outsideScale += outside ? 1 : 0;
+        countAdjustments(own, columns, index, adjusted);
 
         if (layer.enabled) {
             countWins(stack, { target: layer.target, index }, columns, layerId, painted);
         }
     }
 
-    return { matched, painted: Object.freeze(painted), noValue, outsideScale, revision };
+    const facts = [...adjusted.values()].map(({ code, channel, count }): CodedFact<StyleAdjustmentCode> => ({
+        code,
+        params: { channel, count },
+    }));
+
+    return {
+        matched,
+        painted: Object.freeze(painted),
+        noValue,
+        outsideScale,
+        adjusted: Object.freeze(facts),
+        revision,
+    };
 }
 
 /**

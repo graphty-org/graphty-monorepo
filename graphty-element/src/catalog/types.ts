@@ -590,6 +590,30 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  */
 export type BindingOverflow = "other" | "shape" | "extend";
 
+/**
+ * One point of a `stops` binding: what a number exactly at `at` paints, and what the stretches on
+ * either side of it start or end with.
+ *
+ * Between two points the value moves from the left point's `above` to the right point's `below`
+ * (numbers linearly, colors per red, green, blue and alpha component). Below the first point every
+ * value paints the first point's `below`; above the last, the last point's `above`; exactly at a
+ * point, its `value`. `below` and `above` default to `value`, so a plain ramp names only `at` and
+ * `value`; giving them separately draws a jump at the point. Points need not be evenly spaced.
+ *
+ * This is the model Cytoscape's continuous mappings use, so a mapping read from a Cytoscape file
+ * keeps its exact meaning.
+ */
+export interface BindingStop {
+    /** Where the point sits, in the bound value's own units. */
+    at: number;
+    /** What a value exactly at `at` paints: a number for a numeric channel, a color for a color channel. */
+    value: string | number;
+    /** What the stretch just below `at` ends with. Defaults to `value`. */
+    below?: string | number;
+    /** What the stretch just above `at` starts with. Defaults to `value`. */
+    above?: string | number;
+}
+
 /** One channel's binding: a literal, or a declarative mapping from a value in the data. */
 export type Binding =
     | { value: ChannelValue }
@@ -619,6 +643,21 @@ export type Binding =
            */
           overflow?: BindingOverflow;
           missing?: "skip" | { value: string | number };
+          /**
+           * What a value `map` has no entry for paints. Absent, it goes on through the scale as
+           * before, so with `scale: "passthrough"` an unmapped "green" is painted green. `"skip"`
+           * leaves an element whose value the map does not hold exactly as the layers beneath
+           * paint it. An element with no value at all still follows `missing`.
+           */
+          unmapped?: "skip";
+          /**
+           * Points a number is read against instead of a scale, domain, range and palette: uneven
+           * spacing and jumps allowed. See {@link BindingStop}. Works on channels that carry a
+           * number or a color, with `scale` absent or `"linear"`; `palette`, `domain`, `clamp`,
+           * `range`, `reverse`, `midpoint`, `bins`, `exponent`, `map`, `other` and `overflow` are
+           * refused beside it, because the points already say what each of them would.
+           */
+          stops?: BindingStop[];
           /**
            * Values this binding does not paint: an element carrying one is left exactly as the
            * layers beneath paint it, as an unmeasured element is. Compared as the legend spells a

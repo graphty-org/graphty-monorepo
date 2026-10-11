@@ -25,6 +25,7 @@ export type {
     AttributeDescriptor,
     AttributeType,
     Binding,
+    BindingStop,
     CameraDescriptor,
     CameraId,
     CatalogApi,

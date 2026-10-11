@@ -65,6 +65,7 @@ import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
 import { type ChannelDescriptor, channelDescriptor, channelsFor, toColorValue } from "./channels";
+import { stopsProblem } from "./encoding";
 import type { CompiledSelector, SelectorSource, SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
 import { compileSelector, type Selector } from "./selector";
@@ -760,6 +761,20 @@ function checkBinding(
             path: `${path}.overflow`,
             candidates: ["other", "extend"],
         });
+    }
+
+    if (binding.unmapped !== undefined && binding.unmapped !== "skip") {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `"${String(binding.unmapped)}" is not what an unmapped value does.`,
+            path: `${path}.unmapped`,
+            candidates: ["skip"],
+        });
+    }
+
+    const stops = binding.stops === undefined ? null : stopsProblem(descriptor, binding);
+    if (stops !== null) {
+        report(log, { code: "E_BAD_LAYER", message: stops, path: `${path}.stops` });
     }
 
     if (

@@ -33,6 +33,8 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    unmapped?: "skip";
+    stops?: BindingStop[];
     hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
@@ -42,6 +44,14 @@ export type Binding = {
 
 // @public
 export type BindingOverflow = "other" | "shape" | "extend";
+
+// @public
+export interface BindingStop {
+    above?: string | number;
+    at: number;
+    below?: string | number;
+    value: string | number;
+}
 
 // @public
 export const BLUE_HIGHLIGHT: {

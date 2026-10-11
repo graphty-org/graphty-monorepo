@@ -29,6 +29,7 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 export type {
     Binding,
     BindingOverflow,
+    BindingStop,
     Channel,
     ChannelValue,
     EdgeId,

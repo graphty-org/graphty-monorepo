@@ -24,6 +24,7 @@ export type { AutoApplyPolicy, AutoApplyRun, AutoApplySources, AutoApplyStyles }
 export { createAutoApplyPolicy } from "./autoApply";
 export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./derive";
 export { suggestStyles } from "./derive";
+export type { StyleAdjustmentCode } from "./encoding";
 export type {
     ColumnEncodingSpec,
     EncodingOptions,

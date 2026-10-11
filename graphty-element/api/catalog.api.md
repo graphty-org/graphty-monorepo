@@ -193,12 +193,22 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    unmapped?: "skip";
+    stops?: BindingStop[];
     hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
     bins?: number;
     exponent?: number;
 };
+
+// @public
+export interface BindingStop {
+    above?: string | number;
+    at: number;
+    below?: string | number;
+    value: string | number;
+}
 
 // @public
 export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[];

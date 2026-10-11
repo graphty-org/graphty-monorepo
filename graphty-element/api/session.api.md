@@ -146,6 +146,8 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    unmapped?: "skip";
+    stops?: BindingStop[];
     hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
@@ -155,6 +157,14 @@ export type Binding = {
 
 // @public
 export type BindingOverflow = "other" | "shape" | "extend";
+
+// @public
+export interface BindingStop {
+    above?: string | number;
+    at: number;
+    below?: string | number;
+    value: string | number;
+}
 
 // @public
 export interface Capabilities {
@@ -3423,6 +3433,9 @@ export interface StartOptions extends RunOptions {
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 // @public
+export type StyleAdjustmentCode = "style.out-of-range" | "style.alpha-not-drawn";
+
+// @public
 export interface StyleAgreement {
     readonly channels: readonly ChannelAgreement[];
 }
@@ -3446,6 +3459,7 @@ export interface StyleContribution {
 
 // @public
 export interface StyleCounts {
+    readonly adjusted?: readonly CodedFact<StyleAdjustmentCode>[];
     readonly matched: number;
     readonly noValue: number;
     readonly outsideScale: number;

@@ -12,29 +12,35 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- 2026-10-10 -- Round 3: 54 of 56 succeeded; the one real app failure is Shift/Ctrl-click on a node
-  replacing the selection (element; edges already add). It breaks the spreadsheet habit of every
-  returning user. First fix for round 4, with a real-modifier-click test.
-- 2026-10-10 -- A prompt and its answer key must name the same outcome, and every key route must be
-  walked on the build before a task runs. T24 failed on the key, not the app (r3-s43/13.png).
-- 2026-10-10 -- Find box now gets readers past the dead end (4 of 4 on T22), but a bare "10" offers
-  only "is equal to", cut off. Next: an "or more" row beside it, never cut. Not "Select where..."
-  on a column (no one stalled).
-- 2026-10-10 -- Script every one-specialist claim before it changes the build: Enter on Shortest
-  path drops focus, Undo leaves "Made with" naming the undone run, the key covering Depot.
-- 2026-10-10 -- Repeat work: a second Find path replaces the first silently. Smallest fix is to say
-  so with Undo, not to keep both (the loss cost 0 of 7).
-- 2026-10-10 -- Filters: 5 of 8 looked on the Graph place first. A Filters row among the layers is a
-  door to the one editor, not a second home; try it, measure first moves.
-- 2026-10-10 -- Keep what worked: Recent entry in Analyze (6 of 7 reused it), Replace and its
-  out-of-date marks (0 of 8 misread), the repeat-edge warning, the load-time weight.
-- 2026-10-09 -- Simulated passes are weak; failures and script repros count. A problem found
-  despite a leak is robust. The study tool's own faults (leak check reading nothing, --end deleting
-  notes, bar 9 counting data names) come first.
-- 2026-10-09 -- Known to keep failing bar 10: drawn names overlapping (element label placement).
-  The app must not hide it with small fonts or a seed.
-- 2026-10-07 -- Top risk still: a picture that looks right and answers wrong (stale key, overlapping
-  names, a Load that doubles ties).
+- 2026-10-11 -- Round 4 does not start until the study's gate works: prompt pilots run, the leak
+  check fails when it reads no log, --end never deletes notes, each shown failing on a planted
+  fault. A broken measurement decided more of round 3 than the app did.
+- 2026-10-11 -- T24 re-runs with the prompt changed, not the key: "point out Gus and Ivan, and
+  nobody else, so that whatever you do next applies only to those two". Watch: does the outcome
+  wording lead people to the control (wording echo), and do both pilots per half pass the key.
+- 2026-10-11 -- Shift-click on a node now adds (element, matching edges). Ctrl/Meta held. Watch in
+  round 4: does anyone try Ctrl first and stall? If so, Ctrl is the next ask, not an app patch.
+- 2026-10-11 -- Find box: a bare "10" gets an element fact `atLeast` and an "is 10 or more (N)" row;
+  "Select where" leaves the visible text. Watch T22 on Les Miserables: first-pick rate of the "or
+  more" row, and zero cut rows in bars.mjs.
+- 2026-10-11 -- Filters: a toolbar icon (tooltip "Filters") opening the existing step editor, not my
+  layer-list row (that adds words at rest and reads as a second home). Watch T17 first moves against
+  round 3's 5 of 8 looking on the Graph place; an icon-only button may still be missed.
+- 2026-10-11 -- Second Find path replacing the first: no notice this round (lost nothing in 7 of 7).
+  I accepted it. Instead the "Made with" staleness after re-run/Undo is scripted first; a screen
+  naming settings of a run that is gone is the trust break I care about more.
+- 2026-10-11 -- One variant per problem, every one-specialist claim scripted first, words at rest
+  never rise. Three changes (5, 11, 12) are script-gated: if they do not reproduce, they close.
+- 2026-10-11 -- Analyze search: name/alias matches first, one "Start here" while filtering. Watch
+  bar 11 on T18 ("path" should land on Shortest path in one move).
+- 2026-10-11 -- Rule language is copied, never discovered (0 of 16 typed "=" across rounds 2-3).
+  Every T22 route must work without knowing it; the syntax itself stays on the owner's list.
+- 2026-10-09 -- Simulated passes are weak; failures and script repros count. One model's seven
+  matching asides are one voice, not seven.
+- 2026-10-09 -- Known to keep failing bar 10: drawn names overlapping (element label placement,
+  owner's list). The app must not hide it with small fonts or a seed.
+- 2026-10-07 -- Top risk still: a picture that looks right and answers wrong (stale key, stale
+  "Made with", overlapping names, a Load that doubles ties -- now a real warning on Load).
 - 2026-10-06 -- No tours, hint panels or first-run aids; same screens for everyone. Grade from what
   ended on screen; task wording never reuses the target's screen words.
 
@@ -95,18 +101,20 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
-- 2026-10-10 (me, tier 2 round 3 critique) -- Round 4 changes, smallest first: (1) element: Shift
-  or Ctrl-click on a node adds to the selection, as an edge click does (a defect fix matching the
-  edge's behavior; recorded as the team's call, owner list only if someone shows a consumer relying
-  on replace); (2) T24 key credits any end state marking Gus and Ivan and nobody else, routes walked
-  first; (3) find box: a bare number adds "or more" beside "is", rows wrap instead of cutting, the
-  backticks refusal becomes a runnable "Did you mean" row; (4) Analyze search ranks a name or alias
-  match above a description match (Shortest path first for "path"); (5) a second path run says it
-  replaced the first, with Undo; (6) a Filters row in the Graph place's layer list opening the one
-  Filters editor; (7) the three focus faults and the Add page warning tied to Load, each after a
-  script repro. Not changed: label overlap (element, owner), Replace's place, names off by default,
-  Select endpoints in "...", the rule syntax (owner), the Recent entry. Reason: each fixes a
-  confirmed failure or detour on a returning user's route; the rest held.
+- 2026-10-11 (Design Director, round 3 close; my position after) -- Twelve changes, study first:
+  gate and leak check (sev 4), T24 prompt reworded to name the outcome (sev 4), element Shift-click
+  adds (Ctrl/Meta held: macOS Ctrl-click is a context menu), bars 8/9 fixed, "Made with" after
+  Undo (script first), two focus drops, find box "at least" row via element `atLeast`, Analyze name
+  ranking, toolbar Filters icon, Add page warning tied to Load, edge-filter steps counting edges
+  (script first), disabled reasons in compact-mantine Tooltip (check first). Where it differed from
+  my critique: prompt changed instead of widening the key -- I agree, the key measures what T24 is
+  for (a selection a next action applies to); toolbar icon instead of a layer row -- I agree, fewer
+  words at rest; no second-path notice -- I agree, cost 0 of 7; rows shortened instead of wrapped,
+  backticks wording held for the owner. Held: per-name hop distance (first in line if a second
+  session meets it), "4 hops" wording, Ctrl/Meta.
+
+- 2026-10-10 (me, tier 2 round 3 critique) -- Seven changes, smallest first; folded 2026-10-11 into
+  the entry above (5 of 7 matched the final list).
 - 2026-10-10 (Design Director, round 2 close; my position after) -- Fifteen changes, study first
   (sev 4: leak closed, pilot-route dry run with keyboard faults fixed, bar scripts proven), then
   one per confirmed problem in its owning package: find-box miss shows the example, hint runnable
@@ -236,6 +244,10 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Tried: worked / did not work
 
+- 2026-10-11 -- DID NOT WORK: proposing several variants per problem (eight roles, up to four
+  each). Stacked, round 4 could not credit any one. One path per problem, the rest held by name.
+  WORKED: my round 3 critique's ranking matched the final list on 5 of 7 items.
+
 - 2026-10-10 -- TIER 2 ROUND 3. WORKED: find box hint and example (T22 4 of 4, one detour each);
   Recent entry in Analyze; Replace with its marks; Filters found 8 of 8; repeat follow-ups at
   target (weak: simulated memory). DID NOT: Shift-click on nodes; T24's key vs its prompt; the
@@ -247,19 +259,11 @@ something, or change my mind. Summarize when it passes about 25 KB.
 - 2026-10-09 -- DID NOT WORK: a dry run that walks only the answer key, by pointer only, with no
   tool check. Every open fault sat on a detour or in the tool. Next: walk round 1's detours and
   keyboard, and dry-run the tool itself.
-- 2026-10-09 -- TIER 2 ROUND 1. WORKED: the dry run on the walked routes (empty session logs, no
-  grade decided by a build defect); T17 follow-ups at the key's 4 steps; T23 and T12R at or under
-  path; the path run, the Replace page and "Higher means" read right every time once found; 0
-  false "done". DID NOT: find box as a condition entry (T22 3 of 4, 25 steps vs 3); Replace only
-  on right-click; plain Open skipping the weight question; "Back to start" dropping the graph;
-  stale run quiet; long names cut; the study tool (over 4 browsers, wrong-row matches, synthetic
-  file drop, missing preflight scripts).
-- 2026-10-09 -- TIER 2 ROUND 2. WORKED: the widened dry run (30 detours, keyboard, tool check);
-  T20 load-time "Farther" 7 of 7; T22 8 of 8 once the hint showed; Filters found 8 of 8; T21 0 of 8
-  read old numbers as current; the selection ring and Escape fixes held. DID NOT: the detour
-  nobody walked (styling a selection); keeping participants to their briefing (tasks.md was read);
-  the click-by-name tool landing on same-named rows (r2-s17, s18, s30); bar 10's scripts claimed
-  built but absent.
+- 2026-10-09, folded 2026-10-11 -- TIER 2 ROUNDS 1-2. WORKED: dry runs widened to detours,
+  keyboard and the tool; load-time "Farther"; find box hint; Replace and its marks; selection ring
+  and Escape fixes. DID NOT: find box as condition entry before the hint; Replace only on
+  right-click; stale runs quiet; long names cut; briefing leaks (tasks.md read); click-by-name
+  landing on same-named rows; scripts claimed built but absent.
 - 2026-10-02 to 2026-10-07, folded 2026-10-09 -- TIER 1 (mocks, then the real app). WORKED and
   kept: sample one click from start, match report and broken-file refusal, save and reopen, every
   run repainting drawing and legend together, the G/Degree neighbor list, "No crossings" refusal,
@@ -273,6 +277,11 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Thinking
 
+- 2026-10-11 -- Round 4 watch list: T24 (prompt pilots pass the key? anyone try Ctrl?), T22 (picks
+  the "or more" row first?), T17 (first move on the new toolbar icon or still Layout?), T18 (one
+  move to Shortest path; "Made with" true after Undo). If T24 still splits on "point out", the
+  prompt is still the fault, not the people.
+
 - 2026-10-06, folded 2026-10-07 -- Standing expectations, still open: names off at rest hurts
   Elena (she clicks prominent nodes and searches names she knows); words at rest written for
   developers; watch first clicks on icon-only Layout and View against the owner's half-of-first-
@@ -285,6 +294,8 @@ something, or change my mind. Summarize when it passes about 25 KB.
   wording; whether a run's suggested style lands above a hand-written layer that colors everything.
 
 ## Sources
+
+- `design/ui/studio/tier2/rounds/round-3/decisions.md` (2026-10-11).
 
 - `design/ui/studio/tier2/rounds/round-3/insights.md`, `scores.md`, `expert/*.md`; screenshots
   `sessions/r3-s10/02.png`, `r3-s33/03.png`, `r3-s43/13.png` (2026-10-10).

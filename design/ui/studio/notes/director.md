@@ -5,10 +5,18 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-10 (tier 2 round 3 decided; round 4 changes in `tier2/rounds/round-3/decisions.md`).
+Last updated: 2026-10-11 (round 4 first dry run triaged: `tier2/dry-run-r4-1.md`).
 
 ## Top of mind
 
+- 2026-10-11: ROUND 4 DRY RUN ONE (`tier2/dry-run-r4-1.md`): 71 items, 4 fixes in 3 app units.
+  Both real defects were made by round 3's own changes: the edge-step count swapped people for
+  edges instead of adding edges, and the new Filters tool opened an editor whose grayed "Add step"
+  gave no reason. Refreeze, then dry run two pilots every half again, T12R B included.
+- 2026-10-11: A FIX THAT REPLACES ONE COUNT WITH ANOTHER IS A NEW HALF-TRUTH. When a count misses
+  what changed, add the missing unit; never swap it. Check the fix against the task that reads it.
+- 2026-10-11: A new door inherits every pattern the old doors have (disabled reason, focus). Walk
+  the new door with nothing chosen before calling it done.
 - 2026-10-10: TIER 2 ROUND 3 DECIDED (`tier2/rounds/round-3/decisions.md`): 12 changes, study
   first. 54 of 56 succeeded; the one real product failure is Shift-click on a node replacing the
   selection (graphty-element). The T24 failures were the study's: prompt and key measured
@@ -22,8 +30,6 @@ Last updated: 2026-10-10 (tier 2 round 3 decided; round 4 changes in `tier2/roun
   round 4 can credit it; held the rest with the reason named once.
 - 2026-10-10: A one-specialist claim is scripted before it is fixed: "Made with" after Undo, the
   two focus drops, edge-step counts, the disabled reason. No repro on 26f3bb968, no fix.
-- 2026-10-10: Shift-click on a node is a defect fix, team-decided (no doc promises replace; edges
-  already add). Shift only; Ctrl/Meta held (macOS Ctrl-click is a context menu).
 - 2026-10-10: WATCH IN ROUND 4: (1) T24 pilots pass on both halves before the round; (2) T22's
   "or more" row picked by the bare-number typers; (3) T17 first moves vs round 3's 5 of 8 on the
   Graph place; (4) Shortest path first for "path"; (5) bar 9 re-measured without data names.
@@ -123,6 +129,26 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
   that a pattern fixed in one place is a defect where missing). Held: Hops distances, "4 hops",
   commit on leaving Value, `nodesInRect` labels. Two team entries added to `owner-decisions.md`.
 
+- 2026-10-11 -- Owner review: round 3's "drawn names overlap" finding was measured with declutter
+  off. graphty-element already declutters labels (`layoutBehavior.labels.declutter`) and the app
+  turns it on; the setups that tick "Show all labels" turn it off. Re-score the finding with
+  declutter on; tick "Show all labels" only where a task needs every name, and say why in
+  tasks.md (T24 does: it needs every name drawn). What may remain is separate: declutter avoids
+  label-on-label only, not a label over a dot or an edge, and two nodes can overlap in the layout
+  itself. Extending declutter to dots is an additive element option (team's call). Not an owner
+  item; do not report it as one.
+
+- 2026-10-11 -- Round 4 dry run one (me, `tier2/dry-run-r4-1.md`). Fixed: (1) a step over an
+  edge column names both counts on its row and the chip ("20 to 19 nodes, 41 to 12 edges"; "19 of
+  20 nodes, 12 of 41 edges"), because the step changes both and T17 asks for people; (2) the step
+  editor's disabled "Add step" says what is missing, the "Filter to neighbors" pattern; (3) a
+  run's "Values" section under the "Values" tab is renamed "Distribution". Not fixed: the
+  segmented control's dark chosen face (owner chose Figma's face on 2026-10-10; graders told the
+  darker face with the edge is the chosen side); the toolbar tool not starting from the Data
+  page's column (a door question T17 credits); "Back to Javert" showing no ring (checked in
+  source: focus is on Degree, ring by `:focus-visible` only). T12R B never ran (browser slots
+  full); it goes into dry run two.
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-08 (summarized; full text in git history) -- Worked: piloting every task on each
@@ -161,6 +187,14 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
   owner". Worked: the token-limit stop lost nothing; every role's critique and notes were
   committed before it.
 
+- 2026-10-11 (round 4 dry run one) -- Worked: classing each pilot item against the key and the
+  round 3 triages first, then reading source only for the three that were new; reading the commit
+  behind a "regression" (`cab733e18` was the owner's own choice, `8ab196fb3` was ours). Did not
+  work: round 3 change 11's acceptance ("words unchanged in number") forbade the extra unit, so
+  the fix could only swap one half-count for another; an acceptance line must name the task that
+  reads the value, not a word budget. Did not work: running 20 pilots at once against a 4-browser
+  cap -- one start never got a slot and printed nothing.
+
 ## Thinking
 
 - **2026-10-10, after round 3:** the product's remaining problems are small doors and orderings;
@@ -193,4 +227,5 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
 - Tier 1 and earlier: `criteria.md`, `tasks.md`, `answers.md`, `rounds/round-{1,2,3}/`,
   `digests/`, `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/`.
 - Builds: tier 2 round 1 9d6598eea, round 2 4a7a1a7fb, round 3 26f3bb968 (served from
-  `.study-builds/tier2-r3d2-26f3bb968/`).
+  `.study-builds/tier2-r3d2-26f3bb968/`); round 4 candidate 38e180aac (`.study-builds/tier2-r4-38e180aac/`).
+- Round 4 dry run one: `tier2/dry-run-r4-1.md` (pilots in `tier2/rounds/r4/pilot/`).

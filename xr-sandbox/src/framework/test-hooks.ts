@@ -3,13 +3,13 @@
 // arrange through the hook, act through emulated input, assert through the log and the hook. A
 // press made here goes through IWER, Babylon, the arbiter and the technique exactly as on a headset.
 
-import { type Scene, Vector3, type WebXRDefaultExperience } from "@babylonjs/core";
+import { type Scene, UtilityLayerRenderer, Vector3, type WebXRDefaultExperience } from "@babylonjs/core";
 import { lookRotation, type XRDevice } from "iwer";
 
 import type { Hand } from "../core/arbiter";
 import type { FrameStats } from "../scene/frame-stats";
 import type { GraphView } from "../scene/graph-view";
-import { uiStats } from "../scene/ui";
+import { panels, uiStats } from "../scene/ui";
 import type { GearPanel } from "./gear-panel";
 import type { Framework } from "./runtime";
 
@@ -73,7 +73,10 @@ export function installTestHooks(d: HookDeps): void {
         const i = graph.data.names.indexOf(what);
         if (i < 0) {
             // Any mesh by name, so a technique's check can aim at its own buttons.
-            const mesh = scene.getMeshByName(what);
+            // GUI 3D controls live in the default utility layer's scene.
+            const mesh =
+                scene.getMeshByName(what) ??
+                UtilityLayerRenderer.DefaultUtilityLayer.utilityLayerScene.getMeshByName(what);
             if (mesh) {
                 return mesh.getAbsolutePosition().clone();
             }
@@ -88,6 +91,12 @@ export function installTestHooks(d: HookDeps): void {
         presets: d.presets,
         // The node with the highest PageRank, a target on either graph.
         topNode: () => graph.data.names[graph.data.order.pagerank[0]],
+        /**
+         * The node ranked `k`th by PageRank, for the journey's "Which family ranks #k?".
+         * @param k - the rank, 1 for the top
+         * @returns its name
+         */
+        byRank: (k: number) => graph.data.names[graph.data.order.pagerank[k - 1]],
         sessionId: fw.log.sessionId,
         inXR: () => xr.baseExperience.sessionManager.inXRSession,
         xrFrames: () => stats.count,
@@ -102,6 +111,8 @@ export function installTestHooks(d: HookDeps): void {
             colorBy: fw.commands.state.colorBy,
             history: fw.commands.history.map((h) => h.label),
             undoLabel: fw.commands.undoLabel(),
+            // The open preview (the graph's tint), or null: a cancelled pull or sieve must leave none.
+            preview: fw.commands.preview && { owner: fw.commands.preview.owner, keep: fw.commands.preview.keep.size },
         }),
         gearOpen: () => d.gear.panel.visible,
         debug: () => {
@@ -110,8 +121,6 @@ export function installTestHooks(d: HookDeps): void {
                 gear: d.gear.button.mesh.getAbsolutePosition().asArray(),
                 gearEnabled: d.gear.button.mesh.isEnabled(),
                 origin: left?.origin.asArray(),
-            // The open preview (the graph's tint), or null: a cancelled pull or sieve must leave none.
-            preview: fw.commands.preview && { owner: fw.commands.preview.owner, keep: fw.commands.preview.keep.size },
                 dir: left?.dir.asArray(),
                 camera: camera.globalPosition.asArray(),
                 device: [device.position.x, device.position.y, device.position.z],
@@ -125,6 +134,29 @@ export function installTestHooks(d: HookDeps): void {
             };
         },
         uiStats: () => ({ ...uiStats }),
+        /**
+         * The world center of a GUI control on any shown framework panel (the steps panel's Done,
+         * a canned chip), for `aimAt` or a poke.
+         * @param name - the control's name
+         * @returns its center in world meters, or null when no shown panel has it
+         */
+        control(name: string): number[] | null {
+            for (const p of panels) {
+                const c = p.adt.getControlByName(name);
+                if (!c || !p.mesh.isEnabled()) {
+                    continue;
+                }
+                const { width, height } = p.adt.getSize();
+                const ext = p.mesh.getBoundingInfo().boundingBox.extendSize;
+                const local = new Vector3(
+                    (c.centerX / width - 0.5) * ext.x * 2,
+                    (0.5 - c.centerY / height) * ext.y * 2,
+                    0,
+                );
+                return Vector3.TransformCoordinates(local, p.mesh.computeWorldMatrix(true)).asArray();
+            }
+            return null;
+        },
         counts: () => ({ meshes: scene.meshes.length, beforeRender: scene.onBeforeRenderObservable.observers.length }),
         /**
          * IWER's remote control (get_transform, look_at, animate_to, ...), for checks that move the

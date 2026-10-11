@@ -17,6 +17,9 @@ import { AdvancedDynamicTexture, Button, Control, StackPanel, TextBlock } from "
 /** Counters the dry run reads to check that idle UI does not redraw. */
 export const uiStats = { panelRenders: 0, chipRedraws: 0 };
 
+/** Every panel built, so the dry run can find a GUI control on any of them by name. */
+export const panels: Panel[] = [];
+
 /** A flat panel of 2D GUI on a plane. */
 export interface Panel {
     mesh: Mesh;
@@ -61,7 +64,7 @@ export function createPanel(scene: Scene, name: string, widthM: number, heightM:
     back.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     adt.addControl(back);
     mesh.setEnabled(false);
-    return {
+    const panel: Panel = {
         mesh,
         adt,
         stack: back,
@@ -75,6 +78,8 @@ export function createPanel(scene: Scene, name: string, widthM: number, heightM:
             return mesh.isEnabled(false);
         },
     };
+    panels.push(panel);
+    return panel;
 }
 
 /**

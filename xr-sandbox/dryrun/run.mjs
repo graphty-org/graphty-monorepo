@@ -11,7 +11,7 @@
 //     node xr-sandbox/dryrun/run.mjs --url https://dev.ato.ms:<port>/ --logs http://127.0.0.1:<log port> \
 //     --out <main>/tmp/xr-sandbox/dryrun
 // Options: --profiles a,b (default quest3-controllers,quest3-hands), --presets a,b (default all),
-// --frames 300.
+// --frames 300, --alone (also every technique alone).
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -27,6 +27,8 @@ const { values: args } = parseArgs({
         profiles: { type: "string", default: "quest3-controllers,quest3-hands" },
         presets: { type: "string" },
         frames: { type: "string", default: "300" },
+        // Also run every technique alone (preset=empty&on=<id>) after the presets.
+        alone: { type: "boolean", default: false },
     },
 });
 if (!args.url) {
@@ -72,9 +74,21 @@ const pressAt = async (page, hand, target, kind) => {
     await frames(page, 15);
     const t0 = await page.evaluate(() => Date.now());
     const hover = await page.evaluate((h) => window.__sandbox.hover(h), hand);
-    await page.evaluate(([h, k]) => window.__sandbox.press(h, k, true), [hand, kind]);
-    await frames(page, 6);
-    await page.evaluate(([h, k]) => window.__sandbox.press(h, k, false), [hand, kind]);
+    // Pressed for two frames, timed in the page: held across Playwright round trips for six frames,
+    // a press on the software renderer's 80 ms frames (the dense graph) outlasted the 300 ms hold and
+    // opened the node menu instead of selecting.
+    await page.evaluate(
+        async ([h, k]) => {
+            const s = window.__sandbox;
+            const f = s.xrFrames();
+            s.press(h, k, true);
+            while (s.xrFrames() < f + 2) {
+                await new Promise((r) => setTimeout(r, 1));
+            }
+            s.press(h, k, false);
+        },
+        [hand, kind],
+    );
     await frames(page, 10);
     const log = await page.evaluate(() => window.__sandbox.log(400));
     return {
@@ -104,7 +118,13 @@ const runOne = async (profile, preset) => {
     };
     try {
         const url = new URL(base);
-        url.search = new URLSearchParams({ preset, emulate: profile, still: "1" }).toString();
+        // "alone:<id>" is one technique alone, as the landing page links it (preset=empty&on=<id>).
+        const alone = preset.startsWith("alone:") ? preset.slice(6) : undefined;
+        url.search = new URLSearchParams(
+            alone
+                ? { preset: "empty", on: alone, emulate: profile, still: "1" }
+                : { preset, emulate: profile, still: "1" },
+        ).toString();
         await page.goto(url.toString());
         await until(page, () => window.__sandbox?.ready === true);
         r.sessionId = await page.evaluate(() => window.__sandbox.sessionId);
@@ -207,6 +227,10 @@ if (!presets) {
     await page.goto(url.toString());
     await until(page, () => window.__sandbox?.ready === true);
     presets = await page.evaluate(() => window.__sandbox.presets);
+    if (args.alone) {
+        const ids = await page.evaluate(() => window.__sandbox.techniques().map((t) => t.id));
+        presets.push(...ids.map((id) => `alone:${id}`));
+    }
     await context.close();
 }
 

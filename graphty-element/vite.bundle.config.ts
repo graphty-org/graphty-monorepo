@@ -2,7 +2,8 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vite";
 
-import { stubAnthropicNodeToolset, thirdPartyLicenses } from "./vite.config";
+import { stubAnthropicNodeToolset } from "../vite.anthropic-sdk-stub.mjs";
+import { thirdPartyLicenses } from "./vite.config";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 

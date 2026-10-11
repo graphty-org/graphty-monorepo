@@ -3,7 +3,9 @@ import { relative, resolve } from "node:path";
 
 import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
 import VitePluginCustomElementsManifest from "vite-plugin-cem";
+
 // import eslint from "vite-plugin-eslint";
+import { stubAnthropicNodeToolset } from "../vite.anthropic-sdk-stub.mjs";
 
 /**
  * The published entry points, as `<output file name>: <source file>`.
@@ -115,26 +117,6 @@ function chunkMeta(): Plugin {
             mkdirSync(resolve(__dirname, "build"), { recursive: true });
             writeFileSync(resolve(__dirname, "build/chunks.json"), `${JSON.stringify({ chunks }, null, 1)}\n`);
         },
-    };
-}
-
-/**
- * Stubs the Anthropic SDK's Node-only agent toolset. `@anthropic-ai/sdk` (0.97.1, and still 0.133.0)
- * loads it with `import()` from its environment code, and its named imports from `node:crypto`,
- * `node:child_process` and `node:stream` fail a browser build. A page never reaches it (it runs
- * only for the SDK's own agent tools), so the stub is an empty module. graphty-element builds the
- * SDK into its own chunks, which is why a consumer's build never needs this
- * (design/ai/tanstack-ai-harness-design.md, section 3.2). The library build, the `./bundle` build
- * and the browser test projects all apply it.
- * @returns The plugin.
- */
-export function stubAnthropicNodeToolset(): Plugin {
-    const stub = "\0graphty-empty-anthropic-toolset";
-    return {
-        name: "graphty-stub-anthropic-node-toolset",
-        enforce: "pre",
-        resolveId: (id) => (id.endsWith("/tools/agent-toolset/node.mjs") ? stub : null),
-        load: (id) => (id === stub ? "export {};" : null),
     };
 }
 

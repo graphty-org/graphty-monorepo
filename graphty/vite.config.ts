@@ -5,7 +5,7 @@ import { sentryVitePlugin } from "@sentry/vite-plugin";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, UserConfig } from "vite";
 
-import { aliases } from "./vite.aliases";
+import { aliases, elementSourcePlugins } from "./vite.aliases";
 import { buildStampPlugin } from "./vite.build-stamp";
 
 // https://vitejs.dev/config/
@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, monorepoRoot, "");
     const plugins = [
         react(),
+        ...elementSourcePlugins,
         // The commit and release tag in a <meta name="graphty-build">, read by Help > About.
         buildStampPlugin(),
         // Only include Sentry plugin in CI when auth token is available

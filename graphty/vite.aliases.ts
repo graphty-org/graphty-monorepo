@@ -1,6 +1,8 @@
 import { resolve } from "node:path";
 
-import type { Alias } from "vite";
+import type { Alias, PluginOption } from "vite";
+
+import { stubAnthropicNodeToolset } from "../vite.anthropic-sdk-stub.mjs";
 
 /**
  * Module aliases shared by the dev server and build (vite.config.ts), the tests
@@ -27,3 +29,10 @@ export const aliases: Alias[] = [
     },
     { find: "@", replacement: resolve(__dirname, "./src") },
 ];
+
+/**
+ * The build plugins graphty-element's own build applies to its source, which the app needs too
+ * because it reads graphty-element from source (above). A consumer of the published package
+ * gets graphty-element's built chunks and needs none of them.
+ */
+export const elementSourcePlugins: PluginOption[] = [stubAnthropicNodeToolset()];

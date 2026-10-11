@@ -36,14 +36,36 @@ function layoutOnce(cy: Core, options: Record<string, unknown>): Promise<Backend
 }
 
 /**
- * Puts every node at the random starting position a force simulation begins from (graphty-random), for a story whose
- * simulation cannot run here: the network stays on the canvas under the reason.
+ * A quick placement for a story whose force simulation cannot run here, so the network stays on the canvas under the
+ * reason: each group of `field` in its own disc, the discs in rows. It is not the layout, only a picture of the groups
+ * the layout would pull apart, and it draws no random numbers.
  * @param cy - the core
- * @param seed - the seed
- * @returns when the nodes are placed
+ * @param field - the node field naming each node's group
  */
-export async function scatter(cy: Core, seed: number): Promise<void> {
-    await layoutOnce(cy, { name: "graphty-random", seed, animate: false });
+export function placeByGroup(cy: Core, field: string): void {
+    const groups = new Map<unknown, NodeSingular[]>();
+    cy.nodes().forEach((n) => {
+        const v: unknown = n.data(field);
+        const members = groups.get(v) ?? [];
+        members.push(n);
+        groups.set(v, members);
+    });
+    // one and a half node widths between neighbours: the demo draws a node 8 * max(0.25, sqrt(2,000 / n)) units wide
+    const unit = 12 * Math.max(0.25, Math.sqrt(2_000 / cy.nodes().length));
+    const columns = Math.ceil(Math.sqrt(groups.size));
+    const spacing = 2.4 * unit * Math.sqrt(Math.max(...[...groups.values()].map((g) => g.length)));
+    cy.batch(() => {
+        [...groups.values()].forEach((members, g) => {
+            const cx = (g % columns) * spacing;
+            const cy0 = Math.floor(g / columns) * spacing;
+            // a sunflower spiral: evenly filled discs, the same on every run
+            members.forEach((n, i) => {
+                const r = unit * Math.sqrt(i + 0.5);
+                const a = i * 2.399963;
+                n.position({ x: cx + r * Math.cos(a), y: cy0 + r * Math.sin(a) });
+            });
+        });
+    });
 }
 
 /**
@@ -992,12 +1014,15 @@ export const CPU_LAYOUT: Pick<Outcome, "ran" | "detail"> = {
  * @param reason - the extension's reason
  * @returns the reason to show
  */
-function plainReason(reason: string): string {
-    return reason.startsWith("this runtime has no WebGPU") ? "WebGPU is not available in this browser" : reason;
+export function plainReason<T extends string | null>(reason: T): T {
+    return reason?.replace(
+        "this runtime has no WebGPU (navigator.gpu is undefined)",
+        "WebGPU is not available in this browser",
+    ) as T;
 }
 
 /** The color of a node that belongs to no real group: a group of one, such as a football team with no conference. */
-const LONE_GRAY = "#a0a4a8";
+const LONE_GRAY = "#6e7378";
 
 /**
  * Colors nodes by a ground-truth field (community, club, conference, ...).

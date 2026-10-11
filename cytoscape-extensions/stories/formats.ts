@@ -174,8 +174,14 @@ const SAMPLES: Record<Exclude<ImportFormat, "auto">, Sample> = {
     xgmml: {
         file: "20920_3-oxoacyl_c_20_full_ssn.xgmml",
         text: xgmml,
-        about: "A sequence similarity network from the EFI-EST web tool (MIT): 105 carrier proteins of natural-product pathways, each named by its Description list, joined where their sequences align; edge width shows the alignment score.",
-        label: "Description",
+        about: "A sequence similarity network from the EFI-EST web tool (MIT): 105 carrier proteins of natural-product pathways (each named in its Description list), joined where their sequences align, so related proteins gather in clusters (each cluster of two or more in its own color); edge width shows the alignment score.",
+        label: null,
+        color: (cy) =>
+            cy
+                .elements()
+                .components()
+                .filter((c) => c.nodes().length > 1)
+                .forEach((c, i) => c.nodes().data("color", PALETTE[i % PALETTE.length])),
         edgeWidth: "alignment_score",
     },
     cx2: {

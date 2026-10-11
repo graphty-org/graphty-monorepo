@@ -331,6 +331,32 @@ export function fitToContainer(cy: Core): number {
     }).length;
 }
 
+/**
+ * Fits the view to the nodes' centers, read straight from their positions: cy.fit measures every element's bounding
+ * box first, which takes seconds on a network of 50,000 nodes.
+ * @param cy - the core
+ */
+function fitToPositions(cy: Core): void {
+    cy.resize();
+    let [x1, y1, x2, y2] = [Infinity, Infinity, -Infinity, -Infinity];
+    cy.nodes().forEach((n) => {
+        const { x, y } = n.position();
+        [x1, y1, x2, y2] = [Math.min(x1, x), Math.min(y1, y), Math.max(x2, x), Math.max(y2, y)];
+    });
+    const zoom = Math.min(
+        (cy.width() - 2 * FIT_PADDING) / (x2 - x1 || 1),
+        (cy.height() - 2 * FIT_PADDING) / (y2 - y1 || 1),
+    );
+    cy.viewport({
+        zoom,
+        pan: { x: cy.width() / 2 - (zoom * (x1 + x2)) / 2, y: cy.height() / 2 - (zoom * (y1 + y2)) / 2 },
+    });
+    // as fitToContainer does: nodes keep their least size on screen at this zoom
+    const s = SCALE.get(cy) ?? { network: 1, zoom: 1, view: 1 };
+    SCALE.set(cy, { ...s, zoom: 1, view: zoom });
+    cy.style().update();
+}
+
 /** Destroys every core the demo made, before a story draws new ones. */
 export function retireAll(): void {
     for (const cy of live) {
@@ -413,6 +439,11 @@ export interface Outcome {
     note?: string;
     /** The time of the work itself, when the run did more (an algorithm lays the graph out first). */
     ms?: number;
+    /**
+     * "nodes": fit the view to the nodes' centers only, skipping the search for the main piece and the bounding boxes,
+     * which take seconds on a network of 50,000 nodes.
+     */
+    fit?: "nodes";
 }
 
 interface Demo {
@@ -493,7 +524,12 @@ export function renderDemo(
             const t0 = performance.now();
             const out = await run({ cy, root, gpuMode: GPU_MODE[args.backend], extra, setStatus });
             // a layout fits the graph to the size the container had when it started; fit it to the size it has now
-            const outside = fitToContainer(cy);
+            let outside = 0;
+            if (out.fit === "nodes") {
+                fitToPositions(cy);
+            } else {
+                outside = fitToContainer(cy);
+            }
             const ms = Math.round(out.ms ?? performance.now() - t0);
             const why = out.detail ? `\n${out.ran === "gpu" ? "device" : "why the CPU"}: ${out.detail}` : "";
             const time = CAPTURE ? "" : ` in ${ms.toLocaleString()} ms`;

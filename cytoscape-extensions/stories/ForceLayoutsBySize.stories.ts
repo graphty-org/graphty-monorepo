@@ -56,7 +56,7 @@ export const ForceAtlas2At2000: Story = { args: at("forceatlas2", "medium") };
 export const ForceAtlas2At10000: Story = { args: at("forceatlas2", "large", LINLOG) };
 /**
  * ForceAtlas2 with LinLog attraction on 50,000 nodes in 45 groups, on the GPU only: the CPU simulation would take
- * hours. Without WebGPU the story says so and draws the nodes at their random starting positions.
+ * hours. Without WebGPU the story says so and draws each group in its own place instead.
  */
 export const ForceAtlas2At50000: Story = { args: at("forceatlas2", "huge", LINLOG) };
 
@@ -76,7 +76,7 @@ export const FruchtermanReingoldAt10000: Story = { args: at("fruchterman-reingol
  */
 export const FruchtermanReingoldAt50000: Story = { args: at("fruchterman-reingold", "huge") };
 
-/** Spring-electrical on 100 nodes in 4 groups: GPU only, so without WebGPU the story says why it did not run and draws the nodes at their random starting positions. */
+/** Spring-electrical on 100 nodes in 4 groups: GPU only, so without WebGPU the story says why it did not run and draws each group in its own place instead. */
 export const SpringElectricalAt100: Story = { args: at("spring-electrical", "small") };
 /** Spring-electrical on 2,000 nodes in 9 groups (GPU only). */
 export const SpringElectricalAt2000: Story = { args: at("spring-electrical", "medium") };

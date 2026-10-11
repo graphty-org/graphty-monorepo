@@ -5,7 +5,7 @@
 
 import { SIMULATION_LAYOUTS } from "./catalog.js";
 import { renderDemo, type RunArgs, showWorking, SIZES } from "./demo.js";
-import { colorBy, runLayout, scatter } from "./run.js";
+import { colorBy, placeByGroup, plainReason, runLayout } from "./run.js";
 
 export interface LayoutArgs extends RunArgs {
     layout: string;
@@ -21,7 +21,7 @@ export interface LayoutArgs extends RunArgs {
  * Story render: lays the network out with the chosen layout. On 2,000 nodes or more without animation, a CPU
  * simulation still steps one frame at a time under the working overlay (the extension's animated mode), so the page
  * stays live; a GPU run steps asynchronously anyway. A run the runtime cannot do (a GPU-only layout, or gpu: require,
- * without WebGPU) draws the network at its random starting positions and says why.
+ * without WebGPU) draws the network with each group in its own place and says why.
  * @param args - the story args
  * @returns the story root
  */
@@ -62,15 +62,23 @@ export function renderLayout(args: LayoutArgs): HTMLElement {
         } catch (e) {
             const { message } = e as Error;
             if (/no CPU simulation|gpu: "require"/.test(message)) {
-                // the network stays on the canvas, at the random start the simulation would have moved it from
-                await scatter(cy, args.seed);
+                // a browser without a GPU takes longer than a capture waits to draw 160,000 edges: at 50,000 nodes, the
+                // nodes only
+                const many = SIZES[args.size] >= 50_000;
+                const edges = cy.edges().length;
+                if (many) {
+                    cy.edges().remove();
+                }
+                // the network stays on the canvas: its groups, each in its own place
+                placeByGroup(cy, "community");
                 const why =
                     SIZES[args.size] >= 50_000 && gpuMode === "require"
                         ? "; at this size the story needs WebGPU: the CPU simulations compare every pair of nodes and would take hours"
                         : "";
                 return {
                     ran: "not run",
-                    detail: `${message}${why}. The nodes are drawn at their random starting positions.`,
+                    detail: `${plainReason(message)}${why}. The nodes are drawn by group (colors), each group in its own place: a quick placement, not the layout${many ? `; the ${edges.toLocaleString()} edges are not drawn` : ""}.`,
+                    ...(many ? { fit: "nodes" as const } : {}),
                 };
             }
             throw e;

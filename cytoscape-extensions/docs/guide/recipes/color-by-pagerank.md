@@ -81,7 +81,8 @@ element, 18 for node 33 and its 17 edges.
 ## Try it
 
 The [Centrality demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--centrality)
-runs PageRank and the other centrality measures on generated graphs.
+runs PageRank and the other centrality measures on generated graphs, and the
+[PageRank gallery story](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-centrality--page-rank) shows one graph colored by PageRank.
 
 ## See also
 

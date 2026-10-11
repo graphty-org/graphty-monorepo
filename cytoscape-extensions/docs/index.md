@@ -11,7 +11,7 @@ hero:
           link: ./guide/getting-started
         - theme: alt
           text: Demo
-          link: https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-layouts--overview
+          link: https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--layouts
         - theme: alt
           text: Reference
           link: ./reference/algorithms

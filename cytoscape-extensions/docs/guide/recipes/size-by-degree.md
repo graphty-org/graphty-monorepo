@@ -79,7 +79,8 @@ console.log(cy.$id("c").data()); // { id: "c", in: 2, out: 0 }
 
 ## Try it
 
-The [centrality gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--centrality) runs degree centrality beside other measures.
+The [centrality gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--centrality) runs degree centrality beside other measures, and the
+[degree centrality story](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-centrality--degree-centrality) shows it on one graph.
 
 ## See also
 

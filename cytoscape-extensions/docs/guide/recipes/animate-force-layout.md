@@ -76,5 +76,6 @@ While a node is locked, every frame rescales the free nodes about it to fill the
 ## See also
 
 - [Force simulations demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-layouts--force-simulations): ForceAtlas2 and Fruchterman-Reingold on larger graphs.
+- [ForceAtlas2 gallery story](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-layouts--force-atlas-2): ForceAtlas2 run until it settles on a graph of groups.
 - [Layouts](../layouts): layouts, simulations and their events.
 - [Layout reference](../../reference/layouts): every ForceAtlas2 option.

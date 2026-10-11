@@ -327,6 +327,19 @@ describe("the pre-push gate matches CI", () => {
         assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
     });
 
+    it("checks the large-graph GPU screenshots on the local NVIDIA GPU when cytoscape-extensions is affected, skipping without a card", () => {
+        const prepush = code(tool("prepush.sh"));
+        const tests = prepush.indexOf("node tools/prepush-tests.mjs");
+        const shots = prepush.indexOf("node scripts/gpu-screenshots.mjs --check");
+        assert.ok(tests > 0 && shots > tests, "after the Tests step");
+        assert.match(
+            prepush,
+            /\nif affected cytoscape-extensions; then\n\s+if ! nvidia-smi -L [^\n]*\n\s+echo -e "[^"]*\[SKIP\] Large-graph GPU screenshots[\s\S]*?nx run cytoscape-extensions:build-storybook[\s\S]*?GRAPHTY_EGL_LIB_DIR='\$EGL_LIB_DIR'[^\n]*node scripts\/gpu-screenshots\.mjs --check\)"\n\s+fi\nfi/,
+        );
+        // --update writes the owner-approved references; the gate only compares
+        assert.doesNotMatch(prepush, /gpu-screenshots\.mjs --update/);
+    });
+
     it("bounds the screenshot capture and stops it, unpromoted, when the gate stops early", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(

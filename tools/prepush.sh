@@ -221,6 +221,28 @@ if affected webgpu-graph-algorithms; then
         "(cd webgpu-graph-algorithms && LD_LIBRARY_PATH='$EGL_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}' GRAPHTY_GPU_REQUIRE=nvidia npm run test:run)"
 fi
 
+# cytoscape-extensions' Large graphs stories drawn WITH WebGPU on this machine's NVIDIA card and compared with the
+# owner-approved references in cytoscape-extensions/test/gpu-screenshots/ -- the check the release train's T4 runs
+# (cytoscape-extensions/CLAUDE.md, "GPU screenshots"). Visual review's capture has no WebGPU and leaves these stories
+# out. Needs a real NVIDIA card (nvidia-smi) and the same libEGL tree as above; without a card it is skipped, never
+# passed. A difference fails the push; the script's last line names the stories, and tmp/gpu-screenshots/index.html
+# of this checkout shows each reference, capture and diff. It takes one of the machine's shared browser slots;
+# FC_FONTATIONS=1 as for the browser shards (headless Chromium can crash at startup without it).
+if affected cytoscape-extensions; then
+    if ! nvidia-smi -L >/dev/null 2>&1; then
+        echo -e "${YELLOW}[SKIP] Large-graph GPU screenshots: no NVIDIA GPU on this machine (nvidia-smi); the release train's T4 still checks them${NC}"
+        echo ""
+    else
+        EGL_LIB_DIR="${GRAPHTY_EGL_LIB_DIR:-$MAIN_DIR/tmp/egl/root/usr/lib/x86_64-linux-gnu}"
+        BROWSER_GATE=""
+        [ -x "$MAIN_DIR/tmp/with-browser.sh" ] && BROWSER_GATE="$MAIN_DIR/tmp/with-browser.sh"
+        run_step "Build the cytoscape-extensions Storybook" \
+            "NODE_OPTIONS=--max-old-space-size=8192 NX_DAEMON=false pnpm exec nx run cytoscape-extensions:build-storybook"
+        run_step "Large-graph GPU screenshots on the local NVIDIA GPU" \
+            "(cd cytoscape-extensions && GRAPHTY_EGL_LIB_DIR='$EGL_LIB_DIR' FC_FONTATIONS=1 $BROWSER_GATE node scripts/gpu-screenshots.mjs --check)"
+    fi
+fi
+
 echo -e "${YELLOW}> Screenshots${NC}"
 if wait "$SCREENSHOTS_PGID"; then
     cat "$SCREENSHOTS_LOG"

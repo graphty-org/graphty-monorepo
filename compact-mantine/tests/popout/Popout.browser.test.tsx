@@ -289,7 +289,7 @@ describe("Popout geometry (browser)", () => {
         });
     });
 
-    it("follows its anchor when the layout changes, and stays put once dragged", async () => {
+    it("follows its sidebar anchor when the sidebar is resized", async () => {
         const user = userEvent.setup();
 
         renderPopout(
@@ -309,27 +309,42 @@ describe("Popout geometry (browser)", () => {
 
         const sidebar = screen.getByTestId("sidebar");
         await user.click(screen.getByRole("button", { name: "Open" }));
-        await waitFor(() => {
-            expect(screen.getByTestId("panel-content")).toBeInTheDocument();
-        });
-
-        const panel = screen.getByRole("dialog");
+        const panel = await screen.findByRole("dialog");
+        await waitForSettledLayout(document.body, "[role='dialog']");
         const before = panel.getBoundingClientRect();
 
-        // The sidebar grows, as it would when the window is resized.
         sidebar.style.width = "360px";
-        window.dispatchEvent(new Event("resize"));
+        await waitForSettledLayout(document.body, "[role='dialog']");
 
-        await waitFor(() => {
-            const after = panel.getBoundingClientRect();
-            expect(Math.round(after.right)).toBe(Math.round(sidebar.getBoundingClientRect().left));
-            expect(after.left).toBeLessThan(before.left);
-        });
+        const after = panel.getBoundingClientRect();
+        expect(Math.round(after.right)).toBe(Math.round(sidebar.getBoundingClientRect().left));
+        expect(Math.round(after.left)).toBe(Math.round(before.left) - 120);
+    });
 
-        const afterResize = panel.getBoundingClientRect();
+    it("stays where it was dragged when its sidebar anchor or the window changes", async () => {
+        const user = userEvent.setup();
 
-        // Once the person has moved the panel themselves, a viewport change
-        // leaves it where they put it.
+        renderPopout(
+            <Sidebar>
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={280} header={{ variant: "title", title: "Settings" }}>
+                        <Popout.Content>
+                            <span data-testid="panel-content">Content</span>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+            </Sidebar>,
+        );
+
+        const sidebar = screen.getByTestId("sidebar");
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        const panel = await screen.findByRole("dialog");
+        await waitForSettledLayout(document.body, "[role='dialog']");
+        const opened = panel.getBoundingClientRect();
+
         const dragHandle = panel.querySelector("[data-drag-trigger]");
         const handleRect = (dragHandle as HTMLElement).getBoundingClientRect();
         const startX = Math.round(handleRect.left + 40);
@@ -338,20 +353,82 @@ describe("Popout geometry (browser)", () => {
         firePointer(dragHandle as HTMLElement, "pointerdown", startX, startY);
         firePointer(dragHandle as HTMLElement, "pointermove", startX - 90, startY + 30);
         firePointer(dragHandle as HTMLElement, "pointerup", startX - 90, startY + 30);
-
-        await waitFor(() => {
-            expect(Math.round(panel.getBoundingClientRect().left)).toBe(Math.round(afterResize.left) - 90);
-        });
+        await waitForSettledLayout(document.body, "[role='dialog']");
 
         const dragged = panel.getBoundingClientRect();
+        expect(Math.round(dragged.left)).toBe(Math.round(opened.left) - 90);
 
-        sidebar.style.width = "200px";
-        window.dispatchEvent(new Event("resize"));
+        // The sidebar the panel is anchored to grows, and the window narrows.
+        sidebar.style.width = "360px";
+        await page.viewport(1200, 800);
+        await waitForSettledLayout(document.body, "[role='dialog']");
 
-        await waitFor(() => {
-            expect(Math.round(sidebar.getBoundingClientRect().width)).toBe(200);
-        });
+        expect(Math.round(sidebar.getBoundingClientRect().width)).toBe(360);
         expect(Math.round(panel.getBoundingClientRect().left)).toBe(Math.round(dragged.left));
+        expect(Math.round(panel.getBoundingClientRect().top)).toBe(Math.round(dragged.top));
+        await page.viewport(1280, 800);
+    });
+
+    it("keeps a dragged nested panel attached to the panel it opened from", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Sidebar>
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open Parent</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={280} header={{ variant: "title", title: "Parent" }}>
+                        <Popout.Content>
+                            <Popout>
+                                <Popout.Trigger>
+                                    <button>Open Child</button>
+                                </Popout.Trigger>
+                                <Popout.Panel width={200} header={{ variant: "title", title: "Child" }}>
+                                    <Popout.Content>
+                                        <span data-testid="child-content">Child</span>
+                                    </Popout.Content>
+                                </Popout.Panel>
+                            </Popout>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+            </Sidebar>,
+        );
+
+        await user.click(screen.getByRole("button", { name: "Open Parent" }));
+        const parentPanel = await screen.findByRole("dialog", { name: "Parent" });
+        await user.click(screen.getByRole("button", { name: "Open Child" }));
+        const childPanel = await screen.findByRole("dialog", { name: "Child" });
+        await waitForSettledLayout(document.body, "[role='dialog']");
+        const childOpened = childPanel.getBoundingClientRect();
+
+        // The child is dragged first, so it is a panel the person has placed themselves...
+        const childHandle = childPanel.querySelector("[data-drag-trigger]") as HTMLElement;
+        const childHandleRect = childHandle.getBoundingClientRect();
+        const cx = Math.round(childHandleRect.left + 40);
+        const cy = Math.round(childHandleRect.top + 8);
+        firePointer(childHandle, "pointerdown", cx, cy);
+        firePointer(childHandle, "pointermove", cx - 50, cy + 20);
+        firePointer(childHandle, "pointerup", cx - 50, cy + 20);
+        await waitForSettledLayout(document.body, "[role='dialog']");
+
+        const childDragged = childPanel.getBoundingClientRect();
+        expect(Math.round(childDragged.left)).toBe(Math.round(childOpened.left) - 50);
+
+        // ...and it still follows the parent when that is dragged.
+        const parentHandle = parentPanel.querySelector("[data-drag-trigger]") as HTMLElement;
+        const parentHandleRect = parentHandle.getBoundingClientRect();
+        const px = Math.round(parentHandleRect.left + 40);
+        const py = Math.round(parentHandleRect.top + 8);
+        firePointer(parentHandle, "pointerdown", px, py);
+        firePointer(parentHandle, "pointermove", px - 120, py + 60);
+        firePointer(parentHandle, "pointerup", px - 120, py + 60);
+        await waitForSettledLayout(document.body, "[role='dialog']");
+
+        const childAfter = childPanel.getBoundingClientRect();
+        expect(Math.round(childAfter.left)).toBe(Math.round(childDragged.left) - 120);
+        expect(Math.round(childAfter.top)).toBe(Math.round(childDragged.top) + 60);
     });
 });
 

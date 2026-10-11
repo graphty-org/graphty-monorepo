@@ -76,17 +76,25 @@ export const Default: Story = {
     },
 };
 
+/** A glyph named by a hidden word, as an icon-only option must be (see "Keyboard and accessibility"). */
+const named = (glyph: Parameters<typeof UiGlyph>[0]["name"], word: string): React.JSX.Element => (
+    <>
+        <UiGlyph name={glyph} />
+        <VisuallyHidden>{word}</VisuallyHidden>
+    </>
+);
+
 const ALIGN = [
-    { value: "left", label: <UiGlyph name="alignLeft" /> },
-    { value: "center", label: <UiGlyph name="alignCenterH" /> },
-    { value: "right", label: <UiGlyph name="alignRight" /> },
+    { value: "left", label: named("alignLeft", "Left") },
+    { value: "center", label: named("alignCenterH", "Center") },
+    { value: "right", label: named("alignRight", "Right") },
 ];
 
 const MODES = [
-    { value: "draw", label: <UiGlyph name="rectangle" /> },
-    { value: "design", label: <UiGlyph name="frame" /> },
-    { value: "motion", label: <UiGlyph name="rotate" /> },
-    { value: "dev", label: <UiGlyph name="text" /> },
+    { value: "draw", label: named("rectangle", "Draw") },
+    { value: "design", label: named("frame", "Design") },
+    { value: "motion", label: named("rotate", "Motion") },
+    { value: "dev", label: named("text", "Dev") },
 ];
 
 /**
@@ -106,7 +114,7 @@ export const States: Story = {
                     "panel, icons, 184",
                     <SegmentedControl
                         w={184}
-                        data={[...ALIGN, { value: "justify", label: <UiGlyph name="more" /> }]}
+                        data={[...ALIGN, { value: "justify", label: named("more", "Justify") }]}
                     />,
                 ],
                 ["panel, text", <SegmentedControl data={["Basic", "Dynamic", "Brush"]} />],

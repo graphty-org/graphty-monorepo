@@ -32,7 +32,7 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
 /** Whether this run names the paid llm-regression project (`--project llm-regression`). */
@@ -258,7 +258,7 @@ export default defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
-        reporters: ["default", ...ciJunitReporter()],
+        reporters: ["default", ...ciReporters()],
         onConsoleLog: appendBenchRow,
         // Vitest 4 also copies each failure screenshot into an attachments directory, by default
         // .vitest-attachments/ beside this file. Same diagnostics, same place as the screenshots.

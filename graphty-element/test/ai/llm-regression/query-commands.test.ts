@@ -60,15 +60,17 @@ describe.skipIf(skipIfNoApiKey())("Query LLM Regression", () => {
             );
         });
 
-        it("calls query nodes for 'Show nodes with type database'", async () => {
-            const result = await harness.testPrompt("Show nodes with type database");
-            // "Show" may mean read them out or show only them on screen; both name the database type.
-            const call = assertAction(result, ["query", "select", "filter"], ["nodes", "find", "set", "show_only"]);
+        // A question, not "Show ...": "show" also reads as "show me them on the canvas", which a
+        // style or a camera zoom answers just as well (#1989). The question asks for the records.
+        it("calls query nodes for 'Which nodes have type database?'", async () => {
+            const result = await harness.testPrompt("Which nodes have type database?");
+            const call = assertAction(result, ["query", "select"], ["nodes", "find", "set", "count"]);
             assert.include(JSON.stringify(call.arguments), "database");
         });
 
-        it("calls query nodes for 'Show me some example nodes'", async () => {
-            const result = await harness.testPrompt("Show me some example nodes");
+        // Asks for whole records, not just which nodes (#1991).
+        it("calls query nodes for 'Show me a few example nodes with all their data'", async () => {
+            const result = await harness.testPrompt("Show me a few example nodes with all their data");
             assertAction(result, "query", ["nodes", "overview", "attributes"]);
         });
 
@@ -83,8 +85,9 @@ describe.skipIf(skipIfNoApiKey())("Query LLM Regression", () => {
     });
 
     describe("an attribute's values", () => {
-        it("calls query histogram or attributes for 'What values does the type property have?'", async () => {
-            const result = await harness.testPrompt("What values does the type property have?");
+        // Asks for the distribution, not the list of values (#1991).
+        it("calls query histogram or attributes for 'What is the distribution of values of the type property?'", async () => {
+            const result = await harness.testPrompt("What is the distribution of values of the type property?");
             const call = assertAction(result, "query", ["histogram", "attributes", "nodes"]);
             if (call.arguments.action === "histogram") {
                 assert.include(String(call.arguments.column), "type");

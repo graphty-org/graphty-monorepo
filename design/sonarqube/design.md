@@ -177,22 +177,24 @@ the changed lines show, and is the baseline job's work.
 
 ### When the gate cannot run
 
-The rule: **the gate fails open only when the server cannot be reached.** If the server answers,
-every other problem is a misconfiguration and blocks the push, with the cause and the fix. A
-silent pass on a broken setup would skip SonarQube on every push from that worktree, and nobody
-would notice until the weekly review.
+The rule: **the gate fails open only when the server cannot be reached**, before the scan or during
+it. Every other problem is a misconfiguration and blocks the push, with the cause and the fix. A
+scanner failure is sorted by the scanner's own error lines: only one that names a network or server
+fault passes, and one the gate does not recognize blocks. A silent pass on a broken setup would
+skip SonarQube on every push from that worktree, and nobody would notice until the weekly review.
 
-| Situation                                                                                                                         | Behavior                                                                                         |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Server unreachable: `api/system/status` does not answer UP within 15 s                                                            | Passes, with the boxed warning; no token is sent                                                 |
-| Something answers, but its server id is not the pinned one (section "Configuration and secrets")                                  | Passes, with the boxed warning ("not the owner's server"); no token is sent                      |
-| No `SONAR_HOST_URL` in the environment or in `.env` (a clone without the owner's `.env`)                                          | Passes, with the boxed warning; no token is sent                                                 |
-| The step's 900 s deadline passes                                                                                                  | Passes, with the boxed warning                                                                   |
-| No pinned server id (`--setup` never ran on this machine)                                                                         | Blocks, saying to run `tools/sonar-baseline.mjs --setup` once                                    |
-| No `SONAR_TOKEN` in the environment or in `.env`                                                                                  | Blocks, saying where to set it                                                                   |
-| The token is rejected (401) (`api/users/current`)                                                                                 | Blocks, saying how to make a valid token                                                         |
-| No Java at `SONAR_SCANNER_JAVA_EXE_PATH` or on `PATH`, scanner missing, scanner or server error, `graphty-monorepo-local` missing | Blocks, naming the cause and the fix (for the last: run `tools/sonar-baseline.mjs --setup` once) |
-| Findings that block (section "What blocks")                                                                                       | Blocks                                                                                           |
+| Situation                                                                                                                     | Behavior                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Server unreachable: `api/system/status` does not answer UP within 15 s                                                        | Passes, with the boxed warning; no token is sent                                                 |
+| Something answers, but its server id is not the pinned one (section "Configuration and secrets")                              | Passes, with the boxed warning ("not the owner's server"); no token is sent                      |
+| No `SONAR_HOST_URL` in the environment or in `.env` (a clone without the owner's `.env`)                                      | Passes, with the boxed warning; no token is sent                                                 |
+| The step's 900 s deadline passes                                                                                              | Passes, with the boxed warning                                                                   |
+| After the server answered: a DNS failure, a refused, reset or timed-out connection, an HTTP 5xx, a dropped connection         | Passes, with the boxed warning and the scanner's error lines                                     |
+| No pinned server id (`--setup` never ran on this machine)                                                                     | Blocks, saying to run `tools/sonar-baseline.mjs --setup` once                                    |
+| No `SONAR_TOKEN` in the environment or in `.env`                                                                              | Blocks, saying where to set it                                                                   |
+| The token is rejected (401) (`api/users/current`)                                                                             | Blocks, saying how to make a valid token                                                         |
+| No Java at `SONAR_SCANNER_JAVA_EXE_PATH` or on `PATH`, scanner missing, other scanner error, `graphty-monorepo-local` missing | Blocks, naming the cause and the fix (for the last: run `tools/sonar-baseline.mjs --setup` once) |
+| Findings that block (section "What blocks")                                                                                   | Blocks                                                                                           |
 
 **Fail-open on an unreachable server, and why.** The owner is sometimes off the network, and
 SonarQube has no other place to run: it is not in CI. Failing closed there would make every

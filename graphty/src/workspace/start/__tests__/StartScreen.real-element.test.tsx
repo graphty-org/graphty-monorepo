@@ -67,69 +67,59 @@ afterEach(() => {
 });
 
 describe("T1 and T2: first launch and pick a sample, on the real element", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "answers the usage data card, then opens Les Miserables with nothing run",
-        async () => {
-            forgetUsageAnswer();
+    it("answers the usage data card, then opens Les Miserables with nothing run", async () => {
+        forgetUsageAnswer();
+        const store = createWorkspaceStore();
+        render(<Workspace store={store} />);
+
+        // T1: the card is at the foot of the start screen until it is answered.
+        assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
+        await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
+        assert.isNotNull(screen.getByRole("button", { name: "Usage data on, content masked" }));
+        assert.equal(initSentry.mock.calls.length, 1);
+
+        // T2: a sample opens as a project on the Graph place.
+        await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
+        const session = await elementSession();
+        await waitFor(
+            () => {
+                assert.equal(session.data.statistics().nodeCount, 77);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.equal(session.data.statistics().edgeCount, 254);
+        assert.equal(session.data.source()?.name, "Les Miserables");
+        assert.deepEqual(session.runs.list(), []);
+        assert.deepEqual(addedLayers(session), []);
+        assert.isNull(store.get().opening);
+        // The privacy chip in the project's header still shows the answer.
+        assert.isNotNull(screen.getByRole("button", { name: "Usage data on, content masked" }));
+        // Each character carries its readable name, and its id is the dataset's own, not the
+        // number GML had to write.
+        const attributes = session.data.attributes().map((attribute) => attribute.name);
+        assert.include(attributes, "name");
+        assert.notInclude(attributes, "graphty_originalId");
+    });
+
+    for (const sample of SAMPLES) {
+        it(`opens ${sample.name} with the source's counts, nothing run and no style layer`, async () => {
             const store = createWorkspaceStore();
-            render(<Workspace store={store} />);
+            const { unmount } = render(<Workspace store={store} />);
 
-            // T1: the card is at the foot of the start screen until it is answered.
-            assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
-            await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
-            assert.isNotNull(screen.getByRole("button", { name: "Usage data on, content masked" }));
-            assert.equal(initSentry.mock.calls.length, 1);
-
-            // T2: a sample opens as a project on the Graph place.
-            await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
+            await userEvent.click(screen.getByRole("button", { name: `Open the ${sample.name} sample` }));
             const session = await elementSession();
             await waitFor(
                 () => {
-                    assert.equal(session.data.statistics().nodeCount, 77);
+                    assert.equal(session.data.statistics().nodeCount, sample.nodes);
                 },
                 { timeout: TIMEOUT_MS },
             );
-            assert.equal(session.data.statistics().edgeCount, 254);
-            assert.equal(session.data.source()?.name, "Les Miserables");
+            assert.equal(session.data.statistics().edgeCount, sample.edges);
+            assert.equal(store.get().project?.name, sample.name);
             assert.deepEqual(session.runs.list(), []);
             assert.deepEqual(addedLayers(session), []);
-            assert.isNull(store.get().opening);
-            // The privacy chip in the project's header still shows the answer.
-            assert.isNotNull(screen.getByRole("button", { name: "Usage data on, content masked" }));
-            // Each character carries its readable name, and its id is the dataset's own, not the
-            // number GML had to write.
-            const attributes = session.data.attributes().map((attribute) => attribute.name);
-            assert.include(attributes, "name");
-            assert.notInclude(attributes, "graphty_originalId");
-        },
-        TIMEOUT_MS,
-    );
-
-    for (const sample of SAMPLES) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            `opens ${sample.name} with the source's counts, nothing run and no style layer`,
-            async () => {
-                const store = createWorkspaceStore();
-                const { unmount } = render(<Workspace store={store} />);
-
-                await userEvent.click(screen.getByRole("button", { name: `Open the ${sample.name} sample` }));
-                const session = await elementSession();
-                await waitFor(
-                    () => {
-                        assert.equal(session.data.statistics().nodeCount, sample.nodes);
-                    },
-                    { timeout: TIMEOUT_MS },
-                );
-                assert.equal(session.data.statistics().edgeCount, sample.edges);
-                assert.equal(store.get().project?.name, sample.name);
-                assert.deepEqual(session.runs.list(), []);
-                assert.deepEqual(addedLayers(session), []);
-                assert.isNull(store.get().notice);
-                unmount();
-            },
-            TIMEOUT_MS,
-        );
+            assert.isNull(store.get().notice);
+            unmount();
+        });
     }
 });

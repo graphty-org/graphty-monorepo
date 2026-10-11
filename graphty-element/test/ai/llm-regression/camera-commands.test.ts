@@ -69,8 +69,10 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
     });
 
     describe("view camera", () => {
-        it("calls view camera for 'Show the graph from above'", async () => {
-            const result = await harness.testPrompt("Show the graph from above");
+        // Names the camera: "Show the graph from above" also reads as "show it flat", which a
+        // switch to 2D answers too (#1991). Moving the camera is only the camera view.
+        it("calls view camera for 'Move the camera to look at the graph from above'", async () => {
+            const result = await harness.testPrompt("Move the camera to look at the graph from above");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             const call = assertAction(result, "view", "camera");
@@ -118,8 +120,10 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
             assertAction(result, "view", ["fit", "zoom_to", "camera"]);
         });
 
-        it("calls view zoom_to for 'Focus on server nodes'", async () => {
-            const result = await harness.testPrompt("Focus on server nodes");
+        // Names the camera: "Focus on server nodes" also reads as "highlight them", which a style
+        // answers just as well (#1991). Framing a subset of nodes with the camera is only zoom_to.
+        it("calls view zoom_to for 'Zoom the camera in to frame just the server nodes'", async () => {
+            const result = await harness.testPrompt("Zoom the camera in to frame just the server nodes");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             // A zoom to a target, since it names some nodes

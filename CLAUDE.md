@@ -340,6 +340,7 @@ The `tools/` directory contains build scripts:
 | `run-tests.sh` | Runs a CI test shard locally with the exact command CI runs, read from `ci-test-matrix.mjs`: `--list`, `<shard>` or `all`. Shards run with coverage, so this also checks the thresholds. Build first |
 | `ci-test-matrix.mjs` | The CI test shards and their commands (ci.yml and `run-tests.sh` both read it) |
 | `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it, and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard). Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
+| `vitest-time-budget.mjs` | A Vitest reporter that judges every passing test against its time limit (its own timeout, else the project's `testTimeout`): over 25% it prints a warning (a GitHub Actions annotation in CI); over 50% it fails a pull request's run only when the pull request changed that test's file (`git diff <base>...HEAD`, base from `VITEST_BUDGET_BASE`, which ci.yml sets on pull requests), and says to cut or split the test. Everywhere else -- untouched files, the merge queue, the release train, a dispatch, no base -- it only warns, because one test's duration varies about 2x between CI runs and a gate on every test failed unrelated pull requests. On in ci.yml's test job (`VITEST_BUDGET_CHECK=1`; set it locally, with `VITEST_BUDGET_BASE=origin/master`, to check before pushing), added to every package by `ciReporters()` in `vitest.ci-junit.mjs`. A changed file's slow test that cannot be cut in its pull request goes in `vitest-time-budget-allowlist.json` with a tracking issue; a timeout is never raised to get under either line |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast`. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
 | `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `tmp/push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
@@ -411,7 +412,8 @@ When the step fails:
   the tests, the LFS upload). If you use either, say so in your reply, with the reason.
 - **"SonarQube step cannot run"** (no token, a rejected token, no Java, a missing
   project): a setup problem. Report it to the owner with the message; do not work around it.
-- **"SonarQube did NOT check this push"**: the server was unreachable. The push went through; the
+- **"SonarQube did NOT check this push"**: the server was unreachable, or it or the network failed
+  during the scan (the step prints the scanner's error lines). The push went through; the
   next push from the owner's network checks the whole branch. Mention it in your reply.
 
 Existing issues (the backlog) are burned down in separate small pull requests, one rule or one
@@ -634,7 +636,9 @@ re-run) is announced as a comment on the one open `Release status` issue (label 
 that do nothing announce nothing. A run that ends badly before it announces anything (no job
 started, a job never got a runner, the announce step failed, a failure after the release pull request
 was announced) is announced there by `release-watch.yml` instead. A release pull request that leaves the merge queue unmerged (Mergify labels it `dequeued`) is
-announced there by `release-dequeued.yml`, with the failing checks and the queue run. Never edit or push to a release branch, and never close one
+announced there by `release-dequeued.yml`, with the failing checks and the queue run. Each announcement, plus a
+train attempt that starts testing a candidate (or retries after a fix or a re-run), is also pushed to the owner's
+phone through Pushover (secrets `PUSHOVER_APP_TOKEN`, `PUSHOVER_USER_KEY`). Never edit or push to a release branch, and never close one
 unless it must be replaced: while one is open, no new train runs. An ad hoc release cuts the same
 pull request at once, for the owner or an agent the owner asked:
 `gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never

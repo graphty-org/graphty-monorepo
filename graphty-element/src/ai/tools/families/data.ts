@@ -7,7 +7,7 @@
 import { z } from "zod";
 
 import type { FormatId } from "../../../catalog/types";
-import { exportSession } from "../../../data/export";
+import type { ExportResult } from "../../../data/export";
 import type { TransactionScope } from "../../../session/types";
 import {
     idsOf,
@@ -409,16 +409,17 @@ export function exportGraphTool(catalog: CatalogView): ToolDefinition {
                     }
 
                     const renderer = graph as unknown as {
-                        exportGraph?: (
-                            id: FormatId,
-                            options: object,
-                        ) => ReturnType<typeof exportSession> | Promise<ReturnType<typeof exportSession>>;
+                        exportGraph?: (id: FormatId, options: object) => Promise<ExportResult>;
                     };
-                    const result = await coded(() =>
-                        typeof renderer.exportGraph === "function"
-                            ? renderer.exportGraph(format, parsed.data)
-                            : exportSession(session, format, parsed.data),
-                    );
+                    const result = await coded(async () => {
+                        if (typeof renderer.exportGraph === "function") {
+                            return renderer.exportGraph(format, parsed.data);
+                        }
+
+                        // The writers load only when a session with no renderer exports.
+                        const { exportSession } = await import("../../../data/export");
+                        return exportSession(session, format, parsed.data);
+                    });
                     const data = await result.text();
                     host.emit({ type: "ai-export-ready", format, data, losses: result.losses });
                     return ok(undefined, { format, bytes: data.length, losses: result.losses.length });

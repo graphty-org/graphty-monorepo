@@ -4,16 +4,17 @@
  * plugin's own registrations, from its own test. Plain data in, coded facts out; no renderer.
  */
 
-import { BUILT_IN_ALGORITHMS } from "../../catalog/algorithms";
 import { ASSISTANT_TOOLS } from "../../catalog/assistant";
-import { CAMERA_DESCRIPTORS } from "../../catalog/cameras";
-import { FORMAT_DESCRIPTORS } from "../../catalog/formats";
-import { LAYOUT_DESCRIPTORS } from "../../catalog/layouts";
-import type { OptionDescriptor } from "../../catalog/types";
-import { SESSION_CATALOG_TABLES } from "../../session/catalog";
+import { registeredCameraDescriptors } from "../../catalog/cameraRegistry";
+import { registeredLayoutDescriptors } from "../../catalog/layoutRegistry";
+import { registeredAlgorithmDescriptors } from "../../catalog/registry";
+import { KNOWN_FORMAT_IDS, type OptionDescriptor } from "../../catalog/types";
+import { catalogFormatDescriptors } from "../../catalog/writerRegistry";
 import type { CodedFact } from "../../session/shared";
-import type { GraphSession } from "../../session/types";
-import { optionField } from "./optionSchema";
+import { isOfferedOption } from "./optionTypes";
+
+/** The formats graphty-element ships, which are not a plugin's to fix. */
+const BUILT_IN_FORMATS: ReadonlySet<string> = new Set(KNOWN_FORMAT_IDS);
 
 /** What `assistantReach` reports. OPEN UNION: codes may be added in a minor release. */
 export type AssistantReachCode = "ai.option-unoffered" | "ai.no-description" | "ai.name-reserved";
@@ -31,48 +32,40 @@ export type AssistantReachCode = "ai.option-unoffered" | "ai.no-description" | "
  * defineAlgorithm({ id: "acme-essentiality", description: "How tied each node is.", node: (n) => n.degree });
  * console.assert(assistantReach().length === 0);
  * ```
- * @param session - The session whose catalog to read; the registered tables when absent.
  * @param commands - Assistant commands to check, by name.
  * @returns The facts, empty when everything registered reaches the assistant.
  * @since 4.0.0
  */
 export function assistantReach(
-    session?: Pick<GraphSession, "catalog">,
     commands: readonly { readonly name: string }[] = [],
 ): readonly CodedFact<AssistantReachCode>[] {
-    const tables = session?.catalog ?? SESSION_CATALOG_TABLES;
     const facts: CodedFact<AssistantReachCode>[] = [];
-    const builtIn = new Set<string>([
-        ...BUILT_IN_ALGORITHMS.map((entry) => entry.key),
-        ...LAYOUT_DESCRIPTORS.map((entry) => entry.id),
-        ...CAMERA_DESCRIPTORS.map((entry) => entry.id),
-        ...FORMAT_DESCRIPTORS.map((entry) => entry.id),
-    ]);
     const check = (entry: string, options: readonly OptionDescriptor[], description: string | undefined): void => {
         if (description?.trim() === "") {
             facts.push({ code: "ai.no-description", params: { entry } });
         }
 
         for (const option of options) {
-            if (option.internal !== true && optionField(option) === undefined) {
+            if (option.internal !== true && !isOfferedOption(option)) {
                 facts.push({ code: "ai.option-unoffered", params: { entry, option: option.name, type: option.type } });
             }
         }
     };
 
-    for (const entry of tables.algorithms().filter((each) => !builtIn.has(each.key))) {
+    for (const entry of registeredAlgorithmDescriptors()) {
         check(entry.key, entry.options, entry.description);
     }
 
-    for (const entry of tables.layouts().filter((each) => !builtIn.has(each.id))) {
+    for (const entry of registeredLayoutDescriptors()) {
         check(entry.id, entry.options, entry.description);
     }
 
-    for (const entry of tables.cameras().filter((each) => !builtIn.has(each.id))) {
+    for (const entry of registeredCameraDescriptors()) {
         check(entry.id, entry.options, entry.description);
     }
 
-    for (const entry of tables.formats().filter((each) => !builtIn.has(each.id))) {
+    // Registered readers and writers, which the built-in formats are not.
+    for (const entry of catalogFormatDescriptors().filter((each) => !BUILT_IN_FORMATS.has(each.id))) {
         check(entry.id, [...entry.options, ...(entry.writerOptions ?? [])], undefined);
     }
 

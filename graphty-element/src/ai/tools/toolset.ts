@@ -9,7 +9,6 @@ import { z } from "zod";
 
 import { ASSISTANT_TOOLS } from "../../catalog/assistant";
 import type { Graph } from "../../Graph";
-import { SESSION_CATALOG_TABLES } from "../../session/catalog";
 import { channelsFor } from "../../session/styles/channels";
 import type { GraphSession } from "../../session/types";
 import type { CommandContext, CommandResult, GraphCommand } from "../commands/types";
@@ -377,11 +376,11 @@ function sameType(a: string, b: string): boolean {
 
 /**
  * The catalog as one build of the tools reads it.
- * @param session - The session, or none for the built-in and registered tables.
+ * @param session - The session whose catalog the tools offer.
  * @returns The view.
  */
-export function catalogView(session?: Pick<GraphSession, "catalog">): CatalogView {
-    const tables = session?.catalog ?? SESSION_CATALOG_TABLES;
+export function catalogView(session: Pick<GraphSession, "catalog">): CatalogView {
+    const tables = session.catalog;
     return {
         algorithms: tables.algorithms(),
         layouts: tables.layouts(),
@@ -548,7 +547,7 @@ function buildIndex(
  * @param consumer - The consumer's commands, which catalog search indexes too.
  * @returns The toolset.
  */
-export function buildToolset(session?: Pick<GraphSession, "catalog">, consumer: readonly GraphCommand[] = []): Toolset {
+export function buildToolset(session: Pick<GraphSession, "catalog">, consumer: readonly GraphCommand[] = []): Toolset {
     const catalog = catalogView(session);
     const definitions: ToolDefinition[] = [];
     let index: SearchIndex | undefined;

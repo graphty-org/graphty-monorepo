@@ -14,6 +14,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
+import { createGraphSession } from "../../../session";
 import { buildToolset } from "../../../src/ai/tools/toolset";
 import { getLlmRegressionCaseTimeoutMs, skipIfNoApiKey } from "../../helpers/llm-regression-env";
 import {
@@ -26,7 +27,7 @@ import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 /** Every action of the generated tools that only reads: a model may call these to look before it acts. */
 const READ_ONLY_ACTIONS = new Set(
-    buildToolset().tools.flatMap((tool) =>
+    buildToolset(createGraphSession()).tools.flatMap((tool) =>
         tool.definition.actions
             .filter((action) => action.effect === "read")
             .map((action) => `${tool.name}.${action.name}`),

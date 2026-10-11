@@ -142,6 +142,7 @@ export class ScriptedAssistant {
             gate?: Partial<AssistantGateLimits> | false;
             toolProfile?: "standard" | "small";
             graph?: object;
+            allowImportUrl?: (url: URL) => boolean;
         } = {},
     ) {
         installAssistantTools(this.registry, session);

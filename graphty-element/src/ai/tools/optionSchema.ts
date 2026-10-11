@@ -9,6 +9,7 @@ import { z } from "zod";
 import type { OptionDescriptor } from "../../catalog/types";
 import { toolJsonSchema } from "../engine/jsonSchema";
 import { MAX_ITEMS, MAX_SELECTOR, MAX_STRING } from "./fields";
+import { isOfferedOption } from "./optionTypes";
 import type { JsonObject } from "./types";
 
 /**
@@ -17,6 +18,10 @@ import type { JsonObject } from "./types";
  * @returns Its schema, or undefined for an option the assistant cannot be offered (type `unknown`).
  */
 export function optionField(option: OptionDescriptor): z.ZodType | undefined {
+    if (!isOfferedOption(option)) {
+        return undefined;
+    }
+
     let field: z.ZodType;
     switch (option.type) {
         case "number":

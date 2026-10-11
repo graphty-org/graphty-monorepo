@@ -38,7 +38,7 @@ describe("assistantReach", () => {
             },
             compute: () => ({ positions: new Float32Array(0), dim: 2 }) as never,
         });
-        assert.deepStrictEqual(assistantReach(undefined, [{ name: "query" }, { name: "tag_nodes" }]), [
+        assert.deepStrictEqual(assistantReach([{ name: "query" }, { name: "tag_nodes" }]), [
             { code: "ai.option-unoffered", params: { entry: "acme-odd", option: "shape", type: "unknown" } },
             { code: "ai.name-reserved", params: { command: "query", tool: "query" } },
         ]);

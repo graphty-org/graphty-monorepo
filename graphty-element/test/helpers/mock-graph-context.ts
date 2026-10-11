@@ -15,6 +15,7 @@ import type { Graph } from "../../src/Graph";
 import type { DataManager } from "../../src/managers";
 import { StylePainter } from "../../src/managers/StylePainter";
 import type { GraphSession } from "../../src/session";
+import { SESSION_CATALOG_TABLES } from "../../src/session/catalog";
 import { createStylesApi } from "../../src/session/styles";
 import { columnsFor, compileExpressionPredicate, type SelectorSource } from "../../src/session/styles/predicate";
 import { createLayerRepaint } from "../../src/session/styles/repaint";
@@ -291,6 +292,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         },
         data: { attributes: () => [] },
         runs: { list: () => [] },
+        catalog: SESSION_CATALOG_TABLES,
         selection: { size: 0 },
         transaction: <T>(_label: string, fn: (tx: GraphSession, signal: AbortSignal) => T | Promise<T>) =>
             Promise.resolve().then(() => fn(mockSession, new AbortController().signal)),

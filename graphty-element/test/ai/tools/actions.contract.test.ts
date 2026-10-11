@@ -8,7 +8,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import type { GraphSession } from "../../../session";
+import { createGraphSession, type GraphSession } from "../../../session";
 import { buildToolset } from "../../../src/ai/tools/toolset";
 import { assistantSession, digest, ScriptedAssistant } from "../../helpers/assistant";
 
@@ -261,7 +261,7 @@ const restored: { id?: string } = {};
 
 /** Every `tool.action` the generator makes. */
 function generatedActions(): { key: string; effect: string }[] {
-    return buildToolset().tools.flatMap((tool) =>
+    return buildToolset(createGraphSession()).tools.flatMap((tool) =>
         tool.definition.actions.map((action) => ({ key: `${tool.name}.${action.name}`, effect: action.effect })),
     );
 }
@@ -339,7 +339,7 @@ describe("every generated action", () => {
     it("refuses an action a tool does not have, naming the ones it has", async () => {
         const session = await assistantSession();
         const assistant = new ScriptedAssistant(session);
-        const tools = buildToolset().tools.filter((tool) => tool.definition.actions.length > 1);
+        const tools = buildToolset(createGraphSession()).tools.filter((tool) => tool.definition.actions.length > 1);
         for (const tool of tools) {
             await assistant.say(`no such action of ${tool.name}`, [{ tool: tool.name, args: { action: "teleport" } }]);
             const [read] = assistant.lastResults();

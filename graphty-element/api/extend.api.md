@@ -260,7 +260,7 @@ export interface AlgorithmStatics {
 }
 
 // @public
-export function assistantReach(session?: Pick<GraphSession, "catalog">, commands?: readonly {
+export function assistantReach(commands?: readonly {
     readonly name: string;
 }[]): readonly CodedFact<AssistantReachCode>[];
 

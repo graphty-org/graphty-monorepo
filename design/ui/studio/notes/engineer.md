@@ -11,6 +11,24 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-11) **A briefing never holds what a task asks the participant to find.** The README's
+  file table now names each file and its kind only; the answer key's "Facts no briefing may hold"
+  lists the facts (`Mo`, `Nia`, `6 - w`, `p13`, `s11`), and `--brief` refuses, `--leaks` voids,
+  a briefing holding one. The round's leak check prints, per session, the briefing and every log it
+  read. All 56 round 4 plan rows re-briefed clean (`tmp/t2r4-2/rounds/round-5/leaks.out`).
+- (2026-10-11) **The gate is checked by `real.mjs --start` itself.** A session of a round
+  (`rounds/<round>/sessions/<id>`, or its participant folder) exits 1 with one `FAIL:` line unless
+  the round's `plan.md` holds the "Gate evidence" section `--gate` wrote for the frozen build. Round
+  4 ran all 53 sessions with no gate evidence and no `bars/bars.json`: the runner's gate step was
+  skipped, and nothing else checked. Planted in `--prove` (`tmp/t2r4-1/prove.txt`).
+- (2026-10-11) **The round runner starts each session before the participant's turn**
+  (`workflow-tier2.js` `startSession`), with `REAL_SLOT_WAIT_SECONDS=540`: no slot means exit 4,
+  nothing started, the same start again. A start that never gives `01.png` re-runs as `<id>b` and
+  the scorer is told which. Planted: a full one-slot pool (`BROWSER_SLOT_DIR`), exit 4, then a
+  start that takes the slot once it frees (`tmp/t2r4-1/.../r9-s04/01.png`).
+- (2026-10-11) **Owed: r4-s05b, r4-s20b, r4-s28b.** They need fresh participant agents (never seen
+  the key or plan); an implement step has no way to start one. Round 4 needs its gate evidence
+  first (bars on 5277e2cbe, then `--gate`), or `--start` now refuses them.
 - (2026-10-11) **Bar 9 (b), edge inspector: no word cut; it fails honestly, 29 against 27.** Same
   state on both builds (round 1's build recounts 27). Added "Settings" (rail), ", full graph" and
   "on 20 nodes" (key scope words); removed "On the path". "of nodes" was never new. No repeat on
@@ -42,9 +60,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-11) **Script first, from round 4:** New project then Discard showing the error page; a
   rule on a missing column answering only "Nothing matches" (element has `E_UNKNOWN_ATTRIBUTE`;
   a coded fact would let the app say the column is missing).
-- (2026-10-11) **Watch in round 5:** T22 A on bus stops typing "10" (the prompt's own number);
-  T17 with the table open under a step; the owed re-runs r4-s05b, s20b, s28b.
-- (2026-10-11) **One variant per problem, one change per task's route.** Words at rest never rise.
+- (2026-10-11) **Watch in round 5:** T22 A on bus stops typing "10"; T17 with the table open
+  under a step.
 - (2026-10-11) **Held, first in line:** distance per name at Hops 2/3 (element `depth` option and
   `hops` per `Neighbor`, additive); "4 hops" vs "5 nodes, 4 edges" (sev 1); `nodesInRect(..., {
   labels: true })`; a second Find path replacing the first.
@@ -53,22 +70,31 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   numbers in rules, backticks, what an edge width measures (breaking, owner's list).
 - (2026-10-11) **A one-specialist claim is scripted on the frozen build before any fix;** not
   reproduced means closed as not shown. Reading the mechanism in source does not replace the script.
-- (2026-10-10) **OPEN, not reproduced:** a reopen from Recent projects once drew no "Opened
-  friends" (`tmp/r3-dry1-reopen-shows-opened-notice/`). No code without a mechanism.
 - (2026-10-10) **Still open from audits:** Escape does nothing on the Data pages; two-table source
   has no actions and no reason; "Edit source..." lands on "Replace: ..."; neighbor Back row scrolls
   the inspector sideways; path popover covers the nodes it asks for; 900 x 700 canvas is 363 px;
   Delete does nothing on a step; Analyze box jumps as the list narrows.
-- (2026-10-11) **Pilot on a copied `graphty/dist`** (REAL_DIST at the copy); real.mjs cannot
-  click aria-disabled buttons (prove with `--key Enter` or a real-element test).
 
 ## Decisions and reasons
+
+- (2026-10-11) **Answer-key facts live in `answers.md`, never in `real.mjs`.** A participant may
+  read `real.mjs` (the leak check allows it), so the self-test plants the first two listed facts
+  read from the answer key instead of writing them out. Facts match as whole words outside
+  hyphenated names: the first try matched session `r5-s11` as the row `s11` and refused that
+  briefing; a regression check now covers it.
 
 - (2026-10-11) **A word count is diffed by word against the limit's own build before any word is
   cut.** The roles' three diagnoses of the edge inspector's +2 were partly wrong ("of nodes" was
   in round 1's count too); `bars.mjs <out> --dist <build>` on both frozen builds named the real
   change in one run each (about 10 minutes). Scope words stay; only a repeat on the same screen
   may go.
+- (2026-10-11) **A study rule lives where every caller passes through it.** The gate moved from
+  the runner's prompt into `--start`, because the runner is only one caller: continuation scripts
+  after a stopped run and hand starts skipped it (round 4). Same for the slot: the wait is bounded
+  in `--start` (`REAL_SLOT_WAIT_SECONDS`) so any caller can retry in the foreground, and the runner
+  starts the session in its own step so a participant's turn never holds a wait.
+- (2026-10-11) `BROWSER_SLOT_DIR` (with-browser.sh) points the slot pool elsewhere, only so the
+  self-test can fill every slot without holding the machine's real ones.
 - (2026-10-11) **A rule names a column through the element's `rulePath(path)`** (new `./session`
   export beside `quotePath`): the bare name for a `data.` column whose name is one unquoted
   identifier, else `quotePath(path)`. The find box's own `columnText` is deleted and calls it, and
@@ -173,49 +199,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `pathLengthWords`, with the inspector's distance-only rule for "Total <column>". Unweighted (or a
   non-distance weight) keeps "4 hops". No element change: `cost` and `caveats.weight` were
   already published.
-- (2026-10-09, summarized 2026-10-10) **Study folders, targets, scrolling, selection lines:**
-  only participant folders (`rounds/*/sessions/*` or holding `briefing.md`) are refused in the
-  studio; pilots, experts and `--prove` start there by design, and the leak check is the backstop.
-  A 24 px xs checkbox target is the input itself (axe measures the focusable box; a `::after` hit
-  area still fails), its face drawn by `::before`. The find list scrolls the arrows' row with
-  `scrollIntoView({ block: "nearest" })` keyed on the option id, never every render. A selection
-  row's line reads its own topmost layer's selector, not `fresh` (undefined after the first edit).
-
-- (2026-10-09, condensed) **Read the report type before adding a field:** the repeated-ties count
-  already existed (`repeated.seen`); the defect was the measured merge, fixed in the element.
-  Replace from the Add page calls `replaceSource`; an open page restarts on a replace request.
-
-- (2026-10-09, summarized) **Audit and round-2 method:** audits walk screens by script at both
-  sizes (`round-2/expert/engineer/audit.sh`, `audit2.sh`) so the next round compares the same
-  screens; measure first (tool, bar scripts, detour walks) before any session; no new words at
-  rest. **Label picks** are an opt-in per-layer style field resolved in `pickNodeId` (click, hover,
-  drag and `elementAt` agree), recorded under "decided by the team".
-
-- (2026-10-09, summarized 2026-10-10) **Standing calls from 10-09:** path Weight list starts on the loaded weight; live regions
-  exist before their words; the halo draws back faces only; the neighbor list opens at
-  the ON filter step's depth (an off step is the reader's choice); sentence headings wrap by
-  per-section `wrapLabel` opt-in; every control but a link shows the arrow cursor (compact-mantine
-  `00-foundation.css.ts`); the chosen segment's inverse fill was undone on 10-10 (below); a start-screen data file goes through the Data page; a
-  pointer-opened menu focuses the menu; one neighborhood filter per center; no forced focus ring
-  after a pointer click; a study tool that hides what a person saw is fixed in the tool, not the
-  app (never lengthen `NOTICE_MS` for it); `OptionsForm` passes no value at a run setting's
-  default; a heading's count must be checkable beside it; vertical lists use `scrollbars="y"` and
-  `EllipsizedName`; reopen is a fresh fit (camera unsaved, owner door); an Add counts what it adds;
-  bar scripts measure in the participant's own `real.mjs` session, each move with an `--expect`.
-
-- (2026-10-08, summarized 2026-10-09) **Older dry-run fixes, still standing:** `--read` prints rows
-  by cell; sources show "Added"/"Left out"; compact-mantine Tree type-ahead and menu Escape. OPEN:
-  Columns after "=" omit run results; edge-only `edgePage` selection (owner door); dijkstra over a
-  negative undirected weight freezes the page.
-
-- (2026-10-09, summarized 2026-10-10) **Older element and app calls, still standing:** a run row's
-  Style tab offers only the sides its own layers cover; audit findings name the owning package
-  (canvas label clipping is the element's); camera unsaved; a reopened load replaces itself; a
-  resolved option is a caveat, never written into params; what a rule tested is
-  `selection.originPaths`, never parsed; tier 2 element doors: edge pick 5a2b3b605, filter steps
-  8966b0888, stale runs ce34f31f3, every load a source f141b1283, edge-attribute filter 559f5dcb2,
-  coded selector refusals 3d89d43c3; app-only: edge inspector e666ae17d, Export warnings worded by
-  the app, a run's Values view from its shape.
+- (2026-10-08 to 10-09, condensed 2026-10-11) **Older standing calls.** Only participant folders
+  are refused in the studio (pilots, experts, `--prove` start there). 24 px checkbox target is the
+  input. Find list scrolls by option id. Read the report type before adding a field. Audits walk
+  screens by script at both sizes; no new words at rest. Label picks resolve in `pickNodeId`. Path
+  Weight starts on the loaded weight; live regions exist before their words; neighbor list opens at
+  the ON step's depth; arrow cursor on every control but a link; a start-screen data file goes
+  through the Data page; one neighborhood filter per center; a tool that hides what a person saw is
+  fixed in the tool; camera unsaved; reopen is a fresh fit; a resolved option is a caveat, never
+  written into params; what a rule tested is `selection.originPaths`. OPEN: Columns after "=" omit
+  run results; edge-only `edgePage` selection (owner door); dijkstra over a negative undirected
+  weight freezes the page; a reopen once drew no "Opened friends" (not reproduced).
 
 ## Thinking
 
@@ -232,11 +226,23 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-11) WORKED: a mock round (round 4's plan rows renamed `r5-sNN` in
+  `tmp/t2r4-2/rounds/round-5/`, `--brief` each, then `--leaks` the round) checks every real
+  briefing without touching round 4's records; `--leaks <round dir>` writes `leaks.json` into each
+  session copy, so never run it on a closed round's folder to test the tool.
+
 - (2026-10-11) WORKED: `bars.mjs` already targets any build with `--dist`; its word lists are in
   the printed log (`bar 9 (b)` lines) and in `bars.json` under `tier2.words`. The edge inspector is
   screenshot 20 of `sessions/returning-1440x900/`. Round 1's build exits 1 (later moves miss on its
   older screens); that does not touch the screens measured before the miss. A bars run on
   5277e2cbe is in `tmp/t2r4-12/r4-5277e2cbe/bars.json` (not the round's gate run).
+- (2026-10-11) DID NOT WORK at first: a planted slot holder `flock <file> sleep 600` killed with
+  `.kill()`. flock hands the lock fd to the sleep it forks, so killing flock left the lock held and
+  the test's start waited. Spawn it `detached` and kill the process group (`process.kill(-pid)`);
+  `--start`'s own give-up kills its session process the same way.
+- (2026-10-11) Another agent edited `real.mjs` (answer-key facts in briefings) while I did; their
+  two in-progress leak checks failed in my `--prove` run. Not mine: read `git diff` before blaming
+  a run, and stage only my hunks.
 - (2026-10-11) WORKED: the "or more" row for a number no value equals, all in the element. A
   number column is one whose every indexed value is a number (id column skipped); its row is
   offered when some value lies below N, some above, none equal, deduplicated by path across
@@ -293,37 +299,15 @@ anywhere`, row `height: auto; min-height: 44px; padding-block: 6px`, pill and ri
   to a shared file: a test in 115bc0aa4, answer key lines in c9f2ceed3. Commit shared edits
   (`answers.md`, shared tests) as soon as they are made.
 
-- (2026-10-10, summarized 2026-10-11) **Focus and description proofs.** Focus after a pointer
-  click draws no ring: `--key ArrowDown` opens a focused Mantine Select (`tmp/t2r3-r4-09/fresh/04.png`).
-  Toolbar real-element tests go inside the describe that sets 1366 x 768. A module-level focus ask
-  consumed by a component about to remount is re-armed in a layout cleanup. Analyze rows: `--click
-role=button:Analyze`, type, ArrowDowns, Enter, then `--expect role=button:<name>`; `--click` is
-  refused under `--sr`. "Add to <graph>": `--key Control+k`, type "Add data", Enter. Descriptions:
-  `--expect "described=<text>"` (CDP AX description); reach the control by Tab to hear what a
-  keyboard user hears. A new tool check goes in `measure.mjs` with a planted case and a browser test.
-- (2026-10-10, summarized) **Smaller lessons from 10-10.** Lint wants a test key like
-  `shared_chapters` as `const WEIGHT = "shared_chapters"` and `[WEIGHT]:`. Shift-add needed
-  `selection.size` from the session (the manager's own index skipped a click). Audit walks: one
-  data line per walk, each its own real.mjs session; names collide (`role=option:weight`,
-  "Graph" is rail button and heading). Probing a frozen build: copy it, `chmod -R u+w`, add
-  `console.error` probes; read the pilot's own commands in `.claudehistory` before trusting a
-  route; `--hover` right after `--click` gives `tooltip: null`; a click on `aria-disabled` is
-  refused; Escape in the find box only empties it. Tests: headless vitest hides scrollbars (assert
-  computed `scrollbar-gutter`); `MutationObserver.takeRecords()` before `disconnect()`; read the
-  failure screenshot first; a real-element test with real typing for every path a unit adds;
-  anchor scripted edits on a line unique to the test; prove a test fails without the change
-  (`git show HEAD:<file>` beside it). real.mjs needs no helper; `--start` waits for a free slot,
-  not hung. Another agent's rebuild breaks tsc, vitest and `bars.mjs` mid-run: copy the dist or
-  rerun. Resuming after an interruption: check `git log`, the round folder and `tmp/<task>/` first.
-  Script a finding on the frozen build before reading the suspect code.
-
-- (2026-10-06 to 10-09, summarized 2026-10-11) **Older lessons.** Subagent logs under
-  `~/.claude/projects/<proj>/<session>/subagents/`. Probe (axe, pixels from public API, the
-  element's report) before code. Copy a script before editing it while it runs; read output, not
-  exit codes; step N lands in screenshot N+1; read `setup.log` after `--start`. Shared worktree:
-  stage only my hunks, commit as soon as they pass, commit only my `api:report` lines. Builds need
-  `NODE_OPTIONS=--max-old-space-size=8192`. A `Run` is thenable; `data.name()` returns the id until
-  `knownFields.nodeLabelPath` is set.
+- (2026-10-06 to 10-10, condensed 2026-10-11) **Older lessons.** Focus after a pointer click
+  draws no ring; `--key ArrowDown` opens a focused Select. real.mjs cannot click aria-disabled
+  buttons (prove with `--key Enter` or a real-element test). Descriptions: `--expect
+  "described=<text>"`. Pilot on a copied `graphty/dist`. Another agent's rebuild breaks tsc,
+  vitest and `bars.mjs` mid-run: copy the dist or rerun. Prove a test fails without the change.
+  Read output, not exit codes; step N lands in screenshot N+1; read `setup.log` after `--start`.
+  Builds need `NODE_OPTIONS=--max-old-space-size=8192`. Subagent logs under
+  `~/.claude/projects/<proj>/<session>/subagents/`. Resuming after an interruption: check `git
+  log`, the round folder and `tmp/<task>/` first.
 
 ## Sources
 

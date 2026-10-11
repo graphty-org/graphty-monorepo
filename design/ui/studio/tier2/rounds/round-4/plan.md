@@ -99,6 +99,13 @@ items 3 to 5 are checked here.
    the two dry run reports list each change on 38e180aac230 and 5277e2cbe1bd against its
    screenshot. Shift-click on a node, which no dry run walked, is item 1 above.
 
+**The round's first 53 sessions ran without the gate.** `bars/bars.json` did not exist and `--gate`
+never passed, so this plan held no "Gate evidence" section while they ran; the runner's gate step
+was skipped, and nothing else checked it. The bars were run on 5277e2cbe1bd and the gate passed on
+2026-10-11, after those sessions and before the three re-runs (r4-s05b, r4-s20b, r4-s28b): the
+section at the end of this plan is that check. `real.mjs --start` now refuses every session of a
+round whose plan holds no such section.
+
 ## The questions round 4 answers
 
 1. **T24, the one bar round 3 missed** (8 sessions, 4 a half): with Shift-click adding and the
@@ -310,3 +317,29 @@ Persona files: `../round-1/plan.md`, "Persona files"; histories: `../../roster.m
 | r4-s54 | T12R | B: Florentine families | Ruth | `setup:florentine-ranked.txt` |
 | r4-s55 | T19 | A: running club, friends.csv | Dev | `setup:friends-ranked.txt` |
 | r4-s56 | T19 | B: Florentine families | Jordan (analyst) | `setup:florentine-ranked.txt` |
+
+## Gate evidence
+
+Checked by `real.mjs --gate` on 2026-10-11, build 5277e2cbe:
+
+- pilot T12RA: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T12RA/
+- pilot T12RB: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T12RB/
+- pilot T17A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T17A/
+- pilot T17B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T17B/
+- pilot T18A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T18A/
+- pilot T18B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T18B/
+- pilot T19A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T19A/
+- pilot T19B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T19B/
+- pilot T20A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T20A/
+- pilot T20B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T20B/
+- pilot T21A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T21A/
+- pilot T21B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T21B/
+- pilot T22A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T22A/
+- pilot T22B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T22B/
+- pilot T23A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T23A/
+- pilot T23B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T23B/
+- pilot T24A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/T24A/
+- pilot T24B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/T24B/
+- pilot T4A: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T4A/
+- pilot T4B: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/pilot/r4d1/T4B/
+- bars on 5277e2cbe1bd graphty@0.8.64: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-4/bars/bars.json

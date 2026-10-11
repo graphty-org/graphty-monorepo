@@ -64,10 +64,14 @@ export function buildSteps(list: string, seed: number, f: StepFacts): Step[] {
         case "q6":
             return [{ id: "q6-1", text: `Write a three-word note on the ${family()}` }];
         default: {
-            const fam = family();
+            const famIndex = pick(f.pagerankOrder);
+            const fam = f.names[famIndex];
             const k = 1 + Math.floor(rnd() * Math.min(5, f.pagerankOrder.length));
             const threshold =
                 f.pagerank[f.pagerankOrder[Math.min(f.pagerankOrder.length - 1, 4 + Math.floor(rnd() * 3))]];
+            // The note comes after the keep step, so it names a family the keep step left visible.
+            const kept = f.pagerankOrder.filter((i) => f.pagerank[i] >= threshold);
+            const noteFam = f.pagerank[famIndex] >= threshold ? fam : f.names[pick(kept)];
             return [
                 { id: "orient", text: "Look around the graph" },
                 { id: "find", text: `Find the ${fam}` },
@@ -76,7 +80,7 @@ export function buildSteps(list: string, seed: number, f: StepFacts): Step[] {
                 { id: "read", text: `Which family ranks #${k}?` },
                 { id: "color", text: "Color and size the families by PageRank" },
                 { id: "keep", text: `Keep only the families with PageRank of at least ${threshold.toFixed(3)}` },
-                { id: "note", text: `Write a note on the ${fam}` },
+                { id: "note", text: `Write a note on the ${noteFam}` },
                 { id: "undo", text: "Color by degree, then undo it" },
                 { id: "save", text: "Save" },
             ];

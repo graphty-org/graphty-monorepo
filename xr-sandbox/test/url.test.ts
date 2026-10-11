@@ -51,4 +51,19 @@ describe("steps", () => {
         expect(buildSteps("journey", 5, facts)).toEqual(buildSteps("journey", 5, facts));
         expect(buildSteps("journey", 5, facts)).toHaveLength(10);
     });
+
+    it("notes a family the keep step leaves visible", () => {
+        const facts = {
+            names: ["A", "B", "C", "D", "E", "F", "G", "H"],
+            pagerankOrder: [3, 1, 0, 2, 4, 5, 6, 7],
+            pagerank: Float64Array.from([0.3, 0.2, 0.1, 0.4, 0.05, 0.04, 0.03, 0.02]),
+            resultNames: ["PageRank"],
+        };
+        for (let seed = 0; seed < 200; seed++) {
+            const steps = buildSteps("journey", seed, facts);
+            const threshold = Number(/at least ([\d.]+)/.exec(steps[6].text)?.[1]);
+            const name = /note on the (.+)$/.exec(steps[7].text)?.[1] ?? "";
+            expect(facts.pagerank[facts.names.indexOf(name)]).toBeGreaterThanOrEqual(threshold);
+        }
+    });
 });

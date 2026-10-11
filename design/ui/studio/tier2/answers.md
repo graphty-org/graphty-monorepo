@@ -448,6 +448,19 @@ seed, so the pilot of each round re-reads it.
 - `meaning-wrong` -- a choice that makes the program read the data the wrong way round (a count of
   runs set as a distance, ties followed one way only where they run both ways)
 
+## Facts no briefing may hold
+
+What a task asks a participant to find in the study files. `real.mjs --brief` refuses a briefing
+that holds one, and `real.mjs --leaks` voids the session whose briefing does (each is matched as a
+whole word, case as written, never inside a hyphenated name such as the session
+id `r5-s11`). The leak check reads the backticked words of each line before its
+`--`.
+
+- `Mo`, `Nia` -- the two new people in `team-v2.csv` (T21)
+- `6 - w` -- how `friends-v2.csv` changed each weight (T21)
+- `p13` -- the edge row of `messages.csv` with no node row (T4)
+- `s11` -- the edge row of `passes.csv` with no node row (T4)
+
 ## T4. Two spreadsheets as one network (tier 2)
 
 - **A (office): 12 people and 22 links arrived; messages.csv has 23 rows, and one of them (line 24,

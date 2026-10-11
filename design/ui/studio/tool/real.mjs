@@ -214,6 +214,21 @@ function personaText(text) {
             .trim()
     );
 }
+// What a task asks a participant to find in the files, listed in the answer key under "Facts no
+// briefing may hold" (round 4's briefings named the two new people and the rows with no node row in
+// their file table). Kept there, not here: a participant may read this file.
+function answerFacts() {
+    const sec = readFileSync(join(tier2, "answers.md"), "utf8").match(
+        /^## Facts no briefing may hold\n([\s\S]*?)(?=^## )/m,
+    )?.[1];
+    const facts = [...(sec ?? "").matchAll(/^- (.*)$/gm)].flatMap(([, l]) =>
+        [...l.split(" -- ")[0].matchAll(/`([^`]+)`/g)].map((m) => m[1]),
+    );
+    if (!facts.length) throw new Error(`${join(tier2, "answers.md")} lists no "Facts no briefing may hold"`);
+    return facts;
+}
+// a whole word: not inside another, nor in a name joined by "-" (session r5-s11 is not the row s11)
+const factsIn = (text) => answerFacts().filter((f) => new RegExp(`(?<![\\w-])${reEscape(f)}(?![\\w-])`).test(text));
 // --brief: writes <dir>/briefing.md, everything a participant gets (tasks.md, "Rules for whoever runs
 // a session"): the persona files and the history under their name, the prompt word for word, the
 // start command and the tool's participant instructions. Never the follow-up, the avoided words,
@@ -281,8 +296,11 @@ async function brief(dir, task, persona) {
     await mkdir(own, { recursive: true });
     await writeFile(join(own, "briefing.md"), doc);
     const bad = facilitatorFiles(own);
-    return bad.length
-        ? `--brief: the briefing still holds facilitator words (${bad.join(", ")}); fix the persona or task files`
+    if (bad.length)
+        return `--brief: the briefing still holds facilitator words (${bad.join(", ")}); fix the persona or task files`;
+    const facts = factsIn(doc);
+    return facts.length
+        ? `--brief: the briefing holds answer-key facts (${facts.join(", ")}); fix the file that carries them into it`
         : null;
 }
 
@@ -368,6 +386,13 @@ function leakCheck(own, given = []) {
     const allowed = [own, home, join(here, "real.mjs"), files].filter(Boolean);
     const transcripts = given.length ? given : transcriptsFor(own);
     const leaks = [];
+    // the briefing the participant was given: its own folder's, or the round's copy of it
+    const briefing = [own, home]
+        .filter(Boolean)
+        .map((d) => join(d, "briefing.md"))
+        .find((f) => existsSync(f));
+    for (const f of briefing ? factsIn(readFileSync(briefing, "utf8")) : [])
+        leaks.push({ transcript: briefing, tool: "briefing", why: "an answer-key fact", what: f });
     let calls = 0;
     for (const t of transcripts)
         for (const l of jsonLines(readFileSync(t, "utf8")))
@@ -380,18 +405,27 @@ function leakCheck(own, given = []) {
                     found.push(["a search outside its folder", b.input?.pattern ?? ""]);
                 for (const [why, what] of found) leaks.push({ transcript: t, tool: b.name, why, what });
             }
-    return { checked: new Date().toISOString(), transcripts, calls, leaks };
+    return { checked: new Date().toISOString(), briefing: briefing ?? null, transcripts, calls, leaks };
 }
 function leakLines(l, own) {
+    const read = `read: ${l.briefing ?? "no briefing"}; ${l.transcripts.join(", ") || "no participant log"}`;
+    const voids = l.leaks.map((k) =>
+        k.tool === "briefing"
+            ? `VOID: its briefing holds ${k.why}, "${k.what}" (${k.transcript})`
+            : `VOID: the participant opened ${k.why}, ${k.what} (${k.tool}, ${basename(k.transcript)})`,
+    );
     if (!l.transcripts.length)
-        return [`FAIL: the leak check read no participant log for ${own}; it cannot say the session did not leak`];
+        return [
+            read,
+            `FAIL: the leak check read no participant log for ${own}; it cannot say the session did not leak`,
+            ...voids,
+        ];
     if (!l.leaks.length)
         return [
-            `leak check: ${l.calls} tool calls in ${l.transcripts.length} participant transcripts; none opened a file outside the session folder`,
+            read,
+            `leak check: ${l.calls} tool calls in ${l.transcripts.length} participant transcripts; none opened a file outside the session folder, and its briefing holds no answer-key fact`,
         ];
-    return l.leaks.map(
-        (k) => `VOID: the participant opened ${k.why}, ${k.what} (${k.tool}, ${basename(k.transcript)})`,
-    );
+    return [read, ...voids];
 }
 // What the tool itself writes in a session folder; an --end may replace these in the round's copy.
 const TOOL_RECORD = /^(\d+\.png|briefing\.md|session\.(json|log)|setup\.log|work(-start)?\.json|leaks\.json)$/;
@@ -442,21 +476,23 @@ async function roundLeaks(rd) {
     const unread = [];
     const lines = [];
     let logs = 0;
+    let briefings = 0;
     for (const id of ids) {
         const home = join(sd, id);
         const l = leakCheck(scratchOf(home));
         logs += l.transcripts.length;
+        if (l.briefing) briefings++;
         if (!l.transcripts.length) unread.push(id);
-        else
-            lines.push(
-                ...leakLines(l, id)
-                    .filter((x) => x.startsWith("VOID"))
-                    .map((x) => `${id}: ${x}`),
-            );
+        // every briefing and log it read, by session, and what voids it
+        lines.push(
+            ...leakLines(l, id)
+                .filter((x) => /^(read|VOID):/.test(x))
+                .map((x) => `${id}: ${x}`),
+        );
         if (existsSync(home)) await writeFile(join(home, "leaks.json"), JSON.stringify(l, null, 1) + "\n");
     }
     lines.unshift(
-        `leak check: ${logs} participant logs read for ${ids.length - unread.length} of ${ids.length} sessions`,
+        `leak check: ${logs} participant logs read for ${ids.length - unread.length} of ${ids.length} sessions; ${briefings} briefings read`,
     );
     if (unread.length) lines.push(`FAIL: no participant log read for ${unread.length} sessions: ${unread.join(", ")}`);
     return { lines, failed: unread.length > 0 || lines.some((x) => x.includes("VOID")) };
@@ -2152,6 +2188,19 @@ async function prove() {
                 !/Peruzzi|Words avoided|Facilitator notes|Suits:/.test(text),
             `exit ${b.status} ${b.stderr}`,
         );
+        check(
+            "a session id that ends in a fact's word (r5-<word>) is not that fact",
+            answerFacts()
+                .filter((f) => /^\w+$/.test(f))
+                .every((f) => !factsIn(`sessions/r5-${f}/briefing.md`).length),
+            answerFacts().join(", "),
+        );
+        check(
+            "a briefing holds no answer-key fact and keeps the held-key clicks",
+            factsIn(text).length === 0 &&
+                ["--shift-click", "--ctrl-click", "--alt-click"].every((k) => text.includes(k)),
+            `facts: ${factsIn(text).join(", ")}`,
+        );
         const Q = join(base, "dirty");
         await mkdir(Q, { recursive: true });
         await writeFile(join(Q, "notes.md"), "- **Words avoided:** filter, keep\n");
@@ -2233,7 +2282,7 @@ async function prove() {
             "a participant transcript that opens tasks.md voids the session, by name",
             r.status === 1 &&
                 /VOID: .*tasks\.md.*leak\.jsonl/.test(r.stdout) &&
-                !/clean\.jsonl|grader\.jsonl|answers\.md/.test(r.stdout),
+                !/VOID: .*clean\.jsonl|grader\.jsonl|answers\.md/.test(r.stdout),
             `exit ${r.status} ${r.stdout}${r.stderr}`,
         );
         r = node(["--leaks", own, join(C, "projects/p/clean.jsonl")]);
@@ -2276,6 +2325,10 @@ async function prove() {
             await writeFile(join(d, "briefing.md"), "a briefing\n");
             await writeFile(join(d, "01.png"), "");
         }
+        // a briefing that holds answer-key facts (the first two the answer key lists, read from it so
+        // this file, which a participant may read, never holds them)
+        const planted = answerFacts().slice(0, 2).join(", ");
+        await writeFile(join(S3, "briefing.md"), `a briefing\n\nThe newer file adds two people (${planted}).\n`);
         await plantLog("s03.jsonl", `YOU ARE A STUDY PARTICIPANT. Read only ${S3}/briefing.md.`, [
             ["Read", { file_path: join(S3, "01.png") }],
         ]);
@@ -2286,6 +2339,23 @@ async function prove() {
                 /for 2 of 3 sessions/.test(r.stdout) &&
                 /FAIL: no participant log read for 1 sessions: r9-s02$/m.test(r.stdout),
             `exit ${r.status} ${r.stdout}${r.stderr}`,
+        );
+        check(
+            "the round's leak check voids a session whose briefing holds an answer-key fact, naming it",
+            planted.includes(", ") &&
+                new RegExp(
+                    `^r9-s03: VOID: its briefing holds an answer-key fact, "${reEscape(planted.split(", ")[0])}"`,
+                    "m",
+                ).test(r.stdout) &&
+                !/^r9-s0[12]: VOID: its briefing/m.test(r.stdout),
+            `planted "${planted}"; ${r.stdout}`,
+        );
+        check(
+            "the round's leak check names every briefing and every log it read",
+            /^r9-s01: read: \S+r9-s01\/briefing\.md; [^\n]*leak\.jsonl/m.test(r.stdout) &&
+                /^r9-s03: read: \S+r9-s03\/briefing\.md; \S+s03\.jsonl/m.test(r.stdout) &&
+                /^r9-s02: read: \S+r9-s02\/briefing\.md; no participant log$/m.test(r.stdout),
+            r.stdout,
         );
         // the gate: a round folder with no pilot results and no bars run may not start
         const sha = readFileSync(join(tier2, "criteria.md"), "utf8").match(/build ([0-9a-f]{7,40})/)?.[1];

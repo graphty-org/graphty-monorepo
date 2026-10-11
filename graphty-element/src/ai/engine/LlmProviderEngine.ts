@@ -107,6 +107,14 @@ export class LlmProviderEngine implements AiEngine {
     constructor(readonly provider: LlmProvider) {}
 
     /**
+     * The provider's name.
+     * @returns Its `name`.
+     */
+    get providerName(): string {
+        return this.provider.name;
+    }
+
+    /**
      * What the provider can do; it holds its own model.
      * @returns Whether it calls tools.
      */
@@ -132,6 +140,12 @@ export class LlmProviderEngine implements AiEngine {
             response = await this.provider.generate(messages, tools, { signal, toolChoice: request.toolMode });
         } catch (error) {
             yield providerFailure(error, this.provider.name, signal);
+            return;
+        }
+
+        // A provider that does not watch the signal answers anyway: the turn was still cancelled.
+        if (signal.aborted) {
+            yield providerFailure(signal.reason, this.provider.name, signal);
             return;
         }
 

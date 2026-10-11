@@ -3,29 +3,22 @@
  * the request it was given. New assistant features are tested on it, never on a real provider.
  */
 
+import { providerFailure } from "./LlmProviderEngine";
 import type { AiEngine, EngineCapabilities, EngineOutcome, TurnEvent, TurnRequest } from "./types";
 
 /**
  * One scripted turn: its events, or a function that yields them (one that waits on the signal,
- * say, to stand for a model that is still thinking).
+ * say, to stand for a model that is still thinking). A function that throws stands for a provider
+ * that failed: the engine codes what it threw, as a provider engine does.
  */
 export type FakeTurn =
     | readonly TurnEvent[]
     | ((request: TurnRequest, signal: AbortSignal) => AsyncIterable<TurnEvent> | readonly TurnEvent[]);
 
-/**
- * The event a turn ends with when its signal fired.
- * @param signal - The turn's signal.
- * @returns The error event.
- */
-function cancelled(signal: AbortSignal): TurnEvent {
-    const cause = signal.reason instanceof Error ? signal.reason : new Error("The turn was cancelled.");
-    return { type: "error", code: "AI_CANCELLED", params: {}, cause };
-}
-
 /** An engine that plays a script. */
 export class FakeEngine implements AiEngine {
     readonly kind = "fake";
+    readonly providerName = "fake";
     /** Every request, in order: what the model was shown. */
     readonly requests: TurnRequest[] = [];
     /** What `checkKey` answers. */
@@ -61,25 +54,30 @@ export class FakeEngine implements AiEngine {
      * Play the next scripted turn, recording the request.
      * @param request - The turn.
      * @param signal - Ends the turn with `AI_CANCELLED` when it fires.
-     * @yields The scripted events.
+     * @yields The scripted events; a coded error for a script that threw.
      */
     async *turn(request: TurnRequest, signal: AbortSignal): AsyncIterable<TurnEvent> {
         this.requests.push(request);
         const next = this.script.shift() ?? [{ type: "finish", reason: "stop" }];
-        const events = typeof next === "function" ? next(request, signal) : next;
-        for await (const event of events) {
-            if (signal.aborted) {
-                break;
-            }
+        try {
+            const events = typeof next === "function" ? next(request, signal) : next;
+            for await (const event of events) {
+                if (signal.aborted) {
+                    break;
+                }
 
-            yield event;
-            if (event.type === "finish" || event.type === "error") {
-                return;
+                yield event;
+                if (event.type === "finish" || event.type === "error") {
+                    return;
+                }
             }
+        } catch (error) {
+            yield providerFailure(error, this.providerName, signal);
+            return;
         }
 
         if (signal.aborted) {
-            yield cancelled(signal);
+            yield providerFailure(signal.reason, this.providerName, signal);
         }
     }
 

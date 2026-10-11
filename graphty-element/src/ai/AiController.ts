@@ -92,15 +92,14 @@ export class AiController {
     private graph: CommandContext["graph"];
     private statusManager: AiStatusManager;
     private schemaManager: SchemaManager | null;
-    private abortController: AbortController | null = null;
+    /** The messages running now, each with its request: several may run at once. */
+    private readonly running = new Map<AbortController, string>();
     private disposed = false;
     private emitEvent: AiEventEmitter | undefined;
-    private currentInput: string | null = null;
-    private startTime: number | null = null;
     private lastInput: string | null = null;
     private lastError: Error | null = null;
-    /** The abort controller of the message `cancel()` ended, so its result says cancelled, not undone. */
-    private cancelled: AbortController | null = null;
+    /** The messages `cancel()` ended, so their results say cancelled, not undone. */
+    private readonly cancelled = new WeakSet<AbortController>();
 
     /**
      * Creates a new AiController instance.
@@ -154,20 +153,19 @@ export class AiController {
         }
 
         // Track input for retry
-        this.currentInput = input;
         this.lastInput = input;
-        this.startTime = Date.now();
+        const startTime = Date.now();
         this.lastError = null;
 
         // Create new abort controller for this execution
         const abortController = new AbortController();
-        this.abortController = abortController;
+        this.running.set(abortController, input);
 
         // Emit command start event
         this.emitAiEvent({
             type: "ai-command-start",
             input,
-            timestamp: this.startTime,
+            timestamp: startTime,
         });
 
         // Transition to submitted state
@@ -216,7 +214,7 @@ export class AiController {
 
                 ({ result } = error);
                 // The batch's rollback aborts the message too, so only a cancel overrides the tool's code.
-                if (this.cancelled === abortController) {
+                if (this.cancelled.has(abortController)) {
                     result = { ...result, code: "AI_CANCELLED", params: {} };
                 }
             }
@@ -228,7 +226,7 @@ export class AiController {
             this.emitAiEvent({
                 type: "ai-command-complete",
                 result,
-                duration: Date.now() - this.startTime,
+                duration: Date.now() - startTime,
             });
 
             return result;
@@ -258,8 +256,7 @@ export class AiController {
             };
         } finally {
             stopWatching?.();
-            this.abortController = null;
-            this.currentInput = null;
+            this.running.delete(abortController);
         }
     }
 
@@ -269,7 +266,7 @@ export class AiController {
      * @returns Cancelled when `cancel()` ended it, undone otherwise.
      */
     private abortOutcome(abortController: AbortController): Outcome {
-        return { code: this.cancelled === abortController ? "AI_CANCELLED" : "AI_UNDONE", params: {} };
+        return { code: this.cancelled.has(abortController) ? "AI_CANCELLED" : "AI_UNDONE", params: {} };
     }
 
     /**
@@ -374,21 +371,17 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     }
 
     /**
-     * Cancel the current operation.
+     * Cancel every message that is running.
      */
     cancel(): void {
-        if (this.abortController) {
-            this.cancelled = this.abortController;
-            this.abortController.abort();
-
-            // Emit cancelled event
-            if (this.currentInput) {
-                this.emitAiEvent({
-                    type: "ai-command-cancelled",
-                    input: this.currentInput,
-                    reason: "user",
-                });
+        for (const [abortController, input] of this.running) {
+            if (abortController.signal.aborted) {
+                continue;
             }
+
+            this.cancelled.add(abortController);
+            abortController.abort();
+            this.emitAiEvent({ type: "ai-command-cancelled", input, reason: "user" });
         }
     }
 

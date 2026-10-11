@@ -47,6 +47,8 @@ export interface EngineFixture {
     fail(status: number): void;
     /** The next turn waits until its signal fires. */
     hang(): void;
+    /** The next turn waits until its signal fires, then answers anyway: a provider that ignores it. */
+    answerAfterAbort(answer: Answer): void;
     /** Every request the model received, in order. */
     seen(): SeenRequest[];
 }
@@ -60,33 +62,41 @@ function aborted(signal: AbortSignal): Promise<never> {
     });
 }
 
-/** A `FakeEngine`, scripted with turn events. */
+/** What a model answering `answer` streams, as turn events. */
+function answerEvents(answer: Answer): TurnEvent[] {
+    return [
+        ...(answer.text ? [{ type: "text" as const, delta: answer.text }] : []),
+        ...(answer.toolCalls ?? []).map((call) => ({ type: "tool-call" as const, ...call })),
+        ...(answer.usage
+            ? [{ type: "usage" as const, inputTokens: answer.usage.input, outputTokens: answer.usage.output }]
+            : []),
+        { type: "finish", reason: answer.toolCalls?.length ? "tool-calls" : "stop" },
+    ];
+}
+
+/** A `FakeEngine`, scripted with turn events; a failure is scripted raw, for the engine to code. */
 export function fakeFixture(): EngineFixture {
     const engine = new FakeEngine();
     return {
         engine,
         reply: (answer) => {
-            engine.push([
-                ...(answer.text ? [{ type: "text" as const, delta: answer.text }] : []),
-                ...(answer.toolCalls ?? []).map((call) => ({ type: "tool-call" as const, ...call })),
-                ...(answer.usage
-                    ? [{ type: "usage" as const, inputTokens: answer.usage.input, outputTokens: answer.usage.output }]
-                    : []),
-                { type: "finish", reason: answer.toolCalls?.length ? "tool-calls" : "stop" },
-            ]);
+            engine.push(answerEvents(answer));
         },
         fail: (status) => {
-            const cause = Object.assign(new Error(`HTTP ${status}`), { statusCode: status });
-            engine.push([
-                status === 401 || status === 403
-                    ? { type: "error", code: "AI_KEY_REJECTED", params: { provider: "fake", status }, cause }
-                    : { type: "error", code: "AI_PROVIDER_ERROR", params: { provider: "fake", status }, cause },
-            ]);
+            engine.push(() => {
+                throw Object.assign(new Error(`HTTP ${status}`), { statusCode: status });
+            });
         },
         hang: () => {
             engine.push(async function* (_request, signal) {
-                await aborted(signal).catch(() => undefined);
+                await aborted(signal);
                 yield* [];
+            });
+        },
+        answerAfterAbort: (answer) => {
+            engine.push(async function* (_request, signal) {
+                await aborted(signal).catch(() => undefined);
+                yield* answerEvents(answer);
             });
         },
         seen: () =>
@@ -148,6 +158,12 @@ export function mockProviderFixture(): EngineFixture {
         hang: () => {
             provider.next = (signal) => aborted(signal ?? new AbortController().signal);
         },
+        answerAfterAbort: (answer) => {
+            provider.next = async (signal) => {
+                await aborted(signal ?? new AbortController().signal).catch(() => undefined);
+                return { text: answer.text ?? "", toolCalls: answer.toolCalls ?? [] };
+            };
+        },
         seen: () =>
             provider.asks.map(({ messages, tools, toolChoice }) => ({
                 system: messages.find((m) => m.role === "system")?.content ?? "",
@@ -198,6 +214,27 @@ async function events(
     }
 
     return out;
+}
+
+/**
+ * Asserts a turn ended with one error event and nothing else of note: no finish anywhere, and
+ * nothing after the error. The loop relies on it, stopping at the first error.
+ * @param out - The turn's events.
+ * @returns The error event.
+ */
+function endsInError(out: TurnEvent[]): Extract<TurnEvent, { type: "error" }> {
+    const last = out.at(-1);
+    assert.strictEqual(last?.type, "error", "the turn ends with an error");
+    assert.strictEqual(
+        out.findIndex((e) => e.type === "error"),
+        out.length - 1,
+        "nothing follows the error",
+    );
+    assert.notOk(
+        out.some((e) => e.type === "finish"),
+        "a failed turn does not finish",
+    );
+    return last as Extract<TurnEvent, { type: "error" }>;
 }
 
 /**
@@ -295,32 +332,41 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
             const pending = events(engine, request(), controller.signal);
             controller.abort();
             const out = await pending;
-            const last = out.at(-1);
-            assert.strictEqual(last?.type === "error" ? last.code : undefined, "AI_CANCELLED");
-            assert.notOk(out.slice(0, -1).some((e) => e.type === "tool-call" || e.type === "finish"));
+            assert.strictEqual(endsInError(out).code, "AI_CANCELLED");
+            assert.notOk(out.some((e) => e.type === "tool-call"));
+        });
+
+        it("ends a turn whose provider answers after the abort with AI_CANCELLED, dropping the answer", async () => {
+            const { engine, answerAfterAbort } = make();
+            answerAfterAbort({
+                text: "late",
+                toolCalls: [{ id: "t1", name: "findNodes", arguments: { selector: "a" } }],
+            });
+            const controller = new AbortController();
+            const pending = events(engine, request(), controller.signal);
+            controller.abort();
+            const out = await pending;
+            assert.strictEqual(endsInError(out).code, "AI_CANCELLED");
+            assert.notOk(out.some((e) => e.type === "tool-call"));
         });
 
         for (const status of [401, 403]) {
             it(`codes a ${status} as AI_KEY_REJECTED with the status`, async () => {
                 const { engine, fail } = make();
                 fail(status);
-                const out = await events(engine, request());
-                const last = out.at(-1);
-                assert.strictEqual(last?.type, "error");
-                if (last?.type === "error") {
-                    assert.strictEqual(last.code, "AI_KEY_REJECTED");
-                    assert.strictEqual(last.params.status, status);
-                    assert.instanceOf(last.cause, Error);
-                }
+                const last = endsInError(await events(engine, request()));
+                assert.strictEqual(last.code, "AI_KEY_REJECTED");
+                assert.strictEqual(last.params.status, status);
+                assert.instanceOf(last.cause, Error);
             });
         }
 
         it("codes any other failure as AI_PROVIDER_ERROR with the status", async () => {
             const { engine, fail } = make();
             fail(500);
-            const last = (await events(engine, request())).at(-1);
-            assert.strictEqual(last?.type === "error" ? last.code : undefined, "AI_PROVIDER_ERROR");
-            assert.strictEqual(last?.type === "error" ? last.params.status : undefined, 500);
+            const last = endsInError(await events(engine, request()));
+            assert.strictEqual(last.code, "AI_PROVIDER_ERROR");
+            assert.strictEqual(last.params.status, 500);
         });
 
         it("reports the turn's usage", async () => {

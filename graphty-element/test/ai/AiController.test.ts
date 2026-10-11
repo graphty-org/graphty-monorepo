@@ -557,6 +557,57 @@ describe("AiController", () => {
         });
     });
 
+    describe("cancel", () => {
+        it("cancels every message that is running, not only the newest", async () => {
+            let asks = 0;
+            let bothAsked: () => void = () => undefined;
+            const asked = new Promise<void>((resolve) => {
+                bothAsked = resolve;
+            });
+            // A model that thinks until its request is aborted.
+            const thinking: LlmProvider = {
+                name: "thinking",
+                supportsStreaming: false,
+                supportsTools: true,
+                configure: () => undefined,
+                generate: (_messages, _tools, options) =>
+                    new Promise<LlmResponse>((_, reject) => {
+                        options?.signal?.addEventListener("abort", () => {
+                            reject(new Error("aborted"));
+                        });
+                        if (++asks === 2) {
+                            bothAsked();
+                        }
+                    }),
+                generateStream: () => Promise.reject(new Error("not used")),
+                validateApiKey: () => Promise.resolve(true),
+            };
+            const cancelledInputs: string[] = [];
+            const two = new AiController({
+                provider: thinking,
+                commandRegistry: registry,
+                graph: mockGraph,
+                emitEvent: (event) => {
+                    if (event.type === "ai-command-cancelled") {
+                        cancelledInputs.push(event.input);
+                    }
+                },
+            });
+
+            const first = two.execute("first");
+            const second = two.execute("second");
+            await asked;
+            two.cancel();
+
+            const results = await Promise.all([first, second]);
+            assert.deepEqual(
+                results.map((r) => r.code),
+                ["AI_CANCELLED", "AI_CANCELLED"],
+            );
+            assert.deepEqual(cancelledInputs, ["first", "second"]);
+        });
+    });
+
     describe("dispose", () => {
         it("disposes cleanly", () => {
             controller.dispose();

@@ -14,7 +14,16 @@ import type { ExecutionResult } from "./AiController";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, CommandResult, GraphCommand } from "./commands/types";
 import { toolJsonSchema } from "./engine/jsonSchema";
-import type { AiEngine, JsonSchema, SavedMessage, ToolSpec, TurnError, TurnRequest } from "./engine/types";
+import { providerFailure } from "./engine/LlmProviderEngine";
+import type {
+    AiEngine,
+    JsonSchema,
+    SavedMessage,
+    ToolResultOutcome,
+    ToolSpec,
+    TurnError,
+    TurnRequest,
+} from "./engine/types";
 import { MAX_TOOL_TURNS } from "./prompt/SystemPromptBuilder";
 import {
     type BatchOutcome,
@@ -203,7 +212,8 @@ function combineResults(results: CommandResult[], llmText?: string, failure?: Ou
  * @param request - The turn.
  * @param earlier - The text of the message's earlier turns, for the accumulated text.
  * @returns The turn's text and calls.
- * @throws {TurnFailed} When the turn ends with an error.
+ * @throws {TurnFailed} When the turn ends with an error, ends without a `finish` (a dropped
+ *   stream: its calls may be cut short, so none runs), or finishes after the message was cancelled.
  */
 async function modelTurn(
     run: ConversationRun,
@@ -212,6 +222,7 @@ async function modelTurn(
 ): Promise<{ text: string; calls: ToolCallRequest[] }> {
     const { engine, sink, abort } = run;
     let text = "";
+    let finished = false;
     const calls: ToolCallRequest[] = [];
     for await (const event of engine.turn(request, abort.signal)) {
         if (event.type === "text") {
@@ -223,8 +234,17 @@ async function modelTurn(
         } else if (event.type === "error") {
             throw new TurnFailed(event);
         } else if (event.type === "finish") {
+            finished = true;
             break;
         }
+    }
+
+    // A provider that ignores the signal may still answer after a cancel: the answer is dropped.
+    if (abort.signal.aborted || !finished) {
+        const cause = abort.signal.aborted
+            ? abort.signal.reason
+            : new Error("The model's turn ended without finishing.");
+        throw new TurnFailed(providerFailure(cause, engine.providerName, abort.signal));
     }
 
     return { text, calls };
@@ -260,10 +280,16 @@ function appendRound(conversation: Conversation, text: string, calls: ToolCallRe
             role: "tool",
             parts: calls.map((call, index) => {
                 const result = batch.results.at(index);
-                const outcome: Outcome =
-                    result?.success === true
-                        ? { code: "AI_COMPLETED", params: {} }
-                        : (batch.failure ?? { code: "AI_TOOL_FAILED", params: { tool: call.name } });
+                let outcome: ToolResultOutcome;
+                if (result === undefined) {
+                    // Not run: an earlier call in the batch failed.
+                    outcome = { code: "AI_TOOL_NOT_RUN", params: { tool: call.name } };
+                } else if (result.success) {
+                    outcome = { code: "AI_COMPLETED", params: {} };
+                } else {
+                    outcome = batch.failure ?? { code: "AI_TOOL_FAILED", params: { tool: call.name } };
+                }
+
                 return {
                     type: "tool-result" as const,
                     origin: "graph-data" as const,

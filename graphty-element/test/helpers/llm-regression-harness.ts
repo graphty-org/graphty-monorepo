@@ -130,8 +130,10 @@ export function accountRefusalOf(failure: RequestFailure): string | null {
 }
 
 /**
- * Whether a failure is worth asking again: the provider was rate limited (429), failed on its side
- * (5xx), or could not be reached at all (no status).
+ * Whether a failure is worth asking again: the provider was rate limited (429) or failed on its
+ * side (5xx). A failure with no status is retried only when its message names a network failure;
+ * any other (a response that failed validation, say) fails the same way every time, and a retry
+ * would only spend the paid key and hide the failure from the pass counts.
  * @param failure - What the request failed with.
  * @returns True for a transient failure.
  */
@@ -141,7 +143,11 @@ export function isTransientFailure(failure: RequestFailure): boolean {
     }
 
     const { status } = failure.params ?? {};
-    return status === undefined || status === 429 || (typeof status === "number" && status >= 500);
+    if (status === undefined) {
+        return /fetch failed|econnreset|etimedout|socket/i.test(failure.message);
+    }
+
+    return status === 429 || (typeof status === "number" && status >= 500);
 }
 
 /**
@@ -178,11 +184,13 @@ export interface CapturedToolCall {
  */
 export class RecordingEngine implements AiEngine {
     readonly kind: AiEngine["kind"];
+    readonly providerName: string;
     capturedToolCalls: CapturedToolCall[] = [];
     capturedTokenUsage?: { prompt: number; completion: number };
 
     constructor(private readonly inner: AiEngine) {
         this.kind = inner.kind;
+        this.providerName = inner.providerName;
     }
 
     capabilities(model: string): EngineCapabilities {

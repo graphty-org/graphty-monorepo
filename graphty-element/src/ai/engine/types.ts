@@ -42,15 +42,23 @@ export type SavedPart =
           readonly arguments: Readonly<Record<string, unknown>>;
           readonly providerState?: ProviderState;
       }
-    | {
+    | ({
           readonly type: "tool-result";
           readonly origin: "graph-data";
           readonly callId: string;
-          readonly code: AiResultCode;
-          readonly params: AiResultParams;
           /** The text the model reads: the result as JSON, truncated. */
           readonly content: string;
-      };
+      } & ToolResultOutcome);
+
+/**
+ * What one tool call did, as its result part records it: a command result's code, or
+ * `AI_TOOL_NOT_RUN` (`{ tool }`) for a call that did not run because an earlier call in its batch
+ * failed. That code is internal until the saved conversation format is published (milestone 3).
+ */
+export interface ToolResultOutcome {
+    readonly code: AiResultCode | "AI_TOOL_NOT_RUN";
+    readonly params: AiResultParams;
+}
 
 /**
  * One message of a conversation, in graphty's own shape. The saved conversation format
@@ -131,6 +139,8 @@ export interface EngineOutcome {
 /** Talks to a model, one turn per call. */
 export interface AiEngine {
     readonly kind: "provider-api" | "llm-provider" | "fake";
+    /** The provider's name, the `provider` of a failure's params. */
+    readonly providerName: string;
     capabilities(model: string): EngineCapabilities;
     /** One model turn: one request to the model, no tool run. Ends with a `finish` or an `error`. */
     turn(request: TurnRequest, signal: AbortSignal): AsyncIterable<TurnEvent>;

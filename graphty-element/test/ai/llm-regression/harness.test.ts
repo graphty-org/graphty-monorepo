@@ -217,15 +217,22 @@ describe("LlmRegressionTestHarness", () => {
     });
 
     describe("retries", () => {
-        it("asks again after a rate limit, a provider failure or no answer, and after nothing else", () => {
-            const failure = (code: "AI_PROVIDER_ERROR" | "AI_KEY_REJECTED", status?: number): RequestFailure => ({
+        it("asks again after a rate limit, a provider failure or a network failure, and after nothing else", () => {
+            const failure = (
+                code: "AI_PROVIDER_ERROR" | "AI_KEY_REJECTED",
+                status?: number,
+                message = "failed",
+            ): RequestFailure => ({
                 code,
                 params: status === undefined ? { provider: "google" } : { provider: "google", status },
-                message: "failed",
+                message,
             });
             assert.isTrue(isTransientFailure(failure("AI_PROVIDER_ERROR", 429)));
             assert.isTrue(isTransientFailure(failure("AI_PROVIDER_ERROR", 503)));
-            assert.isTrue(isTransientFailure(failure("AI_PROVIDER_ERROR")));
+            assert.isTrue(isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "fetch failed")));
+            assert.isTrue(isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "read ECONNRESET")));
+            // No status and no network failure: a response that failed validation fails the same way again.
+            assert.isFalse(isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "Invalid JSON response")));
             assert.isFalse(isTransientFailure(failure("AI_PROVIDER_ERROR", 400)));
             assert.isFalse(isTransientFailure(failure("AI_KEY_REJECTED", 401)));
             assert.isFalse(isTransientFailure({ code: "AI_FAILED", params: {}, message: "failed" }));

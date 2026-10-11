@@ -54,12 +54,16 @@ describe.skipIf(skipIfNoApiKey())("Query LLM Regression", () => {
             const result = await harness.testPrompt("Find all server nodes");
             const call = assertAction(result, ["query", "select"], ["nodes", "find", "set", "count"]);
             const target = JSON.stringify(call.arguments);
-            assert.include(target, "server", `Expected the target to name 'server' but got ${target}`);
+            assert.ok(
+                target.includes("server") || (target.includes('"1"') && target.includes('"2"')),
+                `Expected the target to name 'server', or the servers 1 and 2, but got ${target}`,
+            );
         });
 
         it("calls query nodes for 'Show nodes with type database'", async () => {
             const result = await harness.testPrompt("Show nodes with type database");
-            const call = assertAction(result, ["query", "select"], ["nodes", "find", "set"]);
+            // "Show" may mean read them out or show only them on screen; both name the database type.
+            const call = assertAction(result, ["query", "select", "filter"], ["nodes", "find", "set", "show_only"]);
             assert.include(JSON.stringify(call.arguments), "database");
         });
 

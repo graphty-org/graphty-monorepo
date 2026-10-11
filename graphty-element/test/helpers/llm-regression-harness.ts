@@ -656,9 +656,13 @@ export function assertAction(
     }
 
     const calls = reachedCalls(result);
-    const call = calls.find(
-        (candidate) => tools.includes(candidate.name) && (wanted === undefined || wanted.includes(actionOf(candidate))),
-    );
+    // The last such call: when the model corrects a refused call, the correction is what took effect.
+    const call = [...calls]
+        .reverse()
+        .find(
+            (candidate) =>
+                tools.includes(candidate.name) && (wanted === undefined || wanted.includes(actionOf(candidate))),
+        );
     if (!call) {
         const made = calls.map((candidate) => `${candidate.name}.${actionOf(candidate)}`).join(", ") || "none";
         throw new Error(

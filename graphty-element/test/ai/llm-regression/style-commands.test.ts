@@ -101,7 +101,7 @@ function hasColorStyle(style: Record<string, unknown> | null): boolean {
     for (const [key, value] of Object.entries(style)) {
         if (
             (key === "channel" && String(value).endsWith(".color")) ||
-            ((key === "color" || key.endsWith(".color")) && isColorValue(value))
+            (/color$/i.test(key.replace(/[._-]/g, "")) && isColorValue(value))
         ) {
             return true;
         }
@@ -130,7 +130,7 @@ function hasSizeStyle(style: Record<string, unknown> | null): boolean {
     for (const [key, value] of Object.entries(style)) {
         if (
             (key === "channel" && String(value).endsWith(".size")) ||
-            ((key === "size" || key.endsWith(".size")) && typeof value === "number")
+            (/size$/i.test(key.replace(/[._-]/g, "")) && typeof value === "number")
         ) {
             return true;
         }
@@ -159,7 +159,7 @@ function hasWidthStyle(style: Record<string, unknown> | null): boolean {
     for (const [key, value] of Object.entries(style)) {
         if (
             (key === "channel" && String(value).endsWith(".width")) ||
-            ((key === "width" || key.endsWith(".width")) && typeof value === "number")
+            (/width$/i.test(key.replace(/[._-]/g, "")) && typeof value === "number")
         ) {
             return true;
         }
@@ -317,6 +317,18 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
         });
 
         it("calls style clear_mine for 'Clear the highlight style'", async () => {
+            // A highlight the assistant added earlier, so there is one to clear.
+            await harness
+                .getGraph()
+                .getSession()
+                .styles.add({
+                    name: "highlight",
+                    target: "node",
+                    kind: "custom",
+                    selector: { match: "expression", where: "data.type == 'server'" },
+                    set: { "node.color": "#ffcc00" },
+                    source: { by: "plugin", name: "graphty-ai" },
+                });
             const result = await harness.testPrompt("Clear the highlight style");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");

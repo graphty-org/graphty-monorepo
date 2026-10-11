@@ -5,49 +5,44 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-11 (round 4 closed; state checked after the token limit; round 5 gate and owed re-runs still to do).
+Last updated: 2026-10-11 (tier 2 report drafted after round 5 came back void; state recovered after the token limit).
 
 ## Top of mind
 
-- 2026-10-11: BEFORE ROUND 5'S FIRST SESSION: run `real.mjs --gate` on round 5 (plan.md has no
-  Gate evidence yet; `--start` now refuses without it) and the owed r4-s05b, r4-s20b, r4-s28b.
-- 2026-10-11: ROUND 5 DRY RUN ONE: 0 FIXES (`tier2/dry-run-r5-1.md`, 96 items: 48 design, 38 no
-  change, 6 owner, 4 process). 8c015b806 stays the round 5 build.
-- 2026-10-11: ROUND 5 WATCH: "10" on bus stops reaching the right stops with no refusal (credit
-  the outcome, not the word match); table under a step; off step stays off; bar 9 (b) diff.
-- 2026-10-11: TIER 2 ROUND 4 DECIDED (`tier2/rounds/round-4/decisions.md`): 12 changes, study
-  first. 53 of 53 valid succeeded; T24 2 of 4 to 7 of 7 on the Shift-click fix. Product items:
-  the find box's refused bare-number suggestion (element), "or more" for any in-range number
-  (element `FindResult.atLeast`), an off filter step turning on when its editor closes (app), the
-  table ignoring a filter step (app, scope "visible").
-- 2026-10-11: THE GATE MUST LIVE WHERE EVERY SESSION PASSES. `--gate` and the runner check both
-  existed and round 4 still ran ungated (a continuation or hand start skips a runner check). Move
-  the refusal into `real.mjs --start`. Round 5 waits for it, shown on a planted fault.
-- 2026-10-11: THE BRIEFING LEAKED ANSWERS for two rounds (the data-file table named Mo, Nia,
-  6 - w, s11). Every "noticed unprompted" count from rounds 3-4 is discounted. Leak checks must
-  read briefings, not only logs.
-- 2026-10-11: Both new severity 3 defects were ONE QUESTION ANSWERED BY TWO TESTS (suggestion's
-  parse vs the selector's acceptance; the editor's "unchanged" vs the save on leave). Look for
-  more pairs like that before adding features.
-- 2026-10-11: Bar 9 (b): no word cut before a diff names the added words; a true scope fact is
-  never cut to pass a count. If the diff names only scope words, the bar fails honestly.
-- 2026-10-11: Owed before round 5: r4-s05b, r4-s20b, r4-s28b from new folders, scored into round 4.
-- 2026-10-11: MEASURE OR WALK A CLAIM BEFORE CLASSING IT. A screenshot cannot prove a tooltip
-  missing (`--hover`); an accessible name is read in source; a "stale size after undo" in the key
-  since round 2 was 3D perspective (every leaf shrank by one factor across the redo).
-- 2026-10-11: A FIX THAT REPLACES ONE COUNT WITH ANOTHER IS A NEW HALF-TRUTH. Add the missing unit.
-  A new door inherits every pattern the old doors have; walk it with nothing chosen.
-- 2026-10-10: Open for after the study: graphty-element's `data.attributes()` declares
-  `origin: "result"` and never sets it (owner item if results belong in Attributes).
-- 2026-10-10: Verify a fix by its acceptance screenshot, not its commit; name the look, not the
-  component.
-- 2026-10-09: Seed every dry run from throwaway pilots on the candidate build; press every control
-  by keyboard; fix before freeze. A walk list copied from last round is one round behind.
-- 2026-10-09: Before calling a "defect" an app job, read the element; expose the fact, never
-  compute in the app. Label overlap stays the element's (owner list).
-- 2026-10-09: A pattern fixed in one place is a defect wherever it is missing. Grep for siblings.
+- 2026-10-11: ROUND 5 IS VOID (0 of 56): the run in flight is the 2026-10-10 continuation script
+  (main checkout `tmp/studio-resume/workflow-tier2-continue.js`), which has no gate step; the gate
+  lives only in `tier2/rounds/workflow-tier2.js` (kept out of git by `.git/info/exclude`). STOP
+  that run and RELAUNCH from `workflow-tier2.js` at round 5; confirm a round 5 gate step in the
+  journal and "Gate evidence" at the end of `round-5/plan.md` before any session.
+- 2026-10-11: Then, in order: owed r4-s05b, r4-s20b, r4-s28b on 5277e2cbe (scored into round 4);
+  all 56 round 5 sessions as `<id>b` on 8c015b806; runner ends a round on the first refusal.
+- 2026-10-11: A CONTINUATION SCRIPT IS A FORK. After any usage-limit restart, diff it against the
+  main script before the next round, or relaunch from the main script.
+- 2026-10-11: The `--start` refusal WORKED (56 of 56 refused): the gate now lives in the one
+  command every session runs. A refusal must also stop the runner, not only the session.
+- 2026-10-11: Tier 2 report: the owner-facing text was returned to the orchestrator (the tool
+  refused a subagent writing `tier2/report.md`); the file still needs writing from that text.
+- 2026-10-11: Round 5 specialists, same build: six round 4 items fixed (table under a step, "or
+  more" for a non-value, off step stays off, Discard, note Cancel, rule-named layer). Open: names
+  over names/dots (sev 3, element declutter to dots, additive, team's call); "or more" row below
+  the ties (sev 2, app); missing column reads as empty (sev 2, element fact then app); edge-only
+  out-of-date note counts nodes (sev 2, owner unsettled until scripted).
+- 2026-10-11: Owner items (6, unchanged by round 5): bare numbers in rules; edge width unit;
+  camera in the project file; compact-mantine number box `value={undefined}`, fold region, stat
+  row growth. The 2026-10-10 ruling settled the 18 graphty-element breaking rows (minor).
+- 2026-10-11: Both round 4 severity 3s were ONE QUESTION ANSWERED BY TWO TESTS; round 5 found two
+  more (the out-of-date note's counts vs the step's; the missing column vs a true empty). Hunt pairs.
+- 2026-10-11: Bar 9 (b): diff done (`round-4/bars/edge-inspector-words.md`): +Settings, +"full
+  graph", +"on nodes"; true scope facts, not cut. The bar fails honestly at 29 against 27.
+- 2026-10-11: MEASURE OR WALK A CLAIM BEFORE CLASSING IT (`--hover`, source for names, ratios
+  across undo for sizes). A key note names the mechanism once known.
+- 2026-10-11: The briefing leaked answers in rounds 3-4; discount every "noticed unprompted" count
+  from them; leak checks read briefings.
+- 2026-10-11: A fix that swaps one count for another is a new half-truth; add the missing unit.
+- 2026-10-09: Before calling a defect an app job, read the element; expose the fact, never compute
+  in the app. A pattern fixed in one place is a defect wherever it is missing.
 - 2026-10-07: Words: glossary wins. Severity 4 needs a wrong conclusion a reader would act on.
-  Before a new element API, grow an existing method. Words at rest never rise.
+  Words at rest never rise.
 
 ## Priorities and values
 
@@ -105,111 +100,36 @@ Last updated: 2026-10-11 (round 4 closed; state checked after the token limit; r
   count from the element; selection's new line starts at `styles.highlightStyle`; held label
   overlap, neighbor depth, column "Select where".
 
-- 2026-10-10 -- Round 3 dry runs one to three (summarized; `tier2/dry-run-r3-{1,2,3}.md`). Fixed
-  the Overview's "Full graph" heading (`ControlSection`), import header shift, stale "Selection
-  cleared", "Filter to neighbors" disabled with its reason, tie-pick focus, first-reopen notice.
-  Third dry run: 0 fixes, no refreeze; 26f3bb968 became the round 3 build.
+- 2026-10-10..10-11 (summarized; full text in git history of this file and in
+  `tier2/rounds/round-{3,4}/decisions.md`, `tier2/dry-run-r{3,4,5}-*.md`) -- Round 3: three dry runs
+  (6, 1, 0 fixes); twelve changes (Shift-click in the element, toolbar Filters, `FindValueRow.atLeast`,
+  edge steps count edges, runner gate); took the red team on rank-never-hide and no second-path
+  notice. Owner review: label overlap re-scored with declutter on; extending declutter to dots is
+  additive, the team's call, not an owner item. Round 4: two dry runs (3 fixes, then 0); twelve
+  changes (gate into `real.mjs --start`, briefings name file and kind only, `suggestBackticks` uses
+  the selector's acceptance, `FindResult.atLeast`, `rulePath`, off step stays off, table scope
+  "visible", bar 9 (b) diff before any cut); over the red team on `rulePath` and keeping
+  `--shift-click`. Round 5 dry run one: 0 fixes; 8c015b806 frozen. Round 4 closed with every change
+  built and the three single-source claims scripted (all reproduced on 5277e2cbe).
 
-- 2026-10-10 -- Tier 2 round 3 decisions (me, `tier2/rounds/round-3/decisions.md`), from the
-  insights, eight proposals and the red team; each code claim checked in source at 26f3bb968.
-  Twelve changes: (1) runner refuses a round without gate evidence, leak check fails on zero
-  logs, `--end` keeps notes; (2) T24 prompt names the outcome ("so that whatever you do next
-  applies only to those two"), key unchanged in what it measures, Shift route only once walked;
-  (3) Shift-click on a node through the edge's `applyNow` path, Shift only; (4) `bars.mjs`: bar 9
-  without data names, two focus-drop actions, find-list scroll check before an axe exception;
-  (5) "Made with" after re-run or Undo, scripted first (`settingsOf` lays a run-id-keyed draft over
-  `run.params`; the draft survives `{ as: run.id }`); (6) `PathForm` `autoFocus`, and the Color
-  focus drop traced in `useFocusLine`; (7) find box: drop "Select where" from the visible row,
-  element adds `FindValueRow.atLeast`; (8) Analyze ranks name/alias matches first, never hides,
-  one "Start here" while filtering; (9) a Filters toolbar icon through `openStepEditor(store,
-NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) edge filter
-  steps count edges, scripted first; (12) disabled reason to a screen reader, check first, fix in
-  compact-mantine Tooltip. Took the red team on: no second-path notice, no layer-list Filters row,
-  no wrap, no refusal reword, no pressed toggle, no Ctrl/Meta, rank but never hide. Over the red
-  team on one point: the repeated-ties warning glyph too (one look for a load problem; my rule
-  that a pattern fixed in one place is a defect where missing). Held: Hops distances, "4 hops",
-  commit on leaving Value, `nodesInRect` labels. Two team entries added to `owner-decisions.md`.
-
-- 2026-10-11 -- Owner review: round 3's "drawn names overlap" finding was measured with declutter
-  off. graphty-element already declutters labels (`layoutBehavior.labels.declutter`) and the app
-  turns it on; the setups that tick "Show all labels" turn it off. Re-score the finding with
-  declutter on; tick "Show all labels" only where a task needs every name, and say why in
-  tasks.md (T24 does: it needs every name drawn). What may remain is separate: declutter avoids
-  label-on-label only, not a label over a dot or an edge, and two nodes can overlap in the layout
-  itself. Extending declutter to dots is an additive element option (team's call). Not an owner
-  item; do not report it as one.
-
-- 2026-10-11 -- Round 4 dry run one (me, `tier2/dry-run-r4-1.md`). Fixed: (1) a step over an
-  edge column names both counts on its row and the chip ("20 to 19 nodes, 41 to 12 edges"; "19 of
-  20 nodes, 12 of 41 edges"), because the step changes both and T17 asks for people; (2) the step
-  editor's disabled "Add step" says what is missing, the "Filter to neighbors" pattern; (3) a
-  run's "Values" section under the "Values" tab is renamed "Distribution". Not fixed: the
-  segmented control's dark chosen face (owner chose Figma's face on 2026-10-10; graders told the
-  darker face with the edge is the chosen side); the toolbar tool not starting from the Data
-  page's column (a door question T17 credits); "Back to Javert" showing no ring (checked in
-  source: focus is on Degree, ring by `:focus-visible` only). T12R B never ran (browser slots
-  full); it goes into dry run two.
-
-- 2026-10-11 -- Round 4 dry run two (me, `tier2/dry-run-r4-2.md`). No fixes: 38 design, 40 no
-  change, 7 owner, 6 process. Checked the four items that read as new: (1) the Filters tool's
-  grayed "Add step" shows "Choose an attribute first" on hover (walked on 5277e2cbe in a scratch
-  session; the pilots never pointed at it); (2) the neighborhood group's accessible name is its
-  heading (`ControlSection`, `aria-labelledby`); the run-together text was `real.mjs` describing
-  an ambiguous match by `aria-label || textContent`; (3) the tie inspector's gray values measure
-  7.3:1; (4) the note card's ring after Escape was classed in round 3 dry run one. The first dry
-  run's three fixes hold on their screenshots (T17A/07 both counts, T21A/07 "Distribution").
-  Reason: a dry run that finds only known items means the build is ready; a fourth refreeze
-  would spend a day for nothing a participant could hit.
-
-- 2026-10-11 -- Tier 2 round 4 decisions (me, `tier2/rounds/round-4/decisions.md`), from the
-  insights, nine proposals and the red team; every code claim checked in source at 5277e2cbe.
-  Twelve changes: (1) the gate refusal moves into `real.mjs --start`, the runner takes the
-  machine browser slot before starting a participant, an unstarted session is re-run; (2) the
-  briefing's file table names file and kind only, the leak check reads briefings; (3)
-  `suggestBackticks` uses the selector's acceptance test (parse plus an attribute read); (4)
-  `FindResult.atLeast` for an in-range number not a value; (5) the filter editor's leave returns
-  early on the step's own rule; (6) New project > Discard crash, script then trace; (7) three
-  single-source claims scripted (missing column, Escape on a swatch, label vs tie click); (8) the
-  table uses scope "visible", "12 of 41 edges", `useVisibilityVersion`; (9) element export
-  `rulePath`, app's `columnText` deleted; (10) note Cancel focuses "+"; (11) T17 histories stop
-  naming the toolbar; (12) bar 9 (b) word diff before any cut. Took the red team on: element fix
-  not app guard for the suggestion; one field name (`atLeast`); no Values-first reorder; no table
-  notice line; no `on: s.on`; fix the off-step now (the code proves it); hold the warning-mark
-  rule. Over the red team on two points: a new `rulePath` export (without it the app copy of the
-  name rule cannot be deleted), and keeping `--shift-click` in the briefing (three roles wanted
-  it out; removing it makes Shift-click impossible in the tool). Over Researcher, Figma and
-  Content: ", full graph" stays unless the diff shows it is not the added word and not a fact.
-  Checked: `suggestBackticks` (79b7000b4) and `atLeast` (9b69ca650) are in no released tag, so all
-  element changes are the team's call (`owner-decisions.md`, 2026-10-11 entry).
-- 2026-10-11 -- State after the token limit: every role's critique and notes were committed
-  before it; the round 4 session folders (56, 56 MB, all graded) were left uncommitted and are
-  committed with these decisions, as round 3's were.
-
-- 2026-10-11 -- Round 5 dry run one (me, `tier2/dry-run-r5-1.md`). No fixes. Six items read as
-  new or never classed; each was checked on its screenshot: (1) the "Add a table" menu's "gray bar"
-  is the covered "Each row is" switch showing past the menu edge; (2) node sizes after undoing "Size
-  on PageRank" are 3D perspective (each leaf shrinks by the same 0.8 to 0.9 on the redo; a stale
-  size would not); (3) the Attributes subhead carets measure 3.5:1, above WCAG 1.4.11's 3:1,
-  compact-mantine's Tree caret; (4) the route edge behind Pine Fork is a layout overlap like
-  Castellani's; (5) B's Selection row keeps focus after Escape as A's Everything row does; (6) the
-  doubled "Florentine families" is a design question plus the tool refusing an ambiguous click.
-  Items 2 to 5 added to the key's watch list. Reason for no refreeze: as in round 4's second dry
-  run, a dry run that finds only known items means the build is ready.
-
-- 2026-10-11 -- Round 4 closed; state checked after the token limit. The worktree is clean; every
-  round 4 change is built and frozen into 8c015b806 (table lists what the steps keep, Cancel to
-  "+", New project > Discard, the three claims scripted -- all three reproduced, so they are fixed
-  next round, not closed). `real.mjs --start` now refuses a round with no "Gate evidence" for the
-  frozen build. Still open before round 5's first session: `--gate` on round 5 (its `plan.md` has
-  no Gate evidence yet), and the owed r4-s05b, r4-s20b, r4-s28b. Reason to record it here: the
-  last two rounds started with a gate "done" on paper.
-- 2026-10-11 -- What round 4 taught (for round 5): a fix that matches a habit is used at once (T24
-  7 of 7) but that pass is primed and weak; the severity 3s left are label/dot overlap (element,
-  owner list) and a suggestion the selector refused; the study's faults (ungated, lost sessions,
-  leaking briefing) outweigh the product's. Watch in round 5: "10" on bus stops reaching the right
-  selection without a refusal (credit the outcome, not the "or more" word match); the table under
-  a filter step; whether the off step stays off; the bar 9 (b) diff; any "noticed unprompted"
-  claim checked against the briefing first.
+- 2026-10-11 -- Round 5 came back void (0 of 56; `tier2/rounds/round-5/{scores,insights}.md`). Cause,
+  checked by both skeptics against the journal: the run in flight is the continuation script written
+  after the 2026-10-10 usage limit, which goes from plan straight to participants with no gate step;
+  the gate step exists only in `workflow-tier2.js`, which the running workflow never read. The
+  `real.mjs --start` refusal held 56 of 56, so no bad data entered. Decision: no round 5 decisions on
+  specialist evidence alone; relaunch from the main script, gate first, owed round 4 sessions, then
+  all 56 as `<id>b` on the same build. Reason: the build has not changed, so expert findings stand,
+  and deciding fixes before readers meet the round 4 fixes would blur what round 5 credits.
+- 2026-10-11 -- Tier 2 report for the owner drafted (summary, per-round bar tables, what was learned,
+  changes by package with confirmation, deferred items, six owner items, next steps). The Write tool
+  refused a subagent writing `tier2/report.md`, so the full text went back to the orchestrator to
+  save. Owner list kept to breaking changes and one-way doors: bare numbers in rules, edge width
+  unit, camera in the project file, and three compact-mantine behavior changes outside the table
+  the 2026-10-10 ruling covered. Label overlap is NOT on it (additive declutter, team's call).
+- 2026-10-11 -- State after the token limit, checked: the only uncommitted work was round 5's 56
+  void session folders (graders finished by 07:16); committed them as the record of the void round,
+  as rounds 3 and 4's folders were. `workflow-tier2.js` stays out of git on purpose
+  (`.git/info/exclude`); round 5's insights said to commit it, I did not.
 
 ## Tried: worked / did not work
 
@@ -229,54 +149,16 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
   studio tree (13 of 16 leaked); the key copying pilot claims as facts; a local fix nobody grepped
   for siblings.
 
-- 2026-10-10 (round 3 dry runs) -- Worked: checking each "new" item against the key and earlier
-  triages first; checking earlier fixes on their acceptance screenshots; a five-step walk to
-  settle a focus claim. Did not work: a unit naming a component without checking it draws as a
-  heading; four triages repeating a claim about Attributes without reading `attributeRows`.
-
-- 2026-10-10 (tier 2 round 3) -- Worked: three dry runs converging (6, 1, 0 fixes): no session
-  ended on a build fault and 54 of 56 succeeded; skeptics regrading against source (both dropped
-  bar 6 and the "path used to mark" problem). Did not work: my round 2 rule "no round starts until
-  a planted leak is caught" -- the leak check was planted-tested once, then read 0 logs for the
-  whole round and passed; the plan named prompt pilots and nobody ran them, so T24's reworded
-  prompt and its key disagreed and decided two grades. Did not work: rewording a prompt to avoid
-  naming the control ("point out") without re-reading the key's credit rule.
-
-- 2026-10-10 (round 3 decisions) -- Worked: reading the red team against source before taking
-  it: `Graph.ts:3632` confirmed the edge path; `settingsOf` and `{ as: run.id }` confirmed the
-  draft mechanism; `openStepEditor(store, NEW)` exists so the toolbar icon needs no new route;
-  `graphty-element/docs` has no promise that a node click replaces, which settled "team, not
-  owner". Worked: the token-limit stop lost nothing; every role's critique and notes were
-  committed before it.
-
-- 2026-10-11 (round 4 dry run one) -- Worked: classing each pilot item against the key and the
-  round 3 triages first, then reading source only for the three that were new; reading the commit
-  behind a "regression" (`cab733e18` was the owner's own choice, `8ab196fb3` was ours). Did not
-  work: round 3 change 11's acceptance ("words unchanged in number") forbade the extra unit, so
-  the fix could only swap one half-count for another; an acceptance line must name the task that
-  reads the value, not a word budget. Did not work: running 20 pilots at once against a 4-browser
-  cap -- one start never got a slot and printed nothing.
-
-- 2026-10-11 (round 4 dry run two) -- Worked: all twenty halves ran when started in waves under
-  the 4-browser cap; one `--hover` settled a claim four screenshots could not; measuring contrast
-  from the PNG instead of guessing from "dim gray". Worked: the token-limit stop lost nothing --
-  the pilots were complete on disk and the key was already matched to them (611e8c62b); only the
-  triage and these notes were missing. Did not work: pilots reporting "no hint" from a still
-  screenshot; their reports must say whether they pointed at the control.
-
-- 2026-10-11 (round 4 decisions) -- Worked: reading each proposed mechanism in source before
-  ranking it (the Visual Designer's "only when it parses" is already the code; `TableDock` has no
-  visibility subscription; the export comment shows Export will not follow the table). Worked:
-  `git tag --contains` settled "breaking or not" in one command for both element changes. Did not
-  work: the researcher's bars.json word lists cited as evidence were not on disk; a diagnosis
-  without its file is a claim, so change 12 makes the diff first. Did not work, again: a gate
-  enforced only by the runner (rounds 3 and 4).
-
-- 2026-10-11 (round 5 dry run one) -- Worked: classing 96 items against the key and the round
-  3-4 triages first, so only six needed a look; a ratio across undo and redo settled a size claim
-  without a browser session; enlarging a crop settled the "scrollbar". Did not work: a watch item
-  ("not drawn at one size") sat in the key for three rounds with no mechanism named, so every pilot
-  re-reported it; a key note should name the mechanism once it is known.
+- 2026-10-10..10-11 (rounds 3-5, summarized; full text in git history) -- Worked: classing
+  pilot items against the key and earlier triages first, reading source only for new ones; reading
+  the red team against source before taking it; `git tag --contains` to settle breaking or not;
+  `--hover`, PNG contrast and undo ratios to settle claims; pilots in waves under the 4-browser cap;
+  the token-limit stops lost nothing when roles committed before them. Did not work: a gate enforced
+  only by the runner (rounds 3 and 4); an acceptance line written as a word budget; 20 pilots at
+  once; a watch item with no mechanism named; diagnoses cited from files not on disk.
+- 2026-10-11 (round 5) -- Worked: the refusal in `real.mjs --start` (56 of 56). Did not work: editing
+  `workflow-tier2.js` while a continuation script was the one running -- the fix never reached the
+  run. Did not work: the runner starting all 56 sessions in parallel with nothing to stop on.
 
 ## Thinking
 
@@ -301,6 +183,9 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
 - **2026-10-11, after round 4:** the product is down to small mismatches between two checks of one
   fact; the study's faults are still the larger risk, and they hide themselves the same way (a
   check in one place, the act in another). Put each refusal in the one path every action takes.
+- **2026-10-11, after round 5:** the same shape one level up: a fix in one copy of the run script,
+  the run on another. Recovery after a limit is part of the study, not housekeeping; the first
+  step after any restart is to diff what is running against what we last fixed.
 
 ## Sources
 
@@ -322,3 +207,6 @@ NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) 
   build 5277e2cbe (`.study-builds/tier2-r4d1-5277e2cbe/`).
 - Tier 2 round 4 (2026-10-11): `tier2/rounds/round-4/{plan,scores,insights,decisions}.md`;
   sessions in `round-4/sessions/`; proposals in `notes/*.md` (commits 6171f0486 to 90ea5b8e8).
+- Tier 2 round 5 (void): `tier2/rounds/round-5/{plan,scores,insights,table}.md`, `expert/`,
+  `claims/`; build 8c015b806. Run scripts: `tier2/rounds/workflow-tier2.js` (main, excluded from
+  git) and the main checkout's `tmp/studio-resume/workflow-tier2-continue.js` (the stale fork).

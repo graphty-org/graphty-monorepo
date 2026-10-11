@@ -544,20 +544,7 @@ function planTarget(
     const tolerated = new Map<string, Set<number>>();
     let budgetHit = 0;
 
-    const mappingRule = (key: string, id: string): Draft => {
-        let r = mappings.get(key);
-        if (r === undefined) {
-            r = { id, target, role: "mapping", origin: "inferred", where: { all: true }, map: {} };
-            mappings.set(key, r);
-        }
-        return r;
-    };
-    const materialize = (info: FeatureInfo): void => {
-        if ("style" in info.feature.ref) {
-            plan.columns.set(info.feature.ref.style, info.feature.values);
-        }
-    };
-
+    const st: Inference = { groups, mappings, passData, passRaw, copy, opaque, tolerated };
     for (const fam of families) {
         signal?.throwIfAborted();
         if (plan.budget.exhausted(target)) {
@@ -565,129 +552,12 @@ function planTarget(
             opaque.push({ fam, raw: null });
             continue;
         }
-        const cands: Candidate[] = [];
-        // text is per element by nature: a label is never explained by another column's table
-        const textual = fam.props.some((p) => STYLE_PROPERTIES[target].get(p) === "text");
-        if (!textual) {
-            for (const f of testable) {
-                const d = discreteCandidate(fam, f, n, plan.spend);
-                if (d !== null) {
-                    cands.push(d);
-                }
-                const c = continuousCandidate(fam, f, truth, plan.spend);
-                if (c !== null) {
-                    cands.push(c);
-                }
-                if (plan.budget.exhausted(target)) {
-                    break;
-                }
-            }
-        }
-        const pass = passCandidate(plan, fam, truth, infos);
-        if (pass !== null) {
-            cands.push(pass);
-        }
-        cands.push({ type: "opaque", cost: 250 });
-        cands.sort((a, b) => a.cost - b.cost || ORDER.indexOf(a.type) - ORDER.indexOf(b.type));
-        const c = cands[0];
-        if (c.type === "discrete") {
-            materialize(c.info);
-            const rule = mappingRule(`discrete|${c.info.name}`, `${target}.by.${c.info.name}`);
-            const rep = new Map<number, number>();
-            for (const i of fam.styled) {
-                if (!rep.has(fam.blocks[i])) {
-                    rep.set(fam.blocks[i], i);
-                }
-            }
-            for (const p of fam.props) {
-                const t = truth.get(p) ?? [];
-                const table: [string | number | boolean, StyleValue][] = [];
-                for (const { raw, block } of c.table.values()) {
-                    table.push([raw, t[rep.get(block) ?? -1] as StyleValue]);
-                }
-                (rule.map ??= {})[p] = { kind: "discrete", by: c.info.feature.ref, table };
-            }
-            if (c.bucket !== null) {
-                const set: Record<string, StyleValue> = {};
-                for (const p of fam.props) {
-                    set[p] = (truth.get(p) ?? [])[rep.get(c.bucket) ?? -1] as StyleValue;
-                }
-                groups.push({
-                    id: `${target}.missing.${c.info.name}`,
-                    target,
-                    role: "group",
-                    origin: "inferred",
-                    where: { not: { has: c.info.feature.ref } },
-                    set,
-                });
-            }
-        } else if (c.type === "continuous") {
-            materialize(c.info);
-            const rule = mappingRule(`continuous|${c.info.name}`, `${target}.ramp.${c.info.name}`);
-            for (const p of fam.props) {
-                const points = c.points.get(p) ?? [];
-                (rule.map ??= {})[p] = { kind: "continuous", by: c.info.feature.ref, points };
-                if (c.tolerant) {
-                    const t = truth.get(p) ?? [];
-                    const set = new Set<number>();
-                    for (const i of fam.styled) {
-                        if (evalContinuous(points, numberOf(c.info.feature.values[i])) !== t[i]) {
-                            set.add(i);
-                            plan.notes.add(STYLE_ISSUE.RAMP_ROUNDED, target, p, { element: i, sample: t[i] });
-                        }
-                    }
-                    tolerated.set(p, set);
-                }
-            }
-        } else if (c.type === "passdata" && !c.raw) {
-            for (const p of fam.props) {
-                (passData.map ??= {})[p] = { kind: "passthrough", by: (c.cols.get(p) as FeatureInfo).feature.ref };
-            }
-        } else {
-            // the raw style column recovers nothing: the family joins the opaque pool, where it may become part
-            // of a style class, and otherwise reads the raw column
-            opaque.push({ fam, raw: c.type === "passdata" ? c.cols : null });
-        }
+        applyChoice(plan, st, fam, chooseCandidate(plan, fam, testable, infos, truth), truth);
     }
     if (budgetHit > 0) {
         plan.notes.add(STYLE_ISSUE.BUDGET, target, null, { count: budgetHit });
     }
-
-    // the opaque pool: style classes when the file uses few combinations, else one copy per property
-    if (opaque.length > 0) {
-        const props = opaque.flatMap((o) => o.fam.props);
-        const classes = budgetHit > 0 ? null : styleClasses(target, props, truth, n, plan.spend);
-        const classed = new Set(classes?.classed ?? []);
-        if (classes !== null) {
-            plan.columns.set(CLASS_COLUMN, classes.column);
-            for (const r of classes.rules) {
-                if (r.role === "group") {
-                    groups.push({ ...r, id: r.id, set: { ...r.set } } as Draft);
-                } else {
-                    mappings.set(r.id, { ...r, map: { ...r.map } } as Draft);
-                }
-            }
-        }
-        let distinct = 0;
-        for (const { fam, raw } of opaque) {
-            for (const p of fam.props) {
-                if (classed.has(p)) {
-                    continue;
-                }
-                const viaRaw = raw?.get(p);
-                if (viaRaw !== undefined) {
-                    (passRaw.map ??= {})[p] = { kind: "passthrough", by: viaRaw.feature.ref };
-                    continue;
-                }
-                const t = truth.get(p) ?? [];
-                plan.columns.set(`copy.${p}`, t.slice());
-                (copy.map ??= {})[p] = { kind: "passthrough", by: { style: `copy.${p}` } };
-                distinct = Math.max(distinct, new Set(t.filter((v) => v !== null)).size);
-                plan.spend(n);
-            }
-        }
-        copy.facts = { reason: budgetHit > 0 ? "BUDGET" : "NO_EXPLANATION", distinctValues: distinct };
-    }
+    poolOpaque(plan, st, budgetHit, truth);
 
     const nonEmpty = (r: Draft): boolean => Object.keys(r.map ?? {}).length > 0;
     const sortedMappings = Array.from(mappings.values()).sort((a, b) => compareText(a.id, b.id));
@@ -710,6 +580,202 @@ function planTarget(
         drafts.push(exceptions);
     }
     return drafts.map(finish);
+}
+
+/** What the inference of one target collects. */
+interface Inference {
+    readonly groups: Draft[];
+    readonly mappings: Map<string, Draft>;
+    readonly passData: Draft;
+    readonly passRaw: Draft;
+    readonly copy: Draft;
+    readonly opaque: { fam: Family; raw: ReadonlyMap<string, FeatureInfo> | null }[];
+    readonly tolerated: Map<string, Set<number>>;
+}
+
+/**
+ * The cheapest explanation of one family: a discrete or continuous mapping over a feature, a passthrough over existing
+ * columns, or the opaque floor.
+ * @param plan - the target's state
+ * @param fam - the family
+ * @param testable - the features worth testing
+ * @param infos - every feature
+ * @param truth - the values per property
+ * @returns the chosen candidate
+ */
+function chooseCandidate(
+    plan: TargetPlan,
+    fam: Family,
+    testable: readonly FeatureInfo[],
+    infos: readonly FeatureInfo[],
+    truth: ReadonlyMap<string, readonly (StyleValue | null)[]>,
+): Candidate {
+    const { target, n } = plan;
+    const cands: Candidate[] = [];
+    // text is per element by nature: a label is never explained by another column's table
+    const textual = fam.props.some((p) => STYLE_PROPERTIES[target].get(p) === "text");
+    if (!textual) {
+        for (const f of testable) {
+            const d = discreteCandidate(fam, f, n, plan.spend);
+            if (d !== null) {
+                cands.push(d);
+            }
+            const c = continuousCandidate(fam, f, truth, plan.spend);
+            if (c !== null) {
+                cands.push(c);
+            }
+            if (plan.budget.exhausted(target)) {
+                break;
+            }
+        }
+    }
+    const pass = passCandidate(plan, fam, truth, infos);
+    if (pass !== null) {
+        cands.push(pass);
+    }
+    cands.push({ type: "opaque", cost: 250 });
+    cands.sort((a, b) => a.cost - b.cost || ORDER.indexOf(a.type) - ORDER.indexOf(b.type));
+    return cands[0];
+}
+
+/**
+ * Records a family's chosen explanation in the target's inference.
+ * @param plan - the target's state
+ * @param st - the inference so far; changed in place
+ * @param fam - the family
+ * @param c - the chosen candidate
+ * @param truth - the values per property
+ */
+function applyChoice(
+    plan: TargetPlan,
+    st: Inference,
+    fam: Family,
+    c: Candidate,
+    truth: ReadonlyMap<string, readonly (StyleValue | null)[]>,
+): void {
+    const { target } = plan;
+    const mappingRule = (key: string, id: string): Draft => {
+        let r = st.mappings.get(key);
+        if (r === undefined) {
+            r = { id, target, role: "mapping", origin: "inferred", where: { all: true }, map: {} };
+            st.mappings.set(key, r);
+        }
+        return r;
+    };
+    const materialize = (info: FeatureInfo): void => {
+        if ("style" in info.feature.ref) {
+            plan.columns.set(info.feature.ref.style, info.feature.values);
+        }
+    };
+    if (c.type === "discrete") {
+        materialize(c.info);
+        const rule = mappingRule(`discrete|${c.info.name}`, `${target}.by.${c.info.name}`);
+        const rep = new Map<number, number>();
+        for (const i of fam.styled) {
+            if (!rep.has(fam.blocks[i])) {
+                rep.set(fam.blocks[i], i);
+            }
+        }
+        for (const p of fam.props) {
+            const t = truth.get(p) ?? [];
+            const table: [string | number | boolean, StyleValue][] = [];
+            for (const { raw, block } of c.table.values()) {
+                table.push([raw, t[rep.get(block) ?? -1] as StyleValue]);
+            }
+            (rule.map ??= {})[p] = { kind: "discrete", by: c.info.feature.ref, table };
+        }
+        if (c.bucket !== null) {
+            const set: Record<string, StyleValue> = {};
+            for (const p of fam.props) {
+                set[p] = (truth.get(p) ?? [])[rep.get(c.bucket) ?? -1] as StyleValue;
+            }
+            st.groups.push({
+                id: `${target}.missing.${c.info.name}`,
+                target,
+                role: "group",
+                origin: "inferred",
+                where: { not: { has: c.info.feature.ref } },
+                set,
+            });
+        }
+    } else if (c.type === "continuous") {
+        materialize(c.info);
+        const rule = mappingRule(`continuous|${c.info.name}`, `${target}.ramp.${c.info.name}`);
+        for (const p of fam.props) {
+            const points = c.points.get(p) ?? [];
+            (rule.map ??= {})[p] = { kind: "continuous", by: c.info.feature.ref, points };
+            if (c.tolerant) {
+                const t = truth.get(p) ?? [];
+                const set = new Set<number>();
+                for (const i of fam.styled) {
+                    if (evalContinuous(points, numberOf(c.info.feature.values[i])) !== t[i]) {
+                        set.add(i);
+                        plan.notes.add(STYLE_ISSUE.RAMP_ROUNDED, target, p, { element: i, sample: t[i] });
+                    }
+                }
+                st.tolerated.set(p, set);
+            }
+        }
+    } else if (c.type === "passdata" && !c.raw) {
+        for (const p of fam.props) {
+            (st.passData.map ??= {})[p] = { kind: "passthrough", by: (c.cols.get(p) as FeatureInfo).feature.ref };
+        }
+    } else {
+        // the raw style column recovers nothing: the family joins the opaque pool, where it may become part
+        // of a style class, and otherwise reads the raw column
+        st.opaque.push({ fam, raw: c.type === "passdata" ? c.cols : null });
+    }
+}
+
+/**
+ * The opaque pool: style classes when the file uses few combinations, else one copy per property.
+ * @param plan - the target's state
+ * @param st - the inference so far; changed in place
+ * @param budgetHit - how many families the budget sent to the pool
+ * @param truth - the values per property
+ */
+function poolOpaque(
+    plan: TargetPlan,
+    st: Inference,
+    budgetHit: number,
+    truth: ReadonlyMap<string, readonly (StyleValue | null)[]>,
+): void {
+    const { target, n } = plan;
+    if (st.opaque.length === 0) {
+        return;
+    }
+    const props = st.opaque.flatMap((o) => o.fam.props);
+    const classes = budgetHit > 0 ? null : styleClasses(target, props, truth, n, plan.spend);
+    const classed = new Set(classes?.classed ?? []);
+    if (classes !== null) {
+        plan.columns.set(CLASS_COLUMN, classes.column);
+        for (const r of classes.rules) {
+            if (r.role === "group") {
+                st.groups.push({ ...r, id: r.id, set: { ...r.set } } as Draft);
+            } else {
+                st.mappings.set(r.id, { ...r, map: { ...r.map } } as Draft);
+            }
+        }
+    }
+    let distinct = 0;
+    for (const { fam, raw } of st.opaque) {
+        for (const p of fam.props) {
+            if (classed.has(p)) {
+                continue;
+            }
+            const viaRaw = raw?.get(p);
+            if (viaRaw !== undefined) {
+                (st.passRaw.map ??= {})[p] = { kind: "passthrough", by: viaRaw.feature.ref };
+                continue;
+            }
+            const t = truth.get(p) ?? [];
+            plan.columns.set(`copy.${p}`, t.slice());
+            (st.copy.map ??= {})[p] = { kind: "passthrough", by: { style: `copy.${p}` } };
+            distinct = Math.max(distinct, new Set(t.filter((v) => v !== null)).size);
+            plan.spend(n);
+        }
+    }
+    st.copy.facts = { reason: budgetHit > 0 ? "BUDGET" : "NO_EXPLANATION", distinctValues: distinct };
 }
 
 /**

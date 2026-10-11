@@ -1,0 +1,394 @@
+[
+ {
+  "id": "r5-s01",
+  "task": "T22",
+  "dataset": "A: bus stops, bus-stops.csv",
+  "start": "setup:bus-stops-ranked.txt",
+  "persona": "Grace (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/nonprofit-operations-analyst.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-nonprofit-analyst.md; history: tier2/roster.md, under Grace"
+ },
+ {
+  "id": "r5-s02",
+  "task": "T22",
+  "dataset": "B: Les Miserables",
+  "start": "setup:lesmis-ranked.txt",
+  "persona": "Ruth (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/data-journalist.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-data-journalist.md; history: tier2/roster.md, under Ruth"
+ },
+ {
+  "id": "r5-s03",
+  "task": "T22",
+  "dataset": "A: bus stops, bus-stops.csv",
+  "start": "setup:bus-stops-ranked.txt",
+  "persona": "Alex (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/analyst-alex.md; history: tier2/roster.md, under Alex"
+ },
+ {
+  "id": "r5-s04",
+  "task": "T22",
+  "dataset": "B: Les Miserables",
+  "start": "setup:lesmis-ranked.txt",
+  "persona": "Dana (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/supply-chain-analyst.md; history: tier2/roster.md, under Dana"
+ },
+ {
+  "id": "r5-s05",
+  "task": "T22",
+  "dataset": "A: bus stops, bus-stops.csv",
+  "start": "setup:bus-stops-ranked.txt",
+  "persona": "Nadia (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/alert-reviewer.md; history: tier2/roster.md, under Nadia"
+ },
+ {
+  "id": "r5-s06",
+  "task": "T22",
+  "dataset": "B: Les Miserables",
+  "start": "setup:lesmis-ranked.txt",
+  "persona": "Elena (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/explorer-elena.md; history: tier2/roster.md, under Elena"
+ },
+ {
+  "id": "r5-s07",
+  "task": "T22",
+  "dataset": "A: bus stops, bus-stops.csv",
+  "start": "setup:bus-stops-ranked.txt",
+  "persona": "Tom (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/recipe-recipient.md; history: tier2/roster.md, under Tom"
+ },
+ {
+  "id": "r5-s08",
+  "task": "T22",
+  "dataset": "B: Les Miserables",
+  "start": "setup:lesmis-ranked.txt",
+  "persona": "Jordan (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/marketing-analyst.md; history: tier2/roster.md, under Jordan"
+ },
+ {
+  "id": "r5-s09",
+  "task": "T17",
+  "dataset": "A: running club, friends.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Ruth (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/data-journalist.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-data-journalist.md; history: tier2/roster.md, under Ruth"
+ },
+ {
+  "id": "r5-s10",
+  "task": "T17",
+  "dataset": "B: Les Miserables",
+  "start": "setup:lesmis-ranked.txt",
+  "persona": "Grace (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/nonprofit-operations-analyst.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-nonprofit-analyst.md; history: tier2/roster.md, under Grace"
+ },
+ {
+  "id": "r5-s11",
+  "task": "T17",
+  "dataset": "A: running club, friends.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Jordan (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/marketing-analyst.md; history: tier2/roster.md, under Jordan"
+ },
+ {
+  "id": "r5-s12",
+  "task": "T17",
+  "dataset": "B: Les Miserables",
+  "start": "setup:lesmis-ranked.txt",
+  "persona": "Alex (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/analyst-alex.md; history: tier2/roster.md, under Alex"
+ },
+ {
+  "id": "r5-s13",
+  "task": "T17",
+  "dataset": "A: running club, friends.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Elena (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/explorer-elena.md; history: tier2/roster.md, under Elena"
+ },
+ {
+  "id": "r5-s14",
+  "task": "T17",
+  "dataset": "B: Les Miserables",
+  "start": "setup:lesmis-ranked.txt",
+  "persona": "Dev (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/class-project-student.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-class-project-student.md; history: tier2/roster.md, under Dev"
+ },
+ {
+  "id": "r5-s15",
+  "task": "T17",
+  "dataset": "A: running club, friends.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Nadia (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/alert-reviewer.md; history: tier2/roster.md, under Nadia"
+ },
+ {
+  "id": "r5-s16",
+  "task": "T17",
+  "dataset": "B: Les Miserables",
+  "start": "setup:lesmis-ranked.txt",
+  "persona": "Tom (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/recipe-recipient.md; history: tier2/roster.md, under Tom"
+ },
+ {
+  "id": "r5-s17",
+  "task": "T18",
+  "dataset": "A: running club, friends.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Ruth (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/data-journalist.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-data-journalist.md; history: tier2/roster.md, under Ruth"
+ },
+ {
+  "id": "r5-s18",
+  "task": "T18",
+  "dataset": "B: Florentine families",
+  "start": "setup:florentine-ranked.txt",
+  "persona": "Nadia (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/alert-reviewer.md; history: tier2/roster.md, under Nadia"
+ },
+ {
+  "id": "r5-s19",
+  "task": "T18",
+  "dataset": "A: running club, friends.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Dana (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/supply-chain-analyst.md; history: tier2/roster.md, under Dana"
+ },
+ {
+  "id": "r5-s20",
+  "task": "T18",
+  "dataset": "B: Florentine families",
+  "start": "setup:florentine-ranked.txt",
+  "persona": "Alex (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/analyst-alex.md; history: tier2/roster.md, under Alex"
+ },
+ {
+  "id": "r5-s21",
+  "task": "T18",
+  "dataset": "A: running club, friends.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Grace (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/nonprofit-operations-analyst.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-nonprofit-analyst.md; history: tier2/roster.md, under Grace"
+ },
+ {
+  "id": "r5-s22",
+  "task": "T18",
+  "dataset": "B: Florentine families",
+  "start": "setup:florentine-ranked.txt",
+  "persona": "Dev (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/class-project-student.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-class-project-student.md; history: tier2/roster.md, under Dev"
+ },
+ {
+  "id": "r5-s23",
+  "task": "T18",
+  "dataset": "A: running club, friends.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Elena (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/explorer-elena.md; history: tier2/roster.md, under Elena"
+ },
+ {
+  "id": "r5-s24",
+  "task": "T18",
+  "dataset": "B: Florentine families",
+  "start": "setup:florentine-ranked.txt",
+  "persona": "Tom (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/recipe-recipient.md; history: tier2/roster.md, under Tom"
+ },
+ {
+  "id": "r5-s25",
+  "task": "T24",
+  "dataset": "A: running club, friends.csv, names drawn",
+  "start": "setup:friends-ranked-names.txt",
+  "persona": "Ruth (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/data-journalist.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-data-journalist.md; history: tier2/roster.md, under Ruth"
+ },
+ {
+  "id": "r5-s26",
+  "task": "T24",
+  "dataset": "B: bus stops, bus-stops.csv, names drawn",
+  "start": "setup:bus-stops-ranked-names.txt",
+  "persona": "Dev (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/class-project-student.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-class-project-student.md; history: tier2/roster.md, under Dev"
+ },
+ {
+  "id": "r5-s27",
+  "task": "T24",
+  "dataset": "A: running club, friends.csv, names drawn",
+  "start": "setup:friends-ranked-names.txt",
+  "persona": "Dana (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/supply-chain-analyst.md; history: tier2/roster.md, under Dana"
+ },
+ {
+  "id": "r5-s28",
+  "task": "T24",
+  "dataset": "B: bus stops, bus-stops.csv, names drawn",
+  "start": "setup:bus-stops-ranked-names.txt",
+  "persona": "Jordan (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/marketing-analyst.md; history: tier2/roster.md, under Jordan"
+ },
+ {
+  "id": "r5-s29",
+  "task": "T20",
+  "dataset": "A: bus stops, bus-stops.csv",
+  "start": "empty",
+  "persona": "Nadia (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/alert-reviewer.md; history: tier2/roster.md, under Nadia"
+ },
+ {
+  "id": "r5-s30",
+  "task": "T20",
+  "dataset": "B: hiking trails, trails.csv",
+  "start": "empty",
+  "persona": "Grace (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/nonprofit-operations-analyst.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-nonprofit-analyst.md; history: tier2/roster.md, under Grace"
+ },
+ {
+  "id": "r5-s31",
+  "task": "T20",
+  "dataset": "A: bus stops, bus-stops.csv",
+  "start": "empty",
+  "persona": "Alex (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/analyst-alex.md; history: tier2/roster.md, under Alex"
+ },
+ {
+  "id": "r5-s32",
+  "task": "T20",
+  "dataset": "B: hiking trails, trails.csv",
+  "start": "empty",
+  "persona": "Dana (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/supply-chain-analyst.md; history: tier2/roster.md, under Dana"
+ },
+ {
+  "id": "r5-s33",
+  "task": "T20",
+  "dataset": "A: bus stops, bus-stops.csv",
+  "start": "empty",
+  "persona": "Dev (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/class-project-student.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-class-project-student.md; history: tier2/roster.md, under Dev"
+ },
+ {
+  "id": "r5-s34",
+  "task": "T20",
+  "dataset": "B: hiking trails, trails.csv",
+  "start": "empty",
+  "persona": "Tom (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/recipe-recipient.md; history: tier2/roster.md, under Tom"
+ },
+ {
+  "id": "r5-s35",
+  "task": "T20",
+  "dataset": "A: bus stops, bus-stops.csv",
+  "start": "empty",
+  "persona": "Elena (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/explorer-elena.md; history: tier2/roster.md, under Elena"
+ },
+ {
+  "id": "r5-s36",
+  "task": "T20",
+  "dataset": "B: hiking trails, trails.csv",
+  "start": "empty",
+  "persona": "Jordan (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/marketing-analyst.md; history: tier2/roster.md, under Jordan"
+ },
+ {
+  "id": "r5-s37",
+  "task": "T21",
+  "dataset": "A: running club, friends.csv to friends-v2.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Grace (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/nonprofit-operations-analyst.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-nonprofit-analyst.md; history: tier2/roster.md, under Grace"
+ },
+ {
+  "id": "r5-s38",
+  "task": "T21",
+  "dataset": "B: team, team.csv to team-v2.csv",
+  "start": "setup:team-ranked.txt",
+  "persona": "Dev (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/class-project-student.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-class-project-student.md; history: tier2/roster.md, under Dev"
+ },
+ {
+  "id": "r5-s39",
+  "task": "T21",
+  "dataset": "A: running club, friends.csv to friends-v2.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Alex (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/analyst-alex.md; history: tier2/roster.md, under Alex"
+ },
+ {
+  "id": "r5-s40",
+  "task": "T21",
+  "dataset": "B: team, team.csv to team-v2.csv",
+  "start": "setup:team-ranked.txt",
+  "persona": "Dana (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/supply-chain-analyst.md; history: tier2/roster.md, under Dana"
+ },
+ {
+  "id": "r5-s41",
+  "task": "T21",
+  "dataset": "A: running club, friends.csv to friends-v2.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Tom (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/recipe-recipient.md; history: tier2/roster.md, under Tom"
+ },
+ {
+  "id": "r5-s42",
+  "task": "T21",
+  "dataset": "B: team, team.csv to team-v2.csv",
+  "start": "setup:team-ranked.txt",
+  "persona": "Ruth (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/data-journalist.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-data-journalist.md; history: tier2/roster.md, under Ruth"
+ },
+ {
+  "id": "r5-s43",
+  "task": "T21",
+  "dataset": "A: running club, friends.csv to friends-v2.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Jordan (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/marketing-analyst.md; history: tier2/roster.md, under Jordan"
+ },
+ {
+  "id": "r5-s44",
+  "task": "T21",
+  "dataset": "B: team, team.csv to team-v2.csv",
+  "start": "setup:team-ranked.txt",
+  "persona": "Nadia (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/alert-reviewer.md; history: tier2/roster.md, under Nadia"
+ },
+ {
+  "id": "r5-s45",
+  "task": "T19",
+  "dataset": "A: running club, friends.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Jordan (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/marketing-analyst.md; history: tier2/roster.md, under Jordan"
+ },
+ {
+  "id": "r5-s46",
+  "task": "T19",
+  "dataset": "B: Florentine families",
+  "start": "setup:florentine-ranked.txt",
+  "persona": "Elena (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/explorer-elena.md; history: tier2/roster.md, under Elena"
+ },
+ {
+  "id": "r5-s47",
+  "task": "T19",
+  "dataset": "A: running club, friends.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Grace (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/nonprofit-operations-analyst.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-nonprofit-analyst.md; history: tier2/roster.md, under Grace"
+ },
+ {
+  "id": "r5-s48",
+  "task": "T19",
+  "dataset": "B: Florentine families",
+  "start": "setup:florentine-ranked.txt",
+  "persona": "Alex (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/analyst-alex.md; history: tier2/roster.md, under Alex"
+ },
+ {
+  "id": "r5-s49",
+  "task": "T23",
+  "dataset": "A: running club, friends.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Elena (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/explorer-elena.md; history: tier2/roster.md, under Elena"
+ },
+ {
+  "id": "r5-s50",
+  "task": "T23",
+  "dataset": "B: Florentine families",
+  "start": "setup:florentine-ranked.txt",
+  "persona": "Ruth (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/data-journalist.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-data-journalist.md; history: tier2/roster.md, under Ruth"
+ },
+ {
+  "id": "r5-s51",
+  "task": "T23",
+  "dataset": "A: running club, friends.csv",
+  "start": "setup:friends-ranked.txt",
+  "persona": "Tom (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/recipe-recipient.md; history: tier2/roster.md, under Tom"
+ },
+ {
+  "id": "r5-s52",
+  "task": "T23",
+  "dataset": "B: Florentine families",
+  "start": "setup:florentine-ranked.txt",
+  "persona": "Nadia (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/alert-reviewer.md; history: tier2/roster.md, under Nadia"
+ },
+ {
+  "id": "r5-s53",
+  "task": "T4",
+  "dataset": "A: office, people.csv + messages.csv",
+  "start": "empty",
+  "persona": "Dana (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/supply-chain-analyst.md; history: tier2/roster.md, under Dana"
+ },
+ {
+  "id": "r5-s54",
+  "task": "T4",
+  "dataset": "B: football, players.csv + passes.csv",
+  "start": "empty",
+  "persona": "Dev (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/class-project-student.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-class-project-student.md; history: tier2/roster.md, under Dev"
+ },
+ {
+  "id": "r5-s55",
+  "task": "T12R",
+  "dataset": "A: Les Miserables",
+  "start": "setup:lesmis-ranked.txt",
+  "persona": "Ruth (tier 1 graduate); files: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/data-journalist.md, then /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/returning-data-journalist.md; history: tier2/roster.md, under Ruth"
+ },
+ {
+  "id": "r5-s56",
+  "task": "T12R",
+  "dataset": "B: Florentine families",
+  "start": "setup:florentine-ranked.txt",
+  "persona": "Jordan (regular analyst); files: /home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/marketing-analyst.md; history: tier2/roster.md, under Jordan"
+ }
+]

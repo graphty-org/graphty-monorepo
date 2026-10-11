@@ -33,11 +33,13 @@ import {
     chipTip,
     chipWords,
     ENDS_LINE,
+    missingTip,
     outcomeWords,
     overEdges,
     savedWords,
     saveLabel,
     statusWords,
+    type StepMissing,
 } from "./filterWords";
 import { useVisibilityVersion } from "./useVisibilityVersion";
 
@@ -364,6 +366,29 @@ function rangeRule(fields: Fields, attribute: AttributeDescriptor): RuleTree | n
 }
 
 /**
+ * What the editor's submit waits for, or null when it is ready.
+ * @param rule - the rule the fields make, or null while incomplete.
+ * @param unchanged - whether the rule is the saved step's own.
+ * @param keep - the Keep choice.
+ * @param attribute - the chosen attribute.
+ * @returns what is missing.
+ */
+function missingOf(
+    rule: RuleTree | null,
+    unchanged: boolean,
+    keep: Fields["keep"],
+    attribute: AttributeDescriptor | undefined,
+): StepMissing | null {
+    if (rule !== null) {
+        return unchanged ? "change" : null;
+    }
+    if (keep === "neighbors") {
+        return "nodes";
+    }
+    return attribute === undefined ? "attribute" : "value";
+}
+
+/**
  * Whether two rules say the same, whatever order their keys were written in.
  * @param a - one rule.
  * @param b - the other.
@@ -423,6 +448,8 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     // Save step waits for a change: a rule that is the step's own saves nothing. An off step's
     // "Save and turn on" does something either way.
     const unchanged = step?.on === true && rule !== null && sameRule(rule, step.rule);
+    // What the submit waits for, named in its tooltip while it is drawn disabled.
+    const missing = missingOf(rule, unchanged, fields.keep, attribute);
 
     if (session === null || (step === undefined && id !== NEW && filled === "")) {
         // Nothing to save on leaving: the step this editor was open on is gone (deleted), and the
@@ -451,7 +478,8 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     });
 
     const commit = async (): Promise<void> => {
-        if (rule === null) {
+        // A press or Enter on an incomplete or unchanged rule adds nothing.
+        if (rule === null || unchanged) {
             return;
         }
         // A saved step is on: the reader edited it to use it (Undo restores it as it was).
@@ -510,9 +538,7 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
             p="md"
             onSubmit={(event: React.SyntheticEvent) => {
                 event.preventDefault();
-                if (!unchanged) {
-                    void commit();
-                }
+                void commit();
             }}
             onKeyDown={(event: React.KeyboardEvent) => {
                 if (isPanelEscape(event.nativeEvent)) {
@@ -612,9 +638,17 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                 </>
             )}
             <Group gap="xs">
-                <Button size="xs" type="submit" disabled={rule === null || unchanged}>
-                    {step === undefined ? "Add step" : saveLabel(step.on)}
-                </Button>
+                {/* Drawn disabled but focusable, so hover and focus show what is missing. */}
+                <Tooltip label={missing === null ? "" : missingTip(missing)} disabled={missing === null}>
+                    <Button
+                        size="xs"
+                        type="submit"
+                        aria-disabled={missing !== null || undefined}
+                        data-disabled={missing !== null || undefined}
+                    >
+                        {step === undefined ? "Add step" : saveLabel(step.on)}
+                    </Button>
+                </Tooltip>
             </Group>
         </Stack>
     );

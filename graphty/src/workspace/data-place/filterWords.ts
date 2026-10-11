@@ -127,6 +127,27 @@ export function saveLabel(on: boolean): string {
     return on ? "Save step" : "Save and turn on";
 }
 
+/** What the step editor's submit waits for: an attribute, a value, a selected node, or a change. */
+export type StepMissing = "attribute" | "value" | "nodes" | "change";
+
+/**
+ * The step editor's submit tooltip while it is drawn disabled: what is missing.
+ * @param missing - what the rule lacks, or "change" for a saved step edited back to itself.
+ * @returns the words.
+ */
+export function missingTip(missing: StepMissing): string {
+    switch (missing) {
+        case "attribute":
+            return "Choose an attribute first";
+        case "value":
+            return "Type a value first";
+        case "nodes":
+            return "Select a node first";
+        default:
+            return "Nothing changed since the last save";
+    }
+}
+
 /**
  * The step checkbox's accessible name.
  * @param words - the step's sentence.

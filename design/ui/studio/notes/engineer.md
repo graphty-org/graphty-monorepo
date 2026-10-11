@@ -11,6 +11,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-11) **The step editor's disabled submit says what is missing: built** (app only).
+  "Add step" / "Save step" / "Save and turn on" use the Filter to neighbors pattern (Tooltip,
+  aria-disabled, data-disabled; the click and Enter reach `commit()`, which returns on an
+  incomplete or unchanged rule). Words in `filterWords.ts` `missingTip`: "Choose an attribute
+  first", "Type a value first", "Select a node first", "Nothing changed since the last save".
+  The Attribute is NOT prefilled from the Data page (left to the sessions). Fresh build:
+  `tmp/r4-dry1-step-editor-reason/fresh/03.png` (toolbar tool, attribute tip), `06.png` (value
+  tip, after Enter added nothing), `08.png` (valid rule added), `09.png` (same from "+").
 - (2026-10-10) **A Filters tool on the canvas toolbar: built** (app only, commit d2280466e).
   Icon-only (ListFilter glyph), tooltip "Filters", after Table; command `filters.open` (group
   Data, disabled with nothing drawn) runs `openStepEditor(store, NEW)`, which already moves to
@@ -48,12 +56,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the restored run (`Run.params`/`seed` read the handle, undo swapped only `runs`;
   `tmp/t2r3-r4-05/fixed/`); Shift-click on a node adds (`SelectionManager.add`; Shift only,
   macOS Ctrl-click is the context menu; `tmp/t2r3-r4-03/`).
-- (2026-10-10) **Round 3 critique: five smallest changes, in order.** (1) Shift-click on a node
-  adds (built). (2) "Or more" beside a typed number (built, top bullet; rows not under a heading:
-  the visible "Select where" was simply dropped). (3) Analyze filter puts name matches first,
-  app-only in `analyze/words.ts`. (4) Element adds `depth` to `data.neighbors` and `hops` to each
-  `Neighbor`; the app shows each name's hops. (5) A Filter button on the Graph toolbar opening the
-  Data place's Filters (5 of 8 T17 looked there first).
+- (2026-10-10, condensed) **Round 3 critique's five changes:** Shift-click adds, "or more", Analyze
+  name matches first, and the toolbar Filters tool are built; still open: element `depth` on
+  `data.neighbors` and `hops` on each `Neighbor`, then the app shows each name's hops.
 - (2026-10-10) **Hold still in round 4:** second Find path replacing the first, "Select endpoints"
   in "..." (confounded with Shift-click), the "=" hint and backtick wording (measure "or more"
   alone), round 2's routes (now passing clean), label and node overlap (element, owner's list).
@@ -67,9 +72,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   label placement on an unseeded layout, owner's list); bare numbers in rules and what an edge
   width measures (both breaking, owner's list); never scale widths or parse rules in the app.
   "Components 1" under a filter is held so the words change is measured alone.
-- (2026-10-10) **Owner decision: the chosen segment keeps Figma's face, never an inverse fill.**
-  Dark #2c2c2c face, 1px #444 edge on #383838; light white face, 1px #e6e6e6 edge on #f5f5f5;
-  `highContrast` gives a 3:1 edge. See `owner-decisions.md`.
 - (2026-10-10) **OPEN, not reproduced: a reopen from Recent projects once drew no "Opened friends"**
   (r3 pilot `T19A/11.png`, route `--reopen`). Eleven walks showed it; suspect the open finishing
   late (an element question). No code without a mechanism. Evidence
@@ -81,6 +83,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-10) **Owner decision: the chosen segment keeps Figma's face, never an inverse fill.**
+  Dark #2c2c2c face, 1px #444 edge on #383838; light white face, 1px #e6e6e6 edge on #f5f5f5;
+  `highContrast` gives a 3:1 edge. See `owner-decisions.md`.
 - (2026-10-09) Script before calling it a defect (two round 2 "app faults" were the study tool's
   click by name landing on a same-named control); every study-tool change gets a planted-failure
   check.
@@ -238,6 +243,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   is "replace"); weigh those findings up, not down.
 
 ## Tried: worked / did not work
+
+- (2026-10-11) **real.mjs cannot click an aria-disabled button.** Its click is Playwright's, which
+  waits for an "enabled" element and treats aria-disabled as disabled, so `--click "Add step"` on
+  the disabled button only retries. A person's click goes through. What worked: prove "a press adds
+  nothing" in the real-element test (`Filters.real-element.test.tsx`, toolbar test, user-event
+  click), and in real.mjs with `--key Enter` in the empty Value box (`06.png`: no step).
+- (2026-10-11) **Two agents editing Filters.tsx and filterWords.ts at once.** Stage only my hunks by
+  writing HEAD plus my edits to a blob and `git update-index --cacheinfo`; another agent's commit
+  can sweep up a test I added to a shared test file (my toolbar test landed in 115bc0aa4).
 
 - (2026-10-10) **Proving where focus landed in real.mjs without `--sr`.** A programmatic focus
   after a pointer click draws no ring, so the screenshot cannot show it. Worked: `--key ArrowDown`

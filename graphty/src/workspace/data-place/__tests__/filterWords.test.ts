@@ -6,6 +6,7 @@ import {
     cancelledWords,
     chipTip,
     chipWords,
+    missingTip,
     type Namer,
     outcomeWords,
     overEdges,
@@ -20,6 +21,13 @@ const NAMES: Namer = { attribute: (path) => path.replace("data.", ""), node: (id
 const SHOWING = { visibleNodes: 9, totalNodes: 22, visibleEdges: 14, totalEdges: 30 };
 
 describe("the Filters words", () => {
+    it("names what the step editor's disabled submit waits for", () => {
+        assert.equal(missingTip("attribute"), "Choose an attribute first");
+        assert.equal(missingTip("value"), "Type a value first");
+        assert.equal(missingTip("nodes"), "Select a node first");
+        assert.equal(missingTip("change"), "Nothing changed since the last save");
+    });
+
     it("reads each step as one sentence", () => {
         assert.equal(ruleWords({ kind: "range", attribute: "data.weight", min: 4 }, NAMES), "weight is at least 4");
         assert.equal(ruleWords({ kind: "range", attribute: "data.weight", max: 2.5 }, NAMES), "weight is at most 2.5");

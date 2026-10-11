@@ -10,6 +10,11 @@ made and evidence comes in.
 
 ## Top of mind
 
+- 2026-10-10 -- Round 3 critique done (returned, not filed). Six smallest changes: element
+  Shift-click on a node adds (as an edge does); T24 prompt reworded to an outcome only a selection
+  gives, key's Shift route walked; bare number gets an "at least" rule option and its row wraps;
+  name matches lead the Analyze list; a filter button on the canvas toolbar; study tool fixes.
+  Not changed: label placement, second path, Select endpoints' place, Replace, rule syntax.
 - 2026-10-10 -- Round 3 CLOSED (`tier2/rounds/round-3/insights.md`). After the verdicts the one real
   app-caused failure is Shift/Ctrl-click on a node replacing the selection (graphty-element,
   `NodeBehavior.handleClick`; edges add). Fix it in the element with a real-input test.
@@ -41,7 +46,6 @@ made and evidence comes in.
   the new words and pilot it.
 - 2026-10-09 -- Hold opinion-only problems one level down at SCORING time, not at the verdicts.
 - 2026-10-09 -- Histories steer first moves; the SECOND place looked is the real signal.
-- 2026-10-06 -- All participants are one model: failure strong, pass weak.
 
 ## Priorities and values
 
@@ -82,6 +86,24 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-10 (researcher, tier 2 round 3 critique) -- Proposed six changes, one per verified
+  problem, each the smallest in its owning package. (1) graphty-element `NodeBehavior.handleClick`:
+  with Shift, `session.selection.applyNow({ nodes: [id] }, "add", "user")`, the edge branch's own
+  call in `Graph.ts`; Shift only, since Ctrl-click is a right-click on macOS; a defect fix that
+  matches the edge's documented behavior, so not held for the owner; real-input test. Still unfixed
+  on origin/master (checked). (2) T24: `tasks.md` says T24 measures the two ends selected, so the
+  prompt changes, not the key: "point out ... so that whatever you do next applies only to those
+  two" (a path does not satisfy it); key drops the Shift route until a frozen build has the fix;
+  4 pilots before the round. (3) Find box: for a bare number on a number column, offer the rule
+  option `col >= N` the box already builds (`exampleRule`, rule option) beside the equal row, and
+  let Values rows wrap instead of cutting; app words only, the element evaluates. (4)
+  `groupAlgorithms` (`analyze/words.ts`) lists headings in a fixed order, so Rank (Betweenness)
+  precedes Paths; with filter text, put the group holding a name match first -- order is the app's.
+  (5) A filter icon on the canvas toolbar opening Data place Filters "+": 3 of 5 detours were the
+  toolbar; an icon adds no words at rest. (6) Study tool items from insights. Deferred: Hops 2
+  distances (needs an additive `Neighbor` depth field; one session), second path (app's choice,
+  cost nothing), PathForm `data-autofocus` focus drop (mechanism verified in code, but one
+  specialist: script first).
 - 2026-10-10 (researcher, tier 2 round 3 skeptic verdicts) -- Wrote `rounds/round-3/insights.md`.
   Applied: two drops = dropped (bar 6's false "done"; the T24 "path used to mark the two" problem);
   one drop or weaken = weakened unless the other answered with evidence (bare number 3 to 2, Add
@@ -201,6 +223,11 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-10 (round 3 critique, after a token-limit stop) -- Worked: `git status`, `git log`
+  and a listing of `round-3/` first; insights were committed (465f688f7), no critique file or note
+  entry existed, so nothing was half-done and the critique started clean. Worked: reading each fix's
+  code at the build commit and on origin/master before proposing it (`groupAlgorithms`, FindBox
+  value rows from `session.find`, `Neighbor` has no depth).
 - 2026-10-10 (round 3 verdicts, after a token-limit stop) -- Worked: `git status`, `git log` and a
   listing of `round-3/` first; no `insights.md` and no uncommitted edits existed, so nothing was
   half-done. Worked: checking each skeptic's code claim at the build commit (`git show

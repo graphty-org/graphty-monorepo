@@ -427,7 +427,7 @@ export async function darkPixelsNear(
  * A short digest of what one graph actually drew.
  *
  * FOR COMPARING TWO PICTURES WITH EACH OTHER, which is the one question no per-story visual
- * baseline can answer: Chromatic compares a story to its own past and never to its siblings, so
+ * baseline can answer: visual review compares a story to its own past and never to its siblings, so
  * "these thirteen stories are byte-identical to one another" is invisible to it. Two stories that
  * promise different pictures and hash the same have collapsed onto one.
  * @param graph - The graph to read.

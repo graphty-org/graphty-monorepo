@@ -59,7 +59,7 @@ const preview: Preview = {
         chromatic: {
             delay: 500, // Initial delay for graph setup
             pauseAnimationAtEnd: true,
-            // Pinned rather than left to Chromatic's default, so the size of every snapshot is a
+            // Pinned rather than left to the capture tool's default, so the size of every snapshot is a
             // decision recorded here.
             viewports: [1200],
         },

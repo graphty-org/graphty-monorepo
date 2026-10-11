@@ -1,3 +1,13 @@
+## 3.4.1 (2026-10-11)
+
+### 🩹 Fixes
+
+- **algorithms:** stop SynC blurring connected communities together ([#1698](https://github.com/graphty-org/graphty-monorepo/issues/1698))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.4.0 (2026-10-10)
 
 ### 🚀 Features

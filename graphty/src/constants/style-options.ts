@@ -2,6 +2,7 @@
  * The option lists the style inspector's pickers are built from.
  */
 
+import { CHANNEL_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { EdgeArrowTypes, EdgeLineTypes, NodeShapes } from "@graphty/graphty-element/schema";
 
 /**
@@ -82,3 +83,11 @@ export const ARROW_TYPE_OPTIONS: StyleOption[] = EdgeArrowTypes.options.map((typ
     value: type,
     label: optionLabel(type),
 }));
+
+/**
+ * Every weight graphty-element draws a label's letters in, read from the element's own
+ * `labelWeight` channel so a weight it adds appears here with no edit.
+ */
+export const LABEL_WEIGHT_OPTIONS: StyleOption[] = (CHANNEL_DESCRIPTORS["node.labelWeight"].values ?? []).map(
+    (weight) => ({ value: weight, label: optionLabel(weight) }),
+);

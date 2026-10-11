@@ -14,7 +14,13 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
-import { asColorValue, CHANNEL_DESCRIPTORS, toColorValue } from "../session/styles/channels";
+import {
+    asColorValue,
+    CHANNEL_DESCRIPTORS,
+    labelFieldOf,
+    labelPatchOf,
+    toColorValue,
+} from "../session/styles/channels";
 import type { SelectorTarget } from "../session/styles/predicate";
 import type { ElementPaint, ResolvedStyle } from "../session/styles/repaint";
 
@@ -233,6 +239,10 @@ function richTextOf(style: LabelStyle): Record<string, unknown> {
         text.fontWeight = String(style.weight);
     }
 
+    if (style.italic !== undefined) {
+        text.fontStyle = style.italic ? "italic" : "normal";
+    }
+
     if (style.outline !== undefined) {
         text.textOutline = true;
         text.textOutlineColor = style.outline;
@@ -269,6 +279,15 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
     const descriptor = CHANNEL_DESCRIPTORS[channel];
 
     if (!descriptor.renderable) {
+        return;
+    }
+
+    const labelField = labelFieldOf(channel);
+    if (labelField !== undefined) {
+        // A label field normally reaches the painter already merged into its label style by the
+        // repaint; written on its own, it lands where that label style would put it.
+        writeChannel(bag, labelField.into, labelPatchOf(labelField.field, value), plainText);
+
         return;
     }
 

@@ -37,7 +37,15 @@
 import type { Channel, ChannelValue, EdgeId, Encoding, LayerId, LayerSpec, NodeId, Path } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { CodedFact } from "../shared";
-import { CHANNELS, type ChannelValues, isChannel } from "./channels";
+import {
+    CHANNEL_DESCRIPTORS,
+    CHANNELS,
+    type ChannelValues,
+    isChannel,
+    labelFieldOf,
+    labelPatchOf,
+    mergeLabelStyle,
+} from "./channels";
 import { type PreparedBinding, requireChannel, type StyleAdjustmentCode } from "./encoding";
 import type { CompiledLayer, Layer, PathDirectory } from "./Layer";
 import type { EncodingLookup } from "./legend";
@@ -104,7 +112,13 @@ export type ChannelRefusalCode = "layer.locked" | "channel.encoded";
 
 /** Everything there is to say about why one element looks the way it does. */
 export interface StyleExplanation {
-    /** Everything the element is painted, with the topmost writer of each channel standing. */
+    /**
+     * Everything the element is painted, with the topmost writer of each channel standing.
+     *
+     * A label style is merged field by field, the highest layer winning each field, and the label
+     * field channels (`node.labelSize` and the rest) are merged into it rather than listed on
+     * their own: this is the label style the canvas draws.
+     */
     readonly merged: ResolvedStyle;
     /** Every layer that painted any of it, BOTTOM FIRST, which is the order they painted in. */
     readonly contributions: readonly StyleContribution[];
@@ -548,7 +562,16 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
 
     paintOne(prepareStack(sources), at, columnsFor(sources.elements, at.target), (layer, prepared, result) => {
         const { channel } = prepared;
-        merged[channel] = result;
+        // Label styles stack field by field, as the repaint stacks them, and a label field
+        // channel lands in its label style: `merged` is what the canvas draws.
+        const labelField = labelFieldOf(channel);
+        if (labelField !== undefined) {
+            merged[labelField.into] = mergeLabelStyle(merged[labelField.into], labelPatchOf(labelField.field, result));
+        } else if (CHANNEL_DESCRIPTORS[channel].accepts === "labelStyle") {
+            merged[channel] = mergeLabelStyle(merged[channel], result as object);
+        } else {
+            merged[channel] = result;
+        }
         winners.set(channel, { layer, mode: prepared.path === null ? "static" : "encoded", path: prepared.path });
 
         let painting = painted.get(layer.id);

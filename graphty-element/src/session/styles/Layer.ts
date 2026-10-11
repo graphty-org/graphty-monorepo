@@ -64,7 +64,8 @@ import { isGraphtyError } from "../../errors";
 import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
-import { type ChannelDescriptor, channelDescriptor, channelsFor, toColorValue } from "./channels";
+import type { CodedFact } from "../shared";
+import { type ChannelDescriptor, channelDescriptor, channelsFor, labelFieldOf, toColorValue } from "./channels";
 import { stopsProblem } from "./encoding";
 import type { CompiledSelector, SelectorSource, SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
@@ -193,7 +194,22 @@ export interface ValidationResult {
      * have meant the column, which reads as `data.graphty.<name>`.
      */
     readonly shadowedPaths: readonly Path[];
+    /**
+     * What the specification can be added with but will not do as written, as coded facts for
+     * the application to word. Not errors: `add()` accepts the layer. Empty when there is nothing
+     * to say. Each code's `params`:
+     *
+     * | Code | Params |
+     * | --- | --- |
+     * | `style.label-style-bound` | `channel`: a whole label style channel (`node.labelStyle`) bound to a path; `path`: where in the specification, such as `encode.node.labelStyle`; `fieldChannels`: the label field channels that can be bound instead (`node.labelSize` ...), empty when the channel has none. A whole label style is no value a scale produces, so the binding paints nothing |
+     *
+     * New codes may be added in a minor release: word an unknown one generically.
+     */
+    readonly warnings?: readonly CodedFact<LayerWarningCode>[];
 }
+
+/** The code of a {@link ValidationResult} warning. See {@link ValidationResult.warnings}. */
+export type LayerWarningCode = "style.label-style-bound";
 
 /**
  * Whether this session answers a path, and what it would have answered instead.
@@ -484,6 +500,8 @@ function asColorInput(value: unknown): Rgba | string | null {
 interface ProblemLog {
     /** The problems so far, in the order they were found. */
     readonly problems: LayerProblem[];
+    /** The warnings so far, in the order they were found. */
+    readonly warnings: CodedFact<LayerWarningCode>[];
     /** The paths the specification reads, in the order it names them, without repeats. */
     readonly paths: Path[];
 }
@@ -709,6 +727,21 @@ function checkBinding(
         }
 
         return;
+    }
+
+    if (descriptor.accepts === "labelStyle") {
+        // Accepted, because refusing would reject stacks that load today, saved projects among
+        // them; reported, because no scale produces a whole label style, so it paints nothing.
+        log.warnings.push({
+            code: "style.label-style-bound",
+            params: {
+                channel: descriptor.channel,
+                path,
+                fieldChannels: channelsFor(descriptor.target)
+                    .map((entry) => entry.channel)
+                    .filter((channel) => labelFieldOf(channel)?.into === descriptor.channel),
+            },
+        });
     }
 
     if (typeof binding.by !== "string" || binding.by.trim() === "") {
@@ -997,7 +1030,7 @@ function checkChannels(
  * @returns The verdict, and the compiled layer when the verdict is that it is sound.
  */
 export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): LayerCheck {
-    const log: ProblemLog = { problems: [], paths: [] };
+    const log: ProblemLog = { problems: [], warnings: [], paths: [] };
     const spec = admitSelectorScope(given, options, log);
     const channels = channelsWritten(spec);
     const target = resolveTarget(spec, channels, log);
@@ -1029,13 +1062,20 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
                 errors: Object.freeze([...log.problems]),
                 unresolvedPaths,
                 shadowedPaths,
+                warnings: Object.freeze([...log.warnings]),
             }),
             layer: null,
         };
     }
 
     return {
-        result: Object.freeze({ ok: true, errors: NO_PROBLEMS, unresolvedPaths, shadowedPaths }),
+        result: Object.freeze({
+            ok: true,
+            errors: NO_PROBLEMS,
+            unresolvedPaths,
+            shadowedPaths,
+            warnings: Object.freeze([...log.warnings]),
+        }),
         layer: buildLayer(spec, options.id, target, compiled, log.paths),
     };
 }

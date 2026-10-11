@@ -17,6 +17,7 @@ import type { Channel } from "@graphty/graphty-element/session";
 
 import {
     ARROW_TYPE_OPTIONS,
+    LABEL_WEIGHT_OPTIONS,
     LINE_TYPE_OPTIONS,
     NODE_SHAPE_OPTIONS,
     type StyleOption,
@@ -98,6 +99,11 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "node.shape": { options: NODE_SHAPE_OPTIONS },
     "node.label": {},
     "node.labelStyle": {},
+    "node.labelColor": {},
+    "node.labelSize": { step: 1 },
+    "node.labelFont": {},
+    "node.labelWeight": { options: LABEL_WEIGHT_OPTIONS },
+    "node.labelItalic": {},
     "node.tooltip": {},
     "node.tooltipStyle": {},
     "node.opacity": { step: 0.05 },
@@ -128,6 +134,11 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "edge.animationSpeed": { step: 0.1 },
     "edge.label": {},
     "edge.labelStyle": {},
+    "edge.labelColor": {},
+    "edge.labelSize": { step: 1 },
+    "edge.labelFont": {},
+    "edge.labelWeight": { options: LABEL_WEIGHT_OPTIONS },
+    "edge.labelItalic": {},
 };
 
 /** Every channel, in the order the inspector draws them. */

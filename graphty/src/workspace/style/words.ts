@@ -24,11 +24,12 @@ export interface StyleSection {
 }
 
 /**
- * Whether a channel draws a label (the label line handles it, not a set line).
+ * Whether a channel draws a label (the label line handles it, not a set line): the words and
+ * each field of the label's look, which all land in the style's label block.
  * @param d - the channel.
- * @returns true for a node's or an edge's label.
+ * @returns true for a node's or an edge's label and its label fields.
  */
-const isLabel = (d: ChannelDescriptor): boolean => d.channel === "node.label" || d.channel === "edge.label";
+const isLabel = (d: ChannelDescriptor): boolean => d.stylePath.startsWith("label.");
 /**
  * Whether a channel writes a tooltip's words.
  * @param d - the channel.
@@ -96,6 +97,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shape": "Shape",
     "node.label": "Label",
     "node.labelStyle": "Label style",
+    "node.labelColor": "Label color",
+    "node.labelSize": "Label size",
+    "node.labelFont": "Label font",
+    "node.labelWeight": "Label weight",
+    "node.labelItalic": "Label italic",
     "node.tooltip": "Tooltip",
     "node.tooltipStyle": "Tooltip style",
     "node.opacity": "Opacity",
@@ -126,6 +132,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.animationSpeed": "Animation speed",
     "edge.label": "Label",
     "edge.labelStyle": "Label style",
+    "edge.labelColor": "Label color",
+    "edge.labelSize": "Label size",
+    "edge.labelFont": "Label font",
+    "edge.labelWeight": "Label weight",
+    "edge.labelItalic": "Label italic",
 };
 
 /**

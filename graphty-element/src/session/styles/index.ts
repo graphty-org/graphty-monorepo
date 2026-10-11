@@ -54,6 +54,7 @@ export type {
     LayerPosition,
     LayerProblem,
     LayerRepaint,
+    LayerWarningCode,
     PathDirectory,
     RepaintContext,
     RepaintReason,

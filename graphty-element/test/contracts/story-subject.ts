@@ -81,8 +81,13 @@ const SUBJECT_TREE = "Styles/";
  * story is about. One word, three subjects, so it picks out none of them. The subjects it used
  * to stand in for are still checked under their own words: an arrow caption story claims
  * "arrow", and `Styles/Label::TextAlign` claims "align".
+ *
+ * "font" joined it with the label field channels for the same reason. In `node.labelFont` it
+ * means the typeface; in a story name -- `FontSize`, `FontWeight` -- it is the prefix of any
+ * typography at all, so it picks out no one subject. Those stories are still checked under
+ * "size" and "weight".
  */
-const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text"]);
+const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text", "font"]);
 
 /** One story that names a subject and does not show it. */
 export interface SubjectFinding {

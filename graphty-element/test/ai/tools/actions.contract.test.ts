@@ -377,4 +377,106 @@ describe("every generated action", () => {
         assert.strictEqual(refused.code, "AI_ARG_INVALID");
         assert.strictEqual(refused.params.path, "kind");
     });
+    it("takes a call that names no action as the only action its fields fit", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        await assistant.say("find", [{ tool: "catalog", args: { text: "communities", kind: "algorithm" } }]);
+        const [read] = assistant.lastResults();
+        assert.strictEqual(read.code, "AI_OK", JSON.stringify(read));
+        // Fields more than one action takes do not choose one.
+        await assistant.say("which", [{ tool: "catalog", args: { kind: "algorithm" } }]);
+        const [refused] = assistant.lastResults();
+        assert.strictEqual(refused.code, "AI_UNKNOWN_ACTION");
+    });
+
+    it("keeps a message's writes when a call naming no action is refused after them", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        const steps = session.history.position;
+        await assistant.say(
+            "make a set, then look at it",
+            [{ tool: "sets", args: { action: "create", where: "data.type == 'server'", name: "servers" } }],
+            [{ tool: "sets", args: { set: "servers" } }],
+        );
+        assert.strictEqual(session.history.position, steps + 1, "the refused call took the set back");
+        assert.isDefined(session.sets.list().find((set) => set.name === "servers"));
+    });
+
+    it("gives a path run's route in order, a metric's spread, and a stray nested field's own siblings", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        await assistant.say("route", [
+            { tool: "run_algorithm", args: { name: "shortest-path", options: { source: "a", target: "e" } } },
+        ]);
+        const [route] = assistant.lastResults();
+        const path = (route.data as { path?: { id: string }[] }).path?.map((step) => step.id);
+        assert.isDefined(path, JSON.stringify(route));
+        assert.strictEqual(path[0], "a");
+        assert.strictEqual(path.at(-1), "e");
+        await assistant.say("degree", [{ tool: "run_algorithm", args: { name: "degree", style: false } }]);
+        const [degree] = assistant.lastResults();
+        assert.isNumber((degree.data as { summary: { stdev?: unknown } }).summary.stdev);
+        await assistant.say("color", [
+            {
+                tool: "style",
+                args: { action: "encode", encode: { channel: "node.color", attribute: "load", centre: 0 } },
+            },
+        ]);
+        const [stray] = assistant.lastResults();
+        assert.strictEqual(stray.params.path, "encode.centre");
+        assert.include(stray.params.allowed as string[], "midpoint");
+    });
+
+    it("encodes around a midpoint, and highlights a run's route in the colors asked for", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        await assistant.say("diverging", [
+            {
+                tool: "style",
+                args: {
+                    action: "encode",
+                    encode: {
+                        channel: "node.color",
+                        attribute: "load",
+                        palette: "red-blue",
+                        midpoint: 0.5,
+                        reverse: true,
+                    },
+                },
+            },
+        ]);
+        const [encoded] = assistant.lastResults();
+        assert.strictEqual(encoded.code, "style.encode", JSON.stringify(encoded));
+        await assistant.say(
+            "route in red",
+            [
+                {
+                    tool: "run_algorithm",
+                    args: { name: "shortest-path", options: { source: "a", target: "e" }, style: false },
+                },
+            ],
+            [
+                {
+                    tool: "style",
+                    args: { action: "highlight", run: "shortest-path", values: { node: "red", "edge.color": "red" } },
+                },
+            ],
+        );
+        const [, highlighted] = assistant.lastResults();
+        assert.strictEqual(highlighted.code, "AI_OK", JSON.stringify(highlighted));
+        assert.include(JSON.stringify(session.styles.list()), "red");
+    });
+
+    it("reads a run named by its algorithm key in a selector, hyphens and all", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        await assistant.say(
+            "select",
+            [{ tool: "run_algorithm", args: { name: "clustering-coefficient", style: false } }],
+            [{ tool: "select", args: { action: "set", where: "results.clustering-coefficient.value >= 0" } }],
+        );
+        const [, selected] = assistant.lastResults();
+        assert.strictEqual(selected.code, "AI_OK", JSON.stringify(selected));
+        assert.include(String(selected.params.rewritten), "results.clustering_coefficient.value");
+    });
 });

@@ -77,11 +77,13 @@ export function stripPlaceholders(args: Readonly<Record<string, unknown>>): Reco
  */
 function argRefusal(error: z.ZodError, action: ActionSpec): ToolRefusal {
     const issue = error.issues[0];
-    const allowed = Object.keys(action.fields);
     if (issue.code === "unrecognized_keys") {
+        // A stray key inside a nested object (`encode.midpoint`) names that object's fields.
+        const at = issue.path.map(String);
+        const allowed = at.length === 0 ? Object.keys(action.fields) : fieldsAt(action, at);
         return new ToolRefusal("AI_ARG_INVALID", {
-            path: issue.keys[0],
-            expected: `a field of ${action.name}`,
+            path: [...at, issue.keys[0]].join("."),
+            expected: `a field of ${at.length === 0 ? action.name : at.join(".")}`,
             allowed,
             didYouMean: suggest(issue.keys[0], allowed),
         });
@@ -107,6 +109,21 @@ function argRefusal(error: z.ZodError, action: ActionSpec): ToolRefusal {
     const schema = toolJsonSchema(z.strictObject(action.fields)) as JsonObject;
     delete schema.$schema;
     return new ToolRefusal("AI_ARG_INVALID", { ...params, schema });
+}
+
+/**
+ * The field names of an object nested in an action's arguments.
+ * @param action - The action.
+ * @param path - Where the object is, such as ["encode"].
+ * @returns Its fields, or none when the path names no object.
+ */
+function fieldsAt(action: ActionSpec, path: readonly string[]): string[] {
+    let node = toolJsonSchema(z.strictObject(action.fields)) as { properties?: Record<string, unknown> } | undefined;
+    for (const key of path) {
+        node = node?.properties?.[key] as typeof node;
+    }
+
+    return Object.keys(node?.properties ?? {});
 }
 
 /** The three ways to name a target, described once each. */
@@ -213,6 +230,39 @@ export class AssistantTool implements GraphCommand {
     }
 
     /**
+     * Whether the action a call names writes: a refused call takes the message's earlier writes
+     * back only when it was itself a write. No such action writes nothing.
+     * @param raw - The arguments as the model sent them.
+     * @returns True for a known write action.
+     */
+    writesFor(raw: Readonly<Record<string, unknown>>): boolean {
+        const { action: named, ...rest } = stripPlaceholders(raw);
+        return this.entryFor(named, rest)?.spec.effect === "write";
+    }
+
+    /**
+     * The action a call names; with none named, the tool's only action, or the only action whose
+     * fields hold every field the call gave (`{ text }` to catalog is a search).
+     * @param named - The action field as sent.
+     * @param rest - The other fields.
+     * @returns The action, or undefined when none or several answer.
+     */
+    private entryFor(
+        named: unknown,
+        rest: Readonly<Record<string, unknown>>,
+    ): { spec: ActionSpec; schema: z.ZodObject } | undefined {
+        if (named !== undefined) {
+            return this.actions.get(text(named));
+        }
+
+        const given = Object.keys(rest);
+        const fitting = [...this.actions.values()].filter(
+            (entry) => this.actions.size === 1 || (given.length > 0 && given.every((key) => key in entry.spec.fields)),
+        );
+        return fitting.length === 1 ? fitting[0] : undefined;
+    }
+
+    /**
      * Check a call's arguments: the action exists, placeholders dropped, the action's own
      * strict schema passes.
      * @param raw - The arguments as the model sent them.
@@ -221,8 +271,7 @@ export class AssistantTool implements GraphCommand {
      */
     check(raw: Readonly<Record<string, unknown>>): CheckedCall {
         const { action: named, ...rest } = stripPlaceholders(raw);
-        const sole = this.actions.size === 1 ? [...this.actions.values()][0] : undefined;
-        const entry = named === undefined ? sole : this.actions.get(text(named));
+        const entry = this.entryFor(named, rest);
         if (entry === undefined) {
             throw new ToolRefusal("AI_UNKNOWN_ACTION", {
                 tool: this.name,

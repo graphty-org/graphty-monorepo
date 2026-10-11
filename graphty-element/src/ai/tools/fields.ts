@@ -40,9 +40,9 @@ export const resultField = z
         run: z.string().max(200),
         field: z.string().max(200),
         op: z.enum(RESULT_OPS),
-        value: z.unknown().describe("A value, or a list for in."),
+        value: z.unknown().describe("A value; a list for in."),
     })
-    .describe('By a run\'s value: {run: "louvain", field: "community", op: "==", value: 3}.');
+    .describe('Run value: {run: "louvain", field: "group", op: "==", value: 3}.');
 
 /** The three ways to name a target. */
 export const targetFields = {
@@ -113,6 +113,32 @@ export function repairSelector(where: string, attributes: readonly string[]): st
     return out.replace(/(==|!=|<=|>=|<|>)\s*(-?\d+(?:\.\d+)?)(?![\d`.])/g, (_match, op: string, num: string) => {
         return `${op} \`${num}\``;
     });
+}
+
+/** `results.<run>.<field>`, the run written as an id, an algorithm key (quoted or not) or "latest". */
+const RESULT_REFERENCE = /results\.(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([A-Za-z0-9_:-]+))\.([A-Za-z_][A-Za-z0-9_]*)/g;
+
+/**
+ * Rewrite each run a selector names by what the model knows -- its algorithm key, quoted or not, or
+ * "latest" -- to the run's own path. A run id is not the key (`shortest-path` runs as
+ * `shortest_path`), and a hyphen is no identifier character, so the model's natural spelling would
+ * not parse. A reference to no run is left for the parser to report.
+ * @param session - The runs.
+ * @param where - The selector.
+ * @returns The selector, its run references resolved.
+ */
+function resultReferences(session: Pick<GraphSession, "runs" | "results">, where: string): string {
+    return where.replace(
+        RESULT_REFERENCE,
+        (match: string, double?: string, single?: string, tick?: string, bare?: string, field = ""): string => {
+            const name = double ?? single ?? tick ?? bare ?? "";
+            try {
+                return session.results.path(resolveRun(session, name), field);
+            } catch {
+                return match;
+            }
+        },
+    );
 }
 
 /**
@@ -209,7 +235,7 @@ export function settleTarget(
         throw new ToolRefusal("AI_ARG_INVALID", { path: "where", expected: 'a selector, or "all"' });
     }
 
-    const where = repairSelector(raw, attributeNames(session, kind));
+    const where = repairSelector(resultReferences(session, raw), attributeNames(session, kind));
     if (where !== raw) {
         notes.rewritten = where;
     }

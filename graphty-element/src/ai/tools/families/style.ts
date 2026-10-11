@@ -106,12 +106,14 @@ function channelSpelling(written: string, names: readonly string[]): string {
  * Flatten `{ node: { color: "red" } }` to `{ "node.color": "red" }`, and check each channel.
  * @param values - The values as written.
  * @param channels - The channel table.
+ * @param both - Whether node and edge channels may come together (a highlight takes both).
  * @returns The literal style, and whether it paints nodes or edges.
  * @throws {ToolRefusal} For an unknown channel, a bad value, or one call mixing nodes and edges.
  */
 export function checkValues(
     values: Record<string, unknown>,
     channels: readonly ChannelDescriptor[],
+    both = false,
 ): { set: StaticStyle; target: "node" | "edge" } {
     const flat: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(values)) {
@@ -124,6 +126,9 @@ export function checkValues(
             for (const [inner, innerValue] of Object.entries(value as Record<string, unknown>)) {
                 flat[`${key}.${inner}`] = innerValue;
             }
+        } else if ((key === "node" || key === "edge") && typeof value === "string") {
+            // `{ node: "red" }`: the element's color, which the color channel's own check confirms.
+            flat[`${key}.color`] = value;
         } else {
             flat[key] = value;
         }
@@ -164,7 +169,7 @@ export function checkValues(
         throw new ToolRefusal("AI_ARG_INVALID", { path: "values", expected: "at least one channel value" });
     }
 
-    if (targets.size > 1) {
+    if (targets.size > 1 && !both) {
         throw new ToolRefusal("AI_ARG_INVALID", { path: "values", expected: "node.* or edge.* channels, not both" });
     }
 
@@ -318,8 +323,17 @@ async function encode(
         scale?: string;
         domain?: [number, number];
         missing?: string;
+        midpoint?: number;
+        reverse?: boolean;
         scaleOptions?: Record<string, unknown>;
     };
+    // A midpoint and a direction are scale options; the model names them where it thinks of them.
+    const folded = {
+        ...spec.scaleOptions,
+        ...(spec.midpoint === undefined ? {} : { midpoint: spec.midpoint }),
+        ...(spec.reverse === undefined ? {} : { reverse: spec.reverse }),
+    };
+    const scaleName = spec.scale ?? (spec.midpoint === undefined ? undefined : "linear");
     const channel = requireEntry(
         "channel",
         spec.channel,
@@ -333,15 +347,15 @@ async function encode(
         );
     }
 
-    let scaleOptions: Record<string, unknown> = {};
-    if (spec.scale !== undefined) {
+    let scaleOptions: Record<string, unknown> = spec.reverse === undefined ? {} : { reverse: spec.reverse };
+    if (scaleName !== undefined) {
         requireEntry(
             "scale",
-            spec.scale,
+            scaleName,
             catalog.scales.map((each) => each.name),
         );
-        const scale = catalog.scales.find((each) => each.name === spec.scale);
-        const parsed = optionsSchema(scale?.options ?? []).schema.safeParse(spec.scaleOptions ?? {});
+        const scale = catalog.scales.find((each) => each.name === scaleName);
+        const parsed = optionsSchema(scale?.options ?? []).schema.safeParse(folded);
         if (!parsed.success) {
             throw new ToolRefusal("AI_ARG_INVALID", { path: "encode.scaleOptions", expected: "the scale's options" });
         }
@@ -374,7 +388,7 @@ async function encode(
 
     const binding = {
         ...(spec.palette === undefined ? {} : { palette: spec.palette }),
-        ...(spec.scale === undefined ? {} : { scale: spec.scale }),
+        ...(scaleName === undefined ? {} : { scale: scaleName }),
         ...(spec.domain === undefined ? {} : { domain: spec.domain }),
         ...(spec.missing === undefined ? {} : { missing: { value: spec.missing } }),
     };
@@ -410,7 +424,7 @@ async function encode(
 const values = z
     .record(z.string().max(100), z.unknown())
     .optional()
-    .describe('e.g. {"node.color": "red", "node.size": 2}; channels: catalog search.');
+    .describe('e.g. {"node.color":"red","node.size":2}; channels: catalog search');
 const layer = z.string().max(MAX_STRING).optional().describe("Layer id or name.");
 const name = z.string().max(200).optional().describe("The layer's name.");
 const position = z.enum(["top", "bottom", "above", "below"]).optional().describe("Where in the stack.");
@@ -424,14 +438,16 @@ const relativeTo = z.string().max(MAX_STRING).optional().describe("Layer for abo
 export function styleTool(catalog: CatalogView): ToolDefinition {
     const encodeField = z
         .strictObject({
-            channel: z.string().max(100).describe("Channel, e.g. node.color, node.size, edge.width."),
+            channel: z.string().max(100).describe("e.g. node.color, node.size, edge.width."),
             attribute: z.string().max(200).optional(),
-            run: z.string().max(200).optional().describe("Instead of attribute: a run and its field."),
+            run: z.string().max(200).optional().describe("Or a run and its field."),
             field: z.string().max(200).optional(),
             palette: z.string().max(100).optional().describe("catalog search kind palette"),
             scale: z.string().max(100).optional().describe("linear, log, sqrt, bins, ordinal..."),
             domain: z.array(z.number()).length(2).optional(),
             missing: z.string().max(200).optional().describe("Value where there is none."),
+            midpoint: z.number().optional().describe("Diverging center."),
+            reverse: z.boolean().optional().describe("Flip the palette."),
             scaleOptions: z.record(z.string(), z.unknown()).optional().describe("catalog describe kind scale"),
         })
         .optional()
@@ -439,7 +455,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
     const actions: ActionSpec[] = [
         {
             name: "add",
-            summary: "paint values on a target",
+            summary: "a new layer; edit one: update",
             fields: { ...targetFields, values, name, position, relativeTo: relativeTo },
             effect: "write",
             reaches: [
@@ -567,13 +583,23 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
             fields: {
                 run: z.string().max(200).optional().describe('Run id, algorithm name or "latest".'),
                 field: z.string().max(200).optional().describe("The run's field; default its own."),
+                values,
             },
             effect: "write",
             reaches: [{ door: "StylesApi.highlight" }],
             run: async ({ tx }, args) => {
                 const run = resolveRun(tx, text(args.run, "latest"));
+                // A route's look may name node and edge channels together; each half takes its own.
+                const set =
+                    args.values === undefined
+                        ? undefined
+                        : checkValues(args.values as Record<string, unknown>, catalog.channels, true).set;
                 const layers = await coded(() =>
-                    tx.styles.highlight({ run, ...(typeof args.field === "string" ? { field: args.field } : {}) }),
+                    tx.styles.highlight({
+                        run,
+                        ...(typeof args.field === "string" ? { field: args.field } : {}),
+                        ...(set === undefined ? {} : { set }),
+                    }),
                 );
                 return ok({ layers: layers.map((each) => each.id) }, { run });
             },

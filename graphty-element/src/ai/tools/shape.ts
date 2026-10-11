@@ -202,6 +202,7 @@ export function summarizeRun(session: Pick<GraphSession, "data">, run: Run): Jso
         min: summary.min,
         max: summary.max,
         mean: toJson(summary.mean),
+        ...(summary.mean === null ? {} : { stdev: toJson(spreadOf(session, result, summary.mean)) }),
         median: toJson(summary.median),
         top: summary.top.slice(0, 5).map((entry) => {
             const id = String((entry as { id?: unknown }).id);
@@ -214,6 +215,11 @@ export function summarizeRun(session: Pick<GraphSession, "data">, run: Run): Jso
                   largest: summary.groups.slice(0, 10).map((group) => toJson(group)),
               }),
     };
+    if (run.shape === "path") {
+        // The route itself, in order: "what is the path" is the question a path run answers.
+        out.path = pathOf(session, result);
+    }
+
     out.fields = run.fields.map((field) => ({ field: field.name, kind: field.kind, type: field.type }));
     const graph = toJson(result.graph);
     if (graph !== null && Object.keys(graph).length > 0) {
@@ -221,6 +227,52 @@ export function summarizeRun(session: Pick<GraphSession, "data">, run: Run): Jso
     }
 
     return out;
+}
+
+/**
+ * The standard deviation of a result's per-node values (`value`), so a model can set a cut such as
+ * "three deviations above the mean" without paging every value.
+ * @param session - Lists the nodes.
+ * @param result - The result.
+ * @param mean - The values' mean.
+ * @returns The population standard deviation, or null when no node carries a number.
+ */
+function spreadOf(
+    session: Pick<GraphSession, "data">,
+    result: NonNullable<Run["result"]>,
+    mean: number,
+): number | null {
+    let sum = 0;
+    let count = 0;
+    for (const node of session.data.nodes()) {
+        const value = result.node(String((node as { id?: unknown }).id))?.value;
+        if (typeof value === "number" && Number.isFinite(value)) {
+            sum += (value - mean) ** 2;
+            count++;
+        }
+    }
+
+    return count === 0 ? null : Math.sqrt(sum / count);
+}
+
+/**
+ * The nodes on a path result, in route order, at most a page of them.
+ * @param session - Names the nodes.
+ * @param result - The path run's result.
+ * @returns `{ id, label }` per node, first to last.
+ */
+function pathOf(session: Pick<GraphSession, "data">, result: NonNullable<Run["result"]>): JsonObject[] {
+    const route: { id: string; order: number }[] = [];
+    for (const node of session.data.nodes()) {
+        const id = String((node as { id?: unknown }).id);
+        const values = result.node(id);
+        if (values?.onPath === true) {
+            route.push({ id, order: typeof values.order === "number" ? values.order : route.length });
+        }
+    }
+
+    route.sort((a, b) => a.order - b.order);
+    return route.slice(0, MAX_LIMIT).map(({ id }) => ({ id, label: session.data.name(id) ?? id }));
 }
 
 /**

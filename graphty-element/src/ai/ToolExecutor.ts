@@ -202,7 +202,7 @@ function prepare(batch: ToolBatch, request: ToolCallRequest): PreparedCall | Cal
             };
         } catch (error) {
             if (error instanceof ToolRefusal) {
-                return refused(error.code, error.params, true);
+                return refused(error.code, error.params, command.writesFor(request.arguments));
             }
 
             throw error;

@@ -131,6 +131,11 @@ export default defineConfig({
                         { text: "Camera", link: "/graphty-element/guide/camera" },
                         { text: "Screenshots & Video", link: "/graphty-element/guide/screenshots" },
                         { text: "VR/AR", link: "/graphty-element/guide/vr-ar" },
+                        { text: "AI Assistant", link: "/graphty-element/guide/ai-assistant" },
+                        {
+                            text: "The Conversation Format",
+                            link: "/graphty-element/guide/ai-conversation-format",
+                        },
                     ],
                 },
                 {

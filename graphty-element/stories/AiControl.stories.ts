@@ -10,12 +10,16 @@
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html, type TemplateResult } from "lit";
+import { userEvent } from "storybook/test";
 
+import type { ExecutionResult } from "../src/ai/AiController";
+import type { AiManagerConfig } from "../src/ai/AiManager";
 import type { AiStatus } from "../src/ai/AiStatus";
 import { ApiKeyManager } from "../src/ai/keys/ApiKeyManager";
+import type { MockLlmProvider } from "../src/ai/providers/MockLlmProvider";
 import type { WebLlmProvider } from "../src/ai/providers/WebLlmProvider";
 import { type GraphtyElement } from "../src/graphty-element";
-import { assertControlsPresent, assertGraphLoaded, assertLayoutPlaced, drawn } from "./assertions";
+import { assertControlsPresent, assertGraphLoaded, assertLayoutPlaced, drawn, holds } from "./assertions";
 
 // Sample network infrastructure graph
 const SAMPLE_NODES = [
@@ -1395,5 +1399,291 @@ export const Default: Story = {
             "#command-history",
             "#response-output",
         ]);
+    },
+};
+
+/**
+ * A small page around the element, as a consumer writes it from the AI guide: an input and a Send
+ * button, a transcript redrawn on `ai-conversation-changed`, and an approval card drawn from
+ * `ai-approval-requested`. The assistant runs on the mock provider with scripted answers, so the
+ * story needs no key and draws the same picture every time.
+ */
+interface AssistantPage {
+    /** The page's root. */
+    readonly root: HTMLElement;
+    /** Settles when the assistant is enabled and scripted. */
+    readonly ready: Promise<void>;
+    /** The last message the reader sent, until it resolves. */
+    sent?: Promise<ExecutionResult>;
+    /** The last answer the reader gave an approval request, until it resolves. */
+    decided?: Promise<ExecutionResult>;
+}
+
+/** Each rendered page, by its root, for the play function. */
+const assistantPages = new WeakMap<Element, AssistantPage>();
+
+/**
+ * Draw the page and enable the assistant.
+ * @param config - The assistant's history and approvals.
+ * @param scripted - The mock provider's answers, by a phrase of the reader's message.
+ * @returns The page's root.
+ */
+function assistantPage(
+    config: Pick<AiManagerConfig, "history" | "approvals">,
+    scripted: Readonly<Record<string, Parameters<MockLlmProvider["setResponse"]>[1]>>,
+): HTMLElement {
+    const root = document.createElement("div");
+    root.style.cssText = "display:flex;gap:16px;height:600px;font:14px sans-serif;";
+
+    const element = document.createElement("graphty-element");
+    element.id = "assistant-graph";
+    element.style.cssText = "flex:1;display:block;height:100%;";
+    element.layout = "circular";
+    element.nodeData = SAMPLE_NODES;
+    element.edgeData = SAMPLE_EDGES;
+
+    const panel = document.createElement("div");
+    panel.style.cssText = "width:340px;display:flex;flex-direction:column;gap:8px;";
+    const form = document.createElement("form");
+    form.style.cssText = "display:flex;gap:8px;";
+    const input = document.createElement("input");
+    input.id = "ask";
+    input.placeholder = "Ask the assistant";
+    input.style.cssText = "flex:1;padding:6px;";
+    const send = document.createElement("button");
+    send.id = "send";
+    send.type = "submit";
+    send.textContent = "Send";
+    form.append(input, send);
+    const transcript = document.createElement("ol");
+    transcript.id = "transcript";
+    transcript.style.cssText = "margin:0;padding-left:20px;";
+    const card = document.createElement("div");
+    card.id = "approval";
+    card.style.cssText = "display:flex;flex-direction:column;gap:6px;";
+    panel.append(form, transcript, card);
+    root.append(element, panel);
+
+    // The transcript: the reader's words and the assistant's, with the tools each answer used.
+    element.addEventListener("ai-conversation-changed", () => {
+        transcript.replaceChildren(
+            ...(element.getAiConversation()?.messages ?? []).map((message) => {
+                const item = document.createElement("li");
+                const calls = message.role === "assistant" ? message.calls.map((call) => call.command) : [];
+                item.textContent = `${message.role === "reader" ? "You" : "Assistant"}: ${message.text}${
+                    calls.length > 0 ? ` [${calls.join(", ")}]` : ""
+                }`;
+                return item;
+            }),
+        );
+    });
+
+    // The approval card: what the model asked for, as text, and the reader's two answers.
+    element.addEventListener("ai-approval-requested", (e) => {
+        const { request } = e.detail;
+        card.replaceChildren();
+        for (const call of request.calls) {
+            const line = document.createElement("pre");
+            line.style.cssText = "margin:0;white-space:pre-wrap;background:#f3f3f3;padding:6px;";
+            line.textContent = `${call.tool} ${JSON.stringify(call.arguments)}`;
+            card.append(line);
+        }
+
+        for (const approve of [true, false]) {
+            const button = document.createElement("button");
+            button.textContent = approve ? "Approve" : "Deny";
+            button.addEventListener("click", () => {
+                card.replaceChildren();
+                page.decided = element.resolveAiApproval(request.id, { approve });
+            });
+            card.append(button);
+        }
+    });
+    element.addEventListener("ai-pending-resolved", () => {
+        card.replaceChildren();
+    });
+
+    form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const text = input.value.trim();
+        input.value = "";
+        if (text !== "") {
+            page.sent = element.aiCommand(text);
+        }
+    });
+
+    const page: AssistantPage = {
+        root,
+        ready: (async () => {
+            await element.enableAiControl({ provider: "mock", ...config });
+            const provider = element.getAiManager()?.getProvider() as MockLlmProvider;
+            for (const [phrase, response] of Object.entries(scripted)) {
+                provider.setResponse(phrase, response);
+            }
+        })(),
+    };
+    assistantPages.set(root, page);
+    return root;
+}
+
+/**
+ * The page a story rendered, ready for the reader.
+ * @param canvasElement - Where the story was rendered.
+ * @returns The page.
+ */
+async function readyPage(canvasElement: HTMLElement): Promise<AssistantPage> {
+    const root = canvasElement.firstElementChild;
+    const page = root === null ? undefined : assistantPages.get(root);
+    await holds(page !== undefined, "the story rendered no assistant page");
+    if (page === undefined) {
+        throw new Error("the story rendered no assistant page");
+    }
+
+    await page.ready;
+    return page;
+}
+
+/**
+ * Type a message into the page's input and press Send, as a reader does.
+ * @param canvasElement - Where the story was rendered.
+ * @param page - The page.
+ * @param text - What the reader types.
+ * @returns The message's result.
+ */
+async function ask(canvasElement: HTMLElement, page: AssistantPage, text: string): Promise<ExecutionResult> {
+    const input = canvasElement.querySelector<HTMLInputElement>("#ask");
+    const send = canvasElement.querySelector<HTMLButtonElement>("#send");
+    await holds(input !== null && send !== null, "the page has no input and Send button");
+    const previous = page.sent;
+    await userEvent.type(input as HTMLInputElement, text);
+    await userEvent.click(send as HTMLButtonElement);
+    const { sent } = page;
+    await holds(sent !== undefined && sent !== previous, `pressing Send did not send "${text}"`);
+    return (await sent) as ExecutionResult;
+}
+
+/**
+ * The assistant remembers the conversation (`history: "memory"`): the reader asks to color the
+ * servers red, then says "now make them bigger", and the model is sent the first exchange with
+ * the second message. The transcript beside the graph is the page's, read from
+ * `getAiConversation()`.
+ */
+export const RememberedConversation: Story = {
+    name: "Remembered conversation",
+    render: () =>
+        assistantPage(
+            { history: "memory" },
+            {
+                "servers red": {
+                    text: "I colored the four servers red.",
+                    toolCalls: [
+                        {
+                            id: "c1",
+                            name: "style",
+                            arguments: {
+                                action: "add",
+                                where: "data.type == 'server'",
+                                values: { "node.color": "red" },
+                            },
+                        },
+                    ],
+                },
+                "make them bigger": {
+                    text: "The servers are bigger now.",
+                    toolCalls: [
+                        {
+                            id: "c2",
+                            name: "style",
+                            arguments: { action: "add", where: "data.type == 'server'", values: { "node.size": 2 } },
+                        },
+                    ],
+                },
+            },
+        ),
+    play: async ({ canvasElement }) => {
+        const page = await readyPage(canvasElement);
+        await drawn(canvasElement, "AI Control Remembered conversation");
+
+        const first = await ask(canvasElement, page, "Color the servers red");
+        await holds(first.code === "AI_COMPLETED", `the first message ended ${String(first.code)}`);
+        const second = await ask(canvasElement, page, "Now make them bigger");
+        await holds(second.code === "AI_COMPLETED", `the second message ended ${String(second.code)}`);
+
+        // Remembered: the model was sent the first exchange along with the second message.
+        const element = canvasElement.querySelector("graphty-element");
+        const provider = element?.getAiManager()?.getProvider() as MockLlmProvider | undefined;
+        const lastAsk = (provider?.getCallHistory() ?? [])
+            .filter((call) =>
+                call.messages.some((m) => m.role === "user" && m.content.includes("Now make them bigger")),
+            )
+            .at(-1);
+        await holds(
+            lastAsk?.messages.some((m) => m.role === "user" && m.content.includes("Color the servers red")) === true,
+            "the second message was sent without the first: the conversation was not remembered",
+        );
+
+        const said = (element?.getAiConversation()?.messages ?? []).map((m) => `${m.role}:${m.text}`);
+        await holds(
+            JSON.stringify(said) ===
+                JSON.stringify([
+                    "reader:Color the servers red",
+                    "assistant:I colored the four servers red.",
+                    "reader:Now make them bigger",
+                    "assistant:The servers are bigger now.",
+                ]),
+            `the conversation holds ${JSON.stringify(said)}`,
+        );
+        await holds(
+            canvasElement.querySelectorAll("#transcript li").length === 4,
+            "the page's transcript does not show the four messages",
+        );
+        await drawn(canvasElement, "AI Control Remembered conversation");
+    },
+};
+
+/**
+ * The assistant asks before it changes the graph (`approvals: "writes"`): the reader asks to
+ * remove the monitoring node, the page draws the held call and Approve and Deny from
+ * `ai-approval-requested`, nothing changes until the reader clicks Approve, and then the node goes
+ * and the message ends with the model's answer.
+ */
+export const Approvals: Story = {
+    render: () =>
+        assistantPage(
+            { history: "memory", approvals: "writes" },
+            {
+                "remove the monitoring": {
+                    text: "I removed the monitoring node.",
+                    toolCalls: [
+                        { id: "r1", name: "edit_data", arguments: { action: "remove_nodes", ids: ["monitor"] } },
+                    ],
+                },
+            },
+        ),
+    play: async ({ canvasElement }) => {
+        const page = await readyPage(canvasElement);
+        const before = await drawn(canvasElement, "AI Control Approvals");
+        await assertGraphLoaded(before, { nodes: 12, edges: 20 });
+
+        const held = await ask(canvasElement, page, "Remove the monitoring node");
+        await holds(held.code === "AI_CONFIRMATION_NEEDED", `the message was not held: ${String(held.code)}`);
+        await holds(before.session.status.counts.nodes === 12, "the node was removed before the reader approved");
+
+        const approve = [...canvasElement.querySelectorAll<HTMLButtonElement>("#approval button")].find(
+            (button) => button.textContent === "Approve",
+        );
+        await holds(approve !== undefined, "the page drew no Approve button for the request");
+        await userEvent.click(approve as HTMLButtonElement);
+        const { decided } = page;
+        await holds(decided !== undefined, "clicking Approve did not answer the request");
+        const final = (await decided) as ExecutionResult;
+
+        await holds(final.code === "AI_COMPLETED", `approving ended ${String(final.code)}`);
+        const after = await drawn(canvasElement, "AI Control Approvals");
+        await holds(
+            after.session.status.counts.nodes === 11 && after.session.data.node("monitor") === undefined,
+            "approving did not remove the monitoring node",
+        );
+        await holds(canvasElement.querySelectorAll("#approval button").length === 0, "the approval card stayed up");
     },
 };

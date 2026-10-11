@@ -511,7 +511,8 @@ each with a check that plants a violation in its self-test:
 - No framework or provider type in an API report or a shipped file: `tools/api-report.mjs` and
   `tools/check-published-deps.mjs`, reading the list in `tools/ai-framework-packages.mjs`.
 - Saved data only in graphty's versioned format: `formats.test.ts`, with the saved conversation
-  format.
+  format (`src/ai/conversation/formats/`, published in `docs/guide/ai-conversation-format.md`). A
+  released version's schema file never changes; a format change is a new version with an upgrade.
 - Providers configured with named graphty fields, never an open pass-through (`unknown`, `any`,
   `object`, a record of unknown, an index signature) on `AiManagerConfig`, `ProviderOptions` or a
   type they reach: `tools/api-report.mjs`.

@@ -41,7 +41,7 @@ export const projectTool: ToolDefinition = {
     plainName: "Project",
     core: false,
     description:
-        "Project settings (background, selection style, layout behavior, data columns, direction), its name, what a column measures, and whether it has unsaved changes. Saving is the reader's application's.",
+        "Project settings (background, selection style, layout behavior, data columns, direction), its name, what a column measures, and whether it has unsaved changes. Saving is the reader's application's. The data source's own name is import_data rename_source.",
     example: { action: "settings", background: { backgroundType: "color", color: "#101010" } },
     actions: [
         {

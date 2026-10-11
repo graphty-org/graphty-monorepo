@@ -17,7 +17,7 @@ export type ToolProfile = "standard" | "small";
 const ON_DEMAND = [
     "sets: named sets of nodes",
     "notes: notes on elements",
-    "import_data: load data from text or a URL the reader gave",
+    "import_data: load data from text or a URL the reader gave; rename the data source",
     "export_graph: write the graph as a file for the reader",
     "project: settings, name, what a column measures",
     "capture: a picture or a video for the reader",

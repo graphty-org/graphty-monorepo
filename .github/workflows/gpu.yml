@@ -56,6 +56,11 @@ on:
                     - gpu-linux-t4
                     - machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand
                     - machine/gpu=t4/cpu=4/ram=16/tenancy=spot
+            # exp/gpu-repro-t4 only (never merged): run the position-repro scripts instead of the tests and benchmarks
+            repro:
+                description: "run webgpu-graph-algorithms/scripts/repro/run-all.sh and skip the tests and benchmarks"
+                type: boolean
+                default: false
 permissions: { contents: read }
 # One paid run at a time, never cancelled: a cancelled run is a paid hour thrown away.
 concurrency:
@@ -63,8 +68,46 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
+    # exp/gpu-repro-t4 only: the story layouts' positions on the T4, three fresh-process runs each, plus the
+    # iteration-exact comparison and the adapter facts, uploaded as an artifact. Same runner and container as test-gpu.
+    repro:
+        name: Position repro (NVIDIA T4)
+        if: ${{ inputs.repro }}
+        runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand' }}
+        container:
+            image: ubuntu:24.04
+            options: --gpus all --ipc=host --privileged
+            env:
+                NVIDIA_VISIBLE_DEVICES: all
+                NVIDIA_DRIVER_CAPABILITIES: all
+                DEBIAN_FRONTEND: noninteractive
+        timeout-minutes: 40
+        env:
+            XDG_RUNTIME_DIR: /tmp
+        defaults: { run: { shell: bash } }
+        steps:
+            - name: Bootstrap the container
+              run: |
+                  apt-get update
+                  apt-get install -y --no-install-recommends ca-certificates curl git gnupg sudo xz-utils libvulkan1 libegl1 libgl1
+            - uses: actions/checkout@v4
+            - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+            - run: nvidia-smi
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with: { node-version: 22.x, cache: pnpm }
+            - run: pnpm install --frozen-lockfile
+              env: { HUSKY: "0" }
+            - run: pnpm exec nx run-many -t build --projects=graph-format,graph-io,graph-samples,algorithms,layout,webgpu-graph-algorithms,cytoscape-extensions
+            # an empty adapter substring: Dawn's default adapter, the only one in this container (run-all.sh checks it is NVIDIA)
+            - run: webgpu-graph-algorithms/scripts/repro/run-all.sh "" repro-out/t4
+            - uses: actions/upload-artifact@v4
+              if: ${{ !cancelled() }}
+              with: { name: "gpu-repro-t4-${{ github.run_id }}", path: repro-out, retention-days: 30 }
+
     test-gpu:
         name: Test (NVIDIA T4)
+        if: ${{ !inputs.repro }}
         # On-demand by default (owner decision, 2026-10-08): spot ($0.0045/min against $0.018/min) was the default
         # from 2026-10-04, but reclaimed spot runners ("spot interrupted") failed the release train's T4 job and held
         # releases overnight. A held release costs far more than the difference. Spot stays a dispatch option.

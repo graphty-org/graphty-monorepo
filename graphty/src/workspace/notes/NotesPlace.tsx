@@ -133,9 +133,13 @@ function Chips({ session, targets, states, onOpen, tabbable = true, note }: Chip
  * saves from anywhere in it; Esc closes an empty one and leaves a written one open with its text.
  * @param props - Component props
  * @param props.onSaved - Called with the new note's id once it is saved
+ * @param props.onClosed - Called once Cancel, or Esc on an empty note, has closed it
  * @returns The editor, or null when no note is being written
  */
-function Editor({ onSaved }: Readonly<{ onSaved: (id: string) => void }>): React.JSX.Element | null {
+function Editor({
+    onSaved,
+    onClosed,
+}: Readonly<{ onSaved: (id: string) => void; onClosed: () => void }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const draft = useWorkspaceState((state) => state.noteDraft);
     const [error, setError] = useState<string | null>(null);
@@ -151,6 +155,7 @@ function Editor({ onSaved }: Readonly<{ onSaved: (id: string) => void }>): React
     }
     const close = (): void => {
         store.set({ noteDraft: null });
+        onClosed();
     };
     const save = (): void => {
         if (draft.text.trim() === "") {
@@ -223,7 +228,7 @@ function Editor({ onSaved }: Readonly<{ onSaved: (id: string) => void }>): React
  * The Notes place (tier2-design.md section 3): the editor when a note is being written, then the
  * notes, newest first. The list is one Tab stop; Up and Down move between notes, Delete removes
  * the focused one, and focus then goes to the next note, or to "+" when none is left. A saved
- * note takes focus itself.
+ * note takes focus itself; Cancel puts focus on "+".
  * @returns The Notes place
  */
 export function NotesPlace(): React.JSX.Element {
@@ -253,6 +258,9 @@ export function NotesPlace(): React.JSX.Element {
         setActive(index);
         items.current[index]?.focus();
     };
+    const focusPlus = (): void => {
+        plus.current?.querySelector("button")?.focus();
+    };
     const remove = (index: number): void => {
         const note = notes.at(index);
         if (session === null || note === undefined) {
@@ -261,7 +269,7 @@ export function NotesPlace(): React.JSX.Element {
         // The next note, or the one above when the last one goes, or "+" when none is left.
         const next = notes.at(index + 1) ?? (index > 0 ? notes.at(index - 1) : undefined);
         if (next === undefined) {
-            plus.current?.querySelector("button")?.focus();
+            focusPlus();
         } else {
             focusWhenDrawn(next.id);
         }
@@ -283,8 +291,9 @@ export function NotesPlace(): React.JSX.Element {
                 }
             >
                 {/* A saved note takes focus itself, so it reads whole: focus on "+" opened its
-                    tooltip over the note just written. */}
-                <Editor onSaved={focusWhenDrawn} />
+                    tooltip over the note just written. A closed one hands focus to "+", where it
+                    was opened, rather than dropping it to the page. */}
+                <Editor onSaved={focusWhenDrawn} onClosed={focusPlus} />
                 {notes.length === 0 ? (
                     !editing && (
                         <Text size="sm" c="dimmed" px="md" py="xs">

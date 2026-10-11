@@ -97,4 +97,18 @@ describe("Add note with a note already being written", () => {
             );
         });
     });
+
+    it("puts focus on Add note after Cancel, not on the page", async () => {
+        const store = createWorkspaceStore();
+        await openSample(store);
+        await userEvent.click(screen.getByRole("button", { name: "Notes" }));
+        await userEvent.click(screen.getByRole("button", { name: "Add note" }));
+        await userEvent.type(await screen.findByRole("textbox", { name: "Note" }), "Not this one");
+
+        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("textbox", { name: "Note" }));
+        });
+        assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Add note" }));
+    });
 });

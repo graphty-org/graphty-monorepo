@@ -401,6 +401,17 @@ const WALKS = [
                 do: steps("--key Escape", "--key Escape", "--key n", "--type Book the hall", "--key Control+Enter"),
                 screen: "the Notes place with two notes",
             },
+            {
+                do: steps(
+                    "--key Escape",
+                    "--key Escape",
+                    "--key n",
+                    "--type Not this one",
+                    "--click Cancel",
+                    "--expect-not Not this one",
+                ),
+                focus: "Cancel in the note editor",
+            },
             { do: steps("--key Control+o", "--upload team.csv", "--click Add") },
             { do: steps("--click Load", "--expect-not Add to friends"), focus: "Load (adding a table)" },
             {

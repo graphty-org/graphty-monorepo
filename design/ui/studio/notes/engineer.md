@@ -11,14 +11,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-11) **FIXED: New project, then Discard, no longer shows the error page.** Reproduced on
-  5277e2cbe first (`tmp/t2r4-6/frozen/05.png`). Mechanism: the new project's `ElementHost` mounts
-  in the same commit that removes the old element, and its size-bound check read
-  `useWorkspace().session`, still the old, disposed session, so `styles.legend()` threw
-  `E_DISPOSED`. `ElementHost` now reads its own element's session. Fresh build: an empty Untitled
-  project ("No nodes to draw", Add data... / Open a sample), no console output
-  (`tmp/t2r4-6/fresh/05.png`); real-element test in `Project.real-element.test.tsx`.
-
+- (2026-10-11) **Cancel in the note editor puts focus on "+"** (`NotesPlace.tsx`: the editor's
+  `close()` calls `onClosed`, which focuses "+" as Delete of the last note does; Esc on an empty
+  note too). Frozen 5277e2cbe: `focus: nothing (the page itself)`; fresh build: `focus: button
+  "Add note"` (`tmp/t2r4-10/sr-old`, `sr-new`, 04.png). bars.mjs move "Cancel in the note editor".
 - (2026-10-11) **A briefing never holds what a task asks the participant to find.** The README's
   file table now names each file and its kind only; the answer key's "Facts no briefing may hold"
   lists the facts (`Mo`, `Nia`, `6 - w`, `p13`, `s11`), and `--brief` refuses, `--leaks` voids,
@@ -86,6 +82,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-11) **A closed note editor hands focus to "+", where a note is opened.** Same target
+  Delete uses when no note is left, so the Notes place has one rule: focus never falls to the page.
+  No words change. The real-element test (`NoteDraftFocus.real-element.test.tsx`) failed on the old
+  file and passes now.
 - (2026-10-11) **A component mounted with a new element reads that element's session, never the
   workspace's.** The workspace hands the session up through state, so for one commit after an
   element is replaced it still holds the disposed one; anything that mounts in that commit (keyed by
@@ -200,6 +200,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-11) Did not work as a check on the frozen build: the bars.mjs Cancel move. The
+  "returning" walk stops earlier there, at "leaving an off step's editor unedited" (the off-step
+  bug fixed in 8f6426ab6), so every later move is MISS. Checked the frozen build directly instead
+  with `real.mjs --sr` (keyboard: n, type, Tab, Enter), which prints `focus:` after each step.
+  Plain `--step` prints no focus line; only `--sr` does.
+- (2026-10-11) Did not work: running bars.mjs on two builds at once. The two runs want more than
+  the 4 browser slots, so three tier 2 sessions of the second run never got one ("the session did
+  not start"). Run bars one build at a time. "a node's Values with its neighbors" (tier 1) misses
+  on both builds alike: a click timeout, not from the note change.
 - (2026-10-11) Claim scripts by pointer, not `--sr`: a pointer route to the same focus (click
   `role=menuitem:Color`) plus `--read` after the Escape showed focus on the page (whole page read).
   Worked, and far shorter than a keys-only walk. For a label-vs-edge pick, hover/click three

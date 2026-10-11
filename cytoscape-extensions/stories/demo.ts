@@ -100,9 +100,10 @@ export const GENERATE: Record<Network, (n: number, seed: number) => SampleGraph>
  * Cytoscape elements for a sample graph: node "n<i>", edge "e<i>", weight in data("w") when weighted, and the
  * generator's ground-truth group in data("community") when it has one (planted partition, SBM, LFR).
  * @param g - the graph
+ * @param nodesOnly - true leaves the edges out
  * @returns the elements
  */
-export function elementsOf(g: SampleGraph): ElementDefinition[] {
+export function elementsOf(g: SampleGraph, nodesOnly = false): ElementDefinition[] {
     const els: ElementDefinition[] = [];
     const col = g.nodeColumns?.community;
     const community = col === undefined || !ArrayBuffer.isView(col) ? undefined : (col as ArrayLike<number>);
@@ -113,7 +114,7 @@ export function elementsOf(g: SampleGraph): ElementDefinition[] {
         }
         els.push({ group: "nodes", data });
     }
-    for (let e = 0; e < g.src.length; e++) {
+    for (let e = 0; e < (nodesOnly ? 0 : g.src.length); e++) {
         const data: Record<string, unknown> = { id: `e${e}`, source: `n${g.src[e]}`, target: `n${g.dst[e]}` };
         if (g.weights) {
             data.w = g.weights[e];
@@ -265,7 +266,9 @@ export function newCore(container: HTMLElement, elements: ElementDefinition[] = 
         hideEdgesOnViewport: big,
         textureOnViewport: big,
         elements,
-        layout: { name: "preset" },
+        // no fit: every story fits the view itself once its run has placed the nodes, and fitting here measured the
+        // bounding box of every element first (4 s for the 210,000 elements of the 50,000-node network)
+        layout: { name: "preset", fit: false },
     });
     if (big) {
         // smaller nodes as the network grows (about 3.6 pixels at 10,000 nodes, 2 at 50,000), so they stay apart
@@ -448,6 +451,8 @@ export interface Outcome {
 
 interface Demo {
     cy: Core;
+    /** The network's edge count, whether or not the core holds its edges. */
+    edges: number;
     root: HTMLElement;
     gpuMode: "auto" | "off" | "require";
     /** The parsed extra options. */
@@ -515,14 +520,25 @@ export function renderDemo(
             // the page
             await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
             const g = load === undefined ? GENERATE[args.network](SIZES[args.size], args.seed) : undefined;
-            const cy = newCore(canvas, g === undefined ? [] : elementsOf(g));
+            // a 50,000-node run that requires WebGPU, in a browser without it, draws the nodes only (layOutNetwork):
+            // adding the 160,000 edges only to remove them again held the page for 2.5 s
+            const nodesOnly =
+                g !== undefined && SIZES[args.size] >= 50_000 && args.backend === "gpu" && !("gpu" in navigator);
+            const cy = newCore(canvas, g === undefined ? [] : elementsOf(g, nodesOnly));
             const graph =
                 g === undefined
                     ? await (load as (cy: Core) => Promise<string>)(cy)
                     : `${args.network}, ${g.nodeCount.toLocaleString()} nodes, ${g.src.length.toLocaleString()} edges, seed ${args.seed}`;
             setStatus(`${headline(graph)}: running...`);
             const t0 = performance.now();
-            const out = await run({ cy, root, gpuMode: GPU_MODE[args.backend], extra, setStatus });
+            const out = await run({
+                cy,
+                edges: g?.src.length ?? cy.edges().length,
+                root,
+                gpuMode: GPU_MODE[args.backend],
+                extra,
+                setStatus,
+            });
             // a layout fits the graph to the size the container had when it started; fit it to the size it has now
             let outside = 0;
             if (out.fit === "nodes") {

@@ -11,6 +11,10 @@ describe("FilledArrowRenderer - 3D Arrow Geometry", () => {
         scene = new Scene(engine);
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     describe("Triangle Arrows", () => {
         test("createTriangle creates normal arrow with 3 vertices in XZ plane", () => {
             const mesh = FilledArrowRenderer.createTriangle(false, scene);
@@ -243,6 +247,10 @@ describe("FilledArrowRenderer - 3D Shader Application", () => {
         scene = new Scene(engine);
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     test("applyShader returns mesh with ShaderMaterial", () => {
         const mesh = FilledArrowRenderer.createTriangle(false, scene);
         const result = FilledArrowRenderer.applyShader(mesh, { size: 1.0, color: "#ff0000", opacity: 1.0 }, scene);
@@ -310,6 +318,10 @@ describe("FilledArrowRenderer - XZ Plane Geometry Verification (CRITICAL)", () =
     beforeEach(() => {
         const engine = new NullEngine();
         scene = new Scene(engine);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     // This test suite verifies the CRITICAL requirement from design/edge-styles-implementation-plan.md:
@@ -381,6 +393,10 @@ describe("FilledArrowRenderer - 2D Arrows", () => {
     beforeEach(() => {
         const engine = new NullEngine();
         scene = new Scene(engine);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     test("create2DArrow generates mesh with StandardMaterial", () => {
@@ -510,6 +526,7 @@ describe("FilledArrowRenderer.applyShader and the size of the scene", () => {
 
     afterEach(() => {
         vi.restoreAllMocks();
+        scene.getEngine().dispose();
     });
 
     test("configuring a new arrow material does not walk every mesh already in the scene", () => {

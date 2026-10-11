@@ -1,5 +1,5 @@
 import { Mesh, NullEngine, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, type Mock, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, type Mock, test, vi } from "vitest";
 
 import { type AnimationOptions, type AnimationType, RichTextAnimator } from "../src/meshes/RichTextAnimator";
 
@@ -19,6 +19,10 @@ describe("RichTextAnimator", () => {
 
         material = new StandardMaterial("testMaterial", scene);
         mockProgressCallback = vi.fn();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     describe("Constructor and Basic Setup", () => {
@@ -91,6 +95,7 @@ describe("RichTextAnimator", () => {
             // Multiple dispose calls should not crash
             testAnimator.dispose();
             assert.isTrue(testScene.onBeforeRenderObservable.observers.length <= afterSetupCount);
+            engine.dispose();
         });
 
         test("stores original position and scale", () => {

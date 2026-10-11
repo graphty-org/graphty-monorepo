@@ -1,5 +1,5 @@
 import { NullEngine, Scene } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import type { EdgeStyleConfig } from "../src/config";
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
@@ -13,6 +13,10 @@ describe("Arrow Tail Support", () => {
         const engine = new NullEngine();
         scene = new Scene(engine);
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     test("creates tail arrow when arrowTail configured", () => {

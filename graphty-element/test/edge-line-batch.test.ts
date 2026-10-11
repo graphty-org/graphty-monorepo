@@ -1,5 +1,5 @@
 import { ArcRotateCamera, Matrix, Mesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { EdgeLineBatch, segmentMatrixToRef } from "../src/meshes/EdgeLineBatch";
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
@@ -12,6 +12,10 @@ describe("EdgeLineBatch", () => {
         scene = new Scene(engine);
         // A scene with no camera refuses to render, and rendering is what uploads.
         scene.activeCamera = new ArcRotateCamera("camera", 0, 0, 10, Vector3.Zero(), scene);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     function batch(): EdgeLineBatch {

@@ -1,5 +1,5 @@
 import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import type { EdgeStyleConfig } from "../src/config";
 import type { EdgeLineBatch } from "../src/meshes/EdgeLineBatch";
@@ -19,6 +19,10 @@ describe("Bezier Curve Edge Integration", () => {
         const engine = new NullEngine();
         scene = new Scene(engine);
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     function batchFor(styleId: string, style: EdgeStyleConfig): EdgeLineBatch {

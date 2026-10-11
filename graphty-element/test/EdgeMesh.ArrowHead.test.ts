@@ -1,5 +1,5 @@
 import { NullEngine, Scene } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
 import { MeshCache } from "../src/meshes/MeshCache";
@@ -12,6 +12,10 @@ describe("Arrow Shape Generation", () => {
         const engine = new NullEngine();
         scene = new Scene(engine);
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     test("inverted arrow points away from target", () => {

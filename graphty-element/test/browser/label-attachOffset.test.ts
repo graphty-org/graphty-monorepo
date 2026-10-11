@@ -1,5 +1,5 @@
 import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { type AttachPosition, RichTextLabel } from "../../src/meshes/RichTextLabel";
 
@@ -22,6 +22,10 @@ describe("Label attachOffset Regression Tests", () => {
     beforeEach(() => {
         const engine = new NullEngine();
         scene = new Scene(engine);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     describe("attachOffset configuration", () => {

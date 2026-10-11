@@ -1,5 +1,5 @@
 import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { FilledArrowRenderer } from "../src/meshes/FilledArrowRenderer";
 import { discreteMeshCount, discreteMeshOffsets, patternElementPeriod } from "../src/meshes/PatternedLineMesh";
@@ -125,6 +125,10 @@ describe("patterned line element count", () => {
             scene = new Scene(new NullEngine());
         });
 
+        afterEach(() => {
+            scene.getEngine().dispose();
+        });
+
         for (const pattern of ["zigzag", "sinewave"] as const) {
             for (const patternCount of [undefined, 12, 40]) {
                 test(`${pattern} with patternCount ${String(patternCount)}`, () => {
@@ -158,6 +162,10 @@ describe("patterned line element count", () => {
 
         beforeEach(() => {
             scene = new Scene(new NullEngine());
+        });
+
+        afterEach(() => {
+            scene.getEngine().dispose();
         });
 
         test("a disposed pattern mesh stops receiving per-frame camera updates", () => {

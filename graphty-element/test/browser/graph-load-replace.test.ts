@@ -2,7 +2,7 @@
  * A replacing load keeps the current graph until the new data has parsed, and a load that
  * produces nothing is a failure with its own code rather than a success.
  */
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { type GraphtyError, isGraphtyError } from "../../extend";
 import type { DataLoadingErrorEvent } from "../../src/events.js";
@@ -11,9 +11,19 @@ import { Graph } from "../../src/Graph.js";
 const GOOD = JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ src: "a", dst: "b" }] });
 const OTHER = JSON.stringify({ nodes: [{ id: "x" }, { id: "y" }, { id: "z" }], edges: [{ src: "x", dst: "y" }] });
 
+/** The graphs the running test made, disposed after it. */
+const graphs: Graph[] = [];
+
+afterEach(() => {
+    for (const graph of graphs.splice(0)) {
+        graph.dispose();
+    }
+});
+
 async function graphWith(data: string): Promise<Graph> {
     document.body.innerHTML = '<canvas id="test-canvas"></canvas>';
     const graph = new Graph(document.getElementById("test-canvas") as HTMLCanvasElement);
+    graphs.push(graph);
     await graph.loadFromFile(new File([data], "first.json"));
     return graph;
 }

@@ -491,12 +491,16 @@ and scales, with every option each accepts -- is published as plain JSON by
 `@graphty/graphty-element/catalog` instead.
 
 **The AI engine seam.** Model calls go through `AiEngine` (`src/ai/engine/`, one call per turn):
-`runConversation` is the loop, `ToolExecutor` runs each batch of tool calls, and today every
-provider runs through `LlmProviderEngine`; `FakeEngine` is the scripted engine new tests are
-written on. Only `src/ai/engine/tanstack/` may import `@tanstack/*`, `@ag-ui/*` or a vendor SDK
-(the AI SDK 5 files and WebLLM's provider keep theirs until the TanStack engine replaces the
-SDK); it is reached only through `load.ts` and ships no declarations. The rules that keep a
-framework switch cheap, each with a check that plants a violation in its self-test:
+`runConversation` is the loop and `ToolExecutor` runs each batch of tool calls. The built-in
+OpenAI, Anthropic and Google providers (`VercelAiProvider`, a historical name) run on
+`ProviderApiEngine`, which owns the retry schedule and loads the TanStack AI adapter
+(`src/ai/engine/tanstack/`, one chunk per provider) on the first turn; WebLLM, the mock and a
+consumer's own `LlmProvider` run through `LlmProviderEngine`; `FakeEngine` is the scripted engine
+new tests are written on. Only `src/ai/engine/tanstack/` may import `@tanstack/*`, `@ag-ui/*` or a
+vendor SDK (WebLLM's provider keeps `@mlc-ai/web-llm`); the AI SDK 5 is imported nowhere, and its
+peers stay declared, unused, until the next major. The adapter is reached only through `load.ts`
+and ships no declarations (the build deletes them). The rules that keep a framework switch cheap,
+each with a check that plants a violation in its self-test:
 
 - No framework or provider type in an API report or a shipped file: `tools/api-report.mjs` and
   `tools/check-published-deps.mjs`, reading the list in `tools/ai-framework-packages.mjs`.
@@ -508,7 +512,9 @@ framework switch cheap, each with a check that plants a violation in its self-te
 - Loop, policies, plans and retries in graphty code: the import rules in
   `eslint-rules/ai-engine-boundary.mjs`, and the engine contract case that one turn is one request.
 - Tests on `FakeEngine` or `MockLlmProvider`: the engine contract suite
-  (`test/ai/engine/contract.ts`, Node and browser), which every engine passes.
+  (`test/ai/engine/contract.ts`, Node and browser), which every engine passes, the provider-API
+  engine on each provider through a fake `fetch` speaking the provider's own wire format
+  (`test/ai/engine/providerApiFixtures.ts`).
 - Frameworks loaded lazily, one provider per chunk: `test/packaging/ai-lazy-chunks.test.ts`, over
   the build's `build/chunks.json`.
 

@@ -4,7 +4,7 @@ import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-form
 import { forwardsAlgorithm, narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
 import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
-import { publishAlgorithmDescriptor } from "../catalog/registry";
+import { noteAlgorithmDescriptor, publishAlgorithmDescriptor } from "../catalog/registry";
 import type { AlgorithmDescriptor, FieldDescriptor, NodeId, SuggestedName } from "../catalog/types";
 import { type OptionsSchema as ZodOptionsSchema } from "../config";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
@@ -691,6 +691,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         }
 
         algorithmRegistry.set(`${ns}:${t}`, cls);
+        noteAlgorithmDescriptor(`${ns}:${t}`, descriptor !== undefined);
 
         return cls;
     }

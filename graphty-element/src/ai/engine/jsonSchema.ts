@@ -45,3 +45,62 @@ function closeObjects(schema: SchemaNode): SchemaNode {
 export function toolJsonSchema(schema: z.ZodType): JsonSchema {
     return closeObjects(z.toJSONSchema(schema, { target: "draft-7", io: "input", reused: "inline" }));
 }
+
+/** Keys a provider schema leaves out: graphty checks every bound itself, before a call runs. */
+const PROVIDER_OMITS = new Set(["$schema", "minLength", "maxLength", "minItems", "maxItems"]);
+
+/** A numeric bound at least this far from zero is a sanity cap, enforced but not worth sending. */
+const SANITY_BOUND = 1e6;
+
+/**
+ * A JSON Schema as a provider is sent it: bounds on lengths and counts, and sanity caps on
+ * numbers, left out (the strict check enforces them), a tuple's items as one schema, and empty
+ * descriptions dropped.
+ * @param node - The schema.
+ * @returns The compact schema.
+ */
+export function compactSchema(node: unknown): unknown {
+    if (Array.isArray(node)) {
+        return node.map(compactSchema);
+    }
+
+    if (node === null || typeof node !== "object") {
+        return node;
+    }
+
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(node)) {
+        if (key === "items" && Array.isArray(value)) {
+            // A tuple (draft 7's array of item schemas), which providers refuse: one schema for
+            // every item, the strict check holding each position to its own.
+            const kinds = [...new Set(value.map((item) => JSON.stringify(compactSchema(item))))];
+            out.items =
+                kinds.length === 1
+                    ? (JSON.parse(kinds[0]) as unknown)
+                    : { anyOf: kinds.map((kind) => JSON.parse(kind) as unknown) };
+            continue;
+        }
+
+        const compact =
+            key === "properties"
+                ? Object.fromEntries(
+                      Object.entries(value as object).map(([name, child]) => [name, compactSchema(child)]),
+                  )
+                : compactSchema(value);
+        if (
+            PROVIDER_OMITS.has(key) ||
+            (key === "description" && value === "") ||
+            ((key === "maximum" || key === "minimum") &&
+                typeof value === "number" &&
+                Math.abs(value) >= SANITY_BOUND) ||
+            (key === "propertyNames" && JSON.stringify(compact) === '{"type":"string"}') ||
+            (key === "additionalProperties" && JSON.stringify(compact) === "{}")
+        ) {
+            continue;
+        }
+
+        out[key] = compact;
+    }
+
+    return out;
+}

@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 
+import { ASSISTANT_TOOLS, type AssistantToolProfile } from "../../catalog/assistant";
 import type { GraphSession } from "../../session/types";
 import type { CommandRegistry } from "../commands/CommandRegistry";
 import type { GraphCommand } from "../commands/types";
@@ -22,8 +23,11 @@ import {
 } from "./toolset";
 import { type ActionSpec, type JsonObject, ToolRefusal } from "./types";
 
-/** The small-model profile's tools: everything else is reached through `call`. */
-export const SMALL_PROFILE_TOOLS: readonly string[] = ["catalog", "query", "call", "undo"];
+/** The tools each profile offers directly, as `ASSISTANT_TOOLS` publishes them. */
+export const PROFILE_TOOLS: Readonly<Record<AssistantToolProfile, ReadonlySet<string>>> = {
+    standard: new Set(ASSISTANT_TOOLS.filter((tool) => tool.profiles.includes("standard")).map((tool) => tool.name)),
+    small: new Set(ASSISTANT_TOOLS.filter((tool) => tool.profiles.includes("small")).map((tool) => tool.name)),
+};
 
 /** The on-demand tools a turn offers at most, beside the always-loaded ones. */
 export const MAX_LOADED_TOOLS = 6;
@@ -112,15 +116,17 @@ export class CallTool extends AssistantTool {
      */
     override check(raw: Readonly<Record<string, unknown>>): CheckedCall {
         const { tool, action, args } = stripPlaceholders(raw);
-        let inner: Record<string, unknown> = {};
+        let inner: unknown = args ?? {};
         if (typeof args === "string") {
             try {
-                inner = JSON.parse(args) as Record<string, unknown>;
+                inner = JSON.parse(args);
             } catch {
-                throw new ToolRefusal("AI_ARG_INVALID", { path: "args", expected: "an object or its JSON" });
+                inner = undefined;
             }
-        } else if (args !== undefined) {
-            inner = args as Record<string, unknown>;
+        }
+
+        if (!isPlainObject(inner)) {
+            throw new ToolRefusal("AI_ARG_INVALID", { path: "args", expected: "an object or its JSON" });
         }
 
         if (action !== undefined && inner.action !== undefined && inner.action !== action) {
@@ -130,7 +136,7 @@ export class CallTool extends AssistantTool {
         const name = text(tool);
         const target = this.registry.get(name);
         if (target === undefined || target === this) {
-            throw new ToolRefusal("AI_TOOL_UNKNOWN", {
+            throw new ToolRefusal("AI_UNKNOWN_TOOL", {
                 tool: name,
                 didYouMean: suggest(
                     name,
@@ -140,8 +146,43 @@ export class CallTool extends AssistantTool {
         }
 
         const merged = action === undefined ? inner : { ...inner, action };
-        return (isAssistantTool(target) ? target : wrap(target)).check(merged);
+        return isAssistantTool(target) ? target.check(merged) : consumerCall(target, merged);
     }
+}
+
+/**
+ * Whether a value is a plain object, as a tool's arguments must be.
+ * @param value - The value.
+ * @returns True for `{...}`.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A consumer command called through `call`, checked against the command's own parameters as a
+ * direct call is. An `action` the command does not take is the model naming the one way to run it.
+ * @param command - The command.
+ * @param args - The arguments.
+ * @returns The checked call.
+ * @throws {ToolRefusal} `AI_ARG_INVALID` naming the first argument its parameters refuse.
+ */
+function consumerCall(command: GraphCommand, args: Record<string, unknown>): CheckedCall {
+    const { action: _action, ...rest } = args;
+    const takesAction = command.parameters instanceof z.ZodObject && "action" in command.parameters.shape;
+    const parsed = command.parameters.safeParse(takesAction ? args : rest);
+    if (!parsed.success) {
+        const issue = parsed.error.issues[0];
+        throw new ToolRefusal("AI_ARG_INVALID", {
+            tool: command.name,
+            path: issue.path.join("."),
+            expected: issue.code,
+        });
+    }
+
+    const tool = wrap(command);
+    const [run] = tool.definition.actions;
+    return { tool, action: run, args: parsed.data as Record<string, unknown> };
 }
 
 /** What a registry's generated tools were built from. */
@@ -155,14 +196,13 @@ const builtFrom = new WeakMap<CommandRegistry, string>();
  */
 export function installAssistantTools(registry: CommandRegistry, session: Pick<GraphSession, "catalog">): void {
     const consumer = registry.getAll().filter((command) => !isAssistantTool(command));
-    const key = `${catalogKey(catalogView(session))}|${consumer.map((command) => command.name).join(",")}`;
+    const key = `${catalogKey(catalogView(session))}|${JSON.stringify(consumer.map((command) => [command.name, command.description]))}`;
     if (builtFrom.get(registry) === key) {
         return;
     }
 
     const toolset = buildToolset(session, consumer);
     for (const tool of [...toolset.tools, new CallTool(registry)]) {
-        registry.unregister(tool.name);
         registry.register(tool);
     }
 

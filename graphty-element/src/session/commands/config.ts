@@ -15,12 +15,9 @@
  * and `config.set` refuses it. See design/undo/undo-design.md sections 3.1, 3.2 and 10.1.
  */
 
-import { z } from "zod";
-
-import { DataConfig } from "../../config/DataConfig";
-import { GraphBehaviorOpts } from "../../config/GraphBehavior";
-import { type GraphBackgroundConfig, type GraphSelectionStyleConfig, GraphStyle } from "../../config/GraphStyle";
+import type { GraphBackgroundConfig, GraphSelectionStyleConfig } from "../../config/GraphStyle";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { CONFIG_KEYS } from "../configKeys";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import { deepFreeze } from "../project/draft";
 import { deepEquals } from "../styles/predicate";
@@ -31,79 +28,6 @@ export interface ConfigSetCommand {
     readonly op: "config.set";
     readonly values: ProjectConfigPatch;
 }
-
-/** Which part of the project settings a key belongs to: the discriminant of `config.set`. */
-type ConfigGroup =
-    "data" | "runAlgorithmsOnLoad" | "background" | "selectionStyle" | "layoutBehavior" | "author" | "name";
-
-/** One key of the `config` slice. */
-interface ConfigKey {
-    readonly group: ConfigGroup;
-    /** Validates a value set, and reads a stored value (or `undefined`) as the setting. */
-    readonly schema: z.ZodType;
-}
-
-/**
- * Strip the default, prefault and optional wrappers off a schema.
- * @param schema - The schema.
- * @returns The schema inside them.
- */
-function unwrap(schema: z.ZodType): z.ZodType {
-    let inner = schema;
-    while ("innerType" in inner.def) {
-        inner = inner.def.innerType as z.ZodType;
-    }
-
-    return inner;
-}
-
-/**
- * Every leaf of an object schema, by dotted path.
- * @param shape - The object's shape.
- * @param prefix - The path of the object.
- * @returns The leaves and their schemas.
- */
-function leavesOf(shape: Readonly<Record<string, z.ZodType>>, prefix: string): [string, z.ZodType][] {
-    return Object.entries(shape).flatMap(([name, schema]): [string, z.ZodType][] => {
-        const inner = unwrap(schema);
-        return inner instanceof z.ZodObject
-            ? leavesOf(inner.shape, `${prefix}${name}.`)
-            : [[`${prefix}${name}`, schema]];
-    });
-}
-
-const LAYOUT = unwrap(GraphBehaviorOpts.shape.layout) as z.ZodObject;
-
-/** Every key of the `config` slice, with its group and schema. */
-export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, ConfigKey>([
-    ...leavesOf(DataConfig.shape, "data.").map(([path, schema]): [string, ConfigKey] => [
-        path,
-        { group: "data", schema },
-    ]),
-    ["runAlgorithmsOnLoad", { group: "runAlgorithmsOnLoad", schema: z.boolean().default(false) }],
-    ["background", { group: "background", schema: GraphStyle.shape.background }],
-    ["selectionStyle", { group: "selectionStyle", schema: unwrap(GraphStyle.shape.selection).prefault({}) }],
-    ...(["preSteps", "stepMultiplier", "minDelta"] as const).map((name): [string, ConfigKey] => [
-        `layoutBehavior.${name}`,
-        { group: "layoutBehavior", schema: LAYOUT.shape[name] as z.ZodType },
-    ]),
-    // Who is writing, stamped on each note. Never blank: a blank name is written as no name.
-    [
-        "author",
-        {
-            group: "author",
-            schema: z.string().refine((name) => Array.from(name).length <= 256, "An author is at most 256 characters."),
-        },
-    ],
-    // The project's name, which a project file carries. Never blank, as the author.
-    [
-        "name",
-        {
-            group: "name",
-            schema: z.string().refine((name) => Array.from(name).length <= 256, "A name is at most 256 characters."),
-        },
-    ],
-]);
 
 /**
  * Whether a value is a plain object, which a patch recurses into.

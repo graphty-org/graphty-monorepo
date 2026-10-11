@@ -7,12 +7,16 @@ import { z } from "zod";
 
 import type { CameraState } from "../../../camera/types";
 import { MAX_STRING, scopeOf, settleTarget, targetFields, text } from "../fields";
+import { checkOptions } from "../optionSchema";
 import { type ActionContext, type ActionSpec, type CatalogView, type ToolDefinition, ToolRefusal } from "../types";
 import { coded, nameField, ok } from "./common";
 
 /** What only the renderer does for a view. */
 interface Renderer {
-    applyCameraView(id: string, options?: { scope?: unknown; animate?: boolean }): Promise<void>;
+    applyCameraView(
+        id: string,
+        options?: { scope?: unknown; params?: Readonly<Record<string, unknown>>; animate?: boolean },
+    ): Promise<void>;
     getCameraState(): CameraState;
 }
 
@@ -30,7 +34,7 @@ function renderer(context: ActionContext): Renderer {
     return graph as Renderer;
 }
 
-const vec = z.array(z.number()).length(3).describe("[x, y, z]");
+const vec = z.array(z.number().min(-1e6).max(1e6)).length(3).describe("[x, y, z]");
 
 /**
  * A point as the camera reads one.
@@ -66,15 +70,38 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
             name: "camera",
             summary: "camera view or position",
             fields: {
-                preset: nameField(cameras, "Camera view or saved view.").optional(),
+                preset: nameField(cameras, "Camera view (saved: restore).").optional(),
+                options: z.record(z.string(), z.unknown()).optional().describe("The view's options."),
                 position: vec.optional(),
                 target: vec.optional(),
             },
             effect: "exempt",
-            reaches: [{ op: "view.camera" }, ...cameras.map((id) => ({ catalog: `cameras/${id}` }))],
-            run: async ({ tx }, args) => {
+            reaches: [
+                { op: "view.camera" },
+                { door: "Graph.applyCameraView" },
+                { options: "cameras" },
+                ...cameras.map((id) => ({ catalog: `cameras/${id}` })),
+            ],
+            run: async (context, args) => {
+                const { tx } = context;
                 if (args.preset === undefined && args.position === undefined && args.target === undefined) {
                     throw new ToolRefusal("AI_ARG_INVALID", { path: "preset", allowed: cameras });
+                }
+
+                if (args.options !== undefined) {
+                    // A view's options reach only the renderer's own call, which takes them.
+                    const preset = text(args.preset);
+                    const descriptor = catalog.cameras.find((each) => each.id === preset);
+                    if (descriptor === undefined) {
+                        throw new ToolRefusal("AI_ARG_INVALID", {
+                            path: "options",
+                            expected: "a camera view's options",
+                        });
+                    }
+
+                    const params = checkOptions(tx, descriptor.options, args.options as Record<string, unknown>);
+                    await coded(() => renderer(context).applyCameraView(preset, { params, animate: true }));
+                    return ok(undefined, { preset });
                 }
 
                 await coded(() =>
@@ -94,7 +121,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
             summary: "frame the target",
             fields: targetFields,
             effect: "exempt",
-            reaches: [{ door: "Graph.applyCameraView" }, { door: "Graph.zoomToNodes" }],
+            reaches: [{ door: "Graph.applyCameraView" }],
             run: async (context, args) => {
                 const { target, notes } = settleTarget(context.tx, args, "node", true);
                 await coded(() =>
@@ -111,7 +138,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
             summary: "",
             fields: {},
             effect: "exempt",
-            reaches: [{ door: "Graph.zoomToFit" }],
+            reaches: [{ door: "Graph.applyCameraView" }],
             run: async (context) => {
                 await coded(() => renderer(context).applyCameraView("fitToGraph", { animate: true }));
                 return ok();
@@ -119,7 +146,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "save",
-            summary: "save the camera as a name",
+            summary: "the camera, by name",
             fields: { name },
             effect: "write",
             reaches: [{ op: "view.save" }, { door: "SessionViews.save" }, { door: "Graph.getCameraState" }],
@@ -151,7 +178,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "remove_saved",
-            summary: "delete a saved view",
+            summary: "",
             fields: { name },
             effect: "write",
             reaches: [{ op: "view.remove" }, { door: "SessionViews.remove" }],
@@ -171,7 +198,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "list_saved",
-            summary: "saved and camera views",
+            summary: "",
             fields: {},
             effect: "read",
             reaches: [],

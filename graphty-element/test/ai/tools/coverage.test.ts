@@ -11,30 +11,44 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { gmlImporter } from "@graphty/graph-io/gml";
 import { afterEach, assert, describe, it } from "vitest";
 
 import { COMMANDS } from "../../../commands";
+import * as extend from "../../../extend";
 import {
+    Algorithm,
+    type AuthoredLayoutDescriptor,
+    type BaseDataSourceConfig,
+    DataSource,
+    type DataSourceChunk,
     defineAlgorithm,
     defineLayout,
     definePalette,
+    type FormatDescriptor,
+    LayoutEngine,
     registerCameraView,
     registerFormatWriter,
     registerPalette,
     registerSnapshotLayout,
+    SimpleLayoutEngine,
 } from "../../../extend";
 import { createGraphSession } from "../../../session";
 import { CommandRegistry } from "../../../src/ai/commands";
 import { type Exclusion, NOT_FOR_THE_ASSISTANT } from "../../../src/ai/tools/exclusions";
+import { SETTING_GROUPS } from "../../../src/ai/tools/families/project";
 import { installAssistantTools } from "../../../src/ai/tools/install";
+import { assistantReach } from "../../../src/ai/tools/reach";
 import { buildToolset, type CheckedCall, isAssistantTool } from "../../../src/ai/tools/toolset";
 import { ToolRefusal } from "../../../src/ai/tools/types";
 import { clearRegisteredCamerasForTesting } from "../../../src/catalog/cameraRegistry";
+import { clearRegisteredFormatsForTesting } from "../../../src/catalog/formatRegistry";
 import { clearRegisteredLayoutsForTesting } from "../../../src/catalog/layoutRegistry";
 import { clearRegisteredPalettesForTesting } from "../../../src/catalog/paletteRegistry";
 import { clearRegisteredAlgorithmsForTesting } from "../../../src/catalog/registry";
 import { clearRegisteredFormatWritersForTesting } from "../../../src/catalog/writerRegistry";
 import { DOOR_ROOTS, type DoorRoot } from "../../../src/session/commands/doors";
+import { CONFIG_KEYS } from "../../../src/session/configKeys";
 import { coverage } from "./coverage-report";
 
 /** The report for the built-in catalog. */
@@ -55,7 +69,7 @@ describe("what the assistant reaches", () => {
         assert.strictEqual(items.filter((key) => reached.has(key)).length + excluded.size, items.length);
     });
 
-    it("reaches every catalog entry with a tool, and leaves no op out but the five decided", () => {
+    it("reaches every catalog entry with a tool, and leaves no op out but the four decided", () => {
         const { items, reached, excluded } = report();
         for (const item of items.filter((key) => key.startsWith("catalog:"))) {
             assert.isTrue(reached.has(item), `${item} is reached`);
@@ -63,11 +77,15 @@ describe("what the assistant reaches", () => {
 
         assert.deepStrictEqual([...excluded.keys()].filter((key) => key.startsWith("op:")).sort(), [
             "op:batch",
-            "op:data.expand",
             "op:layout.transport",
             "op:note.merge",
             "op:style.template",
         ]);
+    });
+
+    it("offers every project setting group the session declares, by the session's own schema", () => {
+        const groups = new Set([...CONFIG_KEYS.values()].map((key) => key.group));
+        assert.deepStrictEqual(Object.keys(SETTING_GROUPS).sort(), [...groups].sort());
     });
 
     it("excludes nothing without a reason, and every defect has an owner and an expiry", () => {
@@ -123,15 +141,77 @@ describe("the coverage test fails when it should", () => {
         assert.isTrue(problems.some((problem) => problem.includes("op:algo.run is both reached")));
     });
 
-    it("fails on a covered-by row whose tool does not dispatch the door's op", () => {
+    it("fails on a covered-by row whose action does not dispatch the door's op, or is another tool's", () => {
         const exclusions = NOT_FOR_THE_ASSISTANT.map((row) =>
-            row.root === "DataManager" && row.by === "edit_data" ? { ...row, by: "view" } : row,
+            row.root === "DataManager" && row.by === "edit_data.add_nodes" ? { ...row, by: "view.save" } : row,
         );
         const { problems } = report({ exclusions });
         assert.isTrue(
-            problems.some((problem) => problem.includes("covered by view, which does not dispatch data.apply")),
+            problems.some((problem) => problem.includes("covered by view.save, which does not dispatch data.apply")),
             problems.join("\n"),
         );
+
+        // The action named, not anything of its tool: sets.list dispatches nothing sets.remove does.
+        const listed = report({
+            exclusions: NOT_FOR_THE_ASSISTANT.map((row) =>
+                row.root === "ScopeApi" && row.by === "sets.remove" ? { ...row, by: "sets.list" } : row,
+            ),
+        });
+        assert.isTrue(
+            listed.problems.some((problem) => problem.includes("door:ScopeApi.remove is covered by sets.list")),
+            listed.problems.join("\n"),
+        );
+
+        // A door with no op is covered only by an action of its effect: camera verbs by no notes action.
+        const camera = report({
+            exclusions: NOT_FOR_THE_ASSISTANT.map((row) =>
+                row.root === "Graph" && row.by === "view.camera" ? { ...row, by: "notes.list" } : row,
+            ),
+        });
+        assert.isTrue(
+            camera.problems.some((problem) =>
+                problem.includes("(exempt) is covered by notes.list, whose effect is read"),
+            ),
+            camera.problems.join("\n"),
+        );
+
+        // A tool alone names no action.
+        const whole = report({
+            exclusions: NOT_FOR_THE_ASSISTANT.map((row) =>
+                row.root === "Node" && row.by === "layout.pin" ? { ...row, by: "layout" } : row,
+            ),
+        });
+        assert.isTrue(whole.problems.some((problem) => problem.includes("names no tool action")));
+    });
+
+    it("fails on an entry that names one option twice", () => {
+        try {
+            registerSnapshotLayout({
+                descriptor: {
+                    id: "acme-twice",
+                    plainName: "Twice",
+                    technicalName: "Twice layout",
+                    description: "Names one option twice.",
+                    family: "geometric",
+                    kind: "batch",
+                    maxDimensions: 2,
+                    sizeRating: "any",
+                    structuralInputs: [],
+                    options: [
+                        { name: "gap", plainName: "Gap", type: "number", default: 1 },
+                        { name: "gap", plainName: "Gap again", type: "number", default: 2 },
+                    ],
+                    engine: "acme-twice",
+                },
+                compute: () => ({ positions: new Float32Array(0), dim: 2 }) as never,
+            });
+            const { problems } = report();
+            assert.isTrue(
+                problems.some((problem) => problem.includes("layouts/acme-twice lists the option gap twice")),
+            );
+        } finally {
+            clearRegisteredLayoutsForTesting();
+        }
     });
 
     it("fails on a root excluded whole while it has doors that change things", () => {
@@ -152,6 +232,7 @@ describe("registration paths reach the assistant", () => {
         clearRegisteredPalettesForTesting();
         clearRegisteredFormatWritersForTesting();
         clearRegisteredCamerasForTesting();
+        clearRegisteredFormatsForTesting();
     });
 
     /** Register through one path; return the kind and name catalog finds it by, and a call the owning tool must accept. */
@@ -257,6 +338,110 @@ describe("registration paths reach the assistant", () => {
                 args: { action: "set", name: "acme-line", options: { gap: 2 } },
             };
         },
+        "Algorithm.register": () => {
+            // A class with no descriptor: the catalog knows nothing of it, but it runs by its address.
+            Algorithm.register(
+                class LegacyRank extends Algorithm {
+                    static namespace = "acme";
+                    static type = "legacy-rank";
+                    async run(): Promise<void> {
+                        await Promise.resolve();
+                    }
+                },
+            );
+            return {
+                kind: "algorithm",
+                name: "acme:legacy-rank",
+                tool: "run_algorithm",
+                args: { name: "acme:legacy-rank" },
+            };
+        },
+        "LayoutEngine.register": () => {
+            class Stack extends SimpleLayoutEngine {
+                static type = "acme-stack";
+                static maxDimensions = 3;
+                static descriptor: AuthoredLayoutDescriptor = {
+                    id: "acme-stack",
+                    plainName: "Stack",
+                    technicalName: "Stack layout",
+                    description: "Every node stacked in one column.",
+                    family: "special",
+                    kind: "batch",
+                    maxDimensions: 3,
+                    sizeRating: "any",
+                    structuralInputs: [],
+                    engine: "acme-stack",
+                    options: [{ name: "gap", plainName: "Gap", type: "number", default: 1, min: 0 }],
+                };
+
+                doLayout(): void {
+                    this.positions = {};
+                }
+            }
+            LayoutEngine.register(Stack);
+            return {
+                kind: "layout",
+                name: "acme-stack",
+                tool: "layout",
+                args: { action: "set", name: "acme-stack", options: { gap: 2 } },
+            };
+        },
+        "DataSource.register": () => {
+            class Lines extends DataSource {
+                static override readonly type = "acme-lines-in";
+                static override descriptor: FormatDescriptor = {
+                    id: "acme-lines-in",
+                    plainName: "Acme Lines",
+                    extensions: [".acmelinesin"],
+                    mimeTypes: ["text/vnd.acme.lines"],
+                    canImport: true,
+                    canExport: false,
+                    options: [{ name: "separator", plainName: "Separator", type: "string", default: " " }],
+                };
+
+                readonly #config: BaseDataSourceConfig;
+
+                constructor(config: BaseDataSourceConfig) {
+                    super(config.errorLimit, config.chunkSize);
+                    this.#config = config;
+                }
+
+                protected getConfig(): BaseDataSourceConfig {
+                    return this.#config;
+                }
+
+                async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
+                    await this.getContent();
+                    yield* this.chunkData([], []);
+                }
+            }
+            DataSource.register(Lines);
+            return {
+                kind: "format",
+                name: "acme-lines-in",
+                tool: "import_data",
+                args: { action: "import", format: "acme-lines-in", text: "a b", options: { separator: " " } },
+            };
+        },
+        "DataSource.fromImporter": () => {
+            DataSource.register(
+                DataSource.fromImporter(gmlImporter, {
+                    id: "acme-gml",
+                    plainName: "Acme GML",
+                    extensions: [".acmegml"],
+                    mimeTypes: ["text/vnd.acme.gml"],
+                    canImport: true,
+                    canExport: false,
+                    options: [],
+                }),
+            );
+            return {
+                kind: "format",
+                name: "acme-gml",
+                tool: "import_data",
+                args: { action: "import", format: "acme-gml", text: "graph [ ]" },
+            };
+        },
         registerCameraView: () => {
             registerCameraView({
                 descriptor: {
@@ -312,14 +497,56 @@ describe("registration paths reach the assistant", () => {
         });
     }
 
-    it("covers every register* and define* export of ./extend, or says why it does not apply", () => {
+    it("reports an algorithm class registered with no descriptor, and runs it by its address", () => {
+        PATHS["Algorithm.register"]();
+        assert.deepStrictEqual(assistantReach(), [{ code: "ai.no-descriptor", params: { entry: "acme:legacy-rank" } }]);
+    });
+
+    it("reports a registered camera view's options as reached, and passes them", () => {
+        registerCameraView({
+            descriptor: {
+                id: "acme-orbit",
+                plainName: "Orbit",
+                description: "Orbits the graph at an angle.",
+                modes: ["3d"],
+                options: [{ name: "angle", plainName: "Angle", type: "number", default: 30 }],
+            },
+            compute: () => ({ position: { x: 1, y: 1, z: 1 }, target: { x: 0, y: 0, z: 0 } }),
+        });
+        assert.deepStrictEqual(assistantReach(), []);
+        const { missing } = report();
+        assert.notInclude(missing, "option:cameras/acme-orbit/angle");
+        const registry = new CommandRegistry();
+        installAssistantTools(registry, createGraphSession());
+        const view = registry.get("view");
+        assert.isTrue(isAssistantTool(view));
+        assert.exists(
+            isAssistantTool(view)
+                ? view.check({ action: "camera", preset: "acme-orbit", options: { angle: 45 } })
+                : undefined,
+        );
+    });
+
+    it("covers every register* and define* export of ./extend, and every class's static registration, or says why it does not apply", () => {
         const source = readFileSync(join(__dirname, "..", "..", "..", "extend.ts"), "utf8");
-        const exported = [...new Set(source.match(/\b(register|define)[A-Z][A-Za-z]*/g) ?? [])].sort();
+        // The static verbs of the exported classes: Algorithm.register, DataSource.fromImporter...
+        const statics = Object.entries(extend).flatMap(([name, value]) =>
+            typeof value === "function"
+                ? (["register", "fromImporter"] as const)
+                      .filter((verb) => typeof (value as unknown as Record<string, unknown>)[verb] === "function")
+                      .map((verb) => `${name}.${verb}`)
+                : [],
+        );
+        const exported = [
+            ...new Set([...(source.match(/\b(register|define)[A-Z][A-Za-z]*/g) ?? []), ...statics]),
+        ].sort();
         const notApplicable = {
             defineLogDestination: "logging: a log destination is not a graph operation",
             registerLogSink: "logging: a log destination is not a graph operation",
             registerAccelerator: "a machine preference: acceleration is not the assistant's to choose",
             defineOptionsSchema: "a helper that builds an options schema, registering nothing",
+            "DeclaredAlgorithm.register": "the same verb as Algorithm.register, inherited",
+            "SimpleLayoutEngine.register": "the same verb as LayoutEngine.register, inherited",
         };
         const covered = [...Object.keys(PATHS), ...Object.keys(notApplicable)].sort();
         assert.deepStrictEqual(exported, covered);

@@ -6342,7 +6342,9 @@ export class Graph implements GraphContext {
      * @param id - The request's id, from the event.
      * @param answer - The reader's answer.
      * @param answer.approve - True to run the change.
-     * @returns The change's result, `AI_APPROVAL_DENIED`, `AI_APPROVAL_STALE` or `AI_NOT_ENABLED`.
+     * @returns The change's result (`AI_CONFIRMATION_NEEDED`, with a new request, when another
+     *     limit holds it again), `AI_APPROVAL_DENIED`, `AI_APPROVAL_STALE` or `AI_NOT_ENABLED`. An
+     *     answer given while its message is still running waits for the message to end.
      * @since 4.0.0
      */
     async resolveAiApproval(

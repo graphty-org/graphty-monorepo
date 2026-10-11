@@ -6,9 +6,9 @@
 import { z } from "zod";
 
 import { layoutEntry, layoutIdForEngine } from "../../../catalog/layouts";
-import type { LayoutDescriptor } from "../../../catalog/types";
+import type { LayoutDescriptor, OptionDescriptor } from "../../../catalog/types";
 import { idsOf, MAX_ITEMS, MAX_STRING, requireTarget, scopeOf, targetFields, text } from "../fields";
-import { optionsSchema } from "../optionSchema";
+import { checkOptions } from "../optionSchema";
 import { suggest } from "../search";
 import { type ActionSpec, type CatalogView, type ToolDefinition, ToolRefusal } from "../types";
 import { coded, nameField, ok } from "./common";
@@ -21,6 +21,20 @@ import { coded, nameField, ok } from "./common";
 export function enginesOf(descriptor: LayoutDescriptor): string[] {
     const entry = layoutEntry(descriptor.id);
     return entry === undefined ? [descriptor.engine] : entry.implementations.map((each) => each.engine);
+}
+
+/**
+ * The options a layout takes on one of its engines: each engine has its own vocabulary.
+ * @param descriptor - The layout.
+ * @param engine - The engine, or its default when absent.
+ * @returns The engine's options.
+ */
+export function engineOptionsOf(descriptor: LayoutDescriptor, engine?: string): readonly OptionDescriptor[] {
+    const wanted = engine ?? descriptor.engine;
+    return (
+        layoutEntry(descriptor.id)?.implementations.find((each) => each.engine === wanted)?.options ??
+        descriptor.options
+    );
 }
 
 /**
@@ -48,6 +62,9 @@ function layoutOf(name: string, layouts: readonly LayoutDescriptor[]): { layout:
         didYouMean: suggest(name, [...layouts.map((each) => each.id), ...layouts.flatMap(enginesOf)]),
     });
 }
+
+/** A coordinate a call may place a node at: far past any graph's extent, finite on any renderer. */
+const coordinate = z.number().min(-1e6).max(1e6);
 
 /**
  * The `layout` tool for a catalog.
@@ -78,6 +95,7 @@ export function layoutTool(catalog: CatalogView): ToolDefinition {
                 { op: "layout.set" },
                 { door: "SessionLayout.set" },
                 { options: "layouts" },
+                { options: "engines" },
                 ...ids.map((id) => ({ catalog: `layouts/${id}` })),
                 ...engines.map((engine) => ({ catalog: `engines/${engine}` })),
             ],
@@ -104,26 +122,16 @@ export function layoutTool(catalog: CatalogView): ToolDefinition {
                     throw new ToolRefusal("AI_ARG_INVALID", { path: "engine", allowed: enginesOf(layout) });
                 }
 
-                const parsed = optionsSchema(layout.options).schema.safeParse(args.options ?? {});
-                if (!parsed.success) {
-                    const issue = parsed.error.issues[0];
-                    throw new ToolRefusal(
-                        issue.code === "too_big" || issue.code === "too_small"
-                            ? "AI_ARG_OUT_OF_RANGE"
-                            : "AI_ARG_INVALID",
-                        {
-                            path: `options.${issue.code === "unrecognized_keys" ? issue.keys[0] : issue.path.join(".")}`,
-                            allowed: layout.options
-                                .filter((option) => option.internal !== true)
-                                .map((option) => option.name),
-                        },
-                    );
-                }
-
+                // Checked against the chosen engine's own options; a node option by id or label.
+                const options = checkOptions(
+                    tx,
+                    engineOptionsOf(layout, engine),
+                    (args.options ?? {}) as Record<string, unknown>,
+                );
                 await coded(() =>
                     tx.layout.set(layout.id, {
                         ...(engine === undefined ? {} : { engine }),
-                        ...(args.options === undefined ? {} : { options: parsed.data }),
+                        ...(args.options === undefined ? {} : { options }),
                     }),
                 );
                 return ok(undefined, { layout: tx.layout.id, engine: tx.layout.engine });
@@ -131,7 +139,7 @@ export function layoutTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "scope",
-            summary: "move only the target; all = everything",
+            summary: "move only the target",
             fields: targetFields,
             effect: "write",
             reaches: [{ op: "layout.scope" }],
@@ -160,7 +168,7 @@ export function layoutTool(catalog: CatalogView): ToolDefinition {
             summary: "",
             fields: targetFields,
             effect: "write",
-            reaches: [{ door: "SessionPositions.unpin" }, { door: "SessionPositions.pinned" }],
+            reaches: [{ door: "SessionPositions.unpin" }, { door: "SessionPositions.pinned" }, { op: "positions.pin" }],
             run: async ({ tx }, args) => {
                 const { target, notes } = requireTarget(tx, args, "node");
                 const { ids } =
@@ -179,9 +187,9 @@ export function layoutTool(catalog: CatalogView): ToolDefinition {
                     .array(
                         z.strictObject({
                             id: z.string().max(MAX_STRING),
-                            x: z.number(),
-                            y: z.number(),
-                            z: z.number().optional(),
+                            x: coordinate,
+                            y: coordinate,
+                            z: coordinate.optional(),
                         }),
                     )
                     .max(MAX_ITEMS)

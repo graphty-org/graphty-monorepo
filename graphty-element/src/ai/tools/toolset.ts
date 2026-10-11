@@ -7,12 +7,11 @@
 
 import { z } from "zod";
 
-import { ASSISTANT_TOOLS } from "../../catalog/assistant";
 import type { Graph } from "../../Graph";
 import { channelsFor } from "../../session/styles/channels";
 import type { GraphSession } from "../../session/types";
 import type { CommandContext, CommandResult, GraphCommand } from "../commands/types";
-import { toolJsonSchema } from "../engine/jsonSchema";
+import { compactSchema, toolJsonSchema } from "../engine/jsonSchema";
 import type { JsonSchema } from "../engine/types";
 import { resultsTool, runAlgorithmTool } from "./families/algorithms";
 import { catalogTool } from "./families/catalog";
@@ -28,6 +27,7 @@ import { styleTool } from "./families/style";
 import { undoTool } from "./families/undo";
 import { viewTool } from "./families/view";
 import { text } from "./fields";
+import { undescribedPlugins } from "./reach";
 import { type IndexEntry, SearchIndex, suggest } from "./search";
 import {
     type ActionContext,
@@ -38,9 +38,6 @@ import {
     type ToolDefinition,
     ToolRefusal,
 } from "./types";
-
-/** The names of every built-in tool, which a consumer command may not take. */
-export const ASSISTANT_TOOL_NAMES: ReadonlySet<string> = new Set(ASSISTANT_TOOLS.map((tool) => tool.name));
 
 /** What a call's arguments became once checked. */
 export interface CheckedCall {
@@ -106,9 +103,13 @@ function argRefusal(error: z.ZodError, action: ActionSpec): ToolRefusal {
         params.allowed = issue.values.map(String);
     }
 
-    const schema = toolJsonSchema(z.strictObject(action.fields)) as JsonObject;
-    delete schema.$schema;
-    return new ToolRefusal("AI_ARG_INVALID", { ...params, schema });
+    // The schema of the field that failed, compact, rather than the whole action's: what the
+    // model needs to fix the call, small enough for a small model's result cap.
+    const whole = compactSchema(toolJsonSchema(z.strictObject(action.fields))) as {
+        properties?: Record<string, JsonObject>;
+    };
+    const field = issue.path.length > 0 ? whole.properties?.[String(issue.path[0])] : undefined;
+    return new ToolRefusal("AI_ARG_INVALID", { ...params, schema: (field ?? whole) as JsonObject });
 }
 
 /**
@@ -128,48 +129,6 @@ function fieldsAt(action: ActionSpec, path: readonly string[]): string[] {
 
 /** The three ways to name a target, described once each. */
 const TARGET_FIELDS = new Set(["where", "ids", "result"]);
-
-/** Keys a provider schema leaves out: graphty checks every bound itself, before a call runs. */
-const PROVIDER_OMITS = new Set(["$schema", "minLength", "maxLength", "minItems", "maxItems"]);
-
-/**
- * A JSON Schema as a provider is sent it: bounds on lengths and counts left out (the strict
- * check enforces them), and empty descriptions dropped.
- * @param node - The schema.
- * @returns The compact schema.
- */
-export function compactSchema(node: unknown): unknown {
-    if (Array.isArray(node)) {
-        return node.map(compactSchema);
-    }
-
-    if (node === null || typeof node !== "object") {
-        return node;
-    }
-
-    const out: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(node)) {
-        const compact =
-            key === "properties"
-                ? Object.fromEntries(
-                      Object.entries(value as object).map(([name, child]) => [name, compactSchema(child)]),
-                  )
-                : compactSchema(value);
-        if (
-            PROVIDER_OMITS.has(key) ||
-            (key === "description" && value === "") ||
-            (key === "maximum" && value === Number.MAX_SAFE_INTEGER) ||
-            (key === "propertyNames" && JSON.stringify(compact) === '{"type":"string"}') ||
-            (key === "additionalProperties" && JSON.stringify(compact) === "{}")
-        ) {
-            continue;
-        }
-
-        out[key] = compact;
-    }
-
-    return out;
-}
 
 /** A generated tool: one family of actions, as a command the registry and the executor run. */
 export class AssistantTool implements GraphCommand {
@@ -432,6 +391,7 @@ export function catalogView(session: Pick<GraphSession, "catalog">): CatalogView
     const tables = session.catalog;
     return {
         algorithms: tables.algorithms(),
+        legacyAlgorithms: undescribedPlugins(),
         layouts: tables.layouts(),
         formats: tables.formats(),
         palettes: tables.palettes(),
@@ -442,21 +402,15 @@ export function catalogView(session: Pick<GraphSession, "catalog">): CatalogView
 }
 
 /**
- * What changes the tools: every catalog entry's name. Rebuilt at a turn's start when it differs.
+ * What changes the tools: every catalog entry as it is now -- its name, its description, its
+ * options -- so an entry redefined under the same name is rebuilt too. The catalog is plain data,
+ * so its JSON is the key. Rebuilt at a turn's start when it differs.
  * @param view - The catalog.
  * @returns The key.
  */
 export function catalogKey(view: CatalogView): string {
-    return [
-        view.algorithms.map((entry) => entry.key),
-        view.layouts.map((entry) => entry.id),
-        view.formats.map((entry) => `${entry.id}${entry.canImport ? "i" : ""}${entry.canExport ? "e" : ""}`),
-        view.palettes.map((entry) => entry.id),
-        view.cameras.map((entry) => entry.id),
-        view.scales.map((entry) => entry.name),
-    ]
-        .map((names) => names.join(","))
-        .join("|");
+    const { channels: _channels, ...tables } = view;
+    return JSON.stringify(tables);
 }
 
 /** One build of the assistant's tools. */
@@ -488,6 +442,15 @@ function buildIndex(
             summary: entry.description,
             tool: "run_algorithm",
             words: [entry.technicalName, entry.category, ...((entry as { keywords?: string[] }).keywords ?? [])],
+        })),
+        ...catalog.legacyAlgorithms.map((address) => ({
+            kind: "algorithm" as const,
+            name: address,
+            plainName: address,
+            summary:
+                "A registered algorithm that publishes no descriptor: it runs by this name, with no options known.",
+            tool: "run_algorithm",
+            words: address.split(/[:_-]/),
         })),
         ...catalog.layouts.map((entry) => ({
             kind: "layout" as const,

@@ -41,7 +41,7 @@ import {
     runToolBatch,
     type ToolCallRequest,
 } from "./ToolExecutor";
-import { MAX_LOADED_TOOLS, SMALL_PROFILE_TOOLS } from "./tools/install";
+import { MAX_LOADED_TOOLS, PROFILE_TOOLS } from "./tools/install";
 import type { ToolProfile } from "./tools/prompt";
 import { resultText } from "./tools/shape";
 import { isAssistantTool } from "./tools/toolset";
@@ -223,12 +223,12 @@ export function turnTools(
     }
 
     if (profile === "small") {
-        return all.filter((command) => SMALL_PROFILE_TOOLS.includes(command.name));
+        return all.filter((command) => PROFILE_TOOLS.small.has(command.name));
     }
 
     const loaded = new Set(loadedTools(messages));
     return all.filter((command) => {
-        if (command.name === "call") {
+        if (isAssistantTool(command) && !PROFILE_TOOLS.standard.has(command.name)) {
             return false;
         }
 
@@ -386,7 +386,7 @@ function partOutcome(call: ToolCallRequest, result: CallResult | undefined, batc
         return { code: "AI_CONFIRMATION_NEEDED", params: { tool: call.name, gate: batch.held.gate } };
     }
 
-    if (result === undefined || (result.success && batch.failure !== undefined)) {
+    if (result === undefined || (result.success && batch.failure !== undefined && batch.committed !== true)) {
         // Not run, or rolled back with the batch.
         return { code: "AI_TOOL_NOT_RUN", params: { tool: call.name } };
     }
@@ -563,8 +563,9 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
         // Past the tool turns, a text answer only: a model that spent every turn looking and never
         // acted would otherwise end the message with nothing said. toolMode "none" alone is not
         // enough: gemini-3.8-flash still answers it with a tool call and no text, so the ask also
-        // says, in words, that it is time to answer.
-        const answerOnly = turn > MAX_ASSISTANT_TOOL_TURNS;
+        // says, in words, that it is time to answer. A held batch ends the tool turns too: a later
+        // write would move the history under the request and make the reader's approval stale.
+        const answerOnly = turn > MAX_ASSISTANT_TOOL_TURNS || tally.held !== undefined;
         const offered = turnTools(tools, profile, conversation.messages);
         const history = profile === "small" ? trimmedHistory(conversation.messages) : [...conversation.messages];
         const { text, calls } = await modelTurn(

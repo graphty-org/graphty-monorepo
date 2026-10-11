@@ -94,16 +94,71 @@ export type Target =
 /** Words that mean every element. */
 const ALL_WORDS = new Set(["all", "*", "everything", "true"]);
 
+/** A comparison operator, after which a double-quoted run is a value, not a field name. */
+const BEFORE_VALUE = /(==|!=|<=|>=|<|>)\s*$/;
+
 /**
- * Repair the two unambiguous mistakes a model makes in a selector: a bare attribute name gets
- * `data.`, and a bare number on the right of a comparison gets backticks. Double quotes become
- * single ones, which is what the parser takes.
+ * A text as the selector's raw string literal: single-quoted, its backslashes and single quotes
+ * escaped.
+ * @param value - The text.
+ * @returns The literal.
+ */
+export function rawString(value: string): string {
+    return `'${value.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`;
+}
+
+/**
+ * Rewrite a value written in double quotes (`data.label == "O'Brien"`) as the raw string literal
+ * the parser reads. In the selector language double quotes name a field (`data."first name"`), so
+ * only a double-quoted run on the right of a comparison is a value; quotes inside a literal are
+ * left alone.
+ * @param where - The selector.
+ * @returns It, its double-quoted values as raw strings.
+ */
+function literalQuotes(where: string): string {
+    let out = "";
+    for (let at = 0; at < where.length; at++) {
+        const character = where[at];
+        if (character !== "'" && character !== "`" && character !== '"') {
+            out += character;
+            continue;
+        }
+
+        let close = at + 1;
+        while (close < where.length && where[close] !== character) {
+            close += where[close] === "\\" ? 2 : 1;
+        }
+
+        const run = where.slice(at, close + 1);
+        if (character === '"' && close < where.length && BEFORE_VALUE.test(out)) {
+            let value = run.slice(1, -1);
+            try {
+                value = JSON.parse(run) as string;
+            } catch {
+                // Not JSON's escapes: the characters as written.
+            }
+
+            out += rawString(value);
+        } else {
+            out += run;
+        }
+
+        at = close;
+    }
+
+    return out;
+}
+
+/**
+ * Repair the unambiguous mistakes a model makes in a selector: a bare attribute name gets
+ * `data.`, a bare number on the right of a comparison gets backticks, and a value in double quotes
+ * becomes the single-quoted literal the parser takes.
  * @param where - The selector as written.
  * @param attributes - The attribute names the graph holds.
  * @returns The repaired selector.
  */
 export function repairSelector(where: string, attributes: readonly string[]): string {
-    let out = where.replaceAll('"', "'");
+    let out = literalQuotes(where);
     for (const name of attributes) {
         // A bare name at the start or after a boolean operator or parenthesis, not already a path.
         const bare = new RegExp(`(^|[\\s(!&|])(${escapeRegExp(name)})(?=\\s*(==|!=|<=|>=|<|>|\\)|$))`, "g");
@@ -279,7 +334,7 @@ function resultSelector(session: TransactionScope, result: z.infer<typeof result
     const run = resolveRun(session, result.run);
     const path = session.results.path(run, result.field);
     const literal = (value: unknown): string =>
-        typeof value === "string" ? `'${value.replaceAll("'", "\\'")}'` : `\`${JSON.stringify(value)}\``;
+        typeof value === "string" ? rawString(value) : `\`${JSON.stringify(value)}\``;
     if (result.op === "in") {
         const values = Array.isArray(result.value) ? result.value : [result.value];
         return values.map((value) => `${path} == ${literal(value)}`).join(" || ");

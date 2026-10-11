@@ -65,7 +65,7 @@ export const selectTool: ToolDefinition = {
     name: "select",
     plainName: "Select",
     core: true,
-    description: "Changes the selection (not undoable). To hide use filter; to color use style.",
+    description: "The selection (not undoable). Hide: filter; color: style.",
     example: { action: "set", where: "data.type == 'server'" },
     actions: [
         {
@@ -111,7 +111,7 @@ export const selectTool: ToolDefinition = {
                 hops: z.number().int().min(1).max(3).optional().describe("How many steps, 1 to 3."),
             },
             effect: "exempt",
-            reaches: SELECT_DOOR,
+            reaches: [{ door: "SelectionApi.apply" }, { door: "SelectionApi.nodes" }],
             run: async (context, args) => {
                 const { tx } = context;
                 const { target, notes } = settleTarget(tx, { ids: args.ids }, "node", false);

@@ -7,15 +7,15 @@
 import { z } from "zod";
 
 import type { TransactionScope } from "../../../session/types";
-import { toolJsonSchema } from "../../engine/jsonSchema";
+import { compactSchema, toolJsonSchema } from "../../engine/jsonSchema";
 import { text } from "../fields";
 import { optionsJsonSchema } from "../optionSchema";
 import { CATALOG_KINDS, type CatalogKind, type IndexEntry, type SearchIndex, suggest } from "../search";
 import { toJson } from "../shape";
 import { type ActionSpec, type CatalogView, type JsonObject, type ToolDefinition, ToolRefusal } from "../types";
 import { ok } from "./common";
-import { enginesOf } from "./layout";
-import { SETTING_GROUPS } from "./project";
+import { engineOptionsOf, enginesOf } from "./layout";
+import { SETTING_GROUPS, settingSchema } from "./project";
 
 /** What the catalog tool reads besides the catalog. */
 export interface CatalogSources {
@@ -61,9 +61,14 @@ async function describe(
 
     switch (kind) {
         case "algorithm": {
+            if (catalog.legacyAlgorithms.includes(name)) {
+                // Registered with no descriptor: nothing is known of it but its address.
+                return { tool: "run_algorithm", data: { name, described: false, example: { name } } };
+            }
+
             const entry =
                 catalog.algorithms.find((each) => each.key === name) ??
-                missing(catalog.algorithms.map((each) => each.key));
+                missing([...catalog.algorithms.map((each) => each.key), ...catalog.legacyAlgorithms]);
             const options = await tx.catalog.optionsFor(entry.key);
             const estimate = tx.estimate({ op: "algo.run", algorithm: entry.key });
             return {
@@ -77,7 +82,7 @@ async function describe(
                     options: optionsJsonSchema(
                         options.map((option) => ({
                             ...option,
-                            values: option.type === "node-id" ? undefined : option.values,
+                            values: option.type === "node-id" || option.type === "node-set" ? undefined : option.values,
                         })),
                     ),
                     results: entry.fields.map((field) => ({ field: field.name, kind: field.kind, type: field.type })),
@@ -103,7 +108,12 @@ async function describe(
                     plainName: entry.plainName,
                     description: entry.description,
                     options: optionsJsonSchema(entry.options),
-                    engines: enginesOf(entry),
+                    // Every engine takes its own options; the default engine's are `options`.
+                    engines: enginesOf(entry).map((engine) => ({
+                        engine,
+                        default: engine === entry.engine,
+                        options: optionsJsonSchema(engineOptionsOf(entry, engine)),
+                    })),
                     maxDimensions: entry.maxDimensions,
                     scoped: entry.scoped,
                     example: { action: "set", name: entry.id },
@@ -182,7 +192,13 @@ async function describe(
         case "setting": {
             const description =
                 (SETTING_GROUPS as Record<string, string>)[name] ?? missing(Object.keys(SETTING_GROUPS));
-            return { tool: "project", data: { name, description, example: { action: "settings", [name]: null } } };
+            const schema = compactSchema(
+                toolJsonSchema(settingSchema(name as keyof typeof SETTING_GROUPS)),
+            ) as JsonObject;
+            return {
+                tool: "project",
+                data: { name, description, schema, example: { action: "settings", [name]: null } },
+            };
         }
 
         case "tool": {
@@ -225,7 +241,7 @@ export function catalogTool(sources: CatalogSources): ToolDefinition {
                     .describe("schemas: the top two carry their argument schema."),
             },
             effect: "read",
-            reaches: [{ door: "GraphSession.catalog" }],
+            reaches: [],
             run: async ({ tx }, args) => {
                 const hits = sources.index().search(text(args.text), {
                     ...(args.kind === undefined ? {} : { kind: args.kind as CatalogKind }),
@@ -253,7 +269,7 @@ export function catalogTool(sources: CatalogSources): ToolDefinition {
                 name: z.string().min(1).max(200).describe("The entry's name, as search returned it."),
             },
             effect: "read",
-            reaches: [{ door: "GraphSession.estimate" }],
+            reaches: [{ door: "GraphSession.catalog" }, { door: "GraphSession.estimate" }],
             run: async ({ tx }, args) => {
                 const name = text(args.name);
                 const kind = (args.kind as CatalogKind | undefined) ?? kindOf(sources, name);

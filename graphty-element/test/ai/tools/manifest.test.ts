@@ -14,6 +14,7 @@ import { createGraphSession } from "../../../session";
 import { CommandRegistry } from "../../../src/ai/commands";
 import { installAssistantTools } from "../../../src/ai/tools/install";
 import { isAssistantTool } from "../../../src/ai/tools/toolset";
+import { assistantSession, ScriptedAssistant } from "../../helpers/assistant";
 
 describe("the published list of the assistant's tools", () => {
     it("names every generated tool, whether it is core, and its actions", () => {
@@ -33,6 +34,26 @@ describe("the published list of the assistant's tools", () => {
         );
     });
 
+    it("says which profile offers each tool, as the turns offer them", async () => {
+        const session = await assistantSession();
+        for (const profile of ["standard", "small"] as const) {
+            const assistant = new ScriptedAssistant(session, { toolProfile: profile });
+            await assistant.say("look");
+            const offered = ScriptedAssistant.offered(assistant.engine.requests[0]);
+            const core = ASSISTANT_TOOLS.filter((tool) => tool.core && tool.profiles.includes(profile)).map(
+                (tool) => tool.name,
+            );
+            assert.deepStrictEqual(
+                [...offered].sort(),
+                profile === "small"
+                    ? ASSISTANT_TOOLS.filter((tool) => tool.profiles.includes("small"))
+                          .map((tool) => tool.name)
+                          .sort()
+                    : core.sort(),
+            );
+        }
+    });
+
     it("publishes every AI_ code a tool refuses with", () => {
         const dir = join(__dirname, "..", "..", "..", "src", "ai", "tools");
         const files = [
@@ -49,6 +70,7 @@ describe("the published list of the assistant's tools", () => {
         );
         const reader = new Set([
             "AI_COMPLETED",
+            "AI_TOOL_UNKNOWN",
             "AI_CONFIRMATION_NEEDED",
             "AI_TOOL_INVALID_ARGUMENTS",
             "AI_TOOL_FAILED",
@@ -58,6 +80,35 @@ describe("the published list of the assistant's tools", () => {
             (code) => !reader.has(code) && !(AI_TOOL_CAUSE_CODES as readonly string[]).includes(code),
         );
         assert.deepStrictEqual(unpublished, []);
+    });
+
+    it("sends every tool a schema every provider takes: no tuple's array of item schemas", () => {
+        const registry = new CommandRegistry();
+        installAssistantTools(registry, createGraphSession());
+        const tuples: string[] = [];
+        const walk = (node: unknown, path: string): void => {
+            if (Array.isArray(node)) {
+                node.forEach((item, index) => {
+                    walk(item, `${path}.${String(index)}`);
+                });
+                return;
+            }
+
+            if (node !== null && typeof node === "object") {
+                if (Array.isArray((node as { items?: unknown }).items)) {
+                    tuples.push(path);
+                }
+
+                for (const [key, value] of Object.entries(node)) {
+                    walk(value, `${path}.${key}`);
+                }
+            }
+        };
+        for (const tool of registry.getAll().filter(isAssistantTool)) {
+            walk(tool.jsonSchema, tool.name);
+        }
+
+        assert.deepStrictEqual(tuples, []);
     });
 
     it("lists the kinds catalog search finds", () => {

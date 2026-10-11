@@ -230,8 +230,9 @@ Rules in 4.3: alone in its batch, at most one per message, assistant steps only.
 Commands a consumer registers with `registerCommand` stay always offered in the standard profile,
 as today, unless they set `load: "on-demand"`. In the small profile they are reached only through
 `call`. `catalog` search indexes their names, descriptions and `keywords`. A consumer command that
-reuses a built-in tool name is refused with `E_DUPLICATE_PLUGIN` naming the tool; the reserved
-names are published in `ASSISTANT_TOOLS`.
+reuses a built-in tool name is held, and offered to the model, as `app_<name>`, so a tool added in a
+minor release never breaks a command already written; `assistantReach` reports it
+(`ai.name-reserved`). The built-in names are published in `ASSISTANT_TOOLS`, an open list.
 
 ### 2.4 Tool search and lazy loading
 
@@ -460,7 +461,8 @@ their gate is the estimate.
 fails on any item neither reached by a tool action nor excluded:
 
 1. **Every op** in `COMMANDS` (ops as well as doors: `data.expand`, `view.camera`,
-   `view.immersive` and `layout.transport` have no door).
+   `view.immersive` and `layout.transport` have no door). `data.expand` is reached by
+   `edit_data expand`, through the same builder a double-click uses (`src/data/expand.ts`).
 2. **Every door** that dispatches or is exempt, and every read-only door of the session roots
    (`GraphSession` and its parts, `Run`, selection, visibility, sets, notes, history, project).
 3. **Every catalog entry**, plus every registered layout engine (`spring`, `kamada-kawai`,
@@ -468,11 +470,16 @@ fails on any item neither reached by a tool action nor excluded:
 4. **Every option** of every entry (an `unknown` type or an unresolvable bound fails), and every
    generated action field has a description.
 
-"Reached" is computed from the generated tools themselves. The test also fails on: an exclusion of
-something that no longer exists, something both reached and excluded, a `covered-by` row whose
-`by` action does not dispatch the same op, two actions of one tool declaring one field with
-different types, and an action with no behavior task unless listed in `UNTESTED_ACTIONS` with an
-issue number.
+"Reached" is computed from the generated tools themselves, and every reach an action declares is
+checked: `test/ai/tools/actions.contract.test.ts` runs each action's reference calls on a session,
+transaction scopes and renderer wrapped in recording proxies, and fails on a declared member or op
+no reference call touched. The coverage test also fails on: an exclusion of something that no
+longer exists, something both reached and excluded, a `covered-by` row that names no `tool.action`,
+whose action does not dispatch the door's op, or, for a door with no op, whose action's effect is
+not the door's (a read by a read, an exempt door by an exempt action), an entry that names one
+option twice, option tables the tools pass that differ from those `assistantReach` checks, two
+actions of one tool declaring one field with different types, and an action with no behavior task
+unless listed in `UNTESTED_ACTIONS` with an issue number.
 
 **Registration paths.** A table-driven runtime case registers one fake entry through each path
 after the assistant is enabled -- `Algorithm.register` (with a descriptor), `defineAlgorithm`,
@@ -480,10 +487,11 @@ after the assistant is enabled -- `Algorithm.register` (with a descriptor), `def
 `DataSource.fromImporter`, `registerFormatWriter`, `registerPalette`, `definePalette`,
 `registerCameraView` -- and checks that `catalog` finds it, `describe` returns its options and the
 owning tool validates a call to it. A second check fails when a `register*` or `define*` export of
-`./extend` is in neither the table nor its not-applicable list (`defineLogDestination`,
-`defineOptionsSchema`, each with a reason). `Algorithm.register` of a class with no `static
-descriptor` is refused with `E_BAD_COMMAND` (`field: "descriptor"`), as `LayoutEngine.register`
-already refuses one, instead of filing an algorithm no catalog lists (breaking, section 12).
+`./extend`, or a static `register` or `fromImporter` of a class it exports, is in neither the table
+nor its not-applicable list (`defineLogDestination`, `defineOptionsSchema`, each with a reason). An
+`Algorithm.register` class with no `static descriptor` still registers and runs: the assistant
+offers it by its `namespace:type` address (`algo.legacy`), catalog search finds it, and
+`assistantReach` reports it as `ai.no-descriptor`, so the plugin's own test sees what is missing.
 
 ### 5.2 The exclusions table
 
@@ -495,7 +503,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { door: "ProjectApi.save", reason: "needs-host", kind: "by-design" },
     { op: "style.template", reason: "whole-document", kind: "defect", owner: "ai", expires: "2027-01-15" },
     { op: "layout.transport", reason: "in-flight", kind: "by-design" },
-    { door: "RunsApi.batch", reason: "covered-by", by: "run_algorithm", kind: "by-design" },
+    { door: "RunsApi.batch", reason: "covered-by", by: "run_algorithm.run", kind: "by-design" },
 ];
 ```
 
@@ -521,11 +529,14 @@ a decision, not a pass. `kind` reuses `src/catalog/unreachable.ts`'s split: `by-
 | `whole-document`     | takes or returns a whole style or notes document                               |
 | `in-flight`          | computation in progress, not an operation                                      |
 | `mechanism`          | what the tools themselves call (`session.execute`, `session.transaction`)      |
-| `covered-by`         | the same capability through another action, named in `by`                      |
+| `covered-by`         | the same capability through another action, named in `by` (`tool.action`)      |
+| `app-default`        | a default the application sets for every later call, saved in no project       |
+| `unoffered-type`     | an option whose descriptor has no type a schema can offer                      |
 
 About 465 of the 689 distinct operations are excluded. Decided here, each reversible by deleting a
-row: `labelDeclutter` and `renderOnDemand` are machine preferences, `setDefaultPalettes` is a host
-preference, `applyTemplate` waits for the themes catalog (#331).
+row: `labelDeclutter` and `renderOnDemand` are machine preferences, `setDefaultPalettes` is an
+application default (`app-default`: it is saved in no project, and reapplying it repaints layers
+outside any undo step), `applyTemplate` waits for the themes catalog (#331).
 
 ### 5.3 Budgets
 
@@ -869,13 +880,11 @@ Breaking (for the owner; it rides in the major `feat/tanstack-ai` is held for, w
 - **The default tool set changes**: `getCommandRegistry().getAll()`, the tool names on
   `ai-stream-tool-call` and `ai-stream-tool-result`, and what the model can do all change. The old
   constants stay exported and deprecated, removed in the major after.
-- **Built-in tool names are reserved**: a consumer command named `catalog`, `query`, `select`,
+- **Built-in tool names are taken**: a consumer command named `catalog`, `query`, `select`,
   `style`, `filter`, `layout`, `view`, `undo`, `results`, `sets`, `notes`, `project`, `capture`,
-  `immersive`, `call` or another `ASSISTANT_TOOLS` name now fails with `E_DUPLICATE_PLUGIN`
-  (today a duplicate throws a plain `Error`, and none of these names was taken).
+  `immersive`, `call` or another `ASSISTANT_TOOLS` name is offered to the model as `app_<name>`.
 - **Custom command results reach the model differently**: the model reads `{ code, params }`; a
   result with no `code` still shows its `message`, as `params.message`.
-- **`Algorithm.register` refuses a class without a descriptor** (`E_BAD_COMMAND`).
 - **`SchemaManager` is retired**: `AiManager.getSchemaManager()` returns `null` and
   `AiControllerOptions.schemaManager` is ignored, both deprecated and removed in the next major.
 

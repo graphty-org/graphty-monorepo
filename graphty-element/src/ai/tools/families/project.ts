@@ -6,8 +6,10 @@
 import { z } from "zod";
 
 import type { MeasurementDeclaration } from "../../../catalog/types";
+import { CONFIG_KEYS, unwrap } from "../../../session/configKeys";
 import type { ProjectConfigPatch } from "../../../session/types";
 import { MAX_STRING, text } from "../fields";
+import { toJson } from "../shape";
 import { type ActionContext, type ActionSpec, type ToolDefinition, ToolRefusal } from "../types";
 import { coded, ok } from "./common";
 
@@ -25,15 +27,64 @@ export const SETTING_GROUPS = Object.freeze({
     name: "The project's name.",
 } as const);
 
-const settings = {
-    background: z.record(z.string(), z.unknown()).optional().describe(SETTING_GROUPS.background),
-    selectionStyle: z.record(z.string(), z.unknown()).optional().describe(SETTING_GROUPS.selectionStyle),
-    layoutBehavior: z.record(z.string(), z.unknown()).optional().describe(SETTING_GROUPS.layoutBehavior),
-    runAlgorithmsOnLoad: z.boolean().optional().describe(SETTING_GROUPS.runAlgorithmsOnLoad),
-    data: z.record(z.string(), z.unknown()).optional().describe(SETTING_GROUPS.data),
-    author: z.string().max(200).optional().describe(SETTING_GROUPS.author),
-    name: z.string().max(200).optional().describe(SETTING_GROUPS.name),
-};
+/** One setting group. */
+type SettingGroup = keyof typeof SETTING_GROUPS;
+
+/** A tree of setting leaves by path, which becomes nested objects. */
+interface LeafTree {
+    [name: string]: LeafTree | z.ZodType;
+}
+
+/**
+ * Nested objects of a tree of leaves, every key optional: a group's settings merge key by key.
+ * @param tree - The leaves.
+ * @returns The object schema.
+ */
+function objectOf(tree: LeafTree): z.ZodObject {
+    return z.strictObject(
+        Object.fromEntries(
+            Object.entries(tree).map(([name, node]) => [
+                name,
+                (node instanceof z.ZodType ? node : objectOf(node)).optional(),
+            ]),
+        ),
+    );
+}
+
+/**
+ * One setting group's schema, generated from the project settings the session declares
+ * (`config.set`'s keys): a group with one setting takes its value, any other an object of its
+ * settings by path.
+ * @param group - The group.
+ * @returns Its schema.
+ */
+export function settingSchema(group: SettingGroup): z.ZodType {
+    const leaves = [...CONFIG_KEYS].filter(([, key]) => key.group === group);
+    if (leaves.length === 1 && leaves[0][0] === group) {
+        // Without its default, so validating a patch never fills in a key the call did not name.
+        return unwrap(leaves[0][1].schema);
+    }
+
+    const tree: LeafTree = {};
+    for (const [path, key] of leaves) {
+        const parts = path.split(".").slice(1);
+        let at = tree;
+        for (const part of parts.slice(0, -1)) {
+            at = (at[part] ??= {}) as LeafTree;
+        }
+
+        at[parts[parts.length - 1]] = unwrap(key.schema);
+    }
+
+    return objectOf(tree);
+}
+
+const settings = Object.fromEntries(
+    (Object.keys(SETTING_GROUPS) as SettingGroup[]).map((group) => [
+        group,
+        settingSchema(group).optional().describe(SETTING_GROUPS[group]),
+    ]),
+);
 
 /** The `project` tool. */
 export const projectTool: ToolDefinition = {
@@ -42,7 +93,7 @@ export const projectTool: ToolDefinition = {
     core: false,
     description:
         "Project settings (background, selection style, layout behavior, data columns, direction), its name, what a column measures, and whether it has unsaved changes. Saving is the reader's application's. The data source's own name is import_data rename_source.",
-    example: { action: "settings", background: { backgroundType: "color", color: "#101010" } },
+    example: { action: "settings", data: { knownFields: { nodeLabelPath: "name" } } },
     actions: [
         {
             name: "settings",
@@ -69,7 +120,7 @@ export const projectTool: ToolDefinition = {
             summary: "Rename the project.",
             fields: { name: z.string().max(200).describe("The new name.") },
             effect: "write",
-            reaches: [{ door: "ProjectApi.rename" }],
+            reaches: [{ door: "ProjectApi.rename" }, { op: "config.set" }],
             run: async ({ tx }, args) => {
                 await coded(() => tx.project.rename(text(args.name)));
                 return ok(undefined, { name: text(args.name) });
@@ -109,13 +160,7 @@ export const projectTool: ToolDefinition = {
             reaches: [
                 { door: "ProjectApi.name" },
                 { door: "ProjectApi.dirty" },
-                { door: "SessionConfig.background" },
-                { door: "SessionConfig.selectionStyle" },
-                { door: "SessionConfig.layoutBehavior" },
-                { door: "SessionConfig.runAlgorithmsOnLoad" },
-                { door: "SessionConfig.data" },
-                { door: "SessionConfig.author" },
-                { door: "SessionConfig.name" },
+                ...Object.keys(SETTING_GROUPS).map((group) => ({ door: `SessionConfig.${group}` })),
             ],
             run: ({ tx, session }) =>
                 Promise.resolve(
@@ -123,10 +168,13 @@ export const projectTool: ToolDefinition = {
                         name: tx.project.name,
                         dirty: tx.project.dirty,
                         undoable: session.history.position,
-                        background: tx.config.background,
-                        layoutBehavior: tx.config.layoutBehavior,
-                        runAlgorithmsOnLoad: tx.config.runAlgorithmsOnLoad,
-                        data: tx.config.data,
+                        // Every setting group, as it reads now.
+                        settings: Object.fromEntries(
+                            Object.keys(SETTING_GROUPS).map((group) => [
+                                group,
+                                toJson(tx.config[group as SettingGroup]),
+                            ]),
+                        ),
                     }),
                 ),
         },
@@ -210,22 +258,37 @@ export const captureTool: ToolDefinition = {
             },
             effect: "read",
             reaches: [{ door: "Graph.captureAnimation" }],
-            run: async (context, args) => {
-                const result = await coded(() =>
-                    capturer(context, "captureAnimation").captureAnimation({
-                        duration: Number(args.seconds) * 1000,
-                        ...(args.width === undefined ? {} : { width: args.width }),
-                        ...(args.height === undefined ? {} : { height: args.height }),
-                    }),
-                );
-                context.host.emit({
-                    type: "ai-export-ready",
-                    format: result.metadata.format,
-                    data: result.blob,
-                    losses: [],
+            run: (context, args) => {
+                const graph = capturer(context, "captureAnimation");
+                // A recording takes seconds: it settles after the batch commits, when it is the
+                // batch's last call, and a cancelled message stops it.
+                return Promise.resolve({
+                    settle: async ({ signal, host }) => {
+                        const stop = (): void => {
+                            graph.cancelAnimationCapture();
+                        };
+                        signal.addEventListener("abort", stop, { once: true });
+                        let result: Awaited<ReturnType<Capturer["captureAnimation"]>>;
+                        try {
+                            result = await graph.captureAnimation({
+                                duration: Number(args.seconds) * 1000,
+                                ...(args.width === undefined ? {} : { width: args.width }),
+                                ...(args.height === undefined ? {} : { height: args.height }),
+                            });
+                        } finally {
+                            signal.removeEventListener("abort", stop);
+                        }
+
+                        host.emit({
+                            type: "ai-export-ready",
+                            format: result.metadata.format,
+                            data: result.blob,
+                            losses: [],
+                        });
+                        const { width, height, format } = result.metadata;
+                        return ok(undefined, { format, width, height, bytes: result.blob.size });
+                    },
                 });
-                const { width, height, format } = result.metadata;
-                return ok(undefined, { format, width, height, bytes: result.blob.size });
             },
         },
         {

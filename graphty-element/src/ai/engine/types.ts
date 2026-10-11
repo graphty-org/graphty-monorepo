@@ -31,11 +31,23 @@ export interface ProviderState {
 /** Where a part of a message came from. */
 export type PartOrigin = "reader" | "model" | "graph-data" | "graphty";
 
+/** The envelope's own tags, in any case and spacing, which text inside it may not carry. */
+const ENVELOPE_TAG = /<\s*\/?\s*graph-data\s*>/gi;
+
 /**
- * The text of a message's text parts as a model is shown it. A `graph-data` part -- the facts
- * block, anything read from the graph -- is wrapped in a fixed envelope the system prompt names as
- * data, so text planted in a label or a note reads as data, never as an instruction. Every engine
- * flattens text through this.
+ * Text read from the graph as a model is shown it: inside a fixed envelope the system prompt
+ * names as data, with any tag that would close or open the envelope taken out, so text planted in
+ * a label or a note reads as data, never as an instruction.
+ * @param text - The text.
+ * @returns It, enveloped.
+ */
+export function graphData(text: string): string {
+    return `<graph-data>\n${text.replace(ENVELOPE_TAG, "")}\n</graph-data>`;
+}
+
+/**
+ * The text of a message's text parts as a model is shown it, a `graph-data` part (the facts block,
+ * anything read from the graph) in the envelope. Every engine flattens text through this.
  * @param parts - The message's parts.
  * @returns The text.
  */
@@ -46,13 +58,19 @@ export function textOf(parts: readonly SavedPart[]): string {
                 return [];
             }
 
-            return [
-                part.origin === "graph-data"
-                    ? `<graph-data>\n${part.text.replaceAll("</graph-data>", "")}\n</graph-data>`
-                    : part.text,
-            ];
+            return [part.origin === "graph-data" ? graphData(part.text) : part.text];
         })
         .join("\n");
+}
+
+/**
+ * A tool result as a model is shown it: in the envelope, since it carries labels, notes and
+ * values read from the graph. Every engine sends tool results through this.
+ * @param part - The result.
+ * @returns Its text.
+ */
+export function toolResultText(part: Extract<SavedPart, { type: "tool-result" }>): string {
+    return graphData(part.content);
 }
 
 /** One part of a message the engine is shown. */

@@ -183,6 +183,31 @@ export function registeredAlgorithmByKey(key: AlgorithmKey): RegisteredAlgorithm
     return registry.byId(key);
 }
 
+/** The `namespace:type` addresses of algorithm classes registered with no descriptor. */
+const undescribed = new Set<string>();
+
+/**
+ * Record whether an algorithm class registered under an address declares a descriptor. One that
+ * does not still runs, by its address, but the catalogue knows nothing of it.
+ * @param address - `namespace:type`.
+ * @param described - Whether it declared a descriptor.
+ */
+export function noteAlgorithmDescriptor(address: string, described: boolean): void {
+    if (described) {
+        undescribed.delete(address);
+    } else {
+        undescribed.add(address);
+    }
+}
+
+/**
+ * The addresses of algorithm classes registered with no descriptor, in registration order.
+ * @returns The addresses.
+ */
+export function undescribedAlgorithmAddresses(): readonly string[] {
+    return [...undescribed];
+}
+
 /**
  * Forget every registered algorithm.
  *
@@ -192,4 +217,5 @@ export function registeredAlgorithmByKey(key: AlgorithmKey): RegisteredAlgorithm
  */
 export function clearRegisteredAlgorithmsForTesting(): void {
     registry.clearForTesting();
+    undescribed.clear();
 }

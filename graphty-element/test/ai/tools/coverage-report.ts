@@ -9,9 +9,10 @@
 
 import { COMMANDS } from "../../../commands";
 import { type Exclusion, isWholeRoot } from "../../../src/ai/tools/exclusions";
-import { enginesOf } from "../../../src/ai/tools/families/layout";
+import { engineOptionsOf, enginesOf } from "../../../src/ai/tools/families/layout";
 import { SETTING_GROUPS } from "../../../src/ai/tools/families/project";
 import { optionsSchema } from "../../../src/ai/tools/optionSchema";
+import { ASSISTANT_OPTION_TABLES } from "../../../src/ai/tools/reach";
 import type { AssistantTool, Toolset } from "../../../src/ai/tools/toolset";
 import type { CatalogView } from "../../../src/ai/tools/types";
 import type { DoorRoot } from "../../../src/session/commands/doors";
@@ -85,15 +86,23 @@ function catalogItems(catalog: CatalogView): string[] {
 }
 
 /**
- * Every option of every catalog entry with options, and whether the assistant can offer it.
+ * Every option of every catalog entry with options, and whether the assistant can offer it; an
+ * entry that names one option twice is a problem, since its schema keeps only one of them.
  * @param catalog - The catalog.
+ * @param problems - Where a repeated option is reported.
  * @returns Option item key to whether its type converts to a schema.
  */
-function optionItems(catalog: CatalogView): Map<string, boolean> {
+function optionItems(catalog: CatalogView, problems: string[]): Map<string, boolean> {
     const items = new Map<string, boolean>();
     const add = (table: string, id: string, options: Parameters<typeof optionsSchema>[0]): void => {
         const { unoffered } = optionsSchema(options);
+        const seen = new Set<string>();
         for (const option of options) {
+            if (seen.has(option.name)) {
+                problems.push(`${table}/${id} lists the option ${option.name} twice; the schema keeps one.`);
+            }
+
+            seen.add(option.name);
             if (option.internal !== true) {
                 items.set(`option:${table}/${id}/${option.name}`, !unoffered.includes(option));
             }
@@ -105,6 +114,10 @@ function optionItems(catalog: CatalogView): Map<string, boolean> {
 
     for (const entry of catalog.layouts) {
         add("layouts", entry.id, entry.options);
+        // Every other engine of the layout takes its own options.
+        for (const engine of enginesOf(entry).filter((each) => each !== entry.engine)) {
+            add("engines", `${entry.id}@${engine}`, engineOptionsOf(entry, engine));
+        }
     }
 
     for (const entry of catalog.formats) {
@@ -202,6 +215,24 @@ function opOf(key: string): string | undefined {
     return key.startsWith("op:") ? key.slice(3) : undefined;
 }
 
+/** The effect of the action that covers a door with no op, by the door's kind. */
+const EFFECT_OF: Readonly<Record<string, string>> = { readOnly: "read", exempt: "exempt" };
+
+/**
+ * The door an item key names: one door, or a root answered whole.
+ * @param key - The item key.
+ * @param roots - The door roots.
+ * @returns The door, or undefined for an op, a catalog entry or an option.
+ */
+function doorOf(key: string, roots: readonly DoorRoot[]): DoorRoot["whole"] {
+    if (key.startsWith("root:")) {
+        return roots.find((each) => `root:${each.name}` === key)?.whole;
+    }
+
+    const root = roots.find((each) => key.startsWith(`door:${each.name}.`));
+    return root?.doors?.[key.slice(`door:${root.name}.`.length)];
+}
+
 /**
  * Whether a door-level row excludes a door.
  * @param exclusions - The rows.
@@ -241,7 +272,8 @@ export function coverage(inputs: CoverageInputs): CoverageReport {
     const { toolset, doorRoots, exclusions } = inputs;
     const ops = inputs.ops ?? Object.keys(COMMANDS);
     const doors = doorItems(doorRoots);
-    const options = optionItems(toolset.catalog);
+    const problems: string[] = [];
+    const options = optionItems(toolset.catalog, problems);
     const items = [
         ...ops.map((op) => `op:${op}`),
         ...doors.keys(),
@@ -251,12 +283,12 @@ export function coverage(inputs: CoverageInputs): CoverageReport {
 
     // What the tools reach: their declared reaches, and the options of the tables they pass on.
     const reached = new Set<string>();
-    const byTool = new Map<string, Set<string>>();
+    // What each action reaches, and its effect: a covered-by row is checked against its action.
+    const byAction = new Map<string, { reaches: Set<string>; effect: string }>();
     const optionTables = new Map<string, readonly string[] | undefined>();
     for (const tool of toolset.tools) {
-        const own = new Set<string>();
         for (const action of tool.definition.actions) {
-            own.add(`action:${tool.name}.${action.name}`);
+            const own = new Set<string>();
             for (const reach of action.reaches) {
                 if ("options" in reach) {
                     optionTables.set(reach.options, reach.only);
@@ -269,9 +301,17 @@ export function coverage(inputs: CoverageInputs): CoverageReport {
                     own.add(each);
                 }
             }
-        }
 
-        byTool.set(tool.name, own);
+            byAction.set(`${tool.name}.${action.name}`, { reaches: own, effect: action.effect });
+        }
+    }
+
+    // The tables whose options the tools pass are the tables `assistantReach` checks for a plugin.
+    const passed = [...optionTables.keys()].sort();
+    if (JSON.stringify(passed) !== JSON.stringify([...ASSISTANT_OPTION_TABLES].sort())) {
+        problems.push(
+            `The tools pass the options of ${passed.join(", ")}, but assistantReach checks ${[...ASSISTANT_OPTION_TABLES].join(", ")}.`,
+        );
     }
 
     for (const [key, offered] of options) {
@@ -289,7 +329,6 @@ export function coverage(inputs: CoverageInputs): CoverageReport {
         }
     }
 
-    const problems: string[] = [];
     const excluded = new Map<string, Exclusion>();
     const known = new Set(items);
     for (const row of exclusions) {
@@ -313,17 +352,24 @@ export function coverage(inputs: CoverageInputs): CoverageReport {
         }
 
         if (row.reason === "covered-by") {
-            const tool = row.by?.split(".")[0];
-            const reaches = tool === undefined ? undefined : byTool.get(tool);
-            if (reaches === undefined || (row.by!.includes(".") && !reaches.has(`action:${row.by!}`))) {
-                problems.push(`A covered-by exclusion names no tool action: ${JSON.stringify(row)}.`);
+            const action = row.by === undefined ? undefined : byAction.get(row.by);
+            if (action === undefined) {
+                problems.push(`A covered-by exclusion names no tool action (tool.action): ${JSON.stringify(row)}.`);
             } else {
                 for (const key of keys) {
-                    const root = doorRoots.find((each) => key.startsWith(`door:${each.name}.`));
-                    const door = root?.doors?.[key.slice(`door:${root.name}.`.length)];
-                    const op = door !== undefined && "op" in door ? door.op : opOf(key);
-                    if (op !== undefined && op !== "" && !reaches.has(`op:${op}`)) {
-                        problems.push(`${key} is covered by ${row.by!}, which does not dispatch ${op}.`);
+                    const door = doorOf(key, doorRoots);
+                    const op = door !== undefined && "op" in door && door.op !== undefined ? door.op : opOf(key);
+                    if (op !== undefined && op !== "") {
+                        // A door that dispatches is covered by an action that dispatches its op.
+                        if (!action.reaches.has(`op:${op}`)) {
+                            problems.push(`${key} is covered by ${row.by!}, which does not dispatch ${op}.`);
+                        }
+                    } else if (door !== undefined && EFFECT_OF[door.kind] !== action.effect) {
+                        // One that does not is covered by an action with its effect: a read by a
+                        // read, a camera or selection change by an exempt action.
+                        problems.push(
+                            `${key} (${door.kind}) is covered by ${row.by!}, whose effect is ${action.effect}, not ${EFFECT_OF[door.kind] ?? door.kind}.`,
+                        );
                     }
                 }
             }

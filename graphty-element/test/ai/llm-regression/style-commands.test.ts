@@ -101,7 +101,9 @@ function hasColorStyle(style: Record<string, unknown> | null): boolean {
     for (const [key, value] of Object.entries(style)) {
         if (
             (key === "channel" && String(value).endsWith(".color")) ||
-            (/color$/i.test(key.replace(/[._-]/g, "")) && isColorValue(value))
+            (/color$/i.test(key.replace(/[._-]/g, "")) && isColorValue(value)) ||
+            // `{ node: "blue" }`: the style tool reads a color on the element as its color.
+            ((key === "node" || key === "edge") && isColorValue(value))
         ) {
             return true;
         }

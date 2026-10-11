@@ -582,6 +582,9 @@ show(result.success ? (result.llmText ?? "Done.") : (words[result.code] ?? "Some
 | `AI_APPROVAL_STALE`         | false     | `request`             | An approval came after the graph changed, or expired     |
 | `AI_APPROVAL_DENIED`        | true      | `request`             | The reader declined a held change                        |
 
+`resolveAiApproval` answers with the approved batch's own result: `AI_COMPLETED`, a failure code
+(with `request`), or `AI_CONFIRMATION_NEEDED` when the batch is held again for another reason.
+
 `AI_TOOL_FAILED` also carries `cause`, the failed tool's own code (one of `AI_TOOL_CAUSE_CODES`
 from `@graphty/graphty-element/catalog`, or an `E_*` error code), and `rolledBack`, how many of the
 message's earlier changes were taken back with it.
@@ -623,6 +626,9 @@ await graph.enableAiControl({ provider: "google", apiKey, toolProfile: "small" }
 Every call is checked before it runs, the calls the model makes at once run together or not at
 all, and one message is one undo step. What the model reads back is a code and its facts, never
 the element's English: a large answer comes in pages, and a run's result is summarized.
+Messages run one at a time, in the order they were sent; `cancelAiCommand()` ends the one running
+and every one waiting. While a run the assistant started computes, your own edits go through, and
+cancelling stops the run.
 
 #### Changes that wait for the reader
 
@@ -647,15 +653,19 @@ await graph.enableAiControl({
 });
 ```
 
-The message itself ends with `AI_CONFIRMATION_NEEDED`. An approved change becomes part of the
-message's undo step; a request expires when the reader sends the next message. `gate: false` runs
-every change without asking, for a page with no way to ask. `DEFAULT_ASSISTANT_GATE_LIMITS` from
-`@graphty/graphty-element/ai` holds the defaults.
+The message itself ends with `AI_CONFIRMATION_NEEDED`, and the assistant changes nothing more in
+it. An approval answered from inside the listener waits for the message to end, then runs. An
+approved change becomes part of the message's undo step; a request expires when the reader sends
+the next message. Approving lets through only the hold the reader saw: a batch that is also over
+another limit is held again, and `resolveAiApproval` returns `AI_CONFIRMATION_NEEDED` with the new
+request. `gate: false` runs every change without asking, for a page with no way to ask.
+`DEFAULT_ASSISTANT_GATE_LIMITS` from `@graphty/graphty-element/ai` holds the defaults.
 
 #### Exports and pictures go to your page
 
 When the reader asks for a file or a picture, the assistant writes it and hands it to your page in
-`ai-export-ready`; the model is told only its size. Save it or show it as you like:
+`ai-export-ready`, once the change it was part of has been kept; the model is told only its size.
+Save it or show it as you like:
 
 ```typescript
 graph.on("ai-export-ready", ({ format, data }) => {
@@ -689,10 +699,11 @@ graph.getAiManager()?.registerCommand({
 ```
 
 The model reads `{ code, params }`; a command that sets no `code` still has its `message` read, as
-`params.message`. A name one of the built-in tools has is refused with `E_DUPLICATE_PLUGIN`.
+`params.message`. A command named like one of the built-in tools (`ASSISTANT_TOOLS`, which may
+grow in a minor release) keeps working: the model is offered it as `app_<name>`.
 `assistantReach()` from `@graphty/graphty-element/extend` tells a plugin's own test whether what it
-registered reaches the assistant: an option no schema can carry, an entry with no description, a
-command named like a built-in tool.
+registered reaches the assistant: an option no schema can carry, an entry with no description, an
+algorithm class with no descriptor, a command named like a built-in tool.
 
 The commands earlier releases registered by default (`queryGraph`, `setLayout`,
 `findAndStyleNodes` and the rest) are still exported and still work when you register them

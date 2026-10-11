@@ -2080,7 +2080,9 @@ export class Dispatcher {
                     fact: job.definition.undo.fact(job.command, this.store.state),
                 },
                 null,
-                {},
+                // Recorded as its own step when the transaction's is no longer on top: it is
+                // still the transaction's work, by the same hand.
+                group.provenance,
                 stepId,
                 job.seq,
                 null,

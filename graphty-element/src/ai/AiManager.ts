@@ -10,12 +10,12 @@ import type { Graph } from "../Graph";
 import { AiController, type ExecutionResult } from "./AiController";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import { CommandRegistry } from "./commands";
+import { offeredName } from "./commands/CommandRegistry";
 import { ApiKeyManager } from "./keys";
 import { createProvider, type ProviderType } from "./providers";
 import type { LlmProvider } from "./providers/types";
 import { SchemaManager } from "./schema";
 import { installAssistantTools } from "./tools/install";
-import { ASSISTANT_TOOL_NAMES } from "./tools/toolset";
 import type { AssistantGateLimits } from "./tools/types";
 
 /** Default debounce delay for schema updates in milliseconds */
@@ -239,8 +239,8 @@ export class AiManager {
      * @param command - The command to register
      */
     registerCommand(command: Parameters<CommandRegistry["register"]>[0]): void {
-        // A name the assistant's own tools hold is refused (E_DUPLICATE_PLUGIN), never skipped.
-        if (!this.commandRegistry.has(command.name) || ASSISTANT_TOOL_NAMES.has(command.name)) {
+        // A name the assistant's own tools hold is offered to the model as app_<name>.
+        if (!this.commandRegistry.has(offeredName(command.name))) {
             this.commandRegistry.register(command);
         }
     }
@@ -252,7 +252,8 @@ export class AiManager {
      * @param id - The request's id.
      * @param answer - The reader's answer.
      * @param answer.approve - True to run the change.
-     * @returns The change's result, `AI_APPROVAL_DENIED` or `AI_APPROVAL_STALE`.
+     * @returns The change's result (`AI_CONFIRMATION_NEEDED` when another limit holds it again),
+     *     `AI_APPROVAL_DENIED` or `AI_APPROVAL_STALE`.
      */
     async resolveAiApproval(id: string, answer: { readonly approve: boolean }): Promise<ExecutionResult> {
         if (!this.controller) {

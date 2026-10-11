@@ -17,6 +17,7 @@ import {
     type ProviderState,
     type SavedMessage,
     textOf,
+    toolResultText,
     type TurnError,
     type TurnEvent,
     type TurnRequest,
@@ -174,7 +175,7 @@ function toModelMessages(
 
         return message.parts.flatMap((part) =>
             part.type === "tool-result"
-                ? [{ role: "tool" as const, toolCallId: part.callId, content: part.content }]
+                ? [{ role: "tool" as const, toolCallId: part.callId, content: toolResultText(part) }]
                 : [],
         );
     });

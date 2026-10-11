@@ -7,10 +7,12 @@
 import { z } from "zod";
 
 import type { OptionDescriptor } from "../../catalog/types";
+import type { TransactionScope } from "../../session/types";
 import { toolJsonSchema } from "../engine/jsonSchema";
-import { MAX_ITEMS, MAX_SELECTOR, MAX_STRING } from "./fields";
+import { idsOf, MAX_ITEMS, MAX_SELECTOR, MAX_STRING, resolveNode, settleTarget, text } from "./fields";
 import { isOfferedOption } from "./optionTypes";
-import type { JsonObject } from "./types";
+import { suggest } from "./search";
+import { type JsonObject, ToolRefusal } from "./types";
 
 /**
  * One option's schema.
@@ -81,6 +83,8 @@ function describeOption(option: OptionDescriptor): string {
     const parts = [option.description ?? option.plainName];
     if (option.type === "node-id") {
         parts.push("A node id or unique label.");
+    } else if (option.type === "node-set") {
+        parts.push("Node ids or unique labels, or a selector.");
     } else if (option.type === "attribute" || option.type === "partition") {
         parts.push(`An ${option.on ?? "node"} attribute name.`);
     }
@@ -141,4 +145,78 @@ export function optionsJsonSchema(options: readonly OptionDescriptor[]): JsonObj
 
     delete schema.$schema;
     return schema;
+}
+
+/**
+ * Check a call's options against an entry's: unknown names, types and bounds refused naming the
+ * option, and every option that names nodes settled to node ids -- a label to its node, a
+ * selector to the nodes it matches -- as the entry's own code reads them.
+ * @param tx - Where labels and selectors are resolved.
+ * @param options - The entry's options.
+ * @param given - The options the call passed.
+ * @param path - Where the options sit in the call, for a refusal (`options`).
+ * @returns The options, parsed, node options as ids.
+ * @throws {ToolRefusal} `AI_ARG_INVALID` or `AI_ARG_OUT_OF_RANGE` naming the option and the options allowed.
+ */
+export function checkOptions(
+    tx: TransactionScope,
+    options: readonly OptionDescriptor[],
+    given: Readonly<Record<string, unknown>>,
+    path = "options",
+): Record<string, unknown> {
+    const { schema } = optionsSchema(options);
+    const allowed = Object.keys(schema.shape);
+    const parsed = schema.safeParse(given);
+    if (!parsed.success) {
+        const issue = parsed.error.issues[0];
+        if (issue.code === "unrecognized_keys") {
+            throw new ToolRefusal("AI_ARG_INVALID", {
+                path: `${path}.${issue.keys[0]}`,
+                expected: "a known option",
+                allowed,
+                didYouMean: suggest(issue.keys[0], allowed),
+            });
+        }
+
+        const code = issue.code === "too_big" || issue.code === "too_small" ? "AI_ARG_OUT_OF_RANGE" : "AI_ARG_INVALID";
+        throw new ToolRefusal(code, { path: `${path}.${issue.path.join(".")}`, expected: issue.message, allowed });
+    }
+
+    const out: Record<string, unknown> = { ...parsed.data };
+    for (const option of options) {
+        const value = out[option.name];
+        if (value === undefined || value === null) {
+            continue;
+        }
+
+        if (option.type === "node-id") {
+            out[option.name] = resolveNode(tx, text(value));
+        } else if (option.type === "node-set") {
+            out[option.name] = nodeSet(tx, value, `${path}.${option.name}`);
+        }
+    }
+
+    return out;
+}
+
+/**
+ * A node-set option's nodes: each id or label of a list resolved, or a selector's matches.
+ * @param tx - The session.
+ * @param value - The list, or the selector.
+ * @param path - The option, for a refusal.
+ * @returns The node ids.
+ * @throws {ToolRefusal} `AI_ARG_OUT_OF_RANGE` when a selector matches more nodes than one call carries.
+ */
+function nodeSet(tx: TransactionScope, value: unknown, path: string): string[] {
+    if (Array.isArray(value)) {
+        return value.map((each) => resolveNode(tx, text(each)));
+    }
+
+    const { target } = settleTarget(tx, { where: value }, "node", true);
+    const { ids, total } = idsOf(tx, target ?? { kind: "all" }, "node", MAX_ITEMS);
+    if (total > MAX_ITEMS) {
+        throw new ToolRefusal("AI_ARG_OUT_OF_RANGE", { path, max: MAX_ITEMS, matched: total });
+    }
+
+    return ids;
 }

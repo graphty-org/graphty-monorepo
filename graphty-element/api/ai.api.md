@@ -52,6 +52,25 @@ import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
 
 // @public
+export interface AiApprovalPreview {
+    readonly algorithm?: string;
+    readonly changedValues?: number;
+    readonly costClass?: string;
+    readonly edges?: number;
+    readonly ids?: readonly {
+        readonly id: string;
+        readonly label: string;
+    }[];
+    readonly mode?: "merge" | "replace";
+    readonly nodes?: number;
+    readonly removeEdges?: number;
+    readonly removeNodes?: number;
+    readonly run?: string;
+    readonly seconds?: number | "unbounded";
+    readonly url?: string;
+}
+
+// @public
 export interface AiApprovalRequest {
     readonly calls: readonly {
         readonly tool: string;
@@ -59,7 +78,7 @@ export interface AiApprovalRequest {
     }[];
     readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | (string & {});
     readonly id: string;
-    readonly preview: Readonly<Record<string, unknown>>;
+    readonly preview: AiApprovalPreview;
 }
 
 // @public
@@ -102,11 +121,8 @@ export type AiEventEmitter = (event: AiEvent) => void;
 // @public
 export interface AiExportReadyEvent {
     data: string | Blob;
-    format: string;
-    losses: readonly {
-        readonly code: string;
-        readonly params?: unknown;
-    }[];
+    format: FormatId;
+    losses: readonly ExportLoss[];
     type: "ai-export-ready";
 }
 

@@ -7,7 +7,11 @@
 import { ASSISTANT_TOOLS } from "../../catalog/assistant";
 import { registeredCameraDescriptors } from "../../catalog/cameraRegistry";
 import { registeredLayoutDescriptors } from "../../catalog/layoutRegistry";
-import { registeredAlgorithmDescriptors } from "../../catalog/registry";
+import {
+    registeredAlgorithmByKey,
+    registeredAlgorithmDescriptors,
+    undescribedAlgorithmAddresses,
+} from "../../catalog/registry";
 import { KNOWN_FORMAT_IDS, type OptionDescriptor } from "../../catalog/types";
 import { catalogFormatDescriptors } from "../../catalog/writerRegistry";
 import type { CodedFact } from "../../session/shared";
@@ -16,14 +20,47 @@ import { isOfferedOption } from "./optionTypes";
 /** The formats graphty-element ships, which are not a plugin's to fix. */
 const BUILT_IN_FORMATS: ReadonlySet<string> = new Set(KNOWN_FORMAT_IDS);
 
+/**
+ * The catalog tables whose options the assistant's tools pass on, each to the entry it names. The
+ * element's own coverage test fails when the tools pass a different set, so this check and that
+ * one give one verdict.
+ */
+export const ASSISTANT_OPTION_TABLES = Object.freeze([
+    "algorithms",
+    "layouts",
+    "engines",
+    "formats",
+    "writers",
+    "scales",
+    "cameras",
+] as const);
+
 /** What `assistantReach` reports. OPEN UNION: codes may be added in a minor release. */
-export type AssistantReachCode = "ai.option-unoffered" | "ai.no-description" | "ai.name-reserved";
+export type AssistantReachCode = "ai.option-unoffered" | "ai.no-description" | "ai.name-reserved" | "ai.no-descriptor";
+
+/** The element's own algorithm namespace, whose classes the catalog describes by their own keys. */
+const OWN_NAMESPACE = "graphty:";
+
+/**
+ * The algorithm classes a plugin registered with no descriptor (`namespace:type`): the assistant
+ * runs them by address, but knows none of their options or results. The element's own classes, in
+ * its own namespace, are the catalog's.
+ * @returns The addresses.
+ */
+export function undescribedPlugins(): string[] {
+    return undescribedAlgorithmAddresses().filter(
+        (address) =>
+            !address.startsWith(OWN_NAMESPACE) && registeredAlgorithmByKey(address.split(":")[1] ?? "") === undefined,
+    );
+}
 
 /**
  * What a model could not be offered of the registered extensions: an option whose type converts
  * to no schema (`ai.option-unoffered`, often a nested object in an options schema), an algorithm,
  * layout or camera with no description, which a model would know only by id and name
- * (`ai.no-description`), and an assistant command named as one of the assistant's own tools
+ * (`ai.no-description`), an algorithm class registered with no descriptor, which a model can run
+ * by its address but knows nothing else of (`ai.no-descriptor`), and an assistant command named
+ * as one of the assistant's own tools, which the model is offered as `app_<name>`
  * (`ai.name-reserved`). A plugin's test asserts the list is empty.
  *
  * ```ts
@@ -56,6 +93,10 @@ export function assistantReach(
         check(entry.key, entry.options, entry.description);
     }
 
+    for (const address of undescribedPlugins()) {
+        facts.push({ code: "ai.no-descriptor", params: { entry: address } });
+    }
+
     for (const entry of registeredLayoutDescriptors()) {
         check(entry.id, entry.options, entry.description);
     }
@@ -72,7 +113,10 @@ export function assistantReach(
     const reserved = new Set(ASSISTANT_TOOLS.map((tool) => tool.name));
     for (const command of commands) {
         if (reserved.has(command.name)) {
-            facts.push({ code: "ai.name-reserved", params: { command: command.name, tool: command.name } });
+            facts.push({
+                code: "ai.name-reserved",
+                params: { command: command.name, tool: command.name, offeredAs: `app_${command.name}` },
+            });
         }
     }
 

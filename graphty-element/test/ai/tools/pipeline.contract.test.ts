@@ -10,7 +10,6 @@ import { assert, describe, it } from "vitest";
 import { z } from "zod";
 
 import { textOf } from "../../../src/ai/engine/types";
-import { isGraphtyError } from "../../../src/errors";
 import type { AiApprovalRequestedEvent, AiExportReadyEvent } from "../../../src/events";
 import { assistantSession, digest, ScriptedAssistant, textTurn } from "../../helpers/assistant";
 
@@ -48,7 +47,7 @@ describe("structure is checked before any call runs", () => {
         const [action, tool, stray] = assistant.lastResults();
         assert.strictEqual(action.code, "AI_UNKNOWN_ACTION");
         assert.include(action.params.allowed as string[], "overview");
-        assert.strictEqual(tool.code, "AI_TOOL_UNKNOWN");
+        assert.strictEqual(tool.code, "AI_UNKNOWN_TOOL");
         assert.include(tool.params.didYouMean as string[], "query");
         assert.strictEqual(stray.code, "AI_ARG_INVALID");
         assert.strictEqual(stray.params.path, "hops");
@@ -275,20 +274,21 @@ describe("large, slow, replacing and irreversible changes wait for the host", ()
         const readerRun = session.runs.start("degree");
         await readerRun;
         const gated = new ScriptedAssistant(session, { gate: { slowSeconds: -1 } });
-        await gated.say(
-            "three",
-            [{ tool: "edit_data", args: { action: "delete_all" } }],
-            [{ tool: "run_algorithm", args: { name: "betweenness" } }],
-            [{ tool: "results", args: { action: "cancel", run: readerRun.id } }],
-        );
-        assert.deepStrictEqual(
-            gated.lastResults().map((read) => [read.code, read.params.gate]),
-            [
-                ["AI_CONFIRM_REQUIRED", "replaces"],
-                ["AI_CONFIRM_REQUIRED", "slow"],
-                ["AI_CONFIRM_REQUIRED", "irreversible"],
-            ],
-        );
+        const held: unknown[] = [];
+        for (const call of [
+            { tool: "edit_data", args: { action: "delete_all" } },
+            { tool: "run_algorithm", args: { name: "betweenness" } },
+            { tool: "results", args: { action: "cancel", run: readerRun.id } },
+        ]) {
+            await gated.say("one", [call]);
+            held.push(...gated.lastResults().map((read) => [read.code, read.params.gate]));
+        }
+
+        assert.deepStrictEqual(held, [
+            ["AI_CONFIRM_REQUIRED", "replaces"],
+            ["AI_CONFIRM_REQUIRED", "slow"],
+            ["AI_CONFIRM_REQUIRED", "irreversible"],
+        ]);
         assert.strictEqual(session.status.counts.nodes, 5);
 
         const open = new ScriptedAssistant(session, { gate: false });
@@ -515,7 +515,7 @@ describe("the small-model profile", () => {
             return JSON.parse(part?.type === "tool-result" ? part.content : "{}") as { code: string; data?: unknown };
         });
         assert.strictEqual(styled.code, "style.add-layer");
-        assert.deepStrictEqual(counted.data, { nodes: 2, edges: 0 });
+        assert.deepStrictEqual(counted.data, { nodes: 2, edges: 0, edgesAmong: 1, exact: true });
         assert.strictEqual(mismatch.code, "AI_ARG_INVALID");
     });
 
@@ -539,21 +539,30 @@ describe("the small-model profile", () => {
 });
 
 describe("the assistant's tool names and a consumer's commands", () => {
-    it("refuses a consumer command that takes a built-in tool's name", async () => {
+    it("offers a consumer command that takes a built-in tool's name as app_<name>, and keeps the tool", async () => {
         const session = await assistantSession();
         const assistant = new ScriptedAssistant(session);
-        try {
-            assistant.registry.register({
-                name: "query",
-                description: "mine",
-                parameters: z.object({}),
-                examples: [],
-                execute: () => Promise.resolve({ success: true, message: "" }),
-            });
-            assert.fail("registered");
-        } catch (error) {
-            assert.isTrue(isGraphtyError(error) && error.code === "E_DUPLICATE_PLUGIN");
-        }
+        assistant.registry.register({
+            name: "query",
+            description: "Our own query.",
+            parameters: z.object({ term: z.string() }),
+            examples: [],
+            effect: "read",
+            execute: (_graph, params) => Promise.resolve({ success: true, message: "", data: { term: params.term } }),
+        });
+        await assistant.say(
+            "both",
+            [{ tool: "app_query", args: { term: "x" } }],
+            [{ tool: "query", args: { action: "overview" } }],
+        );
+        const [mine, builtIn] = assistant.lastResults();
+        assert.strictEqual(mine.code, "AI_OK", JSON.stringify(mine));
+        assert.deepStrictEqual(mine.data, { term: "x" });
+        assert.strictEqual(builtIn.code, "AI_OK");
+        // Unregistered by the name it was given, it goes; the built-in tool stays.
+        assistant.registry.unregister("query");
+        assert.isUndefined(assistant.registry.get("app_query"));
+        assert.isDefined(assistant.registry.get("query"));
     });
 
     it("shows the model a consumer command's message when it sets no code", async () => {

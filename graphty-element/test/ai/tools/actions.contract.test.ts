@@ -6,11 +6,15 @@
  * when an action has no row, so a new action is contract-tested the day it is generated.
  */
 
-import { assert, describe, it } from "vitest";
+import { afterAll, assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
-import { buildToolset } from "../../../src/ai/tools/toolset";
+import { buildToolset, isAssistantTool } from "../../../src/ai/tools/toolset";
+import type { Reach } from "../../../src/ai/tools/types";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { clearRegisteredAlgorithmsForTesting } from "../../../src/catalog/registry";
 import { assistantSession, digest, ScriptedAssistant } from "../../helpers/assistant";
+import { ReachRecorder } from "./reach-recorder";
 
 /** A stand-in renderer: the camera, captures and XR answer as a renderer would. */
 const RENDERER = {
@@ -26,17 +30,69 @@ const RENDERER = {
     cancelAnimationCapture: () => false,
     isVRSupported: () => Promise.resolve(false),
     isARSupported: () => Promise.resolve(false),
+    exportGraph: () => Promise.resolve({ text: () => Promise.resolve("<graphml/>"), losses: [] }),
+};
+
+/** A renderer whose layout behaviour fetches a node's neighbors: node "a" is joined to a new "x". */
+const EXPANDING = {
+    ...RENDERER,
+    getNode: (id: string) => ({ id }),
+    fetchEdges: () => new Set([{ source: "a", target: "x" }]),
+    fetchNodes: (ids: Set<string>) => new Set([...ids].map((id) => ({ id }))),
 };
 
 /** One reference call. */
 interface Row {
-    readonly args: Record<string, unknown>;
+    readonly args: Record<string, unknown> | ((session: GraphSession) => Record<string, unknown>);
+    /** The renderer behind the session; the stand-in when absent. */
+    readonly graph?: object;
+    /** The session to call on; the small graph when absent. */
+    readonly session?: () => Promise<GraphSession>;
     /** The code the model reads; `AI_OK` (or the session's own success code) when absent. */
     readonly code?: string;
     /** The gate: off for a row whose small graph trips its share of nodes. */
     readonly gate?: false;
     /** State the call acts on, made before the message. */
     readonly setup?: (session: GraphSession) => unknown;
+    /** Calls the assistant makes in a message of its own first: a step of its own to undo. */
+    readonly prior?: readonly { readonly tool: string; readonly args: Record<string, unknown> }[];
+}
+
+/** What each action's reference calls touched, by `tool.action`: what its reach claims are checked against. */
+const TOUCHED = new Map<string, Set<string>>();
+
+/**
+ * An assistant over a session that records what each action touches into `TOUCHED`.
+ * @param session - The session.
+ * @param options - The assistant's options.
+ * @returns The assistant and its recorder.
+ */
+function recordingAssistant(
+    session: GraphSession,
+    options: ConstructorParameters<typeof ScriptedAssistant>[1] = {},
+): { assistant: ScriptedAssistant; recorder: ReachRecorder } {
+    const recorder = new ReachRecorder();
+    const assistant = new ScriptedAssistant(recorder.session(session), {
+        ...options,
+        graph: recorder.renderer(options.graph ?? RENDERER),
+    });
+    recorder.watch(assistant.registry.getAll().filter(isAssistantTool));
+    return { assistant, recorder };
+}
+
+/**
+ * File what a recorder saw under each action.
+ * @param recorder - The recorder.
+ */
+function keep(recorder: ReachRecorder): void {
+    for (const [action, touched] of recorder.touched) {
+        const own = TOUCHED.get(action) ?? new Set<string>();
+        for (const item of touched) {
+            own.add(item);
+        }
+
+        TOUCHED.set(action, own);
+    }
 }
 
 /** A run of degree, for the actions that read one. */
@@ -86,6 +142,16 @@ const ROWS: Record<string, Row> = {
     },
     "style.update": {
         args: { action: "update", layer: "mine", values: { "node.color": "blue" } },
+        setup: (s) =>
+            s.styles.add({
+                name: "mine",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": "red" },
+            }),
+    },
+    "style.get": {
+        args: { action: "get", layer: "mine" },
         setup: (s) =>
             s.styles.add({
                 name: "mine",
@@ -190,6 +256,7 @@ const ROWS: Record<string, Row> = {
     },
     "edit_data.remove_nodes": { args: { action: "remove_nodes", ids: ["e"] }, gate: false },
     "edit_data.remove_edges": { args: { action: "remove_edges", where: "data.weight < `0.25`" } },
+    "edit_data.expand": { args: { action: "expand", ids: ["Alpha"] }, graph: EXPANDING },
     "edit_data.delete_all": { args: { action: "delete_all" }, code: "AI_CONFIRM_REQUIRED" },
     "undo.undo": {
         args: { action: "undo" },
@@ -256,6 +323,16 @@ const ROWS: Record<string, Row> = {
     "immersive.support": { args: { action: "support" } },
 };
 
+/**
+ * A row's arguments.
+ * @param row - The row.
+ * @param session - The session it calls on.
+ * @returns The arguments.
+ */
+function argsOf(row: Row, session: GraphSession): Record<string, unknown> {
+    return typeof row.args === "function" ? row.args(session) : row.args;
+}
+
 /** The id of the set `sets.restore` brings back, filled in by its setup. */
 const restored: { id?: string } = {};
 
@@ -285,7 +362,7 @@ describe("every generated action", () => {
             await row.setup?.(session);
             await session.styles.settled();
             const [tool] = key.split(".");
-            const args = { ...row.args };
+            const args = { ...argsOf(row, session) };
             if (args.note === "NOTE") {
                 args.note = session.notes.list()[0].id;
             }
@@ -294,9 +371,9 @@ describe("every generated action", () => {
                 args.set = restored.id;
             }
 
-            const assistant = new ScriptedAssistant(session, {
-                graph: RENDERER,
+            const { assistant, recorder } = recordingAssistant(session, {
                 ...(row.gate === false ? { gate: false } : {}),
+                ...(row.graph === undefined ? {} : { graph: row.graph }),
             });
             const before = await digest(session);
             const steps = session.history.position;
@@ -317,6 +394,8 @@ describe("every generated action", () => {
                 assert.strictEqual(added, 0, `${key} adds no step`);
                 assert.strictEqual(await digest(session), before, `${key} changes nothing a project saves`);
             }
+
+            keep(recorder);
         });
 
         it(`${key}: refuses a field it does not take, running nothing`, async () => {
@@ -326,7 +405,9 @@ describe("every generated action", () => {
             const before = await digest(session);
             const steps = session.history.position;
             const args =
-                tool === "run_algorithm" || tool === "export_graph" ? { ...row.args } : { ...row.args, action };
+                tool === "run_algorithm" || tool === "export_graph"
+                    ? { ...argsOf(row, session) }
+                    : { ...argsOf(row, session), action };
             await assistant.say(`stray ${key}`, [{ tool, args: { ...args, notAField: "x" } }]);
             const [read] = assistant.lastResults();
             assert.strictEqual(read.code, "AI_ARG_INVALID", JSON.stringify(read));
@@ -478,5 +559,175 @@ describe("every generated action", () => {
         const [, selected] = assistant.lastResults();
         assert.strictEqual(selected.code, "AI_OK", JSON.stringify(selected));
         assert.include(String(selected.params.rewritten), "results.clustering_coefficient.value");
+    });
+});
+
+/** More calls for an action whose reference call stops short of something it reaches: a held change, a refusal. */
+const MORE: Record<string, Row[]> = {
+    "results.cancel": [{ args: { action: "cancel", run: "degree" }, setup: withRun, gate: false }],
+    "edit_data.delete_all": [{ args: { action: "delete_all" }, gate: false }],
+    "undo.undo": [
+        {
+            args: { action: "undo" },
+            prior: [{ tool: "edit_data", args: { action: "add_nodes", records: [{ id: "f" }] } }],
+        },
+    ],
+    "undo.redo": [
+        {
+            args: { action: "redo" },
+            prior: [{ tool: "edit_data", args: { action: "add_nodes", records: [{ id: "f" }] } }],
+            setup: (s) => s.undo(),
+        },
+    ],
+    "view.camera": [{ args: { action: "camera", preset: "topView", options: {} } }],
+    "results.summary": [
+        {
+            args: { action: "summary", run: "degree" },
+            session: stalledSession,
+            setup: (s) => s.runs.start("degree"),
+        },
+    ],
+    "query.edges": [{ args: (s) => ({ action: "edges", ids: [s.data.edges()[0].id] }) }],
+    "style.legend": [
+        {
+            args: { action: "legend", layer: "teams" },
+            setup: (s) =>
+                s.styles.encode({ column: { kind: "node", name: "team" }, channel: "node.color", name: "teams" }),
+        },
+    ],
+    "style.encode": [
+        {
+            args: { action: "encode", encode: { channel: "node.color", run: "degree" } },
+            setup: withRun,
+            code: "style.encode",
+        },
+    ],
+    "filter.clear": [
+        {
+            args: { action: "clear" },
+            setup: async (s) => {
+                await s.data.updateNodes([{ id: "a", values: { seen: "2020-06-01" } }]);
+                await s.visibility.setWindow({ attribute: "data.seen", from: "2020-01-01", to: "2021-01-01" });
+            },
+        },
+    ],
+    "filter.range": [
+        {
+            args: { action: "range", attribute: "seen", from: "2020-01-01", to: "2021-01-01" },
+            setup: (s) => s.data.updateNodes([{ id: "a", values: { seen: "2020-06-01" } }]),
+        },
+    ],
+    "layout.unpin": [{ args: { action: "unpin", where: "all" }, setup: (s) => s.positions.pin(["a"]) }],
+    "run_algorithm.run": [
+        {
+            // A class registered with no descriptor runs by its address, through the legacy op.
+            args: { name: "acme:legacy-rank" },
+            session: async () => {
+                Algorithm.register(
+                    class LegacyRank extends Algorithm {
+                        static namespace = "acme";
+                        static type = "legacy-rank";
+                        async run(): Promise<void> {
+                            await Promise.resolve();
+                        }
+                    },
+                );
+                return assistantSession();
+            },
+            // A session with no renderer has nothing to run a legacy class on.
+            code: "E_UNSUPPORTED",
+        },
+    ],
+};
+
+/**
+ * A session whose runs never finish until cancelled: a run read while it is going.
+ * @returns The session.
+ */
+async function stalledSession(): Promise<GraphSession> {
+    const session = createGraphSession({
+        runs: {
+            execute: (context) =>
+                new Promise((_, reject) => {
+                    context.signal.addEventListener("abort", () => {
+                        reject(context.signal.reason as Error);
+                    });
+                }),
+        },
+    });
+    await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+    return session;
+}
+
+describe("actions whose reference call stops short", () => {
+    afterAll(() => {
+        clearRegisteredAlgorithmsForTesting();
+    });
+
+    for (const [key, rows] of Object.entries(MORE)) {
+        for (const row of rows) {
+            it(`${key}: ${typeof row.args === "function" ? "computed" : JSON.stringify(row.args)}`, async () => {
+                const session = await (row.session ?? assistantSession)();
+                const [tool] = key.split(".");
+                const { assistant, recorder } = recordingAssistant(session, {
+                    ...(row.gate === false ? { gate: false } : {}),
+                    ...(row.graph === undefined ? {} : { graph: row.graph }),
+                });
+                if (row.prior !== undefined) {
+                    await assistant.say("before", [...row.prior]);
+                }
+
+                // A run started here is left going: its handle is not awaited.
+                const started = row.setup?.(session);
+                if (row.session === undefined) {
+                    await started;
+                }
+
+                await assistant.say(`do ${key}`, [{ tool, args: { ...argsOf(row, session) } }]);
+                const [read] = assistant.lastResults();
+                assert.strictEqual(read.code, row.code ?? "AI_OK", JSON.stringify(read));
+                keep(recorder);
+            });
+        }
+    }
+});
+
+/**
+ * The item a reach claims a call touches: a member or an op. Catalog entries and options are
+ * checked by the coverage test.
+ * @param reach - The reach.
+ * @returns The item key, or undefined.
+ */
+function claimOf(reach: Reach): string | undefined {
+    if ("door" in reach) {
+        return `door:${reach.door}`;
+    }
+
+    return "op" in reach ? `op:${reach.op}` : undefined;
+}
+
+describe("what each action claims to reach", () => {
+    it("is a member or an op its reference calls touch", () => {
+        const unverified: string[] = [];
+        for (const tool of buildToolset(createGraphSession()).tools) {
+            for (const action of tool.definition.actions) {
+                const key = `${tool.name}.${action.name}`;
+                const touched = TOUCHED.get(key) ?? new Set<string>();
+                for (const reach of action.reaches) {
+                    const item = claimOf(reach);
+                    if (item !== undefined && !touched.has(item)) {
+                        unverified.push(`${key} claims ${item}`);
+                    }
+                }
+            }
+        }
+
+        if (process.env.PRINT_TOUCHED === "1") {
+            for (const [key, touched] of TOUCHED) {
+                console.log("TOUCHED", key, [...touched].filter((item) => item.startsWith("op:")).join(","));
+            }
+        }
+
+        assert.deepStrictEqual(unverified, []);
     });
 });

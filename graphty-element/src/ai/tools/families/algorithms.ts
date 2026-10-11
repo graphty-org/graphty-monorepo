@@ -6,13 +6,12 @@
 
 import { z } from "zod";
 
-import { Algorithm } from "../../../algorithms/Algorithm";
 import { algorithmByLegacyKey } from "../../../catalog/algorithms";
 import type { AlgorithmDescriptor } from "../../../catalog/types";
 import type { Run } from "../../../session/runs/types";
 import type { TransactionScope } from "../../../session/types";
-import { MAX_SELECTOR, resolveNode, resolveRun, SELECTOR_HELP, text } from "../fields";
-import { optionsSchema } from "../optionSchema";
+import { MAX_SELECTOR, resolveRun, SELECTOR_HELP, text } from "../fields";
+import { checkOptions } from "../optionSchema";
 import { suggest } from "../search";
 import { limitOf, offsetOf, pageOf, summarizeRun, toJson } from "../shape";
 import {
@@ -20,6 +19,7 @@ import {
     type ActionResult,
     type ActionSpec,
     type CatalogView,
+    gated,
     GateHold,
     type JsonObject,
     type ToolDefinition,
@@ -50,13 +50,14 @@ export function algorithmKeyOf(
 }
 
 /**
- * A registered 1.x algorithm with no descriptor, which runs through the legacy op.
+ * A registered algorithm class with no descriptor, which runs through the legacy op by its address.
  * @param name - `namespace:type`.
+ * @param legacy - The addresses of such classes.
  * @returns The namespace and type, or undefined.
  */
-function legacyPlugin(name: string): { namespace: string; type: string } | undefined {
+function legacyPlugin(name: string, legacy: readonly string[]): { namespace: string; type: string } | undefined {
     const [namespace, type] = name.split(":");
-    if (type === undefined || !Algorithm.getRegisteredAlgorithms().includes(name)) {
+    if (type === undefined || !legacy.includes(name)) {
         return undefined;
     }
 
@@ -64,45 +65,56 @@ function legacyPlugin(name: string): { namespace: string; type: string } | undef
 }
 
 /**
- * Check a call's options against the entry: unknown keys, types, bounds; node options by id or label.
- * @param tx - The session.
- * @param descriptor - The entry.
- * @param options - The options given.
- * @returns The options, node labels resolved.
- * @throws {ToolRefusal} `AI_ARG_INVALID` or `AI_ARG_OUT_OF_RANGE` naming the option.
+ * Wait for a run the assistant started, cancelling it when the message is cancelled or undone: the
+ * batch's transaction stays open while it waits, so a run left going would hold the message up.
+ * @param run - The run.
+ * @param signal - The message's signal.
+ * @returns Once the run has finished.
+ * @throws The signal's reason once it fires; the run's own error as a coded refusal.
  */
-function checkOptions(
-    tx: TransactionScope,
-    descriptor: AlgorithmDescriptor,
-    options: Record<string, unknown>,
-): Record<string, unknown> {
-    const { schema } = optionsSchema(descriptor.options);
-    const parsed = schema.safeParse(options);
-    if (!parsed.success) {
-        const issue = parsed.error.issues[0];
-        const allowed = Object.keys(schema.shape);
-        if (issue.code === "unrecognized_keys") {
-            throw new ToolRefusal("AI_ARG_INVALID", {
-                path: `options.${issue.keys[0]}`,
-                expected: "a known option",
-                allowed,
-                didYouMean: suggest(issue.keys[0], allowed),
-            });
+export async function awaitRun(run: Run, signal: AbortSignal): Promise<void> {
+    let stop = (): void => undefined;
+    const aborted = new Promise<never>((_, reject) => {
+        const onAbort = (): void => {
+            run.cancel("assistant");
+            reject(signal.reason as Error);
+        };
+        if (signal.aborted) {
+            onAbort();
+            return;
         }
 
-        const code = issue.code === "too_big" || issue.code === "too_small" ? "AI_ARG_OUT_OF_RANGE" : "AI_ARG_INVALID";
-        throw new ToolRefusal(code, { path: `options.${issue.path.join(".")}`, expected: issue.message, allowed });
+        signal.addEventListener("abort", onAbort, { once: true });
+        stop = () => {
+            signal.removeEventListener("abort", onAbort);
+        };
+    });
+    try {
+        await Promise.race([
+            coded(async () => {
+                await run;
+            }),
+            aborted,
+        ]);
+    } finally {
+        stop();
     }
+}
 
-    const out: Record<string, unknown> = { ...parsed.data };
-    for (const option of descriptor.options) {
-        const value = out[option.name];
-        if (option.type === "node-id" && value !== undefined && value !== null) {
-            out[option.name] = resolveNode(tx, text(value));
-        }
-    }
-
-    return out;
+/**
+ * A started run as an action's result: its summary once it has finished, which the executor waits
+ * for after the batch commits when the run is the batch's last call.
+ * @param run - The run.
+ * @param params - The facts the result carries.
+ * @returns The result, to settle.
+ */
+export function settleRun(run: Run, params: JsonObject): ActionResult {
+    return {
+        settle: async ({ session, signal }) => {
+            await awaitRun(run, signal);
+            return ok(summarizeRun(session, run), params);
+        },
+    };
 }
 
 /**
@@ -119,7 +131,7 @@ async function runAlgorithm(
 ): Promise<ActionResult> {
     const { tx, message } = context;
     const name = text(args.name);
-    const plugin = legacyPlugin(name);
+    const plugin = legacyPlugin(name, catalog.legacyAlgorithms);
     if (plugin !== undefined) {
         await coded(() =>
             tx.execute({
@@ -146,7 +158,7 @@ async function runAlgorithm(
 
     const params = {
         ...resolved.params,
-        ...checkOptions(tx, descriptor, (args.options ?? {}) as Record<string, unknown>),
+        ...checkOptions(tx, descriptor.options, (args.options ?? {}) as Record<string, unknown>),
     };
     const scopeArg = args.scope as { set?: string; where?: string } | undefined;
     let scope: { set: string } | { where: string } | undefined;
@@ -171,6 +183,7 @@ async function runAlgorithm(
     const exact = args.exact === true;
     if (
         message.gate !== false &&
+        gated(message, "slow") &&
         (!Number.isFinite(estimate.seconds) || estimate.seconds > message.gate.slowSeconds) &&
         (exact || descriptor.approximable === undefined)
     ) {
@@ -190,10 +203,7 @@ async function runAlgorithm(
         }),
     );
     message.runs.add(run.id);
-    await coded(async () => {
-        await run;
-    });
-    return ok(summarizeRun(tx, run), { run: run.id, algorithm: descriptor.key });
+    return settleRun(run, { run: run.id, algorithm: descriptor.key });
 }
 
 /**
@@ -203,19 +213,21 @@ async function runAlgorithm(
  */
 export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
     const keys = catalog.algorithms.map((entry) => entry.key);
+    // A class registered with no descriptor runs by its address, so the name field takes those too.
+    const names = [...keys, ...catalog.legacyAlgorithms];
     return {
         name: "run_algorithm",
         plainName: "Run an algorithm",
         core: true,
         description:
-            "Runs an algorithm and summarizes its result; it colors the graph unless style is false. Options: catalog describe.",
+            "Runs an algorithm and summarizes it; colors the graph unless style is false. Options: catalog describe.",
         example: { name: "shortest-path", options: { source: "a", target: "b" } },
         actions: [
             {
                 name: "run",
                 summary: "one algorithm",
                 fields: {
-                    name: nameField(keys, "Algorithm."),
+                    name: nameField(names, "Algorithm."),
                     options: z.record(z.string(), z.unknown()).optional().describe("The algorithm's options by name."),
                     scope: z
                         .strictObject({
@@ -240,7 +252,7 @@ export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
                 prepare: (args) => {
                     const name = typeof args.name === "string" ? args.name : "";
                     const resolved = algorithmKeyOf(name, catalog.algorithms);
-                    return resolved === undefined || legacyPlugin(name) !== undefined
+                    return resolved === undefined || legacyPlugin(name, catalog.legacyAlgorithms) !== undefined
                         ? args
                         : { ...args, name: resolved.key };
                 },
@@ -331,7 +343,7 @@ export const resultsTool: ToolDefinition = {
     name: "results",
     plainName: "Algorithm results",
     core: true,
-    description: "Reads, reruns, cancels and removes existing runs.",
+    description: "Existing runs: read, rerun, cancel, remove.",
     example: { action: "top", run: "pagerank" },
     actions: [
         {
@@ -350,6 +362,7 @@ export const resultsTool: ToolDefinition = {
                             fields: run.fields.map((field) => field.name),
                             params: toJson(run.params),
                         })),
+                        { queued: tx.runs.queue.length },
                     ),
                 ),
         },
@@ -358,11 +371,7 @@ export const resultsTool: ToolDefinition = {
             summary: "a run's result",
             fields: { run: runField },
             effect: "read",
-            reaches: [
-                { door: "RunsApi.get" },
-                { door: "ResultsApi.get" },
-                ...RUN_FACTS.map((fact) => ({ door: `Run.${fact}` })),
-            ],
+            reaches: [{ door: "RunsApi.get" }, ...RUN_FACTS.map((fact) => ({ door: `Run.${fact}` }))],
             run: ({ tx }, args) => Promise.resolve(ok(summarizeRun(tx, runOf(tx, args)))),
         },
         {
@@ -410,7 +419,7 @@ export const resultsTool: ToolDefinition = {
         },
         {
             name: "page",
-            summary: "nodes with values, paged",
+            summary: "values, paged",
             fields: {
                 run: runField,
                 field: fieldField,
@@ -422,6 +431,10 @@ export const resultsTool: ToolDefinition = {
             run: ({ tx }, args) => {
                 const run = runOf(tx, args);
                 const field = fieldOf(run, args.field);
+                if (!tx.results.has(run.id, field)) {
+                    throw new ToolRefusal("AI_NOT_AVAILABLE", { name: run.id, requirement: run.status });
+                }
+
                 const { revision } = tx.data.nodePage({ limit: 0 });
                 const offset = offsetOf(args.cursor as string | undefined, revision);
                 const page = tx.data.nodePage({
@@ -448,24 +461,21 @@ export const resultsTool: ToolDefinition = {
             fields: { run: runField },
             effect: "write",
             reaches: [{ door: "Run.rerun" }, { op: "algo.run" }],
-            run: async ({ tx, message }, args) => {
+            run: ({ tx, message }, args) => {
                 const again = runOf(tx, args).rerun();
                 message.runs.add(again.id);
-                await coded(async () => {
-                    await again;
-                });
-                return ok(summarizeRun(tx, again), { run: again.id });
+                return Promise.resolve(settleRun(again, { run: again.id }));
             },
         },
         {
             name: "cancel",
-            summary: "stop a running run",
+            summary: "",
             fields: { run: runField },
             effect: "exempt",
             reaches: [{ door: "Run.cancel" }],
             run: ({ tx, message }, args) => {
                 const run = runOf(tx, args);
-                if (message.gate !== false && !message.runs.has(run.id)) {
+                if (gated(message, "irreversible") && !message.runs.has(run.id)) {
                     throw new GateHold("irreversible", { run: run.id, algorithm: run.algorithm });
                 }
 
@@ -475,7 +485,7 @@ export const resultsTool: ToolDefinition = {
         },
         {
             name: "remove",
-            summary: "remove a run and its layers",
+            summary: "a run and its layers",
             fields: { run: runField },
             effect: "write",
             reaches: [{ door: "RunsApi.remove" }, { op: "algo.remove" }],

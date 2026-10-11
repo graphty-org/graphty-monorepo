@@ -2,8 +2,9 @@ import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 
 import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
-import type { EdgeId, NodeId } from "./catalog/types";
+import type { EdgeId, FormatId, NodeId } from "./catalog/types";
 import type { NodeIdType } from "./config";
+import type { ExportLoss } from "./data/export";
 import type { ImportReport } from "./data/report";
 import type { Edge } from "./Edge";
 import type { Graph } from "./Graph";
@@ -832,8 +833,41 @@ export interface AiApprovalRequest {
     readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | (string & {}); // NOSONAR(S4335): the open-union idiom
     /** The tool calls held, as the model made them. */
     readonly calls: readonly { readonly tool: string; readonly arguments: Readonly<Record<string, unknown>> }[];
-    /** What the reader is shown: counts, seconds, the selector, the first affected ids. */
-    readonly preview: Readonly<Record<string, unknown>>;
+    /** What the reader is shown before approving. */
+    readonly preview: AiApprovalPreview;
+}
+
+/**
+ * What a held change would do, for the reader to judge. Each gate sets the fields it measured:
+ * `large` the counts and the first affected nodes, `slow` the algorithm and its seconds, `replaces`
+ * and `network` what an import or a clear would replace and from where, `irreversible` the run it
+ * would cancel. OPEN: fields may be added in a minor release.
+ */
+export interface AiApprovalPreview {
+    /** Nodes the message would remove in all. */
+    readonly removeNodes?: number;
+    /** Edges the message would remove in all. */
+    readonly removeEdges?: number;
+    /** Attribute values the message would change in all. */
+    readonly changedValues?: number;
+    /** The first nodes it would change, at most ten, with their labels. */
+    readonly ids?: readonly { readonly id: string; readonly label: string }[];
+    /** The algorithm a slow run or a cancel names, by its catalog key. */
+    readonly algorithm?: string;
+    /** How long a slow run is estimated to take, or `"unbounded"`. */
+    readonly seconds?: number | "unbounded";
+    /** The run's cost class (`"linear"`, `"iterative"`, ...). */
+    readonly costClass?: string;
+    /** The run a cancel would stop. */
+    readonly run?: string;
+    /** Nodes the graph holds, which a replacing import or a clear discards. */
+    readonly nodes?: number;
+    /** Edges the graph holds, which a clear discards. */
+    readonly edges?: number;
+    /** How an import treats the graph there: `"merge"` or `"replace"`. */
+    readonly mode?: "merge" | "replace";
+    /** The URL an import would fetch, which the reader did not give. */
+    readonly url?: string;
 }
 
 /**
@@ -843,12 +877,12 @@ export interface AiApprovalRequest {
 export interface AiExportReadyEvent {
     /** The event's name. */
     type: "ai-export-ready";
-    /** The format id (`graphml`, `png`, `webm`, ...). */
-    format: string;
+    /** The format: a graph format's id (`graphml`), or a picture's or a video's (`png`, `webm`). */
+    format: FormatId;
     /** The document: text for a graph format, a `Blob` for a picture or a video. */
     data: string | Blob;
     /** What the format could not carry, as coded facts. */
-    losses: readonly { readonly code: string; readonly params?: unknown }[];
+    losses: readonly ExportLoss[];
 }
 
 /** Emitted when voice input ends */

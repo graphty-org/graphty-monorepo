@@ -55,7 +55,7 @@ export const undoTool: ToolDefinition = {
             ],
             run: async ({ session, message }) => {
                 const next = session.history.nextUndo;
-                if (next?.kind !== "undo") {
+                if (!session.canUndo || next?.kind !== "undo") {
                     throw new ToolRefusal("AI_UNDO_NOTHING");
                 }
 
@@ -89,7 +89,7 @@ export const undoTool: ToolDefinition = {
             run: async ({ session, message }) => {
                 const { steps, position } = session.history;
                 const next = steps.at(position);
-                if (next === undefined) {
+                if (!session.canRedo || next === undefined) {
                     throw new ToolRefusal("AI_UNDO_NOTHING");
                 }
 

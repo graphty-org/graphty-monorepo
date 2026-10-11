@@ -26,7 +26,7 @@ export const AI_STATES: readonly ["ready", "submitted", "streaming", "executing"
 export const AI_TOOL_CALL_STATUSES: readonly ["pending", "executing", "complete", "error"];
 
 // @public
-export const AI_TOOL_CAUSE_CODES: readonly ["AI_OK", "AI_UNKNOWN_ACTION", "AI_ARG_INVALID", "AI_ARG_OUT_OF_RANGE", "AI_UNKNOWN_ENTRY", "AI_UNKNOWN_NODE", "AI_UNKNOWN_EDGE", "AI_UNKNOWN_COLUMN", "AI_UNKNOWN_RUN", "AI_BAD_SELECTOR", "AI_EMPTY_MATCH", "AI_NOT_AVAILABLE", "AI_CONFIRM_REQUIRED", "AI_IMPORT_URL_REFUSED", "AI_UNDO_NOTHING", "AI_UNDO_NOT_ALONE", "AI_UNDO_NOT_MINE", "AI_UNDO_IN_MESSAGE", "AI_CURSOR_STALE", "AI_TOOL_NOT_RUN", "AI_TOOL_UNKNOWN"];
+export const AI_TOOL_CAUSE_CODES: readonly ["AI_OK", "AI_UNKNOWN_ACTION", "AI_ARG_INVALID", "AI_ARG_OUT_OF_RANGE", "AI_UNKNOWN_ENTRY", "AI_UNKNOWN_NODE", "AI_UNKNOWN_EDGE", "AI_UNKNOWN_COLUMN", "AI_UNKNOWN_RUN", "AI_BAD_SELECTOR", "AI_EMPTY_MATCH", "AI_NOT_AVAILABLE", "AI_CONFIRM_REQUIRED", "AI_IMPORT_URL_REFUSED", "AI_UNDO_NOTHING", "AI_UNDO_NOT_ALONE", "AI_UNDO_NOT_MINE", "AI_UNDO_IN_MESSAGE", "AI_CURSOR_STALE", "AI_TOOL_NOT_RUN", "AI_UNKNOWN_TOOL"];
 
 // @public
 export interface AiKeyShape {
@@ -151,7 +151,11 @@ export interface AssistantToolDescriptor {
     readonly core: boolean;
     readonly name: string;
     readonly plainName: string;
+    readonly profiles: readonly AssistantToolProfile[];
 }
+
+// @public
+export type AssistantToolProfile = "standard" | "small";
 
 // @public
 export const ATTRIBUTE_TYPES: readonly ["string", "number", "integer", "boolean", "time", "category", "mixed"];

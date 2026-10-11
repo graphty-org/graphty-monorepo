@@ -16,7 +16,7 @@ import type { LlmProvider } from "./providers/types";
 import { type Conversation, latestStepOf, MessageRolledBack, runConversation, TurnFailed } from "./runConversation";
 import { toSafeError } from "./safeError";
 import type { SchemaManager } from "./schema";
-import { type HeldBatch, type Outcome, runToolBatch } from "./ToolExecutor";
+import { type BatchOutcome, type HeldBatch, type Outcome, runToolBatch } from "./ToolExecutor";
 import { hasAssistantTools, installAssistantTools } from "./tools/install";
 import { assistantInstructions, factsBlock } from "./tools/prompt";
 import { isAssistantTool } from "./tools/toolset";
@@ -65,9 +65,17 @@ async function revertMessage(session: GraphSession, message: string): Promise<nu
 interface PendingApproval {
     readonly message: string;
     readonly label: string;
-    readonly calls: HeldBatch["calls"];
+    readonly held: HeldBatch;
     readonly revision: string;
     readonly readerText: string;
+}
+
+/**
+ * What a settled turn of the controller's queue resolves to, however it ended.
+ * @returns Nothing.
+ */
+function settled(): undefined {
+    return undefined;
 }
 
 /**
@@ -154,6 +162,11 @@ export class AiController {
     private readonly allowImportUrl: ((url: URL) => boolean) | undefined;
     /** Runs the assistant started, which it may cancel without asking. */
     private readonly assistantRuns = new Set<string>();
+    /**
+     * The controller's turns, one at a time: a message, or an approval, waits for the one before
+     * it, so two never write into each other's transactions or share the status.
+     */
+    private queue: Promise<unknown> = Promise.resolve();
 
     /**
      * Creates a new AiController instance.
@@ -211,12 +224,40 @@ export class AiController {
 
         // Track input for retry
         this.lastInput = input;
-        const startTime = Date.now();
-        this.lastError = null;
 
-        // Create new abort controller for this execution
+        // Registered now, so `cancel()` reaches a message still waiting for the one before it.
         const abortController = new AbortController();
         this.running.set(abortController, input);
+        return this.enqueue(async () => {
+            if (abortController.signal.aborted) {
+                this.running.delete(abortController);
+                return { success: false, message: "", code: "AI_CANCELLED", params: {} };
+            }
+
+            return this.executeNow(input, abortController);
+        });
+    }
+
+    /**
+     * Run a turn of the controller once the turns before it have settled.
+     * @param turn - The turn.
+     * @returns What the turn returned.
+     */
+    private enqueue<T>(turn: () => Promise<T>): Promise<T> {
+        const result = this.queue.then(turn);
+        this.queue = result.then(settled, settled);
+        return result;
+    }
+
+    /**
+     * Run one message, its turn come.
+     * @param input - The reader's request.
+     * @param abortController - The message's controller, which `cancel()` aborts.
+     * @returns The message's result.
+     */
+    private async executeNow(input: string, abortController: AbortController): Promise<ExecutionResult> {
+        const startTime = Date.now();
+        this.lastError = null;
 
         // Emit command start event
         this.emitAiEvent({
@@ -236,7 +277,7 @@ export class AiController {
         const message = String(++messageCount);
         // A held batch's approval expires when the reader says something new.
         this.approvals.clear();
-        let stopWatching: (() => void) | undefined;
+        let stopWatching = (): void => undefined;
         try {
             const session = this.graph.getSession();
             if (hasAssistantTools(this.commandRegistry)) {
@@ -282,6 +323,10 @@ export class AiController {
             } catch (error) {
                 // A tool threw, the message was cancelled or undone, or the model failed: what the
                 // message's earlier batches recorded is taken back, as one transaction's rollback was.
+                // The message's own revert is no undo by the reader: stop watching first, so it
+                // does not read as one and hide why the message failed.
+                stopWatching();
+                stopWatching = (): void => undefined;
                 const remaining = await revertMessage(session, message);
                 if (!(error instanceof MessageRolledBack)) {
                     throw error;
@@ -333,7 +378,7 @@ export class AiController {
                 ...this.failureOutcome(error, abortController),
             };
         } finally {
-            stopWatching?.();
+            stopWatching();
             this.running.delete(abortController);
         }
     }
@@ -376,7 +421,7 @@ export class AiController {
      */
     private hold(held: HeldBatch, message: string, label: string, session: GraphSession): string {
         const id = `approval-${String(++approvalCount)}`;
-        this.approvals.set(id, { message, label, calls: held.calls, revision: revisionOf(session), readerText: label });
+        this.approvals.set(id, { message, label, held, revision: revisionOf(session), readerText: label });
         this.emitAiEvent({
             type: "ai-approval-requested",
             request: {
@@ -396,9 +441,22 @@ export class AiController {
      * @param id - The request's id, from `ai-approval-requested`.
      * @param answer - Whether the reader approves.
      * @param answer.approve - True to run the change.
-     * @returns What happened: the batch's result, `AI_APPROVAL_DENIED` or `AI_APPROVAL_STALE`.
+     * @returns What happened: the batch's result, `AI_CONFIRMATION_NEEDED` when another limit holds
+     *     it again, `AI_APPROVAL_DENIED` or `AI_APPROVAL_STALE`.
      */
-    async resolveAiApproval(id: string, answer: { readonly approve: boolean }): Promise<ExecutionResult> {
+    resolveAiApproval(id: string, answer: { readonly approve: boolean }): Promise<ExecutionResult> {
+        // An answer given while its message still runs (from inside the listener) waits for it.
+        return this.enqueue(() => this.resolveNow(id, answer));
+    }
+
+    /**
+     * Answer an approval request, its turn come.
+     * @param id - The request's id.
+     * @param answer - Whether the reader approves.
+     * @param answer.approve - True to run the change.
+     * @returns What happened.
+     */
+    private async resolveNow(id: string, answer: { readonly approve: boolean }): Promise<ExecutionResult> {
         const pending = this.approvals.get(id);
         this.approvals.delete(id);
         const session = this.graph.getSession();
@@ -411,31 +469,61 @@ export class AiController {
         }
 
         const abort = new AbortController();
+        this.running.set(abort, pending.label);
         const emit = (event: AiEvent): void => {
             this.emitAiEvent(event);
         };
-        const batch = await runToolBatch({
-            calls: pending.calls,
-            registry: this.commandRegistry,
-            graph: this.graph,
-            session,
-            label: pending.label,
-            message: {
-                id: pending.message,
-                gate: false,
-                runs: this.assistantRuns,
-                undoCalls: 0,
-                totals: { removeNodes: 0, removeEdges: 0, changedValues: 0 },
-            },
-            after: latestStepOf(session, pending.message),
-            abort,
-            sink: { emit, status: this.statusManager },
-            host: {
-                emit,
-                readerText: pending.readerText,
-                ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
-            },
-        });
+        let batch: BatchOutcome;
+        try {
+            batch = await runToolBatch({
+                calls: pending.held.calls,
+                registry: this.commandRegistry,
+                graph: this.graph,
+                session,
+                label: pending.label,
+                // Only the hold the reader approved is let through; every other limit still holds,
+                // counted on from what the message had done before the held batch.
+                message: {
+                    id: pending.message,
+                    gate: this.gate,
+                    approved: pending.held.gate,
+                    runs: this.assistantRuns,
+                    undoCalls: 0,
+                    totals: { ...pending.held.totals },
+                },
+                after: latestStepOf(session, pending.message),
+                abort,
+                sink: { emit, status: this.statusManager },
+                host: {
+                    emit,
+                    readerText: pending.readerText,
+                    ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
+                },
+                settleAfterCommit: false,
+            });
+        } catch {
+            // A call threw (a bug, or the batch was cancelled): its transaction rolled back.
+            return {
+                success: false,
+                message: "",
+                code: abort.signal.aborted && this.cancelled.has(abort) ? "AI_CANCELLED" : "AI_TOOL_THREW",
+                params: { request: id },
+            };
+        } finally {
+            this.running.delete(abort);
+        }
+
+        if (batch.held !== undefined) {
+            // Another limit held the batch: the reader is asked again, about that one.
+            const request = this.hold(batch.held, pending.message, pending.label, session);
+            return {
+                success: true,
+                message: "",
+                code: "AI_CONFIRMATION_NEEDED",
+                params: { gate: batch.held.gate, request },
+            };
+        }
+
         const results = batch.results.filter((result) => result !== undefined);
         return batch.failure === undefined
             ? {

@@ -44,7 +44,8 @@ export function toJson(value: unknown, depth = 0): JsonValue {
         return String(value);
     }
 
-    if (depth > 4 || typeof value !== "object") {
+    // Deep enough for a field's schema in a refusal; the guard is against a cycle.
+    if (depth > 8 || typeof value !== "object") {
         return null;
     }
 
@@ -146,7 +147,8 @@ export function offsetOf(cursor: string | undefined, revision: string): number {
  */
 export function pageOf(total: number, offset: number, returned: number, revision: string): PageInfo {
     const next = offset + returned;
-    return next < total ? { total, returned, cursor: cursorOf(next, revision) } : { total, returned };
+    const at = { offset, revision };
+    return next < total ? { total, returned, cursor: cursorOf(next, revision), at } : { total, returned, at };
 }
 
 /**
@@ -283,25 +285,34 @@ function pathOf(session: Pick<GraphSession, "data">, result: NonNullable<Run["re
  * @returns The JSON text.
  */
 export function resultText(result: ActionResult & { code: string }, cap: number): string {
+    const { at, ...page } = result.page ?? { total: 0, returned: 0 };
     const body: JsonObject = {
         code: result.code,
         params: result.params ?? {},
         ...(result.data === undefined ? {} : { data: result.data }),
-        ...(result.page === undefined ? {} : { page: toJson(result.page) }),
+        ...(result.page === undefined ? {} : { page: toJson(page) }),
     };
     let text = JSON.stringify(body);
     if (text.length <= cap) {
         return text;
     }
 
-    // Drop records from the end of the longest array until it fits.
+    // Drop records from the end of the longest array until it fits. A page's own records keep a
+    // cursor to the first one dropped, so paging on reads every record.
     const data = structuredClone(body.data ?? null);
     const list = Array.isArray(data) ? data : findList(data);
     if (list !== undefined) {
-        const total = list.length;
+        const paged = Array.isArray(data) && result.page !== undefined && at !== undefined;
+        const total = paged ? page.total : list.length;
         while (list.length > 0 && text.length > cap) {
             list.pop();
-            text = JSON.stringify({ ...body, data, page: { total, returned: list.length, truncated: true } });
+            const next = paged ? at.offset + list.length : 0;
+            const cursor = paged && next < total ? { cursor: cursorOf(next, at.revision) } : {};
+            text = JSON.stringify({
+                ...body,
+                data,
+                page: { total, returned: list.length, truncated: true, ...cursor },
+            });
         }
     }
 

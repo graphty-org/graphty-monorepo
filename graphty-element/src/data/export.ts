@@ -60,6 +60,7 @@ import {
     COMMON_WRITER_OPTIONS,
     type FormatWriterRegistration,
     registeredFormatWriter,
+    withCommonWriterOptions,
 } from "../catalog/writerRegistry";
 import { GraphtyError } from "../errors";
 import { rowsOf } from "../session/notes/countIndex";
@@ -629,7 +630,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     if (neo4j) {
         declared = NEO4J_WRITER_OPTIONS;
     } else if (registered !== undefined) {
-        declared = [...(registered.writerOptions ?? []), ...COMMON_WRITER_OPTIONS];
+        declared = withCommonWriterOptions(registered.writerOptions);
     }
     // `notes` is the element's own option; no exporter reads it.
     const { notes, ...resolved } = resolveOptionValues(declared, options, { kind: "format", id: format });

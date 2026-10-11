@@ -37,7 +37,7 @@ export type Reach =
     | { readonly catalog: string }
     /** Every option of every entry of a catalog table, which the action validates and passes on. */
     | {
-          readonly options: "algorithms" | "layouts" | "formats" | "writers" | "scales" | "cameras";
+          readonly options: "algorithms" | "layouts" | "engines" | "formats" | "writers" | "scales" | "cameras";
           /** Only these option names, when the action passes only some. */
           readonly only?: readonly string[];
       };
@@ -66,6 +66,11 @@ export interface PageInfo {
     readonly total: number;
     readonly returned: number;
     readonly cursor?: string;
+    /**
+     * Where the page starts and the revision it was read at, never shown to the model: a page cut
+     * down to fit the result cap gets a cursor to the first record it dropped.
+     */
+    readonly at?: { readonly offset: number; readonly revision: string };
 }
 
 /** What an action returns: a code and its facts, never English. */
@@ -80,6 +85,20 @@ export interface ActionResult {
     readonly load?: readonly string[];
     /** Ids of nodes the action touched, for the reader-facing result. */
     readonly affectedNodes?: readonly string[];
+    /**
+     * The rest of the action, a wait with nothing left to write (a run finishing, a recording):
+     * its result replaces this one. The batch's last call waits after the batch commits, so the
+     * batch holds nothing while it waits and the reader's own edits go through; any other call
+     * waits at once, since the calls after it may read what it made.
+     */
+    readonly settle?: (context: SettleContext) => Promise<ActionResult>;
+}
+
+/** What a settling action reads: the session, which its batch's closed transaction no longer is. */
+export interface SettleContext {
+    readonly session: GraphSession;
+    readonly signal: AbortSignal;
+    readonly host: ToolHost;
 }
 
 /**
@@ -160,8 +179,13 @@ export class GateHold extends Error {
 
 /** State that lives for one message: what the gate and the undo rules count. */
 export interface MessageState {
-    /** The gate's limits, or false when it is off (and while an approved batch runs). */
+    /** The gate's limits, or false when it is off. */
     readonly gate: Readonly<AssistantGateLimits> | false;
+    /**
+     * The one hold the reader approved, while that batch runs again: only that kind is let
+     * through, and every other limit still holds.
+     */
+    readonly approved?: GateKind;
     /** The message's id, its steps' `provenance.message`. */
     readonly id: string;
     /** Runs the assistant started in this conversation, which it may cancel without asking. */
@@ -170,6 +194,17 @@ export interface MessageState {
     undoCalls: number;
     /** The message's running totals of what its writes did. */
     readonly totals: { removeNodes: number; removeEdges: number; changedValues: number };
+}
+
+/**
+ * Whether a change of one kind is held for approval in this message: the gate is on, and the
+ * reader has not already approved that kind for the batch running now.
+ * @param message - The message.
+ * @param kind - Why it would be held.
+ * @returns True when the action must throw a `GateHold`.
+ */
+export function gated(message: MessageState, kind: GateKind): boolean {
+    return message.gate !== false && message.approved !== kind;
 }
 
 /** Everything an action runs with. */
@@ -229,6 +264,8 @@ export interface ToolDefinition {
 /** The catalog as one build of the tools reads it: built-in and registered entries. */
 export interface CatalogView {
     readonly algorithms: readonly AlgorithmDescriptor[];
+    /** Algorithm classes registered with no descriptor, by `namespace:type`: runnable, never described. */
+    readonly legacyAlgorithms: readonly string[];
     readonly layouts: readonly LayoutDescriptor[];
     readonly formats: readonly FormatDescriptor[];
     readonly palettes: readonly PaletteDescriptor[];

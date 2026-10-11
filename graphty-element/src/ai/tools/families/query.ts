@@ -20,7 +20,7 @@ import {
 } from "../fields";
 import { compactRecord, limitOf, offsetOf, pageOf, toJson } from "../shape";
 import { type ActionSpec, type JsonObject, type ToolDefinition, ToolRefusal } from "../types";
-import { ok } from "./common";
+import { coded, ok } from "./common";
 
 const fields = z.array(z.string().max(200)).max(12).optional().describe("Fields to return.");
 const limit = z.number().int().min(0).max(50).optional().describe("Default 20.");
@@ -48,7 +48,7 @@ function recordsAction(kind: "node" | "edge"): ActionSpec {
                 : {}),
         },
         effect: "read",
-        reaches: [{ door: `SessionDataApi.${page}` }, { door: "SessionDataApi.edge" }, { door: "SessionDataApi.node" }],
+        reaches: [{ door: `SessionDataApi.${page}` }, ...(kind === "edge" ? [{ door: "SessionDataApi.edge" }] : [])],
         run: (context, args) => {
             const { tx } = context;
             const { target, notes } = settleTarget(tx, args, kind, false);
@@ -120,15 +120,19 @@ export const queryTool: ToolDefinition = {
             ],
             run: ({ tx }) => {
                 const { status } = tx;
+                const { summary } = tx.visibility;
                 return Promise.resolve(
                     ok({
                         nodes: status.counts.nodes,
                         edges: status.counts.edges,
-                        visibleNodes: status.counts.visibleNodes,
-                        visibleEdges: status.counts.visibleEdges,
+                        visibleNodes: summary.visibleNodes,
+                        visibleEdges: summary.visibleEdges,
+                        // Nodes the data placed itself, which a layout would move.
+                        seededNodes: tx.seededNodeCount,
                         directed: status.directed,
                         layout: tx.layout.id,
                         engine: tx.layout.engine,
+                        layoutOptions: toJson(tx.layout.options),
                         dimension: tx.layout.dimension,
                         selected: tx.selection.size,
                         filtered: tx.visibility.filter !== null || tx.visibility.window !== null,
@@ -144,7 +148,7 @@ export const queryTool: ToolDefinition = {
         recordsAction("edge"),
         {
             name: "node",
-            summary: "records by id or label",
+            summary: "by id or label",
             fields: { ids: targetFields.ids, fields },
             effect: "read",
             reaches: [{ door: "SessionDataApi.node" }, { door: "SessionDataApi.name" }],
@@ -276,6 +280,13 @@ export const queryTool: ToolDefinition = {
                             out.samples = toJson(attribute.sampleValues.slice(0, 3));
                             return out;
                         }),
+                        // The runs a selector or a sort can read a value of, by the path to write.
+                        {
+                            runColumns: tx.data
+                                .resultColumns("node")
+                                .slice(0, 10)
+                                .map((column) => ({ run: column.run, path: column.path })),
+                        },
                     ),
                 ),
         },
@@ -332,12 +343,14 @@ export const queryTool: ToolDefinition = {
             fields: targetFields,
             effect: "read",
             reaches: [{ door: "ScopeApi.count" }],
-            run: ({ tx }, args) => {
+            run: async ({ tx }, args) => {
                 const { target, notes } = requireTarget(tx, args, "node");
 
                 const nodes = idsOf(tx, target, "node", 0).total;
                 const edges = target.kind === "ids" ? 0 : idsOf(tx, target, "edge", 0).total;
-                return Promise.resolve(ok({ nodes, edges }, notes));
+                // The edges among those nodes: the subgraph a run or a layout scoped to them reads.
+                const among = await coded(() => tx.scope.count(scopeOf(target)));
+                return ok({ nodes, edges, edgesAmong: among.edges, exact: among.exact }, notes);
             },
         },
     ],

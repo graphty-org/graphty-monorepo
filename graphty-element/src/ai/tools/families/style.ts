@@ -34,6 +34,7 @@ import {
     type ToolDefinition,
     ToolRefusal,
 } from "../types";
+import { awaitRun } from "./algorithms";
 import { coded, codedNow, ok, requireEntry } from "./common";
 
 /** The plugin name the assistant records as the source of every layer it adds. */
@@ -52,6 +53,12 @@ function isAssistantLayer(source: LayerSource): boolean {
 }
 
 /**
+ * The largest number the assistant writes to a channel that states no maximum of its own (a size,
+ * a width, a speed): far past anything legible, and far short of what overflows a mesh.
+ */
+export const MAX_CHANNEL_NUMBER = 10_000;
+
+/**
  * A value for one channel, checked against what the channel accepts.
  * @param descriptor - The channel.
  * @returns Its schema.
@@ -59,13 +66,9 @@ function isAssistantLayer(source: LayerSource): boolean {
 function channelValue(descriptor: ChannelDescriptor): z.ZodType {
     switch (descriptor.accepts) {
         case "number": {
-            let number = z.number();
+            let number = z.number().max(descriptor.max ?? MAX_CHANNEL_NUMBER);
             if (descriptor.min !== undefined) {
                 number = number.min(descriptor.min);
-            }
-
-            if (descriptor.max !== undefined) {
-                number = number.max(descriptor.max);
             }
 
             return number;
@@ -157,7 +160,7 @@ export function checkValues(
                 expected: descriptor.accepts,
                 ...(descriptor.values === undefined ? {} : { allowed: [...descriptor.values] }),
                 ...(descriptor.min === undefined ? {} : { min: descriptor.min }),
-                ...(descriptor.max === undefined ? {} : { max: descriptor.max }),
+                ...(descriptor.accepts === "number" ? { max: descriptor.max ?? MAX_CHANNEL_NUMBER } : {}),
             });
         }
 
@@ -174,6 +177,50 @@ export function checkValues(
     }
 
     return { set: set as StaticStyle, target: [...targets][0] };
+}
+
+/**
+ * A layer's literal values with a call's changes merged in: a channel the call names takes its
+ * new value, a channel set to null is taken out, and every other channel keeps its value.
+ * @param layer - The layer.
+ * @param values - The changes, as written.
+ * @param channels - The channel table.
+ * @returns The layer's new values.
+ * @throws {ToolRefusal} For a bad value, or a channel of the other target than the layer paints.
+ */
+function mergedValues(
+    layer: Layer,
+    values: Record<string, unknown>,
+    channels: readonly ChannelDescriptor[],
+): StaticStyle {
+    const names = channels.map((channel) => channel.channel);
+    const changes: Record<string, unknown> = {};
+    const removed: string[] = [];
+    for (const [key, value] of Object.entries(values)) {
+        const nested =
+            (key === "node" || key === "edge") && value !== null && typeof value === "object" && !Array.isArray(value)
+                ? Object.entries(value as Record<string, unknown>).map(([inner, each]): [string, unknown] => [
+                      `${key}.${inner}`,
+                      each,
+                  ])
+                : [[key, value] as [string, unknown]];
+        for (const [name, each] of nested) {
+            if (each === null) {
+                removed.push(channelSpelling(name, names));
+            } else {
+                changes[name] = each;
+            }
+        }
+    }
+
+    const checked = Object.keys(changes).length === 0 ? undefined : checkValues(changes, channels);
+    if (checked !== undefined && checked.target !== layer.target) {
+        throw new ToolRefusal("AI_ARG_INVALID", { path: "values", expected: `${layer.target}.* channels` });
+    }
+
+    return Object.fromEntries(
+        Object.entries({ ...layer.set, ...checked?.set }).filter(([name]) => !removed.includes(name)),
+    );
 }
 
 /**
@@ -336,7 +383,7 @@ async function encode(
     const scaleName = spec.scale ?? (spec.midpoint === undefined ? undefined : "linear");
     const channel = requireEntry(
         "channel",
-        spec.channel,
+        text(spec.channel),
         catalog.channels.map((each) => each.channel),
     ) as Channel;
     if (spec.palette !== undefined) {
@@ -394,15 +441,23 @@ async function encode(
     };
     let layer: Layer;
     if (Object.keys(scaleOptions).every((key) => key === "reverse")) {
-        layer = await coded(() =>
-            tx.styles.encode({
-                ...source,
+        const request = {
+            ...source,
+            channel,
+            ...binding,
+            ...scaleOptions,
+            ...(typeof args.name === "string" ? { name: args.name } : {}),
+        };
+        // Why a column cannot be drawn on the channel, as a code the model can act on.
+        const proposal = codedNow(() => tx.styles.proposeEncoding(request));
+        if (!proposal.ok) {
+            throw new ToolRefusal(proposal.refusal.code, {
+                ...(toJson(proposal.refusal.params) as JsonObject),
                 channel,
-                ...binding,
-                ...scaleOptions,
-                ...(typeof args.name === "string" ? { name: args.name } : {}),
-            }),
-        );
+            });
+        }
+
+        layer = await coded(() => tx.styles.encode(request));
     } else {
         // `styles.encode` takes no bins, midpoint or exponent; a layer's own binding does. Scoped to
         // the elements carrying the value, as an encoding is.
@@ -444,13 +499,16 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
             field: z.string().max(200).optional(),
             palette: z.string().max(100).optional().describe("catalog search kind palette"),
             scale: z.string().max(100).optional().describe("linear, log, sqrt, bins, ordinal..."),
-            domain: z.array(z.number()).length(2).optional(),
+            domain: z
+                .array(z.number())
+                .length(2)
+                .refine(([low, high]) => low < high, "the first below the second")
+                .optional(),
             missing: z.string().max(200).optional().describe("Value where there is none."),
             midpoint: z.number().optional().describe("Diverging center."),
             reverse: z.boolean().optional().describe("Flip the palette."),
             scaleOptions: z.record(z.string(), z.unknown()).optional().describe("catalog describe kind scale"),
         })
-        .optional()
         .describe("Bind a channel to data.");
     const actions: ActionSpec[] = [
         {
@@ -468,7 +526,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "update",
-            summary: "change a layer",
+            summary: "values merge; null removes",
             fields: {
                 layer,
                 ...targetFields,
@@ -477,12 +535,12 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
                 enabled: z.boolean().optional().describe("false hides the layer's paint."),
             },
             effect: "write",
-            reaches: [{ door: "StylesApi.update" }, { door: "StylesApi.get" }],
+            reaches: [{ door: "StylesApi.update" }, { op: "style.patch" }],
             run: async ({ tx }, args) => {
                 const current = layerOf(tx, args.layer);
                 const patch: Partial<LayerSpec> = {};
                 if (args.values !== undefined) {
-                    patch.set = checkValues(args.values as Record<string, unknown>, catalog.channels).set;
+                    patch.set = mergedValues(current, args.values as Record<string, unknown>, catalog.channels);
                 }
 
                 const { target, notes } = settleTarget(tx, args, current.target === "edge" ? "edge" : "node", false);
@@ -503,11 +561,44 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
             },
         },
         {
+            name: "get",
+            summary: "one layer",
+            fields: { layer: layer.unwrap().describe("Layer id or name.") },
+            effect: "read",
+            reaches: [{ door: "StylesApi.get" }, { door: "StylesApi.counts" }],
+            run: ({ tx }, args) => {
+                const found = tx.styles.get(layerOf(tx, args.layer).id);
+                if (found === undefined) {
+                    throw new ToolRefusal("AI_UNKNOWN_ENTRY", {
+                        kind: "layer",
+                        name: text(args.layer),
+                        didYouMean: [],
+                    });
+                }
+
+                return Promise.resolve(
+                    ok({
+                        layer: found.id,
+                        name: found.name,
+                        kind: found.kind,
+                        target: found.target,
+                        enabled: found.enabled,
+                        by: found.source.by,
+                        mine: isAssistantLayer(found.source),
+                        selector: toJson(found.selector),
+                        ...(found.set === undefined ? {} : { values: toJson(found.set) }),
+                        ...(found.encode === undefined ? {} : { encode: toJson(found.encode) }),
+                        counts: toJson(tx.styles.counts(found.id)),
+                    }),
+                );
+            },
+        },
+        {
             name: "remove",
             summary: "",
             fields: { layer },
             effect: "write",
-            reaches: [{ door: "StylesApi.remove" }],
+            reaches: [{ door: "StylesApi.remove" }, { op: "style.patch" }],
             run: async ({ tx }, args) => {
                 const target = layerOf(tx, args.layer);
                 await coded(() => tx.styles.remove(target.id));
@@ -519,7 +610,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
             summary: "reorder a layer",
             fields: { layer, position, relativeTo: relativeTo },
             effect: "write",
-            reaches: [{ door: "StylesApi.move" }],
+            reaches: [{ door: "StylesApi.move" }, { op: "style.patch" }],
             run: async ({ tx }, args) => {
                 const target = layerOf(tx, args.layer);
                 const where = positionOf(tx, { ...args, position: args.position ?? "top" });
@@ -543,7 +634,9 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
             effect: "write",
             reaches: [
                 { op: "style.encode" },
+                { op: "style.patch" },
                 { door: "StylesApi.encode" },
+                { door: "StylesApi.proposeEncoding" },
                 { options: "scales" },
                 ...catalog.palettes.map((each) => ({ catalog: `palettes/${each.id}` })),
                 ...catalog.scales.map((each) => ({ catalog: `scales/${each.name}` })),
@@ -555,8 +648,8 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
             summary: "a run's own styles",
             fields: { run: z.string().max(200).optional().describe('Run id, algorithm name or "latest".') },
             effect: "write",
-            reaches: [{ door: "Run.suggestEncodings" }, { door: "RunsApi.start" }],
-            run: async ({ tx }, args) => {
+            reaches: [{ door: "Run.suggestEncodings" }, { door: "RunsApi.start" }, { op: "algo.run" }],
+            run: ({ tx, message }, args) => {
                 const id = resolveRun(tx, text(args.run, "latest"));
                 const run = tx.runs.get(id);
                 if (run === undefined) {
@@ -571,10 +664,13 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
                 const again = codedNow(() =>
                     tx.runs.start(run.algorithm, run.params, { scope: run.scope.spec, applySuggestedStyles: true }),
                 );
-                await coded(async () => {
-                    await again;
+                message.runs.add(again.id);
+                return Promise.resolve({
+                    settle: async ({ signal }) => {
+                        await awaitRun(again, signal);
+                        return ok({ suggestions: toJson(suggestions) }, { run: again.id });
+                    },
                 });
-                return ok({ suggestions: toJson(suggestions) }, { run: again.id });
             },
         },
         {
@@ -586,7 +682,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
                 values,
             },
             effect: "write",
-            reaches: [{ door: "StylesApi.highlight" }],
+            reaches: [{ door: "StylesApi.highlight" }, { op: "style.patch" }],
             run: async ({ tx }, args) => {
                 const run = resolveRun(tx, text(args.run, "latest"));
                 // A route's look may name node and edge channels together; each half takes its own.
@@ -606,7 +702,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "hide_value",
-            summary: "hide a legend value",
+            summary: "a legend value",
             fields: {
                 layer,
                 channel: z.string().max(100).describe("The layer's channel."),
@@ -614,7 +710,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
                 hidden: z.boolean().describe("true hides it."),
             },
             effect: "write",
-            reaches: [{ door: "StylesApi.setValueHidden" }],
+            reaches: [{ door: "StylesApi.setValueHidden" }, { op: "style.patch" }],
             run: async ({ tx }, args) => {
                 const target = layerOf(tx, args.layer);
                 await coded(() =>
@@ -633,7 +729,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
             summary: "remove all your layers",
             fields: {},
             effect: "write",
-            reaches: [{ door: "StylesApi.removeBySource" }],
+            reaches: [{ door: "StylesApi.removeBySource" }, { op: "style.patch" }],
             run: async ({ tx }) => {
                 const removed = await coded(() => tx.styles.removeBySource(isAssistantLayer));
                 return ok(undefined, { removed: removed.length });
@@ -644,7 +740,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
             summary: "layers, bottom first",
             fields: {},
             effect: "read",
-            reaches: [{ door: "StylesApi.list" }, { door: "StylesApi.counts" }],
+            reaches: [{ door: "StylesApi.list" }],
             run: ({ tx }) =>
                 Promise.resolve(
                     ok(
@@ -673,7 +769,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "explain",
-            summary: "why an element looks so",
+            summary: "why one looks so",
             fields: {
                 node: z.string().max(MAX_STRING).optional().describe("Node id or label."),
                 edge: z.string().max(MAX_STRING).optional().describe("Edge id."),
@@ -691,7 +787,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
         name: "style",
         plainName: "Style",
         core: true,
-        description: "Paints nodes and edges as layers: literal values (add) or by data (encode). To hide, use filter.",
+        description: "Paints nodes and edges in layers: values (add) or by data (encode). To hide: filter.",
         example: { action: "add", where: "data.type == 'server'", values: { "node.color": "red" } },
         actions,
     };

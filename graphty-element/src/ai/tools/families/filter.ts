@@ -99,7 +99,7 @@ export const filterTool: ToolDefinition = {
             summary: "",
             fields: {},
             effect: "write",
-            reaches: [{ op: "visibility.window" }, { door: "VisibilityApi.setWindow" }],
+            reaches: [{ op: "visibility.window" }, { op: "visibility.set" }, { door: "VisibilityApi.setWindow" }],
             run: async ({ tx }) => {
                 if (tx.visibility.window !== null) {
                     await coded(async () => {
@@ -153,7 +153,7 @@ export const filterTool: ToolDefinition = {
         },
         {
             name: "keep_neighbors",
-            summary: "nodes and neighbors within hops",
+            summary: "within hops",
             fields: {
                 ids: targetFields.ids,
                 hops: z.number().int().min(1).max(3).optional().describe("1 to 3, default 1."),
@@ -178,7 +178,7 @@ export const filterTool: ToolDefinition = {
             summary: "draw hidden ones faintly",
             fields: { enabled: z.boolean().describe("true draws hidden elements faintly.") },
             effect: "write",
-            reaches: [{ op: "visibility.context" }, { door: "VisibilityApi.showContext" }],
+            reaches: [{ op: "visibility.context" }],
             run: async ({ tx }, args) => {
                 // Dispatched and awaited here, so the change joins this batch's step.
                 await coded(() => tx.execute({ op: "visibility.context", show: args.enabled === true }));

@@ -265,7 +265,7 @@ export function assistantReach(commands?: readonly {
 }[]): readonly CodedFact<AssistantReachCode>[];
 
 // @public
-export type AssistantReachCode = "ai.option-unoffered" | "ai.no-description" | "ai.name-reserved";
+export type AssistantReachCode = "ai.option-unoffered" | "ai.no-description" | "ai.name-reserved" | "ai.no-descriptor";
 
 // @public
 export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" | "scoped">;

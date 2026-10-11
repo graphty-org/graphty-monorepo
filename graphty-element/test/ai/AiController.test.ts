@@ -7,7 +7,19 @@ import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandContext, CommandResult } from "../../src/ai/commands/types";
 import { MockLlmProvider } from "../../src/ai/providers/MockLlmProvider";
 import type { LlmProvider, LlmResponse, Message } from "../../src/ai/providers/types";
+import { assistantSession, callsTurn, ScriptedAssistant, textTurn } from "../helpers/assistant";
 import { createMessageGraph } from "../helpers/message-graph";
+
+/**
+ * A tool result as the model was sent it, out of its graph-data envelope.
+ * @param content - The tool message's content.
+ * @returns The result.
+ */
+function resultOf(content: string | undefined): unknown {
+    const text = content ?? "";
+    assert.isTrue(text.startsWith("<graph-data>\n") && text.endsWith("\n</graph-data>"), text);
+    return JSON.parse(text.slice("<graph-data>\n".length, -"\n</graph-data>".length));
+}
 
 describe("AiController", () => {
     let controller: AiController;
@@ -273,8 +285,9 @@ describe("AiController", () => {
             );
             assert.strictEqual(second.at(-1)?.role, "tool");
             assert.strictEqual(second.at(-1)?.toolCallId, "t1");
-            // A command with no code of its own shows the model its message, as params.message.
-            assert.deepStrictEqual(JSON.parse(second.at(-1)?.content ?? "{}"), {
+            // A command with no code of its own shows the model its message, as params.message,
+            // inside the envelope that marks it as data from the graph.
+            assert.deepStrictEqual(resultOf(second.at(-1)?.content), {
                 code: "AI_OK",
                 params: { message: "look servers" },
                 data: { seen: "servers" },
@@ -309,7 +322,10 @@ describe("AiController", () => {
 
             await multi.execute("do it");
 
-            assert.strictEqual(JSON.parse(provider.asks[1].at(-1)?.content ?? "{}").code, "AI_TOOL_FAILED");
+            assert.strictEqual(
+                (resultOf(provider.asks[1].at(-1)?.content) as { code?: string }).code,
+                "AI_TOOL_FAILED",
+            );
             assert.deepStrictEqual(fixed, ["b"]);
         });
 
@@ -557,11 +573,11 @@ describe("AiController", () => {
     });
 
     describe("cancel", () => {
-        it("cancels every message that is running, not only the newest", async () => {
+        it("cancels every message, the one running and the one waiting behind it", async () => {
             let asks = 0;
-            let bothAsked: () => void = () => undefined;
+            let firstAsked: () => void = () => undefined;
             const asked = new Promise<void>((resolve) => {
-                bothAsked = resolve;
+                firstAsked = resolve;
             });
             // A model that thinks until its request is aborted.
             const thinking: LlmProvider = {
@@ -574,8 +590,8 @@ describe("AiController", () => {
                         options?.signal?.addEventListener("abort", () => {
                             reject(new Error("aborted"));
                         });
-                        if (++asks === 2) {
-                            bothAsked();
+                        if (++asks === 1) {
+                            firstAsked();
                         }
                     }),
                 generateStream: () => Promise.reject(new Error("not used")),
@@ -604,6 +620,46 @@ describe("AiController", () => {
                 ["AI_CANCELLED", "AI_CANCELLED"],
             );
             assert.deepEqual(cancelledInputs, ["first", "second"]);
+            // Messages run one at a time: the second never reached the model.
+            assert.strictEqual(asks, 1);
+        });
+
+        it("runs a second message after the first, never inside its transaction", async () => {
+            const session = await assistantSession();
+            const assistant = new ScriptedAssistant(session);
+            assistant.engine.push(
+                callsTurn([{ tool: "edit_data", args: { action: "add_nodes", records: [{ id: "m1" }] } }], 0),
+                textTurn("one"),
+                callsTurn([{ tool: "edit_data", args: { action: "add_nodes", records: [{ id: "m2" }] } }], 1),
+                textTurn("two"),
+            );
+            const [one, two] = await Promise.all([
+                assistant.controller.execute("add m1"),
+                assistant.controller.execute("add m2"),
+            ]);
+            assert.deepEqual([one.code, two.code], ["AI_COMPLETED", "AI_COMPLETED"]);
+            assert.isDefined(session.data.node("m1"));
+            assert.isDefined(session.data.node("m2"));
+        });
+
+        it("reports a provider's failure after a committed batch as the provider's, not as an undo", async () => {
+            const session = await assistantSession();
+            const assistant = new ScriptedAssistant(session);
+            assistant.engine.push(
+                callsTurn([{ tool: "edit_data", args: { action: "add_nodes", records: [{ id: "m1" }] } }], 0),
+                [
+                    {
+                        type: "error",
+                        code: "AI_PROVIDER_ERROR",
+                        params: { provider: "google", status: 429 },
+                        cause: new Error("429"),
+                    },
+                ],
+            );
+            const result = await assistant.controller.execute("add m1");
+            assert.strictEqual(result.code, "AI_PROVIDER_ERROR");
+            assert.deepEqual(result.params, { provider: "google", status: 429 });
+            assert.isUndefined(session.data.node("m1"), "the message's write is taken back");
         });
     });
 

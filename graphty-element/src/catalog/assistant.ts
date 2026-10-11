@@ -21,29 +21,50 @@ export const CATALOG_KINDS = Object.freeze([
 /** One kind of thing the assistant's `catalog` tool finds. */
 export type CatalogKind = (typeof CATALOG_KINDS)[number];
 
+/** A set of tools a model is offered: every core tool, or a handful for a small model. */
+export type AssistantToolProfile = "standard" | "small";
+
 /** One built-in assistant tool. */
 export interface AssistantToolDescriptor {
-    /** The name a model calls it by, which a consumer command may not reuse. */
+    /**
+     * The name a model calls it by. A consumer command registered under the same name is offered
+     * to the model as `app_<name>` instead.
+     */
     readonly name: string;
     /** The default name an application may show for it. */
     readonly plainName: string;
-    /** Offered on every turn (`true`), or once a `catalog` result names it. */
+    /**
+     * Offered on every turn of a profile that offers it (`true`), or once a `catalog` result
+     * names it.
+     */
     readonly core: boolean;
-    /** Its actions, the values of its `action` field. */
+    /**
+     * The profiles that offer it directly. The small profile reaches every other tool through
+     * `call`.
+     */
+    readonly profiles: readonly AssistantToolProfile[];
+    /** Its actions, the values of its `action` field. OPEN LIST: actions may be added in a minor release. */
     readonly actions: readonly string[];
 }
 
+/** Both profiles. */
+const BOTH: readonly AssistantToolProfile[] = Object.freeze(["standard", "small"]);
+
+/** The standard profile only. */
+const STANDARD: readonly AssistantToolProfile[] = Object.freeze(["standard"]);
+
 /**
- * Every built-in assistant tool. A consumer command registered under one of these names is
- * refused with `E_DUPLICATE_PLUGIN`. `call` exists only in the small-model profile, where it
- * reaches every other tool.
+ * Every built-in assistant tool. OPEN LIST: tools may be added in a minor release; a consumer
+ * command that already uses a new tool's name keeps working, offered to the model as
+ * `app_<name>`. `call` exists only in the small-model profile, where it reaches every other tool.
  */
 export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze([
-    { name: "catalog", plainName: "Catalog", core: true, actions: ["search", "describe"] },
+    { name: "catalog", plainName: "Catalog", core: true, profiles: BOTH, actions: ["search", "describe"] },
     {
         name: "query",
         plainName: "Query data",
         core: true,
+        profiles: BOTH,
         actions: [
             "overview",
             "nodes",
@@ -61,22 +82,26 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         name: "select",
         plainName: "Select",
         core: true,
+        profiles: STANDARD,
         actions: ["set", "add", "remove", "clear", "neighborhood", "save_as_set"],
     },
-    { name: "run_algorithm", plainName: "Run an algorithm", core: true, actions: ["run"] },
+    { name: "run_algorithm", plainName: "Run an algorithm", core: true, profiles: STANDARD, actions: ["run"] },
     {
         name: "results",
         plainName: "Algorithm results",
         core: true,
+        profiles: STANDARD,
         actions: ["list", "summary", "top", "histogram", "page", "rerun", "cancel", "remove"],
     },
     {
         name: "style",
         plainName: "Style",
         core: true,
+        profiles: STANDARD,
         actions: [
             "add",
             "update",
+            "get",
             "remove",
             "move",
             "encode",
@@ -93,19 +118,28 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         name: "filter",
         plainName: "Filter",
         core: true,
+        profiles: STANDARD,
         actions: ["show_only", "hide", "clear", "range", "keep_neighbors", "context"],
     },
-    { name: "layout", plainName: "Layout", core: true, actions: ["set", "scope", "pin", "unpin", "set_positions"] },
+    {
+        name: "layout",
+        plainName: "Layout",
+        core: true,
+        profiles: STANDARD,
+        actions: ["set", "scope", "pin", "unpin", "set_positions"],
+    },
     {
         name: "view",
         plainName: "View",
         core: true,
+        profiles: STANDARD,
         actions: ["dimension", "camera", "zoom_to", "fit", "save", "restore", "remove_saved", "list_saved"],
     },
     {
         name: "edit_data",
         plainName: "Edit data",
         core: true,
+        profiles: STANDARD,
         actions: [
             "add_nodes",
             "add_edges",
@@ -113,14 +147,16 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
             "update_edges",
             "remove_nodes",
             "remove_edges",
+            "expand",
             "delete_all",
         ],
     },
-    { name: "undo", plainName: "Undo", core: true, actions: ["undo", "redo", "recent"] },
+    { name: "undo", plainName: "Undo", core: true, profiles: BOTH, actions: ["undo", "redo", "recent"] },
     {
         name: "sets",
         plainName: "Sets",
         core: false,
+        profiles: STANDARD,
         actions: [
             "create",
             "create_from",
@@ -138,13 +174,43 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
             "offers",
         ],
     },
-    { name: "notes", plainName: "Notes", core: false, actions: ["add", "update", "remove", "list", "get"] },
-    { name: "import_data", plainName: "Import data", core: false, actions: ["import", "rename_source", "last_import"] },
-    { name: "export_graph", plainName: "Export", core: false, actions: ["export"] },
-    { name: "project", plainName: "Project", core: false, actions: ["settings", "rename", "declare", "status"] },
-    { name: "capture", plainName: "Capture", core: false, actions: ["screenshot", "animation", "cancel"] },
-    { name: "immersive", plainName: "VR and AR", core: false, actions: ["enter", "exit", "support"] },
-    { name: "call", plainName: "Call a tool", core: true, actions: [] },
+    {
+        name: "notes",
+        plainName: "Notes",
+        core: false,
+        profiles: STANDARD,
+        actions: ["add", "update", "remove", "list", "get"],
+    },
+    {
+        name: "import_data",
+        plainName: "Import data",
+        core: false,
+        profiles: STANDARD,
+        actions: ["import", "rename_source", "last_import"],
+    },
+    { name: "export_graph", plainName: "Export", core: false, profiles: STANDARD, actions: ["export"] },
+    {
+        name: "project",
+        plainName: "Project",
+        core: false,
+        profiles: STANDARD,
+        actions: ["settings", "rename", "declare", "status"],
+    },
+    {
+        name: "capture",
+        plainName: "Capture",
+        core: false,
+        profiles: STANDARD,
+        actions: ["screenshot", "animation", "cancel"],
+    },
+    {
+        name: "immersive",
+        plainName: "VR and AR",
+        core: false,
+        profiles: STANDARD,
+        actions: ["enter", "exit", "support"],
+    },
+    { name: "call", plainName: "Call a tool", core: true, profiles: ["small"], actions: [] },
 ]);
 
 /**
@@ -173,7 +239,7 @@ export const AI_TOOL_CAUSE_CODES = Object.freeze([
     "AI_UNDO_IN_MESSAGE",
     "AI_CURSOR_STALE",
     "AI_TOOL_NOT_RUN",
-    "AI_TOOL_UNKNOWN",
+    "AI_UNKNOWN_TOOL",
 ] as const);
 
 /** One code a tool result carries for the model. OPEN UNION. */

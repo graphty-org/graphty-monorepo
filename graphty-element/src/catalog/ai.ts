@@ -239,9 +239,11 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_TOOL_FAILED` -- a tool ran and reported failure, and the message's changes were taken
  *   back. `{ tool, cause, rolledBack }`: `cause` is the tool's own code (`AI_TOOL_CAUSE_CODES`),
  *   `rolledBack` how many of the message's batches were undone.
- * - `AI_TOOL_THREW` -- a tool threw; what the command changed is taken back. `{ tool }`.
+ * - `AI_TOOL_THREW` -- a tool threw; what the command changed is taken back. `{ tool }`, or
+ *   `{ request }` from `resolveAiApproval`.
  * - `AI_CONFIRMATION_NEEDED` -- a change was held for the reader's approval and nothing of it
- *   happened. `{ gate, request }`: answer with `resolveAiApproval(request, { approve })`.
+ *   happened. `{ gate, request }`: answer with `resolveAiApproval(request, { approve })`, which
+ *   returns this code again, with a new request, when the batch is held for another reason.
  * - `AI_ROLLBACK_PARTIAL` -- taking the message back stopped at someone else's step. `{ steps }`.
  * - `AI_APPROVAL_STALE` -- an approval answered after the graph changed, or after it expired.
  *   `{ request }`.

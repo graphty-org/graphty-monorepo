@@ -22,10 +22,11 @@ import type { AiStatusManager } from "./AiStatus";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, CommandResult, GraphCommand } from "./commands/types";
 import type { ProviderState } from "./engine/types";
+import { asRefusal, coded } from "./tools/families/common";
 import { UNDO_TOOL } from "./tools/families/undo";
 import { suggest } from "./tools/search";
 import { toJson } from "./tools/shape";
-import { type CheckedCall, isAssistantTool } from "./tools/toolset";
+import { type AssistantTool, type CheckedCall, isAssistantTool } from "./tools/toolset";
 import {
     type ActionResult,
     GateHold,
@@ -33,6 +34,7 @@ import {
     type JsonObject,
     type Measure,
     type MessageState,
+    type SettleContext,
     type ToolHost,
     ToolRefusal,
 } from "./tools/types";
@@ -73,6 +75,8 @@ export interface CallResult extends CommandResult {
     readonly load?: readonly string[];
     /** Whether the call changes the project (a write), so its failure counts for the message. */
     readonly writes: boolean;
+    /** The rest of the call, awaited once its batch has committed (`ActionResult.settle`). */
+    readonly settle?: NonNullable<ActionResult["settle"]>;
 }
 
 /** A batch held for the reader's approval. */
@@ -80,6 +84,8 @@ export interface HeldBatch {
     readonly gate: GateKind;
     readonly preview: JsonObject;
     readonly calls: readonly ToolCallRequest[];
+    /** The message's running totals before the batch, which an approved run counts on from. */
+    readonly totals: MessageState["totals"];
 }
 
 /** What one batch did. */
@@ -92,6 +98,11 @@ export interface BatchOutcome {
     readonly held?: HeldBatch;
     /** Whether any of its calls writes. */
     readonly writes: boolean;
+    /**
+     * Its last call failed only after the batch had committed (a run that failed once started):
+     * the calls before it stand, as the earlier batches of a failing message do.
+     */
+    readonly committed?: true;
 }
 
 /**
@@ -135,6 +146,12 @@ export interface ToolBatch {
     readonly abort: AbortController;
     readonly sink: ConversationSink;
     readonly host: ToolHost;
+    /**
+     * Whether the batch's last call may finish its wait after the commit (true when absent). An
+     * approved batch finishes inside its transaction instead: nothing after it in its message could
+     * take back a half it left committed.
+     */
+    readonly settleAfterCommit?: boolean;
 }
 
 /**
@@ -179,7 +196,7 @@ function prepare(batch: ToolBatch, request: ToolCallRequest): PreparedCall | Cal
     const command = batch.registry.get(request.name);
     if (command === undefined) {
         return refused(
-            "AI_TOOL_UNKNOWN",
+            "AI_UNKNOWN_TOOL",
             { tool: request.name, didYouMean: suggest(request.name, batch.registry.getNames()) },
             false,
         );
@@ -201,11 +218,11 @@ function prepare(batch: ToolBatch, request: ToolCallRequest): PreparedCall | Cal
                 writes: checked.action.effect === "write",
             };
         } catch (error) {
-            if (error instanceof ToolRefusal) {
-                return refused(error.code, error.params, command.writesFor(request.arguments));
-            }
-
-            throw error;
+            // A check that throws anything but a refusal met arguments it could not read: the
+            // call is invalid, and nothing of the message is taken back for it.
+            return error instanceof ToolRefusal
+                ? refused(error.code, error.params, writesFor(command, request))
+                : refused("AI_TOOL_INVALID_ARGUMENTS", { tool: command.name }, writesFor(command, request));
         }
     }
 
@@ -225,6 +242,21 @@ function prepare(batch: ToolBatch, request: ToolCallRequest): PreparedCall | Cal
         args: parsed.data as Record<string, unknown>,
         writes: (command.effect ?? "write") === "write",
     };
+}
+
+/**
+ * Whether a refused call to a generated tool names a write action, false when even that cannot
+ * be read.
+ * @param command - The tool.
+ * @param request - The call.
+ * @returns True for a known write action.
+ */
+function writesFor(command: Pick<AssistantTool, "writesFor">, request: ToolCallRequest): boolean {
+    try {
+        return command.writesFor(request.arguments);
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -291,10 +323,22 @@ export async function runToolBatch(batch: ToolBatch): Promise<BatchOutcome> {
         };
     }
 
+    // What the batch hands the host (an export, a capture) waits for the batch to commit and pass
+    // the gate: a rolled-back or held batch hands over nothing, and an approved one hands it once.
+    const outbox: AiEvent[] = [];
+    const inner: ToolBatch = {
+        ...batch,
+        host: {
+            ...batch.host,
+            emit: (event) => {
+                outbox.push(event);
+            },
+        },
+    };
     // Set while the batch rolls itself back: that abort is the batch's own, not an undo of the message.
     let ownRollback = false;
     try {
-        return await batch.session.transaction(
+        const outcome = await batch.session.transaction(
             batch.label,
             async (tx, signal) => {
                 // The batch's abort (an undo while it runs) stops the model and every tool.
@@ -308,7 +352,7 @@ export async function runToolBatch(batch: ToolBatch): Promise<BatchOutcome> {
                     { once: true },
                 );
                 try {
-                    return await runInTransaction(batch, ready, tx, writes);
+                    return await runInTransaction(inner, ready, tx, writes);
                 } catch (error) {
                     ownRollback = error instanceof RollBack;
                     throw error;
@@ -316,6 +360,12 @@ export async function runToolBatch(batch: ToolBatch): Promise<BatchOutcome> {
             },
             { provenance: { via: "assistant", message: batch.message.id }, after: batch.after },
         );
+        const settled = await settleLast(inner, ready, outcome);
+        for (const event of outbox) {
+            batch.host.emit(event);
+        }
+
+        return settled;
     } catch (error) {
         if (error instanceof RollBack) {
             return error.outcome;
@@ -323,6 +373,90 @@ export async function runToolBatch(batch: ToolBatch): Promise<BatchOutcome> {
 
         throw error;
     }
+}
+
+/**
+ * Finish the batch's last call once the batch has committed, when it left a wait for then: a run
+ * still going, a recording. Its failure fails the batch with the calls before it standing.
+ * @param batch - The batch.
+ * @param ready - Its calls.
+ * @param outcome - What the transaction committed.
+ * @returns The batch's outcome, its last result settled.
+ * @throws {BatchThrew} When the wait threw: the message is taken back.
+ */
+async function settleLast(
+    batch: ToolBatch,
+    ready: readonly PreparedCall[],
+    outcome: BatchOutcome,
+): Promise<BatchOutcome> {
+    const pending = outcome.results.at(-1);
+    if (pending?.settle === undefined) {
+        return outcome;
+    }
+
+    const call = ready[ready.length - 1];
+    const results = outcome.results.slice(0, -1);
+    let result: CallResult;
+    try {
+        result = resultOf(await pending.settle(contextOf(batch)), call);
+    } catch (error) {
+        const refusal = asRefusal(error);
+        if (!(refusal instanceof ToolRefusal)) {
+            const threw = refused("AI_TOOL_THREW", { tool: call.command.name }, call.writes);
+            finished(batch, call.request, threw);
+            throw new BatchThrew({
+                results: [...results, threw],
+                failure: { code: "AI_TOOL_THREW", params: { tool: call.command.name } },
+                writes: outcome.writes,
+            });
+        }
+
+        result = refused(
+            refusal.code,
+            call.writes ? { ...refusal.params, rollback: "pending" } : refusal.params,
+            call.writes,
+        );
+    }
+
+    finished(batch, call.request, result);
+    return result.success
+        ? { ...outcome, results: [...results, result] }
+        : {
+              ...outcome,
+              results: [...results, result],
+              failure: failureOf(result, call.command.name),
+              committed: true,
+          };
+}
+
+/**
+ * What a settling call reads.
+ * @param batch - The batch.
+ * @returns The context.
+ */
+function contextOf(batch: ToolBatch): SettleContext {
+    return { session: batch.session, signal: batch.abort.signal, host: batch.host };
+}
+
+/**
+ * An action's result as its call's result.
+ * @param outcome - What the action returned.
+ * @param call - The call.
+ * @returns The result.
+ */
+function resultOf(outcome: ActionResult, call: PreparedCall): CallResult {
+    return {
+        success: true,
+        message: "",
+        code: outcome.code ?? "AI_OK",
+        params: outcome.params ?? {},
+        data: outcome.data,
+        writes: call.writes,
+        ...(outcome.page === undefined ? {} : { page: outcome.page }),
+        ...(outcome.measure === undefined ? {} : { measure: outcome.measure }),
+        ...(outcome.load === undefined ? {} : { load: outcome.load }),
+        ...(outcome.affectedNodes === undefined ? {} : { affectedNodes: [...outcome.affectedNodes] }),
+    };
 }
 
 /**
@@ -347,7 +481,7 @@ async function runInTransaction(
         batch.abort.signal.throwIfAborted();
         let result: CallResult;
         try {
-            result = await runOne(batch, call, tx);
+            result = await runOne(batch, call, tx, index === ready.length - 1 && batch.settleAfterCommit !== false);
         } catch (error) {
             if (error instanceof GateHold) {
                 throw new RollBack(held(error.gate, error.preview, batch, ready, writes));
@@ -374,7 +508,7 @@ async function runInTransaction(
     }
 
     const { gate, totals } = batch.message;
-    if (gate !== false) {
+    if (gate !== false && batch.message.approved !== "large") {
         const removeNodes = totals.removeNodes + measured.removeNodes;
         // The share is of the graph before the message removed anything: what is left plus what went.
         const large =
@@ -427,7 +561,11 @@ function held(
         finished(batch, call.request, confirm);
         return confirm;
     });
-    return { results: out, held: { gate, preview, calls: ready.map((call) => call.request) }, writes };
+    return {
+        results: out,
+        held: { gate, preview, calls: ready.map((call) => call.request), totals: { ...batch.message.totals } },
+        writes,
+    };
 }
 
 /**
@@ -438,11 +576,12 @@ function held(
  */
 function failureOf(result: CallResult, tool: string): Outcome {
     const params = { tool, cause: result.code };
-    if (
-        result.code === "AI_TOOL_UNKNOWN" ||
-        result.code === "AI_TOOL_INVALID_ARGUMENTS" ||
-        result.code === "AI_TOOL_THREW"
-    ) {
+    // The model's unknown tool (a cause) is the message's unknown tool (a result).
+    if (result.code === "AI_UNKNOWN_TOOL") {
+        return { code: "AI_TOOL_UNKNOWN", params };
+    }
+
+    if (result.code === "AI_TOOL_INVALID_ARGUMENTS" || result.code === "AI_TOOL_THREW") {
         return { code: result.code, params };
     }
 
@@ -455,10 +594,11 @@ function failureOf(result: CallResult, tool: string): Outcome {
  * @param batch - The batch.
  * @param call - The call.
  * @param tx - Where it writes: the transaction, or the session for an undo.
+ * @param last - Whether it is the batch's last call, whose wait (`settle`) is left for after the commit.
  * @returns Its result.
  * @throws {GateHold} When the action held itself for approval.
  */
-async function runOne(batch: ToolBatch, call: PreparedCall, tx: TransactionScope): Promise<CallResult> {
+async function runOne(batch: ToolBatch, call: PreparedCall, tx: TransactionScope, last = false): Promise<CallResult> {
     const { graph, sink, abort, session } = batch;
     const { request, command } = call;
     logger.debug("Executing command", { name: command.name });
@@ -466,7 +606,7 @@ async function runOne(batch: ToolBatch, call: PreparedCall, tx: TransactionScope
     let result: CallResult;
     if (call.checked !== undefined) {
         try {
-            const outcome = await call.checked.tool.run(call.checked, {
+            let outcome = await call.checked.tool.run(call.checked, {
                 tx,
                 session,
                 graph,
@@ -474,18 +614,17 @@ async function runOne(batch: ToolBatch, call: PreparedCall, tx: TransactionScope
                 message: batch.message,
                 host: batch.host,
             });
-            result = {
-                success: true,
-                message: "",
-                code: outcome.code ?? "AI_OK",
-                params: outcome.params ?? {},
-                data: outcome.data,
-                writes: call.writes,
-                ...(outcome.page === undefined ? {} : { page: outcome.page }),
-                ...(outcome.measure === undefined ? {} : { measure: outcome.measure }),
-                ...(outcome.load === undefined ? {} : { load: outcome.load }),
-                ...(outcome.affectedNodes === undefined ? {} : { affectedNodes: [...outcome.affectedNodes] }),
-            };
+            if (outcome.settle !== undefined && last && tx !== session) {
+                // Left for after the commit: reported once it has settled.
+                return { ...resultOf(outcome, call), settle: outcome.settle };
+            }
+
+            if (outcome.settle !== undefined) {
+                const { settle } = outcome;
+                outcome = await coded(() => settle(contextOf(batch)));
+            }
+
+            result = resultOf(outcome, call);
         } catch (error) {
             if (!(error instanceof ToolRefusal)) {
                 throw error;

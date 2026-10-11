@@ -165,6 +165,12 @@ supported extension points today. They may be promoted later. Until then nothing
 keep them working for a third party who finds them, and a bug report about one is a feature
 request.
 
+`assistantReach()` in `./extend` is not a seventh point. The assistant's tools are generated from
+the catalog, so whatever a plugin registers through the six reaches the assistant with no code of
+its own; `assistantReach()` is the plugin's check that it does (an option type no schema can
+offer, a missing description, a camera option no tool passes). A consumer's own AI command stays
+internal: one named as a built-in tool is offered to the model as `app_<name>`.
+
 **Why the list is closed rather than "whatever happens to be registrable".** A seam that is
 half-reachable is worse than no seam: a consumer finds the registration call, builds against it,
 and discovers at integration time that their extension cannot appear in a picker, cannot be

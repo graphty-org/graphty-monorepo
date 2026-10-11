@@ -16,6 +16,11 @@ export type ExclusionReason =
     | "assistant-config"
     /** Acceleration, renderer, input, profiling, label decluttering, render on demand. */
     | "machine-preference"
+    /**
+     * A default the application chooses for every later call, saved in no project: the palette a
+     * binding naming none takes. Changing it repaints layers outside any undo step.
+     */
+    | "app-default"
     /** Connect, dispose, subscriptions, waiting for a frame. */
     | "lifecycle"
     /** A getter whose members are the operations. */
@@ -35,7 +40,9 @@ export type ExclusionReason =
     /** What the tools themselves call (`session.execute`, `session.transaction`). */
     | "mechanism"
     /** The same capability through another action, named in `by`. */
-    | "covered-by";
+    | "covered-by"
+    /** An option whose descriptor has no type a schema can offer (a union of shapes). */
+    | "unoffered-type";
 
 /** One thing the assistant does not reach, and why. Names exactly one of root, door, op, catalog or option. */
 export interface Exclusion {
@@ -53,7 +60,11 @@ export interface Exclusion {
     readonly reason: ExclusionReason;
     /** `by-design` stands; `defect` carries an owner and an expiry. */
     readonly kind: "by-design" | "defect";
-    /** For `covered-by`: the tool, or `tool.action`, that reaches the same capability. */
+    /**
+     * For `covered-by`: the `tool.action` that reaches the same capability. A door that dispatches
+     * is covered by an action that dispatches its op; one that does not, by an action of its effect
+     * (a read by a read, a camera or selection change by an exempt action).
+     */
     readonly by?: string;
     readonly owner?: string;
     readonly expires?: string;
@@ -72,19 +83,21 @@ export function isWholeRoot(root: DoorRoot): boolean {
 /** A by-design row. */
 const BY_DESIGN = "by-design" as const;
 
-/** The camera verbs of the graph and the element, which the `view` tool covers. */
-const CAMERA_VERBS = [
-    "setCameraState",
-    "setCameraPosition",
-    "setCameraTarget",
-    "setCameraZoom",
-    "setCameraPan",
-    "resetCamera",
-    "zoomStep",
-    "zoomToSelection",
-    "loadCameraPreset",
-    "setCameraMode",
-] as const;
+/** The camera verbs of the graph and the element, by the `view` action that does the same. */
+const CAMERA_VERBS: Readonly<Record<string, readonly string[]>> = {
+    "view.camera": [
+        "setCameraState",
+        "setCameraPosition",
+        "setCameraTarget",
+        "setCameraZoom",
+        "setCameraPan",
+        "zoomStep",
+        "setCameraMode",
+    ],
+    "view.fit": ["resetCamera", "zoomToFit"],
+    "view.zoom_to": ["zoomToSelection", "zoomToNodes"],
+    "view.restore": ["loadCameraPreset"],
+};
 
 /** The assistant's own connection on the graph and the element. */
 const ASSISTANT_VERBS = [
@@ -99,19 +112,32 @@ const ASSISTANT_VERBS = [
     "stopVoiceInput",
 ] as const;
 
-/** The data writes of the graph and the element, which `edit_data` covers. */
-const DATA_VERBS = [
-    "addNode",
-    "addNodes",
-    "addEdge",
-    "addEdges",
-    "updateNodes",
-    "updateEdges",
-    "removeEdges",
-    "removeNodes",
-    "batchOperations",
-    "clearData",
-] as const;
+/** The data writes of the graph and the element, by the `edit_data` action that does the same. */
+const DATA_VERBS: Readonly<Record<string, readonly string[]>> = {
+    "edit_data.add_nodes": ["addNode", "addNodes"],
+    "edit_data.add_edges": ["addEdge", "addEdges"],
+    "edit_data.update_nodes": ["updateNodes"],
+    "edit_data.update_edges": ["updateEdges"],
+    "edit_data.remove_nodes": ["removeNodes"],
+    "edit_data.remove_edges": ["removeEdges"],
+    "edit_data.delete_all": ["clearData"],
+};
+
+/**
+ * Rows of a root's members, each covered by its own action.
+ * @param root - The root.
+ * @param byAction - The members, by the `tool.action` that covers them.
+ * @returns The rows.
+ */
+function coveredBy(root: string, byAction: Readonly<Record<string, readonly string[]>>): Exclusion[] {
+    return Object.entries(byAction).map(([by, members]) => ({
+        root,
+        members,
+        reason: "covered-by",
+        by,
+        kind: BY_DESIGN,
+    }));
+}
 
 /**
  * What the assistant does not reach. The graph's and the element's own members are the session's
@@ -120,10 +146,18 @@ const DATA_VERBS = [
 export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     // The command vocabulary.
     { op: "batch", reason: "mechanism", kind: BY_DESIGN },
-    { op: "data.expand", reason: "needs-host", kind: BY_DESIGN },
     { op: "style.template", reason: "whole-document", kind: BY_DESIGN },
     { op: "note.merge", reason: "whole-document", kind: BY_DESIGN },
     { op: "layout.transport", reason: "in-flight", kind: BY_DESIGN },
+
+    // Catalog options no schema can offer.
+    {
+        option: "engines/force@forceatlas2/nodeMass",
+        reason: "unoffered-type",
+        kind: "defect",
+        owner: "WAIVER_OWNER_UNASSIGNED",
+        expires: "2027-01-11",
+    },
 
     // The session.
     {
@@ -157,7 +191,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "GraphSession", members: ["snapshot", "fingerprint"], reason: "raw-data", kind: BY_DESIGN },
-    { root: "GraphSession", members: ["run"], reason: "covered-by", by: "run_algorithm", kind: BY_DESIGN },
+    { root: "GraphSession", members: ["run"], reason: "covered-by", by: "run_algorithm.run", kind: BY_DESIGN },
     { root: "GraphSession", members: ["execute", "transaction", "plan"], reason: "mechanism", kind: BY_DESIGN },
     { root: "GraphSession", members: ["on", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
     { root: "ElementSession", members: ["paint"], reason: "internal-handle", kind: BY_DESIGN },
@@ -192,7 +226,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "ElementSession", members: ["snapshot", "fingerprint"], reason: "raw-data", kind: BY_DESIGN },
-    { root: "ElementSession", members: ["run"], reason: "covered-by", by: "run_algorithm", kind: BY_DESIGN },
+    { root: "ElementSession", members: ["run"], reason: "covered-by", by: "run_algorithm.run", kind: BY_DESIGN },
     { root: "ElementSession", members: ["execute", "transaction", "plan"], reason: "mechanism", kind: BY_DESIGN },
     { root: "ElementSession", members: ["on", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
     {
@@ -201,10 +235,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         reason: "internal-handle",
         kind: BY_DESIGN,
     },
-    { root: "RunsApi", members: ["batch"], reason: "covered-by", by: "run_algorithm", kind: BY_DESIGN },
+    { root: "RunsApi", members: ["batch"], reason: "covered-by", by: "run_algorithm.run", kind: BY_DESIGN },
     { root: "RunsApi", members: ["bindings", "painting"], reason: "covered-by", by: "style.list", kind: BY_DESIGN },
     { root: "ScopeApi", members: ["resolve"], reason: "covered-by", by: "query.count", kind: BY_DESIGN },
     { root: "ScopeApi", members: ["remove"], reason: "covered-by", by: "sets.remove", kind: BY_DESIGN },
+    // Saving a scope makes a set that keeps matching it, as `sets.create` does from a selector.
+    { root: "ScopeApi", members: ["save"], reason: "covered-by", by: "sets.create", kind: BY_DESIGN },
+    { root: "ScopeApi", members: ["list"], reason: "covered-by", by: "sets.list", kind: BY_DESIGN },
     { root: "SetsApi", members: ["pathKind"], reason: "covered-by", by: "sets.get", kind: BY_DESIGN },
     { root: "NotesApi", members: ["toDocument", "mergeDocument"], reason: "whole-document", kind: BY_DESIGN },
     { root: "ProjectApi", members: ["save", "markSaved"], reason: "needs-host", kind: BY_DESIGN },
@@ -216,7 +253,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         reason: "raw-data",
         kind: BY_DESIGN,
     },
-    { root: "SessionDataApi", members: ["nodes", "edges"], reason: "covered-by", by: "query.nodes", kind: BY_DESIGN },
+    { root: "SessionDataApi", members: ["nodes"], reason: "covered-by", by: "query.nodes", kind: BY_DESIGN },
+    { root: "SessionDataApi", members: ["edges"], reason: "covered-by", by: "query.edges", kind: BY_DESIGN },
     { root: "SessionDataApi", members: ["prepare"], reason: "needs-host", kind: BY_DESIGN },
     {
         root: "LoadDraft",
@@ -272,6 +310,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     { root: "VisibilityApi", members: ["nodeMask", "edgeMask", "nodes", "edges"], reason: "raw-data", kind: BY_DESIGN },
     { root: "VisibilityApi", members: ["isVisible"], reason: "covered-by", by: "query.overview", kind: BY_DESIGN },
+    { root: "VisibilityApi", members: ["showContext"], reason: "covered-by", by: "filter.context", kind: BY_DESIGN },
     {
         root: "SessionVisibilityApi",
         members: ["nodeMask", "edgeMask", "nodes", "edges", "masks"],
@@ -285,19 +324,18 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         by: "query.overview",
         kind: BY_DESIGN,
     },
-    { root: "StylesApi", members: ["proposeEncoding"], reason: "covered-by", by: "style.encode", kind: BY_DESIGN },
+    {
+        root: "SessionVisibilityApi",
+        members: ["showContext"],
+        reason: "covered-by",
+        by: "filter.context",
+        kind: BY_DESIGN,
+    },
     { root: "StylesApi", members: ["agreement"], reason: "covered-by", by: "style.explain", kind: BY_DESIGN },
     { root: "StylesApi", members: ["resolveToStatic"], reason: "covered-by", by: "style.update", kind: BY_DESIGN },
     { root: "StylesApi", members: ["settled"], reason: "lifecycle", kind: BY_DESIGN },
     { root: "StylesApi", members: ["applyTemplate", "toDocument"], reason: "whole-document", kind: BY_DESIGN },
-    { root: "StylesApi", members: ["setDefaultPalettes"], reason: "machine-preference", kind: BY_DESIGN },
-    {
-        root: "SessionStylesApi",
-        members: ["proposeEncoding"],
-        reason: "covered-by",
-        by: "style.encode",
-        kind: BY_DESIGN,
-    },
+    { root: "StylesApi", members: ["setDefaultPalettes"], reason: "app-default", kind: BY_DESIGN },
     { root: "SessionStylesApi", members: ["agreement"], reason: "covered-by", by: "style.explain", kind: BY_DESIGN },
     {
         root: "SessionStylesApi",
@@ -308,46 +346,48 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     { root: "SessionStylesApi", members: ["settled"], reason: "lifecycle", kind: BY_DESIGN },
     { root: "SessionStylesApi", members: ["applyTemplate", "toDocument"], reason: "whole-document", kind: BY_DESIGN },
-    { root: "SessionStylesApi", members: ["setDefaultPalettes"], reason: "machine-preference", kind: BY_DESIGN },
+    { root: "SessionStylesApi", members: ["setDefaultPalettes"], reason: "app-default", kind: BY_DESIGN },
     { root: "SessionStylesApi", members: ["compiled"], reason: "internal-handle", kind: BY_DESIGN },
     { root: "ElementPaint", reason: "internal-handle", kind: BY_DESIGN },
     { root: "ElementMask", reason: "raw-data", kind: BY_DESIGN },
     { root: "RunResult", reason: "covered-by", by: "results.summary", kind: BY_DESIGN },
     { root: "ScopeVisibilitySource", reason: "internal-handle", kind: BY_DESIGN },
     { root: "NumericColumnView", reason: "raw-data", kind: BY_DESIGN },
-    { root: "Layer", reason: "covered-by", by: "style.list", kind: BY_DESIGN },
+    { root: "Layer", reason: "covered-by", by: "style.get", kind: BY_DESIGN },
     { root: "GraphtyError", reason: "internal-handle", kind: BY_DESIGN },
 
     // The element and the graph: the session's capabilities a second time.
     ...(["Graphty", "Graph"] as const).flatMap((root): Exclusion[] => [
-        { root, members: ["run", "runAlgorithm"], reason: "covered-by", by: "run_algorithm", kind: BY_DESIGN },
-        { root, members: [...DATA_VERBS], reason: "covered-by", by: "edit_data", kind: BY_DESIGN },
+        { root, members: ["run", "runAlgorithm"], reason: "covered-by", by: "run_algorithm.run", kind: BY_DESIGN },
+        ...coveredBy(root, DATA_VERBS),
+        // A batch of data writes as one step is what one batch of the assistant's calls is.
+        { root, members: ["batchOperations"], reason: "mechanism", kind: BY_DESIGN },
         {
             root,
             members: ["addDataFromSource", "loadFromUrl", "loadFromFile"],
             reason: "covered-by",
-            by: "import_data",
+            by: "import_data.import",
             kind: BY_DESIGN,
         },
-        { root, members: ["setLayout"], reason: "covered-by", by: "layout", kind: BY_DESIGN },
+        { root, members: ["setLayout"], reason: "covered-by", by: "layout.set", kind: BY_DESIGN },
+        { root, members: ["setViewMode"], reason: "covered-by", by: "view.dimension", kind: BY_DESIGN },
         {
             root,
-            members: ["setViewMode", "saveCameraPreset", "removeCameraPreset", "importCameraPresets"],
+            members: ["saveCameraPreset", "importCameraPresets"],
             reason: "covered-by",
-            by: "view",
+            by: "view.save",
             kind: BY_DESIGN,
         },
-        { root, members: ["applySuggestedStyles"], reason: "covered-by", by: "style", kind: BY_DESIGN },
+        { root, members: ["removeCameraPreset"], reason: "covered-by", by: "view.remove_saved", kind: BY_DESIGN },
+        { root, members: ["applySuggestedStyles"], reason: "covered-by", by: "style.encode", kind: BY_DESIGN },
         { root, members: ["setData"], reason: "replaces-project", kind: BY_DESIGN },
-        { root, members: [...CAMERA_VERBS], reason: "covered-by", by: "view", kind: BY_DESIGN },
-        {
-            root,
-            members: ["select", "selectNode", "deselectNode"],
-            reason: "covered-by",
-            by: "select",
-            kind: BY_DESIGN,
-        },
-        { root, members: ["exitXR", "setXRConfig"], reason: "covered-by", by: "immersive", kind: BY_DESIGN },
+        ...coveredBy(root, CAMERA_VERBS),
+        ...coveredBy(root, {
+            "select.set": ["select"],
+            "select.add": ["selectNode"],
+            "select.remove": ["deselectNode"],
+        }),
+        ...coveredBy(root, { "immersive.exit": ["exitXR"], "immersive.enter": ["setXRConfig"] }),
         { root, members: [...ASSISTANT_VERBS], reason: "assistant-config", kind: BY_DESIGN },
         { root, members: ["on", "addListener", "shutdown", "render"], reason: "lifecycle", kind: BY_DESIGN },
         {
@@ -382,19 +422,14 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "runAlgorithmsOnLoad",
         ],
         reason: "covered-by",
-        by: "project",
+        by: "project.settings",
         kind: BY_DESIGN,
     },
-    {
-        root: "Graphty",
-        members: ["layout", "layoutConfig", "layoutScope"],
-        reason: "covered-by",
-        by: "layout",
-        kind: BY_DESIGN,
-    },
-    { root: "Graphty", members: ["viewMode", "layout2d"], reason: "covered-by", by: "view", kind: BY_DESIGN },
-    { root: "Graphty", members: ["pin", "unpin"], reason: "covered-by", by: "layout", kind: BY_DESIGN },
-    { root: "Graphty", members: ["xr"], reason: "covered-by", by: "immersive", kind: BY_DESIGN },
+    { root: "Graphty", members: ["layout", "layoutConfig"], reason: "covered-by", by: "layout.set", kind: BY_DESIGN },
+    { root: "Graphty", members: ["layoutScope"], reason: "covered-by", by: "layout.scope", kind: BY_DESIGN },
+    { root: "Graphty", members: ["viewMode", "layout2d"], reason: "covered-by", by: "view.dimension", kind: BY_DESIGN },
+    ...coveredBy("Graphty", { "layout.pin": ["pin"], "layout.unpin": ["unpin"] }),
+    { root: "Graphty", members: ["xr"], reason: "covered-by", by: "immersive.enter", kind: BY_DESIGN },
     { root: "Graphty", members: ["downloadProject"], reason: "needs-host", kind: BY_DESIGN },
     {
         root: "Graphty",
@@ -411,8 +446,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "Graphty",
+        members: ["setDefaultPalettes"],
+        reason: "app-default",
+        kind: BY_DESIGN,
+    },
+    {
+        root: "Graphty",
         members: [
-            "setDefaultPalettes",
             "labelDeclutter",
             "renderOnDemand",
             "startingCameraDistance",
@@ -429,19 +469,19 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         root: "Graph",
         members: ["runAlgorithmsFromTemplate"],
         reason: "covered-by",
-        by: "run_algorithm",
+        by: "run_algorithm.run",
         kind: BY_DESIGN,
     },
     {
         root: "Graph",
         members: ["runAlgorithmsOnLoad", "setBackground", "setSelectionStyle", "setLayoutBehavior"],
         reason: "covered-by",
-        by: "project",
+        by: "project.settings",
         kind: BY_DESIGN,
     },
-    { root: "Graph", members: ["setLayoutScope"], reason: "covered-by", by: "layout", kind: BY_DESIGN },
+    { root: "Graph", members: ["setLayoutScope"], reason: "covered-by", by: "layout.scope", kind: BY_DESIGN },
     { root: "Graph", members: ["setNodes", "setEdges"], reason: "replaces-project", kind: BY_DESIGN },
-    { root: "Graph", members: ["enterXR"], reason: "covered-by", by: "immersive", kind: BY_DESIGN },
+    { root: "Graph", members: ["enterXR"], reason: "covered-by", by: "immersive.enter", kind: BY_DESIGN },
     {
         root: "Graph",
         members: [
@@ -476,14 +516,14 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "Graph", members: ["init", "update", "removeListener", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
 
     // The renderer's parts.
-    {
-        root: "DataManager",
-        members: ["addNode", "addNodes", "removeNodeAndIncidentEdges", "addEdge", "removeEdge", "addEdges", "clear"],
-        reason: "covered-by",
-        by: "edit_data",
-        kind: BY_DESIGN,
-    },
-    { root: "DataManager", members: ["addDataFromSource"], reason: "covered-by", by: "import_data", kind: BY_DESIGN },
+    ...coveredBy("DataManager", {
+        "edit_data.add_nodes": ["addNode", "addNodes"],
+        "edit_data.remove_nodes": ["removeNodeAndIncidentEdges"],
+        "edit_data.add_edges": ["addEdge", "addEdges"],
+        "edit_data.remove_edges": ["removeEdge"],
+        "edit_data.delete_all": ["clear"],
+        "import_data.import": ["addDataFromSource"],
+    }),
     { root: "DataManager", members: ["setNodes", "setEdges"], reason: "replaces-project", kind: BY_DESIGN },
     {
         root: "DataManager",
@@ -506,7 +546,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "DataManager", members: ["init", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
-    { root: "Node", members: ["pin", "unpin"], reason: "covered-by", by: "layout", kind: BY_DESIGN },
+    ...coveredBy("Node", { "layout.pin": ["pin"], "layout.unpin": ["unpin"] }),
     {
         root: "Node",
         members: [
@@ -626,12 +666,17 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "AlgorithmManager",
-        members: ["runAlgorithmsFromTemplate", "runAlgorithm", "runLegacy"],
+        members: ["runAlgorithmsFromTemplate", "runAlgorithm"],
         reason: "covered-by",
-        by: "run_algorithm",
+        by: "run_algorithm.run",
         kind: BY_DESIGN,
     },
-    { root: "AlgorithmManager", members: ["init", "dispose", "execute"], reason: "internal-handle", kind: BY_DESIGN },
+    {
+        root: "AlgorithmManager",
+        members: ["init", "dispose", "execute", "runLegacy"],
+        reason: "internal-handle",
+        kind: BY_DESIGN,
+    },
     {
         root: "DefaultGraphContext",
         members: ["getConfig", "updateConfig", "setRunning"],

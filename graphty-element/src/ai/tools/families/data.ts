@@ -7,7 +7,9 @@
 import { z } from "zod";
 
 import type { FormatId } from "../../../catalog/types";
+import { canExpand, expansionOf } from "../../../data/expand";
 import type { ExportResult } from "../../../data/export";
+import type { Graph } from "../../../Graph";
 import type { TransactionScope } from "../../../session/types";
 import {
     idsOf,
@@ -27,6 +29,7 @@ import {
     type ActionResult,
     type ActionSpec,
     type CatalogView,
+    gated,
     GateHold,
     type ToolDefinition,
     ToolRefusal,
@@ -132,7 +135,7 @@ export const editDataTool: ToolDefinition = {
             summary: "records with source, target",
             fields: { records: recordsField.describe("Edge records, each with source and target.") },
             effect: "write",
-            reaches: [{ door: "SessionDataApi.addEdges" }],
+            reaches: [{ door: "SessionDataApi.addEdges" }, { op: "data.apply" }],
             run: async ({ tx }, args) => {
                 const records = ((args.records ?? []) as Record<string, unknown>[]).map((record) => {
                     const source = record.source ?? record.src;
@@ -160,23 +163,23 @@ export const editDataTool: ToolDefinition = {
             summary: "records with id, or values on a target",
             fields: { ...targetFields, records: recordsField.optional().describe("Records, each with an id."), values },
             effect: "write",
-            reaches: [{ door: "SessionDataApi.updateNodes" }],
+            reaches: [{ door: "SessionDataApi.updateNodes" }, { op: "data.apply" }],
             run: (context, args) => update(context, args, "node"),
         },
         {
             name: "update_edges",
-            summary: "records with id, or values on a target",
+            summary: "likewise",
             fields: { ...targetFields, records: recordsField.optional().describe("Records, each with an id."), values },
             effect: "write",
-            reaches: [{ door: "SessionDataApi.updateEdges" }],
+            reaches: [{ door: "SessionDataApi.updateEdges" }, { op: "data.apply" }],
             run: (context, args) => update(context, args, "edge"),
         },
         {
             name: "remove_nodes",
-            summary: "nodes and their edges",
+            summary: "and their edges",
             fields: targetFields,
             effect: "write",
-            reaches: [{ door: "SessionDataApi.removeNodes" }],
+            reaches: [{ door: "SessionDataApi.removeNodes" }, { op: "data.apply" }],
             run: async ({ tx }, args) => {
                 const { ids, notes } = targetIds(tx, args, "node");
                 const edgesBefore = tx.status.counts.edges;
@@ -194,7 +197,7 @@ export const editDataTool: ToolDefinition = {
             summary: "",
             fields: targetFields,
             effect: "write",
-            reaches: [{ door: "SessionDataApi.removeEdges" }],
+            reaches: [{ door: "SessionDataApi.removeEdges" }, { op: "data.apply" }],
             run: async ({ tx }, args) => {
                 const { ids, notes } = targetIds(tx, args, "edge");
                 await coded(() => tx.data.removeEdges(ids));
@@ -205,14 +208,55 @@ export const editDataTool: ToolDefinition = {
             },
         },
         {
+            name: "expand",
+            summary: "fetch a node's neighbors",
+            fields: { ids: targetFields.ids },
+            effect: "write",
+            reaches: [{ op: "data.expand" }],
+            run: async ({ tx, graph }, args) => {
+                const ids = (args.ids as string[] | undefined) ?? [];
+                if (ids.length !== 1) {
+                    throw new ToolRefusal("AI_ARG_INVALID", { path: "ids", expected: "exactly one node" });
+                }
+
+                const id = resolveNode(tx, ids[0]);
+                // The neighbourhood comes from the reader's application, through the fetchers its
+                // layout behaviour supplies; with none, there is nothing to expand from.
+                const renderer = graph as unknown as Partial<Graph> & Parameters<typeof canExpand>[0];
+                const node = typeof renderer.getNode === "function" ? renderer.getNode(id) : undefined;
+                if (node === undefined || !canExpand(renderer)) {
+                    throw new ToolRefusal("AI_NOT_AVAILABLE", {
+                        name: "expand",
+                        requirement: node === undefined ? "renderer" : "fetchNodes and fetchEdges",
+                    });
+                }
+
+                const before = tx.status.counts;
+                const command = expansionOf(renderer as Graph, node);
+                if (command !== undefined) {
+                    await coded(() => tx.execute(command));
+                }
+
+                const after = tx.status.counts;
+                return {
+                    ...ok(undefined, {
+                        node: id,
+                        addedNodes: after.nodes - before.nodes,
+                        addedEdges: after.edges - before.edges,
+                    }),
+                    affectedNodes: [id],
+                };
+            },
+        },
+        {
             name: "delete_all",
             summary: "asks the reader",
             fields: {},
             effect: "write",
-            reaches: [{ door: "SessionDataApi.clear" }],
+            reaches: [{ door: "SessionDataApi.clear" }, { op: "data.apply" }],
             run: async ({ tx, message }) => {
                 const { nodes, edges } = tx.status.counts;
-                if (message.gate !== false && nodes > 0) {
+                if (gated(message, "replaces") && nodes > 0) {
                     throw new GateHold("replaces", { nodes, edges });
                 }
 
@@ -224,13 +268,34 @@ export const editDataTool: ToolDefinition = {
 };
 
 /**
- * Whether a URL appears verbatim in the reader's own text.
- * @param url - The URL.
+ * A text as an absolute http or https URL.
+ * @param text - The text.
+ * @returns The URL, or undefined for anything else.
+ */
+function httpUrl(text: string): URL | undefined {
+    try {
+        const url = new URL(text);
+        return url.protocol === "http:" || url.protocol === "https:" ? url : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/** Punctuation a sentence puts around a URL, which is not part of it. */
+const WRAPPING = /^[<("'[{]+|[>)"'\]},.;:!?]+$/g;
+
+/**
+ * Whether the reader's own text holds this URL: one of its words is the same absolute URL, as
+ * written or without the punctuation around it. Never a fragment of a word.
+ * @param url - The URL, parsed.
  * @param readerText - What the reader wrote.
  * @returns True when it does.
  */
-function readerGave(url: string, readerText: string): boolean {
-    return readerText.includes(url);
+function readerGave(url: URL, readerText: string): boolean {
+    return readerText
+        .split(/\s+/)
+        .flatMap((word) => [word, word.replace(WRAPPING, "")])
+        .some((word) => httpUrl(word)?.href === url.href);
 }
 
 /**
@@ -276,26 +341,28 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                         throw new ToolRefusal("AI_ARG_INVALID", { path: "text", expected: "exactly one of text, url" });
                     }
 
+                    const parsed = url === undefined ? undefined : httpUrl(url);
+                    if (url !== undefined && parsed === undefined) {
+                        throw new ToolRefusal("AI_ARG_INVALID", {
+                            path: "url",
+                            expected: "an absolute http or https URL",
+                        });
+                    }
+
                     let network: string | undefined;
-                    if (url !== undefined && !readerGave(url, host.readerText)) {
-                        let parsed: URL;
-                        try {
-                            parsed = new URL(url);
-                        } catch {
-                            throw new ToolRefusal("AI_ARG_INVALID", { path: "url", expected: "a URL" });
-                        }
-
+                    if (parsed !== undefined && !readerGave(parsed, host.readerText)) {
                         if (host.allowImportUrl?.(parsed) !== true) {
-                            throw new ToolRefusal("AI_IMPORT_URL_REFUSED", { url });
+                            throw new ToolRefusal("AI_IMPORT_URL_REFUSED", { url: parsed.href });
                         }
 
-                        network = url;
+                        network = parsed.href;
                     }
 
                     const mode = args.mode === "replace" ? "replace" : "merge";
                     const { nodes } = tx.status.counts;
-                    if (message.gate !== false && (network !== undefined || (mode === "replace" && nodes > 0))) {
-                        throw new GateHold(network === undefined ? "replaces" : "network", {
+                    const hold = network === undefined ? "replaces" : "network";
+                    if (gated(message, hold) && (network !== undefined || (mode === "replace" && nodes > 0))) {
+                        throw new GateHold(hold, {
                             mode,
                             nodes,
                             ...(network === undefined ? {} : { url: network }),
@@ -327,7 +394,10 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                             {
                                 ...(args.format === undefined ? {} : { type: text(args.format) }),
                                 // Reader options only: headers and credentials are never the model's to set.
-                                config: { ...readerOptions, ...(url === undefined ? { data: document } : { url }) },
+                                config: {
+                                    ...readerOptions,
+                                    ...(parsed === undefined ? { data: document } : { url: parsed.href }),
+                                },
                                 ...(typeof args.name === "string" ? { name: args.name } : {}),
                             },
                             { mode },

@@ -100,7 +100,7 @@ export const setsTool: ToolDefinition = {
             summary: "A fixed set of what a target holds now.",
             fields: { ...targetFields, name },
             effect: "write",
-            reaches: [{ door: "SetsApi.createFrom" }, { door: "ScopeApi.save" }],
+            reaches: [{ door: "SetsApi.createFrom" }, { op: "set.create" }],
             run: async ({ tx }, args) => {
                 const id = await coded(() =>
                     tx.sets.createFrom(scopeArg(tx, args), typeof args.name === "string" ? { name: args.name } : {}),
@@ -113,7 +113,7 @@ export const setsTool: ToolDefinition = {
             summary: "A set of the selection as a path, in order.",
             fields: { name },
             effect: "write",
-            reaches: [{ door: "SetsApi.createPath" }],
+            reaches: [{ door: "SetsApi.createPath" }, { op: "set.create" }],
             run: async ({ tx }, args) => {
                 const id = await coded(() =>
                     tx.sets.createPath("selection", typeof args.name === "string" ? { name: args.name } : {}),
@@ -130,7 +130,7 @@ export const setsTool: ToolDefinition = {
                 name,
             },
             effect: "write",
-            reaches: [{ door: "SetsApi.combine" }],
+            reaches: [{ door: "SetsApi.combine" }, { op: "set.create" }],
             run: async ({ tx }, args) => {
                 const of = (args.sets as string[]).map((each) => ({ set: setOf(tx, each) }));
                 const id = await coded(() =>
@@ -196,7 +196,7 @@ export const setsTool: ToolDefinition = {
             summary: "Take nodes out of a fixed set.",
             fields: { set, nodes },
             effect: "write",
-            reaches: [{ door: "SetsApi.removeMembers" }],
+            reaches: [{ door: "SetsApi.removeMembers" }, { op: "set.members" }],
             run: async ({ tx }, args) => {
                 const id = setOf(tx, args.set);
                 const members = ((args.nodes ?? []) as string[]).map((each) => resolveNode(tx, each));
@@ -239,7 +239,7 @@ export const setsTool: ToolDefinition = {
             summary: "Every set: id, name, how it was made.",
             fields: {},
             effect: "read",
-            reaches: [{ door: "SetsApi.list" }, { door: "ScopeApi.list" }],
+            reaches: [{ door: "SetsApi.list" }],
             run: ({ tx }) =>
                 Promise.resolve(
                     ok(
@@ -361,7 +361,7 @@ export const notesTool: ToolDefinition = {
                             .list()
                             .slice(0, 50)
                             .map((each) => compactRecord({ ...each })),
-                        { ...tx.notes.counts() },
+                        { ...tx.notes.counts(), authors: [...tx.notes.authors()] },
                     ),
                 ),
         },

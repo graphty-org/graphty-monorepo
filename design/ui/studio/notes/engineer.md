@@ -78,6 +78,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   actions and no reason; "Edit source..." lands on "Replace: ..."; neighbor Back row scrolls the
   inspector sideways; path popover covers the nodes it asks for; 900 x 700 canvas is 363 px. The
   "Full graph" section under a filter is frozen and reads right at both sizes.
+
 ## Decisions and reasons
 
 - (2026-10-09) Script before calling it a defect (two round 2 "app faults" were the study tool's

@@ -946,9 +946,9 @@ The best-F1 threshold's precision and recall, that F1, and the ranking AUC.
 
 ## Try it
 
-- [Centrality gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--centrality)
-- [Communities gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--communities)
-- [Paths and trees gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--paths-and-trees)
-- [Structure gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--structure)
-- [Flows and cuts gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--flows-and-cuts)
-- [Link prediction gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--link-prediction)
+- [Centrality gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-centrality--overview)
+- [Communities gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-communities--overview)
+- [Paths and trees gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-paths-and-trees--overview)
+- [Structure gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-structure--overview)
+- [Flows and cuts gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-flows-and-cuts--overview)
+- [Link prediction gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-link-prediction--overview)

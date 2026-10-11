@@ -9,10 +9,7 @@ export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = {
-    ...overview("Formats"),
-    parameters: { __id: "gallery--formats" },
-};
+export const Overview: Story = overview("Formats");
 
 export const Graphml: Story = {
     ...tile("Formats", "graphml"),

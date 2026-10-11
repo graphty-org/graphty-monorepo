@@ -9,10 +9,7 @@ export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = {
-    ...overview("Communities"),
-    parameters: { __id: "gallery--communities" },
-};
+export const Overview: Story = overview("Communities");
 
 export const Louvain: Story = {
     ...tile("Communities", "louvain"),

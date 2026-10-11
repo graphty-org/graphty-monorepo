@@ -9,10 +9,7 @@ export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = {
-    ...overview("LinkPrediction"),
-    parameters: { __id: "gallery--link-prediction" },
-};
+export const Overview: Story = overview("LinkPrediction");
 
 export const CommonNeighborsScore: Story = {
     ...tile("LinkPrediction", "commonNeighborsScore"),

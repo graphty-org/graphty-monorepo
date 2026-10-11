@@ -9,10 +9,7 @@ export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = {
-    ...overview("Datasets"),
-    parameters: { __id: "gallery--datasets" },
-};
+export const Overview: Story = overview("Datasets");
 
 export const FlorentineFamilies: Story = {
     ...tile("Datasets", "florentine-families"),

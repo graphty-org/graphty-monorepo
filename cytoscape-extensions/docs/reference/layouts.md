@@ -239,5 +239,5 @@ Runs only on the GPU. With no GPU for any reason (`gpu: "off"`, `accelerator: nu
 
 ## Try it
 
-The [layout gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--layouts) runs every
+The [layout gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-layouts--overview) runs every
 layout in a tile of its own, each on a small graph that suits it.

@@ -35,6 +35,11 @@ export default defineConfig({
             {
                 test: {
                     name: "browser",
+                    // Three pages at a time, as on a 4-core CI runner (Vitest's default is
+                    // min(12, cores - 1); a --maxWorkers flag does not reach a browser project).
+                    maxWorkers: 3,
+                    // Vitest refuses two projects with different maxWorkers in one group order.
+                    sequence: { groupOrder: 1 },
                     browser: {
                         enabled: true,
                         headless: true,

@@ -1,3 +1,19 @@
+## 0.3.34 (2026-10-11)
+
+### 🩹 Fixes
+
+- **graph-io:** note the type column an OBO Graphs export adds to untyped nodes ([#1912](https://github.com/graphty-org/graphty-monorepo/issues/1912))
+- **graph-io:** name the column CX's rename note promises ([#2](https://github.com/graphty-org/graphty-monorepo/issues/2))
+- **graph-io:** note the type column an OBO export gains on re-import ([93d442b66](https://github.com/graphty-org/graphty-monorepo/commit/93d442b66))
+
+### 🔥 Performance
+
+- **graph-io:** scan Pajek tokens and OBO comment marks in runs, not by character ([f9c1b47bd](https://github.com/graphty-org/graphty-monorepo/commit/f9c1b47bd))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.33 (2026-10-09)
 
 ### 🧱 Updated Dependencies

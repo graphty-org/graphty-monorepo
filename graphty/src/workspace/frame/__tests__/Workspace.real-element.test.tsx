@@ -68,6 +68,12 @@ describe("the workspace frame on the real element", () => {
         });
     });
 
+    it("has the element draw a still graph no more, so idle frames do not hold the page", async () => {
+        await openWorkspace();
+
+        assert.isTrue(document.querySelector("graphty-element")?.renderOnDemand, "the element draws on demand");
+    });
+
     it("clears the element's selection with Esc", async () => {
         const session = await openWorkspace();
         await session.data.addNodes([{ id: "a" }, { id: "b" }]);

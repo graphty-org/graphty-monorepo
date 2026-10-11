@@ -15,34 +15,28 @@ save and reopen.
 
 ## Top of mind
 
-- 2026-10-10 **A route that worked in round 2 proves little; a problem found anyway is solid.**
-  Participants read the facilitator's task file (control names, follow-ups; 13 of 16 follow-ups
-  answered early). Round 2's three new routes (weight meaning at load, Replace in "...", the find
-  rule hint) are uncredited until a clean re-run. Round 3 waits on study-tool fixes: sessions
-  outside the studio tree, a transcript leak check that voids, a planted-fault self-test.
-- 2026-10-10 **The walk list is always one round behind.** 12 of 30 build faults sat on the one
-  unwalked detour (styling a selection). Next dry run scripts throwaway pilots' real routes, and a
-  keyboard walk presses every control on the screen; a fault found is fixed before freeze, never
-  handed on (the find box's second Escape slipped through that way).
-- 2026-10-10 **Round 3 find box (mine to watch, T22):** a miss shows the element's example line
-  once; the element's suggestion keeps its "="; a shown rule is Enter's option and clickable. One
-  path, credited together. Not yet: column rows, "Select where..." (only if 3+ of 8 still stall).
-  Bare numbers and backticks stay with the owner (breaking).
-- 2026-10-10 **A starting value equal to what is drawn is a silent no-op** -- fixed by the element's
-  look, not my picker: `highlightStyle(target)` gives a selection layer's Color/Width the highlight
-  look. My "+ opens the picker" is HELD so round 3 can tell which change helped.
-- 2026-10-10 **Focus faults to verify on the round 3 build:** second Escape keeps focus in find;
-  Follow arrows never move into Hops (effect re-ran every render); Tab or click away commits a step
-  edit, Escape cancels and says so; a repeated status message is spoken again.
-- 2026-10-10 **A command is a command, a toggle is a checkbox.** "Filter to neighbors" pressed twice
-  deleted its step silently; now it always adds/turns on, and only the step's checkbox turns off.
-- 2026-10-10 **Doubling Add (T21, sev 3):** element reports repeated edges from `data.prepare()`;
-  the Add page shows one line and "Replace <source>" beside Load (same command as "..."). Never
-  match file names in the app.
-- 2026-10-10 **Words at rest go down, never up** (bar 9 b failed on all four tier 2 screens). Scope
-  words only when drawing and run differ; no new words for any fix.
-- 2026-10-10 **Prompts must not invite the behavior the task does not measure** ("stand out" made
-  the styling detour). Discount behavior a prompt's own words ask for.
+- 2026-10-10 **Round 3 (54 of 56): the one real app failure is Shift/Ctrl-click on a node, which
+  replaces the selection** (element `NodeBehavior.handleClick` always `select()`s; the edge click
+  already adds). Element fix with a real-input test. Shift is the add key; Meta beside Ctrl on macOS.
+- 2026-10-10 **Truth over tidiness: after Undo a path run's "Made with" names the undone run's From
+  and To** (verified, `expert/figma/path/11.png`: route Depot-School-Stadium, Made with Market to
+  Station). Mechanism not pinned: the inspector draft keyed by run id, or the element's undo of a
+  re-tuned run not restoring its params. Script it, then fix where it lives.
+- 2026-10-10 **Focus drops still found by keys only:** picking Shortest path with Enter (PathForm's
+  `data-autofocus` is read only when the popover opens; use `autoFocus` like the other forms), and
+  adding a style to a selection's new layer (focus to page; the next Escape clears the selection).
+  Both go into bars.mjs's focus-drop list so they cannot slip again.
+- 2026-10-10 **Round 3 credited:** the find box's example line and runnable suggestion, two Escapes
+  keep focus, Follow arrows stay on Follow, Tab commits a step edit, Escape cancels and says so.
+- 2026-10-10 **A prompt and its answer key must ask for the same outcome** (T24: "point out" vs a
+  selection rule). Walk every route the key names on the build before a task runs.
+- 2026-10-10 **The walk list is always one round behind.** Script pilots' real routes; a keyboard
+  walk presses every control; a fault found is fixed before freeze, never handed on.
+- 2026-10-10 **A disabled done-state is not a state.** "Filter to neighbors" gray with no reason
+  reads as "not allowed"; say why (criterion 8).
+- 2026-10-10 **Words at rest go down, never up.** No new words for any fix; no second door where
+  one is measured (Filters on the Graph place waits).
+- 2026-10-10 **Discount behavior a prompt's own words ask for** ("stand out", "point out").
 - 2026-10-07 **A decided change that is not verified on the served build is not done.**
 - 2026-10-07 **Recovery routes are first-class.** "Back to start" must never be the only route.
 - 2026-10-07 **Simulated participants are one model.** Trust reproductions and causes in code.
@@ -180,6 +174,13 @@ text })`; accepted or refused only with `number-needs-backticks` -> "To select b
   neighbor list by distance (waits on the element), "Components 1" under a filter (held so the
   words change is measured alone). Reason throughout: no second door where one is measured.
 
+- 2026-10-10 Round 3 critique, mine: Shift/Ctrl-click adds (element); PathForm focuses its first
+  field with `autoFocus`; a selection layer's style pick focuses the new line; Made with reads only
+  the run (after a script pins the mechanism); "Filter to neighbors" says why it is off; Analyze
+  ranks a name match above a description match; the find Values row wraps instead of cutting.
+  Held: "or more" for a bare number (the element suggests rules; one change per problem), a
+  Filters door on the Graph place, announcing a replaced path, Hops distance (waits on element).
+
 ## Tried: worked / did not work
 
 - 2026-10-10 Round 2 (all 55 sessions succeeded; weak evidence because of the leak). Did not work:
@@ -202,48 +203,12 @@ text })`; accepted or refused only with `number-needs-backticks` -> "To select b
   not reach their end state and the tool could not type or modifier-click. Taught: a prototype
   that cannot reach the end state measures the prototype; and the end state is where interaction
   design lives.
-- 2026-10-02 Round 8 on the skeleton: the right first click, then a dead or silent second step,
-  decided every tier 1 failure (labels, neighbors, whole session). The Les Miserables sample
-  opening with PageRank pre-run hid the reader's own results.
-- 2026-10-02 What consistently worked: the load match report; the broken-file refusal naming
-  faults with line numbers; "Covered by PageRank for Color" as an in-place reason; the path tie
-  report; "Note on: <thing>" before typing; the replace-and-out-of-date warning.
-- 2026-10-04 Build vs mock comparison: the empty canvas card ran the wrong command (fixed); a run
-  row showed an empty Style tab (fixed through `session.runs.bindings`); group Members list shows
-  the first 10 in load order, not top 10; nodes named by id ("n0") in find hits, node header and
-  neighborhood title. Taught: drift lands in exactly the state lines a first-time user reads.
-
-- 2026-10-06 Round 1 on the real app (29 graded): worked -- load, broken-file refusal, ranking,
-  groups, save and reopen, every run repainting at once, no false "done" in 29. Did not work --
-  the neighbor list behind an unmarked Degree row and a Neighborhood command that skips it; the
-  "No crossings" refusal; Size found by guessing (severity 2). Taught: two doors to one act must
-  share one function, or the door a first-time user picks is the broken one.
-
-- 2026-10-06 Re-pilot of every tier 1 task on the rebuilt app (build e82708488): all reach their
-  end state by the answer key's path, no console errors. Worked: Degree and G both open the
-  neighbor list; the in-place refusal line; Export kinds as tabs. Did not: "Force, flat" leaves
-  an unlaid disc; overlays and the camera hide nodes; developer words in the CSV warning and the
-  Overview's direction line; project name and outline disagree after save.
-
-- 2026-10-07 Round 2 (56 graded, commit 4a7a1a7fb): worked -- the neighbors list (8 of 8, ease
-  2.86 to 5.25 though round 1's scale was reversed), first-time personas 34 of 34, the in-place
-  refusal, save and reopen, no false "done". Did not: the menu-to-dialog focus (ended r2-s07), the
-  row chevron outside the button, the stale key row, 2D Fit, the sizing chain (18 of 18), no
-  "finished" announcement, layouts (T11 ease 3.33: unsettled Force, group layouts disabled after a
-  community run because the app's `groupings()` reads only file attributes). The run-name change
-  decided for round 2 was never built. Taught: a decided change that does not land must be
-  carried, not forgotten; and the task wording (T10 "every name") can manufacture a 3.5x.
-
-- 2026-10-07 Re-pilot after round 2 fixes (build b7590f8de, T6-T16 by pointer): every task
-  reaches its end state on the answer key's route; no console errors. Worked: run named
-  "PageRank" everywhere (T7); Size "+" opens its list and binds in 8 steps (T9); group layouts
-  enabled after Louvain (T11); "Show all labels" gives every name (T10); Enter opens the only
-  Analyze entry. Still: Overview "Undirected, from the file: directed 0" overflows (every pilot);
-  run rows open on Style, so Top 10 needs the Values tab; inspector subtitle "Measure from
-  PageRank" names the row after itself; equal-bar histograms; element English refusals. Not
-  walked: keyboard, screen reader, 2D Fit, menu focus. Taught: a pointer pilot cannot certify
-  focus and announcement fixes; they need their own scripted checks.
-
+- 2026-10-02..07 (summarized) Round 8 and the build comparison: a dead or silent second step
+  decided every tier 1 failure; drift lands in the state lines a first-time user reads. Worked
+  throughout: the load report, the broken-file refusal with line numbers, in-place reasons, "Note
+  on: <thing>". Rounds 1-2 on the real app: two doors to one act must share one function; menu
+  focus, row chevron, stale key, 2D Fit, the sizing chain, layouts failed and were fixed; a pointer
+  pilot cannot certify focus and announcement fixes.
 - 2026-10-09 Tier 2 round 1 (55 valid sessions, frozen build 946256efb): worked -- 0 false
   "done", 0 silent commits, 0 weights read backwards; the path run, Replace page and load-time
   "Higher means" read right every time once found; T23 and T12R at or under the success path.
@@ -262,6 +227,16 @@ text })`; accepted or refused only with `number-needs-backticks` -> "To select b
   facilitator file readable, prompts saying "stand out" manufactured styling, the tool's click by
   name hit a same-named row. Taught: the dry run must walk what participants are prompted toward
   (styling), not only the answer key; and a keyboard finding "handed on" to a bar is not fixed.
+
+- 2026-10-10 Tier 2 round 3 (54 of 56, build 26f3bb968). Worked: the find box's example line,
+  the "=" kept on the suggestion and Enter running it (rules copied, never discovered: 0 of 8 typed
+  "=" unprompted); the round 3 focus fixes by keys (two Escapes, Follow arrows, Tab commit, Escape
+  cancel); 6 of 7 repeated a path from Analyze's Recent entry. Did not: Shift/Ctrl-click on a node
+  (4 of 4 T24); a bare "10" offering only "is equal to", its row cut at the panel edge; Shortest
+  path ranked under Betweenness or Louvain for "path", "linked"; the Enter pick of Shortest path
+  and a selection layer's style pick dropping focus; Made with after Undo; "Filter to neighbors"
+  disabled without a reason. Taught: my focus walk covered what I fixed, not every route into a
+  form; T24's key credited a route (Shift-click) nobody walked.
 
 ## Thinking
 

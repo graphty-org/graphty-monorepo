@@ -69,8 +69,10 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
     });
 
     describe("setCameraPosition", () => {
-        it("calls setCameraPosition for 'Show the graph from above'", async () => {
-            const result = await harness.testPrompt("Show the graph from above");
+        // Names the camera: "Show the graph from above" also reads as "show it flat", which
+        // setDimension("2d") answers too (#1991). Moving the camera is only setCameraPosition.
+        it("calls setCameraPosition for 'Move the camera to look at the graph from above'", async () => {
+            const result = await harness.testPrompt("Move the camera to look at the graph from above");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             const call = assertCalled(result, "setCameraPosition");
@@ -118,8 +120,11 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
             assertCalled(result, ["zoomToNodes", "setCameraPosition"]);
         });
 
-        it("calls zoomToNodes for 'Focus on server nodes'", async () => {
-            const result = await harness.testPrompt("Focus on server nodes");
+        // Names the camera: "Focus on server nodes" also reads as "highlight them", which
+        // findAndStyleNodes answers just as well (#1991). Framing a subset of nodes with the camera
+        // is what only zoomToNodes does.
+        it("calls zoomToNodes for 'Zoom the camera in to frame just the server nodes'", async () => {
+            const result = await harness.testPrompt("Zoom the camera in to frame just the server nodes");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             // This should specifically call zoomToNodes since it's filtering by selector

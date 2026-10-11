@@ -5,41 +5,41 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-11 (tier 2 round 4 closed).
+Last updated: 2026-10-11 (tier 2 round 5 walk).
 
 ## Top of mind
 
-1. (2026-10-11) Round 5 does not start until the study is fixed: the runner refuses without the
-   gate, a participant starts only on a free browser slot, briefings name files and kinds only.
-   Every "unprompted" count from round 4 is discounted; read round 5 passes as weak too.
-2. (2026-10-11) Round 5 watched move: "10" on bus stops reaches the right stops with no refusal.
-   Credit the new "or more" row by that, not by a pick (the prompt and the row share "or more").
-3. (2026-10-11) A suggestion must pass the consumer's own acceptance test (parse AND an attribute
-   read), fixed in graphty-element's `suggestBackticks`, never guarded in the app. Not "has
-   matches": a valid rule that matches nothing is still a rule.
-4. (2026-10-11) Diff before cutting words: bar 9 (b) gets both builds' word lists first. Scope
-   words that prevent a wrong reading stay even if the bar fails. My ", full graph" cut was held.
-5. (2026-10-11) Delete app copies of element logic by adding the element export (`rulePath`).
-   Additive exports are the team's call; record them, do not ask.
-6. (2026-10-11) Label and node overlap (sev 3, bar 10) stays an element fix on the owner's list.
-   No app font, offset, seed or names-off setup. Bar 10 fails honestly until then.
-7. (2026-10-11) A source-visible mechanism needs no extra script (off step turning on); a
-   single-source claim does (r4-s12 missing column, Shift toggle-off): script first.
-8. (2026-10-11) Shift-click carried T24 2 of 4 to 7 of 7: a habit-matching control is used at
-   once. Weakened as evidence (briefing named it); do not claim menus go unused.
-9. (2026-10-11) Round 5 checks: table under a filter step reads "12 of 41 edges" and lists 12;
-   Cancel in a note focuses "+"; New project > Discard shows no error page.
-10. (2026-10-11) Held with no session behind them: Shift-click toggle-off, Width band, Delete key
-    on a step, N swallowed by the run row, Value-blur commit, second-path notice.
-11. (2026-10-10) Walk Figma's selection grammar on every object kind and every command twice then
+1. (2026-10-11) Round 5 walk: 0 severity 3 left. Six new severity 2s, each with a mechanism or a
+   script: Filter to neighbors hidden for Follow Out/In (element rule has no direction), Escape
+   after a Follow click clears the selection, the To list painted under Follow at 1280 x 800,
+   pickers show ids for a name match, missing-column rule says "Nothing matches" and drops the
+   selection, "minutes 10" is "No match" while "10" works.
+2. (2026-10-11) Verified fixed on 8c015b806: New project > Discard, "10" offers "or more", layer
+   named "minutes >= `10`", table "12 of 41 edges", off step stays off, Delete returns the
+   inspector to the graph, note Cancel focuses "+".
+3. (2026-10-11) Bring to round 5's critique: the neighborhood rule gains an optional direction
+   (element, additive) so the command stays for Out/In; `find` reads "<column> <number>".
+4. (2026-10-11) A suggestion must pass the consumer's own acceptance test, fixed in the element,
+   never guarded in the app. Not "has matches": a valid rule that matches nothing is still a rule.
+5. (2026-10-11) Diff before cutting words; scope words that prevent a wrong reading stay.
+6. (2026-10-11) Delete app copies of element logic by adding the element export. Additive exports
+   are the team's call; record them, do not ask.
+7. (2026-10-11) Label and node overlap stays an element fix on the owner's list. No app font,
+   offset, seed or names-off setup.
+8. (2026-10-11) A source-visible mechanism needs no extra script; a single-source claim does.
+   A keyboard-only claim (Color Escape) did not reproduce by pointer: say which input was tried.
+9. (2026-10-11) Still open, carried: Shift toggle, To = From, weight forgotten, Delete key,
+   step-editor Tab/Escape, focus after pick, empty Filters form, N after run row, Follow arrows,
+   Analyze field moves, note edit, popover covers nodes.
+10. (2026-10-10) Walk Figma's selection grammar on every object kind and every command twice then
     Undo; when a crash appears, rerun the minimal state in its own folder at once.
-12. (2026-10-10) Do NOT move: Replace, weight role at load, note subject, names-off default,
+11. (2026-10-10) Do NOT move: Replace, weight role at load, note subject, names-off default,
     Recent in Analyze, Filters door, Analyze ranking, "Settings" rail label.
-13. (2026-10-09) Deferred divergences, only with clean-run evidence: Save form vs live inspector;
+12. (2026-10-09) Deferred divergences, only with clean-run evidence: Save form vs live inspector;
     checkbox vs eye; two row grammars; add-first for "+".
-14. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
+13. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
     graphty's ontology. Every control must visibly change canvas, key or popover.
-15. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
+14. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
 
 ## Priorities and values
 
@@ -105,6 +105,12 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-11 (me, round 5 walk, `tier2/rounds/round-5/expert/figma.md`) 39 findings, 0 at
+  severity 3 (round 4: 42, 2). New severity 2s: neighbor filter hidden for Out/In (graphty-element
+  rule direction, then app), Escape after a Follow click (app), To list under Follow (compact-
+  mantine stacking), id-only picker rows (app), missing-column rule (element code, app words),
+  "minutes 10" (element `find`). Reason: each stops or misleads a returning user on a route a
+  task can take, and each is placed in its owning package.
 - 2026-10-11 (Director, round 4 closed, `tier2/rounds/round-4/decisions.md`) Twelve round 5
   changes: runner gate and slot refusal, file-and-kind-only briefings (sev 4); suggestion only if
   the selector accepts it, an element `atLeast` row for a number inside a range, off step stays
@@ -185,6 +191,13 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-10-11 Round 5 walk. Worked: re-walking last round's routes with the same scripts
+  confirmed seven fixes and two claims in under 120 steps; opening each control from a second
+  state (Follow then Escape, To at 1280 x 800, a column word plus a number) found all six new
+  severity 2s. Did not: three browser starts waited out the slot bound (exit 4) while other
+  studies held all four slots; ending a session before starting the next did not free a slot for
+  me. Lesson: keep one session per browser and walk several screens in it rather than many
+  short sessions.
 - 2026-10-11 Round 4 closed. Worked: critique items backed by a session plus a source line were
   all taken (table scope, "or more" row, bare column name). Did not: a word cut chosen before a
   diff named the added words (", full graph") was held; my suggestion guard was set at "has
@@ -214,18 +227,10 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   with a screenshot. Did not: Tab-commit only half-shipped (Tab stays inside the editor); a
   second path run was walked by nobody before and held both severity 3s. Lesson: walk repeat
   work (run twice, undo, reopen) on every command, because tier 2 is repeat work.
-- 2026-10-10 Round 2 closed. Did not work: the study itself (participants read the facilitator
-  file; 13 of 16 follow-ups answered early), a dry run one round behind (12 of 30 build faults on
-  the unwalked selection-styling detour), and a keyboard fault the dry run found but handed on
-  (second Escape blurs the find box). Worked: no grade decided by a build fault, 0 errors ending a
-  session. Lesson: a dry run must walk where pilots actually go and fix what it finds before
-  freeze; bar scripts the preflight names must exist (bar 10's counts did not).
-- 2026-10-09 Round 2 walkthrough. Worked: "Path between..." fills From and focuses To; canvas
-  pick with a hint and no selection change; Replace on the source inspector "..."; Rerun banner;
-  Delete then Control+Z with focus kept. Did not: the typed-condition change shipped as a
-  teaching line, not a runnable row (the smallest version of my proposal lost its point);
-  "Filter to neighbors" grew toggle behavior nobody decided. Lesson: when a change is decided,
-  write the key behavior into it (Enter runs it), or the build ships the words without the act.
+- 2026-10-09 to 10-10, summarized 2026-10-11. Round 2: the study leaked (participants read the
+  facilitator file), the dry run walked one round behind; Tab-commit and the typed-condition row
+  shipped as words without the act. Lesson: a decided change names its key behavior, and the dry
+  run walks where pilots actually go.
 - 2026-10-09 Tier 2 round 1 (55 valid sessions, 52 succeeded). Worked: Data > Filters (7 of 8
   found it, follow-ups at the key's 4 steps), the path popover once found, the Replace page and
   load-time "Higher means" read right every time, 0 false done, 0 silent commits. Did not: the

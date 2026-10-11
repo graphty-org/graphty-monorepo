@@ -5,7 +5,7 @@
  * amount nobody can see. The fix is not a better constant: it is to time the work here, once,
  * and to say plainly when the timing could not be taken. That is what the two halves of this
  * file do -- {@link calibrateCost} times three synthetic workloads shaped like the three cost
- * classes, and {@link CostMeasurementLog} keeps what real runs actually took so the next
+ * classes and one that misses every cache, and {@link CostMeasurementLog} keeps what real runs actually took so the next
  * estimate of the same algorithm is scaled from the last one.
  *
  * The honest failure is the important part. If the clock is too coarse, the budget runs out, or
@@ -60,6 +60,27 @@ const REFERENCE_PROBE_RATES: Readonly<CostRates> = Object.freeze({
     heavyPairsPerSecond: 830_000_000,
     cubicOperationsPerSecond: 1_710_000_000,
 });
+
+/**
+ * Entries in the memory probe's table: 64 MB of `Uint32Array`, larger than any last-level cache
+ * the element is likely to run under (32 to 36 MB on the desktops and cloud runners it was
+ * measured on), so nearly every increment the probe makes misses every cache.
+ */
+const MEMORY_TABLE_ENTRIES = 1 << 24;
+
+/** Increments the memory probe makes per repeat, at pseudo-random places in its table. */
+const MEMORY_INCREMENTS = 1 << 17;
+
+/** How many times the memory probe is timed; the fastest is kept, because load only adds time. */
+const MEMORY_SAMPLES = 3;
+
+/**
+ * Increments per second the memory probe retires on the machine `DEFAULT_COST_RATES` were fitted
+ * on (the same i9-14900 on its P-cores): 4M increments in 29 ms, about 7 ns each, which is a wait
+ * on DRAM. A cache miss costs about as much on a cloud runner as on a desktop, so ordinary
+ * unloaded machines read 0.6x to 1x of it. See {@link MachineCalibration.memorySpeed}.
+ */
+const REFERENCE_MEMORY_INCREMENTS_PER_SECOND = 145_000_000;
 
 /** Iterations the iterative workload performs per repeat. */
 const PROBE_ITERATIONS = 10;
@@ -235,6 +256,94 @@ function heavyPass(graph: ProbeGraph): number {
     return reached;
 }
 
+/**
+ * Where the memory probe's pseudo-random walk has got to. Each repeat carries on from the last
+ * rather than starting over: a walk that started over would revisit the same few megabytes, which
+ * the cache would by then hold, and time the cache instead of the memory.
+ */
+let memoryState = 1;
+
+/**
+ * Random increments into a table far larger than any cache, which is the shape of the counting
+ * and scattering loops that dominate a large graph's runs (degree's count of each edge's ends,
+ * PageRank's and eigenvector centrality's per-pass scatter, Louvain's community lookups).
+ *
+ * The three workloads above walk a graph that stays in cache, so they time the cores and cannot
+ * see the memory behind them. On a machine whose memory is shared with other load -- a cloud
+ * runner with a busy neighbour -- those loops ran 3 to 6x slower while the cache-resident
+ * workloads moved 1.2 to 1.4x (issue #2032), so this probe is what lets an estimate see that.
+ * @param table - The table to increment into.
+ * @returns A number derived from the walk, so the walk cannot be optimised away.
+ */
+function memoryPass(table: Uint32Array): number {
+    const mask = table.length - 1;
+    let state = memoryState;
+    for (let i = 0; i < MEMORY_INCREMENTS; i++) {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        table[(state >>> 8) & mask]++;
+    }
+
+    memoryState = state;
+
+    return table[state & mask];
+}
+
+/** Pieces the memory probe's table is first written in, with the host's thread handed back after each. */
+const MEMORY_FILL_CHUNKS = 4;
+
+/**
+ * How fast random reads that miss every cache complete here, against the reference machine.
+ *
+ * The table is written once, a quarter at a time, before anything is timed: its pages are mapped
+ * in on first touch, which costs more than the timed walk itself and is not what is being
+ * measured. Then the fastest of {@link MEMORY_SAMPLES} timings is kept, as the rest of the probe
+ * keeps its fastest: load from elsewhere only ever adds time.
+ * @param budgetMs - The milliseconds the memory probe may spend.
+ * @param yieldNow - Hands the host its thread back between pieces of work.
+ * @returns The speed factor, or undefined when the table could not be allocated or timed.
+ */
+async function memorySpeed(budgetMs: number, yieldNow: () => Promise<void>): Promise<number | undefined> {
+    let table: Uint32Array;
+    try {
+        table = new Uint32Array(MEMORY_TABLE_ENTRIES);
+    } catch {
+        // A host that cannot spare 64 MB gets the core-only estimate it got before.
+        return undefined;
+    }
+
+    // Every piece hands the thread back whether or not the budget let it run, so the probe yields
+    // the same number of times on every host.
+    let spentMs = 0;
+    let filled = 0;
+    const piece = MEMORY_TABLE_ENTRIES / MEMORY_FILL_CHUNKS;
+    for (let chunk = 0; chunk < MEMORY_FILL_CHUNKS; chunk++) {
+        if (spentMs < budgetMs) {
+            const started = now();
+            table.fill(1, chunk * piece, (chunk + 1) * piece);
+            spentMs += now() - started;
+            filled++;
+        }
+
+        await yieldNow();
+    }
+
+    let fastest: number | undefined;
+    for (let sample = 0; sample < MEMORY_SAMPLES; sample++) {
+        if (filled === MEMORY_FILL_CHUNKS && spentMs < budgetMs) {
+            const share = (budgetMs - spentMs) / (MEMORY_SAMPLES - sample);
+            const timing = time(() => memoryPass(table), MEMORY_INCREMENTS, share);
+            spentMs += timing.spentMs;
+            if (timing.perSecond !== undefined) {
+                fastest = Math.max(fastest ?? 0, timing.perSecond);
+            }
+        }
+
+        await yieldNow();
+    }
+
+    return fastest === undefined ? undefined : fastest / REFERENCE_MEMORY_INCREMENTS_PER_SECOND;
+}
+
 /** What one timed workload produced. */
 interface Timing {
     /** The rate, in the workload's own units per second, or undefined when it could not be timed. */
@@ -306,6 +415,12 @@ function defaultYield(): Promise<void> {
  * The cubic rate is not probed. No cubic algorithm has ever been timed here, so it is set to the
  * measured linear rate, which is the most optimistic honest placeholder and therefore the one
  * that makes a cubic estimate the most cautious of the four.
+ *
+ * It also times random increments into a 64 MB table, which no cache holds, and reports the
+ * result as {@link MachineCalibration.memorySpeed}. Memory that is too slow for that reading --
+ * loaded by another process, typically -- makes the estimate charge more for runs over graphs too
+ * large for the cache. A host that cannot spare the table, or cannot time it, gets no memory
+ * speed and the estimates it got before.
  * @param options - The budget, the machine fingerprint and how to yield between workloads.
  * @returns The calibration, measured or defaulted.
  */
@@ -346,6 +461,10 @@ export async function calibrateCost(options: CalibrateCostOptions = {}): Promise
     const heavy = time(() => heavyPass(graph), PROBE_SOURCES * graph.arcs, share);
     await yieldNow();
 
+    // Memory gets whatever the three left of the budget (they stop once a sample clears the
+    // clock's resolution, a few milliseconds each), and yields between its own pieces of work.
+    const memory = await memorySpeed(budgetMs - linear.spentMs - iterative.spentMs - heavy.spentMs, yieldNow);
+
     // Reading the accumulator is what keeps the three workloads above from being dead code, and
     // resetting it keeps a long-lived page from drifting it to infinity over repeated probes.
     if (!Number.isFinite(sink)) {
@@ -371,7 +490,15 @@ export async function calibrateCost(options: CalibrateCostOptions = {}): Promise
         cubicOperationsPerSecond: DEFAULT_COST_RATES.cubicOperationsPerSecond * linearSpeed,
     };
 
-    return Object.freeze({ rates: Object.freeze(rates), at, machine, basis: "probe" as const });
+    // Memory refines the estimate rather than founding it, so a host that could not time it keeps
+    // the measured rates and simply carries no memory speed.
+    return Object.freeze({
+        rates: Object.freeze(rates),
+        at,
+        machine,
+        basis: "probe" as const,
+        ...(memory === undefined ? {} : { memorySpeed: memory }),
+    });
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -241,6 +241,8 @@ only, and misses an origin change made by anyone else).
 
 ## 2026-10-09 -- For the owner: a compact-mantine number box given `value` follows it even when it is undefined
 
+**Decided by the owner (2026-10-10): ships as a minor**, with every other row of the pull request's breaking table.
+
 **What.** `StyleNumberInput` is controlled whenever its caller passes the `value` prop, including
 `value={undefined}`, which its documentation already defines as "nothing entered: show
 `defaultValue`". Before, Mantine's `useUncontrolled` read an undefined `value` as uncontrolled, so

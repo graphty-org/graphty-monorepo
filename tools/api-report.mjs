@@ -407,27 +407,37 @@ export function optionReachable(declarations) {
  */
 export function openOptionFields(declarations, names) {
     const found = new Map();
-    for (const [name, [head, ...rest]] of declarations) {
-        if (names && !names.has(name)) continue;
-        const afterName = head.replace(DECLARATION, "");
-        const parameters = typeParameters(afterName);
-        if (/=\s*(?:unknown|any)\b/.test(parameters)) found.set(`${name}.[type parameter]`, parameters);
-        if (/^(?:export )?(?:declare )?type /.test(head)) {
-            const body = [afterName.slice(parameters.length).replace(/^\s*=/, ""), ...rest].join("\n");
-            if (isOpenType(body)) found.set(`${name}.[alias]`, typeLabel(body));
-            continue;
-        }
-        for (const member of members(rest)) {
-            if (INDEX_MEMBER.test(member)) {
-                found.set(`${name}.[index]`, "an index signature");
-                continue;
-            }
-            const named = MEMBER_NAME.exec(member);
-            const type = named ? member.slice(named[0].length).replace(/^\s*:/, "") : member;
-            if (named && isOpenType(type)) found.set(`${name}.${named[1]}`, typeLabel(type));
-        }
+    for (const [name, lines] of declarations) {
+        if (!names || names.has(name)) addOpenMembers(found, name, lines);
     }
     return found;
+}
+
+/**
+ * Adds one declaration's open-ended members to `found`, keyed as openOptionFields keys them.
+ * @param found - where they go
+ * @param name - the declaration's name
+ * @param lines - its lines, the head first
+ */
+function addOpenMembers(found, name, lines) {
+    const [head, ...rest] = lines;
+    const afterName = head.replace(DECLARATION, "");
+    const parameters = typeParameters(afterName);
+    if (/=\s*(?:unknown|any)\b/.test(parameters)) found.set(`${name}.[type parameter]`, parameters);
+    if (/^(?:export )?(?:declare )?type /.test(head)) {
+        const body = [afterName.slice(parameters.length).replace(/^\s*=/, ""), ...rest].join("\n");
+        if (isOpenType(body)) found.set(`${name}.[alias]`, typeLabel(body));
+        return;
+    }
+    for (const member of members(rest)) {
+        if (INDEX_MEMBER.test(member)) {
+            found.set(`${name}.[index]`, "an index signature");
+            continue;
+        }
+        const named = MEMBER_NAME.exec(member);
+        const type = named ? member.slice(named[0].length).replace(/^\s*:/, "") : member;
+        if (named && isOpenType(type)) found.set(`${name}.${named[1]}`, typeLabel(type));
+    }
 }
 
 /**

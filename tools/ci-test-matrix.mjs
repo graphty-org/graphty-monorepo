@@ -12,7 +12,7 @@
  * Usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json>
  *   both are the JSON arrays `nx show projects --json` prints (with or without --affected).
  * Prints three GITHUB_OUTPUT lines:
- *   affected=<JSON array of package directory names>   (Chromatic jobs test membership in it)
+ *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
  *   test-count=<number of shards>   (0 means skip the test job: an empty matrix is an error)
  *

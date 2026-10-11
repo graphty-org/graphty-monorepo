@@ -631,7 +631,7 @@ describe("ci.yml", () => {
             job(ci, "cost-accuracy"),
             /if: contains\(fromJSON\(needs.packages.outputs.affected\), 'graphty-element'\)/,
         );
-        assert.match(job(ci, "all-checks"), /\n\s+cost-accuracy,\n/);
+        assert.ok(parseJobs(ci)["all-checks"].needs.includes("cost-accuracy"));
     });
 
     it("runs no security audit on pull requests or merge-queue runs", () => {
@@ -1087,9 +1087,9 @@ jobs:
 describe("the summary checks fail as soon as a required job fails", () => {
     const ci = workflow("ci.yml");
     const jobs = parseJobs(ci);
-    // The jobs "All Checks Pass" fails on: every job it needs but the opt-in Chromatic jobs and the
-    // visual job, whose results the gate step judges at the end.
-    const deciding = jobs["all-checks"].needs.filter((n) => !n.startsWith("chromatic-") && n !== "visual");
+    // The jobs "All Checks Pass" fails on: every job it needs but the visual job, whose results the
+    // gate step judges at the end.
+    const deciding = jobs["all-checks"].needs.filter((n) => n !== "visual");
 
     it("ends every job whose failure fails them with the early-verdict step, on pull requests only", () => {
         assert.deepEqual([...deciding].sort(), [

@@ -4,7 +4,7 @@ on:
     push:
         branches: [master]
     pull_request:
-        # No "labeled": no job reads labels any more (Chromatic's label is switched off), and Mergify adds
+        # No "labeled": no job reads labels, and Mergify adds
         # and removes labels (queued, dequeued) on every queued pull request, each of which re-ran all of CI.
         # A draft runs no tests (see the build job), so marking it ready ("ready_for_review") starts its run.
         types: [opened, synchronize, reopened, ready_for_review]
@@ -22,11 +22,6 @@ on:
                 type: string
                 required: true
     workflow_dispatch:
-        inputs:
-            chromatic:
-                description: "Publish Chromatic builds for the affected projects (billed per snapshot)"
-                type: boolean
-                default: false
 
 # A new commit on a pull request cancels that pull request's older run: its result can no longer
 # merge anything, and the runners it holds are what every other pull request is queued behind.
@@ -85,7 +80,7 @@ jobs:
         name: Build
         if: github.event_name != 'pull_request' || !github.event.pull_request.draft || (startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]')
         runs-on: ubuntu-24.04
-        # What the rest of the run tests, decided once here: the test job's matrix and the Chromatic jobs'
+        # What the rest of the run tests, decided once here: the test job's matrix and the other jobs'
         # conditions read these instead of each asking nx again. See the "Plan" step below.
         outputs:
             full: ${{ steps.plan.outputs.full }}
@@ -940,224 +935,6 @@ jobs:
                   job: test
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
-    # Chromatic visual regression testing (graphty-element)
-    # ALL CHROMATIC JOBS ARE SWITCHED OFF (they need the repository variable CHROMATIC_ENABLED) until the self-hosted visual review replaces them:
-    # Chromatic's paid plans have no hard spending cap. Turning one back on is an owner decision.
-    # Chromatic bills every snapshot, and running it on every push cost thousands of dollars a month
-    # (September 2026: 481,000 snapshots). So it is opt-in: a Chromatic job runs only on a pull request
-    # that carries the "chromatic" label (and only when its package is affected, which includes a change
-    # to anything it depends on), or on a manual dispatch with the chromatic input set. It never runs on
-    # a push to master. Its Storybook is built in every run regardless, because the Links job checks the
-    # assembled site.
-    chromatic-element:
-        name: Chromatic (graphty-element)
-        needs: build
-        # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
-        # The variable is unset on purpose; setting it is an owner decision.
-        if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-24.04
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  ref: ${{ inputs.ref }}
-                  fetch-depth: 0
-
-            - uses: pnpm/action-setup@v4
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: 22.x
-                  cache: "pnpm"
-
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
-              env:
-                  HUSKY: "0"
-
-            - name: Download Storybook build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-storybook-element
-                  path: graphty-element/storybook-static/
-
-            - name: Run Chromatic
-              uses: chromaui/action@latest
-              with:
-                  projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN_ELEMENT }}
-                  storybookBuildDir: ./graphty-element/storybook-static
-                  exitZeroOnChanges: false
-                  # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
-                  # See: https://github.com/storybookjs/storybook/issues/27172
-
-    # Chromatic visual regression testing (graphty app)
-    chromatic-app:
-        name: Chromatic (graphty)
-        needs: build
-        # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
-        # The variable is unset on purpose; setting it is an owner decision.
-        if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-24.04
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  ref: ${{ inputs.ref }}
-                  fetch-depth: 0
-
-            - uses: pnpm/action-setup@v4
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: 22.x
-                  cache: "pnpm"
-
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
-              env:
-                  HUSKY: "0"
-
-            - name: Download Storybook build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-storybook-app
-                  path: graphty/storybook-static/
-
-            - name: Run Chromatic
-              uses: chromaui/action@latest
-              with:
-                  projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN_APP }}
-                  storybookBuildDir: ./graphty/storybook-static
-                  exitZeroOnChanges: false
-                  # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
-                  # See: https://github.com/storybookjs/storybook/issues/27172
-
-    # Chromatic visual regression testing (compact-mantine)
-    chromatic-compact-mantine:
-        name: Chromatic (compact-mantine)
-        needs: build
-        # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
-        # The variable is unset on purpose; setting it is an owner decision.
-        if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-24.04
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  ref: ${{ inputs.ref }}
-                  fetch-depth: 0
-
-            - uses: pnpm/action-setup@v4
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: 22.x
-                  cache: "pnpm"
-
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
-              env:
-                  HUSKY: "0"
-
-            - name: Download Storybook build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-storybook-compact-mantine
-                  path: compact-mantine/storybook-static/
-
-            - name: Run Chromatic
-              uses: chromaui/action@latest
-              with:
-                  projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN_COMPACT_MANTINE }}
-                  storybookBuildDir: ./compact-mantine/storybook-static
-                  exitZeroOnChanges: false
-                  # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
-                  # See: https://github.com/storybookjs/storybook/issues/27172
-
-    # Chromatic visual regression testing (algorithms)
-    chromatic-algorithms:
-        name: Chromatic (algorithms)
-        needs: build
-        # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
-        # The variable is unset on purpose; setting it is an owner decision.
-        if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-24.04
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  ref: ${{ inputs.ref }}
-                  fetch-depth: 0
-
-            - uses: pnpm/action-setup@v4
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: 22.x
-                  cache: "pnpm"
-
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
-              env:
-                  HUSKY: "0"
-
-            - name: Download Storybook build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-storybook-algorithms
-                  path: algorithms/storybook-static/
-
-            - name: Run Chromatic
-              uses: chromaui/action@latest
-              with:
-                  projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN_ALGORITHMS }}
-                  storybookBuildDir: ./algorithms/storybook-static
-                  exitZeroOnChanges: false
-                  # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
-                  # See: https://github.com/storybookjs/storybook/issues/27172
-
-    # Chromatic visual regression testing (layout)
-    chromatic-layout:
-        name: Chromatic (layout)
-        needs: build
-        # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
-        # The variable is unset on purpose; setting it is an owner decision.
-        if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-24.04
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  ref: ${{ inputs.ref }}
-                  fetch-depth: 0
-
-            - uses: pnpm/action-setup@v4
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: 22.x
-                  cache: "pnpm"
-
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
-              env:
-                  HUSKY: "0"
-
-            - name: Download Storybook build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-storybook-layout
-                  path: layout/storybook-static/
-
-            - name: Run Chromatic
-              uses: chromaui/action@latest
-              with:
-                  projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN_LAYOUT }}
-                  storybookBuildDir: ./layout/storybook-static
-                  exitZeroOnChanges: false
-                  # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
-                  # See: https://github.com/storybookjs/storybook/issues/27172
-
     # Dead links: relative links and anchors, this repository's files on GitHub, everything else
     # under github.com/graphty-org, and every link to graphty.app -- checked against the site the
     # next deploy would publish, assembled here from this run's artifacts by the same script
@@ -1573,7 +1350,7 @@ jobs:
 
     # Gate job - ensures all required checks pass before release/deploy. It is the required status check,
     # so it runs even when a job it needs failed (if: always()) and decides for itself.
-    # On a pull request a job this run chose not to start (a test job or Chromatic job for an unaffected
+    # On a pull request a job this run chose not to start (a test job for an unaffected
     # package) is "skipped", and skipped counts as passing; failure and cancelled never do. Build is needed
     # here and must succeed, because when it fails every other job is skipped too, and without it that
     # would read as a pass. A push to master (light=true) skips every test job by design, so skipped passes
@@ -1585,23 +1362,7 @@ jobs:
     # request merge with no CI at all.
     all-checks:
         name: All Checks Pass
-        needs:
-            [
-                packages,
-                build,
-                lint,
-                checks,
-                docs,
-                test,
-                links,
-                cost-accuracy,
-                chromatic-element,
-                chromatic-app,
-                chromatic-compact-mantine,
-                chromatic-algorithms,
-                chromatic-layout,
-                visual,
-            ]
+        needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, visual]
         if: always()
         runs-on: ubuntu-24.04
         steps:
@@ -1620,7 +1381,6 @@ jobs:
                   ok='["success"]'
                   [[ "$FULL" == "false" || "$LIGHT" == "true" ]] && ok='["success","skipped"]'
                   jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
-                  # Chromatic jobs are opt-in (see chromatic-element), so a skipped one passes on every event.
                   # The visual job never decides here, whatever result job-level continue-on-error makes
                   # it report: on a pull request the gate step below judges its results.json, and on
                   # master a capture crash must not hold release, deploy or coverage.
@@ -1628,7 +1388,7 @@ jobs:
                   adv="${ADVISORY:-[]}"
                   jq -r --argjson adv "$adv" 'to_entries[] | select(.key as $k | $adv | index($k)) | select(.value.result != "success" and .value.result != "skipped") | "::warning::advisory check \(.key): \(.value.result) (required from its enforce date in tools/ci-advisory-checks.json)"' <<<"$NEEDS"
                   bad=$(jq -r --argjson ok "$ok" --argjson adv "$adv" \
-                      'to_entries[] | select(.key != "visual") | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or ((.key | IN("packages", "build", "lint", "checks", "docs")) and $r != "success")) | .key' \
+                      'to_entries[] | select(.key != "visual") | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | ($ok | index($r)) == null or ((.key | IN("packages", "build", "lint", "checks", "docs")) and $r != "success")) | .key' \
                       <<<"$NEEDS")
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"

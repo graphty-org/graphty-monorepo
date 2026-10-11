@@ -352,8 +352,6 @@ The `tools/` directory contains build scripts:
 | `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |
 | `check-links.sh` | Dead-link check (see "Dead Links" under CI/CD). `--offline` for the fast half |
 | `assemble-pages-site.sh` | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it |
-| `chromatic.sh`, `chromatic-api.sh` | Run Chromatic for one package; read a build's totals with the project token (see `.env.example`) |
-| `chromatic-capture.mjs` | Lists the stories of a Chromatic build and downloads their baseline, head and diff images, using your login cookie `CHROMATIC_SESSION_COOKIE`. Read-only: it never accepts or approves |
 | `diff-stories.mjs` | Renders the same stories from two built Storybooks and saves both screenshots plus camera and node positions |
 | `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
 | `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
@@ -454,7 +452,7 @@ servherd_start({ name: "docs", cwd: "<repo>", command: "pnpm run docs:dev",
   env: { PORT: "{{port}}", HOST: "{{hostname}}" } })
 ```
 
-CI never starts a dev server (Storybook is built statically for Chromatic, and Vitest browser
+CI never starts a dev server (Storybook is built statically for the visual capture, and Vitest browser
 mode picks its own ports). A script run outside servherd needs `PORT` set by hand, e.g.
 `PORT=6006 npm run storybook`.
 
@@ -718,7 +716,7 @@ shard. The shards:
 - `graphty-element-browser-1` through `graphty-element-browser-5`
 - `graphty-element-storybook-1` through `graphty-element-storybook-4`
 
-A pull request runs only the shards (and Chromatic jobs) of the packages nx calls affected; the
+A pull request runs only the shards of the packages nx calls affected; the
 shard list and the filter live in `tools/ci-test-matrix.mjs`. A change to a file in nx.json's
 `sharedGlobals` (root configs, `.github/workflows/`) affects every package, so it still runs
 everything.
@@ -910,7 +908,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 ### Storybook
 
 - Storybook auto-reloads on changes (no manual rebuild needed)
-- Visual regression via Chromatic
+- Visual regression via visual-review (see "Visual review" below)
 - Ports come from servherd (see "Starting Servers"); graphty's Storybook requires HTTPS
 - GitHub Pages: https://graphty.app/storybook/
 
@@ -954,8 +952,7 @@ that starts the same server from the owner's own shell, which is how the owner s
   blocks every pull request: "no baseline yet" (`unseeded`) when the pull request does not change
   it, `new` when it adds or changes it. It blocks until the owner accepts it there or seeds it from
   master (`visual-seed.yml`, then `serve --master-run`, Finish, merge the seed pull request). Seed
-  only from a commit whose images a person already reviewed (for graphty: one on which every
-  Chromatic job passed). Every project is gated, seeded or not; there is no setting that turns the
+  only from a commit whose images a person already reviewed. Every project is gated, seeded or not; there is no setting that turns the
   gate off (`visual-review.config.json` refuses `"gate"`). The owner's
   rejects are machine-readable: a pull request comment, or for master one issue labelled `bug`,
   each ending in a `<!-- visual-review-rejects ... -->` JSON block naming the project, file and
@@ -997,7 +994,8 @@ that starts the same server from the owner's own shell, which is how the owner s
   exercised by the pull request after it; test it with the package's own tests.
 - A story settings file (`visual-baselines/<project>/<story id>.json`) needs an owner-approved
   record like a baseline. Put `diffThreshold`, `delay` and `modes` in the story's
-  `parameters.chromatic` instead, and keep `diffThreshold` at 0.8 or below: the gate fails a story
+  `parameters.chromatic` (the Storybook convention visual-review reads its capture settings
+  from) instead, and keep `diffThreshold` at 0.8 or below: the gate fails a story
   above it.
 - A gate line about a missing or invalid approval is fixed only by the owner reviewing again
   (revert the accept commit, let CI recapture, Finish with Face ID), never by writing or editing a

@@ -344,7 +344,7 @@ export const Random: Story = {
 export const Spring: Story = {
     args: {
         /*
-         * `preSteps` MATCHES `springIterations` BELOW, so under Chromatic the 50 iterations run
+         * `preSteps` MATCHES `springIterations` BELOW, so under capture the 50 iterations run
          * before the first frame is drawn, off the frame clock. Everywhere else the layout
          * animates, one iteration per rendered frame. The picture is the same either way:
          * Fruchterman-Reingold is deterministic under `seed` and stops at `iterations` whichever
@@ -458,7 +458,7 @@ export const KamadaKawai: Story = {
 export const ForceAtlas2: Story = {
     args: {
         /*
-         * `preSteps` MATCHES `fa2MaxIter` BELOW, so under Chromatic the 100 iterations run before
+         * `preSteps` MATCHES `fa2MaxIter` BELOW, so under capture the 100 iterations run before
          * the first frame is drawn, off the frame clock. Everywhere else the layout animates, one
          * iteration per rendered frame. The picture is the same either way, because ForceAtlas2 is
          * deterministic under `seed` and stops at `maxIter` whichever clock ran it.

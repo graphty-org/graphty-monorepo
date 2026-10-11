@@ -9,11 +9,6 @@
         "test",
         "links",
         "cost-accuracy",
-        "chromatic-element",
-        "chromatic-app",
-        "chromatic-compact-mantine",
-        "chromatic-algorithms",
-        "chromatic-layout",
         "all-checks",
         "queue-checks"
     ],

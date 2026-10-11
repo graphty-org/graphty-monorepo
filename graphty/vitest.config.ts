@@ -60,6 +60,12 @@ export default defineConfig({
                     name: "browser",
                     include: ["src/**/*.test.{ts,tsx}"],
                     exclude: [...BASE_EXCLUDE, REAL_ELEMENT_TESTS],
+                    // Three pages at a time, as on a 4-core CI runner. Vitest's browser mode opens
+                    // min(12, cores - 1) pages by default, and a --maxWorkers flag does not reach a
+                    // browser project: only the project's own maxWorkers does.
+                    maxWorkers: 3,
+                    // Vitest refuses two projects with different maxWorkers in one group order.
+                    sequence: { groupOrder: 2 },
                     browser: chromium(),
                     setupFiles: "./src/test/setup.ts",
                 },

@@ -497,8 +497,14 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
 
     // Leaving the editor -- Tab out of it, or a click on anything else -- saves the edit as Enter
     // does, without moving focus from where the reader put it. A rule not yet whole stays as typed.
+    // An off step left unedited stays off: only "Save and turn on" or Enter turns it on.
     leave.current = (): void => {
-        if (!keep.current || rule === null || unchanged || (step === undefined && !id.startsWith(NEW))) {
+        if (
+            !keep.current ||
+            rule === null ||
+            (step !== undefined && sameRule(rule, step.rule)) ||
+            (step === undefined && !id.startsWith(NEW))
+        ) {
             return;
         }
         keep.current = false;

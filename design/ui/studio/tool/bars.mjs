@@ -373,6 +373,18 @@ const WALKS = [
                 focus: "ticking a filter step",
                 screen: "Data place with a filter step off",
             },
+            // leaving an off step's editor with no edit leaves the step off
+            {
+                do: steps(
+                    `--click role=treeitem:${STEP}`,
+                    "--click role=button:Graph",
+                    "--expect-not 19 of 20 nodes",
+                    "--click Data",
+                    `--expect role=treeitem:${STEP}`,
+                    "--expect-not 19 of 20 nodes",
+                ),
+                focus: "leaving an off step's editor unedited",
+            },
             { do: steps(`--click role=treeitem:${STEP}`, "--key Escape"), focus: "Escape from the step editor" },
             {
                 do: steps(

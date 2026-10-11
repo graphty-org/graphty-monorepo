@@ -152,14 +152,31 @@ describe("Filters focus and keys on the real element", () => {
         assert.equal(session.visibility.steps[0]?.rule.kind === "range" && session.visibility.steps[0].rule.min, 9);
     });
 
+    it("leaving an off step's editor with no edit leaves the step off", async () => {
+        const { session, store } = await openWithGraph();
+        const rule = { kind: "range", attribute: "data.value", min: 9, nodes: "ends" } as const;
+        await session.visibility.setSteps([{ id: "a", on: false, rule }]);
+        await userEvent.click(await within(filters()).findByRole("treeitem", { name: "value is at least 9" }));
+        await screen.findByRole("button", { name: "Save and turn on" });
+        await userEvent.click(screen.getByRole("button", { name: "Graph" }));
+        await waitFor(() => {
+            assert.equal(store.get().place, "graph");
+        });
+        assert.deepEqual(session.visibility.steps, [{ id: "a", on: false, rule }]);
+        assert.equal(session.visibility.summary.visibleNodes, 8);
+        assert.isNull(screen.queryByRole("button", { name: /^Filter: / }));
+    });
+
     it("a step deleted while its editor is open stays deleted when the editor closes", async () => {
         const { session, store } = await openWithGraph();
         await session.visibility.setSteps([
             { id: "a", on: false, rule: { kind: "range", attribute: "data.value", min: 2, nodes: "ends" } },
         ]);
-        // An off step's editor would save it on leaving ("Save and turn on" does something).
+        // An edited step's editor would save it on leaving.
         await userEvent.click(await within(filters()).findByRole("treeitem", { name: "value is at least 2" }));
-        await screen.findByRole("textbox", { name: "Value" });
+        const value = await screen.findByRole("textbox", { name: "Value" });
+        await userEvent.clear(value);
+        await userEvent.type(value, "9");
         within(filters()).getByRole("treeitem", { name: "value is at least 2" }).focus();
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
         await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));

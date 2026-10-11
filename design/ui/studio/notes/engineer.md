@@ -52,8 +52,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   app's `columnText` does (unreleased field, 9b69ca650 is only on the studio branch: not breaking).
   (5) app `TableDock.tsx:349` reads scope "graph"; the element already offers `scope: "visible"`,
   so the table lists what the drawing keeps, count "12 of 41 edges" only while they differ.
-  (6) app `Filters.tsx`: the leave path's `unchanged` needs `step.on === true` (line 444), so
-  leaving an off step's editor turns it on; script it first, then compare rules alone on leave.
+  (6) DONE 2026-10-11: app `Filters.tsx` leave handler skips a rule equal to the step's own,
+  on or off, so leaving an off step's editor leaves it off (bars.mjs focus move + real-element test).
 - (2026-10-11) **Not to change after round 4:** Shift-click, toolbar Filters door, Replace place,
   scope words, names off in setups, T18 (8 against 8: no new step there), second path replacing
   the first (no task needs both; decided), any label placement in the app.
@@ -144,61 +144,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (additive; edge clicks already did; Shift only; XR `select()` still replaces). A distance per
   neighbor is the element's fact: additive `depth` option and `hops` field, never split in the app.
 
-- (2026-10-10) **Round 2 decisions I build to (from round 2's decisions.md).** One change per
-  confirmed problem, in its owning package (graph facts in the element, shared controls in
-  compact-mantine, words and arrangement in the app); no feature moves; no second door where one
-  is being measured (so no column rows in plain search, no find-box door to paths, "+" opening a
-  value picker held); words at rest only go down. Rejected: an opt-in `bareNumbers` flag (a
-  capability, not a choice, so it waits for the owner as a breaking change); matching file names
-  in the app to detect a repeat Add (guessing what the element reports).
-
-- (2026-10-10) **A heading that splits a panel into two scopes is a `ControlSection`, not a
-  `DataRowHeader`.** `DataRowHeader` is a column caption: same inset and size as row labels, empty
-  trailing edge, so on its own above value rows it reads as a row whose value is missing (T17B
-  re-pilot: "77" read as the count still drawn). Use it only over a run that has a unit or column
-  to caption (Largest 10, Selection | Graph); a change of scope gets a section heading.
-
-- (2026-10-10) **A command with nothing to do is disabled and says why, in its tooltip.** Filter to
-  neighbors stays a command (round 2: a toggle confused on and off with the step's own checkbox),
-  but when its step is already on at this reach a press changed nothing and said nothing. Disabled
-  by `data-disabled` and `aria-disabled`, not `disabled`, so Mantine's tooltip still opens on hover
-  (the TopBar Export and toolbar pattern); the click handler returns early. Only the exact reach
-  disables it: at another reach a press moves the one step there, which is a change.
-
-- (2026-10-10, condensed) **A selection notice ends with the selection** by one flag on the
-  notice, never by matching words. **A scrolling pane with a header row reserves its gutter**
-  (`scrollbar-gutter: stable`, 15 px). **One focus request per find pick**, taken once by whichever
-  view (node or edge) draws, the edge view only once its record exists.
-
-- (2026-10-10, condensed) **Announcements, scope words.** A repeated announcement is keyed by a
-  counter in `store.set` (no clear-then-refill timer; the live region stays mounted). Scope words
-  follow the element's drawn count (`stale.ranOn` against `visibility.summary` visible and total
-  nodes): plain, ", full graph", else "on N nodes".
-- (2026-10-10) A rule selection's row takes the rule's text without its "=", trimmed, not a
-  sentence ("Edges where ..."): the rule is the reader's own words and the key already titles the
-  section "Edge color: <row>". Only text origins starting with "=" count; a plain text search or a
-  `{ where }` target keeps the count, since the first is not a rule and the second has no text a
-  reader typed. A hand-picked set with the same ids as an earlier rule reuses that rule's row
-  (rows are found by ids), so it shows the rule's name -- left as is.
-- (2026-10-10) **Path search words go in aliases, not in the line a reader sees.** Matching
-  is a substring of name, line, aliases, key; a word in the line would also be shown. The test
-  asserts Shortest path is among the results for each word, not alone: "between" rightly also
-  finds Betweenness, and "linked" the community runs.
-- (2026-10-10, condensed) **Keep `selection.count`** (a rule over an edge column counted 0 as a
-  node scope; "what would Enter select" is the element's question). **Leaving the step editor
-  saves** a whole, changed rule on blur or unmount (one `keep` ref against double writes); an
-  incomplete rule waits as the "+" draft.
-- (2026-10-10, condensed) **Hops/Follow focus:** `NeighborList` remounts on reselect, so the
-  control's `onChange` sets `refocusControl` and the effect focuses that group's checked radio
-  (`CSS.escape` the ids). **Bar 10** skips VisuallyHidden lines and counts a title cut while its id
-  row shows it whole as readable. **Filter to neighbors is a command, not a toggle:** a second press
-  lost the step; one place turns a step off (its checkbox); one step per center, moved by a press at
-  other hops (the element's `visibility.setSteps` does it all).
-- (2026-10-10) **A path's length words come from one function.** The row and the status line both
-  said "N hops" from two copies; a weighted path's answer is its total, so both now call
-  `pathLengthWords`, with the inspector's distance-only rule for "Total <column>". Unweighted (or a
-  non-distance weight) keeps "4 hops". No element change: `cost` and `caveats.weight` were
-  already published.
+- (2026-10-10, condensed 2026-10-11) **Round 2 calls I build to.** One change per confirmed
+  problem, in its owning package; no feature moves; no second door where one is measured; words
+  at rest only go down (rejected: opt-in `bareNumbers`, guessing repeat Adds by file name). A
+  scope change gets a `ControlSection`, never a lone `DataRowHeader` (reads as a row missing its
+  value). A command with nothing to do is disabled (`data-disabled`/`aria-disabled`, tooltip says
+  why); Filter to neighbors is a command, one step per center, its checkbox turns it off. A
+  selection notice ends with the selection by a flag; scrolling panes reserve their gutter; one
+  focus request per find pick. Repeated announcements keyed by a counter; scope words follow
+  `stale.ranOn` against `visibility.summary`. A rule selection's row is the rule's text without
+  "=". Path search words go in aliases. Keep `selection.count`. **Leaving the step editor saves**
+  a whole rule that differs from the step's (on or off: an unedited off step stays off, 2026-10-11);
+  an incomplete rule waits as the "+" draft. Hops/Follow refocus the checked radio after remount.
+  Path length words come from one `pathLengthWords`.
 - (2026-10-08 to 10-09, condensed 2026-10-11) **Older standing calls.** Only participant folders
   are refused in the studio (pilots, experts, `--prove` start there). 24 px checkbox target is the
   input. Find list scrolls by option id. Read the report type before adding a field. Audits walk
@@ -226,6 +184,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-11) WORKED: proving an app fix fails without it by copying the fixed file aside,
+  writing `git show HEAD:<file>` over it, running the one test (`-t`), and copying the fix back --
+  no stash, no checkout. The off-step leave test failed on HEAD (`on: true`) and passed fixed.
+  The same moves through real.mjs: 5277e2cbe shows "19 of 20 nodes" after clicking Graph
+  (`tmp/t2r4-5/old/05.png`); the fresh build keeps the step off (`tmp/t2r4-5/new/05-06.png`).
 - (2026-10-11) WORKED: a mock round (round 4's plan rows renamed `r5-sNN` in
   `tmp/t2r4-2/rounds/round-5/`, `--brief` each, then `--leaks` the round) checks every real
   briefing without touching round 4's records; `--leaks <round dir>` writes `leaks.json` into each

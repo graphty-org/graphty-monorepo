@@ -1639,6 +1639,7 @@ export interface MachineCalibration {
     readonly at: string;
     readonly basis: "probe" | "defaults";
     readonly machine: string;
+    readonly memorySpeed?: number;
     readonly rates: Readonly<CostRates>;
 }
 

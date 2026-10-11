@@ -1,3 +1,13 @@
+## 1.3.12 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.3.11 (2026-10-09)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

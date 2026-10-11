@@ -36,6 +36,10 @@ on:
                 required: true
     workflow_dispatch:
         inputs:
+            screenshots_only:
+                description: "DRY RUN ONLY: run just the large-graph screenshot check"
+                type: boolean
+                default: false
             # which machine serves the T4 job. The default is a machine.dev on-demand T4 (spot from 2026-10-04 to 2026-10-08) (the Machine Provisioner app
             # is installed on the org; the "Driver up" step below measured Ubuntu 22.04.5, glibc 2.35, libegl1 1.4.0-1
             # present and no /usr/share/vulkan/icd.d, on run 35922927676, 2026-09-23 -- and that 22.04 is what blocks
@@ -168,8 +172,10 @@ jobs:
               run: pnpm exec nx run-many -t build --projects=graph-format,webgpu-graph-algorithms
               working-directory: .
             - name: Adapter report (fails loudly on a software adapter; samples GPU utilisation for 10 s)
+              if: ${{ !inputs.screenshots_only }}
               run: node scripts/gpu-report.js > gpu-report.json && cat gpu-report.json # no pipe into tee: the report's non-zero exit must reach the step
             - name: graph-format GPU audit on NVIDIA (canary)
+              if: ${{ !inputs.screenshots_only }}
               working-directory: graph-format
               run: pnpm exec vitest run test/audit/gpu-upload.test.ts 2>&1 | tee canary.log && grep -q "adapter vendor=nvidia" canary.log # the audit skips on acquisition failure; the grep turns a skip or a lavapipe pick into a red step
             # A forked vitest worker that crashes must not spend minutes writing a multi-gigabyte core dump.
@@ -178,6 +184,7 @@ jobs:
             # global to the host; the job container is --privileged (above), so /proc/sys is writable from inside it
             # and the write reaches the host's kernel. Issue #273.
             - name: Write core dumps to a file so the shard's ulimit -c 0 holds
+              if: ${{ !inputs.screenshots_only }}
               run: |
                   echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)"
                   # read back: procps' sysctl prints "ignoring: Read-only file system" and still exits 0 (run 37140992259)
@@ -193,19 +200,24 @@ jobs:
             # node-gpu-alone is the rest of the main suite: the files that hold the GPU for seconds per submission,
             # run after the node project and one at a time, so no short GPU test waits behind them (issue #1884).
             - run: node scripts/run-node-shard.js --project=node --project=node-gpu-alone
+              if: ${{ !inputs.screenshots_only }}
             # The files that break a device on purpose: a worker they kill takes eleven files with it instead of
             # the whole lane.
             - run: node scripts/run-node-shard.js --project=node-device-errors
+              if: ${{ !inputs.screenshots_only }}
             # The multi-gigabyte limit files (test/limits, oom-scope asks for exactly maxBufferSize), one at a
             # time and after the main suite, so an out-of-memory test never shares the GPU with ordinary tests
             # and a crash in one never takes the main suite's results with it (issue #274).
             - run: node scripts/run-node-shard.js --project=node-limits
+              if: ${{ !inputs.screenshots_only }}
             # The twin pass, in two invocations because the device-error files are their own project now.
             # `--project=node` is 114 of the 125 node files; the second line is the remaining eleven, which without
             # it would run under the subgroups feature only -- and they are the device-loss and lifecycle paths,
             # where a missing-subgroup code path is most likely to behave differently.
             - run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone
+              if: ${{ !inputs.screenshots_only }}
             - run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors
+              if: ${{ !inputs.screenshots_only }}
             # The key carries the container image, not just runner.os. Playwright downloads a browser build
             # matched to the distribution it detects, and every other lane keys on `Linux` alone -- so without
             # this the 22.04 build another job saved would be restored into a 24.04 container and run against the
@@ -225,8 +237,10 @@ jobs:
             - if: steps.pw.outputs.cache-hit == 'true'
               run: pnpm exec playwright install-deps chromium
             - name: Browser smoke on NVIDIA
+              if: ${{ !inputs.screenshots_only }}
               run: node scripts/run-browser-project.js # G0 decides whether this needs `xvfb-run -a` on the T4 image (design 12.2)
             - name: graphty-element's accelerated layout on NVIDIA (the element is the only consumer that drives the layout kernels end to end)
+              if: ${{ !inputs.screenshots_only }}
               working-directory: graphty-element
               timeout-minutes: 20 # Chromium on the NVIDIA path can hang AFTER every test passed (webgpu-graph-algorithms R-13); bound it here rather than let it eat the job's 45
               run: pnpm exec nx run-many -t build --projects=@graphty/remote-logger,algorithms,graph-io,layout,graph-samples && pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts # the job env already carries GRAPHTY_BROWSER_GPU=nvidia; nx resolves the workspace root from here. Every workspace package the element imports resolves to its dist (no src fallback), so each must be built: graph-format and webgpu-graph-algorithms by the step above, the rest here. Keep this list in step with graphty-element/package.json -- graph-io missing from it broke this step when the element began reading csv and json through graph-io
@@ -259,6 +273,7 @@ jobs:
             # lane: benchmarks at the governor's clock are the x3.6 noise this lock exists to remove, so they must
             # not run and be compared. The lock needs the container's --privileged (above).
             - name: Lock the SM clock at the card's maximum and start the clock log
+              if: ${{ !inputs.screenshots_only }}
               id: clocks
               run: |
                   max=$(nvidia-smi --query-gpu=clocks.max.sm --format=csv,noheader,nounits | head -1 | tr -d ' ')
@@ -269,19 +284,21 @@ jobs:
                   nohup nvidia-smi --query-gpu=timestamp,clocks.sm,clocks.max.sm,pstate,power.draw --format=csv -lms 200 > gpu-clocks.csv 2>&1 &
                   echo $! > gpu-clocks.pid
             - name: Benchmarks (tsx benchmarks/run.ts -> benchmarks/out/gpu-linux-t4.json; every line stamped with the local time nvidia-smi's log carries)
+              if: ${{ !inputs.screenshots_only }}
               run: pnpm run bench 2>&1 | while IFS= read -r line; do printf '%s %s\n' "$(date '+%Y/%m/%d %H:%M:%S.%3N')" "$line"; done | tee bench.log # pipefail carries the bench's exit code through the loop and tee
             - name: Stop the clock log and summarize the SM clock of every benchmark group
-              if: ${{ !cancelled() && steps.clocks.outcome == 'success' }}
+              if: ${{ !inputs.screenshots_only && !cancelled() && steps.clocks.outcome == 'success' }}
               run: |
                   kill "$(cat gpu-clocks.pid)" || true
                   [ -f bench.log ] || { echo "no bench.log: the benchmarks did not run"; exit 0; }
                   node scripts/gpu-report.js --clocks gpu-clocks.csv bench.log > gpu-clocks.json && cat gpu-clocks.json
             - run: node scripts/bench-compare.js # > 3x the checked-in baseline for THIS runner class (benchmarks/results/gpu-linux-t4.json) fails; no baseline -> every row "new", exit 0
+              if: ${{ !inputs.screenshots_only }}
             - name: Release the SM clock lock
-              if: ${{ always() && steps.clocks.outcome != 'skipped' }}
+              if: ${{ !inputs.screenshots_only && always() && steps.clocks.outcome != 'skipped' }}
               run: sudo nvidia-smi -rgc || true
             - uses: actions/upload-artifact@v4
-              if: ${{ !cancelled() }}
+              if: ${{ !inputs.screenshots_only && !cancelled() }}
               with:
                   {
                       name: "gpu-results-${{ github.run_id }}",

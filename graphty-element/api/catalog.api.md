@@ -383,6 +383,15 @@ export interface DetectionInput {
 export type DrawingMode = "2d" | "3d";
 
 // @public
+export const EDGE_ARROW_DESCRIPTORS: readonly GlyphDescriptor<EdgeArrowKind>[];
+
+// @public
+export const EDGE_LINE_DESCRIPTORS: readonly GlyphDescriptor<EdgeLinePattern>[];
+
+// @public
+export type EdgeArrowKind = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
+
+// @public
 export type EdgeId = string;
 
 // @public
@@ -508,6 +517,13 @@ export interface FunctionDescriptor {
     name: string;
     // (undocumented)
     returns: "number" | "boolean" | "string";
+}
+
+// @public
+export interface GlyphDescriptor<Id extends string = string> {
+    readonly glyph: string;
+    readonly id: Id;
+    readonly plainName: string;
 }
 
 export { GraphListing }
@@ -925,6 +941,9 @@ export const KNOWN_PALETTE_IDS: readonly ["viridis", "ylorbr", "plasma", "infern
 export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
 
 // @public
+export const LABEL_LOOKS: readonly LabelLookDescriptor[];
+
+// @public
 export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[];
 
 // @public
@@ -944,6 +963,22 @@ export type LabelIconPosition = "left" | "right";
 
 // @public
 export type LabelLocation = "top" | "top-right" | "top-left" | "left" | "center" | "right" | "bottom" | "bottom-left" | "bottom-right" | "automatic";
+
+// @public
+export function labelLook(id: string): LabelLookDescriptor | undefined;
+
+// @public
+export function labelLookChanges(style: LabelStyle): (keyof LabelStyle)[];
+
+// @public
+export interface LabelLookDescriptor {
+    readonly id: LabelLookId;
+    readonly plainName: string;
+    readonly style: Readonly<Omit<LabelStyle, "look" | "enabled">>;
+}
+
+// @public
+export type LabelLookId = "default" | "card" | "dark" | "pill" | "callout";
 
 // @public
 export type LabelPointerDirection = "top" | "bottom" | "left" | "right" | "auto";
@@ -972,6 +1007,7 @@ export interface LabelStyle {
     iconPosition?: LabelIconPosition;
     lineHeight?: number;
     location?: LabelLocation;
+    look?: LabelLookId;
     marginBottom?: number;
     marginLeft?: number;
     marginRight?: number;
@@ -1214,7 +1250,13 @@ export interface MetricAvailability {
 }
 
 // @public
+export const NODE_SHAPE_DESCRIPTORS: readonly GlyphDescriptor<NodeShape>[];
+
+// @public
 export type NodeId = string | number;
+
+// @public
+export type NodeShape = NonNullable<NonNullable<NodeStyleConfig["shape"]>["type"]>;
 
 // @public
 export const OPTION_BOUND_SOURCES: readonly ["graph.nodeCount", "graph.edgeCount", "graph.maxDegree", "graph.maxCore", "graph.componentCount"];

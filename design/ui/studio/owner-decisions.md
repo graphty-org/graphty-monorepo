@@ -27,6 +27,26 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: pictures for shapes, arrows and line patterns, and named label looks
+
+**What.** All in graphty-element's `./catalog`, additive.
+
+- `NODE_SHAPE_DESCRIPTORS`, `EDGE_ARROW_DESCRIPTORS` and `EDGE_LINE_DESCRIPTORS`: one
+  `GlyphDescriptor` (`id`, `plainName`, `glyph`) for each of the 25 node shapes, 14 arrow kinds and
+  9 line patterns, in the renderer's order. `glyph` is a static 24 x 24 SVG drawn in
+  `currentColor`. New types `NodeShape` and `EdgeArrowKind` name the values.
+- `LABEL_LOOKS` (Default, Card, Dark, Pill, Callout), `labelLook(id)`, and the new optional
+  `LabelStyle.look`. A layer that names a look paints the look's fields as if it wrote them,
+  beneath its own fields; `labelLookChanges(style)` lists the fields a style changes from its look
+  (never `look` or `enabled`). An unknown look id is refused with `E_OPTION_RANGE` and the ids as
+  candidates. Every look's text measures at least 4.5:1 against its background.
+
+**Why.** A grid of 25 shapes needs pictures, and keeping them in the element means no application
+draws its own copy of a shape the element owns. A look plus only the changed fields lets an editor
+say "edited" and offer each changed field back without comparing anything itself.
+
+**Not breaking.** New exports and one new optional label style field.
+
 ## 2026-10-12 -- Decided by the team: colors across rows (`styles.colors`, `styles.replaceColor`) and an off value for effects
 
 **What.** All in graphty-element, additive.

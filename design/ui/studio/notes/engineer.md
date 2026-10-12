@@ -11,6 +11,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Glyphs and label looks are in the element's catalog** (`catalog/shapes.ts`,
+  `catalog/label-looks.ts`). Glyph tables are rows `[id, plainName, svgBody]`, not objects keyed by
+  value, because snake-case shape ids break `camelcase` and prettier strips quotes; completeness is
+  pinned by `test/catalog/glyphs.test.ts` against the zod enums instead. A look is expanded in
+  `repaint.ts` `writeColumn` (the one place label styles merge), so a look covers what lies beneath
+  per layer and the layer's own fields win; `labelLookChanges` is a pure function, so the app reads
+  "edited" and per-field minus from it. Contact sheet of every glyph: render with ImageMagick per
+  glyph and `montage` (nested SVGs render black). Seen failing on HEAD, not mine:
+  `optionsFromZod` (NodeStyle `visible`) and the story-subject contract (`Styles/Label::
+BackgroundGradient` against the new `background` channel word).
 - (2026-10-12) **Colors across rows and an effect's off value are built in the element**
   (`styles.colors`, `styles.replaceColor`, `session/styles/colors.ts`; `ChannelDescriptor.off`).
   Colors are fixed writes only (set, literal binding, `map` entry), keyed by `toColorValue().hex`

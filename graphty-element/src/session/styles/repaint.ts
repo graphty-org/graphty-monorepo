@@ -55,6 +55,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { withLabelLook } from "../../catalog/label-looks";
 import type { Binding, Channel, GraphtyErrorCode, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
@@ -622,10 +623,14 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown, plain
     // new object, because the value a layer painted is shared by every element it painted. A
     // field set to undefined says nothing either -- a settings form that clears a field produces
     // one -- so it never overwrites what a lower layer wrote.
+    // A named look is painted as if the layer wrote its fields, beneath the layer's own.
+    const painted =
+        column.kind === "merge" && typeof value === "object" && value !== null ? withLabelLook(value) : value;
+
     if (column.kind === "merge" && typeof held === "object" && held !== null) {
         const merged: Record<string, unknown> = { ...held };
 
-        for (const [field, fieldValue] of Object.entries(value as object)) {
+        for (const [field, fieldValue] of Object.entries(painted as object)) {
             if (fieldValue !== undefined) {
                 merged[field] = fieldValue;
             }
@@ -640,7 +645,7 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown, plain
         column.plainText[index] = plainText ? 1 : 0;
     }
 
-    column.values[index] = value;
+    column.values[index] = painted;
 }
 
 /**

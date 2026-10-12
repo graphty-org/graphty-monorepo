@@ -757,6 +757,7 @@ export interface LabelStyle {
     iconPosition?: LabelIconPosition;
     lineHeight?: number;
     location?: LabelLocation;
+    look?: LabelLookId;
     marginBottom?: number;
     marginLeft?: number;
     marginRight?: number;

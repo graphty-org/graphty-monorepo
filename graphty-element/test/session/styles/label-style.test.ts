@@ -288,6 +288,7 @@ describe("a layer can switch a label off without taking its words away", () => {
  * it until the field reaches the renderer.
  */
 const EVERY_FIELD: Required<LabelStyle> = {
+    look: "card",
     enabled: true,
     font: "'JetBrains Mono', monospace",
     sizePx: 64,

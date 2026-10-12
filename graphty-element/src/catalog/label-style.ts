@@ -19,6 +19,8 @@
  * was a sentence in a channel caveat. They are gone rather than kept as a promise nothing keeps.
  */
 
+import type { LabelLookId } from "./label-looks";
+
 /** Where a label sits relative to the node or edge it belongs to. */
 export type LabelLocation =
     | "top"
@@ -64,6 +66,16 @@ export type LabelIconPosition = "left" | "right";
 
 /** How a label is drawn. */
 export interface LabelStyle {
+    /**
+     * A named look this label starts from, such as `"card"`: one of `LABEL_LOOKS`.
+     *
+     * The look's fields are painted as if this layer wrote them, and every other field here wins
+     * over the look's. Write the look plus only the fields that differ from it;
+     * `labelLookChanges` lists which those are.
+     * @since 3.26.0
+     */
+    look?: LabelLookId;
+
     /**
      * Whether the label is drawn at all.
      *
@@ -210,6 +222,7 @@ export interface LabelStyle {
  * fails to compile, and naming one that is not on the interface fails too.
  */
 export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
+    look: 0,
     enabled: 0,
     font: 0,
     sizePx: 0,

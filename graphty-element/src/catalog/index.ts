@@ -6,6 +6,8 @@
  * inspected without a canvas.
  */
 
+export type { LabelLookDescriptor, LabelLookId } from "./label-looks";
+export { LABEL_LOOKS, labelLook, labelLookChanges } from "./label-looks";
 export type {
     LabelAnimation,
     LabelBadge,
@@ -19,6 +21,8 @@ export type {
 export { LABEL_STYLE_FIELDS } from "./label-style";
 export type { OptionsFromZodOptions, OptionsSource, OptionUiMeta } from "./optionsFromZod";
 export { optionsFromZod } from "./optionsFromZod";
+export type { EdgeArrowKind, GlyphDescriptor, NodeShape } from "./shapes";
+export { EDGE_ARROW_DESCRIPTORS, EDGE_LINE_DESCRIPTORS, NODE_SHAPE_DESCRIPTORS } from "./shapes";
 export type {
     AlgorithmDescriptor,
     AlgorithmKey,

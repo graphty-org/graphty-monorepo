@@ -45,6 +45,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { LABEL_LOOKS, labelLook } from "../../catalog/label-looks";
 import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
 import type {
     Binding,
@@ -53,6 +54,7 @@ import type {
     CombineMode,
     Encoding,
     GraphtyErrorCode,
+    LabelStyle,
     LayerId,
     LayerKind,
     LayerSource,
@@ -649,13 +651,7 @@ function checkStaticValue(descriptor: ChannelDescriptor, value: ChannelValue, pa
         case "enum":
             return checkEnum(descriptor, value, path);
         case "labelStyle":
-            return typeof value === "object" && value !== null && !Array.isArray(value)
-                ? null
-                : {
-                      code: "E_BAD_LAYER",
-                      message: `${descriptor.plainName} takes a label style, such as { sizePx: 14, weight: "bold" }.`,
-                      path,
-                  };
+            return checkLabelStyle(descriptor, value, path);
         default:
             return {
                 code: "E_UNSUPPORTED",
@@ -663,6 +659,38 @@ function checkStaticValue(descriptor: ChannelDescriptor, value: ChannelValue, pa
                 path,
             };
     }
+}
+
+/**
+ * Check a label style: an object, naming no look the catalog lacks.
+ * @param descriptor - The channel.
+ * @param value - The value.
+ * @param path - Where it sits in the specification.
+ * @returns The problem, or null.
+ */
+function checkLabelStyle(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return {
+            code: "E_BAD_LAYER",
+            message: `${descriptor.plainName} takes a label style, such as { sizePx: 14, weight: "bold" }.`,
+            path,
+        };
+    }
+
+    const { look } = value as LabelStyle;
+
+    if (look === undefined || labelLook(look) !== undefined) {
+        return null;
+    }
+
+    const candidates = LABEL_LOOKS.map((entry) => entry.id);
+
+    return {
+        code: "E_OPTION_RANGE",
+        message: `${descriptor.plainName} names no look "${look}"; the looks are ${candidates.join(", ")}.`,
+        path: `${path}.look`,
+        candidates,
+    };
 }
 
 /**

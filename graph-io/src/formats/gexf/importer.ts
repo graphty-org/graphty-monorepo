@@ -223,7 +223,7 @@ export {
     MISSING_ID_CODE,
     NO_GRAPH_CODE,
     UNKNOWN_PARENT_CODE,
-};
+} from "../../common/codes.js";
 
 /** The GEXF versions graph-io knows, and the version a namespace implies when `version` is missing. */
 const VERSIONS: ReadonlySet<string> = new Set(["1.0", "1.1", "1.2", "1.3"]);

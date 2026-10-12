@@ -48,6 +48,15 @@ echo "Pre-push validation"
 echo "========================================"
 echo ""
 
+# A global pnpm older than 10.29.1 runs the pinned one through a version switch that exits 0 when the
+# pnpm it started dies by a signal (issue #2116). The test stage does not trust that exit 0
+# (tools/shard-verdict.mjs), but every other step does, so say so. Turning the switch off shows the
+# global version, not the pinned one.
+GLOBAL_PNPM="$(npm_config_manage_package_manager_versions=false pnpm --version 2>/dev/null | tail -1)"
+if [ -n "$GLOBAL_PNPM" ] && [ "$(printf '%s\n' "$GLOBAL_PNPM" 10.29.1 | sort -V | head -1)" != 10.29.1 ]; then
+    echo "WARNING: the pnpm on PATH is $GLOBAL_PNPM, older than 10.29.1, so a pnpm exec killed by a signal exits 0; run pnpm self-update"
+fi
+
 # The source-only checks (formatting, links, the tool and config checks, SonarQube's changed-lines
 # scan), and run_step, the colors and SONAR_LOG every step below uses.
 # tools/prepush-source-checks.sh says why they come first and when they are skipped.
@@ -88,6 +97,11 @@ if [ "${PREPUSH_ALL:-0}" = "1" ]; then
 else
     BASE=$(git merge-base origin/master HEAD)
     PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$BASE" --head=HEAD --json 2>/dev/null)
+fi
+# An empty answer is nx (or the pnpm in front of it) cut short, not "nothing affected", which is "[]".
+if [[ "$PROJECTS" != "["* ]]; then
+    echo "nx show projects printed no project list, so the affected packages are unknown; stopping" >&2
+    exit 1
 fi
 PROJECT_LIST=$(echo "$PROJECTS" | tr -d '[]" ')
 affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }

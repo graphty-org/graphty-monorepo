@@ -23,7 +23,9 @@ import { Popout } from "./popout";
 // Accessibility: the APG "Grouping controls" pattern round three separately named controls --
 // the chit button (Popout.Trigger adds aria-haspopup="dialog" and aria-expanded), the hex text
 // box and the opacity text box. The group carries the field's own name, so a screen reader
-// announces "Fill group" once and each control then says which part of the color it holds.
+// announces "Fill group" once; each control is also named from the label on its own ("Pick Fill
+// color", "Fill color" followed by the hex it holds, "Fill opacity"), so a reader who lands on one
+// directly, or lists the page's controls, still hears what it sets.
 
 /** The default field width: the panel grid's body column. */
 const DEFAULT_WIDTH = PANEL_GRID.BODY;
@@ -397,7 +399,7 @@ export function CompactColorInput({
                             className="cm-paint-chit"
                             data-testid="compact-color-input-swatch"
                             disabled={disabled}
-                            aria-label={labels.colorSwatch}
+                            aria-label={label === undefined ? labels.colorSwatch : labels.pickColor(label)}
                             aria-describedby={annotation.describedBy}
                         >
                             <Chit color={showOpacity ? hexaValue : displayColor} variant="field" />
@@ -424,7 +426,7 @@ export function CompactColorInput({
                     spellCheck={false}
                     data-testid="compact-color-input-hex"
                     data-is-default={isColorDefault ? "true" : "false"}
-                    aria-label={labels.colorHexValue}
+                    aria-label={label === undefined ? labels.colorHexValue : labels.colorValue(label)}
                     aria-describedby={annotation.describedBy}
                     disabled={disabled}
                     value={hexDraft}
@@ -456,7 +458,7 @@ export function CompactColorInput({
                     <OpacityInput
                         value={displayOpacity}
                         onCommit={commitOpacity}
-                        ariaLabel={labels.opacity}
+                        ariaLabel={label === undefined ? labels.opacity : labels.colorOpacity(label)}
                         isDefault={isOpacityDefault}
                         disabled={disabled}
                         describedBy={annotation.describedBy}

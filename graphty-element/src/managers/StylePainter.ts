@@ -368,6 +368,13 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
         writeChannel(bag, channel, value, plainText(channel));
     }
 
+    // AN ALPHA IN THE COLOUR IS OPACITY, multiplied with `node.opacity` (issue #2071). The instance
+    // buffer cannot carry it (see Node.applyInstanceColor), so it goes where opacity goes. An
+    // opaque colour leaves the opacity, and so the mesh key, exactly as it was.
+    if (color !== null && color.a < 1) {
+        opacity = (opacity ?? 1) * color.a;
+    }
+
     // The material is built neutral so that what shows is the instance's own colour. Opacity goes
     // in, because Babylon keeps `visibility` on the SOURCE mesh rather than on an instance -- so
     // an opacity encoding still mints one source mesh per distinct opacity, and the key below says
@@ -417,7 +424,48 @@ function edgePaintOf(
     const identity = `s${String(meshKey)}|${color?.hex ?? ""}|${opacity === undefined ? "" : String(opacity)}${headed ? "|>" : ""}`;
     const base = headed ? EDGE_BASE_DIRECTED : EDGE_BASE;
 
-    return { meshKey: identity, style: spellEdgeColours(defaultsDeep(bag, cloneDeep(base)) as EdgeStyleConfig) };
+    return {
+        meshKey: identity,
+        style: foldEdgeAlpha(spellEdgeColours(defaultsDeep(bag, cloneDeep(base)) as EdgeStyleConfig)),
+    };
+}
+
+/**
+ * Move the alpha out of an edge's colours and into the opacity beside each one.
+ *
+ * ONE RULE FOR AN ALPHA IN A COLOUR: it multiplies the opacity of the thing the colour paints
+ * (issue #2071). The edge renderers read a colour as `#rrggbb` and nothing else -- handed
+ * `#rrggbbaa` they drew black -- so the alpha is folded into `line.opacity`, `arrowHead.opacity`
+ * and `arrowTail.opacity` here, once, and every renderer gets an opaque colour and an opacity.
+ *
+ * A cap with no colour of its own is drawn in its line's colour, so it takes the line colour's
+ * alpha too. A cap that is not in the style is left out of it.
+ * @param style - The filled-out style, its colours spelled as lowercase hex; edited in place.
+ * @returns The same style.
+ */
+function foldEdgeAlpha(style: EdgeStyleConfig): EdgeStyleConfig {
+    const line = toColorValue(typeof style.line?.color === "string" ? style.line.color : undefined);
+
+    for (const end of ["arrowHead", "arrowTail"] as const) {
+        const cap = style[end];
+        const own = toColorValue(typeof cap?.color === "string" ? cap.color : undefined);
+        const alpha = (own ?? line)?.a ?? 1;
+
+        if (cap !== undefined && alpha < 1) {
+            cap.opacity = (cap.opacity ?? 1) * alpha;
+
+            if (own !== null) {
+                cap.color = own.hex.slice(0, 7);
+            }
+        }
+    }
+
+    if (style.line !== undefined && line !== null && line.a < 1) {
+        style.line.opacity = (style.line.opacity ?? 1) * line.a;
+        style.line.color = line.hex.slice(0, 7);
+    }
+
+    return style;
 }
 
 /** The colour fields of an edge style, each a hex string when set. */

@@ -1,7 +1,8 @@
-import { AbstractMesh, Color3, type EffectLayer, HighlightLayer, InstancedMesh, Mesh, Scene } from "@babylonjs/core";
+import { AbstractMesh, type EffectLayer, HighlightLayer, InstancedMesh, Mesh, Scene } from "@babylonjs/core";
 
 import type { NodeStyleConfig } from "../config";
-import { DEFAULT_GLOW_COLOR, DEFAULT_OUTLINE_COLOR, toColorValue } from "../session/styles/channels";
+import { DEFAULT_GLOW_COLOR, DEFAULT_OUTLINE_COLOR } from "../session/styles/channels";
+import { readColor } from "./readColor";
 
 /** How far a glow reaches at strength 1: the blur width of the glow layer, in glow-map texels. */
 const GLOW_SPREAD = 2;
@@ -11,23 +12,6 @@ const GLOW_SPREAD = 2;
  * takes seven samples, so a wider spacing breaks the glow into blotches.
  */
 const GLOW_SPREAD_LIMITS = [0.5, 1.25] as const;
-
-/**
- * A color as Babylon reads it, and its opacity.
- * @param color - Any color the element accepts: `#rrggbb`, `#rrggbbaa`, a CSS name.
- * @param fallback - The color to use when `color` is missing or unreadable.
- * @returns The color and its opacity in `[0, 1]`.
- */
-function babylonColor(color: string | undefined, fallback: string): { color: Color3; alpha: number } {
-    // NOT Color3.FromHexString, which answers BLACK for anything but `#rrggbb`: a glow or an
-    // outline given an opacity (`#rrggbbaa`) was drawn black.
-    const value = toColorValue(color ?? fallback) ?? toColorValue(fallback);
-    if (value === null) {
-        return { color: Color3.White(), alpha: 1 };
-    }
-
-    return { color: new Color3(value.r / 255, value.g / 255, value.b / 255), alpha: value.a };
-}
 
 /**
  * The glow: a highlight layer drawn around each glowing node and never over it, blended over what
@@ -147,10 +131,12 @@ export class NodeEffects {
         const renderedMesh = this.resolveRenderedMesh(mesh);
 
         if (effect?.outline) {
-            // The layer draws an outline opaque, so an outline color's opacity is not drawn.
-            const { color } = babylonColor(this.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
+            // THE ALPHA IS DROPPED, because the highlight layer draws every outline with alpha 1
+            // (ThinHighlightLayer pins it) -- there is no translucent outline to draw. The layer
+            // check reports it as W_ALPHA_IGNORED, so the drop is said rather than silent.
+            const { rgb } = readColor(this.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
 
-            this.getOrCreateHighlightLayer(scene).addMesh(renderedMesh, color);
+            this.getOrCreateHighlightLayer(scene).addMesh(renderedMesh, rgb);
 
             return;
         }
@@ -279,7 +265,7 @@ export class NodeEffects {
         if (effect?.glow && colorValue !== undefined) {
             const glowLayer = this.getOrCreateGlowLayer(scene);
             // The fallback only covers an unreadable color string; a missing one never gets here.
-            const { color, alpha } = babylonColor(colorValue, DEFAULT_GLOW_COLOR);
+            const { rgb: color, alpha } = readColor(colorValue, DEFAULT_GLOW_COLOR);
             this.glowStrengths(scene).set(renderedMesh, { strength: effect.glow.strength ?? 1, alpha });
 
             // Same defence as the outline path: a mesh in an unexpected state must not take down

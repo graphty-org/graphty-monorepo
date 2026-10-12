@@ -1264,7 +1264,7 @@ function* writeGraphml(snapshot: GraphSnapshot, plan: Plan): Generator<string, v
 
     yield '<?xml version="1.0" encoding="UTF-8"?>\n';
     let root = `<graphml xmlns="${GRAPHML_NAMESPACE}"`;
-    const namespaces: Record<string, string> = { ...(plan.meta?.namespaces ?? {}) };
+    const namespaces: Record<string, string> = { ...plan.meta?.namespaces };
     if (
         (plan.nodeColumns.some((c) => c.yfiles) ||
             plan.edgeColumns.some((c) => c.yfiles) ||

@@ -180,12 +180,12 @@ graph.setLayout("grid", {
 
 ### radial
 
-Puts one node at the centre and every other node on a ring by its hop distance from it. Nodes the
+Puts one node at the center and every other node on a ring by its hop distance from it. Nodes the
 root cannot reach share one extra outer ring:
 
 ```typescript
 graph.setLayout("radial", {
-    root: "node-1", // The node at the centre (default: the node with the most edges)
+    root: "node-1", // The node at the center (default: the node with the most edges)
     scale: 1, // Radius of the outermost ring
 });
 ```

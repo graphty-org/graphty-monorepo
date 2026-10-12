@@ -248,7 +248,7 @@ export const SwatchesAndChangeEnd: Story = {
     },
     play: async ({ args, canvasElement }) => {
         const canvas = within(canvasElement);
-        await userEvent.click(canvas.getByRole("button", { name: /swatch/i }));
+        await userEvent.click(canvas.getByRole("button", { name: "Pick Fill color" }));
         const dialog = within(await canvas.findByRole("dialog"));
         await userEvent.click(dialog.getByRole("button", { name: "#2F9E44" }));
         await expect(args.onChangeEnd).toHaveBeenCalledTimes(1);

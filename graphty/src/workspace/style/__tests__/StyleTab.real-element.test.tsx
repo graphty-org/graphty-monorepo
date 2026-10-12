@@ -778,7 +778,7 @@ describe("editing lines on the real element", () => {
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(
             within(within(tab).getByRole("group", { name: "Color" })).getByRole("button", {
-                name: "Color swatch",
+                name: "Pick color",
             }),
         );
         const hex = await screen.findByTestId("color-picker-value");
@@ -845,7 +845,7 @@ describe("editing lines on the real element", () => {
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(
             within(within(tab).getByRole("group", { name: "Color" })).getByRole("button", {
-                name: "Color swatch",
+                name: "Pick color",
             }),
         );
         const field = await screen.findByTestId("color-picker-saturation");

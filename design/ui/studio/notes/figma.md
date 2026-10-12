@@ -5,10 +5,17 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-11 (tier 2 round 5 walk).
+Last updated: 2026-10-12 (tier 3 open questions answered).
 
 ## Top of mind
 
+0. (2026-10-12) Tier 3 is unified styles. My answers to the owner's 12 questions:
+   `tier3/decide/figma.md`. Core calls: "+" only where a list grows; a single-value section is
+   one unit added by its title (Figma's stroke grammar), placeholders show the value beneath;
+   unwritten sections fold into one "+" per Nodes/Edges heading; a data gradient
+   (`GradientEditor` over a histogram); split parent drawn as a Figma frame, folder as a group;
+   label text styles as presets; one rule editor shared with Data > Filters. Reason: the panel had
+   11 empty titles and "+" promised a second value where only one can exist.
 1. (2026-10-11) Round 5 walk: 0 severity 3 left. Six new severity 2s, each with a mechanism or a
    script: Filter to neighbors hidden for Follow Out/In (element rule has no direction), Escape
    after a Follow click clears the selection, the To list painted under Follow at 1280 x 800,
@@ -105,6 +112,17 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-12 (me, tier 3 answers, `tier3/decide/figma.md`) Recommended: section-as-unit for
+  single-value sections (changes the owner's 2026-10-01 "+ adds a line" rule there, flagged);
+  add-first effect entries with an icon type select; written sections only, the rest behind one
+  "+" per kind heading; hide a kind the rule cannot match; searchable grouped value picker with
+  disabled misfits; data gradient; split parent as frame; kind control plus Filters' conditions
+  for Which elements; Lighting missing from Graph settings; text styles as presets; selection,
+  conditions and expression as three doors into one rule; vary glyph on every bindable channel.
+  Element additions proposed (all additive): beneath-value, kindsOf, canEncode, custom gradient
+  stops, histogram and position in scale space, label presets, a text rule leaf
+  (contains/starts/ends/matches), bindable label channels. Reason: each fills a gap the panel
+  would otherwise fill by app-side computation, which the architecture forbids.
 - 2026-10-11 (me, round 5 walk, `tier2/rounds/round-5/expert/figma.md`) 39 findings, 0 at
   severity 3 (round 4: 42, 2). New severity 2s: neighbor filter hidden for Out/In (graphty-element
   rule direction, then app), Escape after a Follow click (app), To list under Follow (compact-
@@ -191,6 +209,11 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-10-12 Tier 3 answers. Worked: reading the element's types before proposing (RuleTree,
+  EdgeReading, AttributeDescriptor, Lighting) turned several "element must add" items into
+  "element already has", and found that JMESPath has no arithmetic (odd ids unreachable).
+  Did not: a first draft at 1,737 words against a 1,500 budget. Lesson: draft each answer at
+  about 100 words from the start; options one line each.
 - 2026-10-11 Round 5 walk asked for a second time on the same frozen build (8c015b806). Worked:
   checking the round folder and git log first; the committed walk (39 findings, 0 at severity 3)
   was returned as is, with no new browser slots taken. Lesson: before a walk, check whether this

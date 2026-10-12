@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { workerShare } from "../tools/test-slots.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 
 /**
@@ -281,7 +282,11 @@ async function recordNoiseRow(_context: unknown, row: Record<string, unknown>): 
  * a worker blocking its own event loop in synchronous oracle work, which the tests now yield out of (G5-F2's
  * resolution), and the shard's aborts were one test file's native memory and crash (G4-F13, G4-F18).
  */
-const nodeForks = coverageRun && availableParallelism() <= 8 ? 2 : Math.max(1, availableParallelism() - 1);
+// Never more than this run's share of the cores while machine-wide test slots are on (tools/test-slots.mjs).
+const nodeForks = Math.min(
+    coverageRun && availableParallelism() <= 8 ? 2 : Math.max(1, availableParallelism() - 1),
+    workerShare() ?? Infinity,
+);
 
 export default defineConfig({
     test: {

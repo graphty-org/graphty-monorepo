@@ -37,7 +37,7 @@ import {
 import type { LabelLocation } from "../../../catalog/label-style";
 import type { Binding, BindingStop, Channel, LayerKind, LayerSpec, Path, Selector } from "../../../catalog/types";
 import type { CodedFactParam } from "../../shared";
-import { channelDescriptor, toColorValue } from "../channels";
+import { channelDescriptor, labelFieldOf, labelPatchOf, mergeLabelStyle, toColorValue } from "../channels";
 import { quotePath } from "../predicate";
 import { FILE_STYLE_TRANSLATION_ISSUE, type FileStyleNoteCode } from "./codes";
 import { type FoldableLayer, foldToCap } from "./fold";
@@ -135,6 +135,14 @@ export interface Translation {
     readonly background: string | null;
     /** What the file's reading and its translation met. */
     readonly notes: readonly FileStyleNote[];
+    /**
+     * What the layers paint, per kind and channel, by the import's element index (null where they
+     * paint nothing), as the translation computed it from graph-io's own reading of the file: what
+     * `styles.explain()` gives each element once the layers apply. A label's fields are merged into
+     * `<kind>.labelStyle`, field by field. Null for a kind with a layer rebuilt from one graphty
+     * wrote, whose painting the translation does not compute.
+     */
+    readonly predicted: Readonly<Record<StyleTarget, ReadonlyMap<Channel, readonly unknown[]> | null>>;
 }
 
 /** How a neutral value becomes a channel value; null where the channel has no counterpart. */
@@ -155,6 +163,8 @@ interface Building extends FoldableLayer {
     readonly bucket: number;
     readonly spec: LayerSpec & { set: Record<string, unknown>; encode: Record<string, Binding> };
     readonly paint: Map<Channel, unknown[]> | null;
+    /** What it paints per channel, kept even where `paint` is null to stop the fold; absent for a rebuilt layer. */
+    drawn?: Map<Channel, unknown[]>;
     worth: number;
     fallback?: readonly LayerSpec[];
 }
@@ -505,11 +515,13 @@ export function translateFileStyles(input: TranslateInput): Translation {
     const columns: Record<StyleTarget, Map<string, (FileStyleScalar | null)[]>> = { node: new Map(), edge: new Map() };
     const hidden: Record<StyleTarget, { key: string; count: number } | null> = { node: null, edge: null };
     const layers: TranslatedLayer[] = [];
+    const predicted: Record<StyleTarget, ReadonlyMap<Channel, readonly unknown[]> | null> = { node: null, edge: null };
     const factors = lengthFactors(input);
     for (const kind of ["node", "edge"] as const) {
         const translation = new KindTranslation(input, kind, factors[kind], notes, columns[kind]);
         layers.push(...translation.run());
         hidden[kind] = translation.hidden;
+        predicted[kind] = translation.predicted;
     }
 
     const { background } = extracted.styles.graph;
@@ -519,6 +531,7 @@ export function translateFileStyles(input: TranslateInput): Translation {
         hidden,
         background: typeof background === "string" ? background : null,
         notes: notes.list(),
+        predicted,
     };
 }
 
@@ -572,6 +585,12 @@ class KindTranslation {
     #scopeKey: string | null = null;
     /** The column marking the elements the file hides, once the visibility pass has run. */
     hidden: { key: string; count: number } | null = null;
+    /** The `data.` paths the reader put a column of the file at; undefined until first asked. */
+    #heldPaths: ReadonlySet<string> | undefined = undefined;
+    /** Per node, whether its border is zero wide; undefined until first asked. */
+    #zeroBorders: readonly boolean[] | null | undefined = undefined;
+    /** What the layers paint, once `run()` has run; null when a rebuilt layer's painting is unknown. */
+    predicted: ReadonlyMap<Channel, readonly unknown[]> | null = null;
 
     /**
      * Set up the translation of one kind.
@@ -622,6 +641,7 @@ class KindTranslation {
             this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.LAYERS_FOLDED, this.#kind, null, folded);
         }
 
+        this.predicted = this.#predict(layers as readonly Building[]);
         return layers.map((layer) => {
             const { spec } = layer;
             const out: Record<string, unknown> = { ...spec };
@@ -636,6 +656,53 @@ class KindTranslation {
             const { fallback } = layer as Building;
             return { spec: out as unknown as LayerSpec, ...(fallback === undefined ? {} : { fallback }) };
         });
+    }
+
+    /**
+     * What a stack of layers paints per channel and element: the topmost layer that paints wins,
+     * and a label's fields merge into its label style, field by field, as the repaint stacks them.
+     * @param layers - The layers, bottom first.
+     * @returns The values, or null when a layer's painting is unknown.
+     */
+    #predict(layers: readonly Building[]): Map<Channel, unknown[]> | null {
+        const out = new Map<Channel, unknown[]>();
+        const column = (channel: Channel): unknown[] => {
+            let held = out.get(channel);
+            if (held === undefined) {
+                held = new Array<unknown>(this.#n).fill(null);
+                out.set(channel, held);
+            }
+
+            return held;
+        };
+        for (const layer of layers) {
+            const drawn = layer.drawn ?? layer.paint;
+            if (drawn === null || drawn === undefined) {
+                return null;
+            }
+
+            for (const [channel, values] of drawn) {
+                const field = labelFieldOf(channel);
+                const into = field?.into ?? channel;
+                const whole = field === undefined && channelDescriptor(channel)?.accepts === "labelStyle";
+                const held = column(into);
+                values.forEach((value, i) => {
+                    if (value === null || value === undefined) {
+                        return;
+                    }
+
+                    if (field !== undefined) {
+                        held[i] = mergeLabelStyle(held[i], labelPatchOf(field.field, value));
+                    } else if (whole) {
+                        held[i] = mergeLabelStyle(held[i], value);
+                    } else {
+                        held[i] = value;
+                    }
+                });
+            }
+        }
+
+        return out;
     }
 
     // -----------------------------------------------------------------------------------------
@@ -1126,7 +1193,7 @@ class KindTranslation {
                     : binding;
         }
 
-        if (missing) {
+        if (missing || !this.#readsHeldData(given)) {
             return ignored("PATH");
         }
 
@@ -1139,6 +1206,41 @@ class KindTranslation {
             ...(given.encode === undefined ? {} : { encode: encode }),
             ...(given.userData === undefined ? {} : { userData: given.userData }),
         };
+    }
+
+    /**
+     * Whether every data column a layer graphty wrote reads is where this load's reader put it: a
+     * reader that nests a column (a graphology attribute arrives under `attributes`) or leaves it
+     * out gives the layer nothing at the path it names, so the neutral rule is drawn instead.
+     * @param spec - The layer.
+     * @returns True when each `data.` path it reads is where the reader put a column of the file.
+     */
+    #readsHeldData(spec: Partial<LayerSpec>): boolean {
+        const paths: string[] = [];
+        const { selector } = spec;
+        if (selector?.match === "has" || selector?.match === "top") {
+            paths.push(selector.path);
+        } else if (selector?.match === "expression" && typeof selector.where === "string") {
+            for (const match of selector.where.matchAll(DATA_SEGMENT)) {
+                paths.push(`data.${match[1].startsWith('"') ? String(JSON.parse(match[1])) : match[1]}`);
+            }
+        }
+
+        for (const binding of Object.values(spec.encode ?? {})) {
+            if (typeof binding === "object" && binding !== null && "by" in binding && typeof binding.by === "string") {
+                paths.push(binding.by);
+            }
+        }
+
+        if (this.#heldPaths === undefined) {
+            const table = this.#kind === "node" ? this.#input.snapshot.nodes : this.#input.snapshot.edges;
+            this.#heldPaths = new Set(
+                table.names().flatMap((column) => this.#input.dataPath(this.#kind, column) ?? []),
+            );
+        }
+
+        const held = this.#heldPaths;
+        return paths.filter((path) => path.startsWith("data.")).every((path) => held.has(path));
     }
 
     /**
@@ -1292,7 +1394,11 @@ class KindTranslation {
      * @param source - The styles the rule belongs to.
      */
     #emit(rule: StyleRule, bucket: number, property: string, plan: ChannelPlan, source: ExtractedStyles): void {
-        const truth = this.#evaluate(rule, property, source);
+        const evaluated = this.#evaluate(rule, property, source);
+        // A border the file draws zero wide is not drawn at all.
+        const unbordered = property === "borderColor" && this.#kind === "node" ? this.#zeroBorder() : null;
+        const truth = unbordered === null ? evaluated : evaluated.map((value, i) => (unbordered[i] ? null : value));
+        const masked = truth.some((value, i) => value === null && evaluated[i] !== null);
         const drawn = truth.map((value) => (value === null ? null : plan.convert(value)));
         this.#noteConversion(property, plan, truth, drawn);
         if (!drawn.some((value) => value !== null)) {
@@ -1310,10 +1416,20 @@ class KindTranslation {
 
         const selector = this.#selectorOf(rule.where, source, rule.id);
         const layer = this.#layerFor(rule, bucket, selector);
-        const paint = drawn.map((value) => drawnAs(plan.channel, value));
-        layer.paint?.set(plan.channel, paint);
+        const whole = channelDescriptor(plan.channel)?.accepts === "labelStyle";
+        const paint = whole
+            ? drawn.map((value) => (typeof value === "object" && value !== null ? value : null))
+            : drawn.map((value) => drawnAs(plan.channel, value));
+        layer.drawn ??= new Map(layer.paint ?? []);
+        layer.drawn.set(plan.channel, paint);
+        if (whole) {
+            // A whole label style is no scalar: its layers are never folded.
+            (layer as { paint: Building["paint"] }).paint = null;
+        } else {
+            layer.paint?.set(plan.channel, paint);
+        }
         const set = rule.set?.[property as StyleProperty];
-        if (set !== undefined) {
+        if (set !== undefined && !masked) {
             const value = plan.convert(set);
             if (value !== null) {
                 layer.spec.set[plan.channel] = value;
@@ -1322,7 +1438,8 @@ class KindTranslation {
         }
 
         const mapping = rule.map?.[property as StyleProperty];
-        const binding = mapping === undefined ? null : this.#binding(mapping, plan, truth, drawn, source, rule);
+        const binding =
+            mapping === undefined || masked ? null : this.#binding(mapping, plan, truth, drawn, source, rule);
         if (binding !== null) {
             layer.spec.encode[plan.channel] = binding.binding;
             layer.worth += binding.worth;
@@ -1339,6 +1456,20 @@ class KindTranslation {
             mapping: "passthrough",
             distinctValues: new Set(drawn.filter((value) => value !== null)).size,
         });
+    }
+
+    /**
+     * Per node, whether the file draws its border zero wide.
+     * @returns The marks, or null when no node's border is zero wide.
+     */
+    #zeroBorder(): readonly boolean[] | null {
+        if (this.#zeroBorders === undefined) {
+            const widths = resolveStyles(this.#input.extracted, "node", "borderWidth", this.#input.snapshot);
+            const marks = widths.map((width) => typeof width === "number" && width <= 0);
+            this.#zeroBorders = marks.some(Boolean) ? marks : null;
+        }
+
+        return this.#zeroBorders;
     }
 
     /**
@@ -1797,6 +1928,11 @@ class KindTranslation {
             const selector = this.#scoped({ match: "expression", where: `${quotePath(path)} == ${literal(value)}` });
             const layer = this.#layerFor(rule, top, selector);
             layer.spec.set[channel] = { location: value as LabelLocation };
+            layer.drawn ??= new Map(layer.paint ?? []);
+            layer.drawn.set(
+                channel,
+                column.map((held) => (held === value ? { location: value } : null)),
+            );
             // A whole label style is no scalar: its layers are never folded.
             (layer as { paint: Building["paint"] }).paint = null;
             layer.spec.name = `${rule.id}.labelPosition=${value}`;
@@ -1856,6 +1992,9 @@ class KindTranslation {
         };
     }
 }
+
+/** The first segment after `data.` in an expression, bare or quoted. */
+const DATA_SEGMENT = /(?<![\w."])data\.("(?:[^"\\]|\\.)*"|[A-Za-z_][A-Za-z0-9_]*)/g;
 
 /** The label positions the element draws. */
 const LOCATIONS: ReadonlySet<string> = new Set([

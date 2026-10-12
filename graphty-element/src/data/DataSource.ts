@@ -23,7 +23,14 @@ import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
 import type { FileStylesRead } from "../session/styles/fileStyles/apply";
 import { ErrorAggregator } from "./ErrorAggregator.js";
-import { columnsMapping, emptyLoad, importWhole, readerImport, toRecords } from "./graph-io-import.js";
+import {
+    columnsMapping,
+    emptyLoad,
+    importWhole,
+    readerImport,
+    toRecords,
+    withoutStyleSlots,
+} from "./graph-io-import.js";
 import { type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
 
 /** What every reader is configured with, whatever its format. */
@@ -1019,7 +1026,14 @@ export abstract class DataSource {
                     this.declareDirection(snapshot.directed, words, report.counts.expandedMixed);
                 }
 
-                const { nodes, edges } = toRecords(imported, columnsMapping(snapshot), this);
+                const { nodes, edges } = toRecords(
+                    imported,
+                    // A load drawing the file's styles leaves the file's own style slots to the layers.
+                    this.#config.styles === "file"
+                        ? withoutStyleSlots(snapshot, columnsMapping(snapshot))
+                        : columnsMapping(snapshot),
+                    this,
+                );
                 yield* this.chunkData(nodes, edges);
             }
         };

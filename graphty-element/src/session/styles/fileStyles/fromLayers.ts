@@ -44,6 +44,7 @@ import type { Binding, Channel, EdgeId, LayerSpec, NodeId, Path, Rgba } from "..
 import { toColorValue } from "../channels";
 import type { ExplainTarget, StyleExplanation } from "../explain";
 import type { CompiledLayer } from "../Layer";
+import { FILE_STYLE_USER_DATA_KEY } from "./origin";
 import { computedOf, parseFileStylePath } from "./path";
 import { ARROW_SHAPES, FILE_STYLE_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
 import { fileStyleColumn, type FileStyleStore } from "./store";
@@ -539,6 +540,9 @@ class KindExport {
             const literal =
                 layer.set?.[channel as Channel] ??
                 (binding !== undefined && "value" in binding ? binding.value : undefined);
+            // The properties of one channel drawn from one column (a node's width and height),
+            // so the load that reads the file sees one value drawn twice, not two.
+            let flat: string | null = null;
             for (const property of written.properties) {
                 const fixed = literal === undefined ? null : written.convert(literal);
                 if (fixed !== null && this.#exact(where, property, { set: fixed }, written.values)) {
@@ -558,8 +562,8 @@ class KindExport {
                         ? "RESULT_PATH"
                         : "SCALE";
                 reason ??= why;
-                const key = this.#keep(`layer.${String(at)}.${property}`, written.values);
-                map[property] = { kind: "passthrough", by: { style: key } };
+                flat ??= this.#keep(`layer.${String(at)}.${property}`, written.values);
+                map[property] = { kind: "passthrough", by: { style: flat } };
                 const count = written.values.filter((value) => value !== null).length;
                 if (count > 0) {
                     this.flattened.push({ layer: layer.name, target: this.#kind, property, reason: why, count });
@@ -626,12 +630,13 @@ class KindExport {
     /**
      * The predicate of a layer's selector: short, matching at least every element the layer
      * paints, or a membership value written onto those elements.
-     * @param selector - The selector.
+     * @param scoped - The selector, with any scope a load put on it.
      * @param painted - Per row, whether the layer painted it.
      * @param at - The layer's place, for the membership key.
      * @returns The predicate.
      */
-    #whereOf(selector: LayerSpec["selector"], painted: readonly boolean[], at: number): Predicate {
+    #whereOf(scoped: LayerSpec["selector"], painted: readonly boolean[], at: number): Predicate {
+        const selector = this.#unscoped(scoped);
         let where: Predicate | null = null;
         if (selector.match === "everything") {
             where = { all: true };
@@ -735,11 +740,17 @@ class KindExport {
      */
     #specOf(entry: CompiledLayer): LayerSpec | null {
         const { layer } = entry;
-        if (!entry.reads.every((path) => this.#refOf(path) !== null)) {
+        const selector = this.#unscoped(layer.selector);
+        const dropped = this.#scopeOf(layer.selector);
+        if (
+            !entry.reads.every(
+                (path) => (selector !== layer.selector && path === dropped) || this.#refOf(path) !== null,
+            )
+        ) {
             return null;
         }
 
-        if (layer.selector.match === "ids" || layer.selector.match === "member") {
+        if (selector.match === "ids" || selector.match === "member") {
             return null;
         }
 
@@ -747,11 +758,57 @@ class KindExport {
             name: layer.name,
             target: layer.target,
             kind: layer.kind,
-            selector: layer.selector,
+            selector,
             ...(layer.set === undefined ? {} : { set: layer.set }),
             ...(layer.encode === undefined ? {} : { encode: layer.encode }),
-            ...(layer.userData === undefined ? {} : { userData: layer.userData }),
+            ...ownUserData(layer.userData),
         };
+    }
+
+    /**
+     * The file-style path a load scoped a layer to (`has <path>`, or `(...) && <path> != null`).
+     * @param selector - The layer's selector.
+     * @returns The path, or null for a selector no load scoped.
+     */
+    #scopeOf(selector: LayerSpec["selector"]): Path | null {
+        let path: string | null = null;
+        if (selector.match === "has") {
+            ({ path } = selector);
+        } else if (selector.match === "expression") {
+            const quoted = SCOPED.exec(selector.where)?.[2];
+            path = quoted === undefined ? null : unquotePath(quoted);
+        }
+
+        return path !== null && parseFileStylePath(path) !== undefined ? path : null;
+    }
+
+    /**
+     * A layer's selector without the scope a load put on it, when that scope covers every element
+     * this export writes: the scope is the load's own bookkeeping, and the load that reads the
+     * file puts its own on. A scope that leaves elements out is kept, so the layer still paints
+     * only its own load's elements.
+     * @param selector - The layer's selector.
+     * @returns The selector, unscoped when the scope selects everything.
+     */
+    #unscoped(selector: LayerSpec["selector"]): LayerSpec["selector"] {
+        const path = this.#scopeOf(selector);
+        const parts = path === null ? undefined : parseFileStylePath(path);
+        if (path === null || parts === undefined || parts.kind !== this.#kind) {
+            return selector;
+        }
+
+        const held = fileStyleColumn(this.#input.fileStyles, parts.namespace, this.#kind, parts.key);
+        const ids = this.#input.ids[this.#kind];
+        if (held === undefined || !ids.every((id) => held.get(id) !== null && held.get(id) !== undefined)) {
+            return selector;
+        }
+
+        if (selector.match === "has") {
+            return { match: "everything" };
+        }
+
+        const inner = SCOPED.exec((selector as { where: string }).where)?.[1] ?? "";
+        return { match: "expression", where: inner };
     }
 
     /** The elements the session hides, as a rule the load gives back to the visibility filter. */
@@ -775,6 +832,48 @@ class KindExport {
             facts: { elements: hidden.filter(Boolean).length },
         });
     }
+}
+
+/** A selector a load scoped: `(<inner>) && <path> != \`null\``, the path a file-style path. */
+const SCOPED = /^\((.*)\) && (graphty\.style\..+) != `null`$/s;
+
+/**
+ * A layer's user data without what a load of a file put there about that load (its facts and its
+ * rule key): a load of the written file puts its own, so writing them would only make the file
+ * differ from load to load.
+ * @param userData - The layer's user data.
+ * @returns `{ userData }` without those keys, or nothing when none is left.
+ */
+function ownUserData(userData: Readonly<Record<string, unknown>> | undefined): { userData?: Record<string, unknown> } {
+    if (userData === undefined) {
+        return {};
+    }
+
+    const own = Object.fromEntries(
+        Object.entries(userData).filter(([key]) => key !== FILE_STYLE_USER_DATA_KEY && key !== RULE_KEY),
+    );
+    return Object.keys(own).length === 0 ? {} : { userData: own };
+}
+
+/** The user-data key a translated layer names its rule under. */
+const RULE_KEY = "ruleKey";
+
+/**
+ * A path as an expression writes it, each quoted segment read back as its text.
+ * @param quoted - The path, with quoted segments.
+ * @returns The path, or null when a quoted segment does not parse.
+ */
+function unquotePath(quoted: string): string | null {
+    const segments: string[] = [];
+    for (const match of quoted.matchAll(/"(?:[^"\\]|\\.)*"|[^."]+/g)) {
+        try {
+            segments.push(match[0].startsWith('"') ? (JSON.parse(match[0]) as string) : match[0]);
+        } catch {
+            return null;
+        }
+    }
+
+    return segments.join(".");
 }
 
 /**

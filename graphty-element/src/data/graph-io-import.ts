@@ -554,7 +554,36 @@ export function attributeKey(kind: "node" | "edge", title: string, id: string): 
  */
 export function copiedPath(kind: "node" | "edge", column: Column): string | null {
     const { name } = column.meta;
-    return name.startsWith(RESERVED_PREFIX) || (IDENTITY_KEYS[kind] as readonly string[]).includes(name) ? null : name;
+    return name.startsWith(RESERVED_PREFIX) ||
+        (IDENTITY_KEYS[kind] as readonly string[]).includes(name) ||
+        (kind === "edge" && name === EDGE_ID_KEY)
+        ? null
+        : name;
+}
+
+/** The record key the element writes its own edge id under, over any `id` the file gave. */
+const EDGE_ID_KEY = "id";
+
+/**
+ * Whether a column reads a default the file declared on rows that set no value (a CX2 attribute
+ * declaration's `v`, a GraphML key's `<default>`). The records leave those rows out, so a layer
+ * reading the record key would see nothing where the column holds the default.
+ * @param column - the column
+ * @param rows - how many rows the table has
+ * @returns true when some row reads the default without holding a value
+ */
+function readsUnsetDefault(column: Column, rows: number): boolean {
+    if (column.meta.default === null || column.meta.default === undefined) {
+        return false;
+    }
+
+    for (let row = 0; row < rows; row++) {
+        if (!column.isSet(row)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /** The graph-io import a reader built its records from, and where each column landed on them. */
@@ -607,12 +636,26 @@ function readerImportOf(
     path: (kind: "node" | "edge", column: Column) => string | null,
 ): ReaderImport {
     const { snapshot } = imported;
+    const defaulted = new Map<Column, boolean>();
     return {
         imported,
         path: (kind, name) => {
-            const column = (kind === "node" ? snapshot.nodes : snapshot.edges).get(name);
-            const key = column === null || column === undefined ? null : path(kind, column);
-            return key === null ? null : [key];
+            const table = kind === "node" ? snapshot.nodes : snapshot.edges;
+            const column = table.get(name);
+            if (column === null || column === undefined) {
+                return null;
+            }
+
+            const key = path(kind, column);
+            if (key === null || (kind === "edge" && key === EDGE_ID_KEY)) {
+                return null;
+            }
+
+            if (!defaulted.has(column)) {
+                defaulted.set(column, readsUnsetDefault(column, table.rowCount));
+            }
+
+            return defaulted.get(column) === true ? null : [key];
         },
     };
 }
@@ -696,6 +739,59 @@ export function toRecords(
     }
 
     return { nodes: nodes as AdHocData[], edges: edges as AdHocData[] };
+}
+
+/** The origin namespaces of the columns the CX and CX2 importers read a file's bypasses into. */
+const BYPASS_NAMESPACES: ReadonlySet<string> = new Set(["cx.bypass", "cx2.bypass"]);
+
+/**
+ * Whether a column holds a format's own style slots rather than data: the bypasses of a CX or
+ * CX2 file, and an XGMML (or Cytoscape session) element's `<graphics>` block.
+ * @param column - the column
+ * @returns true for a style slot
+ */
+function isStyleSlot(column: Column): boolean {
+    const { origin } = column.meta;
+    return (
+        (typeof origin?.namespace === "string" && BYPASS_NAMESPACES.has(origin.namespace)) ||
+        (column.dtype === "json" && origin?.type === "graphics" && origin.namespace === "xgmml")
+    );
+}
+
+/**
+ * A mapping that leaves a format's own style slots off the records, for a load that draws the
+ * file's styles as layers: the layers carry them, and an export with styles writes them again
+ * from the layers, so a record copy would be written twice.
+ * @param snapshot - the imported graph
+ * @param mapping - the reader's mapping
+ * @returns the mapping without the style slots
+ */
+export function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMapping): RecordMapping {
+    const slots = {
+        node: [...snapshot.nodes].filter(isStyleSlot).map((column) => column.meta.name),
+        edge: [...snapshot.edges].filter(isStyleSlot).map((column) => column.meta.name),
+    };
+    if (slots.node.length === 0 && slots.edge.length === 0) {
+        return mapping;
+    }
+
+    const drop = (keys: readonly string[], record: Record<string, unknown>): void => {
+        for (const key of keys) {
+            Reflect.deleteProperty(record, key);
+        }
+    };
+    const path = mapping.path ?? copiedPath;
+    return {
+        node: (row, record) => {
+            mapping.node(row, record);
+            drop(slots.node, record);
+        },
+        edge: (row, record) => {
+            mapping.edge(row, record);
+            drop(slots.edge, record);
+        },
+        path: (kind, column) => (isStyleSlot(column) ? null : path(kind, column)),
+    };
 }
 
 /**

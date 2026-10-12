@@ -9,7 +9,7 @@ import type { AdHocData } from "../config/common";
 import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource";
 import { resolveEndpoints } from "./endpoints";
-import type { DataLoadingError } from "./ErrorAggregator";
+import { type DataLoadingError, ErrorAggregator } from "./ErrorAggregator";
 import {
     aggregateErrors,
     columnsMapping,
@@ -417,6 +417,29 @@ export class JsonDataSource extends DataSource {
             endpoints === null
                 ? rawEdges.filter((edge, index) => this.isValidEdge(edge, index))
                 : rowsOf(imported.edges).map((row) => rawEdges[row]);
+
+        if (idKey !== null && endpoints !== null && this.usesDefaultPaths()) {
+            // The file's styles, read on demand from the whole document: its graph attributes hold
+            // the block a graphty export writes, which the import above was not handed.
+            const options = {
+                dialect: "node-link" as const,
+                nodeIdKey: idKey,
+                sourceKey: endpoints.source,
+                targetKey: endpoints.target,
+                indexLinks: false,
+                weightFrom: null,
+                ids: "keep" as const,
+                defaultDirected: true,
+                errorLimit: Number.POSITIVE_INFINITY,
+            };
+            rememberImport(this, async () =>
+                dialectImport(
+                    await importWhole(jsonImporter, jsonString, options, new ErrorAggregator(Number.MAX_SAFE_INTEGER)),
+                    nodes as Record<string, unknown>[],
+                    edges as Record<string, unknown>[],
+                ),
+            );
+        }
 
         yield* this.chunkData(nodes as AdHocData[], edges as AdHocData[]);
     }

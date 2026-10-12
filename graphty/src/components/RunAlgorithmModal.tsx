@@ -29,7 +29,11 @@ interface RunAlgorithmModalProps {
  * @param root0.graphtyRef - Reference to the Graphty component
  * @returns The modal component
  */
-export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmModalProps): React.JSX.Element {
+export function RunAlgorithmModal({
+    opened,
+    onClose,
+    graphtyRef,
+}: Readonly<RunAlgorithmModalProps>): React.JSX.Element {
     const categories = getCategories();
     const [selectedCategory, setSelectedCategory] = useState<AlgorithmCategory>(categories[0]);
     const [selectedAlgorithm, setSelectedAlgorithm] = useState<AlgorithmInfo | null>(null);

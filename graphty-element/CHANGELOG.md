@@ -1,3 +1,18 @@
+## 3.25.2 (2026-10-12)
+
+### 🩹 Fixes
+
+- **graphty-element:** let 0 draw nothing for glow strength, edge width and arrow size ([#2067](https://github.com/graphty-org/graphty-monorepo/issues/2067))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.48
+- Updated layout to 2.4.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.25.1 (2026-10-12)
 
 ### 🩹 Fixes

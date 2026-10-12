@@ -443,9 +443,9 @@ const NOT_COUNTED =
 
 /**
  * Why a session may take no more jobs now, or null: it holds `workers.maxActive` jobs it is
- * actively working (working, starting, or waiting on its own local task). Blocked, parked,
- * verifying and other waiting jobs do not count, nor does a job only waiting to push, for CI, for
- * the owner's review or to merge (`jobWaits` in waits.mjs). Applies whatever capacity the session reported.
+ * actively working (working, starting, or waiting on its own local task other than its push).
+ * Blocked, parked, verifying and other waiting jobs do not count, nor does a job only waiting to
+ * push (a local wait included), for CI, for the owner's review or to merge (`jobWaits` in waits.mjs). Applies whatever capacity the session reported.
  * @param {any} state the daemon state
  * @param {string} session the session id
  * @param {any} [config] the normalized config

@@ -97,7 +97,7 @@ export function RunLayoutsModal({
     is2DMode,
     currentLayout,
     currentLayoutConfig,
-}: RunLayoutsModalProps): React.JSX.Element {
+}: Readonly<RunLayoutsModalProps>): React.JSX.Element {
     const [selectedLayoutType, setSelectedLayoutType] = useState<string>("d3");
     const [configValues, setConfigValues] = useState<Record<string, unknown>>({});
     const [selectedDim, setSelectedDim] = useState<2 | 3>(is2DMode ? 2 : 3);

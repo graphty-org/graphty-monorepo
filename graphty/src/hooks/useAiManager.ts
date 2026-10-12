@@ -80,9 +80,8 @@ const SPEAK_OUTPUT: Readonly<Record<AiVoiceSettings["speakAnswers"], AiVoiceOpti
     off: "off",
     // The element's "auto": off on a flat page, on in an immersive session.
     vr: "auto",
-    // ponytail: "always" speaks with the browser's own voice; the element has no "on, any path"
-    // mode, so a browser without speech synthesis stays silent on a flat page.
-    always: "browser",
+    // The browser's voice, else the provider's, on every page.
+    always: "on",
 };
 
 /**
@@ -189,7 +188,7 @@ interface UseAiManagerResult {
     voiceSettings: AiVoiceSettings;
     /** Change one voice setting; the assistant is switched on again with it. */
     setVoiceSetting: <K extends keyof AiVoiceSettings>(name: K, value: AiVoiceSettings[K]) => void;
-    /** How speech would be carried, as the element reports it once per enable; null until the assistant is on. */
+    /** How speech would be carried, as the element reports it (and reports again when it changes); null until the assistant is on. */
     voiceSupport: AiVoiceSupport | null;
     /** Whether the element is listening to the reader. */
     listening: boolean;
@@ -290,6 +289,11 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             setVoiceNotice(null);
             setListening(true);
         };
+        const onVoiceSupportChange = (event: { detail: { support: AiVoiceSupport } }): void => {
+            if (!cancelled) {
+                setVoiceSupport(event.detail.support);
+            }
+        };
         const onVoiceEnd = (event: { detail: { code?: AiResultCode; params?: AiResultParams } }): void => {
             setListening(false);
             const { code, params } = event.detail;
@@ -340,6 +344,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             target.addEventListener("ai-capability-unavailable", onCapabilityUnavailable);
             target.addEventListener("ai-voice-start", onVoiceStart);
             target.addEventListener("ai-voice-end", onVoiceEnd);
+            target.addEventListener("ai-voice-support-change", onVoiceSupportChange);
             read();
             setCapabilities(target.getAiCapabilities());
             setEnabled(target);
@@ -363,6 +368,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             element.removeEventListener("ai-capability-unavailable", onCapabilityUnavailable);
             element.removeEventListener("ai-voice-start", onVoiceStart);
             element.removeEventListener("ai-voice-end", onVoiceEnd);
+            element.removeEventListener("ai-voice-support-change", onVoiceSupportChange);
             element.disableAiControl();
             setEnabled(null);
             setVoiceSupport(null);

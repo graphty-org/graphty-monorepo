@@ -190,6 +190,35 @@ describe("AiPanel", () => {
             expect(onListeningChange.mock.calls).toEqual([[true], [false]]);
         });
 
+        it("a press whose click never comes (a cancelled pointer) does not swallow the next Enter", async () => {
+            const onListeningChange = vi.fn();
+            renderPanel({ speechAvailable: true, onListeningChange });
+            const mic = screen.getByTestId("ai-microphone");
+
+            // A cancelled pointer (a touch turned into a scroll) cannot be made with
+            // userEvent; the events are dispatched as the browser sends them.
+            fireEvent.pointerDown(mic, { button: 0, pointerId: 1 });
+            fireEvent.pointerCancel(mic, { pointerId: 1 });
+            expect(onListeningChange.mock.calls).toEqual([[true], [false]]);
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            mic.focus();
+            await userEvent.keyboard("{Enter}");
+            expect(onListeningChange.mock.calls).toEqual([[true], [false], [true]]);
+        });
+
+        it("names where speech goes in the microphone's tooltip", () => {
+            renderPanel({
+                speechAvailable: true,
+                speechDestination: "Your speech is turned into text on this device.",
+            });
+
+            expect(screen.getByTestId("ai-microphone")).toHaveAttribute(
+                "title",
+                "Stop listening. Your speech is turned into text on this device.",
+            );
+        });
+
         it("toggles on a click with no hold, for keyboard and switch users", async () => {
             const onListeningChange = vi.fn();
             const { rerender } = renderPanel({ speechAvailable: true, onListeningChange });

@@ -111,6 +111,8 @@ export interface AiPanelProps {
     readonly speechAvailable?: boolean;
     /** Whether the assistant is listening. */
     readonly listening?: boolean;
+    /** Where speech goes, in the app's words; the microphone's tooltip says it. */
+    readonly speechDestination?: string;
     /** Sends the console's text. */
     readonly onSend?: (text: string) => void;
     /** Cancels the in-flight message. */
@@ -162,6 +164,7 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
         isProcessing = false,
         speechAvailable = false,
         listening = false,
+        speechDestination,
         onSend,
         onCancel,
         onRetry,
@@ -185,7 +188,14 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
     };
     const letGo = (): void => {
         onListeningChange?.(false);
+        // The click a release makes comes in the same task; a release with no click (a cancelled
+        // pointer) must not swallow the next keyboard toggle.
+        setTimeout(() => {
+            held.current = false;
+        }, 0);
     };
+    const microphoneTitle =
+        speechDestination === undefined ? STOP_LISTENING_LABEL : `${STOP_LISTENING_LABEL}. ${speechDestination}`;
 
     const askChip = keyChipFor("focusAssistant");
     const askTooltip = askChip === null ? ASK_LABEL : `${ASK_LABEL} (${askChip})`;
@@ -488,7 +498,7 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
                             size={PANEL_GRID.CONTROL_HEIGHT}
                             radius="sm"
                             c={PANEL_INK.CHROME}
-                            title={STOP_LISTENING_LABEL}
+                            title={microphoneTitle}
                             aria-label={STOP_LISTENING_LABEL}
                             aria-pressed={listening}
                             data-testid="ai-microphone"

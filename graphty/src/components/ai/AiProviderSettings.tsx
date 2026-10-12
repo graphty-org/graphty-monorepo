@@ -23,6 +23,7 @@
  */
 
 import { PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
+import type { AiVoiceSupport } from "@graphty/graphty-element/ai";
 import {
     type AiCapabilities,
     type AiCapabilityStatus,
@@ -41,6 +42,7 @@ import {
 } from "../../hooks/useAiManager";
 import { getCreateProvider, type ProviderType } from "../../types/ai";
 import { PanelOutlineButton } from "../shell/panel/panelButtons";
+import { speechDestinationText } from "./aiResultText";
 
 /**
  * The column every block in this pane is measured against
@@ -195,6 +197,8 @@ export interface AiProviderSettingsProps {
     readonly voice?: AiVoiceSettings;
     /** Changes one voice setting. */
     readonly onVoiceChange?: <K extends keyof AiVoiceSettings>(name: K, value: AiVoiceSettings[K]) => void;
+    /** How speech is carried, as graphty-element reports it; null until the assistant is on. */
+    readonly voiceSupport?: AiVoiceSupport | null;
 }
 
 /** The speak-answers choices, in the app's words. */
@@ -211,16 +215,19 @@ const SPEAK_CHOICES: readonly { value: AiVoiceSettings["speakAnswers"]; label: s
  * @param props.voice - The reader's choices.
  * @param props.onVoiceChange - Changes one.
  * @param props.provider - The chat provider.
+ * @param props.support - Where speech goes now, as graphty-element reports it.
  * @returns The block.
  */
 export function AiVoiceSettingsBlock({
     voice,
     onVoiceChange,
     provider,
+    support,
 }: {
     readonly voice: AiVoiceSettings;
     readonly onVoiceChange: <K extends keyof AiVoiceSettings>(name: K, value: AiVoiceSettings[K]) => void;
     readonly provider: ProviderType | null;
+    readonly support?: AiVoiceSupport | null;
 }): React.JSX.Element {
     const transcribers = PROVIDER_WORDS.filter((entry) => !needsTranscriptionProvider(entry.type));
     return (
@@ -257,11 +264,11 @@ export function AiVoiceSettingsBlock({
                 {provider !== null && needsTranscriptionProvider(provider) && (
                     <NativeSelect
                         label="Turn speech into text with"
-                        title="Your provider cannot turn speech into text. The browser does it where it can."
+                        title="Your provider cannot turn speech into text. Without another provider, the browser does it where it can, which may send your speech to the browser's maker."
                         data-testid="ai-transcription-provider"
                         value={voice.transcription}
                         data={[
-                            { value: "none", label: "The browser only" },
+                            { value: "none", label: "The browser's recognition (may go to its maker)" },
                             ...transcribers.map((entry) => ({ value: entry.type, label: entry.name })),
                         ]}
                         onChange={(event) => {
@@ -271,6 +278,15 @@ export function AiVoiceSettingsBlock({
                             );
                         }}
                     />
+                )}
+                {support !== undefined && support !== null && (
+                    <Box
+                        component="span"
+                        data-testid="ai-speech-destination"
+                        style={{ fontSize: READING_FONT_SIZE, lineHeight: 1.4, color: PANEL_INK.PROSE }}
+                    >
+                        {speechDestinationText(support).join(" ")}
+                    </Box>
                 )}
             </Box>
         </Box>
@@ -467,6 +483,7 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
         toolCapabilities,
         voice,
         onVoiceChange,
+        voiceSupport,
     } = props;
 
     /* The row that is open. One at a time, like the nav it sits inside: the form is
@@ -912,7 +929,12 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
             )}
 
             {voice !== undefined && onVoiceChange !== undefined && (
-                <AiVoiceSettingsBlock voice={voice} onVoiceChange={onVoiceChange} provider={defaultProvider} />
+                <AiVoiceSettingsBlock
+                    voice={voice}
+                    onVoiceChange={onVoiceChange}
+                    provider={defaultProvider}
+                    support={voiceSupport}
+                />
             )}
 
             {/* Key storage. */}

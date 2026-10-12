@@ -115,7 +115,7 @@ import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../data/sampleGr
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data/sampleManifest";
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
-import { aiTranscript } from "../ai/aiResultText";
+import { aiTranscript, speechDestinationText } from "../ai/aiResultText";
 import { FeedbackModal } from "../FeedbackModal";
 import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
 import type { LoadDataRequest } from "../LoadDataModal";
@@ -1504,8 +1504,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             toolCapabilities: aiManager.capabilities,
             voice: aiManager.voiceSettings,
             onVoiceChange: aiManager.setVoiceSetting,
+            voiceSupport: aiManager.voiceSupport,
         }),
         [
+            aiManager.voiceSupport,
             aiManager.capabilities,
             aiManager.setVoiceSetting,
             aiManager.voiceSettings,
@@ -3913,6 +3915,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                             aiManager.voiceSupport !== null && aiManager.voiceSupport.input.status !== "unavailable"
                         }
                         listening={aiManager.listening}
+                        speechDestination={
+                            aiManager.voiceSupport === null
+                                ? undefined
+                                : speechDestinationText(aiManager.voiceSupport).join(" ") || undefined
+                        }
                         onListeningChange={aiManager.talk}
                         onSend={(text) => {
                             void aiManager.execute(text);

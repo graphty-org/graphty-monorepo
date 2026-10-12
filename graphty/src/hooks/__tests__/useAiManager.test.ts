@@ -741,7 +741,7 @@ describe("useAiManager", () => {
             renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
 
             await waitFor(() => {
-                expect(mockDoors.enableAiControl.mock.calls[0]?.[0]).toHaveProperty("voice.output", "browser");
+                expect(mockDoors.enableAiControl.mock.calls[0]?.[0]).toHaveProperty("voice.output", "on");
             });
         });
 

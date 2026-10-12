@@ -2,7 +2,15 @@ import type { AiApprovalRequest, AiConversationSnapshot } from "@graphty/graphty
 import { AI_VOICE_UNAVAILABLE_REASONS, type AiResultCode, type AiResultParams } from "@graphty/graphty-element/catalog";
 import { describe, expect, it } from "vitest";
 
-import { aiCodeText, aiResultText, aiSay, aiTranscript, approvalLines, XR_AI_LABELS } from "../aiResultText";
+import {
+    aiCodeText,
+    aiResultText,
+    aiSay,
+    aiTranscript,
+    approvalLines,
+    speechDestinationText,
+    XR_AI_LABELS,
+} from "../aiResultText";
 
 describe("aiResultText", () => {
     it("shows the answer of a completed command", () => {
@@ -273,5 +281,30 @@ describe("voice", () => {
             role: "system",
             content: "No microphone was found. Type your message instead.",
         });
+    });
+});
+
+describe("where speech goes", () => {
+    const path = (destination: "on-device" | "browser-vendor" | "provider" | "none") =>
+        ({ path: destination === "none" ? "none" : "browser", status: "ready", destination }) as const;
+
+    it("says the browser's maker hears the reader when Chrome recognizes at its vendor", () => {
+        expect(speechDestinationText({ input: path("browser-vendor"), output: path("none") })).toEqual([
+            "Your speech is sent to your browser's maker (Google for Chrome) to be turned into text.",
+        ]);
+    });
+
+    it("says both directions when both are on, and nothing for a direction that is off", () => {
+        expect(speechDestinationText({ input: path("on-device"), output: path("provider") })).toEqual([
+            "Your speech is turned into text on this device.",
+            "Answers are sent to your AI provider to be spoken.",
+        ]);
+        expect(speechDestinationText({ input: path("none"), output: path("none") })).toEqual([]);
+    });
+
+    it("tells a reader who says yes to a web-content hold to approve it on screen", () => {
+        expect(aiSay({ code: "AI_CONFIRMATION_NEEDED", params: { gate: "web-content", request: "r1" } })).toContain(
+            "on screen",
+        );
     });
 });

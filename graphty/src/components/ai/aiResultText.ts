@@ -2,9 +2,10 @@ import type {
     AiApprovalRequest,
     AiCallRecord,
     AiConversationSnapshot,
+    AiVoiceSupport,
     ExecutionResult,
 } from "@graphty/graphty-element/ai";
-import type { AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
+import type { AiResultCode, AiResultParams, AiVoiceDestination } from "@graphty/graphty-element/catalog";
 
 import type { ChatMessage } from "./AiMessageBubble";
 
@@ -67,6 +68,15 @@ const REASON_WORDS: Partial<Record<AiResultCode, Readonly<Record<string, string>
         "no-key": "Add an API key for the provider that handles speech in Settings first.",
         "no-synthesis": "This browser cannot speak answers, so they are shown as text.",
         "playback-failed": "The answer could not be played, so it is shown as text.",
+        "unknown-voice": "Your provider has no voice by that name, so answers are shown as text.",
+        "recognition-network":
+            "Speech could not reach the browser's recognition service. Check the connection, or type.",
+    },
+    // A spoken "yes" leaves these holds waiting: they are approved on screen.
+    AI_CONFIRMATION_NEEDED: {
+        "web-content":
+            "The assistant read web content in this conversation, so approve this change on screen, not by voice.",
+        irreversible: "This change cannot be undone, so approve it on screen, not by voice.",
     },
     AI_HISTORY_UNAVAILABLE: {
         "invalid-record": "A saved conversation could not be read, so it was skipped.",
@@ -82,7 +92,7 @@ const REASON_WORDS: Partial<Record<AiResultCode, Readonly<Record<string, string>
  * @returns The words, or undefined for a code the app has none for.
  */
 export function aiCodeText(code: AiResultCode, params: AiResultParams | undefined): string | undefined {
-    const reason = params?.reason ?? params?.tool;
+    const reason = params?.reason ?? params?.tool ?? params?.gate;
     return (typeof reason === "string" ? REASON_WORDS[code]?.[reason] : undefined) ?? WORDS[code];
 }
 
@@ -107,7 +117,50 @@ export const XR_AI_LABELS: Readonly<Record<string, string>> = {
     XR_APPROVE: "Approve",
     XR_DENY: "Deny",
     XR_TRANSCRIPT: "You said",
+    // Why a change was held, keyed by its gate.
+    slow: "This may take a while.",
+    large: "This changes a lot of the graph.",
+    replaces: "This replaces the graph.",
+    irreversible: "This cannot be undone.",
+    network: "This fetches a URL you did not give.",
+    policy: "This change waits for your approval.",
+    plan: "The assistant wants to hand this work to a helper.",
+    "web-content": "Asked for after the assistant read the web. Approve only what you asked for.",
+    // What the held change does, keyed by the preview's fact.
+    removeNodes: "Nodes removed",
+    removeEdges: "Edges removed",
+    changedValues: "Values changed",
+    ids: "Nodes",
+    algorithm: "Algorithm",
+    seconds: "Seconds",
+    run: "Stops the run",
+    nodes: "Nodes in the graph",
+    edges: "Edges in the graph",
+    mode: "Import",
+    url: "Fetches",
 };
+
+/**
+ * Where speech goes, in the app's words, from graphty-element's voice support.
+ * @param support - The element's report.
+ * @returns A sentence for each direction that is on: where the reader's audio, and the answer to
+ * speak, are sent.
+ */
+export function speechDestinationText(support: AiVoiceSupport): string[] {
+    const heard: Partial<Record<AiVoiceDestination, string>> = {
+        "on-device": "Your speech is turned into text on this device.",
+        "browser-vendor": "Your speech is sent to your browser's maker (Google for Chrome) to be turned into text.",
+        provider: "Your speech is sent to your AI provider to be turned into text.",
+    };
+    const spoken: Partial<Record<AiVoiceDestination, string>> = {
+        "on-device": "Answers are spoken on this device.",
+        "browser-vendor": "Answers are spoken by your browser's online voice.",
+        provider: "Answers are sent to your AI provider to be spoken.",
+    };
+    return [heard[support.input.destination], spoken[support.output.destination]].filter(
+        (line): line is string => line !== undefined,
+    );
+}
 
 /**
  * What the AI panel says for an assistant result.

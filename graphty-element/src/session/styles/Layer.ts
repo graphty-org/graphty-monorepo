@@ -394,8 +394,8 @@ function selectorWarnings(
     target: SelectorTarget | null,
     elements: SelectorSource,
 ): readonly CodedFact<GraphtyWarningCode>[] {
-    const selector = spec.selector as { match?: unknown; nodes?: unknown; edges?: unknown } | undefined;
-    if (target === null || typeof selector !== "object" || selector === null || selector.match !== "ids") {
+    const selector = spec.selector as { match?: unknown; nodes?: unknown; edges?: unknown } | null | undefined;
+    if (target === null || selector?.match !== "ids") {
         return NO_WARNINGS;
     }
 

@@ -233,8 +233,8 @@ const UPDATE_RULE =
 const LIVE_RULE =
     "Ask where each change takes effect. On this machine (githerd, the visual-review server, the push queue and pre-push scripts, " +
     "design studio builds, the XR sandbox, dev servers, local watchers): make it live now with tools/live.sh <tool> <branch> and open " +
-    "the pull request beside it as the record; a githerd fix goes on its own branch off feat/githerd to session d2, who makes it live " +
-    "with tools/live.sh. In GitHub, CI or npm (workflows, release, Mergify, published packages): only through a pull request, tested " +
+    "the pull request beside it as the record; a githerd fix goes on its own branch off origin/master with its own pull request, and to session " +
+    "d2, who makes it live with tools/live.sh. In GitHub, CI or npm (workflows, release, Mergify, published packages): only through a pull request, tested " +
     "first (the workflow run on its branch, scripts replayed). Shared code another branch needs: open its pull request, and merge the " +
     "fix branch (or master once it lands) into the blocked branch now instead of waiting.";
 

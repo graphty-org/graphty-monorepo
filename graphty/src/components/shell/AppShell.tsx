@@ -4711,25 +4711,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             });
         }
 
-        items.push({
-            id: "goto-settings",
-            group: "Go to",
-            label: PINNED_TITLES.settings,
-            onSelect: () => {
-                openFullPanelOverlay("settings");
-            },
-        });
-        items.push({
-            id: "goto-help",
-            group: "Go to",
-            label: PINNED_TITLES.help,
-            chipFor: "keyboardShortcuts",
-            onSelect: () => {
-                setHelpOpen(true);
-            },
-        });
-
         items.push(
+            {
+                id: "goto-settings",
+                group: "Go to",
+                label: PINNED_TITLES.settings,
+                onSelect: () => {
+                    openFullPanelOverlay("settings");
+                },
+            },
+            {
+                id: "goto-help",
+                group: "Go to",
+                label: PINNED_TITLES.help,
+                chipFor: "keyboardShortcuts",
+                onSelect: () => {
+                    setHelpOpen(true);
+                },
+            },
             { id: "view-zoom-in", group: "View", label: "Zoom in", chipFor: "zoomIn", onSelect: zoomIn },
             { id: "view-zoom-out", group: "View", label: "Zoom out", chipFor: "zoomOut", onSelect: zoomOut },
             { id: "view-zoom-fit", group: "View", label: "Zoom to fit", chipFor: "zoomToFit", onSelect: zoomToFit },

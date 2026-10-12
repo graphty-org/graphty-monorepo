@@ -112,8 +112,8 @@ export async function runLayoutFrBenchmarks(ctx: GpuContext): Promise<BenchResul
                         },
                         { device: ctx.device, items: pairs, unit: "pairs" },
                     );
-                    results.push(wall);
                     results.push(
+                        wall,
                         reportedRow(
                             LAYOUT_FR_GROUP,
                             `${model.tag} ms/iteration (${source}) n=${rung.nodes} [${rung.label}]`,

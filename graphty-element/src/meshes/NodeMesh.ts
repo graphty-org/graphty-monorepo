@@ -207,6 +207,16 @@ export class NodeMesh {
 
         return cache.get(cacheKey, () => {
             const mesh = this.createMeshWithoutCache(options, createOptions, scene);
+
+            // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
+            // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
+            // every node sharing this style id shares the faceted geometry; `node.flat` is a mesh
+            // column in the style interner, so flat and smooth nodes never share a source mesh.
+            // An unindexed mesh (only a registered shape can be one) has no faces to split.
+            if (createOptions.effect?.flatShaded && !mesh.isUnIndexed && mesh.getTotalIndices() > 0) {
+                mesh.convertToFlatShadedMesh();
+            }
+
             const material = this.createMaterial(createOptions, options.is2D, scene);
             mesh.material = material;
 

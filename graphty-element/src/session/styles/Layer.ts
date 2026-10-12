@@ -130,6 +130,11 @@ export interface Layer {
      * with the next release.
      */
     readonly userData?: Record<string, unknown>;
+    /**
+     * The row this layer is a part of, when it is one part of a row that paints nodes and edges:
+     * the id of the row's node part. Absent, the layer is a row of its own. See `styles.addRow`.
+     */
+    readonly row?: LayerId;
 }
 
 /**
@@ -1162,6 +1167,7 @@ function buildLayer(
         // Stored by reference and never copied: "round-trips untouched" is not a figure of speech,
         // and a consumer keeping a live object in here gets the same object back.
         ...(spec.userData === undefined ? {} : { userData: spec.userData }),
+        ...(spec.row === undefined ? {} : { row: spec.row }),
     });
 
     return Object.freeze({ layer, selector, reads: Object.freeze([...reads]) });
@@ -1184,5 +1190,6 @@ export function specOf(layer: Layer): LayerSpec {
         ...(layer.set === undefined ? {} : { set: layer.set }),
         ...(layer.encode === undefined ? {} : { encode: layer.encode }),
         ...(layer.userData === undefined ? {} : { userData: layer.userData }),
+        ...(layer.row === undefined ? {} : { row: layer.row }),
     };
 }

@@ -22,6 +22,7 @@ import type { CodedFact } from "../shared";
 import type { EncodingSpec } from "../styles/EncodingSpec";
 import type { ExplainTarget } from "../styles/explain";
 import type { LayerPosition } from "../styles/Layer";
+import type { RowSpec, RowWrite } from "../styles/rows";
 import type { HighlightSpec } from "../styles/StylesApi";
 import type { HistoryCode } from "../types";
 
@@ -34,6 +35,8 @@ const STYLE_PATCH_ACTIONS = Object.freeze([
     "removeBySource",
     "highlight",
     "resolveToStatic",
+    "addRow",
+    "writeRow",
 ] as const);
 
 /** `style.patch`: one change to the stack, said the way the styles verb that made it says it. */
@@ -79,7 +82,15 @@ export type StylePatchCommand =
           readonly id: LayerId;
           readonly channel: Channel;
           readonly at?: ExplainTarget;
-      };
+      }
+    | {
+          readonly op: "style.patch";
+          readonly action: "addRow";
+          readonly spec: RowSpec;
+          /** Which neighbour to sit next to; the top of the stack when absent. */
+          readonly at?: LayerPosition;
+      }
+    | { readonly op: "style.patch"; readonly action: "writeRow"; readonly id: LayerId; readonly write: RowWrite };
 
 /** `style.encode`: paint a run's measurement onto a channel. */
 export interface StyleEncodeCommand {
@@ -144,7 +155,10 @@ function layerOf(state: ProjectState, id: LayerId): string {
 function patchFact(command: StylePatchCommand, state: ProjectState): CodedFact<HistoryCode> {
     switch (command.action) {
         case "add":
+        case "addRow":
             return { code: "style.add-layer", params: { layer: command.spec.name } };
+        case "writeRow":
+            return { code: "style.update-layer", params: { layer: layerOf(state, command.id), channels: [] } };
         case "removeBySource":
             return { code: "style.remove-layers", params: { count: command.ids.length } };
         case "highlight":
@@ -200,7 +214,10 @@ function changedChannels(command: Extract<StylePatchCommand, { action: "update" 
 function patchLabel(command: StylePatchCommand, state: ProjectState): string {
     switch (command.action) {
         case "add":
+        case "addRow":
             return `Added layer "${command.spec.name}"`;
+        case "writeRow":
+            return `Changed layer ${nameOf(state, command.id)}`;
         case "update":
             return `Changed layer ${nameOf(state, command.id)}`;
         case "remove":

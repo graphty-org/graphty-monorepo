@@ -721,6 +721,12 @@ export interface LayerSpec {
     source?: LayerSource;
     enabled?: boolean;
     userData?: Record<string, unknown>;
+    /**
+     * The row this layer is a part of: the id of the row's node part. Two layers sharing a row
+     * are one entry that paints nodes and edges (`styles.addRow` with target `"both"`), and
+     * remove and move act on both. Minted by the element; `add` and `update` refuse it.
+     */
+    row?: LayerId;
 }
 
 /**
@@ -1289,10 +1295,13 @@ export interface FilterStep {
  * - `clipped`: the node half, plus the edge half clipped to edges whose endpoints are both in the
  *   node half. Rules only: exactly what the visibility filter shows. A fixed set given `clipped`
  *   is stored `listed`, which holds the same members.
+ * - `incident`: the node half, plus the edge half (every edge when silent) clipped to edges with
+ *   AT LEAST ONE endpoint in the node half: the edges "touching" the nodes, where `induced` and
+ *   `clipped` are the edges "between" them. Rules only; a fixed set is refused it.
  *
  * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
  */
-export type EdgeReading = "induced" | "listed" | "clipped";
+export type EdgeReading = "induced" | "listed" | "clipped" | "incident";
 
 /**
  * An edge member, by its stable identity: the endpoints plus exactly one discriminator, `id`,

@@ -650,6 +650,11 @@ function ruleHolds(
             return ends();
         case "listed":
             return halves.edge?.(index) ?? false;
+        case "incident":
+            return (
+                (halves.edge === null || halves.edge(index)) &&
+                (nodeIn(snapshot.edgeSource(index)) || nodeIn(snapshot.edgeTarget(index)))
+            );
         default:
             return (halves.edge === null || halves.edge(index)) && ends();
     }

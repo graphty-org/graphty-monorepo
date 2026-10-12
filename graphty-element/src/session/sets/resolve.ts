@@ -584,7 +584,8 @@ export function ruleHalves(
 /**
  * A rule's two halves, with the reading applied at the root (design 4.3): a silent node half is
  * every node except under `listed`; `induced` derives the edges; `listed` takes the edge half and
- * its endpoints; `clipped` takes the edge half (every edge when silent) between member nodes.
+ * its endpoints; `clipped` takes the edge half (every edge when silent) between member nodes;
+ * `incident` takes it touching a member node.
  * @param definition - A canonical rule.
  * @param context - What the resolution reads.
  * @param seen - The sets followed so far.
@@ -622,7 +623,8 @@ function resolveRule(
     }
 
     const edges = makeMask(snapshot.edgeCount);
-    const test = halves.edge;
+    // `incident` with a silent edge half takes every edge touching a member node.
+    const test = reading === "incident" && halves.edge === null ? (): boolean => true : halves.edge;
     if (test !== null) {
         const { src, dst } = snapshot.edgeList();
         resolveCounters.edgePasses++;
@@ -632,12 +634,11 @@ function resolveRule(
                 continue;
             }
 
+            const srcIn = (nodes[src[edge] >>> 5] & (1 << (src[edge] & 31))) !== 0;
+            const dstIn = (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0;
             if (reading === "listed") {
                 addEdgeRow(edge, snapshot, nodes, edges);
-            } else if (
-                (nodes[src[edge] >>> 5] & (1 << (src[edge] & 31))) !== 0 &&
-                (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0
-            ) {
+            } else if (reading === "incident" ? srcIn || dstIn : srcIn && dstIn) {
                 edges[edge >>> 5] |= 1 << (edge & 31);
             }
         }

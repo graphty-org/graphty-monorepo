@@ -11,6 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Rows on both kinds are built in the element** (`styles.addRow`, `writeRow`,
+  `parts`; `session/styles/rows.ts`): a "both" row is a node part and an edge part right under it,
+  sharing a selector, tied by `Layer.row` (the node part's id). Writes route by channel kind
+  (`color` both, `width` edges); remove and move on a part move the row; the tree keys the pair by
+  `row`. New edge reading `incident` (touching) beside `induced` (between), rules only. Why two
+  parts: one layer painting both kinds changes `target`, which is breaking. Limits: a write's
+  history step lists no channels; `Valjean` and `Javert` are neighbors in Les Miserables, so their
+  shortest path is one edge -- the 5-node, 4-edge test route is Napoleon to Tholomyes.
+- (2026-10-12) **Never `open(p, "w").write(f(open(p).read()))` in a script**: the write opens and
+  truncates before the read, and it emptied `owner-decisions.md` (restored from HEAD and the
+  entries read before). Read into a variable first. Shared files here change under you: build a
+  unit's commit from HEAD plus its own edits (a replay script and a scratch worktree), never
+  `git add` a file another agent is editing.
 - (2026-10-12) **Generic rules built in the element** (commit "generic layer rules"): selector
   `{ match: "rule", where, edges? }` (a member of the inline rule set, so live scopes and data
   dependencies come free); `RuleTree` leaf `{ kind: "text", reads: "id" | path, mode, text,

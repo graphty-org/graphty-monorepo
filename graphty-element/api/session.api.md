@@ -515,7 +515,7 @@ export interface EdgePageOptions extends RecordPageOptions {
 }
 
 // @public
-export type EdgeReading = "induced" | "listed" | "clipped";
+export type EdgeReading = "induced" | "listed" | "clipped" | "incident";
 
 // @public
 export interface EdgeRecord {
@@ -1478,6 +1478,7 @@ export interface Layer {
     readonly kind: LayerKind;
     readonly locked: boolean;
     readonly name: string;
+    readonly row?: LayerId;
     readonly selector: Selector_2;
     readonly set?: StaticStyle;
     readonly source: LayerSource;
@@ -1536,6 +1537,7 @@ export interface LayerSpec {
     kind?: LayerKind;
     // (undocumented)
     name: string;
+    row?: LayerId;
     // (undocumented)
     selector: Selector;
     // (undocumented)
@@ -2593,9 +2595,43 @@ export interface ResultSummary {
 }
 
 // @public
+export type RowEncoding = Readonly<Record<string, Binding | undefined>>;
+
+// @public
+export interface RowParts {
+    readonly edge?: LayerId;
+    readonly enabled: boolean;
+    readonly id: LayerId;
+    readonly name: string;
+    readonly node?: LayerId;
+    readonly target: RowTarget;
+}
+
+// @public
+export interface RowSpec extends Omit<LayerSpec, "target" | "set" | "encode" | "row"> {
+    readonly encode?: RowEncoding;
+    readonly set?: RowStyle;
+    readonly target: RowTarget;
+}
+
+// @public
+export type RowStyle = Readonly<Record<string, ChannelValue | undefined>>;
+
+// @public
+export type RowTarget = SelectorTarget | "both";
+
+// @public
 export interface RowUpdate<Id> {
     readonly id: Id;
     readonly values: Readonly<Record<string, unknown>>;
+}
+
+// @public
+export interface RowWrite {
+    readonly enabled?: boolean;
+    readonly encode?: RowEncoding;
+    readonly name?: string;
+    readonly set?: RowStyle;
 }
 
 // @public
@@ -3690,6 +3726,7 @@ export interface StyleProblem {
 // @public
 export interface StylesApi {
     add(spec: LayerSpec, at?: LayerPosition, options?: RunOptions): Run<Layer>;
+    addRow(spec: RowSpec, at?: LayerPosition, options?: RunOptions): Run<RowParts>;
     agreement(scope: Scope, channel?: Channel): StyleAgreement;
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
     counts(id: LayerId): StyleCounts;
@@ -3702,6 +3739,7 @@ export interface StylesApi {
     legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
+    parts(id: LayerId): RowParts | undefined;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;
     removeBySource(predicate: (source: LayerSource) => boolean, options?: RunOptions): Run<readonly LayerId[]>;
@@ -3719,6 +3757,7 @@ export interface StylesApi {
     unsplit(id: LayerId, options?: RunOptions): Run<Layer>;
     update(id: LayerId, patch: Partial<LayerSpec>, options?: RunOptions): Run<Layer>;
     validate(spec: LayerSpec): ValidationResult;
+    writeRow(id: LayerId, write: RowWrite, options?: RunOptions): Run<RowParts>;
 }
 
 // @public

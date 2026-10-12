@@ -300,6 +300,36 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "StylesApi.addRow",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(async () => {
+                await session.styles.addRow({
+                    name: "Both",
+                    target: "both",
+                    selector: { match: "everything" },
+                    set: { color: BLUE },
+                });
+                await session.styles.settled();
+            }),
+    },
+    {
+        method: "StylesApi.writeRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const row = await session.styles.addRow({
+                name: "Both",
+                target: "both",
+                selector: { match: "everything" },
+                set: { color: BLUE },
+            });
+            return async () => {
+                await session.styles.writeRow(row.id, { set: { color: "#ff0000" } });
+                await session.styles.settled();
+            };
+        },
+    },
+    {
         method: "StylesApi.remove",
         growth: "linear",
         prepare: async (session) => {

@@ -395,7 +395,7 @@ export interface EdgeMember {
 }
 
 // @public
-export type EdgeReading = "induced" | "listed" | "clipped";
+export type EdgeReading = "induced" | "listed" | "clipped" | "incident";
 
 // @public
 export type EdgeRef = EdgeId | EdgeMember;
@@ -1026,6 +1026,7 @@ export interface LayerSpec {
     kind?: LayerKind;
     // (undocumented)
     name: string;
+    row?: LayerId;
     // (undocumented)
     selector: Selector;
     // (undocumented)

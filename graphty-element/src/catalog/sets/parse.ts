@@ -54,7 +54,7 @@ const RESERVED = new Set([
 const KEYWORDS = ["visible", "graph", "selection", "largest-component"];
 
 /** Every edge reading this element knows. */
-export const EDGE_READINGS: readonly EdgeReading[] = ["induced", "listed", "clipped"];
+export const EDGE_READINGS: readonly EdgeReading[] = ["induced", "listed", "clipped", "incident"];
 const DIRECTIONS = ["in", "out", "all"];
 /** The modes a `text` leaf compares by. */
 const TEXT_MODES = ["substring", "exact", "starts-with", "ends-with", "regex"];
@@ -678,7 +678,7 @@ function checkScope(value: unknown, walker: Walker): void {
  */
 function checkReading(value: unknown): void {
     if (!(EDGE_READINGS as readonly unknown[]).includes(value)) {
-        throw bad(`A set's reading is "induced", "listed" or "clipped".`, { reading: value });
+        throw bad(`A set's reading is "induced", "listed", "clipped" or "incident".`, { reading: value });
     }
 }
 
@@ -710,6 +710,11 @@ function checkDefinition(value: unknown, walker: Walker): void {
             walker.fields(value, "fixed", DEFINITION_FIELDS.fixed);
             checkIds(value.nodes, "A fixed set's nodes");
             checkReading(value.reading);
+            if (value.reading === "incident") {
+                throw bad('"incident" reads a rule\'s node half; a fixed set is read "induced" or "listed".', {
+                    reading: value.reading,
+                });
+            }
 
             if (value.edges !== undefined) {
                 if (!Array.isArray(value.edges)) {

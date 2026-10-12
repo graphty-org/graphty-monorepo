@@ -306,6 +306,31 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "style.patch", action: "removeBySource", ids: ["fixture-a_1", "fixture-b_1"] },
     },
     {
+        name: "style.patch addRow",
+        variant: "addRow",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000")),
+        command: {
+            op: "style.patch",
+            action: "addRow",
+            spec: { name: "Fixture row", target: "both", selector: { match: "everything" }, set: { color: "#00ff00" } },
+        },
+    },
+    {
+        name: "style.patch writeRow",
+        variant: "writeRow",
+        tags: BOTH,
+        before: async (session) => {
+            await session.styles.addRow({
+                name: "Fixture row",
+                target: "both",
+                selector: { match: "everything" },
+                set: { color: "#00ff00" },
+            });
+        },
+        command: { op: "style.patch", action: "writeRow", id: "fixture-row_2", write: { set: { width: 2 } } },
+    },
+    {
         name: "style.patch highlight",
         variant: "highlight",
         tags: BOTH,

@@ -27,6 +27,36 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: one style row that paints nodes and edges (`styles.addRow`)
+
+**What.** For the unified style panel's "Nodes | Edges | Both" layers, all in graphty-element.
+
+- `styles.addRow({ name, target: "node" | "edge" | "both", selector, set?, encode? })` adds one
+  row. With `"both"` it is two layers, a node part and an edge part right under it, sharing the
+  selector and carrying the node part's id as `row` (a new optional field on `Layer` and
+  `LayerSpec`). One undo step.
+- `set` and `encode` keys on a row are channels (`"edge.width"`) or bare properties (`"color"`); a
+  bare one goes to every part whose kind has `<kind>.<property>`, so `color` paints both and `width`
+  only the edges. `styles.writeRow(id, { name?, enabled?, set?, encode? })` writes that way, merging
+  one key deep, as one step. A key no part has is refused with `E_BAD_COMMAND`, reason
+  `row-channel-unknown`. `styles.parts(id)` reads a row back (`RowParts`: id, name, enabled, target,
+  node, edge).
+- `remove` and `move` on either part act on the whole row, and placing a layer above or below a
+  part places it beside the row, so a row never splits. `add` and `update` refuse to set `row`; an
+  update cannot change a part's kind. The style tree keys a two-kind row by its row id, so its eye,
+  lock, move and delete reach both parts.
+- A new edge reading, `incident` ("touching them"): the edges with at least one end among a rule's
+  nodes, beside `induced` and `clipped` ("between them"). Rules only; a fixed set given it is
+  refused.
+
+**Why.** The panel shows a layer that paints both kinds as one row with one rule, and a color
+written once must reach both. One element layer painting both kinds would change what `target`
+reads back, which is breaking (it waits for the major, under "For the owner"); two parts sharing a
+row is the additive form, and `styles.list()` keeps one layer per part with its single `target`.
+
+**Not breaking.** New methods, types, an optional field on a layer and its spec, and a new member of
+the open `EdgeReading` union.
+
 ## 2026-10-12 -- Decided by the team: split a layer by value (`styles.split`)
 
 **What.** For the unified style panel's split parents (a Louvain layer shown as one row per

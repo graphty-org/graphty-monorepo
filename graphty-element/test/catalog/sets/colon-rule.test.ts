@@ -39,7 +39,7 @@ const CREATED_FROM_KINDS: Record<SetCreatedFrom["kind"], true> = {
     result: true,
     combine: true,
 };
-const READINGS: Record<EdgeReading, true> = { induced: true, listed: true, clipped: true };
+const READINGS: Record<EdgeReading, true> = { induced: true, listed: true, clipped: true, incident: true };
 const COMBINES: Record<SetCombine, true> = {
     union: true,
     intersection: true,

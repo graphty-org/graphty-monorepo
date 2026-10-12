@@ -549,6 +549,26 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     remove: calls(["no-such-layer"], [{ op: "style.patch", action: "remove", id: "no-such-layer" }]),
     move: calls(["no-such-layer", null], [{ op: "style.patch", action: "move", id: "no-such-layer", before: null }]),
     removeBySource: calls([() => false], [{ op: "style.patch", action: "removeBySource", ids: [] }]),
+    addRow: calls(
+        [{ name: "door row", target: "both", selector: { match: "everything" }, set: { color: "#ff0000" } }],
+        [
+            {
+                op: "style.patch",
+                action: "addRow",
+                spec: {
+                    name: "door row",
+                    target: "both",
+                    selector: { match: "everything" },
+                    set: { color: "#ff0000" },
+                },
+            },
+        ],
+    ),
+    writeRow: calls(
+        ["no-such-layer", { name: "renamed" }],
+        [{ op: "style.patch", action: "writeRow", id: "no-such-layer", write: { name: "renamed" } }],
+    ),
+    parts: READ,
     encode: calls(
         [{ run: "no-such-run", field: "value", channel: "node.color" }],
         [{ op: "style.encode", spec: { run: "no-such-run", field: "value", channel: "node.color" } }],

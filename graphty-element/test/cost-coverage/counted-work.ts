@@ -48,6 +48,7 @@ export const COUNTED_WORK_TESTS: Readonly<Record<string, readonly string[]>> = {
     "SetsApi.rename": ["test/session/mutation-scaling.test.ts"],
     "SetsApi.restore": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.add": ["test/session/mutation-scaling.test.ts"],
+    "StylesApi.addRow": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.applyTemplate": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.encode": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.move": ["test/session/mutation-scaling.test.ts"],
@@ -59,6 +60,7 @@ export const COUNTED_WORK_TESTS: Readonly<Record<string, readonly string[]>> = {
     "StylesApi.split": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.unsplit": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.update": ["test/session/mutation-scaling.test.ts"],
+    "StylesApi.writeRow": ["test/session/mutation-scaling.test.ts"],
     "VisibilityApi.set": ["test/session/mutation-scaling.test.ts"],
     "VisibilityApi.setWindow": ["test/session/mutation-scaling.test.ts"],
 };

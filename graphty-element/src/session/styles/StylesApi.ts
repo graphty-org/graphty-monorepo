@@ -180,6 +180,7 @@ import {
 } from "./legend";
 import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate";
 import { stackChange } from "./repaint";
+import { assertRouted, partPatch, rowOf, type RowParts, rowParts, type RowSpec, type RowWrite } from "./rows";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
 import { childrenOf, overridePatch, type SplitChild, splitPatch, unsplitPatch } from "./split";
 
@@ -341,6 +342,39 @@ export interface StylesApi {
      *     when nothing matched, which is not a failure.
      */
     removeBySource(predicate: (source: LayerSource) => boolean, options?: RunOptions): Run<readonly LayerId[]>;
+    /**
+     * Add one row, which may paint nodes AND edges: with target `"both"` it is a node part and an
+     * edge part sharing the selector, one undo step. A selector that speaks both kinds (a value
+     * both carry, such as a path's `onPath`) is read by each part for its own kind; a node rule
+     * reads its edges by its `edges` reading (`clipped` or `induced` for the edges between its
+     * nodes, `incident` for the edges touching them). `set` and `encode` keys are channels
+     * (`"edge.width"`) or bare properties (`"color"`), each going to the parts whose kind has it.
+     * {@link StylesApi.remove} and {@link StylesApi.move} on either part act on the whole row;
+     * {@link StylesApi.list} still returns one layer per part, each with its own `target`.
+     * @param spec - The row.
+     * @param at - Which neighbour to sit next to; the top of the stack when absent.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the row, and rejects with `E_BAD_COMMAND` (reason
+     *     `row-channel-unknown`) for a key no part of the row has.
+     */
+    addRow(spec: RowSpec, at?: LayerPosition, options?: RunOptions): Run<RowParts>;
+    /**
+     * Write to every part of a row at once, one undo step: each `set` and `encode` key goes to the
+     * parts whose kind has that channel (`color` to both, `width` to the edges), merging one key
+     * deep (`undefined` clears one); `name` and `enabled` reach every part.
+     * @param id - The row, or any of its parts. A layer that is no part of a row is a row of one.
+     * @param write - What to write.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the row, and rejects with `E_UNKNOWN_LAYER`, `E_PROTECTED`
+     *     or `E_BAD_COMMAND` (reason `row-channel-unknown`).
+     */
+    writeRow(id: LayerId, write: RowWrite, options?: RunOptions): Run<RowParts>;
+    /**
+     * The parts of the row a layer belongs to, and what they paint together.
+     * @param id - The row, or any of its parts.
+     * @returns The row, or undefined when the stack holds no such layer.
+     */
+    parts(id: LayerId): RowParts | undefined;
     /**
      * Paint a run's measurement onto a channel. The one path an analysis layer takes.
      *
@@ -1216,6 +1250,17 @@ function carriedPalettes(specs: readonly LayerSpec[]): readonly PaletteDescripto
 }
 
 /**
+ * Whether an update would change the kind of a row part, which would leave the row with two parts
+ * of one kind.
+ * @param layer - The layer being updated.
+ * @param patch - The update.
+ * @returns True for a row part given another target.
+ */
+function retargetsRowPart(layer: Layer, patch: Partial<LayerSpec>): boolean {
+    return layer.row !== undefined && patch.target !== undefined && patch.target !== layer.target;
+}
+
+/**
  * The refusal a call the session cannot make sense of gets.
  * @param message - What is wrong, in a sentence.
  * @param details - The offending values, for an editor that points at them.
@@ -1820,14 +1865,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         if (at.above !== undefined) {
             require(at.above);
+            const parts = rowParts(current(), at.above);
 
-            return positionOf(at.above) + 1;
+            return positionOf(parts[parts.length - 1].layer.id) + 1;
         }
 
         if (at.below !== undefined) {
             require(at.below);
 
-            return positionOf(at.below);
+            return positionOf(rowParts(current(), at.below)[0].layer.id);
         }
 
         return length;
@@ -1915,12 +1961,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * The plan for changing one layer, keeping its id and its place in the stack.
      * @param id - The layer to change.
      * @param patch - What to change about it.
+     * @param base - The stack to change, when an edit changes several layers in one step.
      * @returns The plan.
      * @throws A `GraphtyError` with code `E_PROTECTED` for an element-owned layer, and whatever
      *     the check refuses the merged specification with.
      */
-    const planUpdate = (id: LayerId, patch: Partial<LayerSpec>): EditPlan<Layer> => {
-        const existing = require(id);
+    const planUpdate = (
+        id: LayerId,
+        patch: Partial<LayerSpec>,
+        base: readonly CompiledLayer[] = current(),
+    ): EditPlan<Layer> => {
+        const existing = base.find((entry) => entry.layer.id === id) ?? require(id);
 
         if (existing.layer.locked) {
             throw protectedLayer(existing.layer, "changed");
@@ -1938,8 +1989,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             throw refusedSpec(merged.name, checked.result);
         }
 
-        const next = [...current()];
-        next[positionOf(id)] = checked.layer;
+        const next = [...base];
+        next[base.indexOf(existing)] = checked.layer;
 
         return {
             stack: next,
@@ -1963,10 +2014,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             throw protectedLayer(existing.layer, "removed");
         }
 
+        const parts = rowParts(current(), id);
+
         return {
-            stack: current().filter((entry) => entry.layer.id !== id),
+            stack: current().filter((entry) => !parts.includes(entry)),
             result: undefined,
-            layers: [id],
+            layers: parts.map((entry) => entry.layer.id),
             unresolvedPaths: NO_PATHS,
             reason: "remove",
         };
@@ -1995,18 +2048,36 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
         }
 
-        const without = current().filter((entry) => entry.layer.id !== id);
+        const parts = rowParts(current(), id);
+        const without = current().filter((entry) => !parts.includes(entry));
         let to = without.length;
 
         if (before !== null) {
             require(before);
-            to = without.findIndex((entry) => entry.layer.id === before);
+            // Below a row means below its bottom part, so the move never splits a row.
+            const below = rowParts(current(), before)[0];
+            to = without.indexOf(below);
+            if (to === -1) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: "A row cannot be moved below one of its own parts.",
+                    source: "style",
+                    target: { kind: "layer", id },
+                    details: { id, before },
+                });
+            }
         }
 
         const next = [...without];
-        next.splice(to, 0, existing);
+        next.splice(to, 0, ...parts);
 
-        return { stack: next, result: undefined, layers: [id], unresolvedPaths: NO_PATHS, reason: "move" };
+        return {
+            stack: next,
+            result: undefined,
+            layers: parts.map((entry) => entry.layer.id),
+            unresolvedPaths: NO_PATHS,
+            reason: "move",
+        };
     };
 
     /**
@@ -2282,6 +2353,104 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * The plan for adding a row: one layer per kind it paints, the edge part right under the node
+     * part, both carrying the node part's id as their row.
+     * @param spec - The row.
+     * @param at - Which neighbour to sit next to.
+     * @returns The plan.
+     */
+    const planAddRow = (spec: RowSpec, at: LayerPosition | undefined): EditPlan<RowParts> => {
+        const kinds: SelectorTarget[] = spec.target === "both" ? ["edge", "node"] : [spec.target];
+        assertRouted(spec.set, kinds, "set");
+        assertRouted(spec.encode, kinds, "encode");
+
+        const id = minter();
+        const { target: _target, set: _set, encode: _encode, ...shared } = spec;
+        const ids = kinds.map(() => id(spec.name));
+        // The row is known by its node part's id, the last minted.
+        const row = spec.target === "both" ? ids[ids.length - 1] : undefined;
+        const added: CompiledLayer[] = [];
+        const unresolved = new Set<Path>();
+        const warnings: CodedFact<GraphtyWarningCode>[] = [];
+
+        kinds.forEach((kind, index) => {
+            const layerSpec: LayerSpec = {
+                ...shared,
+                target: kind,
+                ...partPatch({ target: kind }, { set: spec.set, encode: spec.encode }),
+                ...(row === undefined ? {} : { row }),
+            };
+            const checked = check(layerSpec, ids[index]);
+            if (checked.layer === null) {
+                throw refusedSpec(spec.name, checked.result);
+            }
+
+            checked.result.unresolvedPaths.forEach((path) => unresolved.add(path));
+            warnings.push(...checked.result.warnings);
+            added.push(checked.layer);
+        });
+
+        const next = [...current()];
+        next.splice(insertionIndex(at), 0, ...added);
+
+        return {
+            stack: next,
+            result: rowOf(added) as RowParts,
+            layers: added.map((entry) => entry.layer.id),
+            unresolvedPaths: Object.freeze([...unresolved]),
+            warnings: Object.freeze(warnings),
+            reason: "add",
+        };
+    };
+
+    /**
+     * The plan for one write to every part of a row, each part taking the keys its kind has.
+     * @param id - The row or any part.
+     * @param write - The write.
+     * @returns The plan.
+     */
+    const planWriteRow = (id: LayerId, write: RowWrite): EditPlan<RowParts> => {
+        require(id);
+        const parts = rowParts(current(), id);
+        assertRouted(
+            write.set,
+            parts.map((entry) => entry.layer.target),
+            "set",
+        );
+        assertRouted(
+            write.encode,
+            parts.map((entry) => entry.layer.target),
+            "encode",
+        );
+
+        let stack: readonly CompiledLayer[] = current();
+        const unresolved = new Set<Path>();
+        const warnings: CodedFact<GraphtyWarningCode>[] = [];
+        const changed: LayerId[] = [];
+        for (const part of parts) {
+            const patch = partPatch(part.layer, write);
+            if (patch === null) {
+                continue;
+            }
+
+            const plan = planUpdate(part.layer.id, patch, stack);
+            ({ stack } = plan);
+            plan.unresolvedPaths.forEach((path) => unresolved.add(path));
+            warnings.push(...(plan.warnings ?? NO_WARNINGS));
+            changed.push(part.layer.id);
+        }
+
+        return {
+            stack,
+            result: rowOf(rowParts(stack, id)) as RowParts,
+            layers: changed,
+            unresolvedPaths: Object.freeze([...unresolved]),
+            warnings: Object.freeze(warnings),
+            reason: "update",
+        };
+    };
+
+    /**
      * The plan a style command asks for, against the stack as it stands now.
      * @param command - The command.
      * @returns The plan. Throws a `GraphtyError` to refuse it.
@@ -2308,9 +2477,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     });
                 }
 
+                if (command.spec.row !== undefined) {
+                    throw badCommand("A layer joins a row only through addRow.", { row: command.spec.row });
+                }
+
                 return planInsert(command.spec, insertionIndex(command.at), mint(command.spec.name));
             case "update":
+                if ("row" in command.patch || retargetsRowPart(require(command.id).layer, command.patch)) {
+                    throw badCommand("A row part keeps its row and its kind; write to the row with writeRow.", {
+                        id: command.id,
+                    });
+                }
+
                 return planUpdate(command.id, command.patch);
+            case "addRow":
+                return planAddRow(command.spec, command.at);
+            case "writeRow":
+                return planWriteRow(command.id, command.write);
             case "remove":
                 return planRemove(command.id);
             case "move":
@@ -2499,6 +2682,28 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 }),
                 options,
             );
+        },
+
+        addRow(spec: RowSpec, at?: LayerPosition, options: RunOptions = {}): Run<RowParts> {
+            return edit<RowParts>(
+                "add",
+                `Add row "${spec.name}"`,
+                { op: "style.patch", action: "addRow", spec, ...(at === undefined ? {} : { at }) },
+                options,
+            );
+        },
+
+        writeRow(id: LayerId, write: RowWrite, options: RunOptions = {}): Run<RowParts> {
+            return edit<RowParts>(
+                "update",
+                `Write row ${id}`,
+                { op: "style.patch", action: "writeRow", id, write },
+                options,
+            );
+        },
+
+        parts(id: LayerId): RowParts | undefined {
+            return rowOf(rowParts(current(), id));
         },
 
         encode(spec: EncodingSpec | ColumnEncodingSpec, options: RunOptions = {}): Run<Layer> {

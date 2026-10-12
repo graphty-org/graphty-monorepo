@@ -6,6 +6,7 @@
 import {
     AI_CONVERSATION_FORMAT,
     AI_CONVERSATION_FORMAT_VERSION,
+    type AiCapabilities,
     type AiProviderId,
     type AiResultCode,
     type AiResultParams,
@@ -19,6 +20,7 @@ import {
     type AiPlan,
     type AiRouter,
     type AiTokenUsage,
+    type AiToolOptions,
     rolesOf,
 } from "./agents";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
@@ -68,6 +70,14 @@ import {
 import { toSafeError } from "./safeError";
 import type { SchemaManager } from "./schema";
 import type { HeldBatch, Outcome, ToolCallRequest } from "./ToolExecutor";
+import {
+    capabilitiesOf,
+    defaultModelOf,
+    type HostedToolSetting,
+    researchRole,
+    resolveTools,
+    type UnavailableTool,
+} from "./tools/hosted";
 import { hasAssistantTools, installAssistantTools } from "./tools/install";
 import { assistantInstructions, factsBlock } from "./tools/prompt";
 import { isAssistantTool } from "./tools/toolset";
@@ -470,6 +480,13 @@ export interface AiControllerOptions {
     agents?: AiAgentsSetting;
     /** API keys for the providers helpers run on, beside the main provider's own. */
     apiKeys?: Partial<Record<AiProviderId, string>>;
+    /**
+     * Tools beyond the assistant's own commands: web search and web fetch, run by the provider in a
+     * built-in read-only `research` helper. Default none.
+     */
+    tools?: AiToolOptions;
+    /** The model the provider runs, for `getCapabilities()`; the provider's default when absent. */
+    model?: string;
 }
 
 /** Combined result from execution */
@@ -549,6 +566,14 @@ export class AiController {
     private readonly claimant = uniqueId("ctl_");
     /** A store handed in instead of the one `history` names (tests, the regression harness). */
     private readonly storeOverride: ConversationStore | undefined;
+    /** The model the provider runs, as configured. */
+    private readonly model: string;
+    /** The web tools each helper may use, by role name, resolved once here. */
+    private readonly hosted = new Map<string, readonly HostedToolSetting[]>();
+    /** Web tools asked for that cannot be used, not yet reported (they are, on the first message). */
+    private unreported: readonly UnavailableTool[] = [];
+    /** A web tool marked `required` that cannot be used: every message fails with it. */
+    private readonly requiredMissing: UnavailableTool | undefined;
 
     /**
      * Creates a new AiController instance.
@@ -564,6 +589,7 @@ export class AiController {
         this.engine =
             (options as AiControllerOptions & { [ENGINE_OVERRIDE]?: AiEngine })[ENGINE_OVERRIDE] ??
             engineFor(options.provider);
+        this.provider = options.provider;
         this.commandRegistry = options.commandRegistry;
         this.graph = options.graph;
         this.statusManager = new AiStatusManager();
@@ -574,12 +600,40 @@ export class AiController {
         this.allowImportUrl = options.allowImportUrl;
         this.policy = policyOf(options.approvals);
         this.asks = options.questions === true;
-        this.roles = options.agents === undefined ? [] : rolesOf(options.agents);
+        this.model = options.model ?? defaultModelOf(options.provider.name);
+        const consumerRoles = options.agents === undefined ? [] : rolesOf(options.agents);
+        // The web tools asked for, kept where the provider and model can use them.
+        const main = resolveTools(options.tools, this.getCapabilities());
+        const unavailable = [...main.unavailable];
+        for (const role of consumerRoles) {
+            if (role.tools === undefined) {
+                continue;
+            }
+
+            const provider = role.provider ?? options.provider.name;
+            const model = role.model ?? (role.provider === undefined ? this.model : defaultModelOf(provider));
+            const own = role.provider === undefined ? this.engine.capabilities(model).hostedTools : undefined;
+            const resolved = resolveTools(role.tools, capabilitiesOf(provider, model, own));
+            this.hosted.set(role.name, resolved.offered);
+            unavailable.push(...resolved.unavailable);
+        }
+
+        // With a web tool to use, the main model may hand a task to the built-in research helper.
+        const research = main.offered.length === 0 || options.tools === undefined ? [] : [researchRole(options.tools)];
+        if (research.length > 0) {
+            this.hosted.set(research[0].name, main.offered);
+        }
+
+        this.roles = [...consumerRoles, ...research];
+        this.unreported = unavailable.filter(
+            (one, at) =>
+                unavailable.findIndex((other) => JSON.stringify(other.params) === JSON.stringify(one.params)) === at,
+        );
+        this.requiredMissing = unavailable.find((one) => one.required);
         const routing = options.agents !== undefined && "roles" in options.agents ? options.agents : undefined;
         this.router = routing?.router ?? "model";
         this.classifierModel = routing?.classifierModel;
         this.confirmPlans = routing?.confirmPlans === true;
-        this.provider = options.provider;
         this.apiKeys = options.apiKeys ?? {};
         this.history = historyOptionsOf(options.history);
         this.secrets = options.secrets ?? ((): readonly string[] => []);
@@ -630,6 +684,13 @@ export class AiController {
         // Track input for retry
         this.lastInput = input;
 
+        // Web tools left out are reported once, on the first message.
+        for (const { tool, params } of this.unreported) {
+            this.emitAiEvent({ type: "ai-capability-unavailable", tool, code: "AI_HOSTED_TOOL_UNSUPPORTED", params });
+        }
+
+        this.unreported = [];
+
         // Registered now, so `cancel()` reaches a message still waiting for the one before it.
         const abortController = new AbortController();
         this.running.set(abortController, input);
@@ -675,6 +736,10 @@ export class AiController {
         const fail = (code: AiResultCode, params: AiResultParams): { result: ExecutionResult } => ({
             result: { success: false, message: "", code, params },
         });
+        if (this.requiredMissing !== undefined) {
+            return fail("AI_HOSTED_TOOL_UNSUPPORTED", this.requiredMissing.params);
+        }
+
         const missing =
             this.roles.length === 0
                 ? undefined
@@ -769,7 +834,17 @@ export class AiController {
             engine: this.engine,
             provider: this.provider,
             keyFor: (provider) => this.apiKeys[provider],
+            hosted: this.hosted,
         };
+    }
+
+    /**
+     * What the assistant can use with its provider and model: each tool beyond its own commands,
+     * and whether it can be used. Synchronous.
+     * @returns The capabilities.
+     */
+    getCapabilities(): AiCapabilities {
+        return capabilitiesOf(this.provider.name, this.model, this.engine.capabilities(this.model).hostedTools);
     }
 
     /**
@@ -889,6 +964,7 @@ export class AiController {
                         ...(this.policy === undefined ? {} : { policy: this.policy }),
                         runs: this.assistantRuns,
                         undo: { calls: 0 },
+                        hostedUses: {},
                         totals: { ...(run.totals ?? { removeNodes: 0, removeEdges: 0, changedValues: 0 }) },
                     },
                     host: {

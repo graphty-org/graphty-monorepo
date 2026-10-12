@@ -92,6 +92,8 @@ export interface LlmRegressionResult {
     turns?: number;
     /** The message's last request to the model: the whole conversation, every tool result in it. */
     lastRequest?: TurnRequest | null;
+    /** Every request of the message to a model, helpers' included, in order. */
+    requests?: readonly TurnRequest[];
     /** The message's result code. */
     code?: string;
     /** The facts behind the code (the approval request of a held message). */
@@ -214,6 +216,8 @@ export interface LlmRegressionTestHarnessOptions {
     questions?: boolean;
     /** Helpers the model may hand tasks to; none, as the element's default, when absent. */
     agents?: AiControllerOptions["agents"];
+    /** Tools beyond the assistant's commands (web search, web fetch); none, as the element's default, when absent. */
+    tools?: AiControllerOptions["tools"];
     /** Told every AI event the assistant emits. */
     onEvent?: (event: AiEvent) => void;
     /** The store conversations are kept in, instead of the one `history` names: a reload's. */
@@ -287,6 +291,8 @@ export class RecordingEngine implements AiEngine {
     capturedTurns: TranscriptTurn[] = [];
     /** The current prompt's last request. */
     lastRequest: TurnRequest | null = null;
+    /** Every request of the current prompt, in order. */
+    capturedRequests: TurnRequest[] = [];
 
     constructor(private readonly inner: AiEngine) {
         this.kind = inner.kind;
@@ -304,6 +310,7 @@ export class RecordingEngine implements AiEngine {
         const turn: TranscriptTurn = { text: "", toolCalls: [], end: "none", ms: 0, requests: [] };
         this.capturedTurns.push(turn);
         this.lastRequest = request;
+        this.capturedRequests.push(request);
         recordingTurn = turn;
         const start = Date.now();
         try {
@@ -361,6 +368,7 @@ export class RecordingEngine implements AiEngine {
         this.capturedTokenUsage = undefined;
         this.capturedTurns = [];
         this.lastRequest = null;
+        this.capturedRequests = [];
     }
 }
 
@@ -402,9 +410,10 @@ export class LlmRegressionTestHarness {
 
         // The provider VITE_LLM_REGRESSION_PROVIDER names (google by default)
         const provider = new VercelAiProvider(getLlmRegressionProvider());
+        const model = options.model ?? getLlmRegressionModel();
         provider.configure({
             apiKey,
-            model: options.model ?? getLlmRegressionModel(),
+            model,
             temperature: options.temperature ?? 0,
         });
 
@@ -436,6 +445,8 @@ export class LlmRegressionTestHarness {
             ...(options.approvals === undefined ? {} : { approvals: options.approvals }),
             ...(options.questions === undefined ? {} : { questions: options.questions }),
             ...(options.agents === undefined ? {} : { agents: options.agents }),
+            ...(options.tools === undefined ? {} : { tools: options.tools }),
+            ...(model === undefined ? {} : { model }),
             ...(options.onEvent === undefined ? {} : { emitEvent: options.onEvent }),
             [ENGINE_OVERRIDE]: engine,
             ...(options.store === undefined ? {} : { [STORE_OVERRIDE]: options.store }),
@@ -552,6 +563,7 @@ export class LlmRegressionTestHarness {
                 tokenUsage: this.engine.capturedTokenUsage,
                 turns: this.engine.capturedTurns.length,
                 lastRequest: this.engine.lastRequest,
+                requests: [...this.engine.capturedRequests],
                 code: executionResult.code,
                 params: executionResult.params,
             };

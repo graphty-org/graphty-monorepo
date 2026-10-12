@@ -12,7 +12,7 @@
  * so it works on every engine.
  */
 
-import type { AiResultCode } from "../catalog/ai";
+import type { AiResultCode, AiResultParams } from "../catalog/ai";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession, HistoryStepId } from "../session/types";
 import type { AiPlan } from "./agents";
@@ -44,6 +44,7 @@ import {
     runToolBatch,
     type ToolCallRequest,
 } from "./ToolExecutor";
+import { type HostedToolSetting, turnHostedTools } from "./tools/hosted";
 import { MAX_LOADED_TOOLS, PROFILE_TOOLS } from "./tools/install";
 import type { ToolProfile } from "./tools/prompt";
 import { resultText } from "./tools/shape";
@@ -175,6 +176,11 @@ export interface DelegatedRun {
     readonly usage: TokenUsage;
     /** A helper's held batch, which ends the message there; its call has no result yet. */
     readonly held?: HeldHelper;
+    /**
+     * A helper's provider stopped its turn mid-search (`AI_PROVIDER_PAUSED`'s params): the message
+     * ends there, and asking again continues.
+     */
+    readonly paused?: AiResultParams;
 }
 
 /** One step of a router's plan: its `delegate` calls, and whether they run one after another. */
@@ -276,6 +282,11 @@ export interface ConversationRun {
     readonly allTools?: boolean;
     /** Told each turn's token usage. */
     readonly onUsage?: (usage: TokenUsage) => void;
+    /**
+     * The tools the provider runs itself that each turn may use (a helper's web tools); absent,
+     * none. Counted across the message in `state.hostedUses`.
+     */
+    readonly hostedTools?: readonly HostedToolSetting[];
 }
 
 /** The reader's answer to a question. */
@@ -552,6 +563,8 @@ interface MessageTally {
     asked?: string;
     /** The tokens the message used: its own model turns and its helpers'. */
     usage: TokenUsage;
+    /** The provider stopped a turn mid-search: `AI_PROVIDER_PAUSED`'s params. */
+    paused?: AiResultParams;
 }
 
 /**
@@ -571,7 +584,11 @@ function combineResults(tally: MessageTally, llmText?: string): ExecutionResult 
  * @returns Combined execution result
  */
 function combined(tally: MessageTally, llmText?: string): ExecutionResult {
-    const { results, failure, held, asked } = tally;
+    const { results, failure, held, asked, paused } = tally;
+    if (paused !== undefined) {
+        return { success: false, message: llmText ?? "", llmText, code: "AI_PROVIDER_PAUSED", params: paused };
+    }
+
     if (asked !== undefined) {
         return {
             success: true,
@@ -643,11 +660,13 @@ async function modelTurn(
     request: TurnRequest,
     earlier: readonly string[],
     onUsage: (usage: TokenUsage) => void,
-): Promise<{ text: string; calls: ToolCallRequest[] }> {
+): Promise<{ text: string; calls: ToolCallRequest[]; hosted: HostedPart[]; paused: boolean }> {
     const { engine, sink, abort } = run;
     let text = "";
     let finished = false;
+    let paused = false;
     const calls: ToolCallRequest[] = [];
+    const hosted: HostedPart[] = [];
     for await (const event of engine.turn(request, abort.signal)) {
         if (event.type === "text") {
             text += event.delta;
@@ -661,12 +680,23 @@ async function modelTurn(
                 ...(event.invalidArguments && { invalidArguments: true }),
                 ...(event.providerState && { providerState: event.providerState }),
             });
+        } else if (event.type === "hosted-tool") {
+            // A tool the provider ran: its sources are the reader's to see, and web content.
+            const sources = event.sources.map((source) => ({ ...source }));
+            hosted.push({ type: "hosted-tool", origin: "web", tool: event.tool, status: event.status, sources });
+            sink.emit({
+                type: "ai-hosted-tool-result",
+                tool: event.tool,
+                status: event.status,
+                sources: sources.map((source) => ({ tool: event.tool, ...source })),
+            });
         } else if (event.type === "usage") {
             onUsage({ inputTokens: event.inputTokens, outputTokens: event.outputTokens });
         } else if (event.type === "error") {
             throw new TurnFailed(event);
         } else if (event.type === "finish") {
             finished = true;
+            paused = event.reason === "paused";
             break;
         }
     }
@@ -679,8 +709,11 @@ async function modelTurn(
         throw new TurnFailed(providerFailure(cause, engine.providerName, abort.signal));
     }
 
-    return { text, calls };
+    return { text, calls, hosted, paused };
 }
+
+/** A saved part for a tool the provider ran. */
+type HostedPart = Extract<SavedPart, { type: "hosted-tool" }>;
 
 /**
  * The outcome a tool-result part records for one call.
@@ -713,6 +746,7 @@ function partOutcome(call: ToolCallRequest, result: CallResult | undefined, batc
  * @param calls - The calls it made.
  * @param newId - Makes the message's id.
  * @param origin - Who made the calls: the model, or a router's plan.
+ * @param hosted - The tools the provider ran in the turn.
  * @returns The message's id.
  */
 function appendCalls(
@@ -721,12 +755,14 @@ function appendCalls(
     calls: readonly ToolCallRequest[],
     newId: () => string,
     origin: "model" | "graphty" = "model",
+    hosted: readonly HostedPart[] = [],
 ): string {
     const id = newId();
     conversation.messages.push({
         id,
         role: "assistant",
         parts: [
+            ...hosted,
             ...(text ? [{ type: "text" as const, origin: "model" as const, text }] : []),
             ...calls.map((call) => ({
                 type: "tool-call" as const,
@@ -954,7 +990,7 @@ async function runDelegated(
  * @param tally - The message's tally.
  * @param added - The turn's tool message, when its other calls had one.
  * @param newId - Makes a message's id.
- * @returns True when a helper's batch was held.
+ * @returns True when the message ends there: a helper's batch was held, or its provider paused.
  */
 async function applyDelegated(
     run: ConversationRun,
@@ -965,6 +1001,11 @@ async function applyDelegated(
 ): Promise<boolean> {
     tally.usage = addUsage(tally.usage, ran.usage);
     addParts(run, ran.parts, added, newId);
+    if (ran.paused !== undefined) {
+        tally.paused = ran.paused;
+        return true;
+    }
+
     if (ran.held === undefined) {
         return false;
     }
@@ -1075,8 +1116,12 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
         gate: DEFAULT_ASSISTANT_GATE_LIMITS,
         runs: new Set(),
         undo: { calls: 0 },
+        hostedUses: {},
         totals: { removeNodes: 0, removeEdges: 0, changedValues: 0 },
     };
+    // Counted across the message: the state's, shared with its helpers, or this run's own.
+    const uses = state.hostedUses ?? {};
+    const readerText = run.host?.readerText ?? run.label;
 
     logger.debug("Request", {
         messageCount: conversation.messages.length + 1,
@@ -1205,7 +1250,9 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
             run.historyBudgetTokens ?? DEFAULT_HISTORY_BUDGET_TOKENS[profile],
         );
         const history = profile === "small" ? trimmedHistory(shown) : shown;
-        const { text, calls } = await modelTurn(
+        const hostedTools =
+            run.hostedTools === undefined || answerOnly ? [] : turnHostedTools(run.hostedTools, readerText, uses);
+        const { text, calls, hosted, paused } = await modelTurn(
             run,
             {
                 model: run.model,
@@ -1216,11 +1263,15 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
                     ...(run.delegation === undefined ? [] : [run.delegation.tool]),
                     ...(asks === undefined ? [] : [asks.tool]),
                 ],
+                ...(hostedTools.length === 0 ? {} : { hostedTools }),
                 toolMode: answerOnly ? "none" : "auto",
             },
             texts,
             report,
         );
+        for (const part of hosted) {
+            uses[part.tool] = (uses[part.tool] ?? 0) + 1;
+        }
 
         logger.debug("Response", {
             turn,
@@ -1233,18 +1284,23 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
         }
 
         // A provider that ignores toolMode may still call tools on the answer-only ask: they do not run.
-        if (answerOnly || calls.length === 0) {
+        if (answerOnly || calls.length === 0 || paused) {
             if (heldResults !== undefined) {
                 // Waiting on the reader: the conversation ends in the held calls, and the answer
                 // about them is the reader's alone, so it never sits between a call and its result.
                 conversation.messages.splice(conversation.messages.indexOf(heldResults), 1);
-            } else if (text) {
+            } else if (text || hosted.length > 0) {
                 // The answer stays in the conversation, for a host that keeps it.
                 conversation.messages.push({
                     id: newId(),
                     role: "assistant",
-                    parts: [{ type: "text", origin: "model", text }],
+                    parts: [...hosted, ...(text ? [{ type: "text" as const, origin: "model" as const, text }] : [])],
                 });
+            }
+
+            if (paused) {
+                // The provider stopped mid-search: asking again continues.
+                tally.paused = { provider: run.engine.providerName };
             }
 
             break;
@@ -1264,6 +1320,8 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
             text,
             [...before, ...delegated, ...(asking === undefined ? [] : [asking])],
             newId,
+            "model",
+            hosted,
         );
         const batch: BatchOutcome =
             before.length === 0 ? { results: [], writes: false } : await runBatch(run, before, state, resultOf);

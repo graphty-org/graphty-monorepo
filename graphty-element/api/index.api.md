@@ -1570,6 +1570,7 @@ export class Graph implements GraphContext {
     // (undocumented)
     fetchNodes?: FetchNodesFn;
     getAcceleration(): AccelerationController;
+    getAiCapabilities(): AiCapabilities | null;
     getAiConversation(): AiConversationSnapshot | null;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
@@ -2004,6 +2005,7 @@ export class Graphty extends LitElement {
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     firstUpdated(changedProperties: Map<string, unknown>): void;
+    getAiCapabilities(): AiCapabilities | null;
     getAiConversation(): AiConversationSnapshot | null;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;

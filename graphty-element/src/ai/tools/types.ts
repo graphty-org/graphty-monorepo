@@ -227,6 +227,11 @@ export interface MessageState {
      * the state (each helper running beside others gets one), so the limit is the message's.
      */
     readonly undo: { calls: number };
+    /**
+     * How often each tool the provider runs (a web search) was used in this message: shared by
+     * every copy of the state, so a `maxUses` is the message's. Absent, each run counts its own.
+     */
+    readonly hostedUses?: Record<string, number>;
     /** The message's running totals of what its writes did. */
     readonly totals: { removeNodes: number; removeEdges: number; changedValues: number };
 }

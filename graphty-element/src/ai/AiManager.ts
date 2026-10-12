@@ -6,10 +6,10 @@
 
 import debounce from "lodash/debounce.js";
 
-import { AI_PROVIDER_IDS, type AiProviderId } from "../catalog/ai";
+import { AI_PROVIDER_IDS, type AiCapabilities, type AiProviderId } from "../catalog/ai";
 import type { AiApprovalRequest, AiQuestionRequest } from "../events";
 import type { Graph } from "../Graph";
-import type { AiAgentsSetting } from "./agents";
+import type { AiAgentsSetting, AiToolOptions } from "./agents";
 import {
     type AiApprovalAnswer,
     type AiApprovalsSetting,
@@ -127,6 +127,14 @@ export interface AiManagerConfig {
      * without one here uses the key manager's.
      */
     apiKeys?: Partial<Record<AiProviderId, string>>;
+    /**
+     * Tools beyond the assistant's own commands, each off by default: `{ webSearch: true }` lets
+     * the main model hand a search to a built-in read-only `research` helper, which alone runs it
+     * at the provider (and the reader's key pays). A tool the provider and model cannot use is left
+     * out and reported once on `ai-capability-unavailable`, or with `required: true` every command
+     * resolves `AI_HOSTED_TOOL_UNSUPPORTED`; `getCapabilities()` says which can be used.
+     */
+    tools?: AiToolOptions;
 }
 
 /**
@@ -272,6 +280,8 @@ export class AiManager {
             ...(config.approvals === undefined ? {} : { approvals: config.approvals }),
             ...(config.questions === undefined ? {} : { questions: config.questions }),
             ...(config.agents === undefined ? {} : { agents: config.agents, apiKeys: this.helperKeys(config) }),
+            ...(config.tools === undefined ? {} : { tools: config.tools }),
+            ...(config.model === undefined ? {} : { model: config.model }),
             ...(history === undefined
                 ? {}
                 : {
@@ -422,6 +432,15 @@ export class AiManager {
      */
     getPendingQuestions(): readonly AiQuestionRequest[] {
         return this.controller?.getPendingQuestions() ?? [];
+    }
+
+    /**
+     * What the assistant can use with its provider and model: each tool beyond its own commands
+     * (`AiToolOptions`), and whether it can be used. Synchronous.
+     * @returns The capabilities, or null before the assistant is enabled.
+     */
+    getCapabilities(): AiCapabilities | null {
+        return this.controller?.getCapabilities() ?? null;
     }
 
     /**

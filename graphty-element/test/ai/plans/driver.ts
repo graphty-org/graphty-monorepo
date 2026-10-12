@@ -14,6 +14,7 @@ import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
 import { LlmProviderEngine } from "../../../src/ai/engine/LlmProviderEngine";
 import { ENGINE_OVERRIDE } from "../../../src/ai/engine/load";
 import type { AiEngine, TurnEvent, TurnRequest } from "../../../src/ai/engine/types";
+import type { LlmProvider } from "../../../src/ai/providers/types";
 import { installAssistantTools } from "../../../src/ai/tools/install";
 import type { AiEvent } from "../../../src/events";
 import { QueuedProvider } from "../../helpers/queued-provider";
@@ -28,6 +29,13 @@ export interface Turn {
 /** An engine the cases script, and the requests it was sent. */
 export interface Driver {
     readonly engine: AiEngine;
+    /**
+     * The provider the assistant is configured with, when a case needs its name; one named
+     * `"scripted"` when absent.
+     */
+    readonly provider?: LlmProvider;
+    /** The mock provider `mockDriver`'s engine runs. */
+    readonly mockProvider?: LlmProvider;
     readonly requests: TurnRequest[];
     push(...turns: Turn[]): void;
 }
@@ -86,6 +94,7 @@ export function mockDriver(): Driver {
     const engine = new RecordingEngine(provider);
     return {
         engine,
+        mockProvider: provider,
         requests: engine.requests,
         push: (...turns) => {
             provider.queue.push(
@@ -117,12 +126,12 @@ export class Harness {
     constructor(
         readonly session: GraphSession,
         readonly driver: Driver,
-        options: Pick<AiControllerOptions, "agents" | "apiKeys" | "questions" | "history" | "approvals"> = {},
+        options: Pick<AiControllerOptions, "agents" | "apiKeys" | "questions" | "history" | "approvals" | "tools"> = {},
         store?: ConversationStore,
     ) {
         installAssistantTools(this.registry, session);
         this.controller = new AiController({
-            provider: { name: "scripted" } as never,
+            provider: driver.provider ?? ({ name: "scripted" } as never),
             commandRegistry: this.registry,
             graph: { getSession: () => session } as unknown as CommandContext["graph"],
             emitEvent: (event: AiEvent) => this.events.push(event),

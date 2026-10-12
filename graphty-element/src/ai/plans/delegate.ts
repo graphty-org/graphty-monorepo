@@ -39,6 +39,7 @@ import {
     TurnFailed,
 } from "../runConversation";
 import type { ToolCallRequest } from "../ToolExecutor";
+import type { HostedToolSetting } from "../tools/hosted";
 import { assistantInstructions, factsBlock } from "../tools/prompt";
 import { resultText } from "../tools/shape";
 import { isAssistantTool } from "../tools/toolset";
@@ -53,6 +54,8 @@ export interface DelegationOptions {
     readonly provider: LlmProvider;
     /** The API key for a role's own provider. */
     readonly keyFor: (provider: AiProviderId) => string | undefined;
+    /** The web tools each role may use, by role name, as resolved when the assistant was enabled. */
+    readonly hosted?: ReadonlyMap<string, readonly HostedToolSetting[]>;
 }
 
 /**
@@ -209,6 +212,8 @@ interface HelperRun {
     readonly usage: TokenUsage;
     /** Its held batch: its call has no result yet, and the message waits on the reader. */
     readonly held?: HeldHelper;
+    /** Its provider stopped its turn mid-search: `AI_PROVIDER_PAUSED`'s params. */
+    readonly paused?: AiResultParams;
 }
 
 /**
@@ -306,6 +311,7 @@ async function runHelper(
     });
     const from = decided === undefined ? 0 : conversation.messages.length;
     const tools = helperTools(role, parent);
+    const hostedTools = options.hosted?.get(role.name) ?? [];
     const usage = { inputTokens: 0, outputTokens: 0 };
     let held: HeldHelper | undefined;
     let built: { engine: AiEngine; own: boolean } | undefined;
@@ -330,6 +336,7 @@ async function runHelper(
                 return Promise.resolve(undefined);
             },
             endAtHold: true,
+            ...(hostedTools.length === 0 ? {} : { hostedTools }),
             ...(decided === undefined ? {} : { decided }),
             ...(parent.profile === undefined ? {} : { profile: parent.profile }),
             ...(parent.host === undefined ? {} : { host: parent.host }),
@@ -388,10 +395,12 @@ async function runHelper(
     const params = { ...outcome.params, agent: role.name };
     return {
         usage,
+        ...(outcome.code === "AI_PROVIDER_PAUSED" ? { paused: outcome.params } : {}),
         parts: [
             {
                 type: "tool-result",
-                origin: "graph-data",
+                // A helper with web tools answers from the web: data, and never an instruction.
+                origin: hostedTools.length === 0 ? "graph-data" : "web",
                 callId: call.id,
                 code: outcome.code,
                 params,
@@ -572,7 +581,7 @@ export function delegation(options: DelegationOptions): Delegation {
                 const answers = runs.flatMap((run, at) => answerOf(String(checked[at].call.arguments.agent), run));
                 const ran = await one(entry, [...before, ...answers], parent);
                 runs.push(ran);
-                if (ran.held !== undefined) {
+                if (ran.held !== undefined || ran.paused !== undefined) {
                     break;
                 }
             }
@@ -584,10 +593,12 @@ export function delegation(options: DelegationOptions): Delegation {
         // parallel step is left without a result (the model reads it as not run). Parallel
         // helpers only read, so only a slow-run gate or an ask on a read can hold one.
         const held = runs.find((run) => run.held !== undefined)?.held;
+        const paused = runs.find((run) => run.paused !== undefined)?.paused;
         return {
             parts: [...runs.flatMap((run) => run.parts), ...over],
             usage: usageOf(runs),
             ...(held === undefined ? {} : { held }),
+            ...(paused === undefined ? {} : { paused }),
         };
     };
 
@@ -626,7 +637,7 @@ export function delegation(options: DelegationOptions): Delegation {
                 options,
                 decided,
             );
-            if (continued.held !== undefined) {
+            if (continued.held !== undefined || continued.paused !== undefined) {
                 return continued;
             }
 

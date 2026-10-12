@@ -159,7 +159,7 @@ export interface AiCallRecord {
 // @public
 export interface AiCapabilities {
     readonly model: string;
-    readonly provider: AiProviderId;
+    readonly provider: AiProviderId | (string & {});
     readonly tools: AiToolCapabilities;
 }
 
@@ -195,6 +195,7 @@ export class AiController {
     dispose(): void;
     execute(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
     exportConversation(id: string): Promise<string | null>;
+    getCapabilities(): AiCapabilities;
     getConversation(): AiConversationSnapshot | null;
     getLastError(): Error | null;
     getLastInput(): string | null;
@@ -222,11 +223,13 @@ export interface AiControllerOptions {
     gate?: Partial<AssistantGateLimits> | false;
     graph: CommandContext["graph"];
     history?: "none" | "memory" | "browser" | AiHistoryOptions;
+    model?: string;
     provider: LlmProvider;
     questions?: boolean;
     schemaManager?: SchemaManager | null;
     secrets?: () => readonly string[];
     toolProfile?: "standard" | "small";
+    tools?: AiToolOptions;
 }
 
 // @public
@@ -322,6 +325,7 @@ export class AiManager {
     execute(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
     exportConversation(id: string): Promise<string | null>;
     getApiKeyManager(): ApiKeyManager;
+    getCapabilities(): AiCapabilities | null;
     getCommandRegistry(): CommandRegistry;
     getController(): AiController | null;
     getConversation(): AiConversationSnapshot | null;
@@ -361,6 +365,7 @@ export interface AiManagerConfig {
     questions?: boolean;
     registerBuiltinCommands?: boolean;
     toolProfile?: "standard" | "small" | "auto";
+    tools?: AiToolOptions;
 }
 
 // @public

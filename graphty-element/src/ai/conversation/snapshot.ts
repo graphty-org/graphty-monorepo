@@ -139,6 +139,18 @@ function snapshotMessages(
         }
     }
 
+    // The pages each helper's tools found, by the `delegate` call it answers: the delegating
+    // message's sources too.
+    const helperSources = new Map<string, AiSource[]>();
+    for (const part of messages.flatMap((message) => message.parts)) {
+        if (part.type === "agent-ref") {
+            helperSources.set(part.callId, [
+                ...(helperSources.get(part.callId) ?? []),
+                ...part.messages.flatMap((said) => sourcesOf(said.parts)),
+            ]);
+        }
+    }
+
     const out: AiConversationMessage[] = [];
     for (const message of messages) {
         if (message.role === "tool") {
@@ -187,11 +199,12 @@ function snapshotMessages(
                       ]
                     : [],
             );
-            const sources = message.parts.flatMap((part): AiSource[] =>
-                part.type === "hosted-tool"
-                    ? part.sources.map((source) => ({ tool: part.tool as AiHostedToolId, ...source }))
-                    : [],
-            );
+            const sources = [
+                ...sourcesOf(message.parts),
+                ...message.parts.flatMap((part) =>
+                    part.type === "tool-call" ? (helperSources.get(part.callId) ?? []) : [],
+                ),
+            ];
             const ended = message.parts.find((part) => part.type === "outcome");
             const outcome =
                 ended?.type === "outcome"
@@ -204,6 +217,19 @@ function snapshotMessages(
     }
 
     return out;
+}
+
+/**
+ * The pages the provider's tools found, as saved parts record them.
+ * @param parts - The parts.
+ * @returns The sources, in order.
+ */
+function sourcesOf(parts: readonly SavedMessage["parts"][number][]): AiSource[] {
+    return parts.flatMap((part): AiSource[] =>
+        part.type === "hosted-tool"
+            ? part.sources.map((source) => ({ tool: part.tool as AiHostedToolId, ...source }))
+            : [],
+    );
 }
 
 /** A saved approval entry. */

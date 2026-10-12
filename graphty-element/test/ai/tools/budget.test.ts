@@ -18,6 +18,7 @@ import { delegation } from "../../../src/ai/plans/delegate";
 import { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
 import { ASK_READER_TOOL } from "../../../src/ai/questions";
 import { turnTools } from "../../../src/ai/runConversation";
+import { researchRole } from "../../../src/ai/tools/hosted";
 import { installAssistantTools } from "../../../src/ai/tools/install";
 import { isAssistantTool } from "../../../src/ai/tools/toolset";
 import { clearRegisteredLayoutsForTesting } from "../../../src/catalog/layoutRegistry";
@@ -31,6 +32,18 @@ const DELEGATE_TOOL = delegation({
     roles: [
         { name: "counter", purpose: "Count and read nodes; never changes anything.", commands: ["query"] },
         { name: "stylist", purpose: "Color and size nodes.", commands: ["style"] },
+    ],
+    engine: new FakeEngine(),
+    provider: new MockLlmProvider(),
+    keyFor: () => undefined,
+}).tool;
+
+/** The `delegate` tool with web search on: the built-in research helper beside the design's two. */
+const WEB_DELEGATE_TOOL = delegation({
+    roles: [
+        { name: "counter", purpose: "Count and read nodes; never changes anything.", commands: ["query"] },
+        { name: "stylist", purpose: "Color and size nodes.", commands: ["style"] },
+        researchRole({ webSearch: true, webFetch: true }),
     ],
     engine: new FakeEngine(),
     provider: new MockLlmProvider(),
@@ -59,13 +72,16 @@ const LARGEST_DELEGATE_TOOL = delegation({
 function declared(
     profile: "standard" | "small",
     questions = false,
-    helpers: false | true | "largest" = false,
+    helpers: false | true | "largest" | "web" = false,
 ): { tools: string[]; tokens: number; enumNames: boolean } {
     const registry = new CommandRegistry();
     installAssistantTools(registry, createGraphSession());
     const offered = turnTools(registry, profile, []);
     // The loop's own tools, when helpers or questions are switched on.
-    const delegate = { largest: [LARGEST_DELEGATE_TOOL], true: [DELEGATE_TOOL], false: [] }[String(helpers)] ?? [];
+    const delegate =
+        { largest: [LARGEST_DELEGATE_TOOL], true: [DELEGATE_TOOL], web: [WEB_DELEGATE_TOOL], false: [] }[
+            String(helpers)
+        ] ?? [];
     const loopTools: ToolSpec[] = [...delegate, ...(questions ? [ASK_READER_TOOL] : [])];
     let chars = 0;
     for (const tool of loopTools) {
@@ -131,6 +147,15 @@ describe("the always-loaded tools fit a model's budget", () => {
     it("stays within both budgets with the most helpers, their names and purposes the longest, and questions on", () => {
         assert.isAtMost(declared("standard", true, "largest").tokens, 5000);
         assert.isAtMost(declared("small", true, "largest").tokens, 1500);
+    });
+
+    it("stays within both budgets with web tools on: delegate names research, and no provider tool is declared", () => {
+        const standard = declared("standard", true, "web");
+        assert.lengthOf(standard.tools, 13);
+        assert.isAtMost(standard.tokens, 5000);
+        const small = declared("small", true, "web");
+        assert.lengthOf(small.tools, 6);
+        assert.isAtMost(small.tokens, 1500);
     });
 
     it("stays within budget with 100 algorithms and 30 layouts registered, their names a validated string", () => {

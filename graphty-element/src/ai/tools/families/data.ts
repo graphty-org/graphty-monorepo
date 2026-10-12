@@ -24,6 +24,7 @@ import {
     text,
 } from "../fields";
 import { optionsSchema } from "../optionSchema";
+import { httpUrl, readerGave } from "../readerUrls";
 import {
     type ActionContext,
     type ActionResult,
@@ -266,58 +267,6 @@ export const editDataTool: ToolDefinition = {
         },
     ] satisfies ActionSpec[],
 };
-
-/**
- * A text as an absolute http or https URL.
- * @param text - The text.
- * @returns The URL, or undefined for anything else.
- */
-function httpUrl(text: string): URL | undefined {
-    try {
-        const url = new URL(text);
-        return url.protocol === "http:" || url.protocol === "https:" ? url : undefined;
-    } catch {
-        return undefined;
-    }
-}
-
-/** Punctuation a sentence puts before a URL, which is not part of it. */
-const OPENERS = `<("'[{`;
-/** Punctuation a sentence puts after a URL, which is not part of it. */
-const CLOSERS = `>)"']},.;:!?`;
-
-/**
- * A word without the punctuation a sentence puts around it.
- * @param word - The word.
- * @returns It, unwrapped.
- */
-function unwrapped(word: string): string {
-    let start = 0;
-    let end = word.length;
-    while (start < end && OPENERS.includes(word[start])) {
-        start++;
-    }
-
-    while (end > start && CLOSERS.includes(word[end - 1])) {
-        end--;
-    }
-
-    return word.slice(start, end);
-}
-
-/**
- * Whether the reader's own text holds this URL: one of its words is the same absolute URL, as
- * written or without the punctuation around it. Never a fragment of a word.
- * @param url - The URL, parsed.
- * @param readerText - What the reader wrote.
- * @returns True when it does.
- */
-function readerGave(url: URL, readerText: string): boolean {
-    return readerText
-        .split(/\s+/)
-        .flatMap((word) => [word, unwrapped(word)])
-        .some((word) => httpUrl(word)?.href === url.href);
-}
 
 /**
  * Where an import reads from: the text, or a URL the reader gave or the host admits.

@@ -14,9 +14,16 @@ import {
     MAX_AGENTS,
     rolesOf,
 } from "./agents";
+import { asksWebTools, RESEARCH } from "./tools/hosted";
 
-/** Names a helper may not take: the main conversation and the reader. */
-const RESERVED_NAMES: ReadonlySet<string> = new Set(["main", "reader"]);
+/** Names a helper may not take: the main conversation, the reader and the built-in web helper. */
+const RESERVED_NAMES: ReadonlySet<string> = new Set(["main", "reader", RESEARCH]);
+
+/**
+ * The assistant's own tools that only read: the only commands a helper with web tools may have,
+ * so text read on the web never drives a change (`research.test.ts` checks every action of each).
+ */
+export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set(["catalog", "query"]);
 
 /**
  * The assistant's own tools a helper may be given: every profile's, not the loop's own.
@@ -38,8 +45,10 @@ const HELPER_PROVIDERS: ReadonlySet<string> = new Set(
  * @param main - The assistant's own provider, by name, when known: a role's `model` alone (or the
  *   classifier's) needs a second instance of it, which only the element's remote providers have.
  * @throws {AiConfigError} On too many helpers, an empty, too long, duplicate or reserved name, an
- *   empty or too long purpose, an unknown command, a provider a helper cannot run on, or a model of its own
- *   on a provider the element cannot build a second of.
+ *   empty or too long purpose, an unknown command, a provider a helper cannot run on, a model of its own
+ *   on a provider the element cannot build a second of, web tools beside a command that changes
+ *   the graph, or web tools beside any command on Google (which offers no function tools on a
+ *   turn that searches).
  */
 export function checkAgents(setting: AiAgentsSetting, main?: string): void {
     const roles = rolesOf(setting);
@@ -95,6 +104,16 @@ export function checkAgents(setting: AiAgentsSetting, main?: string): void {
 
         if (role.provider === undefined && role.model !== undefined && !ownModel) {
             fail("model", "unsupported");
+        }
+
+        if (asksWebTools(role.tools)) {
+            if (role.commands.some((command) => !READ_ONLY_TOOLS.has(command))) {
+                fail("tools", "web-tools-with-writes");
+            }
+
+            if (role.commands.length > 0 && (role.provider ?? main) === "google") {
+                fail("tools", "unsupported");
+            }
         }
     }
 }

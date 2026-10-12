@@ -43,7 +43,7 @@ export const AI_TOOL_CAUSE_CODES: readonly ["AI_OK", "AI_UNKNOWN_ACTION", "AI_AR
 // @public
 export interface AiCapabilities {
     readonly model: string;
-    readonly provider: AiProviderId;
+    readonly provider: AiProviderId | (string & {});
     readonly tools: AiToolCapabilities;
 }
 

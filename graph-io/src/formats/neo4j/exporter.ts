@@ -898,7 +898,7 @@ class ExportPlan {
      */
     spaceOf(index: number): string | null {
         const { idSpace } = this;
-        if (idSpace === null || !idSpace.isSet(index)) {
+        if (!idSpace?.isSet(index)) {
             return null;
         }
         const value = idSpace.value(index);
@@ -1166,7 +1166,7 @@ class ExportPlan {
      */
     private labelsText(index: number): string | null {
         const { labels } = this;
-        if (labels === null || !labels.isSet(index)) {
+        if (!labels?.isSet(index)) {
             return null;
         }
         if (labels.dtype === "list") {
@@ -1204,7 +1204,7 @@ class ExportPlan {
             }
             return texts.join(this.options.arrayDelimiter);
         }
-        const text = companion !== null && companion.isSet(row) ? textOf(companion, row) : null;
+        const text = companion?.isSet(row) ? textOf(companion, row) : null;
         return formatScalar(column.dtype === "json" ? column.values[row] : column.value(row), scalar, text);
     }
 }

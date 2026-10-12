@@ -23,7 +23,7 @@ import {
     type StyleOption,
 } from "../constants/style-options";
 
-export type { ChannelGroup };
+export type { ChannelGroup } from "@graphty/graphty-element/catalog";
 
 /** Which control a channel is edited with. */
 type ChannelControlKind = "color" | "number" | "text" | "boolean" | "enum" | "labelStyle" | "none";

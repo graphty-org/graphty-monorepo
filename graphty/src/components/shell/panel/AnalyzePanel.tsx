@@ -53,7 +53,7 @@ function readAnalyzeMemory(): Partial<AnalyzeMemory> {
     let raw: string | null = null;
 
     try {
-        raw = window.localStorage.getItem(ANALYZE_MEMORY_STORAGE_KEY);
+        raw = globalThis.localStorage.getItem(ANALYZE_MEMORY_STORAGE_KEY);
     } catch {
         return {};
     }
@@ -95,7 +95,7 @@ function readAnalyzeMemory(): Partial<AnalyzeMemory> {
  */
 function writeAnalyzeMemory(memory: AnalyzeMemory): void {
     try {
-        window.localStorage.setItem(ANALYZE_MEMORY_STORAGE_KEY, JSON.stringify(memory));
+        globalThis.localStorage.setItem(ANALYZE_MEMORY_STORAGE_KEY, JSON.stringify(memory));
     } catch {
         // Nothing to do: the panel still works, it just forgets.
     }

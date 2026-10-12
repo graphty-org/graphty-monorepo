@@ -1337,7 +1337,7 @@ function* gmlParts(context: WriteContext): Generator<string, void, undefined> {
         w.line("    ", "id", formatInteger(ids.idAt(i) as number));
         if (ids.isChanged(i)) {
             w.line("    ", ORIGINAL_ID_KEY, originalIdText(ids.originalAt(i)));
-        } else if (context.originalIds !== null && context.originalIds.isSet(i)) {
+        } else if (context.originalIds?.isSet(i)) {
             const original = context.originalIds.value(i);
             if (typeof original === "string" || typeof original === "number") {
                 w.line("    ", ORIGINAL_ID_KEY, originalIdText(original));
@@ -1362,7 +1362,7 @@ function* gmlParts(context: WriteContext): Generator<string, void, undefined> {
         w.raw("  edge [");
         w.line("    ", "source", formatInteger(ids.idAt(el.src[e]) as number));
         w.line("    ", "target", formatInteger(ids.idAt(el.dst[e]) as number));
-        if (context.edgeIds !== null && context.edgeIds.isSet(e)) {
+        if (context.edgeIds?.isSet(e)) {
             w.cell("    ", "id", context.edgeIds, e);
         }
         if (context.weights.isExplicit(e)) {
@@ -1393,8 +1393,8 @@ function* gmlParts(context: WriteContext): Generator<string, void, undefined> {
  */
 function writeGraphics(w: GmlWriter, context: WriteContext, i: number): void {
     const { position, graphics } = context;
-    const hasPosition = position !== null && position.isSet(i);
-    const graphicsValue = graphics !== null && graphics.isSet(i) ? graphics.values[i] : undefined;
+    const hasPosition = position?.isSet(i) === true;
+    const graphicsValue = graphics?.isSet(i) ? graphics.values[i] : undefined;
     if (!hasPosition) {
         if (graphics !== null && graphicsValue !== undefined) {
             w.cell("    ", "graphics", graphics, i);

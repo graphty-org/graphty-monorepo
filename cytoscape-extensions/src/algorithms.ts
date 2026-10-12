@@ -136,7 +136,16 @@ import type {
 } from "cytoscape";
 
 import { OPTION_NAMES } from "./algorithm-options.js";
-import { type Backend, backendOf, checkGpuMode, gpuFor, type GpuMode, recording, warnIfFixable } from "./gpu.js";
+import {
+    type Backend,
+    backendOf,
+    checkGpuMode,
+    coreDestroyedError,
+    gpuFor,
+    type GpuMode,
+    recording,
+    warnIfFixable,
+} from "./gpu.js";
 import {
     coreOf,
     type CytoscapeSnapshot,
@@ -1859,7 +1868,12 @@ function runSync(eles: Collection, key: keyof Impls, options: AlgorithmOptions =
  */
 async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): Promise<unknown> {
     checkGpuMode(`${methodName(key)}Async`, options?.gpu);
-    const d = await gpuFor(coreOf(eles), options.gpu);
+    const cy = coreOf(eles);
+    const d = await gpuFor(cy, options.gpu);
+    // destroyed while the device was acquired: its device is disposed and its elements are gone with it
+    if (cy.destroyed()) {
+        throw coreDestroyedError();
+    }
     const rec = d.gpu === null ? null : recording(d.gpu.accelerator);
     warnIfFixable(d, eles.nodes().length);
     const { result, snapshot } = run(eles, key, options, accelerated(rec?.accelerator ?? null));
@@ -1868,6 +1882,9 @@ async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOp
     let value: object;
     try {
         value = (await result) as object;
+    } catch (e) {
+        // destroyed mid-run, the device fails with "GpuContext is disposed"; the cause is the destroy
+        throw cy.destroyed() ? coreDestroyedError() : e;
     } finally {
         unhold();
         if (d.gpu !== null && typeof options.weight === "function") {

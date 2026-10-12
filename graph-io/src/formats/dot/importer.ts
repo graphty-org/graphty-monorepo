@@ -670,7 +670,7 @@ function describeToken(token: DotToken): string {
  * @returns true when it starts with `cluster`
  */
 function isClusterName(name: string | null): boolean {
-    return name !== null && name.startsWith(CLUSTER_PREFIX);
+    return name?.startsWith(CLUSTER_PREFIX) === true;
 }
 
 /**

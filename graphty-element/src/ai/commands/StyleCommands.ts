@@ -55,7 +55,7 @@ const NodeStyleParamsSchema = z
             .number()
             .positive()
             .optional()
-            .describe("Glow effect strength. One strength is drawn at a time for the whole scene"),
+            .describe("Glow effect strength. It scales a glow color and draws nothing without one"),
         outlineColor: z.string().optional().describe("Outline color"),
         outlineWidth: z
             .number()

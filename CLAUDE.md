@@ -219,6 +219,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/remote-logger` | `remote-logger/` | 1.3.11 | Remote logging client and server for browser debugging |
 | `@graphty/compact-mantine` | `compact-mantine/` | 0.8.11 | Compact size variants for Mantine UI components, for dense UIs |
 | `@graphty/visual-review` | `visual-review/` | 0.0.1 | Visual review of any Storybook: capture in GitHub Actions, baselines in git (Git LFS), accept or reject in a local page, a pull request gate; a CLI, configured per repository by `visual-review.config.json` |
+| `@graphty/githerd` | `githerd/` | 0.1.0 | Repository pipeline daemon (private): watches master, pull requests and issues, turns them into jobs for interactive Claude worker sessions it starts in tmux, coordinates every session through MCP tools, posts `githerd/merge` for Mergify, pages the owner only for what only he can do; configured by `githerd.config.json` |
 
 ## Monorepo Structure
 
@@ -236,6 +237,7 @@ graphty-monorepo/
 |-- compact-mantine/      # @graphty/compact-mantine: the shared Mantine theme and components
 |-- remote-logger/        # @graphty/remote-logger: browser console logs to a server and MCP
 |-- visual-review/        # @graphty/visual-review: Storybook capture and baseline review
+|-- githerd/              # @graphty/githerd: pipeline daemon, session coordination MCP tools, CLI
 |-- tools/                # Build scripts
 |   |-- merge-coverage.sh # Coverage report merging
 |   |-- run-tests.sh      # Runs one CI test shard locally, with CI's command
@@ -342,20 +344,21 @@ The `tools/` directory contains build scripts:
 | `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it, and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard). Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
 | `vitest-time-budget.mjs` | A Vitest reporter that judges every passing test against its time limit (its own timeout, else the project's `testTimeout`): over 25% it prints a warning (a GitHub Actions annotation in CI); over 50% it fails a pull request's run only when the pull request changed that test's file (`git diff <base>...HEAD`, base from `VITEST_BUDGET_BASE`, which ci.yml sets on pull requests), and says to cut or split the test. Everywhere else -- untouched files, the merge queue, the release train, a dispatch, no base -- it only warns, because one test's duration varies about 2x between CI runs and a gate on every test failed unrelated pull requests. On in ci.yml's test job (`VITEST_BUDGET_CHECK=1`; set it locally, with `VITEST_BUDGET_BASE=origin/master`, to check before pushing), added to every package by `ciReporters()` in `vitest.ci-junit.mjs`. A changed file's slow test that cannot be cut in its pull request goes in `vitest-time-budget-allowlist.json` with a tracking issue; a timeout is never raised to get under either line |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
-| `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast`. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
+| `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` from the hook's own copy, which is `.worktrees/gate-live` for a push through the queue (see "Where a change takes effect"); `pnpm run prepush:fast` runs it by hand. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
+| `push-queue.sh` | Runs a command (normally `git push`) in the machine's push queue: three at once, first come first served, `PUSH_QUEUE_PRIORITY=critical` first; tickets in the main checkout's `tmp/push-queue/`. githerd's pushes use it too |
 | `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `tmp/push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
+| `shard-verdict.mjs` | Whether a test shard passed: exit 0 AND a vitest run summary for each run its command makes AND the reports it asks for, written by this run. `run-tests.sh` and `prepush-tests.mjs` apply it, because a global pnpm older than 10.29.1 reports a `pnpm exec` killed by a signal as exit 0 (`prepush.sh` warns about one) |
 | `prepush-inputs.mjs` | Content hashes for the gate: the checkout's fingerprint, and each test shard's input key (its package and the packages it depends on or reads by relative path, their build outputs, the root files, the Node version). `prepush-tests.mjs` skips a shard that already passed on this branch with the same key and prints `[SKIP]` with when and where; `PREPUSH_RERUN_ALL=1` runs every shard |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
 | `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |
 | `check-links.sh` | Dead-link check (see "Dead Links" under CI/CD). `--offline` for the fast half |
 | `assemble-pages-site.sh` | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it |
-| `chromatic.sh`, `chromatic-api.sh` | Run Chromatic for one package; read a build's totals with the project token (see `.env.example`) |
-| `chromatic-capture.mjs` | Lists the stories of a Chromatic build and downloads their baseline, head and diff images, using your login cookie `CHROMATIC_SESSION_COOKIE`. Read-only: it never accepts or approves |
 | `diff-stories.mjs` | Renders the same stories from two built Storybooks and saves both screenshots plus camera and node positions |
 | `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
 | `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
 | `visual-preview.sh` | `<pr>`: captures a pull request's screenshots on this machine (its merge tree, the pinned fonts, one preview at a time) so the owner can review and Finish them before CI's capture lands. See "Visual review" |
+| `live.sh` | `<tool> <branch-or-commit>`: merges a branch into a local tool's live worktree, tests it, restarts its servers (`live-tools.json`). See "Where a change takes effect" |
 | `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
 | `sonar-gate.mjs` | The pre-push "SonarQube (changed lines)" step: scans the files a push changes into the scratch project `graphty-monorepo-local` and fails on a new issue or security hotspot on a changed line. See "SonarQube" below |
 | `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers. `tools/sonar/api.mjs` is the only code that handles the token |
@@ -452,7 +455,7 @@ servherd_start({ name: "docs", cwd: "<repo>", command: "pnpm run docs:dev",
   env: { PORT: "{{port}}", HOST: "{{hostname}}" } })
 ```
 
-CI never starts a dev server (Storybook is built statically for Chromatic, and Vitest browser
+CI never starts a dev server (Storybook is built statically for the visual capture, and Vitest browser
 mode picks its own ports). A script run outside servherd needs `PORT` set by hand, e.g.
 `PORT=6006 npm run storybook`.
 
@@ -692,11 +695,11 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 26 test shards on a merge-queue run, a manual dispatch or the release train (a push
+The CI runs 27 test shards on a merge-queue run, a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 16 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
-layout, algorithms-default) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
+layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
 graphty, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
@@ -711,12 +714,13 @@ shard. The shards:
 - `graphty`, `graphty-storybook`
 - `remote-logger`
 - `visual-review`
+- `githerd`
 - `compact-mantine`
 - `graphty-element-default`
 - `graphty-element-browser-1` through `graphty-element-browser-5`
 - `graphty-element-storybook-1` through `graphty-element-storybook-4`
 
-A pull request runs only the shards (and Chromatic jobs) of the packages nx calls affected; the
+A pull request runs only the shards of the packages nx calls affected; the
 shard list and the filter live in `tools/ci-test-matrix.mjs`. A change to a file in nx.json's
 `sharedGlobals` (root configs, `.github/workflows/`) affects every package, so it still runs
 everything.
@@ -908,7 +912,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 ### Storybook
 
 - Storybook auto-reloads on changes (no manual rebuild needed)
-- Visual regression via Chromatic
+- Visual regression via visual-review (see "Visual review" below)
 - Ports come from servherd (see "Starting Servers"); graphty's Storybook requires HTTPS
 - GitHub Pages: https://graphty.app/storybook/
 
@@ -936,6 +940,10 @@ servherd_start({ name: "visual-review-notify", cwd: "<repo>", command: "node vis
   env: { VISUAL_REVIEW_NOTIFY: "[\"/home/apowers/.claude/scripts/claude-notify.sh\",\"waiting\",\"{message}\",\"{title}\"]" } })
 ```
 
+The owner's review page runs from the visual-review live copy (`tools/live-tools.json`): put a
+visual-review change into it with `tools/live.sh visual-review <branch>` as soon as its pull request
+opens, not after it lands.
+
 Add `--master-run <run id>` to the command to review a master run for seeding, or `--results <dir>`
 to serve ad hoc local captures offline as a look-only "Local preview" (no decisions, no Finish).
 The server also lists the local previews `tools/visual-preview.sh` writes (below) as decidable. A server
@@ -952,8 +960,7 @@ that starts the same server from the owner's own shell, which is how the owner s
   blocks every pull request: "no baseline yet" (`unseeded`) when the pull request does not change
   it, `new` when it adds or changes it. It blocks until the owner accepts it there or seeds it from
   master (`visual-seed.yml`, then `serve --master-run`, Finish, merge the seed pull request). Seed
-  only from a commit whose images a person already reviewed (for graphty: one on which every
-  Chromatic job passed). Every project is gated, seeded or not; there is no setting that turns the
+  only from a commit whose images a person already reviewed. Every project is gated, seeded or not; there is no setting that turns the
   gate off (`visual-review.config.json` refuses `"gate"`). The owner's
   rejects are machine-readable: a pull request comment, or for master one issue labelled `bug`,
   each ending in a `<!-- visual-review-rejects ... -->` JSON block naming the project, file and
@@ -995,7 +1002,8 @@ that starts the same server from the owner's own shell, which is how the owner s
   exercised by the pull request after it; test it with the package's own tests.
 - A story settings file (`visual-baselines/<project>/<story id>.json`) needs an owner-approved
   record like a baseline. Put `diffThreshold`, `delay` and `modes` in the story's
-  `parameters.chromatic` instead, and keep `diffThreshold` at 0.8 or below: the gate fails a story
+  `parameters.chromatic` (the Storybook convention visual-review reads its capture settings
+  from) instead, and keep `diffThreshold` at 0.8 or below: the gate fails a story
   above it.
 - A gate line about a missing or invalid approval is fixed only by the owner reviewing again
   (revert the accept commit, let CI recapture, Finish with Face ID), never by writing or editing a
@@ -1128,6 +1136,32 @@ The `design/` directory contains architecture documentation:
 - Coverage preview servers for inspecting coverage reports
 - Nx graph visualization: `pnpm exec nx graph`
 
+## Where a change takes effect
+
+Before shipping a change, ask where it takes effect, because that decides how it ships:
+
+- **On this machine** -- githerd, the visual-review server, the push queue and the pre-push gate,
+  design studio builds, the XR sandbox, dev servers and local watchers. Put it into the running copy
+  at once with `tools/live.sh <tool> <branch-or-commit>`, and open the pull request in parallel as
+  the record. live.sh merges the branch (never rebases) into the tool's live worktree, runs the
+  tool's tests on the merge first, and only when they pass moves the live copy and restarts its
+  servherd servers; a conflict or a failed test changes nothing. It never pushes. The tools, their
+  live worktrees, servers and test commands are in `tools/live-tools.json` (`tools/live.sh --list`).
+- **In GitHub, CI or npm** -- workflows, the release, the Mergify config, published packages. Only
+  a merged pull request changes these, so test the change before it merges (run the workflow on its
+  branch, replay the script against recorded inputs).
+- **In shared code another branch needs** -- a pull request, but do not wait for it: merge the fix
+  branch (or master, once it has landed) into the blocked branch right away.
+
+The pre-push gate is one of the local tools. `tmp/push-queue.sh` runs every push's gate from one
+live copy, `.worktrees/gate-live`, against the checkout being pushed (`git -c
+core.hooksPath=<gate-live>/.husky/_ push`; the scripts read the checkout from `PREPUSH_ROOT`). The
+gate's scripts come from the live copy; what they check -- package.json scripts, the CI test matrix,
+every config -- is the pushed checkout's own, as in CI. So a gate fix helps every branch as soon as
+`tools/live.sh gate <branch>` puts it live. Before each push the queue moves the live copy to
+origin/master: a fast-forward or plain merge when it holds no gate fixes of its own, else
+`tools/live.sh gate master`. A push made without the queue runs its own checkout's gate, as before.
+
 ## Parallel agents
 
 Several agents often work in this repository at once. They share one disk and one browser, so:
@@ -1182,6 +1216,48 @@ two sessions. Until the limit resets, every `gh` call fails with HTTP 403 and me
   which `rate_limit` does not show: when calls fail while it reports requests left, retry every
   10 minutes.
 - A prompt that starts an agent which talks to GitHub carries these rules.
+
+**githerd.** Before any merge, call `githerd_status`: if master is red, do not merge anything
+except the fix for master (pushing to a pull request's branch is fine). To pick up githerd's work, call `githerd_next`: it lists the
+queued jobs you could take, with a snapshot of all work in flight. If you take one, claim it with
+`githerd_claim`, giving your overlap judgment against that snapshot, before any edit for it. Do a
+claimed job's work in a background subagent or workflow, and keep the main conversation free to
+answer githerd's status questions. Still end your reply with ACTION NEEDED as usual when the owner
+must act.
+
+### githerd
+
+githerd is the repository's pipeline daemon: it watches master, pull requests and issues, turns
+them into jobs it hands to interactive worker sessions in its own tmux server, pages the owner only
+for what only he can do, and gives every Claude session the thirteen `githerd_*` MCP tools of
+section 6 of `design/githerd/githerd-design.md` (`githerd_status`, `githerd_next`, `githerd_claim`,
+`githerd_wait`, `githerd_expect`, `githerd_push`, `githerd_rerun`, `githerd_read`, `githerd_done`,
+`githerd_ask_owner`, `githerd_record`, `githerd_mine`, `githerd_verdict`) through the server in
+`.mcp.json`. A master failure githerd cannot classify waits for a Claude session to judge it code
+or environment with `githerd_verdict` before anything is reverted. When a job waits with no free
+worker, githerd messages each session with room once per job ("githerd has work queued ..."): if
+you are free, call `githerd_next` and claim a job; otherwise ignore it. A session has room while it
+is idle, or while the `capacity` it last gave in `githerd_expect` is above the jobs it claimed since.
+When a pull request's CI fails on a head another session pushed, githerd sends each live session in
+this repository a message asking whose it is. If it is yours, call `githerd_mine` with its number
+(or claim its job); otherwise ignore the message. With no answer in 10 minutes githerd offers it as
+a job.
+githerd also infers each pull request's owner from pushes and worktrees, and asks the owner of a
+broken one "are you fixing it?": keep it by claiming its queued job (`githerd_mine` keeps it only
+when no job is queued for it), give it up with `githerd disown`, or it is released to other
+sessions. A session without the githerd tools answers the same questions
+from its shell, with the command line the message prints (`node <githerd>/bin/githerd.mjs mine
+<pr>` or `... disown <pr>`); the command acts only for the session it runs under.
+While your session holds a job, githerd asks it where the job stands every 15 minutes
+("githerd: status check on <job> ..."). Answer with `githerd_expect`: the job, one line of status as
+`reason`. The question also says whether the shared resources (the push queue, CI runners, the
+test slots) have room: while they do, take as many jobs as you can work in parallel, each in a
+background subagent, and set `capacity` to how many more you can take now (saying in `reason` what
+stops you, if something does); while one is saturated, take none until githerd invites you again.
+A question still unanswered when the next
+one is due puts the job back in the queue, and so does your session ending. So do the job's work in
+a background subagent or workflow, and keep the main conversation free to answer.
+Commands, the MCP server and the owner's one-time prerequisites are in `githerd/README.md`.
 
 ## Claude Session History
 

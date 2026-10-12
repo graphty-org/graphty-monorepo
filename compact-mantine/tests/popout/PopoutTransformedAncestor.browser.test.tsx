@@ -123,7 +123,7 @@ const KINDS: Kind[] = [
     {
         name: "the color input's picker",
         ui: <CompactColorInput color="#336699" defaultColor="#336699" label="Fill" />,
-        open: () => clickTrigger(/swatch/i),
+        open: () => clickTrigger(/^Pick Fill color$/),
     },
     {
         name: "an info circle's bubble",

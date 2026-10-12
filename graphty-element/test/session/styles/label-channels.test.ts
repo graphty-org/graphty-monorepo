@@ -164,7 +164,7 @@ describe("a rule bound to a whole label style", () => {
         assert.isTrue(result.ok);
         assert.deepEqual(result.warnings, [
             {
-                code: "style.label-style-bound",
+                code: "W_LABEL_STYLE_BOUND",
                 params: {
                     channel: "node.labelStyle",
                     path: "encode.node.labelStyle",

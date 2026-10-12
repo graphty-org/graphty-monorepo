@@ -2691,7 +2691,26 @@ export type GraphtyWarningCode =
 /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
 | "W_DATA_DIFFERS"
 /** A run was still computing when the project was saved, so the file does not hold it. */
-| "W_RUN_PENDING";
+| "W_RUN_PENDING"
+/**
+* A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
+* to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
+* `"edge"`, and `params.ids` the ids as the layer named them.
+*/
+| "W_UNKNOWN_ID"
+/**
+* A style layer writes a color with an alpha (`#rrggbbaa`, `rgba()`) to a channel that cannot
+* draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
+* `params.path` where in the layer the color sits. Today only `node.outline` cannot.
+*/
+| "W_ALPHA_IGNORED"
+/**
+* A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
+* produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
+* `params.path` where in the layer, and `params.fieldChannels` the label field channels that
+* can be bound instead.
+*/
+| "W_LABEL_STYLE_BOUND";
 
 // @public
 export const GREEN_SUCCESS: {
@@ -3042,6 +3061,7 @@ class Node_2 {
     dragging: boolean;
     // (undocumented)
     dragHandler?: NodeDragHandler;
+    get drawnRadius(): number;
     getPosition(): {
         x: number;
         y: number;
@@ -4357,6 +4377,8 @@ export const SHAPE_CONSTANTS: {
     readonly TORUSKNOT_TUBE_MULTIPLIER: 0.2;
     readonly TORUSKNOT_RADIAL_SEGMENTS: 128;
     readonly ICOSPHERE_RADIUS_MULTIPLIER: 0.75;
+    readonly CAPSULE_RADIUS_MULTIPLIER: 0.25;
+    readonly TORUS_THICKNESS_MULTIPLIER: 0.5;
 };
 
 // @public (undocumented)
@@ -4497,6 +4519,7 @@ export interface StyleChangedEvent {
     // (undocumented)
     type: "style-changed";
     unresolvedPaths: string[];
+    warnings: StyleChange["warnings"];
 }
 
 // @public

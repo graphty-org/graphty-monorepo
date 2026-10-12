@@ -346,7 +346,7 @@ export class XgmmlParser implements XmlHandler {
      */
     start(rawName: string, rawAttrs: ReadonlyMap<string, string>, line: number): void {
         this.enterScope(rawAttrs);
-        const top = this.frames.length === 0 ? null : this.frames[this.frames.length - 1];
+        const top = this.frames.at(-1) ?? null;
         if (top === null) {
             this.startRoot(rawName, rawAttrs, line);
             return;
@@ -401,7 +401,7 @@ export class XgmmlParser implements XmlHandler {
     end(name: string, _line: number): void {
         this.scopes.pop();
         const frame = this.frames.pop();
-        const below = this.frames.length === 0 ? null : this.frames[this.frames.length - 1];
+        const below = this.frames.at(-1) ?? null;
         switch (frame?.kind) {
             case "capture":
                 frame.att.xml = `${frame.att.xml ?? ""}</${name}>`;
@@ -437,7 +437,7 @@ export class XgmmlParser implements XmlHandler {
      * @param line - the line
      */
     text(text: string, line: number): void {
-        const top = this.frames.length === 0 ? null : this.frames[this.frames.length - 1];
+        const top = this.frames.at(-1) ?? null;
         if (top === null || top.kind === "skip") {
             return;
         }

@@ -12,7 +12,7 @@
  * Usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json>
  *   both are the JSON arrays `nx show projects --json` prints (with or without --affected).
  * Prints three GITHUB_OUTPUT lines:
- *   affected=<JSON array of package directory names>   (Chromatic jobs test membership in it)
+ *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
  *   test-count=<number of shards>   (0 means skip the test job: an empty matrix is an error)
  *
@@ -64,7 +64,9 @@ export const SHARDS = [
     // needs: ["subgroups"] (they call wg_reduce_vec4) and their tests live there, so without that
     // path the twin would never exercise the PageRank reduction on a device without the feature.
     // the node suite runs through scripts/run-node-shard.js: it forwards every argument and exits with
-    // vitest's own code. On a non-zero exit its FIRST line is the [missing-files] block -- how many test
+    // vitest's own code, except that an exit of 0 still fails (a [shard-verdict] line names why) when the run
+    // went 90 seconds silent and was signalled, printed no vitest summary, or did not write its --outputFile
+    // (issue #2111). On a non-zero exit its FIRST line is the [missing-files] block -- how many test
     // files started, how many reported, and the names of the difference, which is what a dead worker
     // swallowed; after it, and after 90 seconds of silence, the process table with each process's kernel
     // wait channel and a Node diagnostic report per surviving process (G4-F14).
@@ -194,6 +196,13 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run visual-review:coverage",
         "needs-browser": true,
     },
+    // githerd - single shard (Node.js, no browser; coverage counts lib/)
+    {
+        shard: "githerd",
+        package: "githerd",
+        "test-command": "pnpm exec nx run githerd:coverage",
+        "needs-browser": false,
+    },
     // compact-mantine - single shard (uses Playwright for browser-based vitest)
     {
         shard: "compact-mantine",
@@ -259,6 +268,7 @@ export const GROUPS = {
         "cytoscape-extensions-cytoscape-versions",
         "layout",
         "algorithms-default",
+        "githerd",
     ],
     "small-browser": [
         "algorithms-browser",

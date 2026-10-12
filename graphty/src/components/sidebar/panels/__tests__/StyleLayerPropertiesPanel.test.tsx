@@ -186,13 +186,13 @@ describe("StyleLayerPropertiesPanel", () => {
         });
         renderPanel(<StyleLayerPropertiesPanel layer={components} />);
 
-        expect(within(group("Color")).getByLabelText("Color hex value")).toHaveValue("FF0080");
+        expect(within(group("Color")).getByRole("textbox", { name: "Color" })).toHaveValue("FF0080");
     });
 
     it("draws a bound channel's control disabled, naming what it reads", () => {
         renderPanel(<StyleLayerPropertiesPanel layer={BOUND_LAYER} />);
 
-        expect(within(group("Color")).getByLabelText("Color hex value")).toBeDisabled();
+        expect(within(group("Color")).getByRole("textbox", { name: "Color" })).toBeDisabled();
         expect(screen.getByText(/Color from results\.run-1\.value/)).toBeInTheDocument();
     });
 

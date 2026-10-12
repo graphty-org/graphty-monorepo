@@ -1574,7 +1574,7 @@ export class XmlTokenizer {
      * @param name - the element name
      */
     private endElement(name: string): void {
-        const open = this.stack.length > 0 ? this.stack[this.stack.length - 1] : null;
+        const open = this.stack.at(-1) ?? null;
         if (open === null) {
             throw new XmlSyntaxError(`unexpected end tag </${name}>`, this.line);
         }

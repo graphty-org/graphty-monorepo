@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import preview from "../../.storybook/preview";
 import * as SplitButton from "../../stories/components/actions/SplitButton.stories";
 import * as DataRow from "../../stories/components/data/DataRow.stories";
+import * as ProseBlock from "../../stories/components/data/ProseBlock.stories";
 import * as Menu from "../../stories/components/overlays/Menu.stories";
 import * as Modal from "../../stories/components/overlays/Modal.stories";
 import * as QuickActions from "../../stories/components/shell/QuickActions.stories";
@@ -25,7 +26,19 @@ import { axeFindings, OFF_BY_DESIGN } from "./axe";
  */
 setProjectAnnotations(preview);
 
-const MODULES = { DataRow, Menu, Modal, Pagination, Progress, QuickActions, Slider, SplitButton, Tabs, Toolbar };
+const MODULES = {
+    DataRow,
+    Menu,
+    Modal,
+    Pagination,
+    Progress,
+    ProseBlock,
+    QuickActions,
+    Slider,
+    SplitButton,
+    Tabs,
+    Toolbar,
+};
 
 afterEach(() => {
     document.body.innerHTML = "";
@@ -38,7 +51,7 @@ describe.each(Object.entries(MODULES))("%s stories have no axe violations", (_na
         ["light", "high"],
         ["dark", "high"],
     ] as const)("%s, %s contrast", (theme, contrast) => {
-        // `schemes: "single"` renders a BOTH_SCHEMES story once, in this scheme, as Chromatic does.
+        // `schemes: "single"` renders a BOTH_SCHEMES story once, in this scheme, as the visual capture does.
         const stories = composeStories(module, { initialGlobals: { theme, contrast, schemes: "single" } });
         const off = OFF_BY_DESIGN[module.default.title ?? ""] ?? [];
 

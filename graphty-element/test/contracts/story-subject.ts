@@ -5,7 +5,7 @@
  * kept by name whose body stops showing its subject is a story the roster is perfectly happy
  * with, and it is not a hypothetical: `Styles/Layered::ArrowSizeVariations` carried a comment
  * promising caps at 0.5 and 2.0 while all three of its layers wrote only a cap TYPE, so the
- * picture held one size and the name said three. Chromatic could not see it either -- the
+ * picture held one size and the name said three. The screenshot review could not see it either -- the
  * baseline it diffs against was the same hollow picture.
  *
  * THE RULE, in one sentence: a story whose name contains the name of a style channel must write

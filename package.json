@@ -23,7 +23,7 @@
         "check:migration-counts": "node tools/count-migration-state.mjs --self-test",
         "check:release-hold": "node tools/release-hold.test.mjs && node tools/release-hold.mjs check",
         "test:sonar-gate": "node tools/sonar/sonar-gate.test.mjs && node tools/sonar/sonar-baseline.test.mjs",
-        "test:ci-workflows": "node tools/ci-workflows.test.mjs && node tools/restricted-cpu-stress.test.mjs && node tools/claude-area-rules.test.mjs && node tools/test-slots.test.mjs && node tools/githerd-watchdog.test.mjs && node tools/release-status.test.mjs && node tools/queued-push-guard.test.mjs && node tools/lfs-pre-push.test.mjs && node tools/vitest-time-budget.test.mjs && node tools/release-scheduler/test/index.test.mjs",
+        "test:ci-workflows": "node tools/ci-workflows.test.mjs && node tools/shard-verdict.test.mjs && node tools/restricted-cpu-stress.test.mjs && node tools/claude-area-rules.test.mjs && node tools/test-slots.test.mjs && node tools/githerd-watchdog.test.mjs && node tools/release-status.test.mjs && node tools/queued-push-guard.test.mjs && node tools/lfs-pre-push.test.mjs && node tools/live.test.mjs && node tools/vitest-time-budget.test.mjs && node tools/release-scheduler/test/index.test.mjs",
         "typecheck": "pnpm exec nx run-many --target=typecheck",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
@@ -68,10 +68,10 @@
         }
     },
     "devDependencies": {
-        "@chromatic-com/storybook": "^4.0.0",
         "@commitlint/cli": "^19.8.1",
         "@commitlint/config-conventional": "^19.8.1",
         "@eslint/js": "^9.29.0",
+        "@graphty/githerd": "workspace:*",
         "@graphty/visual-review": "workspace:*",
         "@microsoft/api-extractor": "7.55.2",
         "@nx/eslint": "22.7.12",
@@ -88,7 +88,6 @@
         "@vitest/browser": "catalog:",
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
-        "chromatic": "^18.9.5",
         "commitizen": "^4.3.1",
         "cz-conventional-changelog": "^3.3.0",
         "eruda": "^3.4.3",

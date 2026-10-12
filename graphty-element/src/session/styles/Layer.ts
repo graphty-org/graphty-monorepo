@@ -61,6 +61,7 @@ import type {
     StaticStyle,
 } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
+import type { GraphtyWarningCode } from "../../errors/codes";
 import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
@@ -68,7 +69,7 @@ import type { CodedFact } from "../shared";
 import { type ChannelDescriptor, channelDescriptor, channelsFor, labelFieldOf, toColorValue } from "./channels";
 import { stopsProblem } from "./encoding";
 import type { FileStyleOrigin } from "./fileStyles/origin";
-import type { CompiledSelector, SelectorSource, SelectorTarget } from "./predicate";
+import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
 import { compileSelector, type Selector } from "./selector";
 
@@ -202,21 +203,25 @@ export interface ValidationResult {
      */
     readonly shadowedPaths: readonly Path[];
     /**
-     * What the specification can be added with but will not do as written, as coded facts for
-     * the application to word. Not errors: `add()` accepts the layer. Empty when there is nothing
-     * to say. Each code's `params`:
+     * What will paint nothing, or not as written, as codes. Not errors: the layer is still added.
      *
-     * | Code | Params |
-     * | --- | --- |
-     * | `style.label-style-bound` | `channel`: a whole label style channel (`node.labelStyle`) bound to a path; `path`: where in the specification, such as `encode.node.labelStyle`; `fieldChannels`: the label field channels that can be bound instead (`node.labelSize` ...), empty when the channel has none. A whole label style is no value a scale produces, so the binding paints nothing |
+     * `W_UNKNOWN_ID`: a `{ match: "ids" }` selector names ids no element of the layer's target
+     * answers to now, by either spelling of an integer id. `params.target` is `"node"` or
+     * `"edge"`, `params.ids` those ids as the layer named them.
+     *
+     * `W_ALPHA_IGNORED`: a color with an alpha written to a channel that cannot draw it
+     * translucent (`node.outline`), so it is drawn opaque. `params.channel` and `params.path`.
+     *
+     * `W_LABEL_STYLE_BOUND`: a whole label style channel (`node.labelStyle`) bound to a path. No
+     * scale produces a whole label style, so the binding paints nothing. `params.channel` is the
+     * channel, `params.path` where in the specification (`encode.node.labelStyle`), and
+     * `params.fieldChannels` the label field channels that can be bound instead
+     * (`node.labelSize` ...), empty when the channel has none.
      *
      * New codes may be added in a minor release: word an unknown one generically.
      */
-    readonly warnings?: readonly CodedFact<LayerWarningCode>[];
+    readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
 }
-
-/** The code of a {@link ValidationResult} warning. See {@link ValidationResult.warnings}. */
-export type LayerWarningCode = "style.label-style-bound";
 
 /**
  * Whether this session answers a path, and what it would have answered instead.
@@ -393,6 +398,62 @@ const NO_PATHS: readonly Path[] = Object.freeze([]);
 /** Nothing was wrong. */
 const NO_PROBLEMS: readonly LayerProblem[] = Object.freeze([]);
 
+/** Nothing to warn about. */
+const NO_WARNINGS: readonly CodedFact<GraphtyWarningCode>[] = Object.freeze([]);
+
+/**
+ * The warnings a layer's selector earns: the ids an `ids` selector names that nothing answers to.
+ * @param spec - The specification.
+ * @param target - The layer's target, or null when it could not be settled.
+ * @param elements - Where an id is looked up.
+ * @returns The warnings; none when the session cannot look an id up.
+ */
+function selectorWarnings(
+    spec: LayerSpec,
+    target: SelectorTarget | null,
+    elements: SelectorSource,
+): readonly CodedFact<GraphtyWarningCode>[] {
+    const selector = spec.selector as { match?: unknown; nodes?: unknown; edges?: unknown } | null | undefined;
+    if (target === null || selector?.match !== "ids") {
+        return NO_WARNINGS;
+    }
+
+    const named = (target === "node" ? selector.nodes : selector.edges) as readonly (string | number)[] | undefined;
+    const { indexOf } = columnsFor(elements, target);
+    if (named === undefined || indexOf === null) {
+        return NO_WARNINGS;
+    }
+
+    const unknown = named.filter((id) => indexOf(id) === undefined);
+
+    return unknown.length === 0
+        ? NO_WARNINGS
+        : Object.freeze([
+              Object.freeze({ code: "W_UNKNOWN_ID" as const, params: Object.freeze({ target, ids: unknown }) }),
+          ]);
+}
+
+/** The color channels that draw a color opaque whatever its alpha. See `NodeEffects.applyOutlineEffect`. */
+const OPAQUE_COLOR_CHANNELS: readonly string[] = ["node.outline"];
+
+/**
+ * The warnings a layer's literal colors earn: an alpha written to a channel that cannot draw it.
+ *
+ * Every other color channel multiplies a color's alpha into its opacity (issue #2071); an
+ * outline cannot be drawn translucent, so its alpha is dropped and this says so.
+ * @param spec - The specification.
+ * @returns The warnings; none when every literal color can be drawn as written.
+ */
+function alphaWarnings(spec: LayerSpec): readonly CodedFact<GraphtyWarningCode>[] {
+    return OPAQUE_COLOR_CHANNELS.filter((channel) => {
+        const color = toColorValue(asColorInput(spec.set?.[channel as keyof typeof spec.set]));
+
+        return color !== null && color.a < 1;
+    }).map((channel) =>
+        Object.freeze({ code: "W_ALPHA_IGNORED" as const, params: Object.freeze({ channel, path: `set.${channel}` }) }),
+    );
+}
+
 /**
  * Mint the id a new layer will carry.
  *
@@ -508,7 +569,7 @@ interface ProblemLog {
     /** The problems so far, in the order they were found. */
     readonly problems: LayerProblem[];
     /** The warnings so far, in the order they were found. */
-    readonly warnings: CodedFact<LayerWarningCode>[];
+    readonly warnings: CodedFact<GraphtyWarningCode>[];
     /** The paths the specification reads, in the order it names them, without repeats. */
     readonly paths: Path[];
 }
@@ -740,7 +801,7 @@ function checkBinding(
         // Accepted, because refusing would reject stacks that load today, saved projects among
         // them; reported, because no scale produces a whole label style, so it paints nothing.
         log.warnings.push({
-            code: "style.label-style-bound",
+            code: "W_LABEL_STYLE_BOUND",
             params: {
                 channel: descriptor.channel,
                 path,
@@ -967,12 +1028,7 @@ function checkSelector(
  */
 function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: ProblemLog): LayerSpec {
     const selector = spec.selector as { match?: unknown; of?: unknown } | undefined;
-    if (
-        options.admitScope === undefined ||
-        typeof selector !== "object" ||
-        selector === null ||
-        selector.match !== "member"
-    ) {
+    if (options.admitScope === undefined || typeof selector !== "object" || selector?.match !== "member") {
         return spec;
     }
 
@@ -1069,11 +1125,13 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
                 errors: Object.freeze([...log.problems]),
                 unresolvedPaths,
                 shadowedPaths,
-                warnings: Object.freeze([...log.warnings]),
+                warnings: log.warnings.length === 0 ? NO_WARNINGS : Object.freeze([...log.warnings]),
             }),
             layer: null,
         };
     }
+
+    const warnings = [...log.warnings, ...selectorWarnings(spec, target, options.elements), ...alphaWarnings(spec)];
 
     return {
         result: Object.freeze({
@@ -1081,7 +1139,7 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
             errors: NO_PROBLEMS,
             unresolvedPaths,
             shadowedPaths,
-            warnings: Object.freeze([...log.warnings]),
+            warnings: warnings.length === 0 ? NO_WARNINGS : Object.freeze(warnings),
         }),
         layer: buildLayer(spec, options.id, target, compiled, log.paths),
     };

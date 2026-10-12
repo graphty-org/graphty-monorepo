@@ -538,7 +538,7 @@ class GraphmlReader implements XmlHandler {
      * @param ns - the element's namespace (null: an undeclared prefix)
      */
     start(name: string, attrs: ReadonlyMap<string, string>, line: number, ns: string | null = ""): void {
-        const parent = this.ctx.length === 0 ? null : this.ctx[this.ctx.length - 1];
+        const parent = this.ctx.at(-1) ?? null;
         switch (parent) {
             case Ctx.Capture:
                 this.captureStart(name, attrs);
@@ -665,7 +665,7 @@ class GraphmlReader implements XmlHandler {
      * @param line - the line
      */
     text(text: string, line: number): void {
-        const ctx = this.ctx.length === 0 ? null : this.ctx[this.ctx.length - 1];
+        const ctx = this.ctx.at(-1) ?? null;
         switch (ctx) {
             case Ctx.Capture:
                 this.content.tree?.text(text);

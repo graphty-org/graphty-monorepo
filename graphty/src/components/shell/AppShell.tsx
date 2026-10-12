@@ -563,11 +563,11 @@ function focusWhenMounted(selector: string): void {
         frames += 1;
 
         if (frames < FOCUS_FRAMES) {
-            window.requestAnimationFrame(attempt);
+            globalThis.requestAnimationFrame(attempt);
         }
     };
 
-    window.requestAnimationFrame(attempt);
+    globalThis.requestAnimationFrame(attempt);
 }
 
 /*
@@ -1560,7 +1560,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         let attempts = 0;
         let unwatch: (() => void) | null = null;
 
-        const timer = window.setInterval(() => {
+        const timer = globalThis.setInterval(() => {
             const handle = graphtyRef.current;
             const session = handle?.session ?? null;
 
@@ -1573,18 +1573,18 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 });
 
                 setGraphReady(true);
-                window.clearInterval(timer);
+                globalThis.clearInterval(timer);
 
                 return;
             }
 
             if (attempts >= GRAPH_READY_POLL_LIMIT) {
-                window.clearInterval(timer);
+                globalThis.clearInterval(timer);
             }
         }, GRAPH_READY_POLL_MS);
 
         return () => {
-            window.clearInterval(timer);
+            globalThis.clearInterval(timer);
             unwatch?.();
         };
     }, []);
@@ -1617,12 +1617,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setExploreError(error instanceof Error ? error.message : String(error));
             }
         };
-        const timer = window.setTimeout(() => {
+        const timer = globalThis.setTimeout(() => {
             void search();
         }, EXPLORE_SEARCH_DEBOUNCE_MS);
 
         return () => {
-            window.clearTimeout(timer);
+            globalThis.clearTimeout(timer);
         };
     }, [exploreQuery, exploreScope, graphReady, loadCompletions]);
 
@@ -2282,7 +2282,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             return;
         }
 
-        if (!new URLSearchParams(window.location.search).has("test")) {
+        if (!new URLSearchParams(globalThis.location.search).has("test")) {
             return;
         }
 
@@ -3117,13 +3117,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    same route the inspector's own neighbour rows take. The aggregate tie
                    row carries no node id and stays inert text (RT-6).
 
-                   `row.nodeId` is the ELEMENT's own id and `row.name` is the printed one,
-                   and the two are different types on two of the three shipped samples:
-                   karate.gml and football.gml declare integer ids, GMLDataSource parses
-                   them with parseInt, and the element's node Map is keyed on the number.
-                   The ranking used to carry `String(node.id)`, so `selectById("1")` missed
-                   the key `1`, returned false, emitted nothing, and every ranked row on
-                   those two samples was inert. Print the label, select the id. */
+                   `row.nodeId` is the element's own id and `row.name` is the printed one.
+                   Print the label, select the id. */
                 const body: ResultBodyRow[] = nodeMetricResultBody(ranking).map((row) => {
                     const { nodeId } = row;
 
@@ -3431,7 +3426,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const openResult = useCallback(
         (id: string) => {
-            if (activeResult === null || activeResult.id !== id) {
+            if (activeResult?.id !== id) {
                 return;
             }
 
@@ -4689,7 +4684,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
-        if (acceleration === null || acceleration.state !== "error") {
+        if (acceleration?.state !== "error") {
             return undefined;
         }
 
@@ -4721,25 +4716,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             });
         }
 
-        items.push({
-            id: "goto-settings",
-            group: "Go to",
-            label: PINNED_TITLES.settings,
-            onSelect: () => {
-                openFullPanelOverlay("settings");
-            },
-        });
-        items.push({
-            id: "goto-help",
-            group: "Go to",
-            label: PINNED_TITLES.help,
-            chipFor: "keyboardShortcuts",
-            onSelect: () => {
-                setHelpOpen(true);
-            },
-        });
-
         items.push(
+            {
+                id: "goto-settings",
+                group: "Go to",
+                label: PINNED_TITLES.settings,
+                onSelect: () => {
+                    openFullPanelOverlay("settings");
+                },
+            },
+            {
+                id: "goto-help",
+                group: "Go to",
+                label: PINNED_TITLES.help,
+                chipFor: "keyboardShortcuts",
+                onSelect: () => {
+                    setHelpOpen(true);
+                },
+            },
             { id: "view-zoom-in", group: "View", label: "Zoom in", chipFor: "zoomIn", onSelect: zoomIn },
             { id: "view-zoom-out", group: "View", label: "Zoom out", chipFor: "zoomOut", onSelect: zoomOut },
             { id: "view-zoom-fit", group: "View", label: "Zoom to fit", chipFor: "zoomToFit", onSelect: zoomToFit },

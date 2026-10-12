@@ -943,7 +943,7 @@ class ExportPlan {
      */
     private positionText(i: number): string | null {
         const column = this.position;
-        if (column === null || !column.isSet(i)) {
+        if (!column?.isSet(i)) {
             return null;
         }
         if (column.dtype !== "f32" && column.dtype !== "f64" && column.dtype !== "i32") {
@@ -1032,7 +1032,7 @@ class ExportPlan {
      */
     private keyText(e: number): string | null {
         const column = this.edgeId;
-        if (column === null || !column.isSet(e)) {
+        if (!column?.isSet(e)) {
             return null;
         }
         if (column.dtype === "f32" || column.dtype === "f64") {
@@ -1048,7 +1048,7 @@ class ExportPlan {
      * @returns `:port` or ""
      */
     private portText(column: Column | null, e: number): string {
-        if (column === null || !column.isSet(e)) {
+        if (!column?.isSet(e)) {
             return "";
         }
         const text = cellText(column, e);

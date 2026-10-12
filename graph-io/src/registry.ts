@@ -1781,7 +1781,7 @@ async function peekHead(input: ImportInput, bytes: number, signal: AbortSignal |
     let size = 0;
     let finished = false;
     while (size < bytes) {
-        if (signal !== null && signal.aborted) {
+        if (signal?.aborted) {
             await source.return?.();
             throwIfAborted(signal);
         }
@@ -1793,7 +1793,7 @@ async function peekHead(input: ImportInput, bytes: number, signal: AbortSignal |
         buffered.push(next.value);
         size += typeof next.value === "string" ? next.value.length : next.value.byteLength;
     }
-    if (!finished && signal !== null && signal.aborted) {
+    if (!finished && signal?.aborted) {
         // an abort that landed on the read completing the head: close the source before rethrowing
         await source.return?.();
         throwIfAborted(signal);

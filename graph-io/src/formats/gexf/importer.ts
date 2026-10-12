@@ -234,7 +234,7 @@ export {
     MISSING_ID_CODE,
     NO_GRAPH_CODE,
     UNKNOWN_PARENT_CODE,
-};
+} from "../../common/codes.js";
 
 /** The GEXF versions graph-io knows, and the version a namespace implies when `version` is missing. */
 const VERSIONS: ReadonlySet<string> = new Set(["1.0", "1.1", "1.2", "1.3"]);
@@ -774,7 +774,7 @@ class GexfReader implements XmlHandler {
     // ---------------------------------------------------------------- events
 
     start(name: string, attrs: ReadonlyMap<string, string>, line: number, ns: string | null = ""): void {
-        const parent = this.ctx.length === 0 ? null : this.ctx[this.ctx.length - 1];
+        const parent = this.ctx.at(-1) ?? null;
         const local = localName(name);
         if (
             ns === null &&
@@ -919,7 +919,7 @@ class GexfReader implements XmlHandler {
      * @param line - the line
      */
     text(text: string, line: number): void {
-        const ctx = this.ctx.length === 0 ? null : this.ctx[this.ctx.length - 1];
+        const ctx = this.ctx.at(-1) ?? null;
         switch (ctx) {
             case Ctx.MetaText:
                 this.metaText += text;
@@ -1331,7 +1331,7 @@ class GexfReader implements XmlHandler {
         }
         this.checkAttributes("attribute", attrs, line);
         const group = this.attributeGroup;
-        if (group === null || group.domain === null) {
+        if (!group?.domain) {
             // the group's class was refused; its attributes are dropped with it
             this.ctx.push(Ctx.Skip);
             return;
@@ -1529,7 +1529,7 @@ class GexfReader implements XmlHandler {
     private beginNode(attrs: ReadonlyMap<string, string>, line: number): void {
         const { report, sink } = this;
         this.checkAbort();
-        const enclosing = this.nodeStack.length === 0 ? INVALID_INDEX : this.nodeStack[this.nodeStack.length - 1].index;
+        const enclosing = this.nodeStack.at(-1)?.index ?? INVALID_INDEX;
         const idText = attrs.get("id");
         const where: IssueLocation = { line, element: idText ?? attrs.get("label") ?? null };
         this.countInSection("node");

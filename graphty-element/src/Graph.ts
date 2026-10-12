@@ -2075,38 +2075,9 @@ export class Graph implements GraphContext {
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
-        const { detectFormat } = await import("./data/format-detection.js");
-
-        let format = options?.format;
-        let fetchedContent: Uint8Array | undefined;
-
-        if (!format) {
-            // First try extension-based detection (no fetch needed)
-            const detectedFromExtension = detectFormat(url, "");
-
-            if (detectedFromExtension) {
-                format = detectedFromExtension;
-            } else {
-                // Extension didn't match - fetch content for detection
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
-                }
-
-                // Bytes, decoded by the importer: see loadFromFile.
-                fetchedContent = new Uint8Array(await response.arrayBuffer());
-                this.dataManager.throwIfSuperseded(load.generation, url);
-
-                const sample = sampleOf(fetchedContent);
-                const detectedFromContent = detectFormat(url, sample);
-
-                if (!detectedFromContent) {
-                    throw undetectedFormat(url, 'loadFromUrl(url, { format: "graphml" })');
-                }
-
-                format = detectedFromContent;
-            }
-        }
+        const { format, fetchedContent } = options?.format
+            ? { format: options.format, fetchedContent: undefined }
+            : await this.urlFormat(url, load.generation);
 
         // Merge graph config with explicit options (explicit options take precedence)
         // A key is only carried when there is something to say. `edgeSource: undefined` would
@@ -2115,14 +2086,12 @@ export class Graph implements GraphContext {
         const configured = this.styles.config.data.knownFields;
         const edgeSource = options?.edgeSource ?? configured.edgeSrcIdPath;
         const edgeTarget = options?.edgeTarget ?? configured.edgeDstIdPath;
+        const { graphIndex, graphName, styles, styleOptions } = options ?? {};
         const mergedOptions = {
             nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
             ...(edgeSource === null ? {} : { edgeSource }),
             ...(edgeTarget === null ? {} : { edgeTarget }),
-            ...(options?.graphIndex === undefined ? {} : { graphIndex: options.graphIndex }),
-            ...(options?.graphName === undefined ? {} : { graphName: options.graphName }),
-            ...(options?.styles === undefined ? {} : { styles: options.styles }),
-            ...(options?.styleOptions === undefined ? {} : { styleOptions: options.styleOptions }),
+            ...withoutUndefined({ graphIndex, graphName, styles, styleOptions }),
         };
 
         // If we already fetched content for detection, pass it as data to avoid double-fetch
@@ -2132,6 +2101,40 @@ export class Graph implements GraphContext {
         }
 
         return this.loadReserved(format, { url, ...mergedOptions }, load);
+    }
+
+    /**
+     * The format of a file at a URL: from its extension, else from its content, which is fetched for it.
+     * @param url - The URL
+     * @param generation - The load's generation, to stop when another load superseded it
+     * @returns The format, and the content when it was fetched
+     */
+    private async urlFormat(
+        url: string,
+        generation: number,
+    ): Promise<{ format: string; fetchedContent: Uint8Array | undefined }> {
+        const { detectFormat } = await import("./data/format-detection.js");
+        // First try extension-based detection (no fetch needed)
+        const detectedFromExtension = detectFormat(url, "");
+        if (detectedFromExtension) {
+            return { format: detectedFromExtension, fetchedContent: undefined };
+        }
+
+        // Extension didn't match - fetch content for detection
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
+        }
+
+        // Bytes, decoded by the importer: see loadFromFile.
+        const fetchedContent = new Uint8Array(await response.arrayBuffer());
+        this.dataManager.throwIfSuperseded(generation, url);
+        const detectedFromContent = detectFormat(url, sampleOf(fetchedContent));
+        if (!detectedFromContent) {
+            throw undetectedFormat(url, 'loadFromUrl(url, { format: "graphml" })');
+        }
+
+        return { format: detectedFromContent, fetchedContent };
     }
 
     /**
@@ -6775,4 +6778,13 @@ export class Graph implements GraphContext {
         this.xrSessionManager?.dispose();
         this.shutdown();
     }
+}
+
+/**
+ * An object without its undefined values, so an option left unset is not passed on as declared-and-empty.
+ * @param o - The object
+ * @returns A copy holding only the keys with a value
+ */
+function withoutUndefined<T extends object>(o: T): Partial<T> {
+    return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
 }

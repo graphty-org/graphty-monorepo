@@ -1684,6 +1684,16 @@ export function stopsProblem(descriptor: ChannelDescriptor, binding: RuleBinding
         return "stops is a list of points, such as [{ at: 0, value: 1 }, { at: 10, value: 5 }].";
     }
 
+    return stopListProblem(descriptor, stops);
+}
+
+/**
+ * What is wrong with the points of a non-empty `stops` list, if anything.
+ * @param descriptor - The channel, which carries a number or a color.
+ * @param stops - The points.
+ * @returns A sentence saying what is wrong, or null when the points can be painted.
+ */
+function stopListProblem(descriptor: ChannelDescriptor, stops: NonNullable<RuleBinding["stops"]>): string | null {
     let previous = Number.NEGATIVE_INFINITY;
     for (const stop of stops) {
         if (typeof stop !== "object" || typeof stop.at !== "number" || !Number.isFinite(stop.at)) {
@@ -1730,7 +1740,7 @@ function readAgainstStops<T>(stops: readonly ReadStop<T>[], x: number, between: 
         }
     }
 
-    const last = stops[stops.length - 1];
+    const last = stops.at(-1) ?? first;
 
     return x === last.at ? last.value : last.above;
 }
@@ -1814,7 +1824,7 @@ function prepareStops(
     }
 
     const facts = walkColumn(options.column, true);
-    const domain: [number, number] = [stops[0].at, stops[stops.length - 1].at];
+    const domain: [number, number] = [stops[0].at, (stops.at(-1) ?? stops[0]).at];
 
     return assemble(
         descriptor,

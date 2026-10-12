@@ -274,19 +274,7 @@ function parsePath(path: Path): PathEntry {
     }
 
     if (path.startsWith(ELEMENT_ROOT)) {
-        const note = noteFieldOf(path);
-        if (note !== undefined) {
-            return { kind: "note", key: "", runId: "", field: note };
-        }
-
-        const style = parseFileStylePath(path);
-        if (style !== undefined) {
-            return { kind: "style", key: style.key, runId: style.namespace, field: style.kind };
-        }
-
-        const degree = computedOf(path);
-        // A `graphty.` path this release does not know reads nothing, so a later one is an addition.
-        return degree === undefined ? NOTHING : { kind: "degree", key: "", runId: "", field: degree };
+        return parseElementPath(path);
     }
 
     // The prefix is stripped rather than required, matching the session's filter value source:
@@ -295,6 +283,26 @@ function parsePath(path: Path): PathEntry {
     const key = path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
 
     return key === "" ? NOTHING : { kind: "attribute", key, runId: "", field: "" };
+}
+
+/**
+ * Work out what a `graphty.` path names: a note field, a file style column or a degree.
+ * @param path - The path.
+ * @returns What reads it; a `graphty.` path this release does not know reads nothing, so a later one is an addition.
+ */
+function parseElementPath(path: Path): PathEntry {
+    const note = noteFieldOf(path);
+    if (note !== undefined) {
+        return { kind: "note", key: "", runId: "", field: note };
+    }
+
+    const style = parseFileStylePath(path);
+    if (style !== undefined) {
+        return { kind: "style", key: style.key, runId: style.namespace, field: style.kind };
+    }
+
+    const degree = computedOf(path);
+    return degree === undefined ? NOTHING : { kind: "degree", key: "", runId: "", field: degree };
 }
 
 // ---------------------------------------------------------------------------------------------

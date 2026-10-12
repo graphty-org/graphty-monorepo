@@ -224,7 +224,7 @@ class Notes {
      * @param note - The note.
      */
     keep(note: StyleNote): void {
-        this.add(note.code, note.params.target, note.params.property, note.params.count, undefined);
+        this.add(note.code, note.params.target, note.params.property, note.params.count);
         const held = [...this.#held.values()].at(-1);
         for (const sample of note.params.samples) {
             if (held !== undefined && held.samples.length < 8) {
@@ -343,7 +343,7 @@ function categoryOf(value: unknown): string | null {
  */
 function literal(value: unknown): string {
     if (typeof value === "string") {
-        return `'${value.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`;
+        return `'${value.replaceAll("\\", String.raw`\\`).replaceAll("'", String.raw`\'`)}'`;
     }
 
     return `\`${JSON.stringify(value)}\``;
@@ -386,28 +386,39 @@ function termsOf(where: Predicate): number {
  */
 export function expressionTerms(where: string): number {
     let terms = 0;
-    for (let at = 0; at < where.length; at++) {
+    let at = 0;
+    while (at < where.length) {
         const character = where[at];
+        const two = where.slice(at, at + 2);
         if (character === "'" || character === "`" || character === '"') {
             // Skip the literal or the quoted name, honouring its backslash escapes.
-            at++;
-            while (at < where.length && where[at] !== character) {
-                at += where[at] === "\\" ? 2 : 1;
-            }
-
-            continue;
-        }
-
-        const two = where.slice(at, at + 2);
-        if (two === "==" || two === "!=" || two === "<=" || two === ">=") {
+            at = closingQuote(where, at + 1, character) + 1;
+        } else if (two === "==" || two === "!=" || two === "<=" || two === ">=") {
             terms++;
+            at += 2;
+        } else {
+            terms += character === "<" || character === ">" ? 1 : 0;
             at++;
-        } else if (character === "<" || character === ">") {
-            terms++;
         }
     }
 
     return terms;
+}
+
+/**
+ * Where a quoted literal or name closes: its quote, its backslash escapes honoured.
+ * @param where - The expression.
+ * @param from - The position after the opening quote.
+ * @param quote - The quote.
+ * @returns The closing quote's position, or the end of the expression.
+ */
+function closingQuote(where: string, from: number, quote: string): number {
+    let at = from;
+    while (at < where.length && where[at] !== quote) {
+        at += where[at] === "\\" ? 2 : 1;
+    }
+
+    return at;
 }
 
 /**
@@ -783,8 +794,10 @@ class KindTranslation {
      */
     #freshKey(base: string): string {
         let key = `el.${base}`;
-        for (let n = 2; this.#keys.has(key); n++) {
+        let n = 2;
+        while (this.#keys.has(key)) {
             key = `el.${base}.${String(n)}`;
+            n++;
         }
 
         this.#keys.add(key);
@@ -948,7 +961,7 @@ class KindTranslation {
         const match = this.#matches(where, source);
         if (termsOf(where) <= MAX_TERMS) {
             const built = this.#expression(where, source);
-            if (built !== null && built.test.every((value, i) => value === match[i])) {
+            if (built?.test.every((value, i) => value === match[i])) {
                 return this.#scoped(built.selector);
             }
         }
@@ -1025,9 +1038,10 @@ class KindTranslation {
                 return null;
             }
 
+            const tests = wanted.map((value) => `${column.path} == ${literal(value)}`);
             return {
-                text: `(${wanted.map((value) => `${column.path} == ${literal(value)}`).join(" || ")})`,
-                test: column.values.map((value) => wanted.some((one) => one === value)),
+                text: `(${tests.join(" || ")})`,
+                test: column.values.map((value) => (wanted as readonly unknown[]).includes(value)),
             };
         }
 
@@ -1042,7 +1056,7 @@ class KindTranslation {
         }
 
         const parts = list.map((inner: Predicate) => this.#clause(inner, source));
-        if (parts.some((part) => part === null)) {
+        if (parts.includes(null)) {
             return null;
         }
 
@@ -1231,7 +1245,7 @@ class KindTranslation {
             }
 
             const parts = parseFileStylePath(path);
-            const values = parts === undefined || parts.kind !== this.#kind ? undefined : held.get(parts.key);
+            const values = parts?.kind === this.#kind ? held.get(parts.key) : undefined;
             if (parts === undefined || values === undefined) {
                 missing = true;
                 return path;
@@ -1239,42 +1253,28 @@ class KindTranslation {
 
             return this.#keep(parts.key, values);
         };
-        let moved: Selector = selector;
-        if (selector.match === "ids" || selector.match === "member") {
-            // A few node ids stay a selector by id; edge ids, more ids and a set's members do not
-            // reach this load, so the file's membership values select instead, as the same kind.
-            const ids = selector.match === "ids" ? selector.nodes : undefined;
-            if (
-                selector.match === "member" ||
-                selector.edges !== undefined ||
-                ids === undefined ||
-                ids.length > MAX_TERMS
-            ) {
-                if (given.kind === "encoding" || given.kind === "highlight" || given.kind === "custom") {
-                    this.#kinds.set(rule.id, given.kind);
-                }
-
-                return ignored("SELECTOR");
-            }
-        } else if (selector.match === "has" || selector.match === "top") {
-            moved = { ...selector, path: move(selector.path) as Path };
-        } else if (selector.match === "expression") {
-            if (typeof selector.where !== "string" || expressionTerms(selector.where) > MAX_TERMS) {
-                return ignored("SELECTOR_TERMS");
+        const moved = this.#movedSelector(selector, move, () => (missing = true));
+        if (moved === "MEMBERS") {
+            // The file's membership values select instead, as the same kind.
+            if (given.kind === "encoding" || given.kind === "highlight" || given.kind === "custom") {
+                this.#kinds.set(rule.id, given.kind);
             }
 
-            moved = { match: "expression", where: this.#moveExpression(selector.where, () => (missing = true)) };
-        } else if (selector.match !== "everything") {
             return ignored("SELECTOR");
         }
 
-        const encode: Record<string, unknown> = {};
-        for (const [channel, binding] of Object.entries(given.encode ?? {})) {
-            encode[channel] =
+        if (typeof moved === "string") {
+            return ignored(moved);
+        }
+
+        const encode = Object.fromEntries(
+            Object.entries(given.encode ?? {}).map(([channel, binding]) => [
+                channel,
                 typeof binding === "object" && binding !== null && "by" in binding
                     ? { ...binding, by: move(binding.by) }
-                    : binding;
-        }
+                    : binding,
+            ]),
+        );
 
         if (missing || !this.#readsHeldData(given)) {
             return ignored("PATH");
@@ -1292,6 +1292,44 @@ class KindTranslation {
     }
 
     /**
+     * A layer's selector with its file-style paths moved into this load's namespace. A few node ids stay a selector
+     * by id; edge ids, more ids and a set's members do not reach this load, so the file's membership values select
+     * instead.
+     * @param selector - The selector graphty wrote.
+     * @param move - Moves one path.
+     * @param missing - Called for a path naming a value the file does not hold.
+     * @returns The selector; "MEMBERS" when membership values select instead; else the reason it cannot be used.
+     */
+    #movedSelector(
+        selector: Selector,
+        move: (path: unknown) => unknown,
+        missing: () => void,
+    ): Selector | "MEMBERS" | "SELECTOR" | "SELECTOR_TERMS" {
+        switch (selector.match) {
+            case "ids": {
+                const ids = selector.nodes;
+                const few = selector.edges === undefined && ids !== undefined && ids.length <= MAX_TERMS;
+                return few ? selector : "MEMBERS";
+            }
+            case "member":
+                return "MEMBERS";
+            case "has":
+            case "top":
+                return { ...selector, path: move(selector.path) as Path };
+            case "expression":
+                if (typeof selector.where !== "string" || expressionTerms(selector.where) > MAX_TERMS) {
+                    return "SELECTOR_TERMS";
+                }
+
+                return { match: "expression", where: this.#moveExpression(selector.where, missing) };
+            case "everything":
+                return selector;
+            default:
+                return "SELECTOR";
+        }
+    }
+
+    /**
      * Whether every data column a layer graphty wrote reads is where this load's reader put it: a
      * reader that nests a column (a graphology attribute arrives under `attributes`) or leaves it
      * out gives the layer nothing at the path it names, so the neutral rule is drawn instead.
@@ -1299,26 +1337,9 @@ class KindTranslation {
      * @returns True when each `data.` path it reads is where the reader put a column of the file.
      */
     #readsHeldData(spec: Partial<LayerSpec>): boolean {
-        const paths: string[] = [];
-        const { selector } = spec;
-        if (selector?.match === "has" || selector?.match === "top") {
-            paths.push(selector.path);
-        } else if (selector?.match === "expression" && typeof selector.where === "string") {
-            for (const match of selector.where.matchAll(DATA_SEGMENT)) {
-                const name = match[1].startsWith('"') ? quotedName(match[1]) : match[1];
-                if (name === undefined) {
-                    // a quoted name JSON cannot read: the layer names no column this load holds
-                    return false;
-                }
-
-                paths.push(`data.${name}`);
-            }
-        }
-
-        for (const binding of Object.values(spec.encode ?? {})) {
-            if (typeof binding === "object" && binding !== null && "by" in binding && typeof binding.by === "string") {
-                paths.push(binding.by);
-            }
+        const paths = pathsRead(spec);
+        if (paths === null) {
+            return false;
         }
 
         if (this.#heldPaths === undefined) {
@@ -1332,39 +1353,46 @@ class KindTranslation {
         // the block (`input.data.<column>`, `input.<property>.data.<column>`): what the file holds in
         // the column itself is not what was written, so no layer reading it is rebuilt, whichever
         // rule of the block carries the copy.
-        if (this.#copiedPaths === undefined) {
-            const copied = new Set<string>();
-            for (const each of this.#input.extracted.styles.rules) {
-                if (each.target !== this.#kind) {
-                    continue;
-                }
-
-                const { ext: _ext, ...neutral } = each;
-                JSON.stringify(neutral, (_key, value: unknown) => {
-                    if (
-                        typeof value === "object" &&
-                        value !== null &&
-                        !Array.isArray(value) &&
-                        Object.keys(value).length === 1
-                    ) {
-                        const { style } = value as { style?: unknown };
-                        const column = typeof style === "string" ? CARRIED_INPUT.exec(style)?.[1] : undefined;
-                        const path = column === undefined ? null : this.#input.dataPath(this.#kind, column);
-                        if (path !== null) {
-                            copied.add(path);
-                        }
-                    }
-
-                    return value;
-                });
-            }
-
-            this.#copiedPaths = copied;
-        }
-
+        this.#copiedPaths ??= this.#copiedPathsOf();
         const copied = this.#copiedPaths;
         const held = this.#heldPaths;
         return paths.filter((path) => path.startsWith("data.")).every((path) => held.has(path) && !copied.has(path));
+    }
+
+    /**
+     * The data paths of the columns the block's rules read from graph-io's copies.
+     * @returns The paths.
+     */
+    #copiedPathsOf(): Set<string> {
+        const copied = new Set<string>();
+        for (const each of this.#input.extracted.styles.rules.filter((rule) => rule.target === this.#kind)) {
+            const { ext: _ext, ...neutral } = each;
+            JSON.stringify(neutral, (_key, value: unknown) => {
+                const path = this.#carriedPath(value);
+                if (path !== null) {
+                    copied.add(path);
+                }
+
+                return value;
+            });
+        }
+
+        return copied;
+    }
+
+    /**
+     * The data path of the column a style column reference copies, if it is one of graph-io's copies.
+     * @param value - A value of a rule.
+     * @returns The path, or null.
+     */
+    #carriedPath(value: unknown): string | null {
+        if (typeof value !== "object" || value === null || Array.isArray(value) || Object.keys(value).length !== 1) {
+            return null;
+        }
+
+        const { style } = value as { style?: unknown };
+        const column = typeof style === "string" ? CARRIED_INPUT.exec(style)?.[1] : undefined;
+        return column === undefined ? null : this.#input.dataPath(this.#kind, column);
     }
 
     /**
@@ -1378,7 +1406,7 @@ class KindTranslation {
         // A path is `graphty.style.<namespace>.<kind>.<key>`, each segment bare or a quoted name.
         const segment = String.raw`(?:"(?:[^"\\]|\\.)*"|[A-Za-z_][A-Za-z0-9_]*|\d+)`;
         const pattern = new RegExp(String.raw`graphty\.style\.${segment}\.(node|edge)((?:\.${segment})+)`, "g");
-        return where.replace(pattern, (whole: string, kind: string, rest: string) => {
+        return where.replaceAll(pattern, (whole: string, kind: string, rest: string) => {
             const key = splitSegments(rest.slice(1))?.join(".");
             const values = kind === this.#kind && key !== undefined ? held.get(key) : undefined;
             if (values === undefined) {
@@ -1526,12 +1554,10 @@ class KindTranslation {
         const drawn = truth.map((value) => (value === null ? null : plan.convert(value)));
         this.#noteConversion(property, plan, truth, drawn);
         if (!drawn.some((value) => value !== null)) {
-            if (!truth.some((value) => value !== null) && !this.#matches(rule.where, source).some(Boolean)) {
-                // The rule selects nothing in this graph.
-                return;
-            }
-
-            if (!truth.some((value) => value !== null)) {
+            // A rule that gives no value and selects nothing in this graph says nothing; one that selects
+            // elements reads a column the file does not hold.
+            const empty = !truth.some((value) => value !== null);
+            if (empty && this.#matches(rule.where, source).some(Boolean)) {
                 this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.COLUMN_ABSENT, this.#kind, rule.id, 1, property);
             }
 
@@ -1540,18 +1566,7 @@ class KindTranslation {
 
         const selector = this.#selectorOf(rule.where, source, rule.id);
         const layer = this.#layerFor(rule, bucket, selector);
-        const whole = channelDescriptor(plan.channel)?.accepts === "labelStyle";
-        const paint = whole
-            ? drawn.map((value) => (typeof value === "object" && value !== null ? value : null))
-            : drawn.map((value) => drawnAs(plan.channel, value));
-        layer.drawn ??= new Map(layer.paint ?? []);
-        layer.drawn.set(plan.channel, paint);
-        if (whole) {
-            // A whole label style is no scalar: its layers are never folded.
-            (layer as { paint: Building["paint"] }).paint = null;
-        } else {
-            layer.paint?.set(plan.channel, paint);
-        }
+        recordPaint(layer, plan.channel, drawn);
         const set = rule.set?.[property as StyleProperty];
         if (set !== undefined && !masked) {
             const value = plan.convert(set);
@@ -1727,40 +1742,12 @@ class KindTranslation {
         path: () => Path | null,
         entries: number,
     ): { binding: Binding; worth: number; facts: Partial<FileStyleOrigin> } | null {
-        const map = new Map<string, unknown>();
-        const unmapped = new Set<string>();
-        for (let i = 0; i < raw.length; i++) {
-            if (!match[i] || raw[i] === null || raw[i] === undefined) {
-                if (match[i] && drawn[i] !== null) {
-                    return null;
-                }
-
-                continue;
-            }
-
-            const key = categoryOf(raw[i]);
-            if (key === null) {
-                return null;
-            }
-
-            const value = drawn[i];
-            if (value === null) {
-                unmapped.add(key);
-                continue;
-            }
-
-            // A map value is a string or a number: a boolean channel keeps its values per element.
-            if (typeof value !== "string" && typeof value !== "number") {
-                return null;
-            }
-
-            if (map.has(key) && !same(map.get(key), value)) {
-                return null;
-            }
-
-            map.set(key, value);
+        const read = discreteTable(raw, drawn, match);
+        if (read === null) {
+            return null;
         }
 
+        const { map, unmapped } = read;
         if (map.size === 0 || map.size > MAX_TABLE_KEYS || [...unmapped].some((key) => map.has(key))) {
             if (map.size > MAX_TABLE_KEYS) {
                 this.#notes.add(
@@ -1890,7 +1877,6 @@ class KindTranslation {
         combine: (a: StyleValue | null, b: StyleValue | null) => number | null,
         channel: Channel,
     ): void {
-        const { extracted, snapshot } = this.#input;
         const writes = (rule: StyleRule, property: string): boolean =>
             rule.set?.[property as StyleProperty] !== undefined || rule.map?.[property as StyleProperty] !== undefined;
         const writers = this.#rules
@@ -1915,26 +1901,55 @@ class KindTranslation {
             channel === "node.size" &&
             writers.every(({ rule }) => signature(rule, first) === signature(rule, second));
         if (used.length === 1 || twin) {
-            for (const { rule, bucket } of writers) {
-                if (writes(rule, used[0]) && !this.#drawnByBase(rule, used[0], plan)) {
-                    this.#emitFor(rule, () => {
-                        this.#emit(rule, bucket, used[0], plan, extracted);
-                    });
-                }
-            }
+            this.#compositeEach(writers, used[0], plan);
+        } else if (!writers.every(({ rule }) => this.#rebuilt.has(rule))) {
+            // Unless every rule is drawn by the layer graphty wrote for it.
+            this.#compositeCombined(props, planned, combine, channel, writers.at(-1)?.bucket ?? 0);
+        }
+    }
 
-            if (used[0] === "fillOpacity") {
-                this.#noteFadedFill();
+    /**
+     * A two-property channel whose rules write only one property, or both the same way: each rule translated on
+     * its own.
+     * @param writers - The rules that write either property, with their buckets.
+     * @param property - The property translated.
+     * @param plan - The channel.
+     */
+    #compositeEach(writers: readonly { rule: StyleRule; bucket: number }[], property: string, plan: ChannelPlan): void {
+        const { extracted } = this.#input;
+        for (const { rule, bucket } of writers) {
+            const written =
+                rule.set?.[property as StyleProperty] !== undefined ||
+                rule.map?.[property as StyleProperty] !== undefined;
+            if (written && !this.#drawnByBase(rule, property, plan)) {
+                this.#emitFor(rule, () => {
+                    this.#emit(rule, bucket, property, plan, extracted);
+                });
             }
-
-            return;
         }
 
-        if (writers.every(({ rule }) => this.#rebuilt.has(rule))) {
-            // Every rule is drawn by the layer graphty wrote for it.
-            return;
+        if (property === "fillOpacity") {
+            this.#noteFadedFill();
         }
+    }
 
+    /**
+     * A two-property channel drawn from the combined values, planned again with graph-io's planner.
+     * @param props - The two properties.
+     * @param planned - The property name the combined values are planned under.
+     * @param combine - The combined value of an element.
+     * @param channel - The channel drawn.
+     * @param top - The bucket of the topmost rule that writes either property.
+     */
+    #compositeCombined(
+        props: readonly [string, string],
+        planned: string,
+        combine: (a: StyleValue | null, b: StyleValue | null) => number | null,
+        channel: Channel,
+        top: number,
+    ): void {
+        const { extracted, snapshot } = this.#input;
+        const [first, second] = props;
         const a = resolveStyles(extracted, this.#kind, first as StyleProperty, snapshot);
         const b = resolveStyles(extracted, this.#kind, second as StyleProperty, snapshot);
         const values = a.map((value, i) => combine(value, b[i]));
@@ -1958,7 +1973,6 @@ class KindTranslation {
             { node: extracted.features.node, edge: [] },
             { toolDefaults: false },
         );
-        const top = writers.at(-1)?.bucket ?? 0;
         const identity: ChannelPlan = { channel, convert: (value) => value, identity: true };
         for (const rule of sub.styles.rules) {
             if (rule.target === "node") {
@@ -2137,7 +2151,120 @@ class KindTranslation {
 }
 
 /** The first segment after `data.` in an expression, bare or quoted. */
-const DATA_SEGMENT = /(?<![\w."])data\.("(?:[^"\\]|\\.)*"|[A-Za-z_][A-Za-z0-9_]*)/g;
+/**
+ * The table of a discrete mapping: each category of the column with the one value the channel draws for it, and the
+ * categories it draws nothing for.
+ * @param raw - The column's values.
+ * @param drawn - The channel's values.
+ * @param match - Which elements the rule selects.
+ * @returns The table, or null when no table draws exactly what the file gives.
+ */
+function discreteTable(
+    raw: readonly unknown[],
+    drawn: readonly unknown[],
+    match: readonly boolean[],
+): { map: Map<string, unknown>; unmapped: Set<string> } | null {
+    const map = new Map<string, unknown>();
+    const unmapped = new Set<string>();
+    for (let i = 0; i < raw.length; i++) {
+        const absent = !match[i] || raw[i] === null || raw[i] === undefined;
+        if (absent && match[i] && drawn[i] !== null) {
+            return null;
+        }
+
+        const key = absent ? undefined : categoryOf(raw[i]);
+        if (key === null) {
+            return null;
+        }
+
+        const value = drawn[i];
+        if (key === undefined) {
+            continue;
+        }
+
+        if (value === null) {
+            unmapped.add(key);
+        } else if (!tableValue(map, key, value)) {
+            return null;
+        }
+    }
+
+    return { map, unmapped };
+}
+
+/**
+ * Puts one category's value in a table. A map value is a string or a number: a boolean channel keeps its values per
+ * element.
+ * @param map - The table, added to.
+ * @param key - The category.
+ * @param value - The value drawn for it.
+ * @returns False when the value cannot be a table value or another value was drawn for the category.
+ */
+function tableValue(map: Map<string, unknown>, key: string, value: unknown): boolean {
+    if (typeof value !== "string" && typeof value !== "number") {
+        return false;
+    }
+
+    if (map.has(key) && !same(map.get(key), value)) {
+        return false;
+    }
+
+    map.set(key, value);
+    return true;
+}
+
+/**
+ * Records what a layer paints on a channel, for folding and for the export back. A whole label style is no scalar:
+ * its layers are never folded.
+ * @param layer - The layer being built.
+ * @param channel - The channel.
+ * @param drawn - What it paints, by row.
+ */
+function recordPaint(layer: Building, channel: Channel, drawn: readonly unknown[]): void {
+    const whole = channelDescriptor(channel)?.accepts === "labelStyle";
+    const paint = whole
+        ? drawn.map((value) => (typeof value === "object" && value !== null ? value : null))
+        : drawn.map((value) => drawnAs(channel, value));
+    layer.drawn ??= new Map(layer.paint ?? []);
+    layer.drawn.set(channel, paint);
+    if (whole) {
+        (layer as { paint: Building["paint"] }).paint = null;
+    } else {
+        layer.paint?.set(channel, paint);
+    }
+}
+
+/**
+ * The paths a layer graphty wrote reads: its selector's and its bindings'.
+ * @param spec - The layer.
+ * @returns The paths, or null when its expression names a quoted column JSON cannot read (no column this load holds)
+ */
+function pathsRead(spec: Partial<LayerSpec>): string[] | null {
+    const paths: string[] = [];
+    const { selector } = spec;
+    if (selector?.match === "has" || selector?.match === "top") {
+        paths.push(selector.path);
+    } else if (selector?.match === "expression" && typeof selector.where === "string") {
+        for (const match of selector.where.matchAll(DATA_SEGMENT)) {
+            const name = match[1].startsWith('"') ? quotedName(match[1]) : match[1];
+            if (name === undefined) {
+                return null;
+            }
+
+            paths.push(`data.${name}`);
+        }
+    }
+
+    for (const binding of Object.values(spec.encode ?? {})) {
+        if (typeof binding === "object" && binding !== null && "by" in binding && typeof binding.by === "string") {
+            paths.push(binding.by);
+        }
+    }
+
+    return paths;
+}
+
+const DATA_SEGMENT = /(?<![\w."])data\.("(?:[^"\\]|\\.)*"|[A-Za-z_]\w*)/g;
 
 /** The label positions the element draws. */
 const LOCATIONS: ReadonlySet<string> = new Set([
@@ -2176,11 +2303,7 @@ function splitSegments(text: string): string[] | undefined {
     let at = 0;
     while (at < text.length) {
         if (text[at] === '"') {
-            let end = at + 1;
-            while (end < text.length && text[end] !== '"') {
-                end += text[end] === "\\" ? 2 : 1;
-            }
-
+            const end = closingQuote(text, at + 1, '"');
             const name = quotedName(text.slice(at, end + 1));
             if (name === undefined) {
                 return undefined;
@@ -2189,9 +2312,10 @@ function splitSegments(text: string): string[] | undefined {
             out.push(name);
             at = end + 2;
         } else {
-            const end = text.indexOf(".", at);
-            out.push(text.slice(at, end === -1 ? undefined : end));
-            at = end === -1 ? text.length : end + 1;
+            const dot = text.indexOf(".", at);
+            const end = dot === -1 ? text.length : dot;
+            out.push(text.slice(at, end));
+            at = end + 1;
         }
     }
 

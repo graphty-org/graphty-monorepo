@@ -343,35 +343,55 @@ export class JsonDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        let data: unknown;
-
         // Get JSON content (could be from data, file, or url)
         const jsonString = await this.getContent();
 
-        // Handle empty content gracefully
-        if (jsonString.trim() === "") {
+        // Empty content reads as no elements; content that does not parse is reported first
+        const data = jsonString.trim() === "" ? undefined : this.parseJson(jsonString);
+        if (data === undefined) {
             yield* this.chunkData([], []);
             return;
         }
 
-        // Parse JSON
+        if (!(yield* this.readWholeDocument(jsonString, data))) {
+            yield* this.readByPaths(jsonString, data);
+        }
+    }
+
+    /**
+     * The parsed document.
+     * @param jsonString - the document's text
+     * @returns the value, or undefined when it does not parse (reported)
+     */
+    private parseJson(jsonString: string): unknown {
         try {
-            data = JSON.parse(jsonString);
+            return JSON.parse(jsonString) as unknown;
         } catch (error) {
             this.addError({
                 message: `Failed to parse JSON: ${error instanceof Error ? error.message : String(error)}`,
                 category: "parse-error",
             });
-
-            yield* this.chunkData([], []);
-            return;
+            return undefined;
         }
+    }
 
+    /**
+     * Reads a document graph-io reads whole: a `graphs` array, a dialect, a JGF document of one `graph`, or a
+     * node-link document whose edges are `links`. Declares the document's direction first.
+     * @param jsonString - the document's text
+     * @param data - the parsed document
+     * @yields DataSourceChunk objects containing the graph's nodes and edges
+     * @returns false when the document is read by its paths instead
+     */
+    private async *readWholeDocument(
+        jsonString: string,
+        data: unknown,
+    ): AsyncGenerator<DataSourceChunk, boolean, unknown> {
         // A `graphs` array (JGF, OBO Graphs) is read by graph-io, which picks the graph the caller
         // chose; the default paths find nothing at the root of such a document.
         if (isObject(data) && Array.isArray(data.graphs) && this.usesDefaultPaths()) {
             yield* this.readGraphsArray(jsonString, data.graphs);
-            return;
+            return true;
         }
 
         this.refuseOtherGraph();
@@ -386,7 +406,7 @@ export class JsonDataSource extends DataSource {
         const dialect = this.usesDefaultPaths() ? sniffJsonDialectHead(jsonString.slice(0, DIALECT_HEAD)) : null;
         if (dialect === "cytoscape" || dialect === "graphology" || dialect === "vis") {
             yield* this.readDialect(jsonString, data, dialect);
-            return;
+            return true;
         }
 
         // A JGF document of one `graph`, and a node-link document whose edges are `links` (NetworkX,
@@ -394,9 +414,18 @@ export class JsonDataSource extends DataSource {
         const whole = this.usesDefaultPaths() ? wholeDialectOf(data) : null;
         if (whole !== null) {
             yield* this.readWhole(jsonString, data, whole);
-            return;
+            return true;
         }
+        return false;
+    }
 
+    /**
+     * Reads the node and edge arrays the configured paths find, through graph-io's node-link importer.
+     * @param jsonString - the document's text
+     * @param data - the parsed document
+     * @yields DataSourceChunk objects containing parsed nodes and edges
+     */
+    private async *readByPaths(jsonString: string, data: unknown): AsyncGenerator<DataSourceChunk, void, unknown> {
         const rawNodes = this.locate(data, this.opts.node.path, "nodes");
         const rawEdges = this.locate(data, this.opts.edge.path, "edges");
 

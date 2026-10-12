@@ -778,29 +778,9 @@ export abstract class DataSource {
         // Checked before anything is read, so a bad choice costs no download.
         this.graphChoice();
         for await (const chunk of this.sourceFetchData()) {
-            // Filter out invalid nodes
-            // Copied, never spread into push: a dialect read yields one chunk of every element.
-            const validNodes: AdHocData[] = this.nodeSchema ? [] : chunk.nodes.slice();
-            if (this.nodeSchema) {
-                for (const n of chunk.nodes) {
-                    const isValid = await this.dataValidator(this.nodeSchema, n);
-                    if (isValid) {
-                        validNodes.push(n);
-                    }
-                    // Invalid nodes are logged to errorAggregator but skipped
-                }
-            }
-
-            // Filter out invalid edges
-            const validEdges: AdHocData[] = this.edgeSchema ? [] : chunk.edges.slice();
-            if (this.edgeSchema) {
-                for (const e of chunk.edges) {
-                    const isValid = await this.dataValidator(this.edgeSchema, e);
-                    if (isValid) {
-                        validEdges.push(e);
-                    }
-                }
-            }
+            // Invalid elements are logged to errorAggregator but skipped
+            const validNodes = await validOf(this, this.nodeSchema, chunk.nodes);
+            const validEdges = await validOf(this, this.edgeSchema, chunk.edges);
 
             // Only yield if we have data (or if we're not filtering)
             if (validNodes.length > 0 || validEdges.length > 0) {
@@ -1095,4 +1075,28 @@ export abstract class DataSource {
     static getRegisteredTypes(): string[] {
         return Array.from(dataSourceRegistry.keys()).sort();
     }
+}
+
+/**
+ * The elements of a chunk that pass a schema, in order; every one when there is no schema.
+ * @param source - The data source, whose validator records each failure.
+ * @param schema - The schema, or none.
+ * @param items - The elements.
+ * @returns A copy, never the chunk's own array: a dialect read yields one chunk of every element.
+ */
+async function validOf(
+    source: DataSource,
+    schema: z4.$ZodObject | null | undefined,
+    items: AdHocData[],
+): Promise<AdHocData[]> {
+    if (!schema) {
+        return items.slice();
+    }
+    const valid: AdHocData[] = [];
+    for (const item of items) {
+        if (await source.dataValidator(schema, item)) {
+            valid.push(item);
+        }
+    }
+    return valid;
 }

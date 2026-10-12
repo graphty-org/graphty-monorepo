@@ -253,30 +253,10 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles
                 record[attributeKey(kind, attributeTitle(column.meta.name, id), id)] = column.isSet(row)
                     ? [{ value: cell(column, row) }, ...slices]
                     : slices;
-                continue;
-            }
-
-            if (!column.isSet(row)) {
-                continue;
-            }
-
-            if (column.meta.role === "spells") {
-                const openColumn = spellsOpen.get(table);
-                const open = openColumn?.isSet(row) ? (openColumn.value(row) as number[]) : [];
-                record.spells = (column.value(row) as ArrayLike<number>[]).map((pair, i) => ({
-                    ...(Number.isFinite(pair[0]) ? { start: timeText(pair[0], null, timeFormat) } : {}),
-                    ...(Number.isFinite(pair[1]) ? { end: timeText(pair[1], null, timeFormat) } : {}),
-                    ...((open[i] & OPEN_START) === 0 ? {} : { startOpen: true }),
-                    ...((open[i] & OPEN_END) === 0 ? {} : { endOpen: true }),
-                }));
-            } else if (typeof column.meta.origin?.id === "string") {
-                const { id, type } = column.meta.origin;
-                const value = cell(column, row);
-                // A date attribute is stored as epoch milliseconds; the record keeps it as text.
-                record[attributeKey(kind, attributeTitle(column.meta.name, id), id)] =
-                    (type === "date" || type === "dateTime") && typeof value === "number"
-                        ? timeText(value, null, type)
-                        : value;
+            } else if (column.meta.role === "spells" && column.isSet(row)) {
+                record.spells = spellsOf(column, spellsOpen.get(table) ?? null, row, timeFormat);
+            } else if (column.isSet(row)) {
+                copyAttribute(kind, column, row, record);
             }
         }
     };
@@ -365,18 +345,10 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles
                 return viz && table.byRole(key) !== null ? null : key;
             }
 
-            const titled = (key: string): boolean =>
-                [...table].some(
-                    (each) =>
-                        typeof each.meta.origin?.id === "string" &&
-                        each.meta.role === null &&
-                        attributeKey(kind, attributeTitle(each.meta.name, each.meta.origin.id), each.meta.origin.id) ===
-                            key,
-                );
             switch (role) {
                 case "label":
                     // An attribute titled `label` is written over the file's label.
-                    return titled("label") ? null : "label";
+                    return hasAttributeTitled(kind, table, "label") ? null : "label";
                 case "size":
                     return kind === "node" && !fileStyles ? "size" : null;
                 case "id":
@@ -386,6 +358,65 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles
             }
         },
     };
+}
+
+/**
+ * Whether a declared attribute is written under a record key.
+ * @param kind - node or edge
+ * @param table - the node or edge table
+ * @param key - the record key
+ * @returns true when one is
+ */
+function hasAttributeTitled(kind: "node" | "edge", table: Iterable<Column>, key: string): boolean {
+    return [...table].some(
+        (each) =>
+            typeof each.meta.origin?.id === "string" &&
+            each.meta.role === null &&
+            attributeKey(kind, attributeTitle(each.meta.name, each.meta.origin.id), each.meta.origin.id) === key,
+    );
+}
+
+/**
+ * An element's spells as records: `{ start, end }` with `startOpen` / `endOpen` for an open bound; an infinite bound
+ * is left out.
+ * @param column - the spells column
+ * @param openColumn - the column of their open bounds, or null
+ * @param row - the element
+ * @param timeFormat - the graph's timeformat
+ * @returns the spells
+ */
+function spellsOf(
+    column: Column,
+    openColumn: Column | null,
+    row: number,
+    timeFormat: string | null,
+): Record<string, unknown>[] {
+    const open = openColumn?.isSet(row) ? (openColumn.value(row) as number[]) : [];
+    return (column.value(row) as ArrayLike<number>[]).map((pair, i) => ({
+        ...(Number.isFinite(pair[0]) ? { start: timeText(pair[0], null, timeFormat) } : {}),
+        ...(Number.isFinite(pair[1]) ? { end: timeText(pair[1], null, timeFormat) } : {}),
+        ...((open[i] & OPEN_START) === 0 ? {} : { startOpen: true }),
+        ...((open[i] & OPEN_END) === 0 ? {} : { endOpen: true }),
+    }));
+}
+
+/**
+ * Copies a declared attribute's value onto its record key; a date attribute is stored as epoch milliseconds and the
+ * record keeps it as text.
+ * @param kind - node or edge
+ * @param column - the attribute's column
+ * @param row - the element
+ * @param record - the record being built
+ */
+function copyAttribute(kind: "node" | "edge", column: Column, row: number, record: Record<string, unknown>): void {
+    const id = column.meta.origin?.id;
+    if (typeof id !== "string") {
+        return;
+    }
+    const { type } = column.meta.origin ?? {};
+    const value = cell(column, row);
+    record[attributeKey(kind, attributeTitle(column.meta.name, id), id)] =
+        (type === "date" || type === "dateTime") && typeof value === "number" ? timeText(value, null, type) : value;
 }
 
 /**

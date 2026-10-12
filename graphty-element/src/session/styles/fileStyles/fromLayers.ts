@@ -136,9 +136,9 @@ function inverse(
     skip: ReadonlySet<string> = new Set(),
 ): Map<string, string> {
     const out = new Map<string, string>();
-    for (const [key, value] of table) {
-        if (!skip.has(key) && !out.has(value)) {
-            out.set(value, key);
+    for (const [from, to] of table) {
+        if (!skip.has(from) && !out.has(to)) {
+            out.set(to, from);
         }
     }
 
@@ -259,6 +259,48 @@ function agree(a: StyleValue | null, b: StyleValue | null): boolean {
 const DATA_PREFIX = "data.";
 
 /** Turns one kind's layers into rules. */
+/**
+ * A binding's stops as the points of a continuous mapping.
+ * @param stops - The stops.
+ * @param convert - How a channel value becomes the property's value.
+ * @returns The points, or null when a value does not convert.
+ */
+function stopPoints(
+    stops: NonNullable<Extract<Binding, { by: Path }>["stops"]>,
+    convert: (value: unknown) => StyleValue | null,
+): ContinuousPoint[] | null {
+    const points: ContinuousPoint[] = [];
+    for (const stop of stops) {
+        const value = convert(stop.value);
+        const below = convert(stop.below ?? stop.value);
+        const above = convert(stop.above ?? stop.value);
+        if (value === null || below === null || above === null) {
+            return null;
+        }
+
+        points.push({ at: stop.at, below, value, above });
+    }
+    return points;
+}
+
+/** A channel's values as neutral properties. */
+interface NeutralChannel {
+    /** The properties it writes (a node size writes the width and the height). */
+    readonly properties: readonly string[];
+    /** Its values, converted, by row. */
+    readonly values: (StyleValue | null)[];
+    /** How one of its values becomes the properties' value. */
+    readonly convert: (value: unknown) => StyleValue | null;
+}
+
+/** A rule being written from a layer. */
+interface RuleBody {
+    readonly set: Record<string, StyleValue>;
+    readonly map: Record<string, Mapping>;
+    /** Why a property was written as per-element values, when one was. */
+    reason: StyleRuleReason | undefined;
+}
+
 class KindExport {
     readonly #input: LayersToStylesInput;
     readonly #kind: StyleTarget;
@@ -348,8 +390,10 @@ class KindExport {
      */
     #ruleId(base: string): string {
         let id = base;
-        for (let n = 2; this.#ruleIds.has(id); n++) {
+        let n = 2;
+        while (this.#ruleIds.has(id)) {
             id = `${base}#${String(n)}`;
+            n++;
         }
 
         this.#ruleIds.add(id);
@@ -364,8 +408,10 @@ class KindExport {
      */
     #keep(base: string, values: StyleColumn): string {
         let key = base;
-        for (let n = 2; this.#columns.has(key); n++) {
+        let n = 2;
+        while (this.#columns.has(key)) {
             key = `${base}.${String(n)}`;
+            n++;
         }
 
         this.#columns.set(key, values);
@@ -504,14 +550,7 @@ class KindExport {
      * @param values - The values.
      * @returns The properties and the values converted, or null when no scalar holds them.
      */
-    #neutral(
-        channel: string,
-        values: readonly unknown[],
-    ): {
-        properties: readonly string[];
-        values: (StyleValue | null)[];
-        convert: (value: unknown) => StyleValue | null;
-    } | null {
+    #neutral(channel: string, values: readonly unknown[]): NeutralChannel | null {
         const known = PLANS[this.#kind].get(channel);
         if (known !== undefined) {
             const converted = values.map((value) => (value === null ? null : known.toNeutral(value)));
@@ -541,9 +580,7 @@ class KindExport {
             [...painted.values()].some((values) => values[row] !== null && values[row] !== undefined),
         );
         const where = this.#whereOf(layer.selector, paintedRows, at);
-        const set: Record<string, StyleValue> = {};
-        const map: Record<string, Mapping> = {};
-        let reason: StyleRuleReason | undefined;
+        const body: RuleBody = { set: {}, map: {}, reason: undefined };
         const channels = new Set<string>([...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]);
         for (const channel of channels) {
             const drawn = painted.get(channel) ?? new Array<unknown>(this.#n).fill(null);
@@ -551,43 +588,11 @@ class KindExport {
             if (written === null) {
                 // A whole label style: no scalar holds it; the layer itself carries it to graphty.
                 this.#unwritten(entry, channel, drawn);
-                continue;
-            }
-
-            const binding = layer.encode?.[channel as Channel];
-            const literal =
-                layer.set?.[channel as Channel] ??
-                (binding !== undefined && "value" in binding ? binding.value : undefined);
-            // The properties of one channel drawn from one column (a node's width and height),
-            // so the load that reads the file sees one value drawn twice, not two.
-            let flat: string | null = null;
-            for (const property of written.properties) {
-                const fixed = literal === undefined ? null : written.convert(literal);
-                if (fixed !== null && this.#exact(where, property, { set: fixed }, written.values)) {
-                    set[property] = fixed;
-                    continue;
-                }
-
-                const mapping =
-                    binding !== undefined && "by" in binding ? this.#mappingOf(binding, written.convert) : null;
-                if (mapping !== null && "map" in mapping && this.#exact(where, property, mapping, written.values)) {
-                    map[property] = mapping.map;
-                    continue;
-                }
-
-                const why: StyleRuleReason =
-                    binding !== undefined && "by" in binding && this.#refOf(binding.by) === null
-                        ? "RESULT_PATH"
-                        : "SCALE";
-                reason ??= why;
-                flat ??= this.#keep(`layer.${String(at)}.${property}`, written.values);
-                map[property] = { kind: "passthrough", by: { style: flat } };
-                const count = written.values.filter((value) => value !== null).length;
-                if (count > 0) {
-                    this.flattened.push({ layer: layer.name, target: this.#kind, property, reason: why, count });
-                }
+            } else {
+                this.#channel({ entry, at, where, channel: channel as Channel }, written, body);
             }
         }
+        const { set, map, reason } = body;
 
         const spec = this.#specOf(entry);
         this.#rules.push({
@@ -604,6 +609,84 @@ class KindExport {
             },
             ...(spec === null ? {} : { ext: { [LAYER_SPEC_EXT]: spec } }),
         });
+    }
+
+    /**
+     * One channel of a layer into its rule: each of its properties as a constant or a mapping that gives exactly what
+     * the layer painted, else its painted values as a style column the rule passes through.
+     * @param at - The layer, its place, its rule's predicate and the channel.
+     * @param at.entry - The layer.
+     * @param at.at - Its place among this kind's layers.
+     * @param at.where - The rule's predicate.
+     * @param at.channel - The channel.
+     * @param written - The channel's values as neutral properties.
+     * @param body - The rule's constants, mappings and reason, added to.
+     */
+    #channel(
+        at: {
+            readonly entry: CompiledLayer;
+            readonly at: number;
+            readonly where: Predicate;
+            readonly channel: Channel;
+        },
+        written: NeutralChannel,
+        body: RuleBody,
+    ): void {
+        const { layer } = at.entry;
+        const binding = layer.encode?.[at.channel];
+        const literal =
+            layer.set?.[at.channel] ?? (binding !== undefined && "value" in binding ? binding.value : undefined);
+        // The properties of one channel drawn from one column (a node's width and height),
+        // so the load that reads the file sees one value drawn twice, not two.
+        let flat: string | null = null;
+        for (const property of written.properties) {
+            if (this.#exactly(at.where, property, { written, literal, binding }, body)) {
+                continue;
+            }
+
+            const why: StyleRuleReason =
+                binding !== undefined && "by" in binding && this.#refOf(binding.by) === null ? "RESULT_PATH" : "SCALE";
+            body.reason ??= why;
+            flat ??= this.#keep(`layer.${String(at.at)}.${property}`, written.values);
+            body.map[property] = { kind: "passthrough", by: { style: flat } };
+            const count = written.values.filter((value) => value !== null).length;
+            if (count > 0) {
+                this.flattened.push({ layer: layer.name, target: this.#kind, property, reason: why, count });
+            }
+        }
+    }
+
+    /**
+     * Writes one property as the layer's constant, or as its mapping, when that gives exactly what the layer painted.
+     * @param where - The rule's predicate.
+     * @param property - The property.
+     * @param from - The channel's neutral values, the layer's constant and its binding.
+     * @param from.written - The channel's values as neutral properties.
+     * @param from.literal - The layer's constant for the channel, or undefined.
+     * @param from.binding - The layer's binding of the channel, or undefined.
+     * @param body - The rule's constants and mappings, added to.
+     * @returns True when it is written exactly.
+     */
+    #exactly(
+        where: Predicate,
+        property: string,
+        from: { readonly written: NeutralChannel; readonly literal: unknown; readonly binding: Binding | undefined },
+        body: RuleBody,
+    ): boolean {
+        const { written, literal, binding } = from;
+        const fixed = literal === undefined ? null : written.convert(literal);
+        if (fixed !== null && this.#exact(where, property, { set: fixed }, written.values)) {
+            body.set[property] = fixed;
+            return true;
+        }
+
+        const mapping = binding !== undefined && "by" in binding ? this.#mappingOf(binding, written.convert) : null;
+        if (mapping !== null && "map" in mapping && this.#exact(where, property, mapping, written.values)) {
+            body.map[property] = mapping.map;
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -694,19 +777,8 @@ class KindExport {
         }
 
         if (binding.stops !== undefined) {
-            const points: ContinuousPoint[] = [];
-            for (const stop of binding.stops) {
-                const value = convert(stop.value);
-                const below = convert(stop.below ?? stop.value);
-                const above = convert(stop.above ?? stop.value);
-                if (value === null || below === null || above === null) {
-                    return null;
-                }
-
-                points.push({ at: stop.at, below, value, above });
-            }
-
-            return { map: { kind: "continuous", by, points } };
+            const points = stopPoints(binding.stops, convert);
+            return points === null ? null : { map: { kind: "continuous", by, points } };
         }
 
         const scale = binding.scale ?? "passthrough";
@@ -715,17 +787,13 @@ class KindExport {
                 return { map: { kind: "passthrough", by } };
             }
 
-            const entries: [string, StyleValue][] = [];
-            for (const [key, value] of Object.entries(binding.map)) {
-                const converted = convert(value);
-                if (converted === null) {
-                    return null;
-                }
-
-                entries.push([key, converted]);
-            }
-
-            return { map: { kind: "discrete", by, table: entries } };
+            const entries = Object.entries(binding.map).map(([key, value]): [string, StyleValue | null] => [
+                key,
+                convert(value),
+            ]);
+            return entries.some(([, value]) => value === null)
+                ? null
+                : { map: { kind: "discrete", by, table: entries as [string, StyleValue][] } };
         }
 
         const { domain, range } = binding;
@@ -809,7 +877,7 @@ class KindExport {
     #unscoped(selector: LayerSpec["selector"]): LayerSpec["selector"] {
         const path = this.#scopeOf(selector);
         const parts = path === null ? undefined : parseFileStylePath(path);
-        if (path === null || parts === undefined || parts.kind !== this.#kind) {
+        if (parts?.kind !== this.#kind) {
             return selector;
         }
 

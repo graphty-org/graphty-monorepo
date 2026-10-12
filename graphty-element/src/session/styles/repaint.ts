@@ -1470,6 +1470,28 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         let slice = deadline;
 
         /**
+         * Paint one element: every channel of the layer. Built once per layer, not per element.
+         * @param index - The element.
+         */
+        const paintOne = (index: number): void => {
+            // Indexed rather than `for ... of`, which would allocate an iterator per element
+            // for a list whose length was settled when the layer was prepared.
+            for (let which = 0; which < channels.length; which++) {
+                const channel = channels[which];
+                const read = channel.path === null ? undefined : elements.value(index, channel.path);
+                const painted = channel.binding.paint(read);
+
+                // Undefined means this layer has nothing to say about this element, so what
+                // the layers below it painted stands. That is what stops an algorithm
+                // painting the elements it never measured.
+                if (painted !== undefined) {
+                    const written = channel.toColumn === null ? painted : channel.toColumn(painted);
+                    writeColumn(channel.column, index, written, channel.plainText);
+                }
+            }
+        };
+
+        /**
          * Paint one run of elements.
          * @param from - The first position to paint.
          * @param to - One past the last.
@@ -1480,30 +1502,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
                 // A measured column may name an element this edit is not repainting, and an
                 // element outside the dirty set must never be visited: it keeps what it has.
-                if (walk !== null && (index >= store.count || store.stamps[index] !== store.generation)) {
-                    continue;
-                }
-
-                if (test !== null && !test(index)) {
-                    continue;
-                }
-
-                covered[index] = 1;
-
-                // Indexed rather than `for ... of`, which would allocate an iterator per element
-                // for a list whose length was settled when the layer was prepared.
-                for (let which = 0; which < channels.length; which++) {
-                    const channel = channels[which];
-                    const read = channel.path === null ? undefined : elements.value(index, channel.path);
-                    const painted = channel.binding.paint(read);
-
-                    // Undefined means this layer has nothing to say about this element, so what
-                    // the layers below it painted stands. That is what stops an algorithm
-                    // painting the elements it never measured.
-                    if (painted !== undefined) {
-                        const written = channel.toColumn === null ? painted : channel.toColumn(painted);
-                        writeColumn(channel.column, index, written, channel.plainText);
-                    }
+                const outside = walk !== null && (index >= store.count || store.stamps[index] !== store.generation);
+                if (!outside && (test === null || test(index))) {
+                    covered[index] = 1;
+                    paintOne(index);
                 }
             }
         };

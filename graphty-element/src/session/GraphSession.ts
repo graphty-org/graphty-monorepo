@@ -1564,11 +1564,7 @@ function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, fileStyles: () => 
  */
 function answersFileStyle(store: FileStyleStore, path: Path, target: "node" | "edge"): boolean {
     const parts = parseFileStylePath(path);
-    return (
-        parts !== undefined &&
-        parts.kind === target &&
-        fileStyleColumn(store, parts.namespace, parts.kind, parts.key) !== undefined
-    );
+    return parts?.kind === target && fileStyleColumn(store, parts.namespace, parts.kind, parts.key) !== undefined;
 }
 
 /**

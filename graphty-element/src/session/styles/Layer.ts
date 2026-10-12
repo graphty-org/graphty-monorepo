@@ -67,7 +67,7 @@ import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
 import type { CodedFact } from "../shared";
 import { type ChannelDescriptor, channelDescriptor, channelsFor, labelFieldOf, toColorValue } from "./channels";
-import { stopsProblem } from "./encoding";
+import { type RuleBinding, stopsProblem } from "./encoding";
 import type { FileStyleOrigin } from "./fileStyles/origin";
 import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
@@ -798,18 +798,7 @@ function checkBinding(
     }
 
     if (descriptor.accepts === "labelStyle") {
-        // Accepted, because refusing would reject stacks that load today, saved projects among
-        // them; reported, because no scale produces a whole label style, so it paints nothing.
-        log.warnings.push({
-            code: "W_LABEL_STYLE_BOUND",
-            params: {
-                channel: descriptor.channel,
-                path,
-                fieldChannels: channelsFor(descriptor.target)
-                    .map((entry) => entry.channel)
-                    .filter((channel) => labelFieldOf(channel)?.into === descriptor.channel),
-            },
-        });
+        warnLabelStyleBound(descriptor, path, log);
     }
 
     if (typeof binding.by !== "string" || binding.by.trim() === "") {
@@ -823,7 +812,55 @@ function checkBinding(
     }
 
     readsPath(log, binding.by);
+    checkBindingOptions(descriptor, binding, path, options, log);
 
+    if (universal && binding.by.startsWith(RUN_PATH_PREFIX)) {
+        report(log, {
+            code: "E_UNSCOPED_RUN_ENCODING",
+            message:
+                `This layer paints every ${descriptor.target} and encodes ${descriptor.channel} from "${binding.by}", ` +
+                "which would paint elements the run never measured. Scope it to the elements that carry the result " +
+                `with { match: "has", path: "${binding.by}" }.`,
+            path: "selector",
+        });
+    }
+}
+
+/**
+ * Reports a binding of a whole label style channel. Accepted, because refusing would reject stacks that load today,
+ * saved projects among them; reported, because no scale produces a whole label style, so it paints nothing.
+ * @param descriptor - The channel.
+ * @param path - Where in the specification the binding sits.
+ * @param log - Where warnings are collected.
+ */
+function warnLabelStyleBound(descriptor: ChannelDescriptor, path: string, log: ProblemLog): void {
+    log.warnings.push({
+        code: "W_LABEL_STYLE_BOUND",
+        params: {
+            channel: descriptor.channel,
+            path,
+            fieldChannels: channelsFor(descriptor.target)
+                .map((entry) => entry.channel)
+                .filter((channel) => labelFieldOf(channel)?.into === descriptor.channel),
+        },
+    });
+}
+
+/**
+ * Check what a binding says besides its path: its scale, palette, overflow, unmapped values, stops and hidden values.
+ * @param descriptor - The channel it writes.
+ * @param binding - The binding.
+ * @param path - Where in the specification it sits.
+ * @param options - The scales a binding may name.
+ * @param log - Where problems are collected.
+ */
+function checkBindingOptions(
+    descriptor: ChannelDescriptor,
+    binding: RuleBinding,
+    path: string,
+    options: LayerCheckOptions,
+    log: ProblemLog,
+): void {
     if (binding.scale !== undefined && options.scales.get(binding.scale) === undefined) {
         report(log, {
             code: "E_UNKNOWN_SCALE",
@@ -887,17 +924,6 @@ function checkBinding(
             code: "E_BAD_LAYER",
             message: "hidden lists the values not to paint, such as [0, 3]: strings, numbers or booleans.",
             path: `${path}.hidden`,
-        });
-    }
-
-    if (universal && binding.by.startsWith(RUN_PATH_PREFIX)) {
-        report(log, {
-            code: "E_UNSCOPED_RUN_ENCODING",
-            message:
-                `This layer paints every ${descriptor.target} and encodes ${descriptor.channel} from "${binding.by}", ` +
-                "which would paint elements the run never measured. Scope it to the elements that carry the result " +
-                `with { match: "has", path: "${binding.by}" }.`,
-            path: "selector",
         });
     }
 }

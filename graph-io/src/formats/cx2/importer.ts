@@ -16,7 +16,10 @@
  * `x` / `y` become the position column with y flipped to y-up, `z` the `z` column; per-element
  * bypasses become one column per visual property (origin namespace "cx2.bypass"); style rules
  * (`visualProperties`, `visualEditorProperties`) and every opaque aspect are kept verbatim in
- * `meta.extra.cx2.opaque` and are not applied (W_STYLES_NOT_IMPORTED, issue #706).
+ * `meta.extra.cx2.opaque`. Asked for styles (`importGraph(..., { styles: true })`), the importer reads
+ * the style rules and the bypasses (styles.ts), kept for it through the report; otherwise
+ * W_STYLES_NOT_IMPORTED. The `graphty.styles` aspect of a file graphty wrote becomes the graph
+ * attribute of that name, as in every other format.
  */
 
 import {
@@ -103,7 +106,10 @@ import {
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
+import { blockOfAspect, type Cx2StyleSource } from "../cx/styles.js";
+import { readCx2Styles } from "./styles.js";
 
 /**
  * The format name.
@@ -2378,6 +2384,7 @@ export const cx2Importer: GraphImporter<Cx2ImportOptions> = Object.freeze({
     options: Object.freeze(["zAs"]),
     extensions: Object.freeze([".cx2"]),
     mimeTypes: Object.freeze(["application/json"]),
+    styles: readCx2Styles,
 
     /**
      * Confidence that the head is CX2: 0.97 when the first member of a top-level array is an
@@ -2410,7 +2417,18 @@ export const cx2Importer: GraphImporter<Cx2ImportOptions> = Object.freeze({
         reportSinkOptions(sink, options, report, true);
         reportUnusedOptions(options, report, USED_OPTIONS);
         const doc = await readDocument(input, report, resolved);
+        // the graphty.styles block of a file graphty wrote: a graph attribute, as in every other format
+        const block = blockOfAspect(doc.opaque.get(STYLE_BLOCK_NAME));
+        doc.opaque.delete(STYLE_BLOCK_NAME);
         new Cx2Reader(sink, report, resolved, zAs, doc).build();
+        if (block !== null) {
+            sink.setGraphValue(STYLE_BLOCK_NAME, block, { dtype: "string", origin: { format: CX2_FORMAT, id: null } });
+        }
+        const kept: Cx2StyleSource = {
+            visualProperties: doc.opaque.get("visualProperties"),
+            visualEditorProperties: doc.opaque.get("visualEditorProperties"),
+        };
+        report.keepForStyles(kept);
         throwIfAborted(resolved.signal);
         return report.finish();
     },

@@ -1,5 +1,5 @@
 {
-    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]",
+    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back",
     "files": {
         "cx/ndex2-client/glypican2_no_cartesian_layout.cx": {
             "node": {
@@ -3024,7 +3024,7 @@
                     ["GPC2", 1]
                 ],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["sans-serif", 2]],
+                "labelFont": [["Eras Medium ITC", 2]],
                 "labelItalic": [[false, 2]],
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
@@ -4632,7 +4632,9 @@
                     ["#000000", 1]
                 ],
                 "labelFont": [
-                    ["sans-serif", 19],
+                    ["sans-serif", 4],
+                    ["Arial-BoldMT", 10],
+                    ["sans-serif", 5],
                     ["ArialMT", 7],
                     ["Arial-BoldMT", 2],
                     ["ArialMT", 3],
@@ -5464,8 +5466,10 @@
                     ["#000000", 3]
                 ],
                 "labelFont": [
-                    ["sans-serif", 18],
-                    ["ArialMT", 143]
+                    ["sans-serif", 1],
+                    ["ArialMT", 1],
+                    ["sans-serif", 8],
+                    ["ArialMT", 151]
                 ],
                 "labelItalic": [[false, 161]],
                 "labelPosition": [["center", 161]],

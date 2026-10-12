@@ -6,6 +6,11 @@
  * `z` from the `z` column), `edges`, the `cx2.bypass` columns as `nodeBypasses` / `edgeBypasses`,
  * the opaque aspects a CX2 import kept (which returns its own style rules) and `status`.
  *
+ * Given styles (`exportGraph(..., { styles })`), `visualProperties` and `visualEditorProperties` are the
+ * Cytoscape style of the rules (defaults and mappings), the bypasses are every element whose value the style
+ * cannot give, and the style values the rules read are attributes; the `graphty.styles` block, which graph-io
+ * hands over as a graph attribute, is written as an aspect of its own (a kept one is written back the same way).
+ *
  * What CX2 cannot hold is announced by check() before anything is written: every edge is
  * directed (W_CX2_UNDIRECTED_AS_DIRECTED, W_MUTUAL_EXPANDED), node ids are integers (E_ID_CHARSET
  * unless `sanitizeIds: "mangle"`, which keeps the original in the `graphty:originalId` attribute
@@ -32,8 +37,13 @@ import { type ResolvedExportOptions, resolveExportOptions } from "../../common/o
 import { plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import { cytoscapeCx2Aspects, type CytoscapeEmitted } from "../../styles/cytoscape/emit.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
+import { blockAspect, cytoscapeStyledExport, snapshotBlock } from "../cx/styles.js";
 import { BYPASS_NAMESPACE, CX2_FORMAT, cx2Type, ORIGINAL_ID_ATTRIBUTE } from "./importer.js";
+import { CX2_STYLE_CAPABILITIES } from "./styles.js";
 
 /**
  * The options of the CX2 exporter: the common export options; it has none of its own.
@@ -142,8 +152,12 @@ const SKIPPED_ROLES: ReadonlySet<string> = new Set([
     "thickness",
 ]);
 
+/** The style aspects; written from the styles when styles are given, else the kept ones. */
+const STYLE_ASPECTS: ReadonlySet<string> = new Set(["visualProperties", "visualEditorProperties"]);
+
 /** The aspects the exporter writes itself; an opaque aspect of the same name is not written again. */
 const CORE_ASPECTS: ReadonlySet<string> = new Set([
+    STYLE_BLOCK_NAME,
     "nodes",
     "edges",
     "attributeDeclarations",
@@ -443,7 +457,8 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     const edgeAttrs = planEdgeAttributes(snapshot, weights, note);
     const graphAttrs = planAttributes(
         snapshot.graph,
-        () => false,
+        // the graphty.styles block is an aspect of its own
+        (c) => c.meta.name === STYLE_BLOCK_NAME,
         (c) => c.meta.name,
     ).map((p) => ({ ...p, key: p.name }));
 
@@ -571,10 +586,15 @@ function attributesOf(plans: readonly AttributePlan[], row: number): Record<stri
  * Write the document as text parts.
  * @param snapshot - the snapshot
  * @param p - the plan
+ * @param styled - the styles as a Cytoscape style, or null without styles
  * @yields the document's text
  * @returns nothing
  */
-function* write(snapshot: GraphSnapshot, p: Plan): Generator<string, void, undefined> {
+function* write(
+    snapshot: GraphSnapshot,
+    p: Plan,
+    styled: CytoscapeEmitted | null = null,
+): Generator<string, void, undefined> {
     if (p.fatal !== null) {
         throw p.fatal;
     }
@@ -629,11 +649,7 @@ function* write(snapshot: GraphSnapshot, p: Plan): Generator<string, void, undef
             declarationsElement[key] = table;
         }
     }
-    const nodeBypassRows = bypassRows(p.nodeBypasses, snapshot.nodeCount);
-    const edgeBypassRows = bypassRows(p.edgeBypasses, snapshot.edgeCount).filter((e) => !p.folding.folded(e));
-    const opaqueAspects = Object.entries(opaque).filter(
-        (entry): entry is [string, unknown[]] => !CORE_ASPECTS.has(entry[0]) && Array.isArray(entry[1]),
-    );
+    const { bypassOf, nodeBypassRows, edgeBypassRows, opaqueAspects } = styleParts(snapshot, p, styled, opaque);
 
     const counts: [string, number][] = [];
     const hasDeclarations = Object.keys(declarationsElement).length > 0;
@@ -684,19 +700,87 @@ function* write(snapshot: GraphSnapshot, p: Plan): Generator<string, void, undef
     if (nodeBypassRows.length > 0) {
         yield* block("nodeBypasses", nodeBypassRows.length, (k) => {
             const i = nodeBypassRows[k];
-            return stringify({ id: ids.idAt(i), v: bypassValues(p.nodeBypasses, i) });
+            return stringify({ id: ids.idAt(i), v: bypassOf("node", i) });
         });
     }
     if (edgeBypassRows.length > 0) {
         yield* block("edgeBypasses", edgeBypassRows.length, (k) => {
             const e = edgeBypassRows[k];
-            return stringify({ id: p.edgeIds[e], v: bypassValues(p.edgeBypasses, e) });
+            return stringify({ id: p.edgeIds[e], v: bypassOf("edge", e) });
         });
     }
     for (const [name, elements] of opaqueAspects) {
         yield* block(name, elements.length, (k) => stringify(elements[k]));
     }
     yield '{"status":[{"error":"","success":true}]}]\n';
+}
+
+/** The bypasses and the extra aspects of a document. */
+interface StyleParts {
+    /** An element's bypasses, or null. */
+    readonly bypassOf: (target: "node" | "edge", row: number) => Record<string, unknown> | null;
+    /** The nodes with bypasses. */
+    readonly nodeBypassRows: number[];
+    /** The written edges with bypasses. */
+    readonly edgeBypassRows: number[];
+    /** The aspects written after the bypasses: the kept opaque ones, the style, the `graphty.styles` block. */
+    readonly opaqueAspects: [string, unknown[]][];
+}
+
+/**
+ * The bypasses and the extra aspects of a document. With styles, the bypasses and the style aspects are the
+ * styles' own (the bypass columns and style aspects of an import are what the styles were read from); without, the
+ * bypass columns and the kept aspects are written back.
+ * @param snapshot - the snapshot
+ * @param p - the plan
+ * @param styled - the styles as a Cytoscape style, or null without styles
+ * @param opaque - the opaque aspects a CX2 import kept
+ * @returns the parts
+ */
+function styleParts(
+    snapshot: GraphSnapshot,
+    p: Plan,
+    styled: CytoscapeEmitted | null,
+    opaque: Record<string, unknown>,
+): StyleParts {
+    const bypassOf = (target: "node" | "edge", row: number): Record<string, unknown> | null => {
+        if (styled === null) {
+            return bypassValues(target === "node" ? p.nodeBypasses : p.edgeBypasses, row);
+        }
+        const m = styled.bypasses[target][row];
+        return m === null || m.size === 0 ? null : Object.fromEntries(m);
+    };
+    const rowsWith = (target: "node" | "edge", n: number): number[] => {
+        if (styled === null) {
+            return bypassRows(target === "node" ? p.nodeBypasses : p.edgeBypasses, n);
+        }
+        const out: number[] = [];
+        for (let i = 0; i < n; i++) {
+            if (bypassOf(target, i) !== null) {
+                out.push(i);
+            }
+        }
+        return out;
+    };
+    const nodeBypassRows = rowsWith("node", snapshot.nodeCount);
+    const edgeBypassRows = rowsWith("edge", snapshot.edgeCount).filter((e) => !p.folding.folded(e));
+    const opaqueAspects = Object.entries(opaque).filter(
+        (entry): entry is [string, unknown[]] =>
+            !CORE_ASPECTS.has(entry[0]) && !(styled !== null && STYLE_ASPECTS.has(entry[0])) && Array.isArray(entry[1]),
+    );
+    if (styled !== null) {
+        const aspects = cytoscapeCx2Aspects(styled.style);
+        opaqueAspects.push(
+            ["visualProperties", aspects.visualProperties],
+            ["visualEditorProperties", aspects.visualEditorProperties],
+        );
+    }
+    const styleBlock = snapshotBlock(snapshot);
+    if (styleBlock !== null) {
+        opaqueAspects.push([STYLE_BLOCK_NAME, blockAspect(styleBlock)]);
+    }
+
+    return { bypassOf, nodeBypassRows, edgeBypassRows, opaqueAspects };
 }
 
 /**
@@ -798,6 +882,7 @@ export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
     format: CX2_FORMAT,
     options: Object.freeze([]),
     capabilities: CX2_CAPABILITIES,
+    styles: Object.freeze({ capabilities: CX2_STYLE_CAPABILITIES }),
 
     /**
      * Pre-flight: what export() would lose, without writing anything.
@@ -805,8 +890,12 @@ export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the notes, empty when the export is exact
      */
-    check(snapshot: GraphSnapshot, options?: Cx2ExportOptions): readonly LossNote[] {
-        return Object.freeze([...plan(snapshot, resolveExportOptions(options)).notes]);
+    check(snapshot: GraphSnapshot, options?: Cx2ExportOptions & ExporterStyleOptions): readonly LossNote[] {
+        const styled = cytoscapeStyledExport(snapshot, options?.styles, "cx2");
+        return Object.freeze([
+            ...plan(styled?.snapshot ?? snapshot, resolveExportOptions(options)).notes,
+            ...(styled?.notes ?? []),
+        ]);
     },
 
     /**
@@ -815,8 +904,8 @@ export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the chunks
      */
-    export(snapshot: GraphSnapshot, options?: Cx2ExportOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(write(snapshot, plan(snapshot, resolveExportOptions(options))));
+    export(snapshot: GraphSnapshot, options?: Cx2ExportOptions & ExporterStyleOptions): AsyncIterable<Uint8Array> {
+        return encodeChunks(written(snapshot, options));
     },
 
     /**
@@ -825,7 +914,22 @@ export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the document
      */
-    exportToString(snapshot: GraphSnapshot, options?: Cx2ExportOptions): Promise<string> {
-        return joinText(write(snapshot, plan(snapshot, resolveExportOptions(options))));
+    exportToString(snapshot: GraphSnapshot, options?: Cx2ExportOptions & ExporterStyleOptions): Promise<string> {
+        return joinText(written(snapshot, options));
     },
 });
+
+/**
+ * The document's text, with the styles when they are given.
+ * @param snapshot - the snapshot
+ * @param options - the options
+ * @returns the text parts
+ */
+function written(
+    snapshot: GraphSnapshot,
+    options: (Cx2ExportOptions & ExporterStyleOptions) | undefined,
+): Generator<string, void, undefined> {
+    const styled = cytoscapeStyledExport(snapshot, options?.styles, "cx2");
+    const target = styled?.snapshot ?? snapshot;
+    return write(target, plan(target, resolveExportOptions(options)), styled?.styled ?? null);
+}

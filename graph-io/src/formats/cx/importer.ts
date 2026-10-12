@@ -17,8 +17,11 @@
  * one `graphIndex` / `graphName` picks, `listGraphs()` lists them. Positions come from the
  * subnetwork's view, y flipped to y-up, `z` into the `z` column; `cyGroups` give `parent` (or
  * `parents`); per-element visual properties are one column per property (origin namespace
- * "cx.bypass") and style rules are kept verbatim in `meta.extra.cx` and not applied
- * (W_STYLES_NOT_IMPORTED, issue #706); provenance aspects become extension tables and list columns.
+ * "cx.bypass") and style rules are kept verbatim in `meta.extra.cx`; asked for styles
+ * (`importGraph(..., { styles: true })`), the importer reads the view's style rules and bypasses
+ * (styles.ts), kept for it through the report, otherwise W_STYLES_NOT_IMPORTED; the `graphty.styles`
+ * aspect of a file graphty wrote becomes the graph attribute of that name; provenance aspects become
+ * extension tables and list columns.
  */
 
 import {
@@ -111,6 +114,7 @@ import {
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -120,6 +124,7 @@ import {
     type ImportReport,
 } from "../../types.js";
 import { ORIGINAL_ID_ATTRIBUTE, zAsOption } from "../cx2/importer.js";
+import { blockOfAspect, type CxStyleSource, readCxStyles } from "./styles.js";
 
 /** The format name. */
 const CX_FORMAT = "cx";
@@ -1486,6 +1491,7 @@ class CxReader {
         this.writeAttributes("edge", edgeColumns);
         this.readNetworkAttributes();
         this.readVisualProperties();
+        this.readStyleBlock();
         this.readProvenance();
         for (const [kind, count] of this.dangling) {
             report.warning(
@@ -2854,6 +2860,16 @@ class CxReader {
         const tableStyles = TABLE_STYLE_ASPECTS.reduce((n, name) => n + (this.doc.kept.get(name)?.length ?? 0), 0);
         // the graph's own view (its first): the one its positions come from; the others stay in meta.extra.cx
         const views = new Set(this.plan.views.slice(0, 1));
+        // the style reader gets the entries of this graph's view (and those naming no view)
+        const source: CxStyleSource = {
+            entries: entries
+                .map((h) => h.value)
+                .filter((v) => {
+                    const view = isRecord(v) && v.view !== undefined && v.view !== null ? refId(v.view) : null;
+                    return view === null || views.size === 0 || views.has(view);
+                }),
+        };
+        this.report.keepForStyles(source);
         const columns = { node: new Map<string, [number, string][]>(), edge: new Map<string, [number, string][]>() };
         const network = new Map<string, string>();
         let defaults = 0;
@@ -2945,6 +2961,17 @@ class CxReader {
                 `the file's style rules are not applied (${parts.join("; ")}); they are kept in meta.extra.cx`,
                 { element: "cyVisualProperties" },
             );
+        }
+    }
+
+    /** The `graphty.styles` aspect of a file graphty wrote, as the graph attribute of that name. */
+    private readStyleBlock(): void {
+        const block = blockOfAspect(this.doc.kept.get(STYLE_BLOCK_NAME));
+        if (block !== null) {
+            this.sink.setGraphValue(STYLE_BLOCK_NAME, block, {
+                dtype: "string",
+                origin: { format: CX_FORMAT, id: null },
+            });
         }
     }
 
@@ -3148,7 +3175,10 @@ class CxReader {
             }
             return found;
         };
-        const extra: Record<string, unknown> = Object.fromEntries(this.doc.kept);
+        // the graphty.styles aspect is read as a graph attribute (readStyleBlock), not kept
+        const extra: Record<string, unknown> = Object.fromEntries(
+            [...this.doc.kept].filter(([name]) => name !== STYLE_BLOCK_NAME),
+        );
         const groups = aspect(this.doc, "cyGroups").map((h) => plainJson(h.value));
         const own: Record<string, unknown> = {};
         if (groups.length > 0) {
@@ -3230,6 +3260,7 @@ export const cxImporter: GraphImporter<CxImportOptions> = Object.freeze({
     options: Object.freeze(["zAs"]),
     extensions: Object.freeze([".cx"]),
     mimeTypes: Object.freeze(["application/json"]),
+    styles: readCxStyles,
 
     /**
      * Confidence that the head is CX version 1: 0.95 when a top-level array starts with an object

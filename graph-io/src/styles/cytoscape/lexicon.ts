@@ -208,7 +208,8 @@ interface FontFace {
 
 /**
  * A font face: `SansSerif,plain,12`, `Dialog.bold,bold,12`, the legacy `SansSerif-0-12` (style bits 1 bold,
- * 2 italic) or CX2's `{ FONT_FAMILY, FONT_STYLE, FONT_WEIGHT }`.
+ * 2 italic) or CX2's `{ FONT_FAMILY, FONT_STYLE, FONT_WEIGHT }`, whose `FONT_NAME` (the font Cytoscape desktop
+ * wrote it from, which its own import restores) wins over the CSS family when present.
  * @param raw - the value
  * @param site - where it was read
  * @returns the face, or null
@@ -216,7 +217,11 @@ interface FontFace {
 function fontFace(raw: unknown, site: CanonSite): FontFace | null {
     if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
         const o = raw as Record<string, unknown>;
-        const family = Object.hasOwn(o, "FONT_FAMILY") ? scalarText(o.FONT_FAMILY, site) : null;
+        const name = Object.hasOwn(o, "FONT_NAME") ? scalarText(o.FONT_NAME, site) : null;
+        let family = Object.hasOwn(o, "FONT_FAMILY") ? scalarText(o.FONT_FAMILY, site) : null;
+        if (name !== null && name.trim() !== "") {
+            family = name.trim().replace(/\.(?:bold|italic|plain|bolditalic)$/i, "");
+        }
         if (family === null) {
             return null;
         }

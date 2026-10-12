@@ -1386,6 +1386,10 @@ function* writeNodeLink(snapshot: GraphSnapshot, p: Plan): Generator<string, voi
  * @param p - the plan
  */
 function writeTopLevelBlock(c: Cursor, p: Plan): void {
+    const groups = p.resolved.styled?.groups ?? null;
+    if (groups !== null) {
+        c.w.member("groups", JSON.stringify(groups));
+    }
     const block = p.resolved.styled?.topLevelBlock ?? null;
     if (block !== null) {
         c.w.member(STYLE_BLOCK_NAME, JSON.stringify(block));

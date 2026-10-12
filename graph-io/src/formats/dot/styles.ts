@@ -1408,14 +1408,12 @@ export function dotStyledExport(
             }
         }
         const attributes = target === "node" ? NODE_ATTRIBUTES : EDGE_ATTRIBUTES;
+        // Graphviz reads these names as how to draw: the picture writes them, so a data column of the same name
+        // (a `label` attribute graphty does not draw) would draw something graphty does not.
         for (const name of [...table.names()]) {
-            if (attributes.includes(name) || name.startsWith("graphty.style.")) {
+            if (attributes.includes(name) || name === LABEL_ATTRIBUTE || name.startsWith("graphty.style.")) {
                 table.remove(name);
             }
-        }
-        const label = table.byRole("label");
-        if (label !== null && label.meta.name === LABEL_ATTRIBUTE) {
-            table.remove(LABEL_ATTRIBUTE);
         }
         for (const [name, col] of columns) {
             if (name === LABEL_ATTRIBUTE) {

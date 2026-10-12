@@ -1218,6 +1218,12 @@ export interface JsonStyledExport {
     readonly topLevelBlock: string | null;
     /** Cytoscape.js: the stylesheet to write as `style`, or null. */
     readonly stylesheet: readonly CytoscapeStylesheetRule[] | null;
+    /**
+     * vis.js: the `groups` to write, one empty definition per value of the nodes' `group` key, or null. vis-network
+     * colors a node of a group the file does not define from its own palette; a defined group draws nothing of its
+     * own, so the nodes look as graphty draws them.
+     */
+    readonly groups?: Readonly<Record<string, Readonly<Record<string, never>>>> | null;
     /** What the dialect does not hold, or holds only approximately. */
     readonly notes: readonly LossNote[];
 }
@@ -1263,7 +1269,7 @@ export function jsonStyledExport(
                 count: input.rules.styles.rules.length,
             }),
         );
-        return { snapshot, topLevelBlock: null, stylesheet: null, notes };
+        return { snapshot, topLevelBlock: null, stylesheet: null, groups: null, notes };
     }
     const out = snapshot.withColumns();
     const read = dataColumnsRead(input.rules.styles.rules);
@@ -1355,8 +1361,29 @@ export function jsonStyledExport(
         snapshot: out,
         topLevelBlock: BLOCK_AS_ATTRIBUTE.has(dialect) ? null : input.block,
         stylesheet,
+        groups: dialect === "vis" ? visGroups(out) : null,
         notes,
     };
+}
+
+/**
+ * vis.js: one empty group definition per value of the nodes' `group` key, so vis-network draws none of its palette.
+ * @param snapshot - the graph written
+ * @returns the definitions, or null when no node names a group
+ */
+function visGroups(snapshot: GraphSnapshot): Record<string, Record<string, never>> | null {
+    const column = snapshot.nodes.get("group");
+    if (column === null || column === undefined) {
+        return null;
+    }
+    const groups = new Map<string, Record<string, never>>();
+    for (let i = 0; i < snapshot.nodeCount; i++) {
+        const value = column.isSet(i) ? column.value(i) : null;
+        if (typeof value === "string" || typeof value === "number") {
+            groups.set(String(value), {});
+        }
+    }
+    return groups.size === 0 ? null : Object.fromEntries(groups);
 }
 
 /**

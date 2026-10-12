@@ -12,9 +12,11 @@ import { cytoscapeElementProperties, cytoscapeWritableProperties } from "../../s
 import { normalizeVisualProperties } from "../../styles/cytoscape/lexicon.js";
 import { emptyCytoscapeStyle } from "../../styles/cytoscape/mappings.js";
 import { cytoscapeBackground, type CytoscapeBypass, resolveCytoscapeBypasses } from "../../styles/cytoscape/resolve.js";
+import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
-import { plainCell } from "../../styles/plan/resolve.js";
+import { styleFingerprint } from "../../styles/plan/features.js";
+import { plainCell, resolveStyles } from "../../styles/plan/resolve.js";
 import type {
     EdgeStyleProperty,
     GraphStyle,
@@ -115,6 +117,7 @@ export function readXgmmlStyles(
             ? resolveCytoscapeBypasses(target, maps, { notes, budget: context.budget })
             : {};
         hiddenToVisible(table, settings.hiddenColumn ?? null, n, values);
+        exactFromBlock(snapshot, target, values);
         out[target] = { values: nonEmpty(values) };
     }
     return {
@@ -137,6 +140,68 @@ export function readXgmmlStyles(
  */
 export function readXgmmlFileStyles(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles {
     return readXgmmlStyles(snapshot, context, { tool: "cytoscape" });
+}
+
+/**
+ * For a file graphty wrote: where an element's value is what the writer's nearest Cytoscape value of the
+ * `graphty.styles` block's value reads back as (a font family list written as its first family, a shape Cytoscape
+ * does not have), the block's exact value is the truth, so a re-import gives the same rules. A value that differs
+ * from what graphty wrote (another program edited it) stays the truth.
+ * @param snapshot - the graph
+ * @param target - nodes or edges
+ * @param values - the values per property, changed in place
+ */
+function exactFromBlock(
+    snapshot: GraphSnapshot,
+    target: StyleTarget,
+    values: Partial<Record<string, StyleColumn>>,
+): void {
+    const text = snapshot.graph.has(STYLE_BLOCK_NAME) ? plainCell(snapshot.graph.value(STYLE_BLOCK_NAME, 0)) : null;
+    if (typeof text !== "string") {
+        return;
+    }
+    const parsed = parseStyleBlock(text, styleFingerprint(snapshot));
+    const ex = parsed.ok ? blockStyles(parsed.block, snapshot, "xgmml") : null;
+    if (ex === null) {
+        return;
+    }
+    const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+    const want = new Map<string, readonly (StyleValue | null)[]>();
+    const exact = (property: string): readonly (StyleValue | null)[] => {
+        let held = want.get(property);
+        if (held === undefined) {
+            held = resolveStyles(ex, target, property as StyleProperty, snapshot);
+            want.set(property, held);
+        }
+        return held;
+    };
+    // What each element's exact values are written as, read back the way the file is read.
+    const written = Array.from({ length: n }, (_v, i) =>
+        cytoscapeElementProperties(
+            target,
+            (property) => exact(property)[i] ?? null,
+            "desktop",
+            () => undefined,
+        ),
+    );
+    const readBack = resolveCytoscapeBypasses(target, written, { notes: new StyleNotes() });
+    for (const [property, native] of Object.entries(values)) {
+        const back = readBack[property];
+        if (native === undefined || back === undefined) {
+            continue;
+        }
+        const w = exact(property);
+        let changed: (StyleValue | null)[] | null = null;
+        for (let i = 0; i < n; i++) {
+            if (w[i] !== null && native[i] !== w[i] && native[i] === back[i]) {
+                changed ??= [...native];
+                changed[i] = w[i];
+            }
+        }
+        if (changed !== null) {
+            values[property] = changed;
+        }
+    }
 }
 
 /**

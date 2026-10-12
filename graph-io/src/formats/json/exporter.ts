@@ -747,7 +747,8 @@ function reservedKeys(snapshot: GraphSnapshot, resolved: Resolved): Readonly<Rec
             break;
         case "vis":
             node.add(resolved.nodeIdKey ?? "id");
-            edge.add(resolved.sourceKey).add(resolved.targetKey);
+            // an edge key named source or target reads the document as node-link JSON, whose endpoints those are
+            edge.add(resolved.sourceKey).add(resolved.targetKey).add("source").add("target");
             break;
         case "cytoscape":
             node.add("id").add("parent");

@@ -54,6 +54,8 @@ const DIRECTED_KEY = "directed";
 
 /** The style column holding the source node's color of each edge without a color of its own. */
 const SOURCE_COLOR_KEY = "source-color";
+/** The style column of the width Gephi draws an edge with from its weight. */
+const WEIGHT_WIDTH_KEY = "weight-width";
 
 /** GEXF's node shapes, by the neutral shape each writes exactly. */
 const NODE_SHAPES: ReadonlyMap<string, string> = new Map([
@@ -234,6 +236,7 @@ export function gephiRules(
     nodeFill: readonly (StyleValue | null)[] | undefined,
     edgeColor: readonly (StyleValue | null)[] | undefined,
     budget: StyleReadContext["budget"],
+    edgeWidth?: readonly (StyleValue | null)[],
 ): { readonly rules: StyleRule[]; readonly columns: Map<string, StyleColumn> } {
     const rules: StyleRule[] = [];
     const columns = new Map<string, StyleColumn>();
@@ -269,6 +272,30 @@ export function gephiRules(
         }
     }
     budget.spend("edge", snapshot.edgeCount);
+    // Gephi draws an edge as thick as its weight (1 for an edge with none); a width of its own is the file's
+    const weight = snapshot.edges.byRole("weight");
+    const weightWidth: (StyleValue | null)[] = new Array<StyleValue | null>(snapshot.edgeCount).fill(null);
+    let unsized = 0;
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        if (edgeWidth?.[e] === null || edgeWidth === undefined) {
+            const first = pair?.isSet(e) === true ? Math.min(e, pair.value(e) as number) : e;
+            const w = weight?.isSet(first) === true ? Number(weight.value(first)) : 1;
+            weightWidth[e] = Number.isFinite(w) && w > 0 ? w : 1;
+            unsized++;
+        }
+    }
+    if (unsized > 0) {
+        columns.set(WEIGHT_WIDTH_KEY, weightWidth);
+        rules.push({
+            id: "edge.tool.weight-width",
+            target: "edge",
+            role: "passthrough",
+            origin: "tool",
+            where: { has: { style: WEIGHT_WIDTH_KEY } },
+            map: { width: { kind: "passthrough", by: { style: WEIGHT_WIDTH_KEY } } },
+            facts: { elements: unsized, reason: "EDGE_WEIGHT" },
+        });
+    }
     if (uncolored > 0) {
         columns.set(SOURCE_COLOR_KEY, sourceColor);
         rules.push({
@@ -300,7 +327,7 @@ export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): 
     if (block !== null) {
         exactFromBlock(snapshot, block, node, edge);
     }
-    const { rules, columns } = gephiRules(snapshot, node.fill, edge.color, context.budget);
+    const { rules, columns } = gephiRules(snapshot, node.fill, edge.color, context.budget, edge.width);
     return {
         canonical: true,
         dialect: "gexf",
@@ -351,7 +378,9 @@ function exactFromBlock(
         const want = resolveStyles(ex, target, property as never, snapshot);
         for (let i = 0; i < native.length; i++) {
             const w = want[i];
-            if (w !== null && native[i] !== w && native[i] === written(w, i)) {
+            // a size is written from the width and the height together: one the block leaves unset reads back too
+            const writable = w !== null || property === "width" || property === "height";
+            if (writable && native[i] !== w && native[i] !== null && native[i] === written(w as StyleValue, i)) {
                 native[i] = w;
             }
         }

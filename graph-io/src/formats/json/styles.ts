@@ -469,7 +469,9 @@ function exactFromBlock(
             for (let i = 0; i < n; i++) {
                 const w = want[i];
                 const native = values[target][property]?.[i] ?? null;
-                if (w !== null && native !== w && native === write((p) => resolved(p)[i])) {
+                // a native value the writer made from the block's other values (vis.js's one size for a width) is the
+                // block's own value, none included
+                if (native !== w && native !== null && native === write((p) => resolved(p)[i])) {
                     (values[target][property] ??= new Array<StyleValue | null>(n).fill(null))[i] = w;
                 }
             }

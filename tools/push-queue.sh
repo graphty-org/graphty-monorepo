@@ -12,11 +12,14 @@
 # board reads them (githerd/lib/proc.mjs pushQueueTickets).
 # Run from a private copy: bash reads a script from disk as it runs, so editing this file would
 # otherwise change the code of every push already waiting.
+# The copy goes in the main checkout's tmp/, not /tmp, which other processes on this machine clear.
+main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
 if [ -z "${PUSH_QUEUE_COPY:-}" ]; then
-    copy=$(mktemp /tmp/push-queue.XXXXXX.sh) && cp "$0" "$copy" && PUSH_QUEUE_COPY=$copy exec bash "$copy" "$@"
+    mkdir -p "$main/tmp/push-queue-copies" &&
+        copy=$(mktemp "$main/tmp/push-queue-copies/push-queue.XXXXXX.sh") && cp "$0" "$copy" &&
+        PUSH_QUEUE_COPY=$copy exec bash "$copy" "$@"
 fi
 SLOTS=${PUSH_QUEUE_SLOTS:-3}
-main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
 dir=${PUSH_QUEUE_DIR:-$main/tmp/push-queue}
 mkdir -p "$dir"
 rank=1; [ "${PUSH_QUEUE_PRIORITY:-}" = critical ] && rank=0

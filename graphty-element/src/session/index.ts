@@ -20,8 +20,18 @@ export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand }
 export { isAlgorithmRunCommand } from "./planning";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 export type { LoadStyleReport } from "./styles/fileStyles/apply";
-export type { FileStyleCode, FileStyleNoteCode, FileStyleTranslationCode } from "./styles/fileStyles/codes";
-export { FILE_STYLE_CODES, FILE_STYLE_ISSUE, FILE_STYLE_TRANSLATION_ISSUE } from "./styles/fileStyles/codes";
+export type {
+    ExportStyleLossCode,
+    FileStyleCode,
+    FileStyleNoteCode,
+    FileStyleTranslationCode,
+} from "./styles/fileStyles/codes";
+export {
+    EXPORT_STYLE_LOSS_CODES,
+    FILE_STYLE_CODES,
+    FILE_STYLE_ISSUE,
+    FILE_STYLE_TRANSLATION_ISSUE,
+} from "./styles/fileStyles/codes";
 export type {
     FileStyleMappingKind,
     FileStyleMeaning,

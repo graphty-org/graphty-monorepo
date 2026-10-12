@@ -1,7 +1,8 @@
 /**
- * @file The codes of what a load says about a file's styles: graph-io's own style codes and the
- * ones graphty-element adds while it turns a file's rules into layers. An application enumerates
- * them from here and never imports graph-io for them.
+ * @file The codes of what a load says about a file's styles, and of what an export loses of the
+ * graph's styles: graph-io's own style codes and the ones graphty-element adds while it turns a
+ * file's rules into layers. An application enumerates them from here and never imports graph-io
+ * for them.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -57,3 +58,22 @@ export type FileStyleCode = (typeof FILE_STYLE_ISSUE)[keyof typeof FILE_STYLE_IS
 
 /** Every style code, import and export, for an application that words each one. */
 export const FILE_STYLE_CODES: readonly FileStyleCode[] = Object.freeze([...new Set(Object.values(FILE_STYLE_ISSUE))]);
+
+/**
+ * The style codes an export reports among its losses, before anything is written: what the
+ * format cannot hold (`W_STYLE_NOT_WRITTEN`), holds only approximately (`W_STYLE_APPROXIMATED`),
+ * the layers it does not keep (`W_STYLE_RULES_NOT_KEPT`), a layer written as its values
+ * (`W_STYLE_LAYER_FLATTENED`), layers an export without `styles: true` left out
+ * (`W_STYLES_NOT_EXPORTED`), and styles of another graph (`E_STYLES_MISMATCH`, the only error).
+ */
+export const EXPORT_STYLE_LOSS_CODES = Object.freeze([
+    STYLE_ISSUE.NOT_WRITTEN,
+    STYLE_ISSUE.APPROXIMATED,
+    STYLE_ISSUE.RULES_NOT_KEPT,
+    STYLE_ISSUE.LAYER_FLATTENED,
+    STYLE_ISSUE.NOT_EXPORTED,
+    STYLE_ISSUE.MISMATCH,
+] as const);
+
+/** A style code an export reports among its losses: one of {@link EXPORT_STYLE_LOSS_CODES}. */
+export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];

@@ -528,7 +528,8 @@ export function translateFileStyles(input: TranslateInput): Translation {
  * @returns The factors: 1 when lengths are kept as the file has them.
  */
 function lengthFactors(input: TranslateInput): Record<StyleTarget, number> {
-    if (input.options.lengths === "file") {
+    // A file graphty wrote is in graphty's own units already.
+    if (input.options.lengths === "file" || input.extracted.styles.source.tool === "graphty") {
         return { node: 1, edge: 1 };
     }
 
@@ -566,6 +567,8 @@ class KindTranslation {
     readonly #built: Building[] = [];
     readonly #keys: Set<string>;
     readonly #matchCache = new Map<string, readonly boolean[]>();
+    /** The layers rebuilt from layers graphty wrote, by the rule they stand for. */
+    readonly #rebuilt = new Map<StyleRule, Building>();
     #scopeKey: string | null = null;
     /** The column marking the elements the file hides, once the visibility pass has run. */
     hidden: { key: string; count: number } | null = null;
@@ -957,8 +960,12 @@ class KindTranslation {
      */
     #layerFor(rule: StyleRule, bucket: number, selector: Selector): Building {
         const key = JSON.stringify(selector);
+        // A layer rebuilt from one graphty wrote is never painted into by a later pass.
         const same = this.#built.filter(
-            (layer) => layer.bucket === bucket && (layer.spec.userData?.ruleKey as string | undefined) === rule.id,
+            (layer) =>
+                layer.bucket === bucket &&
+                (layer.spec.userData?.ruleKey as string | undefined) === rule.id &&
+                this.#rebuilt.get(rule) !== layer,
         );
         const found = same.find((layer) => JSON.stringify(layer.spec.selector) === key);
         if (found !== undefined) {
@@ -1019,7 +1026,7 @@ class KindTranslation {
             origin: rule.origin,
             ...factsOf(rule),
         };
-        this.#built.push({
+        const rebuilt: Building = {
             bucket,
             spec: {
                 ...spec,
@@ -1030,7 +1037,25 @@ class KindTranslation {
             paint: null,
             worth: 1000,
             fallback: made.map((layer) => layer.spec),
-        });
+        };
+        this.#built.push(rebuilt);
+        this.#rebuilt.set(rule, rebuilt);
+    }
+
+    /**
+     * Emit a rule's layers in a later pass. For a rule rebuilt from a layer graphty wrote, they are
+     * kept as that layer's fallback, never drawn beside it.
+     * @param rule - The rule.
+     * @param emit - What emits them.
+     */
+    #emitFor(rule: StyleRule, emit: () => void): void {
+        const rebuilt = this.#rebuilt.get(rule);
+        const before = this.#built.length;
+        emit();
+        if (rebuilt !== undefined) {
+            const made = this.#built.splice(before);
+            rebuilt.fallback = [...(rebuilt.fallback ?? []), ...made.map((layer) => layer.spec)];
+        }
     }
 
     /**
@@ -1147,7 +1172,6 @@ class KindTranslation {
      * @param only - The properties to translate, every one when absent.
      */
     #neutralRule(rule: StyleRule, bucket: number, source: ExtractedStyles, only?: ReadonlySet<string>): void {
-        const graphtyDefaults = rule.origin === "tool" && this.#input.extracted.styles.source.tool === "graphty";
         const props = [...Object.keys(rule.set ?? {}), ...Object.keys(rule.map ?? {})];
         for (const property of props) {
             if (only !== undefined ? !only.has(property) : COMPOSITE[this.#kind].has(property)) {
@@ -1160,22 +1184,32 @@ class KindTranslation {
             }
 
             for (const plan of this.#plansOf(property)) {
-                const set = rule.set?.[property as StyleProperty];
-                if (
-                    graphtyDefaults &&
-                    set !== undefined &&
-                    same(
-                        drawnAs(plan.channel, plan.convert(set)),
-                        drawnAs(plan.channel, this.#input.base[this.#kind][plan.channel]),
-                    )
-                ) {
-                    // The element's own base layers already draw the default graphty recorded.
-                    continue;
+                if (!this.#drawnByBase(rule, property, plan)) {
+                    this.#emit(rule, bucket, property, plan, source);
                 }
-
-                this.#emit(rule, bucket, property, plan, source);
             }
         }
+    }
+
+    /**
+     * Whether a default graphty recorded in a file it wrote is what the element's own base layers
+     * already draw, so it needs no layer.
+     * @param rule - The rule.
+     * @param property - The property.
+     * @param plan - The channel it is drawn on.
+     * @returns True for a graphty default the base layers draw.
+     */
+    #drawnByBase(rule: StyleRule, property: string, plan: ChannelPlan): boolean {
+        const set = rule.set?.[property as StyleProperty];
+        return (
+            rule.origin === "tool" &&
+            this.#input.extracted.styles.source.tool === "graphty" &&
+            set !== undefined &&
+            same(
+                drawnAs(plan.channel, plan.convert(set)),
+                drawnAs(plan.channel, this.#input.base[this.#kind][plan.channel]),
+            )
+        );
     }
 
     /**
@@ -1608,8 +1642,10 @@ class KindTranslation {
             writers.every(({ rule }) => signature(rule, first) === signature(rule, second));
         if (used.length === 1 || twin) {
             for (const { rule, bucket } of writers) {
-                if (writes(rule, used[0])) {
-                    this.#emit(rule, bucket, used[0], plan, extracted);
+                if (writes(rule, used[0]) && !this.#drawnByBase(rule, used[0], plan)) {
+                    this.#emitFor(rule, () => {
+                        this.#emit(rule, bucket, used[0], plan, extracted);
+                    });
                 }
             }
 
@@ -1617,6 +1653,11 @@ class KindTranslation {
                 this.#noteFadedFill();
             }
 
+            return;
+        }
+
+        if (writers.every(({ rule }) => this.#rebuilt.has(rule))) {
+            // Every rule is drawn by the layer graphty wrote for it.
             return;
         }
 
@@ -1698,15 +1739,21 @@ class KindTranslation {
             typeof value === "string" && LOCATIONS.has(value) ? { location: value } : null;
         if (writers.every(({ rule }) => rule.map?.labelPosition === undefined)) {
             for (const { rule, bucket } of writers) {
-                this.#emit(
-                    rule,
-                    bucket,
-                    property,
-                    { channel, convert: location, identity: false },
-                    this.#input.extracted,
-                );
+                this.#emitFor(rule, () => {
+                    this.#emit(
+                        rule,
+                        bucket,
+                        property,
+                        { channel, convert: location, identity: false },
+                        this.#input.extracted,
+                    );
+                });
             }
 
+            return;
+        }
+
+        if (writers.every(({ rule }) => this.#rebuilt.has(rule))) {
             return;
         }
 

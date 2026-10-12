@@ -1,0 +1,826 @@
+/**
+ * @file The layer stack as neutral styles, for an export: the inverse of the translation a load
+ * runs. graph-io writes what this returns into the file -- each element's look in the format's own
+ * style slots, the rules where the format has a style language, and graphty's style block -- so
+ * importing the file back rebuilds the same layers.
+ *
+ * - One rule per layer above the element's own, in stack order. The element's two base layers
+ *   are the defaults of the writing tool, `graphty`.
+ * - A selector becomes a short predicate when it reads only what the file will hold; otherwise the
+ *   elements the layer paints are written onto them as a membership value.
+ * - A binding becomes a mapping (passthrough, table, two-point linear or stops) only when graph-io
+ *   reads that mapping exactly as the element painted it, element by element. Anything else (a
+ *   palette, another scale, a value the file will not hold) is written as the painted values, and
+ *   reported as flattened with a reason: the picture stays exact, the rule loses its editable form.
+ * - Each rule carries the layer itself in `ext["@graphty/graphty-element"]` when every path it
+ *   reads will be in the file, so graphty rebuilds the identical layer.
+ *
+ * What the element draws is read through `explain()`, the same walk the repaint runs, so the
+ * picture is what the canvas shows.
+ *
+ * Nothing here reaches Babylon.js, Lit or the DOM.
+ */
+
+import type { GraphSnapshot } from "@graphty/graph-format";
+import {
+    type ColumnRef,
+    type ContinuousPoint,
+    type ExtractedStyles,
+    featuresOf,
+    type Mapping,
+    type Predicate,
+    resolveStyles,
+    type StyleColumn,
+    styleFingerprint,
+    type StyleProperty,
+    type StyleRule,
+    type StyleRuleReason,
+    type StyleRuleRole,
+    type StyleTarget,
+    type StyleValue,
+} from "@graphty/graph-io/styles";
+
+import type { Binding, Channel, EdgeId, LayerSpec, NodeId, Path, Rgba } from "../../../catalog/types";
+import { toColorValue } from "../channels";
+import type { ExplainTarget, StyleExplanation } from "../explain";
+import type { CompiledLayer } from "../Layer";
+import { computedOf, parseFileStylePath } from "./path";
+import { ARROW_SHAPES, FILE_STYLE_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
+import { fileStyleColumn, type FileStyleStore } from "./store";
+import { LAYER_SPEC_EXT } from "./translate";
+
+/** What turning the stack into neutral styles needs. */
+export interface LayersToStylesInput {
+    /** The stack, bottom first. */
+    readonly stack: readonly CompiledLayer[];
+    /** The graph being written; its rows are the session's rows. */
+    readonly snapshot: GraphSnapshot;
+    /** The id of each node and edge row. */
+    readonly ids: { readonly node: readonly NodeId[]; readonly edge: readonly EdgeId[] };
+    /** Why one element looks as it does. */
+    readonly explain: (target: ExplainTarget) => StyleExplanation;
+    /** Per node row, and per edge row, whether the element is hidden. */
+    readonly hidden: { readonly node: readonly boolean[]; readonly edge: readonly boolean[] };
+    /** The session's file-style values. */
+    readonly fileStyles: FileStyleStore;
+    /** The format being written, for the styles' source. */
+    readonly format: string;
+}
+
+/** One layer whose rule lost its editable form for other programs. */
+export interface FlattenedLayer {
+    /** The layer's name. */
+    readonly layer: string;
+    /** Nodes or edges. */
+    readonly target: StyleTarget;
+    /** The property written as values. */
+    readonly property: string;
+    /** Why. */
+    readonly reason: StyleRuleReason;
+    /** How many elements carry a value. */
+    readonly count: number;
+}
+
+/** What the stack became. */
+export interface LayersToStyles {
+    /** The styles, for graph-io's writers. */
+    readonly extracted: ExtractedStyles;
+    /** The layers written as values. */
+    readonly flattened: readonly FlattenedLayer[];
+    /** Channels no rule could carry and no rebuilt layer will restore: `graphty:<channel>` per target. */
+    readonly unwritten: readonly { readonly target: StyleTarget; readonly property: string; readonly count: number }[];
+}
+
+/** How a channel's value becomes a neutral property's value, and back. */
+interface PropertyPlan {
+    /** The neutral properties the channel is drawn from. */
+    readonly properties: readonly string[];
+    /** The neutral value of a channel value, or null when the property cannot hold it. */
+    readonly toNeutral: (value: unknown) => StyleValue | null;
+}
+
+/**
+ * The hex form of a color value as the element carries it, with its alpha.
+ * @param value - A color string or a carried color.
+ * @returns `#rrggbb` and the alpha, or null.
+ */
+function colorOf(value: unknown): { hex: string; alpha: number } | null {
+    let found: Rgba | null = null;
+    if (typeof value === "object" && value !== null && "r" in value && "g" in value && "b" in value) {
+        found = toColorValue(value as Rgba);
+    } else if (typeof value === "string") {
+        found = toColorValue(value);
+    }
+
+    if (found === null) {
+        return null;
+    }
+
+    const byte = (n: number): string => n.toString(16).padStart(2, "0");
+    return { hex: `#${byte(found.r)}${byte(found.g)}${byte(found.b)}`, alpha: found.a };
+}
+
+/**
+ * The inverse of a table: each value's first key.
+ * @param table - Key to value.
+ * @param skip - Keys never taken.
+ * @returns Value to key.
+ */
+function inverse(
+    table: Iterable<readonly [string, string]>,
+    skip: ReadonlySet<string> = new Set(),
+): Map<string, string> {
+    const out = new Map<string, string>();
+    for (const [key, value] of table) {
+        if (!skip.has(key) && !out.has(value)) {
+            out.set(value, key);
+        }
+    }
+
+    return out;
+}
+
+const SHAPE_OF = inverse(Object.entries(FILE_STYLE_SHAPES), new Set(["none"]));
+const LINE_OF = inverse(LINE_STYLES, LINE_STYLES_NEAREST);
+const ARROW_OF = inverse(ARROW_SHAPES);
+
+const color: PropertyPlan["toNeutral"] = (value) => {
+    const found = colorOf(value);
+    return found !== null && found.alpha >= 1 ? found.hex : null;
+};
+const number: PropertyPlan["toNeutral"] = (value) =>
+    typeof value === "number" && Number.isFinite(value) ? value : null;
+const text: PropertyPlan["toNeutral"] = (value) => (typeof value === "string" ? value : null);
+const flag: PropertyPlan["toNeutral"] = (value) => (typeof value === "boolean" ? value : null);
+const opacity: PropertyPlan["toNeutral"] = (value) =>
+    typeof value === "number" && value >= 0 && value <= 1 ? value : null;
+const weight: PropertyPlan["toNeutral"] = (value) => (value === "normal" || value === "bold" ? value : null);
+const table =
+    (entries: ReadonlyMap<string, string>): PropertyPlan["toNeutral"] =>
+    (value) =>
+        typeof value === "string" ? (entries.get(value) ?? null) : null;
+const plan = (toNeutral: PropertyPlan["toNeutral"], ...properties: string[]): PropertyPlan => ({
+    properties,
+    toNeutral,
+});
+
+/**
+ * The neutral property of each channel that has one, so that a load reads it back to the same
+ * channel and value. Every other channel is carried as `graphty:<channel>`, which only graphty
+ * reads.
+ */
+const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = {
+    node: new Map([
+        ["node.color", plan(color, "fill")],
+        ["node.outline", plan(color, "borderColor")],
+        ["node.label", plan(text, "label")],
+        ["node.tooltip", plan(text, "tooltip")],
+        ["node.labelColor", plan(color, "labelColor")],
+        ["node.labelSize", plan(number, "labelSize")],
+        ["node.labelFont", plan(text, "labelFont")],
+        ["node.labelWeight", plan(weight, "labelWeight")],
+        ["node.labelItalic", plan(flag, "labelItalic")],
+        ["node.shape", plan(table(SHAPE_OF), "shape")],
+        ["node.size", plan(number, "width", "height")],
+        ["node.opacity", plan(opacity, "opacity")],
+    ]),
+    edge: new Map([
+        ["edge.color", plan(color, "color")],
+        ["edge.opacity", plan(opacity, "opacity")],
+        ["edge.width", plan(number, "width")],
+        ["edge.style", plan(table(LINE_OF), "lineStyle")],
+        ["edge.arrowHead", plan(table(ARROW_OF), "targetArrow")],
+        ["edge.arrowTail", plan(table(ARROW_OF), "sourceArrow")],
+        ["edge.arrowHeadColor", plan(color, "targetArrowColor")],
+        ["edge.arrowTailColor", plan(color, "sourceArrowColor")],
+        ["edge.label", plan(text, "label")],
+        ["edge.arrowHeadText", plan(text, "targetLabel")],
+        ["edge.arrowTailText", plan(text, "sourceLabel")],
+        ["edge.labelColor", plan(color, "labelColor")],
+        ["edge.labelSize", plan(number, "labelSize")],
+        ["edge.labelFont", plan(text, "labelFont")],
+        ["edge.labelWeight", plan(weight, "labelWeight")],
+        ["edge.labelItalic", plan(flag, "labelItalic")],
+    ]),
+};
+
+/**
+ * A channel value as a `graphty:<channel>` value: a color as `#rrggbb` or `#rrggbbaa`, any other
+ * plain value as it is.
+ * @param value - The value.
+ * @returns The value, or null for one no scalar can hold (a whole label style).
+ */
+function graphtyValue(value: unknown): StyleValue | null {
+    if (typeof value === "number" || typeof value === "boolean") {
+        return Number.isFinite(value) || typeof value === "boolean" ? value : null;
+    }
+
+    const found = typeof value === "object" && value !== null ? colorOf(value) : null;
+    if (found !== null) {
+        const alpha = Math.round(found.alpha * 255);
+        return alpha >= 255 ? found.hex : `${found.hex}${alpha.toString(16).padStart(2, "0")}`;
+    }
+
+    return typeof value === "string" ? value : null;
+}
+
+/**
+ * Whether two values agree within what a writer and the element round: numbers to a relative
+ * 1e-5, colors to 2 of 255 per channel.
+ * @param a - One value.
+ * @param b - The other.
+ * @returns True when they agree.
+ */
+function agree(a: StyleValue | null, b: StyleValue | null): boolean {
+    if (a === b) {
+        return true;
+    }
+
+    if (typeof a === "number" && typeof b === "number") {
+        return Math.abs(a - b) <= 1e-5 * Math.max(Math.abs(a), Math.abs(b), 1e-9);
+    }
+
+    const hex = /^#[0-9a-f]{6}$/;
+    if (typeof a === "string" && typeof b === "string" && hex.test(a) && hex.test(b)) {
+        return [1, 3, 5].every(
+            (k) => Math.abs(Number.parseInt(a.slice(k, k + 2), 16) - Number.parseInt(b.slice(k, k + 2), 16)) <= 2,
+        );
+    }
+
+    return false;
+}
+
+/** The prefix of a path that reads a record's attribute. */
+const DATA_PREFIX = "data.";
+
+/** Turns one kind's layers into rules. */
+class KindExport {
+    readonly #input: LayersToStylesInput;
+    readonly #kind: StyleTarget;
+    readonly #n: number;
+    /** Per layer id, per channel, what the layer painted each element. */
+    readonly #painted = new Map<string, Map<string, unknown[]>>();
+    readonly #columns = new Map<string, StyleColumn>();
+    /** Per file-style path, the key it is written under. */
+    readonly #fileKeys = new Map<string, string>();
+    readonly #rules: StyleRule[] = [];
+    readonly #ruleIds = new Set<string>();
+    readonly flattened: FlattenedLayer[] = [];
+    readonly unwritten: { target: StyleTarget; property: string; count: number }[] = [];
+
+    /**
+     * Read what every element of the kind is painted.
+     * @param input - The stack and the graph.
+     * @param kind - Nodes or edges.
+     */
+    constructor(input: LayersToStylesInput, kind: StyleTarget) {
+        this.#input = input;
+        this.#kind = kind;
+        const ids: readonly (NodeId | EdgeId)[] = input.ids[kind];
+        this.#n = ids.length;
+        ids.forEach((id, row) => {
+            const target: ExplainTarget = kind === "node" ? { node: id } : { edge: id as EdgeId };
+            for (const contribution of input.explain(target).contributions) {
+                let channels = this.#painted.get(contribution.layerId);
+                if (channels === undefined) {
+                    channels = new Map();
+                    this.#painted.set(contribution.layerId, channels);
+                }
+
+                for (const [channel, value] of Object.entries(contribution.values)) {
+                    let values = channels.get(channel);
+                    if (values === undefined) {
+                        values = new Array<unknown>(this.#n).fill(null);
+                        channels.set(channel, values);
+                    }
+
+                    values[row] = value;
+                }
+            }
+        });
+    }
+
+    /**
+     * The rules, bottom first, and the style columns they read.
+     * @returns Them.
+     */
+    run(): { rules: StyleRule[]; columns: Map<string, StyleColumn> } {
+        const own = this.#input.stack.filter((entry) => entry.layer.target === this.#kind);
+        const base = own.filter(
+            (entry) => entry.layer.source.by === "element" && entry.layer.source.reason === "default",
+        );
+        if (base.length > 0) {
+            this.#defaults(base);
+        }
+
+        own.forEach((entry, at) => {
+            const { layer } = entry;
+            if (layer.source.by !== "element" && layer.enabled) {
+                this.#layer(entry, at);
+            }
+        });
+        this.#hidden();
+        return { rules: this.#rules, columns: this.#columns };
+    }
+
+    /**
+     * A rule id no rule of this kind holds yet.
+     * @param base - The wanted id.
+     * @returns It, with `#2`, `#3`... after it when taken.
+     */
+    #ruleId(base: string): string {
+        let id = base;
+        for (let n = 2; this.#ruleIds.has(id); n++) {
+            id = `${base}#${String(n)}`;
+        }
+
+        this.#ruleIds.add(id);
+        return id;
+    }
+
+    /**
+     * Keep a style column under a fresh key.
+     * @param base - What the key says.
+     * @param values - The values by row.
+     * @returns The key.
+     */
+    #keep(base: string, values: StyleColumn): string {
+        let key = base;
+        for (let n = 2; this.#columns.has(key); n++) {
+            key = `${base}.${String(n)}`;
+        }
+
+        this.#columns.set(key, values);
+        return key;
+    }
+
+    /**
+     * The reference a path is read through in the file, or null when the file will not hold it.
+     * @param path - The path a layer reads.
+     * @returns The reference.
+     */
+    #refOf(path: Path): ColumnRef | null {
+        const computed = computedOf(path);
+        if (computed !== undefined) {
+            return this.#kind === "node" ? { computed } : null;
+        }
+
+        const parts = parseFileStylePath(path);
+        if (parts !== undefined) {
+            return parts.kind === this.#kind ? this.#fileStyleRef(path, parts) : null;
+        }
+
+        if (!path.startsWith(DATA_PREFIX)) {
+            return null;
+        }
+
+        const column = path.slice(DATA_PREFIX.length);
+        const table = this.#kind === "node" ? this.#input.snapshot.nodes : this.#input.snapshot.edges;
+        return table.has(column) && !column.startsWith("graphty.") ? { data: column } : null;
+    }
+
+    /**
+     * The reference of a file-style value a layer reads: written under its own key, so a load of
+     * the file finds it again under the same key.
+     * @param path - The path.
+     * @param parts - Its parts.
+     * @param parts.namespace - The load's namespace.
+     * @param parts.key - The column's key.
+     * @returns The reference, or null when the store holds no such column or its key is taken.
+     */
+    #fileStyleRef(path: Path, parts: { namespace: string; key: string }): ColumnRef | null {
+        const known = this.#fileKeys.get(path);
+        if (known !== undefined) {
+            return { style: known };
+        }
+
+        const held = fileStyleColumn(this.#input.fileStyles, parts.namespace, this.#kind, parts.key);
+        // Two loads' columns of one key cannot both keep it: the second is not carried as itself.
+        if (held === undefined || this.#columns.has(parts.key)) {
+            return null;
+        }
+
+        const values = this.#input.ids[this.#kind].map((id) => held.get(id) ?? null);
+        this.#columns.set(parts.key, values);
+        this.#fileKeys.set(path, parts.key);
+        return { style: parts.key };
+    }
+
+    /**
+     * What one rule alone gives each element for one property, as graph-io reads it.
+     * @param where - The rule's predicate.
+     * @param property - The property.
+     * @param write - How the rule writes it.
+     * @returns The values by row.
+     */
+    #resolve(where: Predicate, property: string, write: { set: StyleValue } | { map: Mapping }): (StyleValue | null)[] {
+        const rule: StyleRule = {
+            id: "probe",
+            target: this.#kind,
+            role: "group",
+            origin: "declared",
+            where,
+            ...("set" in write ? { set: { [property]: write.set } } : { map: { [property]: write.map } }),
+        };
+        return [...resolveStyles(this.#styles([rule]), this.#kind, property as StyleProperty, this.#input.snapshot)];
+    }
+
+    /**
+     * Styles holding some rules over this kind's columns, for resolving them.
+     * @param rules - The rules.
+     * @returns The styles.
+     */
+    #styles(rules: readonly StyleRule[]): ExtractedStyles {
+        const { snapshot } = this.#input;
+        const empty = new Map<string, StyleColumn>();
+        return {
+            styles: {
+                version: 1,
+                source: { format: this.#input.format, dialect: "graphty", tool: "graphty" },
+                units: { length: "px" },
+                graph: {},
+                rules,
+                notes: [],
+            },
+            columns:
+                this.#kind === "node" ? { node: this.#columns, edge: empty } : { node: empty, edge: this.#columns },
+            features: { node: [], edge: [] },
+            fingerprint: styleFingerprint(snapshot),
+        };
+    }
+
+    /**
+     * The element's base layers as the defaults of the writing tool.
+     * @param base - The base layers.
+     */
+    #defaults(base: readonly CompiledLayer[]): void {
+        const set: Record<string, StyleValue> = {};
+        for (const { layer } of base) {
+            for (const [channel, value] of Object.entries(layer.set ?? {})) {
+                const written = this.#neutral(channel, [value]);
+                if (written === null) {
+                    continue;
+                }
+
+                for (const property of written.properties) {
+                    set[property] = written.values[0] as StyleValue;
+                }
+            }
+        }
+
+        this.#rules.push({
+            id: this.#ruleId(`${this.#kind}.defaults`),
+            target: this.#kind,
+            role: "defaults",
+            origin: "tool",
+            where: { all: true },
+            set,
+        });
+    }
+
+    /**
+     * A channel's values as one property's: its neutral property when every value has one, else
+     * `graphty:<channel>`.
+     * @param channel - The channel.
+     * @param values - The values.
+     * @returns The properties and the values converted, or null when no scalar holds them.
+     */
+    #neutral(
+        channel: string,
+        values: readonly unknown[],
+    ): {
+        properties: readonly string[];
+        values: (StyleValue | null)[];
+        convert: (value: unknown) => StyleValue | null;
+    } | null {
+        const known = PLANS[this.#kind].get(channel);
+        if (known !== undefined) {
+            const converted = values.map((value) => (value === null ? null : known.toNeutral(value)));
+            if (converted.every((value, i) => value !== null || values[i] === null)) {
+                return { properties: known.properties, values: converted, convert: known.toNeutral };
+            }
+        }
+
+        const converted = values.map((value) => (value === null ? null : graphtyValue(value)));
+        if (converted.some((value, i) => value === null && values[i] !== null)) {
+            return null;
+        }
+
+        return { properties: [`graphty:${channel}`], values: converted, convert: graphtyValue };
+    }
+
+    /**
+     * One layer as one rule.
+     * @param entry - The layer.
+     * @param at - Its place among this kind's layers.
+     */
+    #layer(entry: CompiledLayer, at: number): void {
+        const { layer } = entry;
+        const painted = this.#painted.get(layer.id) ?? new Map<string, unknown[]>();
+        const id = this.#ruleId(layer.name);
+        const paintedRows = Array.from({ length: this.#n }, (_unused, row) =>
+            [...painted.values()].some((values) => values[row] !== null && values[row] !== undefined),
+        );
+        const where = this.#whereOf(layer.selector, paintedRows, at);
+        const set: Record<string, StyleValue> = {};
+        const map: Record<string, Mapping> = {};
+        let reason: StyleRuleReason | undefined;
+        const channels = new Set<string>([...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]);
+        for (const channel of channels) {
+            const drawn = painted.get(channel) ?? new Array<unknown>(this.#n).fill(null);
+            const written = this.#neutral(channel, drawn);
+            if (written === null) {
+                // A whole label style: no scalar holds it; the layer itself carries it to graphty.
+                this.#unwritten(entry, channel, drawn);
+                continue;
+            }
+
+            const binding = layer.encode?.[channel as Channel];
+            const literal =
+                layer.set?.[channel as Channel] ??
+                (binding !== undefined && "value" in binding ? binding.value : undefined);
+            for (const property of written.properties) {
+                const fixed = literal === undefined ? null : written.convert(literal);
+                if (fixed !== null && this.#exact(where, property, { set: fixed }, written.values)) {
+                    set[property] = fixed;
+                    continue;
+                }
+
+                const mapping =
+                    binding !== undefined && "by" in binding ? this.#mappingOf(binding, written.convert) : null;
+                if (mapping !== null && "map" in mapping && this.#exact(where, property, mapping, written.values)) {
+                    map[property] = mapping.map;
+                    continue;
+                }
+
+                const why: StyleRuleReason =
+                    binding !== undefined && "by" in binding && this.#refOf(binding.by) === null
+                        ? "RESULT_PATH"
+                        : "SCALE";
+                reason ??= why;
+                const key = this.#keep(`layer.${String(at)}.${property}`, written.values);
+                map[property] = { kind: "passthrough", by: { style: key } };
+                const count = written.values.filter((value) => value !== null).length;
+                if (count > 0) {
+                    this.flattened.push({ layer: layer.name, target: this.#kind, property, reason: why, count });
+                }
+            }
+        }
+
+        const spec = this.#specOf(entry);
+        this.#rules.push({
+            id,
+            target: this.#kind,
+            role: roleOf(layer.kind, Object.keys(map).length > 0),
+            origin: "declared",
+            where,
+            ...(Object.keys(set).length > 0 ? { set } : {}),
+            ...(Object.keys(map).length > 0 ? { map } : {}),
+            facts: {
+                elements: paintedRows.filter(Boolean).length,
+                ...(reason === undefined ? {} : { reason }),
+            },
+            ...(spec === null ? {} : { ext: { [LAYER_SPEC_EXT]: spec } }),
+        });
+    }
+
+    /**
+     * Note a channel no rule carries, unless the layer itself goes into the file.
+     * @param entry - The layer.
+     * @param channel - The channel.
+     * @param drawn - What it painted.
+     */
+    #unwritten(entry: CompiledLayer, channel: string, drawn: readonly unknown[]): void {
+        if (this.#specOf(entry) !== null) {
+            return;
+        }
+
+        const count = drawn.filter((value) => value !== null && value !== undefined).length;
+        const property = `graphty:${channel}`;
+        const held = this.unwritten.find((note) => note.property === property);
+        if (held === undefined) {
+            this.unwritten.push({ target: this.#kind, property, count });
+        } else {
+            held.count += count;
+        }
+    }
+
+    /**
+     * Whether a rule writing one property gives exactly what the layer painted.
+     * @param where - The rule's predicate.
+     * @param property - The property.
+     * @param write - How the rule writes it.
+     * @param want - What the layer painted, converted, by row.
+     * @returns True when every element agrees.
+     */
+    #exact(
+        where: Predicate,
+        property: string,
+        write: { set: StyleValue } | { map: Mapping },
+        want: readonly (StyleValue | null)[],
+    ): boolean {
+        const got = this.#resolve(where, property, write);
+        return got.every((value, row) => agree(value, want[row]));
+    }
+
+    /**
+     * The predicate of a layer's selector: short, matching at least every element the layer
+     * paints, or a membership value written onto those elements.
+     * @param selector - The selector.
+     * @param painted - Per row, whether the layer painted it.
+     * @param at - The layer's place, for the membership key.
+     * @returns The predicate.
+     */
+    #whereOf(selector: LayerSpec["selector"], painted: readonly boolean[], at: number): Predicate {
+        let where: Predicate | null = null;
+        if (selector.match === "everything") {
+            where = { all: true };
+        } else if (selector.match === "has") {
+            const ref = this.#refOf(selector.path);
+            where = ref === null ? null : { has: ref };
+        }
+
+        if (where !== null) {
+            const matched = this.#resolve(where, "graphty:member", { set: true });
+            if (painted.every((paints, row) => !paints || matched[row] !== null)) {
+                return where;
+            }
+        }
+
+        const key = this.#keep(
+            `layer.${String(at)}.member`,
+            painted.map((paints) => (paints ? true : null)),
+        );
+        return { has: { style: key } };
+    }
+
+    /**
+     * A binding as a mapping of graph-io's, when it has one.
+     * @param binding - The binding.
+     * @param binding.by - The path it reads.
+     * @param convert - How a channel value becomes the property's value.
+     * @returns The mapping, or null.
+     */
+    #mappingOf(
+        binding: Extract<Binding, { by: Path }>,
+        convert: (value: unknown) => StyleValue | null,
+    ): { map: Mapping } | null {
+        const by = this.#refOf(binding.by);
+        if (by === null || binding.palette !== undefined) {
+            return null;
+        }
+
+        if (binding.stops !== undefined) {
+            const points: ContinuousPoint[] = [];
+            for (const stop of binding.stops) {
+                const value = convert(stop.value);
+                const below = convert(stop.below ?? stop.value);
+                const above = convert(stop.above ?? stop.value);
+                if (value === null || below === null || above === null) {
+                    return null;
+                }
+
+                points.push({ at: stop.at, below, value, above });
+            }
+
+            return { map: { kind: "continuous", by, points } };
+        }
+
+        const scale = binding.scale ?? "passthrough";
+        if (scale === "passthrough") {
+            if (binding.map === undefined) {
+                return { map: { kind: "passthrough", by } };
+            }
+
+            const entries: [string, StyleValue][] = [];
+            for (const [key, value] of Object.entries(binding.map)) {
+                const converted = convert(value);
+                if (converted === null) {
+                    return null;
+                }
+
+                entries.push([key, converted]);
+            }
+
+            return { map: { kind: "discrete", by, table: entries } };
+        }
+
+        const { domain, range } = binding;
+        if (scale === "linear" && Array.isArray(domain) && Array.isArray(range) && domain[0] < domain[1]) {
+            const ends = range.map((value) => convert(value));
+            if (ends[0] === null || ends[1] === null) {
+                return null;
+            }
+
+            const point = (x: number, value: StyleValue): ContinuousPoint => ({
+                at: x,
+                below: value,
+                value,
+                above: value,
+            });
+            return {
+                map: { kind: "continuous", by, points: [point(domain[0], ends[0]), point(domain[1], ends[1])] },
+            };
+        }
+
+        return null;
+    }
+
+    /**
+     * The layer as `applyTemplate` takes it, when every path it reads will be in the file: its
+     * file-style paths are written under the same keys, its data columns are written, and the live
+     * degrees are graphty's own.
+     * @param entry - The layer.
+     * @returns The spec, or null.
+     */
+    #specOf(entry: CompiledLayer): LayerSpec | null {
+        const { layer } = entry;
+        if (!entry.reads.every((path) => this.#refOf(path) !== null)) {
+            return null;
+        }
+
+        if (layer.selector.match === "ids" || layer.selector.match === "member") {
+            return null;
+        }
+
+        return {
+            name: layer.name,
+            target: layer.target,
+            kind: layer.kind,
+            selector: layer.selector,
+            ...(layer.set === undefined ? {} : { set: layer.set }),
+            ...(layer.encode === undefined ? {} : { encode: layer.encode }),
+            ...(layer.userData === undefined ? {} : { userData: layer.userData }),
+        };
+    }
+
+    /** The elements the session hides, as a rule the load gives back to the visibility filter. */
+    #hidden(): void {
+        const hidden = this.#input.hidden[this.#kind];
+        if (!hidden.some(Boolean)) {
+            return;
+        }
+
+        const key = this.#keep(
+            "hidden",
+            hidden.map((value) => (value ? true : null)),
+        );
+        this.#rules.push({
+            id: this.#ruleId(`${this.#kind}.hidden`),
+            target: this.#kind,
+            role: "group",
+            origin: "declared",
+            where: { has: { style: key } },
+            set: { visible: false },
+            facts: { elements: hidden.filter(Boolean).length },
+        });
+    }
+}
+
+/**
+ * The role of the rule a layer makes.
+ * @param kind - The layer's kind.
+ * @param mapped - Whether the rule maps any value.
+ * @returns The role.
+ */
+function roleOf(kind: string, mapped: boolean): StyleRuleRole {
+    if (kind === "base") {
+        return "defaults";
+    }
+
+    if (kind === "encoding") {
+        return mapped ? "mapping" : "group";
+    }
+
+    return mapped ? "passthrough" : "group";
+}
+
+/**
+ * The layer stack as neutral styles, for graph-io to write.
+ * @param input - The stack, the graph and what the element draws.
+ * @returns The styles, and what lost its editable form.
+ */
+export function layersToStyles(input: LayersToStylesInput): LayersToStyles {
+    const node = new KindExport(input, "node");
+    const edge = new KindExport(input, "edge");
+    const nodes = node.run();
+    const edges = edge.run();
+    const { snapshot } = input;
+    return {
+        extracted: {
+            styles: {
+                version: 1,
+                source: { format: input.format, dialect: "graphty", tool: "graphty" },
+                units: { length: "px" },
+                graph: {},
+                rules: [...nodes.rules, ...edges.rules],
+                notes: [],
+            },
+            columns: { node: nodes.columns, edge: edges.columns },
+            features: { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") },
+            fingerprint: styleFingerprint(snapshot),
+        },
+        flattened: [...node.flattened, ...edge.flattened],
+        unwritten: [...node.unwritten, ...edge.unwritten],
+    };
+}

@@ -177,6 +177,7 @@ export { recommendLayout } from "./src/session";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    ExportStyleLossCode,
     FileStyleCode,
     FileStyleColumnValues,
     FileStyleKind,
@@ -199,6 +200,7 @@ export type {
 } from "./src/session";
 export { LOAD_ROLES } from "./src/session";
 export {
+    EXPORT_STYLE_LOSS_CODES,
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,
     FILE_STYLE_SHAPES,

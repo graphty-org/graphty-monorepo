@@ -29,7 +29,7 @@ export interface FormatWriterRegistration {
     readonly descriptor: FormatDescriptor;
     /**
      * The options the writer accepts beside the common ones (graph-io's `sanitizeIds` and
-     * `onMixedDirection`, and the element's `notes`). An export naming any other option is refused
+     * `onMixedDirection`, and the element's `notes` and `styles`). An export naming any other option is refused
      * with `E_UNKNOWN_OPTION`.
      */
     readonly writerOptions?: readonly OptionDescriptor[];
@@ -40,8 +40,8 @@ export interface FormatWriterRegistration {
 
 /**
  * The options every writer takes, whatever the format: graph-io's `sanitizeIds` and
- * `onMixedDirection`, and the element's own `notes`, which the element reads and never hands to
- * the exporter.
+ * `onMixedDirection`, and the element's own `notes` and `styles`, which the element reads and
+ * never hands to the exporter as they are.
  */
 export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
     {
@@ -79,6 +79,18 @@ export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
             "Write the graphty.notes.count and graphty.notes.text columns on the nodes and edges notes " +
             "name. Off by default, so notes are never shared by accident; every export of a session " +
             "holding notes reports W_GRAPHTY_NOTES either way.",
+    },
+    {
+        name: "styles",
+        plainName: "Include Styles",
+        technicalName: "styles",
+        type: "boolean",
+        default: false,
+        description:
+            "Write the style layers into the file: each element's look in the format's own style slots and, " +
+            "where the format can keep them, the layers, so loading the file back with styles rebuilds them. " +
+            "What the format cannot hold is reported as a W_STYLE_ loss before anything is written. Off by " +
+            "default, so the file is exactly what it was before styles could be written.",
     },
 ];
 

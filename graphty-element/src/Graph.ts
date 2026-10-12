@@ -6103,12 +6103,20 @@ export class Graph implements GraphContext {
      * names gets the `graphty.notes.count` and `graphty.notes.text` columns. Either way an export
      * of a session holding notes reports `W_GRAPHTY_NOTES`.
      *
+     * The style layers are written when `{ styles: true }` asks for them: each element's look in
+     * the format's own style slots and, where the format can keep them, the layers themselves, so
+     * loading the file back with `styles: "file"` rebuilds them. The drawn colour, size and width
+     * columns are then left out, because the format's style writer carries the look. What the
+     * format cannot hold is a `W_STYLE_` loss, listed before anything is written. Without the
+     * option the file is what it always was, and a graph with layers of its own reports
+     * `W_STYLES_NOT_EXPORTED`.
+     *
      * Every built-in format can be written, and so can any format a writer was registered for
      * with `registerFormatWriter`. A Neo4j admin-import file is `exportGraph("csv", { variant:
      * "neo4j" })`.
      * @param format - The format id, as `session.catalog.formats()` lists it.
      * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
-     * and the element's `notes`.
+     * and the element's `notes` and `styles`.
      * @returns What the export loses (`losses`, coded facts), and the document as text or as UTF-8
      * chunks.
      * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,

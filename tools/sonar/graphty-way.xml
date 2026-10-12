@@ -28,9 +28,14 @@
         <!-- for...of over an index loop (34). Decided in stage 3: most hits are index loops over typed
              arrays in the kernels, where the index loop is the deliberate hot-path form; the rest is taste. -->
         <deactivate rule="typescript:S4138" />
+        <!-- Unnecessary spread (21). Decided in stage 3: every site is `for (const x of [...collection])`,
+             a copy taken on purpose because the loop adds to or deletes from the collection it walks. -->
+        <deactivate rule="typescript:S7747" />
     </language>
     <language key="js">
         <!-- Negated condition with an else. Off, as for TypeScript above. -->
         <deactivate rule="javascript:S7735" />
+        <!-- Unnecessary spread. Off, as for TypeScript above. -->
+        <deactivate rule="javascript:S7747" />
     </language>
 </graphty-way>

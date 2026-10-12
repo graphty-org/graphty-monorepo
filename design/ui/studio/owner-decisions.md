@@ -4,6 +4,29 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-12 -- For the owner: the breaking pieces of unified styles in the real app
+
+**What.** Not built; questions. Building unified style layers into the graphty app (design:
+`design/ui/studio/tier3/design.md`, section 8) needs these changes, each of which alters what an
+existing graphty-element API does or a default, or reverses one of the owner's own rules. The build
+uses an additive alternative for each, so nothing waits on the answers.
+
+1. One layer that paints nodes and edges together widens the `target` a consumer reads back. Until
+   then a both-kinds layer is a row of the new style tree that owns a node part and an edge part.
+2. Turning the new `startingRows` option (Everything, Selected and Hovered as rows; the selection
+   look drawn by the Selected row) and the run placement `top` on by default, and deprecating
+   `selectionStyle`. They belong in one major with the model's other breaking items
+   (`design/ui/unified-style-layers.md`, section 10).
+3. The default selection halo measures 1.13:1 against the default background (3:1 needed), and
+   with white text only one of the nine label badges passes 4.5:1. Recoloring either changes
+   existing output.
+4. Label animations and edge motion ignore the reader's reduced-motion setting; following it by
+   default changes a default.
+5. Only if the route layer still scrolls at 900 x 700 after the panel is shortened: collapsible
+   Nodes and Edges groups, which reverses the "never accordions" rule.
+
+**Why.** The owner settled the model; these are the release and default questions it leaves.
+
 ## 2026-10-11 -- Decided by the team: "or more" for a number inside a column's range, one rule spelling, and no refused suggestion
 
 **What.** To build for tier 2 round 5, all in graphty-element's `./session` entry.

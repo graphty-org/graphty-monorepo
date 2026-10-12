@@ -5,10 +5,21 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-11 (tier 2 report rewritten after the valid round 5 re-run).
+Last updated: 2026-10-12 (tier 3 design: the twelve unified-style decisions and the build plan).
 
 ## Top of mind
 
+- 2026-10-12: TIER 3 IS A BUILD, NOT A STUDY, until the owner approves the UI. Design and plan:
+  `tier3/design.md` (24 units: 8 element, 2 compact-mantine, 10 app, 4 values/tests/stories/docs).
+  Owner checkpoints after the tree + Style tab, after pickers/popovers/labels/effects, after layer 4.
+- 2026-10-12: The real app draws NO unbuilt item -- the mock's "marked" controls do not carry over.
+  A control lands when the element can do it. Watch for disabled "not yet" glyphs creeping back.
+- 2026-10-12: Both-kinds layers ship as element style-tree rows owning a node part and an edge
+  part; `styles.list()` keeps single `target`. The app reads only `styles.tree()`. If anyone builds
+  the pairing in the app, that is the workaround the rules forbid -- stop it.
+- 2026-10-12: Owner items for tier 3 are five (owner-decisions.md 2026-10-12): both-kinds `target`,
+  starting rows + run placement defaults, selection/badge contrast, reduced motion, accordions only
+  if 900 x 700 still scrolls.
 - 2026-10-11: ROUND 5 RE-RUN IS VALID: 55 of 55 on 8c015b806, gate passed, leak check read one log
   per session. Fails only bar 9 (b) (edge inspector 29 vs 27) and bar 10 (drawn names/nodes
   overlapping, element). Owed: r5-s02bb (Ruth, T22 B). Round 4's three owed sessions were never
@@ -148,6 +159,28 @@ Last updated: 2026-10-11 (tier 2 report rewritten after the valid round 5 re-run
   as rounds 3 and 4's folders were. `workflow-tier2.js` stays out of git on purpose
   (`.git/info/exclude`); round 5's insights said to commit it, I did not.
 
+- 2026-10-12 -- Tier 3 decisions (full text `tier3/design.md` section 1). "+" only on lists;
+  seven core one-value properties always drawn on four paired rows with "beneath" placeholders,
+  rare ones behind the row's settings button, yes/no as two-word selects with an empty state.
+  Shorten instead of hide (no empty titles, paired rows, sticky headings), no accordions/tabs
+  unless 900 x 700 fails. Hide a kind group by the kind choice, not the count. Vary picker: search,
+  In use/Data/run/Facts, misfits folded, no new fit check (proposeEncoding). Ramp editor in
+  compact-mantine fed by one `styles.preview` call; domain and clamp separate. Split parent is a
+  layer with its own glyph; split offered on any categorical layer; runs arrive unsplit. One Which
+  elements: Nodes|Edges|Both + one rule + between/touching. Coverage is a test. Labels: look
+  select (new element looks that pass 4.5:1, not the badges) + one popover, "Edited". Picking:
+  conditions shared with Filters, find offers rules, selection makes a layer; text leaf on find's
+  matcher; odd ids by `[13579]$` on the id, no modulo. Vary on every bindable field; build label
+  size/color/background channels rather than show disabled glyphs. Reasons: one home per thing,
+  no unbuilt item drawn, one matcher for find and rules, element owns every fact.
+- 2026-10-12 -- Chose element style-tree rows over a `targets` field or app pairing for both-kinds
+  layers: additive, the element's own representation, and the app's code survives the major.
+- 2026-10-12 -- Everything starts writing nothing (floor shows through its placeholders); Hovered
+  starts writing nothing; Selected starts with today's halo and band as effects. Reason: neutral
+  defaults; the model left these to the build.
+- 2026-10-12 -- Held as second doors until a study shows need: "Vary color by this" from a table
+  column, "Show by" in the Values tab, saved label looks, a per-property pause eye.
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-08 (summarized; full text in git history) -- Worked: piloting every task on each
@@ -215,6 +248,11 @@ Last updated: 2026-10-11 (tier 2 report rewritten after the valid round 5 re-run
   go. The honest next move is real people, or tasks rebuilt around the fixed screens, after the
   histories, setups, prompts and step counts are checked against what each round scores.
 
+- **2026-10-12, tier 3:** eight proposals agreed on direction; the risk was overlap -- about
+  20 element calls, several the same question under four names, some already existing
+  (`proposeEncoding`). Ask "does the element already answer this?" before naming a new call, and
+  give each question one call.
+
 ## Sources
 
 - Tier 2 round 3 (2026-10-10): `tier2/rounds/round-3/{plan,scores,insights,decisions}.md`;
@@ -238,3 +276,7 @@ Last updated: 2026-10-11 (tier 2 report rewritten after the valid round 5 re-run
 - Tier 2 round 5 (first run void, re-run valid): `tier2/rounds/round-5/{plan,scores,insights,table}.md`,
   `expert/`, `claims/`, sessions `r5-s01b`..`r5-s56b`; build 8c015b806. PR #1727 (breaking table). Run scripts: `tier2/rounds/workflow-tier2.js` (main, excluded from
   git) and the main checkout's `tmp/studio-resume/workflow-tier2-continue.js` (the stale fork).
+- Tier 3 (2026-10-12): `tier3/design.md` (decisions, panel, coverage table, element additions,
+  owner items, units); proposals `tier3/decide/{ia,interaction,figma,visual,content,a11y,user,engineer}.md`;
+  `tier3/style-catalog.md`; model `design/ui/unified-style-layers.md`; mock and organization design
+  on branch `mock/style-panel` (pull request #2098).

@@ -2468,9 +2468,7 @@ export class Dispatcher {
         }
 
         // Rule 1: pending work newer than the step.
-        const newer = open.filter(
-            (group) => group.seq > since || (direction === "undo" && target !== undefined && group.after === target.id),
-        );
+        const newer = open.filter((group) => group.seq > since || (direction === "undo" && group.after === target?.id));
         const newest = newer.at(-1);
         if (newest !== undefined) {
             return { cancel: this.cascade([newest]) };

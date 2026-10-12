@@ -57,6 +57,14 @@ export class GpuUnavailableError extends Error {
     }
 }
 
+/**
+ * The error a call on a destroyed Cytoscape core rejects with, or a layout run started on one emits as layouterror.
+ * @returns the error, `code` "E_CORE_DESTROYED"
+ */
+export function coreDestroyedError(): Error & { readonly code: "E_CORE_DESTROYED" } {
+    return Object.assign(new Error("graphty: the Cytoscape core was destroyed"), { code: "E_CORE_DESTROYED" as const });
+}
+
 /** Probes, constructs and verifies a device, or throws GpuUnavailableError. */
 export interface GpuProvider {
     acquire(): Promise<AcquiredGpu>;
@@ -333,7 +341,7 @@ export async function gpuFor(cy: Core, mode: GpuMode = "auto"): Promise<Decision
             d = { gpu: null, ...src };
         } else {
             if (g.destroyed) {
-                throw new Error("graphty: the Cytoscape core was destroyed");
+                throw coreDestroyedError();
             }
             if (g.decision === null || g.by !== src) {
                 disposeWhenDecided(g.decision);

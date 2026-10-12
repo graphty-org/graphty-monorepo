@@ -73,6 +73,11 @@ rather than implied:
 { match: "member", of: { set: id } }           // the members of a set, or any other scope
 ```
 
+An `ids` selector finds an integer id in either spelling, as every other id lookup does: `["1", "3"]`
+paints nodes `1` and `3` of a graph whose ids are numbers. An id that names nothing paints nothing,
+and `styles.validate()` and the `style:changed` change report it as a `W_UNKNOWN_ID` warning, with
+`params.target` and `params.ids` (the ids as the layer named them).
+
 ### A set
 
 `{ match: "member", of: scope }` paints the members of a kept [set](./sets), or of anything else a
@@ -177,7 +182,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.opacity`      | 0 to 1                                                             |
 | `node.outline`      | a colour                                                           |
 | `node.glow`         | a colour                                                           |
-| `node.glowStrength` | a number                                                           |
+| `node.glowStrength` | a number that scales `node.glow`; on its own it draws no glow      |
 | `node.wireframe`    | true or false                                                      |
 | `node.flat`         | true or false                                                      |
 

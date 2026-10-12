@@ -7,6 +7,7 @@
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { EdgeId } from "../../src/catalog/types";
+import type { StyleChangedEvent } from "../../src/events";
 import { Graph, operationQueueOf } from "../../src/Graph";
 
 const cleanups: (() => void)[] = [];
@@ -58,5 +59,32 @@ describe("either spelling of an integer id on the element", () => {
 
         await graph.removeEdges([asNumber]);
         assert.strictEqual(graph.getSession().snapshot().edgeCount, 0);
+    });
+
+    it('a { match: "ids" } style layer paints node 34 named "34", and reports ids that name nothing', async () => {
+        const { graph } = await loadedGraph();
+        const told: StyleChangedEvent[] = [];
+        const stop = graph.on("style-changed", (event) => told.push(event));
+        cleanups.push(stop);
+
+        const layer = await graph.getSession().styles.add({
+            name: "Named as text",
+            target: "node",
+            selector: { match: "ids", nodes: ["34", "99"] },
+            set: { "node.color": "#ff0000" },
+        });
+
+        assert.strictEqual(graph.getSession().styles.counts(layer.id).matched, 1);
+        assert.strictEqual(
+            graph
+                .getSession()
+                .styles.explain({ node: 34 })
+                .channels.find((each) => each.channel === "node.color")?.layerId,
+            layer.id,
+        );
+        assert.deepStrictEqual(
+            told.map((event) => event.warnings),
+            [[{ code: "W_UNKNOWN_ID", params: { target: "node", ids: ["99"] } }]],
+        );
     });
 });

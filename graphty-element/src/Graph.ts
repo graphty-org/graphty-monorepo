@@ -878,6 +878,7 @@ export class Graph implements GraphContext {
                 layers: change.layers.length,
                 painted: change.painted,
                 unresolvedPaths: [...change.unresolvedPaths],
+                warnings: change.warnings,
             });
         });
 

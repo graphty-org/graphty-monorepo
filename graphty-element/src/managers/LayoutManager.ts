@@ -1671,7 +1671,7 @@ export class LayoutManager implements Manager {
     releaseDetachedScope(): void {
         const scope = this.carriedScope;
         const source = this.scopeSource;
-        if (this.members === null || scope === undefined || source === null || !source.detached(scope)) {
+        if (this.members === null || scope === undefined || !source?.detached(scope)) {
             return;
         }
 

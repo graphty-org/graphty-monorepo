@@ -250,7 +250,8 @@ export class NodeEffects {
      * accepted, paid for, and dropped on the floor. That is the product owner's report "glow
      * doesn't work" exactly. This method is the missing renderer, and it is
      * deliberately shaped like `applyOutlineEffect` -- same call site in `Node.updateStyle`, same
-     * presence-means-enabled model, same try/catch -- so the two effects cannot drift apart.
+     * try/catch -- so the two effects cannot drift apart. Unlike the outline, glow is on only
+     * when the merged style names a glow colour: a strength on its own draws nothing.
      *
      * ORDERING TRAP, do not "fix" this by touching the material: `NodeMesh.createMaterial` calls
      * `mat.freeze()` immediately after building it. The highlight layer's per-mesh color is the
@@ -270,9 +271,15 @@ export class NodeEffects {
         const scene = mesh.getScene();
         const renderedMesh = this.resolveRenderedMesh(mesh);
 
-        if (effect?.glow) {
+        // A COLOUR SWITCHES GLOW ON; a strength alone does not. `node.glowStrength` writes
+        // `effect.glow.strength`, so a layer that binds only a strength (to a metric, say) leaves
+        // an `effect.glow` with no colour on every node it paints. Treated as "glow on", that drew
+        // the white fallback on all of them (#2068). The strength only scales a colour some layer set.
+        const colorValue = this.extractColorValue(effect?.glow?.color);
+        if (effect?.glow && colorValue !== undefined) {
             const glowLayer = this.getOrCreateGlowLayer(scene);
-            const { color, alpha } = babylonColor(this.extractColorValue(effect.glow.color), DEFAULT_GLOW_COLOR);
+            // The fallback only covers an unreadable color string; a missing one never gets here.
+            const { color, alpha } = babylonColor(colorValue, DEFAULT_GLOW_COLOR);
             this.glowStrengths(scene).set(renderedMesh, { strength: effect.glow.strength ?? 1, alpha });
 
             // Same defence as the outline path: a mesh in an unexpected state must not take down

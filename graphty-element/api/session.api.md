@@ -1291,7 +1291,13 @@ export type GraphtyWarningCode =
 /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
 | "W_DATA_DIFFERS"
 /** A run was still computing when the project was saved, so the file does not hold it. */
-| "W_RUN_PENDING";
+| "W_RUN_PENDING"
+/**
+* A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
+* to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
+* `"edge"`, and `params.ids` the ids as the layer named them.
+*/
+| "W_UNKNOWN_ID";
 
 // @public
 export interface HighlightSpec {
@@ -1735,6 +1741,7 @@ export interface MachineCalibration {
     readonly at: string;
     readonly basis: "probe" | "defaults";
     readonly machine: string;
+    readonly memorySpeed?: number;
     readonly rates: Readonly<CostRates>;
 }
 
@@ -3578,6 +3585,7 @@ export interface StyleChange {
     readonly painted: RepaintReport | null;
     readonly reason: RepaintReason;
     readonly unresolvedPaths: readonly Path[];
+    readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
 }
 
 // @public
@@ -3788,6 +3796,7 @@ export interface ValidationResult {
     readonly ok: boolean;
     readonly shadowedPaths: readonly Path[];
     readonly unresolvedPaths: readonly Path[];
+    readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
 }
 
 // @public

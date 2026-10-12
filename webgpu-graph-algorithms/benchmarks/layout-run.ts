@@ -263,7 +263,7 @@ async function main(): Promise<number> {
     const ctx = await createNodeGpuContext({ adapter: process.env.GRAPHTY_GPU_ADAPTER, label: "layout-run" });
     try {
         const { caps } = ctx;
-        const profiled = ctx.profiler !== null && ctx.profiler.enabled;
+        const profiled = ctx.profiler?.enabled === true;
         console.log(
             `layout-run: n=${args.nodes} m=${args.edges} dim=${args.dim} compat=${args.compat} seed=${args.seed} ` +
                 `batch=${args.batch} maxIter=${args.iterations} repulsion=${args.repulsion}`,

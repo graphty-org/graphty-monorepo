@@ -631,7 +631,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const currentFrame = (): VisibilityFrame => {
         const graph = sources.snapshot();
 
-        if (frame === null || frame.graph !== graph) {
+        if (frame?.graph !== graph) {
             frame = { graph, nodeSpace: nodeSpaceOf(graph), edgeSpace: edgeSpaceOf(graph) };
         }
 

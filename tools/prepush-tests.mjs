@@ -54,10 +54,13 @@ import { createRequire } from "node:module";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { SHARDS } from "./ci-test-matrix.mjs";
 import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-inputs.mjs";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+// The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
+// another checkout, else this file's own. Its own CI matrix decides the shards, as CI's run on it will.
+const ROOT = process.env.PREPUSH_ROOT || join(dirname(fileURLToPath(import.meta.url)), "..");
+delete process.env.PREPUSH_ROOT;
+const { SHARDS } = await import(pathToFileURL(join(ROOT, "tools/ci-test-matrix.mjs")).href);
 
 /**
  * The shards CI's test matrix runs for these affected projects, as plan() selects them before it
@@ -191,6 +194,7 @@ function childTriggers(shards, changed) {
                       [fileURLToPath(import.meta.url), "--triggers", ...asked.map((s) => s.shard)],
                       {
                           cwd: ROOT,
+                          env: { ...process.env, PREPUSH_ROOT: ROOT },
                           encoding: "utf8",
                           stdio: ["ignore", "pipe", "inherit"],
                       },

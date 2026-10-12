@@ -204,8 +204,9 @@ const COMPOUND_LINES: readonly CompoundLine[] = [
             { channel: "node.glow", word: "Color", atRest: true },
             { channel: "node.glowStrength", word: "Strength", atRest: true },
         ],
-        // The element draws its built-in glow color when no color is set.
-        adds: "node.glowStrength",
+        // A glow is switched on by its color (a strength alone draws nothing), so "+" writes the
+        // element's default glow color and leaves the strength at the element's default.
+        adds: "node.glow",
     },
     arrowLine("Head"),
     arrowLine("Tail"),

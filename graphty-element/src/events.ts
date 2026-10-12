@@ -295,6 +295,8 @@ export interface StyleChangedEvent {
     painted: StyleChange["painted"];
     /** The paths the changed layers read that nothing in the session answers yet. */
     unresolvedPaths: string[];
+    /** What the changed layers will paint nothing for, as codes (`W_UNKNOWN_ID`). */
+    warnings: StyleChange["warnings"];
 }
 
 // Data loading events

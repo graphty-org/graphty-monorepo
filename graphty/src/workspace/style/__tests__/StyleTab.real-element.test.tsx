@@ -465,7 +465,7 @@ describe("the Style tab on the real element", () => {
         });
     });
 
-    it("Glow is one line: added as its strength alone, edited in a titled popover, removed in one undo step", async () => {
+    it("Glow is one line: added as its default color, edited in a titled popover, removed in one undo step", async () => {
         const { session } = await openWithGraph();
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         const effects = within(tab).getByRole("group", { name: "Effects" });
@@ -474,17 +474,17 @@ describe("the Style tab on the real element", () => {
         assert.include(items, "Glow");
         assert.notInclude(items, "Glow strength");
         await userEvent.click(screen.getByRole("menuitem", { name: "Glow" }));
+        const glowColor = String(channelsFor("node").find((d) => d.channel === "node.glow")?.default);
         await waitFor(() => {
             const set = readerLayers(session)[0]?.set;
-            assert.equal(set?.["node.glowStrength"], 1);
-            assert.isUndefined(set?.["node.glow"], "the element draws its own glow color");
+            // A glow with no color draws nothing, so "+" writes the element's default color.
+            assert.equal(set?.["node.glow"], glowColor);
+            assert.isUndefined(set?.["node.glowStrength"], "the element draws its own default strength");
         });
 
         await userEvent.click(within(styleTab()).getByRole("button", { name: /^Glow: / }));
         const popover = await screen.findByRole("dialog", { name: "Glow" });
         assert.isNotNull(within(popover).getByRole("group", { name: "Color" }));
-        // Unset, the color shows what the element draws, not an invented black.
-        const glowColor = String(channelsFor("node").find((d) => d.channel === "node.glow")?.default);
         assert.include(
             [...popover.querySelectorAll("input")].map((i) => `#${i.value}`.toUpperCase()),
             glowColor.toUpperCase(),
@@ -508,7 +508,7 @@ describe("the Style tab on the real element", () => {
         await waitFor(() => {
             const set = readerLayers(session)[0]?.set;
             assert.equal(set?.["node.glow"], "#FF0000");
-            assert.equal(set?.["node.glowStrength"], 1);
+            assert.isUndefined(set?.["node.glowStrength"]);
         });
     });
 

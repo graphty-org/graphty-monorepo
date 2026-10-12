@@ -1599,7 +1599,7 @@ class Runs implements SessionRunsApi {
         const { layerIds } = removal;
         const run = this.runs.get(id);
 
-        if (run !== undefined && run.cancellable) {
+        if (run?.cancellable) {
             this.dropped.add(id);
             run.cancel(`Run "${id}" was removed.`);
         }

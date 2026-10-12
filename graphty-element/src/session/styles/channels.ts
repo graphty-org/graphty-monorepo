@@ -371,8 +371,9 @@ export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "ar
 export const DEFAULT_OUTLINE_COLOR = "#FFFF00";
 
 /**
- * The colour a glow is drawn in when a style switches one on without naming a colour.
- * Cyan rather than white: the glow is drawn around the node over the element's light (#F5F5F5)
+ * The glow color to start from when switching a glow on: the `node.glow` channel's default. A glow
+ * is drawn only when a style names a color (a strength alone draws nothing), so a consumer that
+ * turns glow on writes this color. Cyan rather than white: the glow is drawn around the node over the element's light (#F5F5F5)
  * canvas, where a white glow would not be seen. A saturated cyan leaves a visible halo there.
  */
 export const DEFAULT_GLOW_COLOR = "#00B4FF";
@@ -666,7 +667,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Glow",
         shortName: "Glow",
         group: "effects",
-        // The colour a glow is drawn in when a style switches one on without naming one.
+        // The color to start a glow with. A glow is drawn only once a style names a color.
         default: DEFAULT_GLOW_COLOR,
         accepts: "color",
         stylePath: "effect.glow.color",

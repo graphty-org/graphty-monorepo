@@ -73,6 +73,11 @@ rather than implied:
 { match: "member", of: { set: id } }           // the members of a set, or any other scope
 ```
 
+An `ids` selector finds an integer id in either spelling, as every other id lookup does: `["1", "3"]`
+paints nodes `1` and `3` of a graph whose ids are numbers. An id that names nothing paints nothing,
+and `styles.validate()` and the `style:changed` change report it as a `W_UNKNOWN_ID` warning, with
+`params.target` and `params.ids` (the ids as the layer named them).
+
 ### A set
 
 `{ match: "member", of: scope }` paints the members of a kept [set](./sets), or of anything else a
@@ -177,7 +182,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.opacity`      | 0 to 1                                                             |
 | `node.outline`      | a colour                                                           |
 | `node.glow`         | a colour                                                           |
-| `node.glowStrength` | a number                                                           |
+| `node.glowStrength` | a number that scales `node.glow`; on its own it draws no glow      |
 | `node.wireframe`    | true or false                                                      |
 | `node.flat`         | true or false                                                      |
 
@@ -204,6 +209,14 @@ A channel is one visual property with one name. These are all of them:
 | `edge.animationSpeed`     | a number                                                                   |
 | `edge.label`              | the words to draw                                                          |
 | `edge.labelStyle`         | as `node.labelStyle`                                                       |
+
+A colour may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
+`edge.color` and the two arrow colours the alpha multiplies the matching opacity channel, so
+`#ff000080` draws as `#ff0000` at opacity 0.5; an arrow with no colour of its own takes its line's
+colour, alpha included. On `node.glow` it fades the glow. An outline cannot be drawn translucent:
+`node.outline` draws the colour opaque, and `styles.validate()` and the `style:changed` change
+report it as a `W_ALPHA_IGNORED` warning, with `params.channel` and `params.path`. The selection
+halo's colour (`setSelectionStyle`) works the same way, multiplied with its `opacity`.
 
 Writing `node.label` or `edge.label` is what switches a label on. To switch node labels on
 without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labelled

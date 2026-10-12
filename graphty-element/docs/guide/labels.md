@@ -54,11 +54,11 @@ reading it never forces a frame.
 counted under one of them at most: a label whose node is hidden is never also counted as hidden by
 overlap. So `labeled - nodeHidden - hiddenByOverlap` is how many labels the element draws.
 
-| Field             | What it counts                                                                                  |
-| ----------------- | ----------------------------------------------------------------------------------------------- |
-| `labeled`         | Nodes whose label has text to draw. A node counts once, however many lines it has.              |
-| `nodeHidden`      | Labels not drawn because their node is not drawn (see below).                                   |
-| `hiddenByOverlap` | Labels in view that declutter hid because they would overlap a kept one. Never a hidden node's. |
+| Field             | What it counts                                                                                                                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `labeled`         | Nodes whose label has text to draw. A node counts once, however many lines it has.                                                                                                 |
+| `nodeHidden`      | Labels not drawn because their node is not drawn (see below).                                                                                                                      |
+| `hiddenByOverlap` | Labels in view that declutter hid because they would overlap a kept one (or, with `avoidNodesAndEdges`, had no place clear of kept labels and other nodes). Never a hidden node's. |
 
 - A node is not drawn when a filter hides it or when it falls outside the time window (the range
   of dates the graph is showing). The `graphty-visibility-change` event reports both: see [Events](./events#three-more-the-element-mirrors-on-its-own-account).
@@ -92,6 +92,30 @@ next frame. It is a preference of the view: it is not an undo step and a saved p
 your page sets it again after loading one.
 Which label stays is described in [Styling](./styling#labels-that-would-overlap).
 
+## Labels that cover nodes and edges
+
+A label is drawn where its style puts it -- above its node, by default -- even when another node or
+an edge is there. Turn on `layoutBehavior.labels.avoidNodesAndEdges` and the element moves a label
+that would cover one: it tries the label's own place first, then above, below, right, left and the
+four corners of its node, and draws it at the first place that covers no other label, node or edge.
+When every place covers something, it takes the one that covers least (another label is worst, then
+a node, then an edge).
+
+```typescript
+element.layoutBehavior = { labels: { declutter: true, avoidNodesAndEdges: true } }; // both off by default
+```
+
+- With `declutter` on, a label with no place clear of other labels and nodes is hidden and counted in
+  `hiddenByOverlap`. A label that can only be placed over an edge is drawn there.
+- With `declutter` off, no label is hidden: each one is moved to the place that covers least, which
+  may still be over something.
+- Turning it off puts every label back where its style puts it. It is decided again whenever the
+  camera, the canvas size, a node's position, size or visibility, or the labels change, and it is a
+  preference of the view like `declutter`.
+- It costs more than `declutter` alone, because every node and edge is placed on screen as well:
+  about 5 ms a pass at 1,000 nodes and 60 to 80 ms at 10,000, on a workstation. A pass runs only on
+  a frame where something above changed.
+
 ## One node's label
 
 `element.labelOf(id)` returns the label of one node as the element draws it: `{ text, drawn }`, or
@@ -121,7 +145,8 @@ console.log(label?.drawn); // true, or false when the label is hidden
   `<color='...'>`) applied, so the tags are not part of it. A label of several lines has them
   joined with `"\n"`.
 - `drawn` is `false` when the label is not on screen because its node is hidden (a filter or the
-  time window), or because declutter hid it to avoid an overlap. Like the counts above, a label
+  time window), or because declutter hid it to avoid an overlap (with `avoidNodesAndEdges`, also
+  an overlap with a node). Like the counts above, a label
   outside the view still reads `drawn: true`.
 - It reads the most recent frame and never forces one, so after a change, wait for
   `element.waitForStableFrame()` before reading it.

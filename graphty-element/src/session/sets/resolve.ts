@@ -231,7 +231,7 @@ const packed = new WeakMap<ElementMask<unknown>, { version: number; length: numb
  */
 function packMask(mask: ElementMask<unknown>, length: number): U32 {
     const cached = packed.get(mask);
-    if (cached !== undefined && cached.version === mask.version && cached.length === length) {
+    if (cached?.version === mask.version && cached.length === length) {
         return cached.bits;
     }
 

@@ -430,6 +430,7 @@ export interface FieldBand {
 
 // @public
 export interface FieldDescriptor {
+    directedOnly?: boolean;
     interpretation?: FieldInterpretation;
     // (undocumented)
     kind: "node" | "edge" | "graph";
@@ -1389,6 +1390,30 @@ export interface QueryValidation {
         candidates: readonly string[];
     }[];
 }
+
+// @public
+export type ReadableChannelKind = "color" | "number" | "enum" | "text" | "boolean";
+
+// @public
+export interface ReadableValue {
+    readonly completeness: number;
+    readonly fits: readonly ReadableChannelKind[];
+    readonly from: "element" | "data" | "run";
+    readonly kind: ReadableValueKind;
+    readonly on: "node" | "edge";
+    readonly path: Path;
+    readonly plainName: string;
+    readonly range?: {
+        readonly min: number;
+        readonly max: number;
+    };
+    readonly runId?: RunId;
+    readonly technicalName: string;
+    readonly valueCount?: number;
+}
+
+// @public
+export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
 
 // @public
 export const RESULT_SHAPES: readonly ["node-metric", "edge-metric", "community", "layered-grouping", "category-table", "path", "node-set", "edge-set", "pair-list", "temporal", "fact"];

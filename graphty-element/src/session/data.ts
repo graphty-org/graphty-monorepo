@@ -20,6 +20,7 @@ import type {
     AttributeUse,
     EdgeId,
     MeasurementDeclaration,
+    ReadableValue,
     RunId,
     ScopeInput,
 } from "../catalog/types";
@@ -50,6 +51,7 @@ import { frozenRecord } from "./project/draft";
 import { failedEnd, Ingest, progressSource } from "./project/ingest";
 import type { GraphSlice, RunEntry } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
+import { readableValues } from "./readable";
 import {
     primaryResultColumn,
     type ResolvedResult,
@@ -1356,6 +1358,32 @@ export class SessionData implements SessionDataApi {
                   );
         this.attributeOverlay = { described, key, result };
         return result;
+    }
+
+    /**
+     * Every value a rule or a binding can read: the node id, the data columns and the fields
+     * finished runs published per element.
+     * @returns the values, the node id first, then the data columns, then each run's fields
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    readableValues(): readonly ReadableValue[] {
+        const snapshot = this.current();
+        const declarations = this.writes.declarations();
+        const runs: Run[] = [];
+        for (const id of this.pages.runIds()) {
+            const run = this.pages.run(id);
+            if (run !== undefined) {
+                runs.push(run);
+            }
+        }
+
+        return readableValues({
+            snapshot,
+            directed: this.statistics().directedness === "directed",
+            attributes: this.attributes(),
+            declarationOf: (column) => declarations.get(declarationKey(column)),
+            runs,
+        });
     }
 
     /**

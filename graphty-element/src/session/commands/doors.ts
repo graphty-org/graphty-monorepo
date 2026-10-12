@@ -1609,6 +1609,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,
             attributes: READ,
+            readableValues: READ,
             histogram: READ,
             declare: {
                 kind: "dispatches",

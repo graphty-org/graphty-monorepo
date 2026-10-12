@@ -678,6 +678,7 @@ export interface FieldBand {
 
 // @public
 export interface FieldDescriptor {
+    directedOnly?: boolean;
     interpretation?: FieldInterpretation;
     // (undocumented)
     kind: "node" | "edge" | "graph";
@@ -2385,6 +2386,30 @@ export interface RankingEntry {
 }
 
 // @public
+export type ReadableChannelKind = "color" | "number" | "enum" | "text" | "boolean";
+
+// @public
+export interface ReadableValue {
+    readonly completeness: number;
+    readonly fits: readonly ReadableChannelKind[];
+    readonly from: "element" | "data" | "run";
+    readonly kind: ReadableValueKind;
+    readonly on: "node" | "edge";
+    readonly path: Path;
+    readonly plainName: string;
+    readonly range?: {
+        readonly min: number;
+        readonly max: number;
+    };
+    readonly runId?: RunId;
+    readonly technicalName: string;
+    readonly valueCount?: number;
+}
+
+// @public
+export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
+
+// @public
 export type ReadingCode = "reading.metric" | "reading.metric-empty" | "reading.groups" | "reading.groups-empty" | "reading.path" | "reading.path-none" | "reading.set" | "reading.pairs" | "reading.series" | "reading.coverage";
 
 // @public
@@ -3372,6 +3397,7 @@ export interface SessionDataApi {
     prepare(source: DataSourceInput, options?: {
         readonly signal?: AbortSignal;
     }): Promise<LoadDraft>;
+    readableValues(): readonly ReadableValue[];
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
     renameSource(name: string): Promise<void>;

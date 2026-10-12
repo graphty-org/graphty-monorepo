@@ -659,24 +659,74 @@ function chooseDefault(
     scales: ScaleRegistry,
 ): DefaultChoice {
     const { accepts } = descriptor;
-    const { measurement } = column;
-    const groups = accepts === "color" || accepts === "enum";
+    const route = defaultRoute(column, declaration, accepts);
+    switch (route.kind) {
+        case "groups":
+            return chooseForGroups(spec, column, accepts, scales);
+        case "order":
+            return chooseForOrder(spec, route.order, descriptor);
+        case "amounts":
+            return chooseForAmounts(spec, descriptor, scales);
+        default:
+            // Time has no default yet; groups on a size or amounts on a shape have none at all.
+            return { refuse: "E_UNSUPPORTED" };
+    }
+}
 
-    if (measurement === "categorical" && groups) {
-        return chooseForGroups(spec, column, accepts, scales);
+/** Which default a column's measurement leads to on a kind of channel, before any palette. */
+type DefaultRoute =
+    | { readonly kind: "groups" | "amounts" | "none" }
+    | { readonly kind: "order"; readonly order: readonly (string | number)[] };
+
+/**
+ * Which default a column gets on a kind of channel: the one decision both
+ * {@link proposeColumnBinding} and {@link columnFits} read.
+ * @param column - The column's measurement.
+ * @param declaration - The column's declaration, read for an ordinal column's order.
+ * @param accepts - What the channel carries.
+ * @returns The route.
+ */
+function defaultRoute(
+    column: Pick<AttributeDescriptor, "measurement">,
+    declaration: MeasurementDeclaration | undefined,
+    accepts: ChannelValueKind,
+): DefaultRoute {
+    const { measurement } = column;
+    if (measurement === "categorical" && (accepts === "color" || accepts === "enum")) {
+        return { kind: "groups" };
     }
 
     const order = declaration?.measurement === "ordinal" ? declaration.order : undefined;
     if (measurement === "ordinal" && order !== undefined && accepts !== "enum") {
-        return chooseForOrder(spec, order, descriptor);
+        return { kind: "order", order };
     }
 
-    if (measurement === "quantitative" && accepts !== "enum") {
-        return chooseForAmounts(spec, descriptor, scales);
+    return { kind: measurement === "quantitative" && accepts !== "enum" ? "amounts" : "none" };
+}
+
+/**
+ * Whether a column can drive a kind of channel with no scale named: exactly when
+ * {@link proposeColumnBinding} would propose a binding rather than refuse.
+ * @param column - The column's measurement and distinct count.
+ * @param declaration - The column's declaration, read for an ordinal column's order.
+ * @param accepts - What the channel carries.
+ * @returns True when a binding would be proposed.
+ */
+export function columnFits(
+    column: Pick<AttributeDescriptor, "measurement" | "uniqueCount">,
+    declaration: MeasurementDeclaration | undefined,
+    accepts: ChannelValueKind,
+): boolean {
+    if (accepts === "text" || accepts === "boolean") {
+        return true;
     }
 
-    // Time has no default yet; groups on a size or amounts on a shape have none at all.
-    return { refuse: "E_UNSUPPORTED" };
+    if (accepts === "nothing" || accepts === "labelStyle") {
+        return false;
+    }
+
+    const route = defaultRoute(column, declaration, accepts).kind;
+    return route === "groups" ? column.uniqueCount !== undefined : route !== "none";
 }
 
 /**

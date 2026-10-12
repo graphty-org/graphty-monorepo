@@ -433,6 +433,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 technicalName: "inDegree",
                 kind: "node",
                 type: "integer",
+                directedOnly: true,
             }),
             field({
                 name: "outDegree",
@@ -440,6 +441,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 technicalName: "outDegree",
                 kind: "node",
                 type: "integer",
+                directedOnly: true,
             }),
         ],
         options: optionsOf(DegreeAlgorithm),

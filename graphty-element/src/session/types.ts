@@ -38,6 +38,7 @@ import type {
     LayoutId,
     MeasurementDeclaration,
     Path,
+    ReadableValue,
     RuleTree,
     RunId,
     Scope,
@@ -965,6 +966,29 @@ export interface SessionDataApi {
      */
     attributes(): readonly AttributeDescriptor[];
     /**
+     * Every value a rule or a binding can read, in one list: the node id, every data column and
+     * every field a finished run published per element. Each entry carries its path (what a rule
+     * leaf or a binding's `by` names), its catalog name, its kind (number, category, text or
+     * yes-no), its range or its value count, and the kinds of channel it can drive. A field that
+     * does not exist on this graph is left out: no incoming or outgoing connections on an
+     * undirected graph. A partition's group is a category, so a picker never draws a histogram of
+     * group ids. Any number in the list can rank a "top N" rule.
+     *
+     * ```ts
+     * const numbers = session.data.readableValues().filter((value) => value.kind === "number");
+     * await session.styles.add({
+     *     name: "Top 10",
+     *     target: "node",
+     *     selector: { match: "rule", where: { kind: "threshold", path: numbers[0].path, top: 10 } },
+     *     set: { "node.color": "#d62728" },
+     * });
+     * ```
+     * @returns the values, the node id first, then the data columns, then each run's fields in
+     *     run order
+     * @since 3.26.0
+     */
+    readableValues(): readonly ReadableValue[];
+    /**
      * Say what a column measures, as one undoable step in the `"attributes"` project slice.
      *
      * The element infers strings and booleans as categorical and numbers as quantitative, so a
@@ -1464,8 +1488,9 @@ export interface ProjectConfig {
     readonly selectionStyle: GraphSelectionStyleConfig;
     /**
      * Whether the style tree starts with its three starting rows: Everything (pinned to the
-     * bottom, writing nothing), Selected (pinned to the top, drawing the selection look as a node
-     * halo and an edge band) and Hovered (pinned to the top, writing nothing). False by default.
+     * bottom, writing nothing), Selected (pinned to the top, drawing a solid near-black node halo
+     * with a white glow and a near-black edge band, at the selection settings' sizes, which
+     * reads on the default background and every default palette color) and Hovered (pinned to the top, writing nothing). False by default.
      * Turned on, the rows are added in the same step, and the selection settings
      * ({@link ProjectConfig.selectionStyle}) draw nothing themselves; `styles.restoreStartingRows()`
      * brings back any a reader deleted.

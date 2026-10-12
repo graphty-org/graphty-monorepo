@@ -423,6 +423,13 @@ export interface FieldDescriptor {
      * categorical and numbers as quantitative.
      */
     measurement?: Measurement;
+    /**
+     * Published only for a directed graph: on an undirected one the field repeats another
+     * (incoming and outgoing connections are both the total), so `session.data.readableValues()`
+     * leaves it out there.
+     * @since 3.26.0
+     */
+    directedOnly?: boolean;
     path: Path;
 }
 
@@ -1154,6 +1161,65 @@ export interface AttributeDescriptor {
      * ```
      */
     usedBy?: readonly AttributeUse[];
+}
+
+/**
+ * What kind of value a {@link ReadableValue} holds: amounts, named groups, free text, or yes and no.
+ * @since 3.26.0
+ */
+export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
+
+/**
+ * The kinds of channel value a {@link ReadableValue} can drive, as a style channel's `accepts`
+ * names them.
+ * @since 3.26.0
+ */
+export type ReadableChannelKind = "color" | "number" | "enum" | "text" | "boolean";
+
+/**
+ * One value a rule or a binding can read: the element's own node id, a data column, or a field a
+ * finished run published per element. `session.data.readableValues()` lists them all.
+ *
+ * ```ts
+ * for (const value of session.data.readableValues()) {
+ *     console.log(value.path, value.plainName, value.kind, value.range ?? value.valueCount);
+ * }
+ * // "data.age" "age" "number" { min: 18, max: 64 }
+ * // "results.louvain.group" "Community" "category" 6
+ * ```
+ * @since 3.26.0
+ */
+export interface ReadableValue {
+    /**
+     * What a rule or a binding reads: `"id"` for the node id (a rule's text leaf reads it),
+     * `data.<name>` for a data column, `results.<run>.<field>` for a run's field. Distinct for every
+     * entry, so the node id and a data column named `id` are two entries.
+     */
+    readonly path: Path;
+    /** The catalog name: the column's own name, the field's plain name, or "Node id". */
+    readonly plainName: string;
+    /** The name a technical reader knows it by. */
+    readonly technicalName: string;
+    /** Whether nodes or edges carry it. */
+    readonly on: "node" | "edge";
+    /** Where it comes from. */
+    readonly from: "element" | "data" | "run";
+    /** The run that published it, when `from` is `"run"`. */
+    readonly runId?: RunId;
+    /** What kind of value it is. A partition's group is a category however its ids are spelled. */
+    readonly kind: ReadableValueKind;
+    /** The lowest and highest value, for a number. */
+    readonly range?: { readonly min: number; readonly max: number };
+    /** How many distinct values, for a category or a yes-or-no. */
+    readonly valueCount?: number;
+    /** The fraction of the nodes (or edges) that carry a value, from 0 to 1. */
+    readonly completeness: number;
+    /**
+     * The kinds of channel on its half it can drive with no scale named: exactly the channels
+     * `styles.proposeEncoding({ column })` proposes a binding for. Empty for the node id, which
+     * only a rule reads.
+     */
+    readonly fits: readonly ReadableChannelKind[];
 }
 
 /**

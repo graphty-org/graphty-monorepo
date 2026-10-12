@@ -78,6 +78,42 @@ selectors and bindings, and compute a median over a column.
 the counts anyway); `AttributeDescriptor.median` (data columns only, and it would cost every
 `attributes()` call a sort).
 
+## 2026-10-12 -- Decided by the team: one list of every value a rule or a binding can read (`data.readableValues`)
+
+**What.** Two additive pieces in graphty-element.
+
+- `session.data.readableValues()` returns one entry per readable value: the node id (path `id`,
+  plain name "Node id", read by a rule's text leaf only), every data column (`data.<name>`) and
+  every field a finished run published per node or edge (`results.<run>.<field>`). Each entry has
+  its path, catalog name, technical name, which half carries it, where it comes from (`element`,
+  `data`, `run`, with the run id), its kind (`number`, `category`, `text`, `yes-no`), its range
+  (numbers) or value count (categories, yes-no), how complete it is, and `fits`: the kinds of
+  channel it can drive (`color`, `number`, `enum`, `text`, `boolean`). New types `ReadableValue`,
+  `ReadableValueKind`, `ReadableChannelKind`, exported from `./catalog` and `./session`.
+- `FieldDescriptor.directedOnly`: a field published only for a directed graph. Degree's incoming
+  and outgoing connections carry it, so the list leaves them out on an undirected graph, where
+  both equal the total.
+
+**How it decides.** Run fields are described by the same walk as data columns, with the run's
+declared measurement, so a partition's group is a category (Louvain's group already declares
+`categorical`; the list never offers a histogram of group ids). `fits` is the same decision
+`styles.proposeEncoding({ column })` makes: the default-route logic was split out of
+`proposeColumnBinding` into one function both read, so the two can never disagree. Any number in
+the list ranks a "top N" rule (`{ kind: "threshold", path, top }`), run results included; that
+already worked and is now tested from the list.
+
+**Left as it is.** K-core's core depth stays a number: it is an ordered amount ("at least k
+neighbors inside the core"), and redeclaring it categorical would change the default color and
+size every existing consumer gets, a breaking change. "Top 10 by" keeps its tie policy: on Les
+Miserables top 10 by degree paints 9 nodes, because the two nodes with 12 connections share 10th
+place and a tie group is taken whole or not at all; a panel shows the run's `top(field, n).leftOut`
+to say why.
+
+**Why.** The rule editor and the vary-by picker each built their own list from `data.attributes()`
+and `results.roots`, and the iteration review asked for one list both read.
+
+**Not breaking.** One new method, three new types and one optional field.
+
 ## 2026-10-12 -- Decided by the team: what lies beneath a style row, a binding preview, and a binding's own colors
 
 **What.** Three additive pieces in graphty-element.

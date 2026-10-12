@@ -478,6 +478,22 @@ caseSensitive? }` on one matcher `textMatcher` (`session/text.ts`) that selectio
 
 ## Decisions and reasons
 
+- (2026-10-12) **One list of readable values, `session.data.readableValues()`, built on two
+  existing decisions instead of a third.** Run fields go through `describeRows` (the walk that
+  describes data columns), overridden with the field's own measurement (`fieldMeasurement`), and
+  `fits` calls `columnFits`, split out of `proposeColumnBinding`'s default choice in
+  `EncodingSpec.ts` so the picker and the encoder share one route. Why: the design's rule that two
+  checks of one question produce this project's worst defects. In/out degree are dropped on an
+  undirected graph by a new catalog flag, `FieldDescriptor.directedOnly`, not by name. K-core
+  stays a number (redeclaring it categorical changes every consumer's default ramp: breaking).
+  "Top 10 by degree" on Les Miserables paints 9, not 10: the two nodes at 12 share 10th place and
+  the tie policy takes a group whole or not at all; the test pins 9 against `top("value", 10)`
+  and 11 for top 11. A headless session has no real algorithms (Graph owns the executor): the
+  test's executor runs the algorithms package's `degrees` and `louvain` (on
+  `snapshot.toUndirected().snapshot`, or Louvain refuses) and publishes the catalog's fields.
+  Trap: a session built from `addNodes` is directed until `config.set({ data: { directed: false
+  } })`. A new session method needs a line in `doors.ts` and `test/cost-coverage/method-classes.ts`.
+
 - (2026-10-12) **The style tree rides on the stack array, not in a new project slice.** The
   `styles` slice is the stack, and undo keeps it by reference, so a tree carried as a property of
   that frozen array comes back with every undo, redo and rollback with no new slice, draft writer

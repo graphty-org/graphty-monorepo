@@ -4,8 +4,9 @@ The element has an assistant built in. A reader types (or says) what they want, 
 servers red" or "remove every node with degree 0", and a language model drives the element's own
 tools to do it. Each message is one undoable step.
 
-The assistant can remember the conversation, also after a reload, and can ask the reader before
-it changes the graph. Both are off by default.
+The assistant can remember the conversation, also after a reload, ask the reader before it
+changes the graph, ask the reader a question when a request is ambiguous, and hand parts of a
+message to helpers of your own. All of these are off by default.
 
 The assistant lives in its own entry point, `@graphty/graphty-element/ai`, so a page that only
 draws a graph does not load it. The element's methods (`enableAiControl`, `aiCommand` and the rest)
@@ -95,7 +96,7 @@ if (first.code === "AI_CONFIRMATION_NEEDED") {
 
 - **Events come after state.** `ai-approval-requested` fires after the request is saved, so a
   listener may call `resolveAiApproval` at once. `getPendingAiApprovals()` lists every open request
-  at any time, and `getAiStatus().pending.approvals` counts them.
+  at any time, and `getAiStatus()?.pending?.approvals` counts them (`getAiStatus()` is `null` before the assistant is enabled, and `pending` is absent while nothing waits).
 - **Replay after a reload.** With `history: "browser"`, a request still open when the page closed
   is asked again with `replayed: true`, in a task after `enableAiControl` resolves. A listener
   added before `enableAiControl`, or right after it resolves, gets it. Draw it like any other.
@@ -170,6 +171,81 @@ await element.resolveAiApproval(request.id, {
 
 Edited arguments are checked like the model's. Invalid ones run nothing and resolve
 `AI_TOOL_INVALID_ARGUMENTS`.
+
+## Questions
+
+With `questions: true` the model may ask the reader a question with a few choices when a request
+is ambiguous ("highlight my favorite department": which one?). Your page draws the question and
+its choices; the reader's pick continues the message.
+
+```typescript
+import "@graphty/graphty-element";
+
+const element = document.querySelector("graphty-element")!;
+const card = document.querySelector<HTMLElement>("#question")!;
+
+// Listen BEFORE enabling, so a question saved before a reload reaches you too.
+element.addEventListener("ai-question-asked", (e) => {
+    const { request } = e.detail;
+    card.replaceChildren();
+    const question = document.createElement("p");
+    question.textContent = request.question; // text, never HTML
+    card.append(question);
+    for (const choice of request.choices) {
+        const button = document.createElement("button");
+        button.textContent = choice;
+        button.onclick = async () => {
+            card.replaceChildren();
+            const final = await element.answerAiQuestion(request.id, choice);
+            console.log(final.code, final.llmText); // the message's final result
+        };
+        card.append(button);
+    }
+});
+element.addEventListener("ai-pending-resolved", (e) => {
+    if (e.detail.kind === "question") {
+        card.replaceChildren();
+    }
+});
+
+await element.enableAiControl({ provider: "google", apiKey: myKey, questions: true });
+
+const first = await element.aiCommand("Highlight the nodes in my favorite department");
+if (first.code === "AI_QUESTION_ASKED") {
+    // Waiting: the card is on screen; the reader's click finishes the message.
+}
+```
+
+- **The question is the model's.** `request` is an `AiQuestionRequest`:
+  `{ id, question, choices, multiple }`, with `conversationId`, `messageId` and `createdAt` when
+  known. `question` and `choices` are the model's words, two to ten choices, in the reader's
+  language. Put them in `textContent`, never `innerHTML`.
+- **`aiCommand` resolves when the question is asked**, with `code: "AI_QUESTION_ASKED"` and
+  `params: { request }`, where `request` is the question's id. Tool calls the model made before
+  the question in the same turn have run; nothing after it has.
+- **`answerAiQuestion(id, answer)` answers by value**: `answer` is one of `request.choices`,
+  exactly as given, or an array of them when `request.multiple` is true. The answer becomes the
+  result of the model's question, the model goes on, and the promise resolves with the message's
+  final result. An answer that is not among the choices (or several for a question that takes one)
+  resolves `AI_ANSWER_INVALID` with `{ request }`; nothing continues and the question stays open.
+  An id no open question has resolves `AI_APPROVAL_STALE` with `reason: "expired"`.
+- **A question ends on an event, never on a timer**, as an approval does: on the answer; on a new
+  message or `retryLastAiCommand()` (`AI_APPROVAL_STALE`, `reason: "superseded"`); on
+  `cancelAiCommand()` (`AI_CANCELLED`); when the message's step is undone (`AI_UNDONE`); or when the
+  conversation is replaced or cleared (`AI_APPROVAL_STALE`, `reason: "superseded"`). Each emits
+  `ai-pending-resolved { id, kind: "question", code, params }`.
+- **Replay after a reload**, as for approvals: with `history: "browser"` an open question is asked
+  again with `replayed: true`, and of two tabs answering one question, the late one resolves
+  `AI_APPROVAL_STALE` with `reason: "resolved-elsewhere"`. `getPendingAiQuestions()` lists the open
+  questions at any time, and `getAiStatus()?.pending?.questions` counts them.
+- **In the conversation** (`getAiConversation()`), the question is a call of the assistant's message
+  (`command: "ask_reader"`, its arguments the question and choices) and the answer is a reader's
+  message whose `text` is the chosen value (several are joined by line breaks).
+- **Never the only way.** The model asks only when it is unsure; a reader may also answer by
+  sending a new message, which ends the question and starts over.
+
+Without `questions: true` the model is never offered a way to ask, so a page that draws no question
+never meets one.
 
 ## Conversations
 
@@ -262,6 +338,154 @@ element.addEventListener("ai-conversation-changed", () => {
     );
 });
 ```
+
+## Helpers and plans
+
+Helpers are smaller assistants of your own that the assistant hands parts of a message to: one
+that only reads the graph and counts, one that only styles. Each runs with only the tools you give
+it, so a narrow task gets a narrow toolset.
+
+```typescript
+import "@graphty/graphty-element";
+
+const element = document.querySelector("graphty-element")!;
+
+element.addEventListener("ai-agent-start", (e) => console.log("started", e.detail.agent, e.detail.task));
+element.addEventListener("ai-agent-end", (e) => console.log("ended", e.detail.agent, e.detail.code));
+
+await element.enableAiControl({
+    provider: "google",
+    apiKey: myKey,
+    agents: [
+        { name: "counter", purpose: "Find and count nodes; changes nothing", commands: ["query"] },
+        { name: "stylist", purpose: "Color and size nodes", commands: ["style"] },
+    ],
+});
+
+const result = await element.aiCommand("Find the nodes with degree 3 or more, then color them red");
+console.log(result.code, result.llmText); // the main model's answer, after its helpers
+```
+
+### Roles
+
+A role (`AiAgentRole`, from `@graphty/graphty-element/ai`) is
+`{ name, purpose, commands, provider?, model? }`:
+
+- **`name`**: unique among the roles; the model names the helper by it. `"main"` and `"reader"` are
+  reserved.
+- **`purpose`**: what the helper is for, in the model's language. The main model reads it to choose
+  a helper, and the helper reads it as its instructions.
+- **`commands`**: the assistant's own tools the helper may call, by name: `catalog`, `query`,
+  `select`, `run_algorithm`, `results`, `style`, `filter`, `layout`, `view`, `edit_data`, `undo`,
+  `sets`, `notes`, `import_data`, `export_graph`, `project`, `capture`, `immersive` (the
+  `ASSISTANT_TOOLS` of `@graphty/graphty-element/catalog` with a non-empty `profiles`). It gets no
+  others: no tool of yours, and neither `delegate` nor `ask_reader`.
+- **`provider`** and **`model`**: a helper runs on the assistant's own provider and model unless
+  you name others. `provider` is `"openai"`, `"anthropic"` or `"google"` (a helper cannot run on
+  the in-browser model or the mock); `model` alone keeps the assistant's provider with another
+  model. A helper on a provider of its own takes its key from `apiKeys`:
+
+```typescript
+await element.enableAiControl({
+    provider: "google",
+    apiKey: googleKey,
+    apiKeys: { anthropic: anthropicKey }, // the keys of the providers helpers run on
+    agents: [{ name: "stylist", purpose: "Color and size nodes", commands: ["style"], provider: "anthropic" }],
+});
+```
+
+A provider with no key in `apiKeys` uses the one `setApiKey` gave it. A message whose helper has no
+key at all resolves `AI_KEY_MISSING` with `{ provider }` before anything is sent.
+
+### A configuration that cannot run
+
+`enableAiControl` checks the roles before it builds anything, and rejects with an `AiConfigError`
+when one cannot run. Read its `code` (always `"AI_CONFIG_INVALID"`) and `params`
+(`{ agent, field, reason }`):
+
+| `field`      | `reason`                                                  |
+| ------------ | --------------------------------------------------------- |
+| `"name"`     | `"empty"`, `"reserved"` (`main`, `reader`), `"duplicate"` |
+| `"purpose"`  | `"empty"`                                                 |
+| `"commands"` | `"unknown-command"`, with the name in `params.command`    |
+| `"provider"` | `"unsupported"` (`"webllm"` or `"mock"`)                  |
+
+```typescript
+import { AiConfigError } from "@graphty/graphty-element/ai";
+
+try {
+    await element.enableAiControl({ provider: "google", apiKey: myKey, agents: myRoles });
+} catch (error) {
+    if (error instanceof AiConfigError) {
+        console.log(error.code, error.params.agent, error.params.field, error.params.reason);
+    }
+}
+```
+
+### What helpers may do
+
+- **The main model decides.** With `agents` set, the main model is offered a `delegate` tool
+  naming the roles. It hands a helper a task in its own words; the helper works on a conversation of
+  its own and answers, and its answer is what the main model reads next.
+- **Helpers that run at once only read.** Several hand-offs in one turn run at the same time, and
+  while they do, a batch of a helper's calls that would change the graph is refused whole with
+  `AI_TOOL_DENIED_BY_POLICY` and `reason: "parallel-helper"`; the graph is left alone and the helper
+  hears why. A helper that runs alone, or in a `"sequence"` step, may change the graph. Give a
+  helper that is meant to run beside others only reading tools, such as `query`.
+- **One message, one undo step.** What a helper changes joins the message's undo step, with what
+  the main model changed.
+- **The same approvals.** Your `approvals` setting and the built-in limits hold a helper's calls as
+  they hold the main model's. The `ai-approval-requested` request then has `agent` set to the
+  helper's name, and resolving it continues the helper, then the message.
+- **Helpers neither hand on nor ask.** A helper cannot delegate further and cannot ask the reader a
+  question; one that needs the reader says so in its answer, and the main model asks.
+- **Cancel stops them.** `cancelAiCommand()` stops running helpers with the message.
+
+### Routers: who decides which helpers run
+
+`agents` also takes `{ roles, router, classifierModel, confirmPlans }`:
+
+| `router`                  | What happens to a new message                                                                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `"model"` (default)       | the main model hands tasks to helpers as it chooses                                                                                                                                                          |
+| `"classifier"`            | one short turn first picks the helpers the request needs, on the assistant's model, or on `classifierModel` (same provider); they run, then the main model answers. No pick: the main model handles it alone |
+| `(input: string) => plan` | your function returns an `AiPlan` for the reader's text; its steps run, then the main model answers                                                                                                          |
+
+A plan (`AiPlan`) is data:
+
+```typescript
+import type { AiPlan } from "@graphty/graphty-element/ai";
+
+const plan: AiPlan = {
+    steps: [
+        { agents: ["counter", "researcher"], order: "parallel" }, // at once, reading only
+        { agents: ["stylist"] }, // then this, with what the first step answered
+    ],
+};
+```
+
+- **Steps run in order**, each helper given the reader's request and what the helpers before it
+  answered. A step's helpers run at once (`"parallel"`, the default; reading only) or one after
+  another (`"sequence"`).
+- **At most 8 steps** run; the rest are dropped.
+- **A plan naming a helper that is not a role** resolves the message `AI_CONFIG_INVALID` with
+  `{ agent, field: "router", reason: "unknown-agent" }`, and nothing is sent.
+- After the plan, the main model still has `delegate` and may hand on more.
+
+**`confirmPlans: true`** asks the reader before every hand-off. Each is an ordinary approval
+(`ai-approval-requested`, `gate: "plan"`), whose calls are `delegate` calls with
+`{ agent, task }`; a plan's step is one request. Approve runs the step; deny tells the main model
+`AI_APPROVAL_DENIED`, and it answers without that helper.
+
+### Cost
+
+`ai-agent-start` carries `{ agent, task }`. `ai-agent-end` carries `{ agent, code, params }`:
+how the helper ended, and in `params` the tokens it used, `inputTokens` and `outputTokens`, as its
+provider reported them. When a helper ran, the message's own result adds the helpers' totals to its
+`params` too.
+
+In the conversation (`getAiConversation()`), a helper's words and calls are assistant messages with
+`agent` set to its name; the main model's hand-off is its call `delegate`.
 
 ## Privacy
 

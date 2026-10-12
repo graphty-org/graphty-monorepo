@@ -3,6 +3,8 @@
     "stories": [
         "AI Control::Approvals",
         "AI Control::Default",
+        "AI Control::Helpers",
+        "AI Control::Question",
         "AI Control::RememberedConversation",
         "Algorithms/Centrality::Betweenness",
         "Algorithms/Centrality::Closeness",

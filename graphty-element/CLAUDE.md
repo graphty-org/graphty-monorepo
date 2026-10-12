@@ -525,6 +525,14 @@ each with a check that plants a violation in its self-test:
 - Frameworks loaded lazily, one provider per chunk: `test/packaging/ai-lazy-chunks.test.ts`, over
   the build's `build/chunks.json`.
 
+**Loop-owned tools.** `delegate` (offered when `agents` is set) and `ask_reader` (when
+`questions: true`) are declared by `runConversation`, not generated into `PROFILE_TOOLS`, so the
+default config offers exactly the profile's tools and `test/ai/tools/budget.test.ts` keeps its
+counts. Their names are reserved in `ASSISTANT_TOOLS` with `profiles: []` (a consumer command of that
+name is offered as `app_<name>`). Helpers, routers and plans live in `src/ai/plans/`, reached only by
+`import()` when `agents` is set, so `./ai` keeps its size budget. The consumer guide is
+`docs/guide/ai-assistant.md` ("Questions", "Helpers and plans").
+
 Framework pins are exact (`test/packaging/ai-pins.test.ts`) and upgraded together with the
 contract suite and the paid `llm-regression` run; peers change only in a major
 (`tools/check-peer-deps-stable.mjs`). Design: `design/ai/tanstack-ai-harness-design.md`.

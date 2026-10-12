@@ -91,13 +91,23 @@ A message is `{ id, role, parts }`, with `role` one of `"user"`, `"assistant"` o
 part has a `type` and an `origin`, which says where its content came from: `"reader"`, `"model"`,
 `"graph-data"` (the graph's own data, as a tool read it) or `"graphty"` (the element).
 
+A `tool-call` is `"model"`, or `"graphty"` for a hand-off a router's plan made (a `delegate` call
+the model did not write). A `tool-result` is `"graph-data"`, or `"reader"` for the reader's answer
+to a question, with `code: "AI_COMPLETED"` and the chosen values in `content`.
+
 | `type`        | Fields                                                                                                           |
 | ------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `text`        | `text`; `via` (`"text"` or `"voice"`) for the reader's words, when the page said how they were given             |
 | `tool-call`   | `callId`, `command` (the tool), `arguments`                                                                      |
 | `tool-result` | `callId`, `code`, `params`, `content` (the text the model read, at most 8,000 characters)                        |
+| `agent-ref`   | `agent` (the helper's name), `callId` (the `delegate` call it answers), `messages` (the helper's conversation)   |
 | `reasoning`   | `text`, when the provider returned the model's reasoning in the clear                                            |
 | `outcome`     | `code`, `params`: how a message that failed or was taken back ended, in place of an answer (`origin: "graphty"`) |
+
+**Helpers.** A [helper's](./ai-assistant#helpers-and-plans) conversation is saved inside the
+message that handed it a task: an `agent-ref` part (`origin: "graphty"`) in the tool message that
+holds the `delegate` call's result. Its `messages` are messages as above, one level deep: a helper's
+messages never hold an `agent-ref`, and a record that nests one is invalid.
 
 Text the element adds for the model is saved too: facts about the graph beside the reader's
 words (`origin: "graph-data"`) and instructions (`origin: "graphty"`). `getAiConversation()` leaves
@@ -114,9 +124,14 @@ same engine, provider and model, and any reader may drop it: a conversation with
 Each entry has `kind`, `id`, `messageId` (the message waiting), `claim` (`null` until a tab or
 element takes it, so only one resolves it) and `createdAt`.
 
-| `kind`     | Fields                                                                                                                                                                                          |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `approval` | `gate` (open), `calls` (`{ callId, command, arguments }`), `preview` (as `AiApprovalRequest.preview`), `graph` (`dataKey`, `fingerprint`, `nodes`, `edges` when it was held), `historyRevision` |
+| `kind`      | Fields                                                                                                                                                                                                                                  |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `approval`  | `gate` (open), `calls` (`{ callId, command, arguments }`), `preview` (as `AiApprovalRequest.preview`), `graph` (`dataKey`, `fingerprint`, `nodes`, `edges` when it was held), `historyRevision`; `agent` when a helper's calls are held |
+| `question`  | `callId` (the `ask_reader` call the answer becomes the result of), `question`, `choices` (2 to 10), `multiple`                                                                                                                          |
+| `plan-step` | `plan` (`{ steps: [{ agents, order? }] }`, as the router made it), `next` (the index of the step to run once what holds the message ends)                                                                                               |
+
+A `plan-step` entry sits beside the approval that holds a plan's step: it is what is left of the
+plan, and it ends with that approval.
 
 A conversation reopened after a reload checks a waiting approval against the loaded graph: a
 different `fingerprint`, or a different `dataKey`, makes it stale (`AI_APPROVAL_STALE`,

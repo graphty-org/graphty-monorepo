@@ -15,39 +15,105 @@ export type CyjsCompareOp = "=" | ">" | ">=" | "<" | "<=" | "*=" | "^=" | "$=";
 
 /** One check of a query; a query matches when every check does. */
 export type CyjsCheck =
-    | { readonly type: "group"; readonly value: "nodes" | "edges" | "*" }
-    | { readonly type: "state"; readonly value: string }
-    | { readonly type: "id"; readonly value: string }
-    | { readonly type: "class"; readonly value: string }
-    | { readonly type: "exist"; readonly field: string }
     | {
-          readonly type: "compare";
-          readonly field: string;
-          readonly op: CyjsCompareOp;
-          readonly not: boolean;
-          readonly ci: boolean;
-          readonly value: string | number;
+          /** The kind of check. */ readonly type: "group";
+          /** The value compared with or matched. */ readonly value: "nodes" | "edges" | "*";
       }
-    | { readonly type: "bool"; readonly field: string; readonly op: "?" | "!" | "^" }
     | {
-          readonly type: "meta";
-          readonly field: "degree" | "indegree" | "outdegree";
-          readonly op: CyjsCompareOp;
-          readonly not: boolean;
-          readonly ci: boolean;
-          readonly value: number;
+          /** The kind of check. */ readonly type: "state";
+          /** The value compared with or matched. */ readonly value: string;
       }
-    | { readonly type: "true" }
-    | { readonly type: "child"; readonly parent: CyjsQuery; readonly child: CyjsQuery }
-    | { readonly type: "descendant"; readonly ancestor: CyjsQuery; readonly descendant: CyjsQuery }
-    | { readonly type: "parent"; readonly parent: CyjsQuery; readonly child: CyjsQuery }
-    | { readonly type: "ancestor"; readonly ancestor: CyjsQuery; readonly descendant: CyjsQuery }
-    | { readonly type: "split"; readonly left: CyjsQuery; readonly right: CyjsQuery; readonly subject: CyjsQuery }
-    | { readonly type: "directedEdge"; readonly source: CyjsQuery; readonly target: CyjsQuery }
-    | { readonly type: "undirectedEdge"; readonly nodes: readonly [CyjsQuery, CyjsQuery] }
-    | { readonly type: "nodeSource"; readonly source: CyjsQuery; readonly target: CyjsQuery }
-    | { readonly type: "nodeTarget"; readonly source: CyjsQuery; readonly target: CyjsQuery }
-    | { readonly type: "nodeNeighbor"; readonly node: CyjsQuery; readonly neighbor: CyjsQuery };
+    | {
+          /** The kind of check. */ readonly type: "id";
+          /** The value compared with or matched. */ readonly value: string;
+      }
+    | {
+          /** The kind of check. */ readonly type: "class";
+          /** The value compared with or matched. */ readonly value: string;
+      }
+    | {
+          /** The kind of check. */ readonly type: "exist";
+          /** The data field (or, for `meta`, the degree) the check reads. */ readonly field: string;
+      }
+    | {
+          /** The kind of check. */ readonly type: "compare";
+          /** The data field (or, for `meta`, the degree) the check reads. */ readonly field: string;
+          /** The operator. */ readonly op: CyjsCompareOp;
+          /** Whether the comparison is negated (`!`). */ readonly not: boolean;
+          /** Whether a string comparison ignores case (`@`). */ readonly ci: boolean;
+          /** The value compared with or matched. */ readonly value: string | number;
+      }
+    | {
+          /** The kind of check. */ readonly type: "bool";
+          /** The data field (or, for `meta`, the degree) the check reads. */ readonly field: string;
+          /** The operator. */ readonly op: "?" | "!" | "^";
+      }
+    | {
+          /** The kind of check. */ readonly type: "meta";
+          /** The data field (or, for `meta`, the degree) the check reads. */ readonly field:
+              "degree" | "indegree" | "outdegree";
+          /** The operator. */ readonly op: CyjsCompareOp;
+          /** Whether the comparison is negated (`!`). */ readonly not: boolean;
+          /** Whether a string comparison ignores case (`@`). */ readonly ci: boolean;
+          /** The value compared with or matched. */ readonly value: number;
+      }
+    | {
+          /** The kind of check: matches every element. */
+          readonly type: "true";
+      }
+    | {
+          /** The kind of check. */ readonly type: "child";
+          /** The query the parent must match. */ readonly parent: CyjsQuery;
+          /** The query the child must match. */ readonly child: CyjsQuery;
+      }
+    | {
+          /** The kind of check. */ readonly type: "descendant";
+          /** The query an ancestor must match. */ readonly ancestor: CyjsQuery;
+          /** The query the descendant must match. */ readonly descendant: CyjsQuery;
+      }
+    | {
+          /** The kind of check. */ readonly type: "parent";
+          /** The query the parent must match. */ readonly parent: CyjsQuery;
+          /** The query the child must match. */ readonly child: CyjsQuery;
+      }
+    | {
+          /** The kind of check. */ readonly type: "ancestor";
+          /** The query an ancestor must match. */ readonly ancestor: CyjsQuery;
+          /** The query the descendant must match. */ readonly descendant: CyjsQuery;
+      }
+    | {
+          /** The kind of check. */ readonly type: "split";
+          /** The query left of the separator. */ readonly left: CyjsQuery;
+          /** The query right of the separator. */ readonly right: CyjsQuery;
+          /** The query marked as the subject with `$`. */ readonly subject: CyjsQuery;
+      }
+    | {
+          /** The kind of check. */ readonly type: "directedEdge";
+          /** The query the source node must match. */ readonly source: CyjsQuery;
+          /** The query the target node must match. */ readonly target: CyjsQuery;
+      }
+    | {
+          /** The kind of check. */ readonly type: "undirectedEdge";
+          /** The queries the two end nodes must match, in either order. */ readonly nodes: readonly [
+              CyjsQuery,
+              CyjsQuery,
+          ];
+      }
+    | {
+          /** The kind of check. */ readonly type: "nodeSource";
+          /** The query the source node must match. */ readonly source: CyjsQuery;
+          /** The query the target node must match. */ readonly target: CyjsQuery;
+      }
+    | {
+          /** The kind of check. */ readonly type: "nodeTarget";
+          /** The query the source node must match. */ readonly source: CyjsQuery;
+          /** The query the target node must match. */ readonly target: CyjsQuery;
+      }
+    | {
+          /** The kind of check. */ readonly type: "nodeNeighbor";
+          /** The query the node itself must match. */ readonly node: CyjsQuery;
+          /** The query a neighbor must match. */ readonly neighbor: CyjsQuery;
+      };
 
 /** One comma-separated alternative of a selector. */
 export interface CyjsQuery {

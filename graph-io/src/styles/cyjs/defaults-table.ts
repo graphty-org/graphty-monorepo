@@ -49,7 +49,9 @@ export const CYJS_PROPERTY_DEFAULTS: ReadonlyMap<string, string> = new Map([
  * beneath every stylesheet a file gives.
  */
 export const CYJS_DEFAULT_STYLESHEET: readonly {
+    /** The rule's selector. */
     readonly selector: string;
+    /** The rule's properties and values, as Cytoscape.js spells them. */
     readonly style: Readonly<Record<string, string>>;
 }[] = [
     {

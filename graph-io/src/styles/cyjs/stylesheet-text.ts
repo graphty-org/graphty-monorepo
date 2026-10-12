@@ -22,8 +22,11 @@ export interface CyjsSheetEntry {
     readonly dashOnly: boolean;
 }
 
-/** Why reading a text stylesheet stopped early, or null. */
-type CyjsSheetStop = "NO_BLOCK" | "BAD_PROPERTY" | null;
+/**
+ * Why reading a text stylesheet stopped early, or null.
+ * @category Styles
+ */
+export type CyjsSheetStop = "NO_BLOCK" | "BAD_PROPERTY" | null;
 
 /** Line terminators, which `.` in Cytoscape.js's patterns does not match. */
 const LINE = /[\n\r\u2028\u2029]/;
@@ -146,7 +149,12 @@ function nextNonSpace(s: string): Int32Array {
  * @param text - the stylesheet
  * @returns the blocks Cytoscape.js keeps, in order, and why reading stopped early (or null)
  */
-export function parseCyjsStylesheetText(text: string): { entries: CyjsSheetEntry[]; stop: CyjsSheetStop } {
+export function parseCyjsStylesheetText(text: string): {
+    /** The blocks Cytoscape.js keeps, in order. */
+    entries: CyjsSheetEntry[];
+    /** Why reading stopped early, or null. */
+    stop: CyjsSheetStop;
+} {
     const s = stripComments(text);
     const entries: CyjsSheetEntry[] = [];
     let pos = 0;

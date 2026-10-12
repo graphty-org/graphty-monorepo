@@ -85,7 +85,10 @@ export interface CytoscapeTargetStyle {
  */
 export interface CytoscapeStyle {
     /** The network's defaults (`NETWORK_BACKGROUND_PAINT`). */
-    readonly network: { readonly defaults: Map<string, unknown> };
+    readonly network: {
+        /** The network's default values by visual property name. */
+        readonly defaults: Map<string, unknown>;
+    };
     /** Node style. */
     readonly node: CytoscapeTargetStyle;
     /** Edge style. */
@@ -144,9 +147,12 @@ export function typedKey(raw: unknown, type: string | null): string | number | b
     return raw;
 }
 
-/** The tags of a CX version 1 mapping definition that are indexed. */
-type IndexedTag = "K" | "V" | "L" | "E" | "G" | "OV";
-const INDEXED: ReadonlySet<string> = new Set<IndexedTag>(["K", "V", "L", "E", "G", "OV"]);
+/**
+ * The tags of a CX version 1 mapping definition that are indexed.
+ * @category Styles
+ */
+export type Cx1IndexedTag = "K" | "V" | "L" | "E" | "G" | "OV";
+const INDEXED: ReadonlySet<string> = new Set<Cx1IndexedTag>(["K", "V", "L", "E", "G", "OV"]);
 
 /**
  * A parsed CX version 1 mapping definition.
@@ -158,7 +164,7 @@ export interface Cx1Definition {
     /** The attribute type (`T=`), or null. */
     readonly type: string | null;
     /** Each indexed tag's entries by index: `K` keys, `V` values, `L`/`E`/`G` below/at/above, `OV` points. */
-    readonly entries: ReadonlyMap<IndexedTag, ReadonlyMap<number, string>>;
+    readonly entries: ReadonlyMap<Cx1IndexedTag, ReadonlyMap<number, string>>;
 }
 
 /**
@@ -201,7 +207,7 @@ function definitionTokens(def: string): string[] {
  */
 export function parseCx1Definition(def: string, notes?: StyleNotes, target: StyleTarget | null = null): Cx1Definition {
     const tokens = definitionTokens(def);
-    const entries = new Map<IndexedTag, Map<number, string>>();
+    const entries = new Map<Cx1IndexedTag, Map<number, string>>();
     let column: string | null = null;
     let type: string | null = null;
     let beyond = 0;
@@ -229,10 +235,10 @@ export function parseCx1Definition(def: string, notes?: StyleNotes, target: Styl
             beyond++;
             continue;
         }
-        let byIndex = entries.get(tag as IndexedTag);
+        let byIndex = entries.get(tag as Cx1IndexedTag);
         if (byIndex === undefined) {
             byIndex = new Map();
-            entries.set(tag as IndexedTag, byIndex);
+            entries.set(tag as Cx1IndexedTag, byIndex);
         }
         byIndex.set(index, t.slice(eq2 + 1));
     }
@@ -251,7 +257,7 @@ export function parseCx1Definition(def: string, notes?: StyleNotes, target: Styl
  * @param tag - the tag
  * @returns the indexes
  */
-function indexesOf(d: Cx1Definition, tag: IndexedTag): number[] {
+function indexesOf(d: Cx1Definition, tag: Cx1IndexedTag): number[] {
     return Array.from(d.entries.get(tag)?.keys() ?? []).sort((a, b) => a - b);
 }
 
@@ -291,7 +297,7 @@ export function mappingFromCx1(
     if (d.column === null) {
         return null;
     }
-    const at = (tag: IndexedTag, i: number): string | undefined => d.entries.get(tag)?.get(i);
+    const at = (tag: Cx1IndexedTag, i: number): string | undefined => d.entries.get(tag)?.get(i);
     switch (String(kind).toUpperCase()) {
         case "PASSTHROUGH":
             return { kind: "passthrough", column: d.column, type: d.type };

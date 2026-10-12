@@ -65,12 +65,16 @@ export interface CytoscapeEmitted {
     readonly style: CytoscapeStyle;
     /** Each element's bypasses (visual property to value in the dialect's spelling), or null where it has none. */
     readonly bypasses: {
+        /** Per node, by node index. */
         readonly node: (Map<string, unknown> | null)[];
+        /** Per edge, by edge index. */
         readonly edge: (Map<string, unknown> | null)[];
     };
     /** Attribute columns the mappings read that the graph does not hold, by name, with each element's value. */
     readonly columns: {
+        /** Node columns. */
         readonly node: Map<string, readonly (StyleValue | null)[]>;
+        /** Edge columns. */
         readonly edge: Map<string, readonly (StyleValue | null)[]>;
     };
 }
@@ -929,7 +933,9 @@ function cx2Intervals(points: readonly CytoscapeContinuousPoint[]): Record<strin
  * @category Styles
  */
 export function cytoscapeCx2Aspects(style: CytoscapeStyle): {
+    /** The `visualProperties` aspect. */
     visualProperties: Record<string, unknown>[];
+    /** The `visualEditorProperties` aspect. */
     visualEditorProperties: Record<string, unknown>[];
 } {
     const mapping = (m: CytoscapeMapping): Record<string, unknown> => {

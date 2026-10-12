@@ -80,10 +80,17 @@ export interface StyleBlock {
     /** The rules, bottom to top, with their `ext` members. */
     readonly rules: readonly StyleRule[];
     /** The keys of the style columns the rules read, per target. */
-    readonly columns: { readonly node: readonly string[]; readonly edge: readonly string[] };
+    readonly columns: {
+        /** Node style column keys. */
+        readonly node: readonly string[];
+        /** Edge style column keys. */
+        readonly edge: readonly string[];
+    };
     /** The style columns themselves, for a format with no per-element attributes; absent otherwise. */
     readonly values?: {
+        /** Node style columns by key. */
         readonly node: ReadonlyMap<string, StyleColumn>;
+        /** Edge style columns by key. */
         readonly edge: ReadonlyMap<string, StyleColumn>;
     };
     /**
@@ -92,7 +99,9 @@ export interface StyleBlock {
      * format writes its label column as its own `label`) is found again by its values.
      */
     readonly data?: {
+        /** Node data column hashes by column name. */
         readonly node: ReadonlyMap<string, string>;
+        /** Edge data column hashes by column name. */
         readonly edge: ReadonlyMap<string, string>;
     };
     /** The graph the block describes. */

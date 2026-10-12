@@ -27,5 +27,11 @@ export {
 } from "./emit.js";
 export { type CytoscapeLiveInput, readCytoscapeStyles } from "./live.js";
 export { cyjsRendered } from "./mappers.js";
-export { type CyjsCheck, type CyjsQuery, type CyjsSelector, parseCyjsSelector } from "./selector.js";
-export { type CyjsSheetEntry, parseCyjsStylesheetText } from "./stylesheet-text.js";
+export {
+    type CyjsCheck,
+    type CyjsCompareOp,
+    type CyjsQuery,
+    type CyjsSelector,
+    parseCyjsSelector,
+} from "./selector.js";
+export { type CyjsSheetEntry, type CyjsSheetStop, parseCyjsStylesheetText } from "./stylesheet-text.js";

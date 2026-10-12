@@ -16,6 +16,7 @@ export {
 export { normalizeVisualProperties } from "./lexicon.js";
 export {
     type Cx1Definition,
+    type Cx1IndexedTag,
     type CytoscapeContinuousPoint,
     type CytoscapeMapping,
     type CytoscapeStyle,

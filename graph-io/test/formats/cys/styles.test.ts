@@ -121,7 +121,7 @@ describe("writing session styles", () => {
     it("writes a style named for the network, which the view names, and reads back the same rules and values", async () => {
         const first = await load(file(resolve(STYLES, "cytoscape-tutorials-layout-v1.cys")));
         const ex = first.styles as ExtractedStyles;
-        const written = await registry.exportGraphToBytes(first.snapshot, "cys", { styles: ex });
+        const written = await registry.exportGraphToBytes(first.snapshot, "cys", { styles: ex, sanitizeIds: "mangle" });
         let vizmap = "";
         let view = "";
         changeSessionEntry(
@@ -166,12 +166,27 @@ describe("writing session styles", () => {
             null,
         );
         expect(cellAtt({ name: "name", type: "String", list: false }, "", 1, null, false)?.value).toBe("");
+        // a style column's quoted empty cell (`""`) is the empty string
+        const style = { name: "graphty.style.edge.input.data.speed", type: "String", list: false } as const;
+        expect(cellAtt(style, "", 1, null, false, true)?.value).toBe("");
+    });
+
+    it("keeps a style value that is the empty string apart from no value", async () => {
+        // edge e17 has the key's default speed, "": the rule that maps speed reads it from the copied column
+        const graphml = file(resolve(STYLES, "../graphml/yed-svgnode/sk2__autonetkit-py__small_internet.graphml"));
+        const first = await registry.importGraph(graphml, { format: "graphml", styles: true });
+        const ex = first.styles as ExtractedStyles;
+        const written = await registry.exportGraphToBytes(first.snapshot, "cys", { styles: ex, sanitizeIds: "mangle" });
+        const back = await load(written);
+        const arrows = resolveStyles(back.styles as ExtractedStyles, "edge", "targetArrow", back.snapshot);
+        expect(arrows).toEqual(resolveStyles(ex, "edge", "targetArrow", first.snapshot));
+        expect(arrows[17]).toBe("triangle");
     });
 
     it("draws the same without its block: the named style and the view's bypasses are Cytoscape's own", async () => {
         const first = await load(file(resolve(STYLES, "cytoscape-tutorials-AnnotationExample.cys")));
         const ex = first.styles as ExtractedStyles;
-        const written = await registry.exportGraphToBytes(first.snapshot, "cys", { styles: ex });
+        const written = await registry.exportGraphToBytes(first.snapshot, "cys", { styles: ex, sanitizeIds: "mangle" });
         const blockless = changeSessionEntry(
             written,
             (n) => n.endsWith("/graphty.styles"),

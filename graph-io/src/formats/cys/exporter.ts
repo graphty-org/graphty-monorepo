@@ -59,7 +59,7 @@ import {
     Z_COLUMN,
 } from "../xgmml/constants.js";
 import { XGMML_STYLE_CAPABILITIES } from "../xgmml/styles.js";
-import { FORMAT } from "./constants.js";
+import { FORMAT, STYLE_COLUMN_PREFIX } from "./constants.js";
 
 /**
  * The options of the Cytoscape session exporter: the common export options; it has none of its own. The
@@ -1251,14 +1251,20 @@ function* cyTable(
     columns: readonly TableColumn[],
     rows: Iterable<readonly [number, number]>,
 ): Generator<string, void, undefined> {
-    const line = (cells: readonly string[]): string => `${cells.map((c) => quoteCsvCell(c)).join(",")}\n`;
+    // null is an unquoted empty cell: no value, where `""` is the empty string
+    const line = (cells: readonly (string | null)[]): string =>
+        `${cells.map((c) => (c === null ? "" : quoteCsvCell(c))).join(",")}\n`;
     yield line(["CyCSV-Version", "1"]);
     yield line(["SUID", ...columns.map((c) => c.name)]);
     yield line([LONG, ...columns.map((c) => c.javaClass)]);
     yield line(["", ...columns.map(() => "mutable")]);
     yield line([title, ""]);
     for (const [suid, row] of rows) {
-        yield line([String(suid), ...columns.map((c) => c.cell(row) ?? "")]);
+        // a graphty style column tells an element without a value from one whose value is the empty string
+        yield line([
+            String(suid),
+            ...columns.map((c) => c.cell(row) ?? (c.name.startsWith(STYLE_COLUMN_PREFIX) ? null : "")),
+        ]);
     }
 }
 

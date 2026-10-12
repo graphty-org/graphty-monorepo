@@ -761,7 +761,8 @@ function rowAtts(
     const line = table.lines.get(key) ?? 0;
     const out: AttRec[] = [];
     for (let i = 1; i < table.columns.length && i < cells.length; i++) {
-        pushAtt(out, cellAtt(table.columns[i], cells[i], line, namespace, hidden));
+        const quoted = table.quotedEmpty?.get(key)?.has(i) === true;
+        pushAtt(out, cellAtt(table.columns[i], cells[i], line, namespace, hidden, quoted));
     }
     return out;
 }

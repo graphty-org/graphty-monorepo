@@ -12,7 +12,7 @@ import { ImportReportBuilder } from "../../common/report.js";
 import { ImportError } from "../../types.js";
 import { CsvRecordReader } from "../csv/records.js";
 import { type AttRec } from "../xgmml/document.js";
-import { CYS_ISSUE, FORMAT } from "./constants.js";
+import { CYS_ISSUE, FORMAT, STYLE_COLUMN_PREFIX } from "./constants.js";
 import { entryLabel } from "./session.js";
 
 /** The Cytoscape type names of the Java classes a CyCSV column can hold. */
@@ -52,6 +52,8 @@ export interface CyTable {
     readonly rows: ReadonlyMap<string, readonly string[]>;
     /** The line each row starts on, by key. */
     readonly lines: ReadonlyMap<string, number>;
+    /** The cells of each row that are a quoted empty field (`""`), by key; a row without one is absent. */
+    readonly quotedEmpty?: ReadonlyMap<string, ReadonlySet<number>>;
 }
 
 /** What a table read reports besides its rows. */
@@ -81,10 +83,16 @@ export async function readCyTable(
 ): Promise<CyTable | null> {
     const scratch = new ImportReportBuilder(FORMAT, 0);
     const reader = new CsvRecordReader(bytes, scratch, { delimiter: ",", encoding: "utf-8", signal: common.signal });
-    const records: { readonly cells: string[]; readonly line: number }[] = [];
+    const records: { readonly cells: string[]; readonly line: number; readonly quotedEmpty?: Set<number> }[] = [];
     try {
         for await (const cells of reader) {
-            records.push({ cells, line: reader.line });
+            let quotedEmpty: Set<number> | undefined;
+            cells.forEach((cell, i) => {
+                if (cell.length === 0 && reader.quoted[i]) {
+                    (quotedEmpty ??= new Set()).add(i);
+                }
+            });
+            records.push({ cells, line: reader.line, quotedEmpty });
         }
     } catch (err) {
         if (err instanceof ImportError) {
@@ -143,6 +151,7 @@ export async function readCyTable(
     }
     const rows = new Map<string, readonly string[]>();
     const lines = new Map<string, number>();
+    const quotedEmpty = new Map<string, ReadonlySet<number>>();
     const problems: RowProblems = { short: 0, long: 0, repeated: 0 };
     for (const record of records.slice(at + headerLines)) {
         const { cells } = record;
@@ -158,6 +167,9 @@ export async function readCyTable(
         }
         rows.set(key, cells.slice(0, columns.length));
         lines.set(key, record.line);
+        if (record.quotedEmpty !== undefined) {
+            quotedEmpty.set(key, record.quotedEmpty);
+        }
     }
     if (problems.short + problems.long + problems.repeated > 0) {
         report.warning(
@@ -166,7 +178,7 @@ export async function readCyTable(
             `${entryLabel(entry)}: ${problems.short} row${plural(problems.short)} with too few cells (the rest are unset), ${problems.long} with too many (the extra cells are ignored), ${problems.repeated} repeating a key (the first row is read)`,
         );
     }
-    return { path, entry, columns, rows, lines };
+    return { path, entry, columns, rows, lines, quotedEmpty };
 }
 
 /**
@@ -197,13 +209,10 @@ function tableError(report: ImportReportBuilder, entry: string, reason: string):
     return null;
 }
 
-/** The name prefix of the per-element style value columns graphty writes. */
-const STYLE_COLUMN_PREFIX = "graphty.style.";
-
 /**
  * The att record of one cell, or null for an unset cell. CyCSV's rules: an empty cell is unset
- * except in a String column, where it is the empty string (but unset in a `graphty.style.` column, whose empty
- * cells graphty writes for elements without a style value); a list cell holds its items separated
+ * except in a String column, where it is the empty string (but in a `graphty.style.` column only when quoted,
+ * `""`: graphty writes an element without a style value as an unquoted empty cell); a list cell holds its items separated
  * by line breaks (`\n`, or `\r` as some Cytoscape versions write them; Java's `split`, so trailing empty items
  * vanish; an empty String-list cell is one
  * empty item, any other empty list cell unset); a cell starting with `=` is an equation.
@@ -212,6 +221,7 @@ const STYLE_COLUMN_PREFIX = "graphty.style.";
  * @param line - the row's line
  * @param namespace - the table namespace the column belongs to (null for the network's own table)
  * @param hidden - whether the column is hidden (HIDDEN and app tables)
+ * @param quoted - whether the cell was quoted
  * @returns the att, or null
  * @category Plugin helpers
  */
@@ -221,13 +231,17 @@ export function cellAtt(
     line: number,
     namespace: string | null,
     hidden: boolean,
+    quoted = false,
 ): AttRec | null {
     if (text.startsWith("=")) {
         return att(column.name, column.list ? "List" : column.type, null, text, line, namespace, hidden, true);
     }
     if (!column.list) {
-        // graphty writes an unset style value as an empty cell: no style value is the empty string
-        if (text.length === 0 && (column.type !== "String" || column.name.startsWith(STYLE_COLUMN_PREFIX))) {
+        // graphty writes an unset style value as an unquoted empty cell, and the empty string quoted (`""`)
+        if (
+            text.length === 0 &&
+            (column.type !== "String" || (!quoted && column.name.startsWith(STYLE_COLUMN_PREFIX)))
+        ) {
             return null;
         }
         return att(column.name, column.type, null, text, line, namespace, hidden, false);

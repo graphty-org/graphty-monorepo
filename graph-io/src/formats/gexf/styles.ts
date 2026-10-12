@@ -192,7 +192,7 @@ function vizValues(
             if (raw !== null) {
                 const kind = target === "node" ? "shape" : "lineStyle";
                 column(kind)[i] = canonEnum(kind, raw, "gexf", site(kind));
-                imageShape = String(raw).toLowerCase() === "image";
+                imageShape = typeof raw === "string" && raw.toLowerCase() === "image";
             }
         }
         // GEXF gives a shape a uri only to name the picture of an `image` shape
@@ -223,12 +223,14 @@ function directedEdges(snapshot: GraphSnapshot): boolean[] {
 }
 
 /**
- * The rules Gephi's defaults make per element: an arrow at the target of every directed edge, and the source node's
- * color on every edge without a color of its own (Gephi draws GEXF and its GraphML export the same way).
+ * The rules Gephi's defaults make per element: an arrow at the target of every directed edge, the source node's
+ * color on every edge without a color of its own, and the edge's weight as the thickness of every edge without a
+ * thickness of its own (Gephi draws GEXF and its GraphML export the same way).
  * @param snapshot - the graph
  * @param nodeFill - each node's fill, or undefined when no node has one
  * @param edgeColor - each edge's own color, or undefined when no edge has one
  * @param budget - the work budget
+ * @param edgeWidth - each edge's own width, or undefined when no edge has one
  * @returns the edge rules and the style columns they read
  */
 export function gephiRules(

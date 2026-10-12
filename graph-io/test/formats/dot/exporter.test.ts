@@ -7,8 +7,8 @@ import { ImportReportBuilder } from "../../../src/common/report.js";
 import { decodeChunks } from "../../../src/common/writer.js";
 import { DOT_LOSS, dotExporter } from "../../../src/formats/dot/exporter.js";
 import { dotImporter } from "../../../src/formats/dot/importer.js";
-import { createRegistry } from "../../../src/registry.js";
 import { CLUSTER_COLUMN, PARENT_COLUMN } from "../../../src/formats/dot/names.js";
+import { createRegistry } from "../../../src/registry.js";
 import { corpusFiles, readCorpusText } from "../../helpers/corpus.js";
 import { compareSnapshots, describeDiffs, expectSameSnapshot, roundTrip } from "../../helpers/roundtrip.js";
 

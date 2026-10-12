@@ -1537,7 +1537,8 @@ function replacedRows(
     for (let i = 0; column !== null && i < column.length; i++) {
         const cell = column.isSet(i) ? plainCell(column.value(i)) : null;
         const w = written?.[i] ?? null;
-        if (cell !== null && (w === null || String(w) !== String(cell))) {
+        const text = typeof cell === "string" ? cell : JSON.stringify(cell);
+        if (cell !== null && (w === null || String(w) !== text)) {
             n++;
         }
     }

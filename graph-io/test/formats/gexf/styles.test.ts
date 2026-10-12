@@ -152,7 +152,7 @@ describe("GEXF node pictures", () => {
         expect(resolveStyles(styles, "node", "image", snapshot)).toEqual([null, "pic.png"]);
     });
 
-    it("reports a shape it replaces with the image shape a picture needs", async () => {
+    it("reports a shape it replaces with the image shape a picture needs", () => {
         const b = new GraphBuilder({ directed: false });
         b.addNode("a");
         const snapshot = b.freeze();

@@ -28,8 +28,8 @@ import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { cytoscapeJsStyles } from "../../styles/cyjs/cascade.js";
 import {
-    CYTOSCAPE_IMPORT_KEY,
     cyjsHoldsExactly,
+    CYTOSCAPE_IMPORT_KEY,
     type CytoscapeStylesheetRule,
     toCytoscapeStylesheet,
 } from "../../styles/cyjs/emit.js";

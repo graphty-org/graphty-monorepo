@@ -9,7 +9,6 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { toolDefaults } from "../defaults.js";
-import { STYLE_PROPERTIES } from "../vocabulary.js";
 import { featuresOf, heldEdgeRows, styleFingerprint } from "../plan/features.js";
 import { plainCell, refSource, resolveRules, within } from "../plan/resolve.js";
 import type {
@@ -30,6 +29,7 @@ import type {
     StyleTool,
     StyleValue,
 } from "../types.js";
+import { STYLE_PROPERTIES } from "../vocabulary.js";
 
 /**
  * The name of the block in every format: a graph attribute, a key, an aspect or an archive entry.
@@ -882,9 +882,7 @@ export function blockStyles(
         const src = refSource(target, n, columns[target], features[target], snapshot);
         const map = Object.create(null) as Record<string, Mapping>;
         // in one order whatever order the reader found the properties in, so a file written again is the same
-        for (const [property, values] of Object.entries(truth[target] ?? {}).sort(([a], [b]) =>
-            a < b ? -1 : a > b ? 1 : 0,
-        )) {
+        for (const [property, values] of Object.entries(truth[target] ?? {}).sort(([a], [b]) => (a < b ? -1 : 1))) {
             if (values === undefined) {
                 continue;
             }

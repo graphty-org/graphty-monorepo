@@ -11,7 +11,7 @@ const BLOCK_ASPECT = "graphty.styles";
 type Aspect = Record<string, unknown[]>;
 
 /** JSON.rawJSON (Node 21 and later), which the TypeScript library in use does not declare. */
-const rawJSON = (JSON as unknown as { rawJSON(text: string): unknown }).rawJSON;
+const { rawJSON } = JSON as unknown as { rawJSON(text: string): unknown };
 
 /**
  * A written file's aspects. An integer past 2^53 (a CX id may be any 64-bit integer) keeps its digits, as another

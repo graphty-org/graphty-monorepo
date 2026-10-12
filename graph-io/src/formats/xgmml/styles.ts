@@ -9,8 +9,8 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import {
-    cytoscapeElementProperties,
     type CytoscapeDialect,
+    cytoscapeElementProperties,
     cytoscapeWritableProperties,
 } from "../../styles/cytoscape/emit.js";
 import { normalizeVisualProperties } from "../../styles/cytoscape/lexicon.js";

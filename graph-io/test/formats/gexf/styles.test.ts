@@ -18,7 +18,7 @@ import {
     resolveStyles,
     styleFingerprint,
     type StyleRule,
-} from "../../../src/styles/index.js";
+} from "../../../src/styles/internal.js";
 import { editGexfNodeColor, replaceGexfBlock } from "../../styles/formats/gexf.js";
 
 const registry = createRegistry();
@@ -204,6 +204,20 @@ describe("GEXF 1.0 files", () => {
             expect(snapshot.edgeCount).toBe(listed);
             expect(report.errorCount).toBe(0);
         }
+    });
+
+    it("reports, and leaves out, a node an edge listed first names that no <node> declares", async () => {
+        const doc = `<gexf version="1.0"><graph defaultedgetype="directed"><edges>
+            <edge id="0" source="a" target="b"/><edge id="1" source="a" target="z"/></edges>
+            <nodes><node id="a"/><node id="b"/></nodes></graph></gexf>`;
+        const strict = await registry.importGraph(doc, { format: "gexf" });
+        expect(strict.report.issues.map((i) => i.code)).toEqual(["E_UNKNOWN_NODE"]);
+        expect(strict.snapshot.nodeCount).toBe(2);
+        expect(strict.snapshot.edgeCount).toBe(1);
+        const lenient = await registry.importGraph(doc, { format: "gexf", addMissingNodes: true });
+        expect(lenient.report.errorCount).toBe(0);
+        expect(lenient.snapshot.nodeCount).toBe(3);
+        expect(lenient.snapshot.edgeCount).toBe(2);
     });
 
     it("still reports a GEXF 1.3 pid naming no node as an error", async () => {

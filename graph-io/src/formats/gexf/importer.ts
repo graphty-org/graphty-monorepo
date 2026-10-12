@@ -632,7 +632,7 @@ class GexfReader implements XmlHandler {
     private styleBlock = "";
 
     /** GEXF 1.0 only: nodes added for edges read before `<nodes>`, until their `<node>` declares them. */
-    private readonly implicitNodes = new Set<number>();
+    private readonly implicitNodes = new Map<number, NodeId>();
 
     /** GEXF 1.0 only: `<edges>` came before `<nodes>`, so an edge's ends are added until `<node>` declares them. */
     private edgesFirst = false;
@@ -871,6 +871,8 @@ class GexfReader implements XmlHandler {
                         MISSING_NODES_CODE,
                         "the graph declares <edges> but no <nodes>",
                     );
+                } else if (!this.options.addMissingNodes) {
+                    this.dropUndeclaredNodes();
                 }
                 return;
             case Ctx.Attributes:
@@ -1892,7 +1894,7 @@ class GexfReader implements XmlHandler {
             if (this.edgesFirst && !this.nodesSeen) {
                 for (const end of [source, target]) {
                     if (sink.indexOf(end) === INVALID_INDEX) {
-                        this.implicitNodes.add(sink.addNode(end));
+                        this.implicitNodes.set(sink.addNode(end), end);
                         report.counts.nodes++;
                     }
                 }
@@ -1943,6 +1945,26 @@ class GexfReader implements XmlHandler {
         } catch (err) {
             report.recordError(err, where);
         }
+    }
+
+    /**
+     * GEXF 1.0 with its edges first, addMissingNodes false: a node an edge named that no `<node>` declared is an
+     * unknown node, as it is when the nodes come first. It is reported, and it and its edges are removed when the
+     * sink can remove nodes.
+     */
+    private dropUndeclaredNodes(): void {
+        const { sink, report } = this;
+        const removable = sink as GraphSink & { removeNodeByIndex?: (index: number) => ArrayLike<number> };
+        for (const [index, id] of this.implicitNodes) {
+            report.error("validation-error", "E_UNKNOWN_NODE", `edge references undeclared node "${String(id)}"`);
+            if (typeof removable.removeNodeByIndex === "function") {
+                const edges = removable.removeNodeByIndex(index);
+                report.counts.nodes--;
+                report.counts.edges -= edges.length;
+                report.counts.skippedEdges += edges.length;
+            }
+        }
+        this.implicitNodes.clear();
     }
 
     /**

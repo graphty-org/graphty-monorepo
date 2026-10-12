@@ -399,9 +399,9 @@ class ExportPlan {
 
     private readonly directed: boolean;
 
-    private readonly nodeColumns: Column[];
+    private nodeColumns: Column[];
 
-    private readonly edgeColumns: Column[];
+    private edgeColumns: Column[];
 
     private readonly graphColumns: Column[];
 
@@ -478,6 +478,53 @@ class ExportPlan {
         this.children = childrenCsr(snapshot, {
             column: this.parent !== null && this.parent.dtype === "u32" ? this.parent : null,
         });
+        // in the order a reader first meets them, which is the order it gives the columns: the file read and written
+        // again is the same, whichever node or edge first held a column
+        this.nodeColumns = firstSeenOrder(this.nodeColumns, this.nodeTextOrder());
+        const edgeRows: number[] = [];
+        for (let e = 0; e < snapshot.edgeCount; e++) {
+            if (!this.folding.folded(e)) {
+                edgeRows.push(e);
+            }
+        }
+        this.edgeColumns = firstSeenOrder(this.edgeColumns, edgeRows);
+    }
+
+    /**
+     * The nodes in the order a reader of the document takes their attributes: a node's statement before the members
+     * of its cluster, and a cluster's own `graph [...]` attributes when its subgraph closes, after its members.
+     * @returns the node indices
+     */
+    private nodeTextOrder(): number[] {
+        const order: number[] = [];
+        const seen = new Uint8Array(this.snapshot.nodeCount);
+        // a negative entry -(i + 1) is cluster i's own attributes, taken once its members are
+        const stack: number[] = [];
+        for (let root = this.snapshot.nodeCount - 1; root >= 0; root--) {
+            stack.push(root);
+        }
+        while (stack.length > 0) {
+            const i = stack.pop() as number;
+            if (i < 0) {
+                order.push(-i - 1);
+                continue;
+            }
+            if (seen[i] === 1) {
+                continue;
+            }
+            seen[i] = 1;
+            const marked = this.cluster !== null && this.cluster.isSet(i) && this.cluster.value(i) === true;
+            if (marked) {
+                stack.push(-i - 1);
+            } else {
+                order.push(i);
+            }
+            const kids = this.children.childrenOf(i);
+            for (let k = kids.length - 1; k >= 0; k--) {
+                stack.push(kids[k]);
+            }
+        }
+        return order;
     }
 
     /**
@@ -1043,6 +1090,29 @@ function positionDims(column: Column | null): 2 | 3 {
         return dims;
     }
     return column.meta.components === 2 ? 2 : 3;
+}
+
+/**
+ * Columns in the order the rows first hold a written value of each; a column no row writes keeps its place at the end.
+ * @param columns - the columns, in the snapshot's order
+ * @param rows - the rows in the order the document writes them
+ * @returns the columns
+ */
+function firstSeenOrder(columns: readonly Column[], rows: Iterable<number>): Column[] {
+    const left = new Set(columns);
+    const out: Column[] = [];
+    for (const row of rows) {
+        if (left.size === 0) {
+            break;
+        }
+        for (const column of columns) {
+            if (left.has(column) && column.isSet(row) && cellText(column, row) !== null) {
+                out.push(column);
+                left.delete(column);
+            }
+        }
+    }
+    return [...out, ...left];
 }
 
 /**

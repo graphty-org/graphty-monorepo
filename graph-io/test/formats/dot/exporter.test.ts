@@ -141,6 +141,29 @@ describe("dot exporter: capabilities and shape", () => {
         expect(back.nodes.get("name")?.value(0)).toBe("\uFEFFKRAS");
     });
 
+    it("writes the same text again from what it wrote, when nodes and edges hold different columns", async () => {
+        const builder = new GraphBuilder({ directed: true });
+        builder.addNode("a");
+        builder.addNode("b");
+        builder.addEdge("a", "b");
+        builder.addEdge("b", "a");
+        for (const name of ["url", "description"]) {
+            builder.declareNodeColumn({ name, dtype: "string" });
+            builder.declareEdgeColumn({ name, dtype: "string" });
+        }
+        // the first node and edge hold only the second column, which a reader then meets first
+        builder.setNodeValue("description", 0, "first");
+        builder.setNodeValue("url", 1, "u");
+        builder.setNodeValue("description", 1, "second");
+        builder.setEdgeValue("description", 0, "first");
+        builder.setEdgeValue("url", 1, "u");
+        builder.setEdgeValue("description", 1, "second");
+        const first = await dotExporter.exportToString(builder.freeze());
+        expect(lines(first)[2]).toBe("b [description=second, url=u];");
+        const again = await dotExporter.exportToString(await imported(first));
+        expect(again).toBe(first);
+    });
+
     it("formats bool, i32 and f64 cells so their dtype survives re-import", async () => {
         const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
         builder.addNode("a");

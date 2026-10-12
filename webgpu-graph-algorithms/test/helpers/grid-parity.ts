@@ -848,6 +848,7 @@ interface UnbiasedLadder {
  * @param start - the scene start (a one-cell fixture with its anchor)
  * @param options - the FA2 options (the seed is overridden per iteration)
  * @param seeds - the seed count, a power of two >= UNBIASED_LADDER_FIRST (default UNBIASED_SEEDS)
+ * @param onSeed - called after each seed's force is folded in, with the seed (a caller prints progress from it)
  * @returns the ladder
  */
 export async function unbiasedLadder(
@@ -856,6 +857,7 @@ export async function unbiasedLadder(
     start: F32,
     options: ForceAtlas2Options,
     seeds: number = UNBIASED_SEEDS,
+    onSeed?: (seed: number) => void,
 ): Promise<UnbiasedLadder> {
     assertUnitStart(options);
     if (seeds < UNBIASED_LADDER_FIRST || (seeds & (seeds - 1)) !== 0) {
@@ -892,6 +894,7 @@ export async function unbiasedLadder(
                 rms: flooredRelError(mean, exact, FLOOR_FRACTION).rms,
             });
         }
+        onSeed?.(seed);
     }
     return { mean, exact, rungs, rmsOneSeed };
 }

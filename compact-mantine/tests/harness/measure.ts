@@ -33,6 +33,7 @@ declare module "vitest/browser" {
         mouseDown: () => Promise<void>;
         mouseUp: () => Promise<void>;
         emulateReducedMotion: (reduce: boolean) => Promise<void>;
+        accessibilityTree: () => Promise<{ role: string; name: string; description: string }[]>;
     }
 }
 

@@ -182,26 +182,26 @@ A channel is one visual property with one name. These are all of them:
 | `node.opacity`      | 0 to 1                                                             |
 | `node.outline`      | a colour                                                           |
 | `node.glow`         | a colour                                                           |
-| `node.glowStrength` | a number that scales `node.glow`; on its own it draws no glow      |
+| `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow   |
 | `node.wireframe`    | true or false                                                      |
 | `node.flat`         | true or false                                                      |
 
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |
 | `edge.color`              | any CSS colour                                                             |
-| `edge.width`              | a number                                                                   |
+| `edge.width`              | 0 or more; 0 draws no line (the caps and label still draw)                 |
 | `edge.opacity`            | 0 to 1                                                                     |
 | `edge.style`              | `solid`, `dash`, `dot`, `zigzag`, ...                                      |
 | `edge.patternCount`       | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
 | `edge.curvature`          | true or false (a bezier)                                                   |
 | `edge.arrowHead`          | `normal`, `inverted`, `diamond`, `none`, ...                               |
-| `edge.arrowHeadSize`      | a number, 1 being the element's own size                                   |
+| `edge.arrowHeadSize`      | 0 or more, 1 being the element's own size; 0 draws no head                 |
 | `edge.arrowHeadColor`     | a colour                                                                   |
 | `edge.arrowHeadOpacity`   | 0 to 1                                                                     |
 | `edge.arrowHeadText`      | words drawn beside the head cap                                            |
 | `edge.arrowHeadTextStyle` | as `node.labelStyle`                                                       |
 | `edge.arrowTail`          | the same arrows                                                            |
-| `edge.arrowTailSize`      | a number                                                                   |
+| `edge.arrowTailSize`      | 0 or more; 0 draws no tail                                                 |
 | `edge.arrowTailColor`     | a colour                                                                   |
 | `edge.arrowTailOpacity`   | 0 to 1                                                                     |
 | `edge.arrowTailText`      | words drawn beside the tail cap                                            |

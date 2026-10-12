@@ -127,15 +127,18 @@ export function fileStyleLayerWords(origin: FileStyleOrigin, columnName?: string
     const reason: string | undefined = origin.reason === undefined ? undefined : STYLE_REASON_WORDS[origin.reason];
     const because = reason === undefined ? "" : `: ${reason}`;
     const elements = origin.elements === undefined ? "" : ` on ${count(origin.elements, "element")}`;
+    const classes = origin.classes === undefined ? "" : `, ${count(origin.classes, "class")}`;
+    const entries = origin.entries === undefined ? "" : ` (${count(origin.entries, "value")})`;
+    const distinct = origin.distinctValues === undefined ? "" : `, ${count(origin.distinctValues, "distinct value")}`;
     switch (origin.role) {
         case "defaults":
             return origin.origin === "tool" ? "Defaults of the program that wrote the file" : "The file's defaults";
         case "group":
-            return `A group from the file${elements}${origin.classes === undefined ? "" : `, ${count(origin.classes, "class")}`}${because}`;
+            return `A group from the file${elements}${classes}${because}`;
         case "mapping":
-            return `From the file${by}${origin.entries === undefined ? "" : ` (${count(origin.entries, "value")})`}`;
+            return `From the file${by}${entries}`;
         case "passthrough":
-            return `Copied from the file${by}${origin.distinctValues === undefined ? "" : `, ${count(origin.distinctValues, "distinct value")}`}${because}`;
+            return `Copied from the file${by}${distinct}${because}`;
         case "exceptions":
             return `Exceptions from the file${elements}${because}`;
         default:

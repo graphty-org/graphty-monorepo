@@ -24,7 +24,6 @@ import {
     BAD_DEFAULT_CODE,
     BAD_OPTIONS_CODE,
     COLUMN_RENAMED_CODE,
-    PRECISION_CODE,
     ROLE_TAKEN_CODE,
     UNKNOWN_ATTR_TYPE_CODE,
 } from "./codes.js";
@@ -116,7 +115,7 @@ export const UNKNOWN_TYPE_CODE = UNKNOWN_ATTR_TYPE_CODE;
  */
 export const RENAMED_CODE = COLUMN_RENAMED_CODE;
 
-export { BAD_DEFAULT_CODE, BAD_OPTIONS_CODE, PRECISION_CODE, ROLE_TAKEN_CODE };
+export { BAD_DEFAULT_CODE, BAD_OPTIONS_CODE, PRECISION_CODE, ROLE_TAKEN_CODE } from "./codes.js";
 
 /**
  * Rows sampled before the dict heuristic decides (design section 5.4).

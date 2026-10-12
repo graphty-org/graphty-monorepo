@@ -1619,7 +1619,7 @@ async function main(check: boolean): Promise<void> {
     }
     const found = check ? await problems(results) : [];
     if (found.length > 0) {
-        console.error(`graph-io docs check failed:\n${found.map((p) => `  ${p}`).join("\n")}`);
+        console.error(["graph-io docs check failed:", ...found.map((p) => `  ${p}`)].join("\n"));
         process.exitCode = 1;
     }
 }

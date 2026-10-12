@@ -40,7 +40,7 @@ import {
 } from "./codes.js";
 import { type ImportReportBuilder } from "./report.js";
 
-export { INVALID_UTF8_CODE };
+export { INVALID_UTF8_CODE } from "./codes.js";
 
 /**
  * Cancellation and progress hooks of the reader; the resolved importer options satisfy this shape.

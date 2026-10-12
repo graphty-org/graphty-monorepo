@@ -10,7 +10,7 @@ import { type F32, type U32 } from "@graphty/graph-format";
 import { type GpuContext } from "../../src/context.js";
 import { BufferUsage } from "../../src/device/webgpu-constants.js";
 import { type Binding } from "../../src/types/memory.js";
-import { acquire, type AcquireOptions } from "../setup/gpu.js";
+import { acquire, acquireNullBackend, type AcquireOptions } from "../setup/gpu.js";
 
 /** Every raw buffer is bindable as storage, readable back and writable by writeBuffer. */
 const RAW_USAGE = BufferUsage.STORAGE | BufferUsage.COPY_SRC | BufferUsage.COPY_DST;
@@ -75,19 +75,31 @@ export async function readF32(ctx: GpuContext, buffer: GPUBuffer, count: number,
 }
 
 /**
- * Runs `fn` with a context from acquire(options) and disposes it afterwards (also on throw).
+ * Runs `fn` with a context from `open(options)` and disposes it afterwards (also on throw).
  * @param options - the acquire options
  * @param fn - the body
+ * @param open - acquire (a real device, the default) or acquireNullBackend (a test that reads nothing back)
  * @returns what `fn` resolves
  */
 export async function withContext<T>(
     options: AcquireOptions | undefined,
     fn: (ctx: GpuContext) => Promise<T>,
+    open: (options?: AcquireOptions) => Promise<GpuContext> = acquire,
 ): Promise<T> {
-    const ctx = await acquire(options);
+    const ctx = await open(options);
     try {
         return await fn(ctx);
     } finally {
         ctx.dispose();
     }
+}
+
+/**
+ * withContext on Dawn's null backend (acquireNullBackend): for a test that compiles, validates or counts and never
+ * reads a computed result back, so it holds no device on the real GPU.
+ * @param fn - the body
+ * @returns what `fn` resolves
+ */
+export function withNullBackendContext<T>(fn: (ctx: GpuContext) => Promise<T>): Promise<T> {
+    return withContext(undefined, fn, acquireNullBackend);
 }

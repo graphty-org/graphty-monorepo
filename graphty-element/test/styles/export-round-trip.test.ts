@@ -14,6 +14,7 @@
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { gunzipSync } from "node:zlib";
 
 import { assert, describe, it } from "vitest";
 
@@ -270,11 +271,26 @@ const READERS: Readonly<Record<string, string>> = {
 };
 
 /**
- * Two small styled files of a corpus directory, from the files written by tools, not by graphty.
+ * Files named by hand where a directory has no small file a tool wrote: every Cytoscape session in
+ * the corpus is over 900 KB, so the sessions are represented by graph-io's own session with the
+ * edit Cytoscape makes when a reader locks one node's color.
+ */
+const PICKS: Readonly<Record<string, readonly string[]>> = {
+    cys: ["generated/graphty-written-native-edit.cys"],
+};
+
+/**
+ * Two small files of a corpus directory, from the files written by tools, not by graphty, or the
+ * ones {@link PICKS} names. Compressed files count by their stored size.
  * @param dir - The directory.
  * @returns Their paths.
  */
 function sample(dir: string): string[] {
+    const picked = PICKS[dir.split("/").at(-1) ?? ""];
+    if (picked !== undefined) {
+        return picked.map((name) => join(dir, name));
+    }
+
     const out: string[] = [];
     const walk = (at: string): void => {
         for (const name of readdirSync(at).sort()) {
@@ -283,7 +299,7 @@ function sample(dir: string): string[] {
                 if (name !== "generated") {
                     walk(path);
                 }
-            } else if (!/\.(md|cycss|gz)$/.test(name) && statSync(path).size < 40_000 && out.length < 2) {
+            } else if (!/\.(md|cycss)$/.test(name) && statSync(path).size < 120_000 && out.length < 2) {
                 out.push(path);
             }
         }
@@ -300,7 +316,9 @@ function sample(dir: string): string[] {
  */
 async function corpusSession(type: string, path: string): Promise<GraphSession | null> {
     const session = createGraphSession();
-    await session.data.import({ type, config: { data: new Uint8Array(readFileSync(path)) } }, { styles: "file" });
+    const stored = new Uint8Array(readFileSync(path));
+    const data = path.endsWith(".gz") ? new Uint8Array(gunzipSync(stored)) : stored;
+    await session.data.import({ type, config: { data } }, { styles: "file" });
     if (!session.styles.list().some((layer) => fileStyleOf(layer) !== null)) {
         session.dispose();
         return null;
@@ -672,6 +690,11 @@ describe("styles written into every format come back", () => {
     const files = Object.entries(READERS).flatMap(([dir, type]) =>
         sample(join(CORPUS, dir)).map((path) => ({ type, path, name: path.slice(CORPUS.length + 1) })),
     );
+    it("samples at least one file of every reader", () => {
+        for (const dir of Object.keys(READERS)) {
+            assert.isNotEmpty(sample(join(CORPUS, dir)), dir);
+        }
+    });
     for (const writer of WRITERS) {
         for (const file of files) {
             const gap = KNOWN_GAPS.get(`${writer.name}: ${file.name}`);
@@ -680,7 +703,7 @@ describe("styles written into every format come back", () => {
             (gap === undefined ? it : it.fails)(title, async () => {
                 const session = await corpusSession(file.type, file.path);
                 if (session === null) {
-                    return;
+                    throw new Error(`${file.name} made no style layers, so it tests no round trip`);
                 }
 
                 try {

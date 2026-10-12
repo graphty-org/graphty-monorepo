@@ -32,7 +32,7 @@ graph-io/
 +-- scripts/entries.js            # the bundle entries: graph-io + one per format (shared by both scripts below)
 +-- scripts/build-bundle.js       # one multi-entry vite lib build -> dist/graph-io.js, dist/<format>.js, dist/chunks/*
 +-- scripts/bundle-types.js       # dist/graph-io.d.ts and dist/<format>.d.ts, one-line re-exports of dist/src/**
-+-- scripts/docs-reference.ts     # renders the generated blocks of docs/ (npm run docs:reference; --check verifies)
++-- scripts/docs-reference.ts     # renders the generated blocks of docs/ (npm run docs:reference; docs:check verifies)
 +-- typedoc.json                  # the API reference (root `pnpm run docs:api:graph-io`); every subpath barrel is an entry
 +-- docs/                         # the user guide, published at https://graphty.app/docs/graph-io/
 |   +-- examples/<topic>/<name>.ts  # every code example the guide shows, runnable; <name>.txt is what it prints
@@ -149,7 +149,7 @@ the two correctly.
 
 1. Create `src/formats/<fmt>/importer.ts` exporting `<fmt>Importer: GraphImporter<FmtImportOptions>`
    with `format`, `extensions`, `mimeTypes`, `options` (the names of the format's own options, which
-   W_UNKNOWN_OPTION trusts; `test/docs-reference.test.ts` checks them against the type), `sniff(head)`
+   W_UNKNOWN_OPTION trusts; `npm run docs:check` checks them against the type), `sniff(head)`
    (0..1) and `import()`:
    `resolveImportOptions(options, { ids, defaultDirected, weightFrom })`, then
    `new ImportReportBuilder(format, errorLimit)`, `reportSinkOptions(sink, options, report)` and
@@ -184,8 +184,9 @@ the two correctly.
    blocks (capabilities, options, issue and loss codes) filled in from the registry, the subpath
    barrel and the doc comments; then write the page's prose (what the format is, loading and
    saving, what a saved file keeps and loses) and its example, `docs/examples/formats/<fmt>.ts`.
-   `test/docs-reference.test.ts` fails while a page is stale, an option or code has no doc
-   comment, or a published doc comment mentions the internal design documents.
+   `npm run docs:check` (run by the pre-push gate and CI's Docs job) fails while a page is stale,
+   an option or code has no doc comment, or a published doc comment mentions the internal design
+   documents.
 
 ## Documentation examples
 

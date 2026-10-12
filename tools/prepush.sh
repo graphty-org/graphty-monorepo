@@ -196,6 +196,12 @@ fi
 if affected cytoscape-extensions; then
     run_step "Bundle size (cytoscape-extensions)" "pnpm --filter @graphty/cytoscape-extensions run size"
 fi
+# graph-io's generated documentation matches the source: every page regenerated and compared, every option,
+# code and capability described, no internal references, the importers' option lists equal their types.
+# CI's Docs job runs the same check (docs:build). Needs the build above. About 4 seconds.
+if affected graph-io; then
+    run_step "Generated docs (graph-io)" "pnpm --filter @graphty/graph-io run docs:check"
+fi
 
 # Screenshots, in the background while the tests run: tools/visual-preview.sh --head fetches master,
 # then captures the Storybooks this push affects on the commit being pushed merged into origin/master,

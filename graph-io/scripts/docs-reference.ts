@@ -13,8 +13,11 @@
  * exporter of the default registry gets a page `guide/formats/<format>.md`, and a format with no page yet gets a
  * skeleton one on the next `npm run docs:reference`.
  *
- * Usage: `tsx scripts/docs-reference.ts` rewrites the pages; `--check` fails when a page differs from what this
- * produces (test/docs-reference.test.ts runs the same check).
+ * Usage: `tsx scripts/docs-reference.ts` rewrites the pages; `--check` (`npm run docs:check`) fails when a page
+ * differs from what this produces, an option, code or capability has no description, a published doc comment or page
+ * mentions the internal design documents, or a built-in importer's or exporter's `options` list differs from its
+ * type. The pre-push gate and CI's Docs job run the check. It is a script, not a test: building the type checker and
+ * formatting every page take seconds, several times that under a test runner's coverage.
  */
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -23,7 +26,13 @@ import { fileURLToPath } from "node:url";
 import { format as prettierFormat, resolveConfig } from "prettier";
 import ts from "typescript";
 
-import { type ExportCapabilities, type GraphExporter, type GraphImporter, registry } from "../src/index.js";
+import {
+    type ExportCapabilities,
+    type GraphExporter,
+    type GraphImporter,
+    importGraph,
+    registry,
+} from "../src/index.js";
 
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 
@@ -1420,7 +1429,7 @@ export interface PageResult {
  * Every generated page as it is and as it should be.
  * @returns one result per page, plus a stray format page (one with no registered format) as an error
  */
-export async function pages(): Promise<PageResult[]> {
+async function pages(): Promise<PageResult[]> {
     const ctx = await context();
     const p = plan(ctx.formats.map((f) => f.name));
     const formatPages = existsSync(`${docsDir}guide/formats`) ? readdirSync(`${docsDir}guide/formats`) : [];
@@ -1453,7 +1462,7 @@ export async function pages(): Promise<PageResult[]> {
  * Every option and code that has no description, as `<where>: <name>` lines.
  * @returns the undocumented items, empty when every one has a description
  */
-export async function undocumented(): Promise<string[]> {
+async function undocumented(): Promise<string[]> {
     const ctx = await context();
     const out: string[] = [];
     const opts = (where: string, rows: readonly OptionRow[] | undefined): void => {
@@ -1489,7 +1498,7 @@ export async function undocumented(): Promise<string[]> {
  * and exporters, and the library's list of the functions' own names, must equal these.
  * @returns the names, sorted
  */
-export async function optionNames(): Promise<{
+async function optionNames(): Promise<{
     common: string[];
     formats: Record<string, { import: string[]; export: string[] }>;
 }> {
@@ -1531,7 +1540,7 @@ const INTERNAL_PATTERNS = [
  * @param text - a doc comment or a generated page
  * @returns true when it does
  */
-export function mentionsInternals(text: string): boolean {
+function mentionsInternals(text: string): boolean {
     return INTERNAL_PATTERNS.some((r) => r.test(text));
 }
 
@@ -1539,17 +1548,59 @@ export function mentionsInternals(text: string): boolean {
  * Every published doc comment that mentions the package's internal design documents.
  * @returns `<entry>: <name>` per offending comment
  */
-export function internalReferences(): string[] {
+function internalReferences(): string[] {
     return [...source().publishedDocs()].filter(([, doc]) => mentionsInternals(doc)).map(([k]) => k);
 }
 
 /**
+ * Every problem the check reports besides a stale page: an undescribed option, code or capability, a mention of the
+ * internal design documents, and a built-in importer's or exporter's `options` list that differs from its type
+ * (W_UNKNOWN_OPTION trusts those lists; a new option missing there would be reported as a misspelling).
+ * @param results - the pages, as pages() returns them
+ * @returns one line per problem
+ */
+async function problems(results: readonly PageResult[]): Promise<string[]> {
+    // a row without a meaning has no doc comment where it is declared: write one there
+    const out = (await undocumented()).map((u) => `no description: ${u}`);
+    // the published doc comments and the generated pages are read by users, who have neither
+    for (const r of internalReferences()) {
+        out.push(`doc comment mentions the internal design documents: ${r}`);
+    }
+    for (const r of results.filter((x) => mentionsInternals(x.expected))) {
+        out.push(`page mentions the internal design documents: docs/${r.page}`);
+    }
+    const names = await optionNames();
+    const same = (a: readonly string[], b: readonly string[]): boolean => a.join() === b.join();
+    for (const [format, own] of Object.entries(names.formats)) {
+        const listed = {
+            import: [...(registry.importer(format).options ?? [])].sort(byCodeUnit),
+            export: [...(registry.exporter(format).options ?? [])].sort(byCodeUnit),
+        };
+        for (const dir of ["import", "export"] as const) {
+            if (!same(listed[dir], own[dir])) {
+                out.push(
+                    `${format} ${dir}: options lists [${listed[dir].join(", ")}], its type declares [${own[dir].join(", ")}]`,
+                );
+            }
+        }
+    }
+    // and every option the load and save functions take themselves is known: none is reported
+    const all = Object.fromEntries(names.common.map((n) => [n, undefined]));
+    const { report } = await importGraph("graph { a -- b }", { ...all, format: "dot" });
+    for (const issue of report.issues) {
+        out.push(`a load or save option is reported as unknown: ${JSON.stringify(issue)}`);
+    }
+    return out;
+}
+
+/**
  * Rewrites (or with --check, verifies) every generated page.
- * @param check - whether to fail on a stale page instead of rewriting it
+ * @param check - whether to fail on a stale page or another problem instead of rewriting the pages
  */
 async function main(check: boolean): Promise<void> {
+    const results = await pages();
     const stale: string[] = [];
-    for (const r of await pages()) {
+    for (const r of results) {
         if (r.current === r.expected) {
             continue;
         }
@@ -1564,6 +1615,11 @@ async function main(check: boolean): Promise<void> {
         console.error(
             `graph-io docs are out of date (run \`npm run docs:reference\` in graph-io): ${stale.join(", ")}`,
         );
+        process.exitCode = 1;
+    }
+    const found = check ? await problems(results) : [];
+    if (found.length > 0) {
+        console.error(`graph-io docs check failed:\n${found.map((p) => `  ${p}`).join("\n")}`);
         process.exitCode = 1;
     }
 }

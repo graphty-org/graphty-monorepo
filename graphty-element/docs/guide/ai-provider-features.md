@@ -35,33 +35,37 @@ code.
 ## Voice
 
 Which provider can hear the reader and speak the answer itself (see
-[Voice](./ai-assistant#voice)). A provider without transcription can still be spoken to through
-the browser's recognition, or through another provider's (`voice.transcription`); one without
-speech can answer through the browser's.
+[Voice](./ai-assistant#voice)), and which can hold a
+[live conversation](./ai-assistant#live-conversation), speech to speech. A provider without
+transcription can still be spoken to through the browser's recognition, or through another
+provider's (`voice.transcription`); one without speech can answer through the browser's. On a
+provider without live, `mode: "live"` runs turn by turn and says why.
 
-| Provider                  | Transcription (speech in)             | Speech (speech out)                         |
-| ------------------------- | ------------------------------------- | ------------------------------------------- |
-| OpenAI (`"openai"`)       | `available`, `gpt-4o-mini-transcribe` | `available`, `tts-1`                        |
-| Anthropic (`"anthropic"`) | `unsupported`                         | `unsupported`                               |
-| Google (`"google"`)       | `available`, by the chat model        | `available`, `gemini-3.1-flash-tts-preview` |
-| WebLLM (`"webllm"`)       | `unsupported`                         | `unsupported`                               |
-| Mock (`"mock"`)           | `unsupported`                         | `unsupported`                               |
+| Provider                  | Transcription (speech in)             | Speech (speech out)                         | Live conversation (speech to speech) |
+| ------------------------- | ------------------------------------- | ------------------------------------------- | ------------------------------------ |
+| OpenAI (`"openai"`)       | `available`, `gpt-4o-mini-transcribe` | `available`, `tts-1`                        | `available`, `gpt-realtime-2.1`      |
+| Anthropic (`"anthropic"`) | `unsupported`                         | `unsupported`                               | `unsupported`                        |
+| Google (`"google"`)       | `available`, by the chat model        | `available`, `gemini-3.1-flash-tts-preview` | `available`, `gemini-3.8-live`       |
+| WebLLM (`"webllm"`)       | `unsupported`                         | `unsupported`                               | `unsupported`                        |
+| Mock (`"mock"`)           | `unsupported`                         | `unsupported`                               | `unsupported`                        |
 
 The table is `AI_VOICE_CAPABILITIES` in `@graphty/graphty-element/catalog`, and
-`aiVoiceStatus(provider, "input" | "output")` reads it. Google's speech model is a preview
-model.
+`aiVoiceStatus(provider, "input" | "output")` reads it; each live model is the default of
+`voice.liveModel`. Google's speech model is a preview model.
 
 Which of the browser's own speech paths each browser and headset offers. Provider transcription
-and provider speech work in all of them: they need only a microphone and audio playback.
+and provider speech work in all of them: they need only a microphone and audio playback. A live
+conversation needs WebRTC (OpenAI) or WebSocket and `AudioWorklet` (Google).
 
-| Browser                   | Browser recognition (speech in)                                                                              | Browser speech (speech out)       |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------- |
-| Chrome (desktop, Android) | yes; audio goes to Google, or stays on the device where Chrome offers on-device recognition for the language | yes                               |
-| Edge (desktop)            | yes; audio goes to Microsoft                                                                                 | yes                               |
-| Safari (macOS, iOS)       | yes; on the device                                                                                           | yes                               |
-| Firefox                   | no                                                                                                           | yes                               |
-| Quest Browser             | no (it has the API, but recognition fails; the first press finds out and later presses use the provider)     | yes (Quest Browser 5.0 and later) |
-| Galaxy XR (Chrome)        | expected, as Chrome; not yet checked on the device                                                           | yes                               |
-| Vision Pro (Safari)       | yes; on the device                                                                                           | yes                               |
+| Browser                   | Browser recognition (speech in)                                                                              | Browser speech (speech out)       | Live conversation                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------- | ----------------------------------------------------------------------------------- |
+| Chrome (desktop, Android) | yes; audio goes to Google, or stays on the device where Chrome offers on-device recognition for the language | yes                               | yes                                                                                 |
+| Edge (desktop)            | yes; audio goes to Microsoft                                                                                 | yes                               | yes                                                                                 |
+| Safari (macOS, iOS)       | yes; on the device                                                                                           | yes                               | yes                                                                                 |
+| Firefox                   | no                                                                                                           | yes                               | yes                                                                                 |
+| Quest Browser             | no (it has the API, but recognition fails; the first press finds out and later presses use the provider)     | yes (Quest Browser 5.0 and later) | expected (it has WebRTC, WebSocket and AudioWorklet); not yet checked on the device |
+| Galaxy XR (Chrome)        | expected, as Chrome; not yet checked on the device                                                           | yes                               | expected, as Chrome; not yet checked on the device                                  |
+| Vision Pro (Safari)       | yes; on the device                                                                                           | yes                               | expected, as Safari; not yet checked on the device                                  |
 
-`getAiVoiceSupport()` says which path the running page would take, and where the audio goes.
+`getAiVoiceSupport()` says which path the running page would take, and where the audio goes;
+its `live` says whether a live conversation can run there.

@@ -837,6 +837,8 @@ params? }`:
 | `speechLevel`     | `0.04`                               | When the provider transcribes: the microphone level (0 to 1, as `ai-voice-level` reports it) a press must reach to be sent. A quieter press is heard as nothing, so silence never reaches a model that might write words nobody said. `0` sends every press                  |
 | `transcription`   | the chat provider                    | `{ provider, model? }`: transcribe through another provider, with its key from `apiKeys`. Anthropic transcribes nothing itself, so an Anthropic page sets `transcription: { provider: "openai" }`. On Google, whose chat model transcribes, `model` names that chat model    |
 | `replies`         | `{ approve: ["yes"], deny: ["no"] }` | What the reader says to answer a [held approval](#remember-the-conversation-and-ask-before-changing-the-graph), compared with case and punctuation ignored. The defaults are English whatever `language` is: set your own words for another language. `gates`: see below     |
+| `mode`            | `"turns"`                            | `"turns"`: each press is heard as text and sent as a message. `"live"`: a [live conversation](#live-conversation), speech to speech, where the provider can hold one                                                                                                         |
+| `liveModel`       | the provider's live model            | The model of a live conversation (`gpt-realtime-2.1` on OpenAI, `gemini-3.8-live` on Google)                                                                                                                                                                                 |
 | `say`             | absent                               | `({ code, params }) => string \| undefined`: the words to speak for an outcome the model wrote no text for. Absent, such an outcome is not spoken                                                                                                                            |
 
 Which providers transcribe and speak, and which browsers and headsets recognize speech, is on
@@ -892,15 +894,15 @@ while the wrist orb is pinched.
 
 ### Events
 
-| Event                     | `detail`                   | When                                                                                                                                                                                                                                                                            |
-| ------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ai-voice-start`          | `{}`                       | the microphone opened and listening began                                                                                                                                                                                                                                       |
-| `ai-voice-transcript`     | `{ transcript, isFinal }`  | what has been heard so far; the last one has `isFinal: true`                                                                                                                                                                                                                    |
-| `ai-voice-level`          | `{ level }`                | how loud the microphone is, 0 to 1, at most once per animation frame while talk is held: draw a meter from it                                                                                                                                                                   |
-| `ai-voice-end`            | `{ reason, code, params }` | the press ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`, `AI_NOT_ENABLED` when the assistant has no `voice`, `AI_FAILED` when the voice code would not load, or the provider's code when its transcription failed (`AI_PROVIDER_ERROR`, `AI_KEY_REJECTED`, ...) |
-| `ai-voice-support-change` | `{ support }`              | what `getAiVoiceSupport()` would return changed: redraw the talk button from `support`                                                                                                                                                                                          |
-| `ai-speech-start`         | `{}`                       | an answer started being spoken                                                                                                                                                                                                                                                  |
-| `ai-speech-end`           | `{ code, params }`         | it stopped: `AI_COMPLETED`, `AI_CANCELLED` (talk or `stopAiSpeech()` cut it off), `AI_VOICE_UNAVAILABLE`, or a provider's code                                                                                                                                                  |
+| Event                     | `detail`                    | When                                                                                                                                                                                                                                                                                                                      |
+| ------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ai-voice-start`          | `{ mode?, code?, params? }` | the microphone opened and listening began. With `voice.mode` set, `mode` says how this press reaches the model, `"live"` or `"turns"`; a press asked to be live that runs turn by turn carries `code` and `params` saying why (`AI_VOICE_UNAVAILABLE` `{ path, reason }`, or the code the connection failed to open with) |
+| `ai-voice-transcript`     | `{ transcript, isFinal }`   | what has been heard so far; the last one has `isFinal: true`                                                                                                                                                                                                                                                              |
+| `ai-voice-level`          | `{ level }`                 | how loud the microphone is, 0 to 1, at most once per animation frame while talk is held: draw a meter from it                                                                                                                                                                                                             |
+| `ai-voice-end`            | `{ reason, code, params }`  | the press ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`, `AI_NOT_ENABLED` when the assistant has no `voice`, `AI_FAILED` when the voice code would not load, or the provider's code when its transcription failed (`AI_PROVIDER_ERROR`, `AI_KEY_REJECTED`, ...)                                           |
+| `ai-voice-support-change` | `{ support }`               | what `getAiVoiceSupport()` would return changed: redraw the talk button from `support`                                                                                                                                                                                                                                    |
+| `ai-speech-start`         | `{}`                        | an answer started being spoken                                                                                                                                                                                                                                                                                            |
+| `ai-speech-end`           | `{ code, params }`          | it stopped: `AI_COMPLETED`, `AI_CANCELLED` (talk or `stopAiSpeech()` cut it off), `AI_VOICE_UNAVAILABLE`, or a provider's code                                                                                                                                                                                            |
 
 ```typescript
 element.addEventListener("ai-voice-level", (e) => {
@@ -960,14 +962,96 @@ element.xr = {
 
 An empty button list switches that binding off (`pushToTalk: { buttons: [] }`).
 
+### Live conversation
+
+With `mode: "live"`, the reader holds a real conversation with the model, speech to speech, over
+the provider's own live API (OpenAI and Google; see
+[AI Provider Features](./ai-provider-features#voice)). The talk button is the same one:
+
+```typescript
+await element.enableAiControl({ provider: "openai", apiKey: myKey, voice: { mode: "live" } });
+
+talk.onpointerdown = (e) => {
+    talk.setPointerCapture(e.pointerId);
+    element.aiTalk(true);
+};
+talk.onpointerup = talk.onpointercancel = () => element.aiTalk(false);
+talk.onkeydown = (e) => {
+    if (e.key === " " && !e.repeat) {
+        element.aiTalk(true);
+    }
+};
+talk.onkeyup = (e) => {
+    if (e.key === " ") {
+        element.aiTalk(false);
+    }
+};
+```
+
+What differs from turn by turn:
+
+- **Speech to speech.** The model hears the reader's voice and answers in its own, with no
+  transcription and no speech step in between, so it answers sooner. The answer is always spoken;
+  `output` picks no path, and `output: "off"` keeps every press turn by turn.
+- **The provider decides when the reader finished.** Releasing talk stops sending the microphone
+  and ends the reader's turn; within a held press, the provider may also answer after a pause.
+- **Talking over the answer cuts it off** (barge-in): `aiTalk(true)` while the model speaks
+  interrupts it, as `stopAiSpeech()` does, and the cut-off answer is saved as far as it was heard.
+- **The same assistant.** What the reader says is one message of the conversation, with
+  `via: "voice"`: the same tools, approvals, undo (one step per spoken message) and history. A
+  live conversation continues a typed one, and a typed message after it sees what was said.
+- **Approvals and questions continue turn by turn.** When a change is held for approval or the
+  model asks a question, the live connection closes, and every press runs turn by turn until it is
+  answered ("yes", "no", a choice, or on screen). The next press after that is live again.
+- **Pointing works**: "color this" names the nodes pointed at while talk is held, as in
+  [Pointing](#pointing-color-this).
+
+The connection opens on the first press, stays open while the reader keeps talking, and closes on
+`disableAiControl()`, on leaving VR or AR, on a provider error, and two minutes after the last
+thing said or heard.
+
+**Where live cannot run, a press runs turn by turn and says why.** Read
+`getAiVoiceSupport().live`, an `AiVoicePath` like `input` (present whenever `voice` is set,
+whatever `mode` is, so a page can offer live only where it works):
+
+```typescript
+const support = await element.getAiVoiceSupport();
+if (support.live?.status === "unavailable") {
+    showWhy(support.live.params); // { path: "input", reason }
+}
+element.addEventListener("ai-voice-start", (e) => {
+    if (e.detail.mode === "turns" && e.detail.code !== undefined) {
+        showWhy(e.detail.params); // this press asked to be live and ran turn by turn
+    }
+});
+```
+
+`live.reason` is one of `"no-provider-live"` (the provider has no live API: Anthropic, WebLLM, the
+mock), `"live-custom-base-url"` (a `baseUrl` is set; live reaches only the provider's own host),
+`"no-live-transport"` (the browser lacks WebRTC for OpenAI, or WebSocket and `AudioWorklet` for
+Google), `"output-off"`, `"no-key"`, or one of the microphone's reasons (`"no-microphone"`,
+`"permission-denied"`, `"insecure-context"`).
+
+**Cost.** A live conversation is billed by the provider as audio in and audio out, on the reader's
+key, and audio costs more per minute than the same words as text. The microphone is sent only
+while talk is held. The message's `usage` counts the tokens where the provider reports them
+(Google) and is zero where it does not (OpenAI).
+
 ### Result codes voice adds
 
-| Code                   | When                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AI_VOICE_UNAVAILABLE` | speech cannot be heard or spoken; `{ path, reason }`. `path` is `"input"` or `"output"`; `reason` is one of `AI_VOICE_UNAVAILABLE_REASONS`: `"no-recognition"`, `"no-microphone"`, `"permission-denied"`, `"insecure-context"` (the page is not HTTPS), `"no-provider-transcription"`, `"no-provider-speech"`, `"no-key"`, `"no-synthesis"`, `"playback-failed"`, `"unknown-voice"` (the provider has no voice by that name), `"recognition-network"` (the browser's recognition service could not be reached; the next press tries again). More may be added in a minor release |
+| Code                   | When                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AI_VOICE_UNAVAILABLE` | speech cannot be heard or spoken; `{ path, reason }`. `path` is `"input"` or `"output"`; `reason` is one of `AI_VOICE_UNAVAILABLE_REASONS`: `"no-recognition"`, `"no-microphone"`, `"permission-denied"`, `"insecure-context"` (the page is not HTTPS), `"no-provider-transcription"`, `"no-provider-speech"`, `"no-key"`, `"no-synthesis"`, `"playback-failed"`, `"unknown-voice"` (the provider has no voice by that name), `"recognition-network"` (the browser's recognition service could not be reached; the next press tries again), and for a [live conversation](#live-conversation) `"no-provider-live"`, `"live-custom-base-url"`, `"no-live-transport"`, `"output-off"`. More may be added in a minor release |
+
+A live conversation that cannot open runs the press turn by turn, and `ai-voice-start` carries
+`mode: "turns"` and the code it failed with: `AI_KEY_REJECTED` (the key could not mint a live
+token), `AI_PROVIDER_ERROR` (`{ provider, status }`, the provider refused), or
+`AI_VOICE_UNAVAILABLE` (the microphone). A connection lost while talk is held ends the press:
+`ai-voice-end` carries `AI_PROVIDER_ERROR` with `params: { provider, cause: "live-closed" }`.
 
 The "Voice" story in Storybook shows a talk button on the mock provider. On a headset or a phone
-it uses the device's own speech, so it is also the page to check a device with.
+it uses the device's own speech, so it is also the page to check a device with. The "Live voice"
+story shows a live conversation over a scripted connection.
 
 ## Privacy
 
@@ -1026,6 +1110,20 @@ Voice adds these:
 - **Content security policy.** The provider's speech is played from a `blob:` URL, so it needs
   `media-src blob:`; transcription and speech go to the provider's own host, already in
   `connect-src`.
+
+A [live conversation](#live-conversation) adds these:
+
+- **Audio streams to the provider only while talk is held.** The connection stays open between
+  presses, but the microphone is sent only from `aiTalk(true)` to `aiTalk(false)`; every track is
+  stopped when the connection closes. The model's spoken answer streams back from the provider.
+- **The key stays in the page.** Each connection gets a short-lived token, minted in the page from
+  the reader's key; the browser opens the live connection with that token, so the key never
+  appears in a URL. Nothing else is sent anywhere but the provider.
+- **Content security policy.** OpenAI: `connect-src https://api.openai.com`, and WebRTC must not
+  be blocked (the answer plays from a media stream). Google: `connect-src
+https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com` (the token,
+  then the live socket) and `script-src blob:` (the audio worklets that record and play are loaded
+  from `blob:` URLs).
 
 ## Result codes
 

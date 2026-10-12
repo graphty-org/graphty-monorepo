@@ -15,10 +15,13 @@ import { userEvent, waitFor } from "storybook/test";
 import type { ExecutionResult } from "../src/ai/AiController";
 import type { AiManagerConfig } from "../src/ai/AiManager";
 import type { AiStatus } from "../src/ai/AiStatus";
+import { registerProviderApiEngine } from "../src/ai/engine/load";
+import type { AiEngine } from "../src/ai/engine/types";
 import { ApiKeyManager } from "../src/ai/keys/ApiKeyManager";
 import type { MockLlmProvider } from "../src/ai/providers/MockLlmProvider";
 import type { WebLlmProvider } from "../src/ai/providers/WebLlmProvider";
 import { type GraphtyElement } from "../src/graphty-element";
+import { scriptedLiveEngine } from "../src/testing/fakeLive";
 import { QueuedProvider } from "../test/helpers/queued-provider";
 import {
     assertControlsPresent,
@@ -1444,11 +1447,13 @@ const assistantPages = new WeakMap<Element, AssistantPage>();
  * @param config - The assistant's history, approvals, questions and helpers.
  * @param scripted - The mock provider's answers: by a phrase of the reader's message, or every
  *     model turn in order (the main model's and its helpers'), for a message with several turns.
+ * @param engine - An engine the mock provider runs on instead (a scripted live conversation).
  * @returns The page's root.
  */
 function assistantPage(
     config: Pick<AiManagerConfig, "history" | "approvals" | "questions" | "agents" | "tools" | "voice">,
     scripted: Readonly<Record<string, ScriptedResponse>> | readonly ScriptedResponse[],
+    engine?: AiEngine,
 ): HTMLElement {
     const root = document.createElement("div");
     // Room on the right for the console-capture button Storybook floats in the top-right corner,
@@ -1570,8 +1575,8 @@ function assistantPage(
             release();
         }
     });
-    element.addEventListener("ai-voice-start", () => {
-        heard.textContent = "Listening";
+    element.addEventListener("ai-voice-start", (e) => {
+        heard.textContent = e.detail.mode === "live" ? "Listening (live)" : "Listening";
     });
     element.addEventListener("ai-voice-transcript", (e) => {
         heard.textContent = e.detail.transcript;
@@ -1663,6 +1668,10 @@ function assistantPage(
 
             await element.enableAiControl({ provider: "mock", ...config });
             const provider = element.getAiManager()?.getProvider() as MockLlmProvider;
+            if (engine !== undefined) {
+                registerProviderApiEngine(provider, () => engine);
+            }
+
             for (const [phrase, response] of Object.entries(scripted)) {
                 provider.setResponse(phrase, response);
             }
@@ -2313,5 +2322,114 @@ export const Voice: Story = {
             `${String(live.length)} microphone tracks are still open`,
         );
         await drawn(canvasElement, "AI Control Voice");
+    },
+};
+
+/** What the "Live voice" story's scripted provider hears and does, one press. */
+const LIVE_SCRIPT = [
+    {
+        heard: "Make the servers red",
+        calls: [
+            {
+                id: "live1",
+                name: "style",
+                arguments: { action: "add", where: "data.type == 'server'", values: { "node.color": "red" } },
+            },
+        ],
+        answer: "I colored the four servers red.",
+    },
+];
+
+/** The scripted live engine of each "Live voice" page, by its root, for the play function. */
+const liveEngines = new WeakMap<Element, ReturnType<typeof scriptedLiveEngine>>();
+
+/**
+ * The reader holds a live conversation with the assistant (`voice: { mode: "live" }`): they hold
+ * "Hold to talk", say "Make the servers red" and let go; the provider hears it, the model colors
+ * the four servers red through the assistant's own tools, and its answer is spoken and saved as
+ * one voice message. The page is the AI guide's simple path, unchanged from turn by turn.
+ *
+ * The provider is a scripted live connection (`src/testing/fakeLive.ts`), so nothing is sent
+ * anywhere and no key is needed, on a device as in a test: on a headset it checks the talk
+ * bindings (B or Y, the wrist orb) and the in-scene panel in live mode, not the provider's audio.
+ */
+export const LiveVoice: Story = {
+    name: "Live voice",
+    render: () => {
+        const engine = scriptedLiveEngine(LIVE_SCRIPT);
+        const root = assistantPage({ history: "memory", voice: { mode: "live", output: "on" } }, {}, engine);
+        liveEngines.set(root, engine);
+        const element = root.querySelector("graphty-element");
+        if (element !== null && !navigator.webdriver) {
+            element.xr = { enabled: true };
+        }
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await readyPage(canvasElement);
+        const before = await drawn(canvasElement, "AI Control Live voice");
+        await assertGraphLoaded(before, { nodes: 12, edges: 20 });
+        const element = await renderedElement(canvasElement, "the story rendered no <graphty-element>");
+        const engine =
+            canvasElement.firstElementChild === null ? undefined : liveEngines.get(canvasElement.firstElementChild);
+        const support = await element.getAiVoiceSupport();
+        await holds(
+            support.live?.path === "provider",
+            `a live conversation cannot run here: ${JSON.stringify(support.live?.params)}`,
+        );
+
+        // Hold "Hold to talk" with the real pointer, then let go.
+        const talk = canvasElement.querySelector<HTMLButtonElement>("#talk");
+        await holds(talk !== null, "the page has no talk button");
+        const user = userEvent.setup();
+        await user.pointer({ keys: "[MouseLeft>]", target: talk as HTMLButtonElement });
+        await waitFor(
+            () => {
+                need(
+                    canvasElement.querySelector("#voice-status")?.textContent === "Listening (live)",
+                    "the press did not start a live conversation",
+                );
+            },
+            { timeout: VOICE_LOAD_BUDGET_MS },
+        );
+        await user.pointer({ keys: "[/MouseLeft]", target: talk as HTMLButtonElement });
+
+        await waitFor(() => {
+            need(
+                (element.getAiConversation()?.messages ?? []).some(
+                    (m) => m.role === "assistant" && m.text === "I colored the four servers red.",
+                ),
+                "the spoken request was not answered",
+            );
+        });
+        const messages = element.getAiConversation()?.messages ?? [];
+        const [spoken] = messages;
+        await holds(
+            spoken?.role === "reader" && spoken.via === "voice" && spoken.text === "Make the servers red",
+            `the first message is ${JSON.stringify(spoken)}, not the spoken request`,
+        );
+        await holds(
+            messages.filter((m) => m.role === "reader").length === 1 &&
+                messages.some(
+                    (m) =>
+                        m.role === "assistant" &&
+                        m.calls.some((call) => call.command === "style" && call.code === "AI_COMPLETED"),
+                ),
+            "the spoken request was not one message whose style call ran",
+        );
+        await waitFor(() => {
+            need(
+                canvasElement
+                    .querySelector("#transcript")
+                    ?.textContent?.includes("Assistant: I colored the four servers red.") === true,
+                "the page's transcript does not show the spoken answer",
+            );
+        });
+        await holds(
+            JSON.stringify(engine?.liveConnections.map((connection) => connection.captures)) === "[[true,false]]",
+            "the microphone was not sent exactly while talk was held, on one connection",
+        );
+        await drawn(canvasElement, "AI Control Live voice");
     },
 };

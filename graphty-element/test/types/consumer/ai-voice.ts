@@ -204,3 +204,55 @@ export async function fromTheGuide(myKey: string, showWhy: (params?: Record<stri
         },
     };
 }
+
+/**
+ * The AI guide's "Live conversation", as a reader who sees only the guide writes it: the simple
+ * path with `mode: "live"`, the support check on `live`, and the press that ran turn by turn.
+ * @param myKey - The provider key.
+ * @param showWhy - The page's own way of saying why live is unavailable.
+ */
+export async function liveFromTheGuide(
+    myKey: string,
+    showWhy: (params?: Record<string, unknown>) => void,
+): Promise<void> {
+    const element = document.querySelector("graphty-element");
+    const talk = document.querySelector<HTMLButtonElement>("#talk");
+    if (element === null || talk === null) {
+        return;
+    }
+
+    await element.enableAiControl({ provider: "openai", apiKey: myKey, voice: { mode: "live" } });
+
+    talk.onpointerdown = (e) => {
+        talk.setPointerCapture(e.pointerId);
+        element.aiTalk(true);
+    };
+    talk.onpointerup = talk.onpointercancel = () => element.aiTalk(false);
+    talk.onkeydown = (e) => {
+        if (e.key === " " && !e.repeat) {
+            element.aiTalk(true);
+        }
+    };
+    talk.onkeyup = (e) => {
+        if (e.key === " ") {
+            element.aiTalk(false);
+        }
+    };
+
+    const support = await element.getAiVoiceSupport();
+    if (support.live?.status === "unavailable") {
+        showWhy(support.live.params); // { path: "input", reason }
+    }
+
+    element.addEventListener("ai-voice-start", (e) => {
+        if (e.detail.mode === "turns" && e.detail.code !== undefined) {
+            showWhy(e.detail.params);
+        }
+    });
+
+    await element.enableAiControl({
+        provider: "google",
+        apiKey: myKey,
+        voice: { mode: "live", liveModel: "gemini-3.8-live" },
+    });
+}

@@ -60,6 +60,34 @@ describe("the AI provider features page", () => {
         assert.notStrictEqual(readFileSync(PAGE, "utf8"), rendered);
     });
 
+    it("shows every provider's live conversation, with its model", () => {
+        const page = readFileSync(PAGE, "utf8");
+        const voice = page.slice(page.indexOf("## Voice"));
+        for (const provider of AI_PROVIDER_DESCRIPTORS) {
+            const row = voice.split("\n").find((line) => line.startsWith(`| ${provider.plainName} (`)) ?? "";
+            const live = AI_VOICE_CAPABILITIES[provider.id].live ?? { status: "unsupported" };
+            const cell = row.split("|").slice(-2, -1)[0]?.trim() ?? "";
+            assert.include(cell, `\`${live.status}\``, `${provider.id} live`);
+            if (live.model !== undefined) {
+                assert.include(cell, live.model, `${provider.id} live model`);
+            }
+        }
+    });
+
+    it("differs from the committed page when one live entry changes", () => {
+        const changed = {
+            ...AI_VOICE_CAPABILITIES,
+            google: { ...AI_VOICE_CAPABILITIES.google, live: { status: "available" as const, model: "another-live" } },
+        };
+        const rendered = renderAiFeatureMatrix(
+            AI_HOSTED_TOOL_CAPABILITIES,
+            AI_PROVIDER_DESCRIPTORS,
+            AI_HOSTED_TOOL_IDS,
+            changed,
+        );
+        assert.notStrictEqual(readFileSync(PAGE, "utf8"), rendered);
+    });
+
     it("shows every provider's transcription and speech, with their models", () => {
         const page = readFileSync(PAGE, "utf8");
         const voice = page.slice(page.indexOf("## Voice"));

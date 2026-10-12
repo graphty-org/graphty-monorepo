@@ -569,6 +569,22 @@ the same generated page as the hosted tools, with the browser-by-path table in
 the "Voice" story fakes recognition and the microphone only under automation, so on a headset it
 is the device check.
 
+**Live voice** (`voice.mode: "live"`, guide section "Live conversation"): speech to speech over the
+provider's realtime API, behind the seam as `AiEngine.openLive` (graphty's own `LiveConnection` and
+`LiveEvent`, all codes). Page side: `LiveSession.ts` (one connection per assistant, the microphone
+sent only while talk is held, barge-in, idle close) and `liveTurns.ts` (`LiveTurnEngine`: each
+provider response is one `turn()` of `runConversation`, so tools, policy, undo and history are the
+turns path's), one chunk loaded by `import()` on the first live press; `chooseLive` in `choose.ts`
+says why live cannot run, and the press then runs turn by turn. Adapter side:
+`src/ai/engine/tanstack/live.ts` (the token minted in the page from the reader's key, the event
+mapping), its own chunk through `loadProviderLive()`, with `openaiRealtime` and `geminiRealtime` in
+each provider's chunk. Two pnpm patches (`patches/@tanstack__ai-openai@0.29.1.patch`: one
+`response.create` after the last tool result of a response; `patches/@tanstack__ai-gemini@0.37.2.patch`:
+`audioStreamEnd` on `stopAudioCapture`) fix upstream defects; `src/ai/engine/tanstack/UPSTREAM.md`
+records each, and an upgrade drops a patch only when its test passes without it. Tests run on
+`FakeEngine.scriptLive()` and `test/helpers/fake-live-transport.ts`; the "Live voice" story runs on
+the scripted connection in `src/testing/fakeLive.ts`.
+
 Framework pins are exact (`test/packaging/ai-pins.test.ts`) and upgraded together with the
 contract suite and the paid `llm-regression` run; peers change only in a major
 (`tools/check-peer-deps-stable.mjs`). Design: `design/ai/tanstack-ai-harness-design.md`.

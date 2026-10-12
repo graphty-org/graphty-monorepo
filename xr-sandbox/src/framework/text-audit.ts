@@ -13,7 +13,7 @@ import { AdvancedDynamicTexture, type Control, TextBlock } from "@babylonjs/gui"
 import { type TextItem, textSurfaces } from "../scene/ui";
 
 /** Smallest cap height, degrees of visual angle. */
-export const MIN_CAP_DEG = 1.0;
+export const MIN_CAP_DEG = 1;
 /** Nearest reading distance credited, meters. */
 export const NEAREST_M = 0.3;
 /**
@@ -232,7 +232,7 @@ const measureGui = (mesh: AbstractMesh, adt: AdvancedDynamicTexture, head: Vecto
             clippedBy = "texture";
         }
         const joined = lines.map((l) => l.text).join(" ");
-        const truncated = joined.replace(/\s+/g, " ").trim() !== c.text.replace(/\s+/g, " ").trim();
+        const truncated = joined.replaceAll(/\s+/g, " ").trim() !== c.text.replaceAll(/\s+/g, " ").trim();
         out.push({
             surface: mesh.name,
             control: c.name || g.parent?.name || "",
@@ -276,17 +276,7 @@ const measureItem = (name: string, it: TextItem, scale: number, distM: number, o
  */
 export function measureText(scene: Scene, head: Vector3, canvases?: Map<string, unknown>): Measured[] {
     const out: Measured[] = [];
-    const scenes = [scene];
-    const util = UtilityLayerRenderer.DefaultUtilityLayer?.utilityLayerScene;
-    if (util) {
-        scenes.push(util);
-    }
-    for (const s of scene.getEngine().scenes) {
-        if (!scenes.includes(s)) {
-            scenes.push(s);
-        }
-    }
-    for (const { mesh, adt } of guiMeshes(scenes)) {
+    for (const { mesh, adt } of guiMeshes(allScenes(scene))) {
         const n = out.length;
         measureGui(mesh, adt, head, out);
         if (out.length > n) {
@@ -294,19 +284,51 @@ export function measureText(scene: Scene, head: Vector3, canvases?: Map<string, 
         }
     }
     for (const s of textSurfaces) {
-        if (s.mesh && !isDrawn(s.mesh)) {
-            continue;
-        }
-        const items = s.items();
-        for (const it of items) {
-            const d = s.mesh ? readingDistance(s.mesh, head) : Vector3.Distance(head, it.at);
-            measureItem(s.name, it, s.mesh ? scaleX(s.mesh) : 1, d, out);
-        }
-        if (items.length && s.canvas) {
-            canvases?.set(s.name, s.canvas());
-        }
+        measureSurface(s, head, out, canvases);
     }
     return out;
+}
+
+/**
+ * The scene, the utility layer's scene and every other scene of the engine, once each.
+ * @param scene - the main scene
+ * @returns the scenes
+ */
+function allScenes(scene: Scene): Scene[] {
+    const scenes = [scene];
+    const util = UtilityLayerRenderer.DefaultUtilityLayer?.utilityLayerScene;
+    for (const s of [util, ...scene.getEngine().scenes]) {
+        if (s && !scenes.includes(s)) {
+            scenes.push(s);
+        }
+    }
+    return scenes;
+}
+
+/**
+ * Measure the items of one registered text surface, if it is drawn.
+ * @param s - the surface
+ * @param head - the head position
+ * @param out - where the measurements go
+ * @param canvases - filled with the surface's canvas when it has items
+ */
+function measureSurface(
+    s: (typeof textSurfaces)[number],
+    head: Vector3,
+    out: Measured[],
+    canvases?: Map<string, unknown>,
+): void {
+    if (s.mesh && !isDrawn(s.mesh)) {
+        return;
+    }
+    const items = s.items();
+    for (const it of items) {
+        const d = s.mesh ? readingDistance(s.mesh, head) : Vector3.Distance(head, it.at);
+        measureItem(s.name, it, s.mesh ? scaleX(s.mesh) : 1, d, out);
+    }
+    if (items.length && s.canvas) {
+        canvases?.set(s.name, s.canvas());
+    }
 }
 
 /**

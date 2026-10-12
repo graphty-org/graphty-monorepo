@@ -201,10 +201,8 @@ export function createGearPanel(scene: Scene, zones: Zones, fw: Framework): Gear
             name.color = t.color;
             r.addControl(name);
             const n = t.settings.length;
-            const note = panel.text(
-                why ?? (n ? `${n} ${n === 1 ? "setting" : "settings"}` : ""),
-                why ? "#d98c8c" : "#9fb3d9",
-            );
+            const count = n === 1 ? "1 setting" : `${n} settings`;
+            const note = panel.text(why ?? (n ? count : ""), why ? "#d98c8c" : "#9fb3d9");
             note.width = "380px";
             r.addControl(note);
             body.addControl(r);

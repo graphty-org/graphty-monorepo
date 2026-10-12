@@ -13,7 +13,7 @@ import {
 import type { AiApprovalRequest, AiEvent, AiQuestionRequest } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession } from "../session/types";
-import { type AiAgentRole, type AiAgentsSetting, rolesOf } from "./agents";
+import { type AiAgentRole, type AiAgentsSetting, type AiPlan, type AiRouter, rolesOf } from "./agents";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, CommandResult } from "./commands/types";
@@ -49,6 +49,7 @@ import {
     type DecidedBatch,
     type Delegation,
     MessageRolledBack,
+    type PlanSteps,
     runConversation,
     TurnFailed,
 } from "./runConversation";
@@ -138,6 +139,8 @@ interface PendingApproval {
     readonly graph: HeldGraph;
     /** Reopened from the saved conversation, rather than held by this controller. */
     readonly replayed: boolean;
+    /** The router's plan the held hand-off belongs to, whose later steps run once it is decided. */
+    readonly plan?: PlanSteps;
 }
 
 /**
@@ -283,6 +286,8 @@ interface MessageRun {
     readonly request?: string;
     /** For an answered question: its call, and the choices the reader picked. */
     readonly answer?: { readonly call: ToolCallRequest; readonly values: readonly string[] };
+    /** A router's plan, run before the model's turns: made when the message runs (a classifier's turn). */
+    readonly plan?: () => Promise<PlanSteps | undefined>;
 }
 
 /**
@@ -458,6 +463,12 @@ export class AiController {
     private readonly asks: boolean;
     /** The helpers the model may hand tasks to; none without `agents`. */
     private readonly roles: readonly AiAgentRole[];
+    /** How a message is handed to the helpers. */
+    private readonly router: AiRouter;
+    /** The model the classifier's turn runs on, when not the assistant's own. */
+    private readonly classifierModel: string | undefined;
+    /** Whether every hand-off to a helper waits for the reader's approval. */
+    private readonly confirmPlans: boolean;
     private readonly provider: LlmProvider;
     private readonly apiKeys: Partial<Record<AiProviderId, string>>;
     private readonly policy: MessageState["policy"];
@@ -506,6 +517,10 @@ export class AiController {
         this.policy = policyOf(options.approvals);
         this.asks = options.questions === true;
         this.roles = options.agents === undefined ? [] : rolesOf(options.agents);
+        const routing = options.agents !== undefined && "roles" in options.agents ? options.agents : undefined;
+        this.router = routing?.router ?? "model";
+        this.classifierModel = routing?.classifierModel;
+        this.confirmPlans = routing?.confirmPlans === true;
         this.provider = options.provider;
         this.apiKeys = options.apiKeys ?? {};
         this.history = historyOptionsOf(options.history);
@@ -575,13 +590,31 @@ export class AiController {
             const missing =
                 this.roles.length === 0
                     ? undefined
-                    : (await this.delegationModule()).missingKey(this.delegationOptions());
+                    : (await this.delegationModule()).missingKey({
+                          ...this.delegationOptions(),
+                          roles: [...this.roles, ...this.classifierRoles()],
+                      });
             if (missing !== undefined) {
                 this.running.delete(abortController);
                 return { success: false, message: "", code: "AI_KEY_MISSING", params: { provider: missing } };
             }
 
-            return this.executeNow(input, abortController, options.via);
+            // A function router's plan is the host's: one naming no helper fails before anything is sent.
+            const { router } = this;
+            const planned = typeof router === "function" && this.roles.length > 0 ? router(input) : undefined;
+            const unknown =
+                planned === undefined ? undefined : (await import("./plans/plan")).unknownAgent(planned, this.roles);
+            if (unknown !== undefined) {
+                this.running.delete(abortController);
+                return {
+                    success: false,
+                    message: "",
+                    code: "AI_CONFIG_INVALID",
+                    params: { agent: unknown, field: "router", reason: "unknown-agent" },
+                };
+            }
+
+            return this.executeNow(input, abortController, options.via, planned);
         });
     }
 
@@ -591,6 +624,46 @@ export class AiController {
      */
     private delegationModule(): Promise<typeof import("./plans/delegate")> {
         return import("./plans/delegate");
+    }
+
+    /**
+     * The classifier's turn as a role of its own, when it runs on a model of its own.
+     * @returns It, or none.
+     */
+    private classifierRoles(): AiAgentRole[] {
+        return this.router === "classifier" && this.classifierModel !== undefined
+            ? [{ name: "classifier", purpose: "route", commands: [], model: this.classifierModel }]
+            : [];
+    }
+
+    /**
+     * The plan a new message runs first: the function router's, or the classifier's pick.
+     * @param input - The reader's request.
+     * @param planned - The function router's plan, already checked.
+     * @param signal - The message's abort signal, for the classifier's turn.
+     * @returns The plan's steps, or undefined when helpers are left to the main model.
+     */
+    private async planFor(
+        input: string,
+        planned: AiPlan | undefined,
+        signal: AbortSignal,
+    ): Promise<PlanSteps | undefined> {
+        let plan = planned;
+        if (this.router === "classifier") {
+            const [{ classify }, { engineOf }] = await Promise.all([import("./plans/router"), this.delegationModule()]);
+            const [role] = this.classifierRoles();
+            const { engine, own } =
+                role === undefined ? { engine: this.engine, own: false } : engineOf(role, this.delegationOptions());
+            try {
+                plan = await classify(input, this.roles, engine, signal);
+            } finally {
+                if (own) {
+                    engine.dispose();
+                }
+            }
+        }
+
+        return plan === undefined ? undefined : (await import("./plans/plan")).planSteps(plan, input);
     }
 
     /**
@@ -623,12 +696,14 @@ export class AiController {
      * @param input - The reader's request.
      * @param abortController - The message's controller, which `cancel()` aborts.
      * @param via - How the reader gave it.
+     * @param planned - A function router's plan for it.
      * @returns The message's result.
      */
     private async executeNow(
         input: string,
         abortController: AbortController,
         via: AiCommandOptions["via"],
+        planned: AiPlan | undefined,
     ): Promise<ExecutionResult> {
         await this.supersedePending(true);
 
@@ -639,6 +714,9 @@ export class AiController {
             abortController,
             conversation: (session) => this.startConversation(input, session, via),
             conversationId: this.current?.id,
+            ...(this.router === "model" || this.roles.length === 0
+                ? {}
+                : { plan: () => this.planFor(input, planned, abortController.signal) }),
         });
     }
 
@@ -687,6 +765,8 @@ export class AiController {
                 await this.saveInto(run.conversationId, running.messages);
             }
 
+            const plan = await run.plan?.();
+
             // A message taken back is not kept, so the conversation never holds changes the graph does not.
             let keep = true;
             let result: ExecutionResult;
@@ -727,6 +807,7 @@ export class AiController {
                             conversation: running,
                             messageId,
                             conversationId: run.conversationId,
+                            ...(plan === undefined ? {} : { plan }),
                         }),
                     ...(decided === undefined ? {} : { decided }),
                     ...(this.asks
@@ -745,6 +826,8 @@ export class AiController {
                         : {}),
                     ...(answer === undefined ? {} : { answer: { callId: answer.call.id, values: answer.values } }),
                     ...(delegation === undefined ? {} : { delegation }),
+                    ...(plan === undefined ? {} : { plan }),
+                    ...(this.confirmPlans ? { confirmDelegates: true } : {}),
                     newId: () => this.newMessageId(running),
                     ...(this.history?.budgetTokens === undefined
                         ? {}
@@ -902,6 +985,7 @@ export class AiController {
      * @param hold.conversation - The conversation, ending in the held calls.
      * @param hold.messageId - The conversation message holding the calls.
      * @param hold.conversationId - The saved conversation, with history.
+     * @param hold.plan - The router's plan the message runs, whose later steps follow the decision.
      * @returns The request's id, once the conversation holding it is saved and the host told.
      */
     private async hold(hold: {
@@ -912,6 +996,7 @@ export class AiController {
         conversation: Conversation;
         messageId: string;
         conversationId: string | undefined;
+        plan?: PlanSteps;
     }): Promise<string> {
         const { held, message, session, conversationId } = hold;
         const id = uniqueId("approval_");
@@ -945,6 +1030,7 @@ export class AiController {
             request,
             graph,
             replayed: false,
+            ...(hold.plan === undefined ? {} : { plan: hold.plan }),
         });
         this.updatePending();
         // The message holding the calls and the request are saved together, before the host hears
@@ -1332,6 +1418,7 @@ export class AiController {
             decided,
             totals: pending.held.totals,
             request: id,
+            ...(pending.plan === undefined ? {} : { plan: () => Promise.resolve(pending.plan) }),
         });
     }
 

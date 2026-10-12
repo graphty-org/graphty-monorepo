@@ -55,7 +55,8 @@ const textPart = z.strictObject({
 
 const toolCallPart = z.strictObject({
     type: z.literal("tool-call"),
-    origin: z.literal("model"),
+    /** `model` for a call the model made; `graphty` for a hand-off a router's plan made. */
+    origin: z.enum(["model", "graphty"]),
     callId: id,
     command: id,
     arguments: callArguments,

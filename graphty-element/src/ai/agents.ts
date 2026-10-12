@@ -43,8 +43,8 @@ export type AiRouter = "model" | "classifier" | ((input: string) => AiPlan);
 
 /**
  * The helpers of `AiManagerConfig.agents`: the roles alone, or the roles with how a message is
- * handed to them. With `router: "model"` (the default) the main model is offered a `delegate` tool
- * naming the roles, and hands each a task as it chooses.
+ * handed to them. The main model is offered a `delegate` tool naming the roles, and hands each a
+ * task as it chooses; with a `"classifier"` or function `router`, the plan's steps run first.
  */
 export type AiAgentsSetting =
     | readonly AiAgentRole[]
@@ -52,7 +52,15 @@ export type AiAgentsSetting =
           /** The helpers. */
           readonly roles: readonly AiAgentRole[];
           /** How a message is handed to them. Default `"model"`. */
-          readonly router?: "model";
+          readonly router?: AiRouter;
+          /** The model the `"classifier"` router's one turn runs on, on the assistant's provider; its own when absent. */
+          readonly classifierModel?: string;
+          /**
+           * Ask the reader before every hand-off to a helper (`ai-approval-requested` with gate
+           * `"plan"`): a plan's step is one request, and a denial reaches the main model as
+           * `AI_APPROVAL_DENIED`. Default false.
+           */
+          readonly confirmPlans?: boolean;
       };
 
 /**

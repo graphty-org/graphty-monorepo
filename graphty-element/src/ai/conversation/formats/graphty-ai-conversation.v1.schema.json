@@ -103,7 +103,10 @@
                                             "type": "string"
                                         },
                                         "origin": {
-                                            "const": "model",
+                                            "enum": [
+                                                "model",
+                                                "graphty"
+                                            ],
                                             "type": "string"
                                         },
                                         "providerState": {
@@ -351,7 +354,10 @@
                                                                             "type": "string"
                                                                         },
                                                                         "origin": {
-                                                                            "const": "model",
+                                                                            "enum": [
+                                                                                "model",
+                                                                                "graphty"
+                                                                            ],
                                                                             "type": "string"
                                                                         },
                                                                         "providerState": {

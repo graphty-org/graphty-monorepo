@@ -131,10 +131,11 @@ export interface ToolHost {
 }
 
 /**
- * Why a batch is held for the reader's approval: a measured limit, or `"policy"` when the host's
- * approval policy asked about one of its calls.
+ * Why a batch is held for the reader's approval: a measured limit, `"policy"` when the host's
+ * approval policy asked about one of its calls, or `"plan"` for a hand-off to helpers while
+ * `confirmPlans` is set.
  */
-export type GateKind = "slow" | "large" | "replaces" | "irreversible" | "network" | "policy";
+export type GateKind = "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan";
 
 /** One call the model made, as an approval policy judges it before anything runs. */
 export interface AiToolCallFacts {

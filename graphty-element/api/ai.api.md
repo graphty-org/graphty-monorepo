@@ -71,7 +71,9 @@ export interface AiAgentRole {
 // @public
 export type AiAgentsSetting = readonly AiAgentRole[] | {
     readonly roles: readonly AiAgentRole[];
-    readonly router?: "model";
+    readonly router?: AiRouter;
+    readonly classifierModel?: string;
+    readonly confirmPlans?: boolean;
 };
 
 // @public

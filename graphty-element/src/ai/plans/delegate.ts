@@ -88,7 +88,7 @@ export function missingKey(options: DelegationOptions): AiProviderId | undefined
  * @param options - The main engine and the keys.
  * @returns The engine, and whether it is the role's own (disposed after the run).
  */
-function engineOf(role: AiAgentRole, options: DelegationOptions): { engine: AiEngine; own: boolean } {
+export function engineOf(role: AiAgentRole, options: DelegationOptions): { engine: AiEngine; own: boolean } {
     const id = ownProvider(role, options.provider);
     if (id === undefined) {
         return { engine: options.engine, own: false };
@@ -116,6 +116,27 @@ function helperSystem(role: AiAgentRole, tools: CommandRegistry, parent: Convers
         : "";
     return `${base}You are "${role.name}", a helper of the assistant. Your purpose: ${role.purpose}
 Do only the task you are given, with your tools, then answer in plain text with what you found or changed. You cannot ask the reader anything.`;
+}
+
+/**
+ * A task with what earlier helpers of the message answered, so a later step builds on them.
+ * @param task - The task.
+ * @param answers - Each earlier helper's result, as `name: result`.
+ * @returns The task to hand on.
+ */
+export function withAnswers(task: string, answers: readonly string[]): string {
+    return answers.length === 0 ? task : `${task}\n\nWhat the helpers before you reported:\n${answers.join("\n")}`;
+}
+
+/**
+ * What a helper's run reported, as `name: result`.
+ * @param agent - The helper.
+ * @param run - Its run.
+ * @returns The line, or none when it has no result.
+ */
+function answerLine(agent: string, run: HelperRun): string[] {
+    const result = run.parts.find((part) => part.type === "tool-result");
+    return result?.type === "tool-result" ? [`${agent}: ${result.content}`] : [];
 }
 
 /** A helper's saved messages: never an `agent-ref` among them, since helpers do not delegate. */
@@ -277,38 +298,51 @@ export function delegation(options: DelegationOptions): Delegation {
 
     return {
         tool,
-        run: async (calls, parent, state) => {
+        run: async (calls, parent, state, sequence = false) => {
             const checked = calls.map((call) => ({ call, parsed: schema.safeParse(call.arguments) }));
             const running = checked.filter(({ call, parsed }) => parsed.success && call.invalidArguments !== true);
             // Helpers that run at once may only read: none writes under another's feet.
-            const shared: MessageState = running.length > 1 ? { ...state, readOnly: "parallel-helper" } : state;
-            const runs = await Promise.all(
-                checked.map(({ call, parsed }): Promise<HelperRun> => {
-                    if (!parsed.success || call.invalidArguments === true) {
-                        const params = { tool: DELEGATE };
-                        return Promise.resolve({
-                            usage: { inputTokens: 0, outputTokens: 0 },
-                            parts: [
-                                {
-                                    type: "tool-result",
-                                    origin: "graph-data",
-                                    callId: call.id,
-                                    code: "AI_TOOL_INVALID_ARGUMENTS",
-                                    params,
-                                    content: resultText(
-                                        { code: "AI_TOOL_INVALID_ARGUMENTS", params },
-                                        RESULT_CAP.small,
-                                    ),
-                                },
-                            ],
-                        });
-                    }
+            const shared: MessageState =
+                running.length > 1 && !sequence ? { ...state, readOnly: "parallel-helper" } : state;
+            const one = (
+                { call, parsed }: (typeof checked)[number],
+                answers: readonly string[],
+            ): Promise<HelperRun> => {
+                if (!parsed.success || call.invalidArguments === true) {
+                    const params = { tool: DELEGATE };
+                    return Promise.resolve({
+                        usage: { inputTokens: 0, outputTokens: 0 },
+                        parts: [
+                            {
+                                type: "tool-result",
+                                origin: "graph-data",
+                                callId: call.id,
+                                code: "AI_TOOL_INVALID_ARGUMENTS",
+                                params,
+                                content: resultText({ code: "AI_TOOL_INVALID_ARGUMENTS", params }, RESULT_CAP.small),
+                            },
+                        ],
+                    });
+                }
 
-                    const role = options.roles.find((candidate) => candidate.name === parsed.data.agent);
-                    // The enum admits only role names.
-                    return runHelper(role as AiAgentRole, call, parsed.data.task, parent, shared, options);
-                }),
-            );
+                const role = options.roles.find((candidate) => candidate.name === parsed.data.agent);
+                // The enum admits only role names.
+                const task = withAnswers(parsed.data.task, answers);
+                return runHelper(role as AiAgentRole, call, task, parent, shared, options);
+            };
+
+            let runs: HelperRun[] = [];
+            if (sequence) {
+                // One after another, each told what the ones before it reported.
+                for (const entry of checked) {
+                    const answers = runs.flatMap((run, at) =>
+                        answerLine(String(checked[at].call.arguments.agent), run),
+                    );
+                    runs.push(await one(entry, answers));
+                }
+            } else {
+                runs = await Promise.all(checked.map((entry) => one(entry, [])));
+            }
 
             return {
                 parts: runs.flatMap((run) => run.parts),

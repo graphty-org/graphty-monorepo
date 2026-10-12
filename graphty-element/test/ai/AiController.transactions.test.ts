@@ -102,7 +102,7 @@ describe("an assistant message's transactions", () => {
     let session: GraphSession;
     let registry: CommandRegistry;
     let ran: string[];
-    let runs: Promise<unknown>[];
+    let runs: PromiseLike<unknown>[];
     let baseline: number;
 
     beforeEach(async () => {

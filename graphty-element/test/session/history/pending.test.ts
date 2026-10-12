@@ -1,5 +1,6 @@
 import { assert, describe, it } from "vitest";
 
+import type { HistoryStepId } from "../../../src/session/types";
 import { executions, gates, setup, stackName } from "./fake-commands";
 
 /**
@@ -338,7 +339,7 @@ describe("deferred members", () => {
             (tx) => {
                 void tx.dispatch({ op: "fake.run", id: "degree" });
             },
-            { after: message.id },
+            { after: message.id as HistoryStepId },
         );
         await queue.next();
 

@@ -868,8 +868,8 @@
             "NODE_TYPE",
             "canonicalName",
             "id",
+            "label",
             "label#2",
-            "name",
             "node.borderColor",
             "node.fillColor",
             "node.label",
@@ -890,7 +890,7 @@
             "edge.lineWidth",
             "id",
             "interaction",
-            "name",
+            "label",
             "source",
             "target"
         ]
@@ -900,8 +900,8 @@
             "NODE_TYPE",
             "canonicalName",
             "id",
+            "label",
             "label#2",
-            "name",
             "node.borderColor",
             "node.fillColor",
             "node.label",
@@ -922,7 +922,7 @@
             "edge.lineWidth",
             "id",
             "interaction",
-            "name",
+            "label",
             "source",
             "target"
         ]
@@ -933,8 +933,8 @@
             "canonicalName",
             "graphics",
             "id",
+            "label",
             "label#2",
-            "name",
             "node.borderColor",
             "node.fillColor",
             "node.label",
@@ -955,7 +955,7 @@
             "edge.lineWidth",
             "id",
             "interaction",
-            "name",
+            "label",
             "source",
             "target"
         ]
@@ -965,8 +965,8 @@
             "NODE_TYPE",
             "canonicalName",
             "id",
+            "label",
             "label#2",
-            "name",
             "node.borderColor",
             "node.fillColor",
             "node.label",
@@ -987,7 +987,7 @@
             "edge.lineWidth",
             "id",
             "interaction",
-            "name",
+            "label",
             "source",
             "target"
         ]
@@ -1331,6 +1331,10 @@
     "gexf/glxxyz_hskhsk.com__HSK1-3_chars_v09.gexf.gz": {
         "nodes": ["color", "freq", "freqint", "freqintreverse", "hsklevel", "id", "isword", "label", "size"],
         "edges": ["gexfId", "source", "target", "weight"]
+    },
+    "gexf/graphology-basic.gexf": {
+        "nodes": ["age", "color", "id", "label", "male", "mixed", "position", "size", "surname"],
+        "edges": ["gexfId", "label", "number", "set", "source", "target", "type", "weight"]
     },
     "gexf/graphology-missing_nodes.gexf": {
         "nodes": ["id", "label"],

@@ -254,10 +254,6 @@ async function handMade(): Promise<GraphSession> {
  */
 const KNOWN_GAPS: ReadonlyMap<string, string> = new Map([
     [
-        "vis.js JSON: dot/damoqiongqiu_NiceFish__dependencies.dot",
-        "vis.js keeps no graph direction, so a rule over out-degree reads other degrees after the read",
-    ],
-    [
         "Pajek: gml/di-unipi-socc_dgLBF__germany50.gml",
         "a Pajek vertex's name is its label, and the node id is written there, so the label comes back as the id",
     ],

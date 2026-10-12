@@ -56,7 +56,7 @@ describe("the Data page's choices", () => {
         });
 
         const choices = loadChoices(draft, INITIAL_CHOICES, "replace");
-        assert.deepEqual(choices, { mode: "replace", unmatched: "leave-out", directed: "auto" });
+        assert.deepEqual(choices, { mode: "replace", unmatched: "leave-out", directed: "auto", styles: "file" });
         const report = await draft.report(choices);
         assert.deepEqual(report.unmatched, { rows: 1, values: 1 });
     });

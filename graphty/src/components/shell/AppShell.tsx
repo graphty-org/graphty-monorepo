@@ -115,6 +115,7 @@ import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../data/sampleGr
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data/sampleManifest";
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
+import { fileStylesChoice } from "../../workspace/settings/preferences";
 import type { ChatMessage } from "../ai/AiMessageBubble";
 import { aiResultText } from "../ai/aiResultText";
 import { FeedbackModal } from "../FeedbackModal";
@@ -2181,7 +2182,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             const measured: { degree?: ReturnType<typeof startDegreePass>; labelCount: number } = { labelCount: 0 };
 
             await session.transaction(label, async (tx) => {
-                const imported = tx.data.import(source, { mode: "replace", layout: "recommended" });
+                const imported = tx.data.import(source, {
+                    mode: "replace",
+                    layout: "recommended",
+                    styles: fileStylesChoice(),
+                });
 
                 await tx.styles.removeBySource(describesDataset);
                 await imported;

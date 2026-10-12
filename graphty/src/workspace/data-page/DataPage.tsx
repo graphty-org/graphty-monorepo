@@ -7,6 +7,7 @@ import {
     Alert,
     Anchor,
     Button,
+    Checkbox,
     Group,
     Input,
     Loader,
@@ -25,10 +26,12 @@ import {
 import { CircleCheck, CircleDashed, Plus } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { writeFileStylesChoice } from "../settings/preferences";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     elementRole,
     kindChanged,
+    offersStyles,
     type PageChoices,
     type PageRole,
     roleOf,
@@ -928,7 +931,8 @@ function loadBlocked(page: LoadDraftState): string | null {
 }
 
 /**
- * The footer (section 2.10, item 6): Direction, Cancel and Load.
+ * The footer (section 2.10, item 6): Direction, Import styles (for a file that can carry them),
+ * Cancel and Load.
  * @param props - Component props
  * @param props.page - The page state
  * @param props.onCancel - Returns to where the reader came from
@@ -982,6 +986,18 @@ function Footer({
                     });
                 }}
             />
+            {draft !== null && offersStyles(draft) ? (
+                <Checkbox
+                    label="Import styles from the file"
+                    size="xs"
+                    checked={page.choices.styles === "file"}
+                    onChange={(event) => {
+                        const on = event.currentTarget.checked;
+                        writeFileStylesChoice(on);
+                        page.setChoices({ ...page.choices, styles: on ? "file" : "none" });
+                    }}
+                />
+            ) : null}
             <Group gap="xs" ml="auto" align="center">
                 {blocked === null ? null : (
                     <Text size="xs" c="dimmed" id="dp-load-reason">

@@ -5,9 +5,26 @@
  */
 
 import type { LayerId, RunId } from "@graphty/graphty-element/catalog";
-import { type GraphSession, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-element/session";
+import { fileStyleOf, type GraphSession, type Layer, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-element/session";
 
 import { runName } from "../runWords";
+import { fileStyleLayerWords } from "../styles/fileStyleWords";
+
+/**
+ * A layer's name in the paint tree: for a layer made from a file's styles, the app's words for
+ * its facts; otherwise the layer's own name.
+ * @param session - the element's session.
+ * @param layer - the layer.
+ * @returns the row's name.
+ */
+function layerName(session: GraphSession, layer: Layer): string {
+    const origin = fileStyleOf(layer);
+    if (origin === null) {
+        return layer.name;
+    }
+    const column = session.data.attributes().find((attribute) => attribute.path === origin.column);
+    return fileStyleLayerWords(origin, column?.plainName);
+}
 
 /** The kind of a row, which is also the inspected kind a click on it opens (the inspector's kinds). */
 export type RowKind = "selection-row" | "measure-row" | "run-row" | "group-row" | "layer-row" | "everything-row";
@@ -128,7 +145,7 @@ export function paintRows(session: GraphSession): PaintRow[] {
         middle.push({
             id: layer.id,
             kind: "layer-row",
-            name: layer.name,
+            name: layerName(session, layer),
             state: "ready",
             layerIds: [layer.id],
             hidden: !layer.enabled,

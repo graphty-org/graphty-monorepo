@@ -8,6 +8,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
+import { fileStylesChoice } from "../settings/preferences";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 
 /**
@@ -35,7 +36,7 @@ function openProject(workspace: WorkspaceStore, name: string, load: (session: Gr
  */
 export function openSample(workspace: WorkspaceStore, sample: StartSample): void {
     openProject(workspace, sample.name, (session) =>
-        session.data.import({ config: { url: sample.url }, name: sample.name }),
+        session.data.import({ config: { url: sample.url }, name: sample.name }, { styles: fileStylesChoice() }),
     );
 }
 
@@ -50,13 +51,15 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
 export function openFile({ workspace, session }: CommandContext, file: File): void {
     const source = { config: { file }, name: file.name };
     if (workspace.get().project !== null && session !== null) {
-        session.data.import(source, { mode: "merge" }).catch((error: unknown) => {
+        session.data.import(source, { mode: "merge", styles: fileStylesChoice() }).catch((error: unknown) => {
             const reason = error instanceof Error ? error.message : String(error);
             workspace.set({ notice: { message: `${file.name} could not be added. ${reason}` } });
         });
         return;
     }
-    openProject(workspace, file.name.replace(/\.[^.]*$/, "") || file.name, (next) => next.data.import(source));
+    openProject(workspace, file.name.replace(/\.[^.]*$/, "") || file.name, (next) =>
+        next.data.import(source, { styles: fileStylesChoice() }),
+    );
 }
 
 /**

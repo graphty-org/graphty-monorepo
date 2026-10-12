@@ -248,10 +248,12 @@ const css = `
 }
 .cm-listbox .cm-listbox-grid .cm-listbox-option {
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
+    align-items: center;
     gap: 2px;
-    width: 64px;
-    height: 52px;
+    min-width: 64px;
+    min-height: 52px;
+    height: auto;
     padding: 4px;
 }
 .cm-listbox .cm-listbox-grid .cm-menu-row::before {
@@ -260,9 +262,26 @@ const css = `
 .cm-listbox .cm-listbox-grid .cm-menu-row[data-checked]::before {
     box-shadow: inset 0 0 0 1px var(--cm-text-menu);
 }
+/* A name is never cut: it wraps between words, and the columns are as wide as the longest word
+   (the label's min-content). */
 .cm-listbox .cm-listbox-grid .cm-listbox-label {
-    max-width: 100%;
+    width: min-content;
+    min-width: 100%;
     font-size: 11px;
+    line-height: 13px;
+    text-align: center;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+/* While nothing is chosen, the cell the placeholder names (what the layers beneath give) carries a
+   dashed ring: the value in force, not a choice made here. */
+.cm-listbox .cm-listbox-grid .cm-menu-row:has([data-inherited])::before {
+    outline: 1px dashed var(--cm-text-menu-secondary);
+    outline-offset: -1px;
+}
+.cm-listbox .cm-listbox-option-content {
+    display: contents;
 }
 .cm-listbox .cm-listbox-glyph {
     display: inline-flex;

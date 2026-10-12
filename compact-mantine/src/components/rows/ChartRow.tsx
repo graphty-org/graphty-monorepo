@@ -662,7 +662,9 @@ export function HistogramRow({
                                 <Box
                                     key={`${bin.label}-${String(index)}`}
                                     data-testid="histogram-bar"
+                                    className="cm-histogram-bar"
                                     data-highlighted={highlighted ? "true" : "false"}
+                                    data-painted={bin.paint !== undefined && !highlighted ? "true" : undefined}
                                     // One mark of a drawing, not a picture of its
                                     // own. The title stays: it is the tooltip a
                                     // sighted reader hovers for.

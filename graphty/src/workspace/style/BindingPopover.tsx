@@ -6,11 +6,12 @@ import {
     StyleNumberInput,
     StyleSelect,
     ToggleIconButton,
+    ToggleRow,
 } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, toColorValue } from "@graphty/graphty-element/catalog";
 import type { ChannelValue, LayerId, RuleTree } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Checkbox, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -384,6 +385,7 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
                         : { low: domain[0], high: domain[1], below: preview.below, above: preview.above }
                 }
                 steps={[...preview.steps]}
+                step={wholeNumbers(session, binding.by) ? 1 : undefined}
                 describe={(handle, value) => `${handleWords[handle]} at ${source} ${valueWords(value)}`}
                 scale={binding.scale}
                 defaultScale={preview.scale}
@@ -483,6 +485,21 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
 }
 
 /**
+ * Whether what a binding reads holds whole numbers only (a count, a rank), so its ramp steps by 1.
+ * @param session - the element's session
+ * @param path - what the binding reads
+ * @returns true for an integer column or run result
+ */
+function wholeNumbers(session: GraphSession, path: string): boolean {
+    if (session.data.attributes().some((column) => column.path === path && column.type === "integer")) {
+        return true;
+    }
+    return session.runs
+        .list()
+        .some((run) => run.fields.some((f) => f.type === "integer" && session.results.path(run.id, f.name) === path));
+}
+
+/**
  * The clamp: cut the extent at two percentiles, so outliers paint as the ends. The ramp shades
  * and counts what falls outside.
  * @param props - Component props
@@ -497,12 +514,12 @@ function Clamp({
     const { clamp } = binding;
     return (
         <Stack gap={4}>
-            <Checkbox
-                size="xs"
+            <ToggleRow
                 label="Clamp outliers"
+                control="switch"
                 checked={clamp !== undefined}
-                onChange={(event) => {
-                    patch(event.currentTarget.checked ? { clamp: [2, 98], domain: undefined } : { clamp: undefined });
+                onChange={(on) => {
+                    patch(on ? { clamp: [2, 98], domain: undefined } : { clamp: undefined });
                 }}
             />
             {clamp === undefined ? null : (
@@ -801,21 +818,23 @@ function Range({
     };
     return (
         <Group grow gap={8} role="group" aria-label="Range">
-            {(["From", "To"] as const).map((label, index) => (
-                <ComboInput
-                    key={label}
-                    label={label}
-                    numeric
-                    options={[]}
-                    placeholder="Not set"
-                    value={draft[index]}
-                    min={descriptor.min}
-                    max={descriptor.max}
-                    onChange={(value) => {
-                        set(index === 0 ? 0 : 1, value);
-                    }}
-                />
-            ))}
+            {[`${channelWord(descriptor.channel)} from`, `${channelWord(descriptor.channel)} to`].map(
+                (label, index) => (
+                    <ComboInput
+                        key={label}
+                        label={label}
+                        numeric
+                        options={[]}
+                        placeholder="Not set"
+                        value={draft[index]}
+                        min={descriptor.min}
+                        max={descriptor.max}
+                        onChange={(value) => {
+                            set(index === 0 ? 0 : 1, value);
+                        }}
+                    />
+                ),
+            )}
         </Group>
     );
 }

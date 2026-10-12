@@ -913,6 +913,29 @@ conditions.ts` (a `.tsx` exporting functions trips react-refresh), the rows in `
   legend says "Group 3"); at 900 x 700 the open legend squeezes the canvas to a small circle; the
   Mixed color field shows a purple swatch, which reads as a value.
 
+- (2026-10-12) WORKED: glyph-grid names whole without a fixed cell width. The grid's columns are
+  `repeat(n, 1fr)` and each label is `width: min-content; min-width: 100%`, so every column is as
+  wide as the longest single word and names wrap between words (25 shapes at 4 columns: about
+  450 px, wider than the 240 px panel; the list is a popup, so that is fine). Each cell's content
+  is wrapped in a `display: contents` span carrying `title`, since Mantine's Select takes no
+  per-option attributes. While nothing is chosen, the cell whose label equals the placeholder gets
+  `data-inherited` and a dashed ring, so what lies beneath is marked but never "selected".
+- (2026-10-12) **Mantine's combobox store puts `aria-selected="true"` on the keyboard highlight**
+  and strips it from the option it leaves (use-combobox `selectOption`), so every Select announced
+  "selected" on whatever the arrows crossed, set or not. Fixed once for every themed select in
+  `ensureListboxKeyboard`: a bubble-phase document keydown and mouseover listener (runs after
+  React's root handlers) puts aria-selected back on `data-checked` only. The highlight stays
+  announced through `aria-activedescendant`; the CSS fill keys off `data-combobox-selected`.
+- (2026-10-12) RampEditor: `step` (pass 1 for integer data; arrows and drags snap to it) and
+  Page Up / Page Down (a tenth of the data, at least two moves). The app passes `step={1}` when the
+  bound column's or run field's `type` is "integer". Domain fields are drawn with visible labels
+  ("Starts at", "Ends at") and the app's output Range reads "<Channel> from / to", so the four
+  fields no longer share "From" / "To". The clamp in the app is a `ToggleRow` switch, not a bare
+  Mantine Checkbox. Painted histogram bars carry `data-painted` and, in the dark scheme only, a 1px
+  ring in `--cm-icon-secondary` (about 9:1 on the dark panel): a palette's black end vanished.
+  Bars were already painted per bin when the caller passes `paint`; the "one orange" seen in the
+  study build came from a caller passing none.
+
 ## Sources
 
 - Digests in `design/ui/studio/digests/` (`tier1.md`, `decisions.md`, `study-rounds.md`,

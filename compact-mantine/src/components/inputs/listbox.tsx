@@ -397,6 +397,24 @@ export function ensureListboxKeyboard(): void {
             scroller.scrollTop = top;
         }, 0);
     };
+    // Mantine's store marks the keyboard's highlight aria-selected and strips it from the option it
+    // leaves, so a screen reader hears "selected" on whatever the arrows pass over, even while the
+    // field holds no value. Once Mantine has moved the highlight (its handlers run first), put
+    // aria-selected back on the checked option only. The highlight stays data-combobox-selected
+    // and aria-activedescendant, which is how it is announced.
+    const syncSelected = (list: HTMLElement | null): void => {
+        for (const option of list?.querySelectorAll<HTMLElement>("[data-combobox-option]") ?? []) {
+            option.setAttribute("aria-selected", option.hasAttribute("data-checked") ? "true" : "false");
+        }
+    };
+    document.addEventListener("keydown", (event) => {
+        syncSelected(openSelectList(event.target));
+    });
+    document.addEventListener("mouseover", (event) => {
+        const list = event.target instanceof Element ? event.target.closest<HTMLElement>("[role=listbox]") : null;
+        const trigger = list?.id ? document.querySelector(`[aria-controls="${list.id}"]`) : null;
+        syncSelected(openSelectList(trigger));
+    });
     document.addEventListener("keydown", noteClosed, true);
     document.addEventListener("click", noteClosed, true);
     document.addEventListener("keydown", announceOpened);

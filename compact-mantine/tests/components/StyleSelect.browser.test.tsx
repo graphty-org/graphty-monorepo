@@ -137,4 +137,62 @@ describe("StyleSelect grid", () => {
         await userEvent.keyboard("{Enter}");
         expect(onChange).toHaveBeenCalledWith("shape-22");
     });
+
+    it("shows every name whole in a 240px panel, with the name as each cell's tooltip", async () => {
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <StyleSelect label="Shape" defaultValue="shape-0" options={OPTIONS} layout="grid" columns={4} />
+            </div>,
+        );
+        await userEvent.click(screen.getByRole("combobox", { name: "Shape" }));
+        const cells = await screen.findAllByRole("option");
+        expect(cells).toHaveLength(NAMES.length);
+        cells.forEach((cell, i) => {
+            const label = cell.querySelector<HTMLElement>(".cm-listbox-label");
+            expect(label?.textContent).toBe(NAMES[i]);
+            expect(label?.scrollWidth).toBeLessThanOrEqual(label?.clientWidth ?? 0);
+            expect(label?.scrollHeight).toBeLessThanOrEqual(label?.clientHeight ?? 0);
+            expect(cell.querySelector(`[title="${NAMES[i]}"]`)).not.toBeNull();
+        });
+    });
+
+    it("never announces an option selected while nothing is chosen, and marks what lies beneath", async () => {
+        await renderThemed(
+            <StyleSelect
+                label="Shape"
+                defaultValue=""
+                placeholder="Sphere"
+                options={OPTIONS}
+                layout="grid"
+                columns={5}
+            />,
+        );
+        await userEvent.tab();
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            expect(highlighted()).toBe("Box");
+        });
+        await userEvent.keyboard("{ArrowRight}{ArrowDown}");
+        expect(highlighted()).toBe("Knot");
+        const options = screen.getAllByRole("option", { hidden: true });
+        expect(options.filter((option) => option.getAttribute("aria-selected") === "true")).toEqual([]);
+        expect(screen.getByRole("option", { name: "Sphere" }).querySelector("[data-inherited]")).not.toBeNull();
+    });
+
+    it("keeps the chosen option selected while the highlight moves elsewhere", async () => {
+        await renderThemed(
+            <StyleSelect label="Shape" value="shape-1" defaultValue="" options={OPTIONS} layout="grid" columns={5} />,
+        );
+        await userEvent.tab();
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            expect(highlighted()).toBe("Sphere");
+        });
+        await userEvent.keyboard("{ArrowDown}");
+        expect(highlighted()).toBe("Knot");
+        const selected = screen
+            .getAllByRole("option", { hidden: true })
+            .filter((option) => option.getAttribute("aria-selected") === "true");
+        expect(selected.map((option) => option.textContent)).toEqual(["Sphere"]);
+    });
 });

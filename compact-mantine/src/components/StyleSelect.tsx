@@ -234,8 +234,15 @@ export function StyleSelect({
      */
     const renderOption = ({ option }: { option: { value: string; label: string } }): React.ReactNode => {
         const glyph = glyphs.get(option.value);
+        // The whole name on hover, as Figma's icon grids do. While nothing is chosen, the option
+        // the placeholder names (what lies beneath) is marked as inherited, never as selected.
+        const inherited = isDefault && placeholder !== undefined && placeholder === option.label;
         return (
-            <>
+            <span
+                className="cm-listbox-option-content"
+                title={option.label}
+                data-inherited={inherited ? "true" : undefined}
+            >
                 {!grid && <ListboxCheck />}
                 {glyph !== undefined && (
                     <span className="cm-listbox-glyph" aria-hidden="true">
@@ -243,7 +250,7 @@ export function StyleSelect({
                     </span>
                 )}
                 <span className="cm-listbox-label">{option.label}</span>
-            </>
+            </span>
         );
     };
 
@@ -350,7 +357,9 @@ export function StyleSelect({
                     // panel of these out of the 32px pitch the grid is built
                     // on.
                     description: VISUALLY_HIDDEN_STYLE,
-                    ...(grid ? { options: { gridTemplateColumns: `repeat(${String(columns)}, auto)` } } : {}),
+                    // Equal columns as wide as the longest single word, so a name wraps rather than
+                    // being cut to a stem several names share.
+                    ...(grid ? { options: { gridTemplateColumns: `repeat(${String(columns)}, 1fr)` } } : {}),
                 }}
                 style={{ flex: 1 }}
             />

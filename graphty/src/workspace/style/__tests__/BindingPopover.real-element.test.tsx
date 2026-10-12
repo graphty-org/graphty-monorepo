@@ -237,7 +237,7 @@ describe("the binding popover on the real element", () => {
             assert.notDeepEqual(axisOf(popover), linear, "Log redraws the axis");
         });
 
-        await userEvent.click(within(popover).getByRole("checkbox", { name: "Clamp outliers" }));
+        await userEvent.click(within(popover).getByRole("switch", { name: "Clamp outliers" }));
         await waitFor(() => {
             const binding = session.styles.get(layer.id)?.encode?.["node.color"];
             assert.isDefined(binding);

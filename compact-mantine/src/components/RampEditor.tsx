@@ -18,8 +18,8 @@ import { StyleSelect, type StyleSelectOption } from "./StyleSelect";
 // (or wherever the caller's value falls inside one), and every value it reports is one of the
 // caller's bin edges or a number the reader typed.
 //
-// Accessibility: every handle is an APG "Slider" (role=slider; Arrow keys one bin, Home / End the
-// data's ends), its value spoken in the caller's own words (`describe`). The typed fields below
+// Accessibility: every handle is an APG "Slider" (role=slider; Arrow keys one bin or one `step`,
+// Page Up / Page Down a larger jump, Home / End the data's ends), its value spoken in the caller's own words (`describe`). The typed fields below
 // are the precise path. The histogram stays one named image with its table of values behind it.
 
 /** One bin of the value axis, lowest first; the bins are contiguous and drawn at equal width. */
@@ -53,7 +53,7 @@ export type RampEditorHandle = "domainLow" | "domainHigh" | "midpoint" | "clampL
 export interface RampEditorLabels {
     /** Each handle's accessible name. */
     handles: Record<RampEditorHandle, string>;
-    /** The typed fields' names. */
+    /** The typed fields' names, drawn above them: where the ramp starts and ends, in the data's units. */
     from: string;
     to: string;
     midpoint: string;
@@ -77,8 +77,8 @@ const DEFAULT_LABELS: RampEditorLabels = {
         clampLow: "Lower clamp",
         clampHigh: "Upper clamp",
     },
-    from: "From",
-    to: "To",
+    from: "Starts at",
+    to: "Ends at",
     midpoint: "Midpoint",
     scale: "Scale",
     palette: "Palette",
@@ -107,6 +107,12 @@ export interface RampEditorProps {
     clamp?: { low: number; high: number; below: number; above: number };
     /** Called when a clamp bracket moves. */
     onClampChange?: (clamp: [number, number]) => void;
+    /**
+     * The smallest move of a handle, in the data's units: pass 1 for whole-number data (a count, a
+     * rank), so the arrows move 1, 2, 3 and a drag lands on whole numbers. Absent, the arrows move
+     * from one bin edge to the next. Page Up and Page Down move about a tenth of the data either way.
+     */
+    step?: number;
     /** Where a stepped ramp changes step, in the data's units: drawn as cut lines on the bars. */
     steps?: number[];
     /**
@@ -187,6 +193,16 @@ function edgesOf(bins: RampEditorBin[]): number[] {
 }
 
 /**
+ * A value rounded to a whole number of steps, without the float dust of `0.1 * 3`.
+ * @param value - the value
+ * @param step - the step
+ * @returns the rounded value
+ */
+function snap(value: number, step: number): number {
+    return Number((Math.round(value / step) * step).toPrecision(12));
+}
+
+/**
  * The edge one step from a value: the next edge above it, or the last edge below it.
  * @param edges - the edges
  * @param value - where the handle is
@@ -212,6 +228,7 @@ interface HandleProps {
     shape: "caret" | "diamond" | "bracketLow" | "bracketHigh";
     onMove: (value: number) => void;
     edges: number[];
+    step: number | undefined;
     edgeAt: (clientX: number) => number | null;
 }
 
@@ -228,6 +245,7 @@ interface HandleProps {
  * @param props.shape - how it is drawn
  * @param props.onMove - called with a new value
  * @param props.edges - the bin edges
+ * @param props.step - the smallest move, or undefined to move by bin edges
  * @param props.edgeAt - the edge nearest a pointer position
  * @returns the handle
  */
@@ -242,6 +260,7 @@ function Handle({
     shape,
     onMove,
     edges,
+    step,
     edgeAt,
 }: HandleProps): React.JSX.Element {
     const dragging = useRef(false);
@@ -253,11 +272,32 @@ function Handle({
         }
     };
 
+    /**
+     * The value one move away: one step (or one bin edge), or for a page about a tenth of the data.
+     * @param up - which way
+     * @param page - whether it is a page move
+     * @returns the value, kept within the data's ends
+     */
+    const along = (up: boolean, page: boolean): number => {
+        if (step === undefined) {
+            const hops = page ? Math.max(2, Math.ceil((edges.length - 1) / 10)) : 1;
+            let next = value;
+            for (let i = 0; i < hops; i++) {
+                next = stepFrom(edges, next, up);
+            }
+            return next;
+        }
+        const by = page ? step * Math.max(2, Math.round((max - min) / step / 10)) : step;
+        return Math.min(max, Math.max(min, snap(value + (up ? by : -by), step)));
+    };
+
     const keys: Record<string, () => number> = {
-        ArrowRight: () => stepFrom(edges, value, true),
-        ArrowUp: () => stepFrom(edges, value, true),
-        ArrowLeft: () => stepFrom(edges, value, false),
-        ArrowDown: () => stepFrom(edges, value, false),
+        ArrowRight: () => along(true, false),
+        ArrowUp: () => along(true, false),
+        ArrowLeft: () => along(false, false),
+        ArrowDown: () => along(false, false),
+        PageUp: () => along(true, true),
+        PageDown: () => along(false, true),
         Home: () => min,
         End: () => max,
     };
@@ -366,6 +406,7 @@ function Handle({
  * @param props.onMidpointChange - called with a new midpoint
  * @param props.clamp - the clamp and the counts beyond it
  * @param props.onClampChange - called with a new clamp
+ * @param props.step - the smallest move of a handle, such as 1 for whole-number data
  * @param props.steps - a stepped ramp's cut values
  * @param props.describe - a handle's value in the reader's terms
  * @param props.formatValue - formats a value
@@ -403,6 +444,7 @@ export function RampEditor({
     onMidpointChange,
     clamp,
     onClampChange,
+    step,
     steps = [],
     describe,
     formatValue,
@@ -443,7 +485,7 @@ export function RampEditor({
         }
         const along = direction === "rtl" ? rect.right - clientX : clientX - rect.left;
         const index = Math.round(Math.min(1, Math.max(0, along / rect.width)) * bins.length);
-        return edges[index];
+        return step === undefined ? edges[index] : snap(edges[index], step);
     };
 
     const handle = (
@@ -463,8 +505,37 @@ export function RampEditor({
             shape={shape}
             onMove={onMove}
             edges={edges}
+            step={step}
             edgeAt={edgeAt}
         />
+    );
+
+    /**
+     * A typed field with its name drawn above it, the precise path to a handle's value.
+     * @param name - its name, drawn and spoken
+     * @param testId - test id
+     * @param value - its value
+     * @param onCommit - called with a typed value
+     * @returns the field
+     */
+    const field = (
+        name: string,
+        testId: string,
+        value: number,
+        onCommit: (value: number) => void,
+    ): React.JSX.Element => (
+        <label style={{ display: "flex", flexDirection: "column", flex: "1 1 0", minWidth: 0 }}>
+            <span className="cm-field-label">{name}</span>
+            <UnitField
+                className="cm-field"
+                ariaLabel={name}
+                testId={testId}
+                value={value}
+                format={format}
+                normalize={(typed) => typed}
+                onCommit={onCommit}
+            />
+        </label>
     );
 
     const percent = (value: number): string => `${String(fractionOf(bins, value) * 100)}%`;
@@ -656,35 +727,12 @@ export function RampEditor({
             )}
 
             <Box style={{ display: "flex", gap: 8 }}>
-                <UnitField
-                    className="cm-field"
-                    ariaLabel={labels.from}
-                    testId="ramp-editor-from"
-                    value={low}
-                    format={format}
-                    normalize={(value) => value}
-                    onCommit={(value) => onDomainChange?.([value, high])}
-                />
-                <UnitField
-                    className="cm-field"
-                    ariaLabel={labels.to}
-                    testId="ramp-editor-to"
-                    value={high}
-                    format={format}
-                    normalize={(value) => value}
-                    onCommit={(value) => onDomainChange?.([low, value])}
-                />
-                {midpoint !== undefined && (
-                    <UnitField
-                        className="cm-field"
-                        ariaLabel={labels.midpoint}
-                        testId="ramp-editor-midpoint-field"
-                        value={midpoint}
-                        format={format}
-                        normalize={(value) => value}
-                        onCommit={(value) => onMidpointChange?.(value)}
-                    />
-                )}
+                {field(labels.from, "ramp-editor-from", low, (value) => onDomainChange?.([value, high]))}
+                {field(labels.to, "ramp-editor-to", high, (value) => onDomainChange?.([low, value]))}
+                {midpoint !== undefined &&
+                    field(labels.midpoint, "ramp-editor-midpoint-field", midpoint, (value) =>
+                        onMidpointChange?.(value),
+                    )}
             </Box>
         </Box>
     );

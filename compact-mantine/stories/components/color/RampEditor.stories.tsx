@@ -189,6 +189,6 @@ export const KeyboardStep: Story = {
         await userEvent.click(handle);
         await userEvent.keyboard("{ArrowRight}");
         await expect(handle).toHaveAttribute("aria-valuetext", "Lowest color at degree 2");
-        await expect(canvas.getByRole("textbox", { name: "From" })).toHaveValue("2");
+        await expect(canvas.getByRole("textbox", { name: "Starts at" })).toHaveValue("2");
     },
 };

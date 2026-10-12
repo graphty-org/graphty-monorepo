@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import { compactTheme, RampEditor, type RampEditorBin, type RampEditorHandle } from "../../src";
+import { renderThemed, resetHarness } from "../harness/measure";
 
 afterEach(async () => {
     await commands.mouseAway();
@@ -112,11 +113,150 @@ describe("RampEditor", () => {
     it("reports a domain end typed into its field on Enter", async () => {
         const onDomainChange = vi.fn();
         render(<Harness onDomainChange={onDomainChange} />);
-        const field = screen.getByRole("textbox", { name: "To" });
+        const field = screen.getByRole("textbox", { name: "Ends at" });
 
         await userEvent.click(field);
         await userEvent.keyboard("{Control>}a{/Control}65{Enter}");
 
         expect(onDomainChange).toHaveBeenLastCalledWith([20, 65]);
     });
+
+    it("paints each bar in the color its bin is given", () => {
+        render(<Harness onDomainChange={vi.fn()} />);
+        const bars = screen.getAllByTestId("histogram-bar");
+        expect(bars).toHaveLength(BINS.length);
+        bars.forEach((bar, i) => {
+            expect(getComputedStyle(bar).backgroundColor).toBe(resolved(BINS[i].paint ?? ""));
+        });
+    });
+
+    it("draws each typed field's own name above it, each name different", () => {
+        render(<Harness onDomainChange={vi.fn()} />);
+        const from = screen.getByRole("textbox", { name: "Starts at" });
+        const to = screen.getByRole("textbox", { name: "Ends at" });
+        for (const [field, name] of [
+            [from, "Starts at"],
+            [to, "Ends at"],
+        ] as const) {
+            const label = field.closest("label")?.querySelector(".cm-field-label");
+            expect(label?.textContent).toBe(name);
+            expect(label?.getBoundingClientRect().height).toBeGreaterThan(0);
+        }
+    });
+
+    it("steps whole-number data by whole numbers, and Page Up / Page Down by a larger step", async () => {
+        const onDomainChange = vi.fn();
+        // Bins 3.6 wide over 0..36, as a rank's bins fall.
+        const bins = Array.from({ length: 10 }, (_, i) => ({
+            from: i * 3.6,
+            to: (i + 1) * 3.6,
+            count: 1,
+            label: String(i),
+        }));
+        render(
+            <MantineProvider theme={compactTheme}>
+                <div style={{ width: 240 }}>
+                    <RampEditor
+                        label="Size by rank"
+                        bins={bins}
+                        domain={[4, 30]}
+                        step={1}
+                        onDomainChange={onDomainChange}
+                        describe={describeHandle}
+                    />
+                </div>
+            </MantineProvider>,
+        );
+        // The domain is held fixed at 4 to 30, so each key moves from 4.
+        await userEvent.click(screen.getByRole("slider", { name: "Ramp start" }));
+        await userEvent.keyboard("{ArrowUp}");
+        expect(onDomainChange).toHaveBeenLastCalledWith([5, 30]);
+        await userEvent.keyboard("{PageUp}");
+        expect(onDomainChange).toHaveBeenLastCalledWith([8, 30]);
+        await userEvent.keyboard("{PageDown}");
+        expect(onDomainChange).toHaveBeenLastCalledWith([0, 30]);
+    });
+
+    it("moves more than one bin edge on Page Up when there is no step", async () => {
+        const onDomainChange = vi.fn();
+        render(<Harness onDomainChange={onDomainChange} />);
+        await userEvent.click(screen.getByRole("slider", { name: "Ramp start" }));
+        await userEvent.keyboard("{PageUp}");
+        expect(onDomainChange).toHaveBeenLastCalledWith([40, 80]);
+    });
 });
+
+describe("RampEditor in the dark scheme", () => {
+    afterEach(resetHarness);
+
+    it("rings the darkest painted bar at 3:1 or more against the panel", async () => {
+        const dark = BINS.map((bin, i) => ({ ...bin, paint: i === 0 ? "#000000" : bin.paint }));
+        await renderThemed(
+            <div style={{ width: 240, background: "var(--cm-bg)" }} data-testid="panel">
+                <RampEditor label="Node color by degree" bins={dark} domain={[20, 80]} describe={describeHandle} />
+            </div>,
+            { scheme: "dark" },
+        );
+        const bar = screen.getAllByTestId("histogram-bar")[0];
+        const ring = /rgba?\([^)]*\)/.exec(getComputedStyle(bar).boxShadow)?.[0];
+        expect(ring).toBeDefined();
+        const panel = rgba(getComputedStyle(screen.getByTestId("panel")).backgroundColor);
+        expect(contrast(over(rgba(ring ?? ""), panel), panel)).toBeGreaterThanOrEqual(3);
+    });
+});
+
+/**
+ * A CSS color as the browser computes it.
+ * @param color - any CSS color
+ * @returns its computed rgb() form
+ */
+function resolved(color: string): string {
+    const probe = document.createElement("span");
+    probe.style.color = color;
+    document.body.append(probe);
+    const out = getComputedStyle(probe).color;
+    probe.remove();
+    return out;
+}
+
+/**
+ * The channels of a computed rgb() or rgba() color.
+ * @param color - the computed color
+ * @returns red, green, blue (0-255) and alpha (0-1)
+ */
+function rgba(color: string): [number, number, number, number] {
+    const [r, g, b, a = 1] = (/rgba?\(([^)]*)\)/.exec(color)?.[1] ?? "").split(/[\s,/]+/).map(Number);
+    return [r, g, b, a];
+}
+
+/**
+ * A translucent color laid over an opaque one.
+ * @param top - the translucent color
+ * @param ground - the opaque color under it
+ * @returns the result, opaque
+ */
+function over(
+    top: [number, number, number, number],
+    ground: [number, number, number, number],
+): [number, number, number, number] {
+    const a = top[3];
+    return [0, 1, 2].map((i) => top[i] * a + ground[i] * (1 - a)).concat(1) as [number, number, number, number];
+}
+
+/**
+ * The WCAG contrast ratio of two opaque colors.
+ * @param x - one color
+ * @param y - the other
+ * @returns the ratio, 1 to 21
+ */
+function contrast(x: [number, number, number, number], y: [number, number, number, number]): number {
+    const lum = (c: [number, number, number, number]): number => {
+        const [r, g, b] = c.slice(0, 3).map((v) => {
+            const s = v / 255;
+            return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const [hi, lo] = [lum(x), lum(y)].sort((p, q) => q - p);
+    return (hi + 0.05) / (lo + 0.05);
+}

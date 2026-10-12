@@ -14,7 +14,7 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
-import { asColorValue, CHANNEL_DESCRIPTORS, toColorValue } from "../session/styles/channels";
+import { asColorValue, CHANNEL_DESCRIPTORS, type ColorValue, toColorValue } from "../session/styles/channels";
 import type { SelectorTarget } from "../session/styles/predicate";
 import type { ElementPaint, ResolvedStyle } from "../session/styles/repaint";
 
@@ -360,6 +360,13 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
         writeChannel(bag, channel, value, plainText(channel));
     }
 
+    // An alpha written inside the colour is opacity, so it is multiplied in here and the instance
+    // colour stays opaque (see Node.applyInstanceColor for why its buffer cannot carry one).
+    if (color !== null && color.a < 1) {
+        opacity = (opacity ?? 1) * color.a;
+        color = { ...color, a: 1 };
+    }
+
     // The material is built neutral so that what shows is the instance's own colour. Opacity goes
     // in, because Babylon keeps `visibility` on the SOURCE mesh rather than on an instance -- so
     // an opacity encoding still mints one source mesh per distinct opacity, and the key below says
@@ -402,8 +409,8 @@ function edgePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
     return { meshKey: identity, style: spellEdgeColours(defaultsDeep(bag, cloneDeep(EDGE_BASE)) as EdgeStyleConfig) };
 }
 
-/** The colour fields of an edge style, each a hex string when set. */
-const EDGE_COLOUR_PATHS = ["line.color", "arrowHead.color", "arrowTail.color"] as const;
+/** The blocks of an edge style that carry a colour and an opacity beside it. */
+const EDGE_COLOUR_BLOCKS = ["line", "arrowHead", "arrowTail"] as const;
 
 /**
  * Spell every colour of an edge style the way the engine spells a resolved one: lowercase hex.
@@ -419,12 +426,31 @@ const EDGE_COLOUR_PATHS = ["line.color", "arrowHead.color", "arrowTail.color"] a
  * @returns The same style.
  */
 function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
-    for (const path of EDGE_COLOUR_PATHS) {
-        const raw: unknown = get(style, path);
-        const painted = toColorValue(typeof raw === "string" ? raw : undefined);
+    const fields: Record<string, unknown> = style;
+    const colourOf = (block: string): ColorValue | null => {
+        const raw: unknown = get(fields, `${block}.color`);
 
-        if (painted !== null) {
-            setAtPath(style, path, painted.hex);
+        return toColorValue(typeof raw === "string" ? raw : undefined);
+    };
+    const line = colourOf("line");
+
+    for (const block of EDGE_COLOUR_BLOCKS) {
+        const own = colourOf(block);
+
+        if (own !== null) {
+            setAtPath(style, `${block}.color`, own.hex.slice(0, 7));
+        }
+
+        // AN ALPHA INSIDE THE COLOUR IS OPACITY (issue #2071). The edge and arrow renderers read
+        // six hex digits and draw anything longer black, so the alpha leaves the colour here and
+        // is multiplied into the block's own opacity. An arrow with no colour of its own draws in
+        // the line's, and so takes the line's alpha too.
+        const alpha = (own ?? line)?.a ?? 1;
+
+        if (alpha < 1) {
+            const opacity: unknown = get(fields, `${block}.opacity`);
+
+            setAtPath(style, `${block}.opacity`, (typeof opacity === "number" ? opacity : 1) * alpha);
         }
     }
 

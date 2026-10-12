@@ -1,6 +1,6 @@
 import {
     AbstractMesh,
-    Color3,
+    type Color3,
     type Color4,
     type EffectLayer,
     GlowLayer,
@@ -13,6 +13,7 @@ import {
 } from "@babylonjs/core";
 
 import type { NodeStyleConfig } from "../config";
+import { readColor } from "./readColor";
 
 /**
  * Default outline configuration for selection highlight.
@@ -24,6 +25,30 @@ const DEFAULT_OUTLINE_COLOR = "#FFFF00";
  * White reads as a neutral bloom over any node colour.
  */
 const DEFAULT_GLOW_COLOR = "#FFFFFF";
+
+/**
+ * A highlight layer that draws each outlined mesh at the alpha its outline colour carried.
+ *
+ * Babylon's own pins every highlighted mesh's alpha at 1 (`ThinHighlightLayer`
+ * `_setEmissiveTextureAndColor`), so `#rrggbbaa` would come out opaque. The colour it set is
+ * still the one the shader is about to be given when `onBeforeRenderMeshToEffect` fires, so the
+ * alpha is multiplied in there.
+ */
+class OutlineLayer extends HighlightLayer {
+    /** The alpha each outlined source mesh's colour carried, by `uniqueId`. Absent means 1. */
+    readonly alphas = new Map<number, number>();
+
+    constructor(name: string, scene: Scene, options: ConstructorParameters<typeof HighlightLayer>[2]) {
+        super(name, scene, options);
+        this.onBeforeRenderMeshToEffect.add((mesh) => {
+            const alpha = this.alphas.get(mesh.uniqueId);
+
+            if (alpha !== undefined) {
+                this._emissiveTextureAndColor.color.a *= alpha;
+            }
+        });
+    }
+}
 
 /**
  * Manages visual effects for node meshes.
@@ -63,15 +88,15 @@ export class NodeEffects {
      * @param scene - The Babylon.js scene
      * @returns The highlight layer for the scene
      */
-    private static getOrCreateHighlightLayer(scene: Scene): HighlightLayer {
+    private static getOrCreateHighlightLayer(scene: Scene): OutlineLayer {
         // Check if layer already exists on scene metadata
-        const existingLayer = scene.metadata?.highlightLayer as HighlightLayer | undefined;
+        const existingLayer = scene.metadata?.highlightLayer as OutlineLayer | undefined;
         if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
             return existingLayer;
         }
 
         // Create new highlight layer
-        const highlightLayer = new HighlightLayer(this.HIGHLIGHT_LAYER_NAME, scene, {
+        const highlightLayer = new OutlineLayer(this.HIGHLIGHT_LAYER_NAME, scene, {
             isStroke: true,
             blurHorizontalSize: 0.5,
             blurVerticalSize: 0.5,
@@ -109,19 +134,21 @@ export class NodeEffects {
         const renderedMesh = this.resolveRenderedMesh(mesh);
 
         if (effect?.outline) {
-            const colorValue = this.extractColorValue(effect.outline.color);
-            const color = Color3.FromHexString(colorValue ?? DEFAULT_OUTLINE_COLOR);
+            const { rgb, alpha } = readColor(this.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
+            const layer = this.getOrCreateHighlightLayer(scene);
 
-            this.getOrCreateHighlightLayer(scene).addMesh(renderedMesh, color);
+            layer.alphas.set(renderedMesh.uniqueId, alpha);
+            layer.addMesh(renderedMesh, rgb);
 
             return;
         }
 
         // NO LAYER IS CREATED HERE, for the reason on getOrCreateHighlightLayer: asking a node
         // not to be outlined must not cost the scene a full-screen post-process.
-        const existingLayer = scene.metadata?.highlightLayer as HighlightLayer | undefined;
+        const existingLayer = scene.metadata?.highlightLayer as OutlineLayer | undefined;
 
         if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
+            existingLayer.alphas.delete(renderedMesh.uniqueId);
             existingLayer.removeMesh(renderedMesh);
         }
     }
@@ -194,7 +221,7 @@ export class NodeEffects {
             _material: Material,
             result: Color4,
         ): void => {
-            const color = glowColors.get(mesh.uniqueId) ?? Color3.FromHexString(DEFAULT_GLOW_COLOR);
+            const color = glowColors.get(mesh.uniqueId) ?? readColor(DEFAULT_GLOW_COLOR, DEFAULT_GLOW_COLOR).rgb;
             result.set(color.r, color.g, color.b, 1);
         };
 
@@ -247,9 +274,11 @@ export class NodeEffects {
 
         if (effect?.glow) {
             const glowLayer = this.getOrCreateGlowLayer(scene);
-            const colorValue = this.extractColorValue(effect.glow.color);
+            const { rgb, alpha } = readColor(this.extractColorValue(effect.glow.color), DEFAULT_GLOW_COLOR);
             const glowColors = scene.metadata?.glowColors as Map<number, Color3> | undefined;
-            glowColors?.set(renderedMesh.uniqueId, Color3.FromHexString(colorValue ?? DEFAULT_GLOW_COLOR));
+            // Scaled rather than given an alpha: the glow is ADDED to the frame, so a glow at half
+            // alpha is a glow of half the light.
+            glowColors?.set(renderedMesh.uniqueId, rgb.scale(alpha));
             this.glowStrengths(scene).set(renderedMesh, effect.glow.strength ?? 1);
 
             // Same defence as the outline path: the inclusion list is keyed by uniqueId and the

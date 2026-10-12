@@ -63,7 +63,20 @@ import {
     UnstyledButton,
 } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { Folder, Hash, Hexagon, Layers, Split, Tags, ToggleLeft, Type } from "lucide-react";
+import {
+    Circle,
+    Folder,
+    GitCommitHorizontal,
+    Hash,
+    Hexagon,
+    Layers,
+    Layers2,
+    Minus as LineGlyph,
+    Split,
+    Tags,
+    ToggleLeft,
+    Type,
+} from "lucide-react";
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -202,6 +215,16 @@ const LOCATION_CELL: Record<string, AlignmentMatrixValue> = {
 
 const EDGE_POSITIONS = ["On the line", "Above", "Below", "At source end", "At target end"];
 const END_POSITIONS = ["At source end", "At target end"];
+
+/**
+ * Whether a label entry sits on an edge: edge positions are words, node positions are
+ * graphty-element's `location` keys.
+ * @param entry - The entry.
+ * @returns True for an edge label or caption.
+ */
+function isEdgeText(entry: LabelEntry): boolean {
+    return EDGE_POSITIONS.includes(entry.position);
+}
 
 /* ------------------------------------------------------------------------------------------ */
 /* The mock's state, shared through context                                                    */
@@ -539,7 +562,9 @@ function overridesParent(layer: MockLayer): boolean {
  */
 function markWords(layer: MockLayer, layers: Readonly<Record<string, MockLayer>>): string[] {
     const firstOver = Object.values(layer.paintedOver ?? {})[0];
+    const target = targetOf(layer);
     return [
+        target === undefined ? undefined : TARGET_WORDS[target].toLowerCase(),
         layer.pin === undefined ? undefined : `pinned to the ${layer.pin}`,
         overridesParent(layer) ? "overrides its parent" : undefined,
         fullyPaintedOver(layer) && firstOver !== undefined
@@ -548,24 +573,55 @@ function markWords(layer: MockLayer, layers: Readonly<Record<string, MockLayer>>
     ].filter((w): w is string => w !== undefined);
 }
 
+/** What a layer's rule reaches, as the tree's tooltip and the panel's group words. */
+const TARGET_WORDS: Record<Target, string> = {
+    node: "Paints nodes",
+    edge: "Paints edges",
+    both: "Paints nodes and edges",
+};
+
 /**
- * The marks after a row's name: pin, override dot, painted over.
+ * What a row paints: nodes, edges or both. A folder and a layer still choosing its elements paint
+ * nothing yet.
+ * @param layer - The row.
+ * @returns The target, or undefined.
+ */
+function targetOf(layer: MockLayer): Target | undefined {
+    if (layer.kind === "folder" || layer.rule.kind === "draft") {
+        return undefined;
+    }
+    return layer.rule.matches;
+}
+
+/**
+ * The glyph for what a row paints: a dot for nodes, a line for edges, a dot on a line for both.
+ */
+function TargetGlyph({ target }: { readonly target: Target }): React.JSX.Element {
+    if (target === "node") {
+        return <Circle size={10} />;
+    }
+    return target === "edge" ? <LineGlyph size={12} /> : <GitCommitHorizontal size={12} />;
+}
+
+/**
+ * The marks after a row's name: painted over, override dot, pin, and what it paints.
  */
 function RowMarks({ layer }: { readonly layer: MockLayer }): React.JSX.Element | null {
     const { layers } = useMock();
     const overrides = overridesParent(layer);
     const firstOver = Object.values(layer.paintedOver ?? {})[0];
     const over = fullyPaintedOver(layer) && firstOver !== undefined ? layers[firstOver.by] : undefined;
-    if (layer.pin === undefined && !overrides && over === undefined) {
+    const target = targetOf(layer);
+    if (layer.pin === undefined && !overrides && over === undefined && target === undefined) {
         return null;
     }
     return (
         <Group gap={4} wrap="nowrap" aria-hidden="true">
             {over !== undefined && (
                 <Tooltip label={`Painted over by ${over.name}`}>
-                    <Text size="xs" c={PANEL_INK.PLACEHOLDER} component="span">
-                        painted over
-                    </Text>
+                    <Box component="span" style={{ display: "inline-flex", color: PANEL_INK.PLACEHOLDER }}>
+                        <Layers2 size={12} />
+                    </Box>
                 </Tooltip>
             )}
             {overrides && (
@@ -580,6 +636,16 @@ function RowMarks({ layer }: { readonly layer: MockLayer }): React.JSX.Element |
                 <Tooltip label={layer.pin === "top" ? "Pinned to the top" : "Pinned to the bottom"}>
                     <Box component="span" style={{ display: "inline-flex", color: PANEL_INK.CHROME }}>
                         <UiGlyph name="pin" size={PANEL_GRID.GLYPH} />
+                    </Box>
+                </Tooltip>
+            )}
+            {target !== undefined && (
+                <Tooltip label={TARGET_WORDS[target]}>
+                    <Box
+                        component="span"
+                        style={{ display: "inline-flex", width: 12, justifyContent: "center", color: PANEL_INK.CHROME }}
+                    >
+                        <TargetGlyph target={target} />
                     </Box>
                 </Tooltip>
             )}
@@ -1219,6 +1285,14 @@ function useWriter(layer: MockLayer, prop: PropId): (write: Write | undefined) =
     };
 }
 
+/** What Show means, on its row: it is not opacity and not a filter. */
+const SHOW_HELP: Partial<Record<PropId, string>> = {
+    nodeVisible:
+        "Off hides these nodes and the edges and labels on them. Opacity fades them instead; Which elements decides what this layer reaches.",
+    edgeVisible:
+        "Off hides these edges, their arrows and their labels. Opacity fades them instead; Which elements decides what this layer reaches.",
+};
+
 const NUMBER_GLYPH: Partial<Record<PropId, "width" | "opacity" | "sizeLargest">> = {
     edgeWidth: "width",
     nodeOpacity: "opacity",
@@ -1235,11 +1309,14 @@ function FixedControl({
     placeholder,
     combine,
     onChange,
+    autoFocus,
 }: {
     readonly prop: PropDef;
     readonly value: string | number | boolean | undefined;
     readonly placeholder?: string | number;
     readonly combine: Combine;
+    /** A row just added with "+": its field takes focus, so the reader types the value at once. */
+    readonly autoFocus?: boolean;
     readonly onChange: (value: string | number) => void;
 }): React.JSX.Element {
     const floor = placeholder ?? prop.floor;
@@ -1269,7 +1346,8 @@ function FixedControl({
                 width="fill"
                 data={[...(prop.options ?? [])]}
                 value={typeof value === "string" ? value : null}
-                placeholder={`Default: ${String(floor).toLowerCase()}`}
+                placeholder={String(floor)}
+                autoFocus={autoFocus}
                 onChange={(next) => {
                     onChange(next);
                 }}
@@ -1292,7 +1370,8 @@ function FixedControl({
             }
             unit={prop.unit}
             value={typeof value === "number" ? value : null}
-            placeholder={`Default: ${String(floor)}`}
+            placeholder={String(floor)}
+            autoFocus={autoFocus}
             min={prop.min ?? 0}
             max={prop.max}
             step={prop.id === "size" ? 0.25 : 1}
@@ -1356,10 +1435,31 @@ function PropMenuItems({
 }
 
 /**
- * "Painted over by <layer>" under a property the layers above cover: a link selecting the topmost
- * of them, and how many more.
+ * The sentence for a property the layers above cover entirely, or undefined when it shows.
+ * @param layer - The layer.
+ * @param prop - The property.
+ * @param layers - Every layer.
+ * @returns "Node color is painted over by Louvain and 2 more", and the topmost cover's id.
  */
-function PaintedOverNote({
+function paintedOverBy(
+    layer: MockLayer,
+    prop: PropId,
+    layers: Readonly<Record<string, MockLayer>>,
+): { sentence: string; by: string } | undefined {
+    const over = layer.paintedOver?.[prop];
+    const by = over === undefined ? undefined : layers[over.by];
+    if (over === undefined || by === undefined) {
+        return undefined;
+    }
+    const more = over.more > 0 ? ` and ${String(over.more)} more` : "";
+    return { sentence: `${PROPS[prop].label} is painted over by ${by.name}${more}`, by: by.id };
+}
+
+/**
+ * One quiet mark on a property row the layers above cover entirely: the full sentence on hover
+ * and focus, and a click selects the topmost layer covering it.
+ */
+function PaintedOverMark({
     layer,
     prop,
 }: {
@@ -1367,20 +1467,25 @@ function PaintedOverNote({
     readonly prop: PropId;
 }): React.JSX.Element | null {
     const { layers, select } = useMock();
-    const over = layer.paintedOver?.[prop];
-    const by = over === undefined ? undefined : layers[over.by];
-    if (over === undefined || by === undefined) {
+    const over = paintedOverBy(layer, prop, layers);
+    if (over === undefined) {
         return null;
     }
-    const more = over.more > 0 ? ` and ${String(over.more)} more` : "";
     return (
-        <Note
-            warn
-            text={`Painted over by ${by.name}${more}`}
-            onClick={() => {
-                select(by.id);
-            }}
-        />
+        <Tooltip label={`${over.sentence}. Click to select it`} multiline w={200}>
+            <ActionIcon
+                type="button"
+                variant="subtle"
+                size={PANEL_GRID.TRAIL}
+                c={PANEL_INK.CHROME}
+                aria-label={`${over.sentence}. Select it`}
+                onClick={() => {
+                    select(over.by);
+                }}
+            >
+                <Layers2 size={12} />
+            </ActionIcon>
+        </Tooltip>
     );
 }
 
@@ -1439,7 +1544,7 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
                 target={
                     <Box className="spm-row">
                         <ToggleRow
-                            label={prop.label}
+                            label={prop.short}
                             control="switch"
                             checked={on}
                             onChange={(checked) => {
@@ -1447,6 +1552,11 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
                             }}
                             trailing={
                                 <Group gap={2} wrap="nowrap">
+                                    {SHOW_HELP[prop.id] !== undefined && (
+                                        <InfoCircle label={`What ${prop.label} means`}>
+                                            <Text size="xs">{SHOW_HELP[prop.id]}</Text>
+                                        </InfoCircle>
+                                    )}
                                     {prop.gap !== undefined && <Gap gap={prop.gap} label={prop.label} />}
                                     <Minus
                                         target={`${prop.label} from ${layer.name}`}
@@ -1457,7 +1567,6 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
                                 </Group>
                             }
                         />
-                        {ctx.pending && <Note text="Writes nothing until you switch it" />}
                     </Box>
                 }
             >
@@ -1472,7 +1581,7 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
                 <ContextMenu
                     target={
                         <Box className="spm-row">
-                            {ctx.showLabel && <RowCaption text={prop.label} />}
+                            {ctx.showLabel && <RowCaption text={prop.short} />}
                             <DerivedRow layer={layer} prop={prop} write={write} setWrite={setWrite} />
                         </Box>
                     }
@@ -1493,7 +1602,7 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
             <ContextMenu
                 target={
                     <Box className="spm-row">
-                        {ctx.showLabel && <RowCaption text={prop.label} />}
+                        {ctx.showLabel && <RowCaption text={prop.short} />}
                         <Box
                             style={rowStyle}
                             onKeyDown={(event: React.KeyboardEvent) => {
@@ -1518,6 +1627,7 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
                                                 ? undefined
                                                 : inheritedValue
                                         }
+                                        autoFocus={ctx.pending}
                                         onChange={(next) => {
                                             setWrite(fixed(next, combineMode));
                                         }}
@@ -1537,6 +1647,7 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
                                     </span>
                                 </Popout.Trigger>
                             </Group>
+                            <PaintedOverMark layer={layer} prop={prop.id} />
                             {write === undefined ? (
                                 <SlotSpacer />
                             ) : (
@@ -1559,11 +1670,9 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
                                 />
                             )}
                         </Box>
-                        {ctx.pending && <Note text="Writes nothing until you choose a value" />}
                         {ctx.inherited !== undefined && write === undefined && (
                             <Note text="Follows its parent. Choose a value to override it here" />
                         )}
-                        <PaintedOverNote layer={layer} prop={prop.id} />
                         {layer.kind === "child" && write !== undefined && (
                             <Box style={{ paddingInlineStart: PANEL_GRID.PAD_LEFT, paddingBottom: 4 }}>
                                 <Anchor
@@ -1790,10 +1899,18 @@ function DerivedRow({
     const overrides = layer.kind === "split" ? childOverrides(layers, layer.id, prop.id) : {};
     const changed = Object.keys(overrides).length;
     const notes = notesFor(write, layer, changed);
+    const [settingsOpen, setSettingsOpen] = useState(false);
     return (
         <Box>
             <Box style={rowStyle}>
-                <BindingSettings layer={layer} prop={prop} write={write} setWrite={setWrite} />
+                <BindingSettings
+                    layer={layer}
+                    prop={prop}
+                    write={write}
+                    setWrite={setWrite}
+                    opened={settingsOpen}
+                    onOpenChange={setSettingsOpen}
+                />
                 <Box style={{ flex: "1 1 0", minWidth: 0, opacity: write.paused ? 0.45 : 1 }}>
                     <Popout.Trigger>
                         <span style={{ display: "flex", width: "100%" }}>
@@ -1807,6 +1924,7 @@ function DerivedRow({
                         </span>
                     </Popout.Trigger>
                 </Box>
+                <PaintedOverMark layer={layer} prop={prop.id} />
                 <Eye
                     hidden={write.paused}
                     target={`${prop.label} on ${layer.name}`}
@@ -1827,12 +1945,19 @@ function DerivedRow({
                     paddingInlineEnd: PANEL_GRID.PAD_RIGHT + 4,
                 }}
             >
-                <BindingPreview prop={prop} write={write} setWrite={setWrite} overrides={overrides} />
+                <BindingPreview
+                    prop={prop}
+                    write={write}
+                    setWrite={setWrite}
+                    overrides={overrides}
+                    onEdit={() => {
+                        setSettingsOpen(true);
+                    }}
+                />
             </Box>
             {notes.map((n) => (
                 <Note key={n} text={n} />
             ))}
-            <PaintedOverNote layer={layer} prop={prop.id} />
         </Box>
     );
 }
@@ -1845,22 +1970,33 @@ function BindingPreview({
     write,
     setWrite,
     overrides,
+    onEdit,
 }: {
     readonly prop: PropDef;
     readonly write: DerivedWrite;
     readonly setWrite: (write: Write | undefined) => void;
     readonly overrides: Readonly<Record<number, string>>;
+    /** Opens the binding's settings: the ramp is the obvious place to change the gradient. */
+    readonly onEdit: () => void;
 }): React.JSX.Element | null {
     const domain = domainOf(write.source);
     if (write.binding === "ramp" && prop.control === "color") {
         return (
-            <RampRow
-                label={`${prop.label} ramp`}
-                variant="color"
-                gradient={rampGradient(write.palette, write.reverse, write.steps)}
-                min={String(write.domainMin ?? domain[0])}
-                max={String(write.domainMax ?? domain[1])}
-            />
+            <Tooltip label="Change the gradient: palette, range, scale, steps">
+                <UnstyledButton
+                    aria-label={`Change the ${prop.label.toLowerCase()} gradient`}
+                    onClick={onEdit}
+                    style={{ display: "block", width: "100%", cursor: "pointer" }}
+                >
+                    <RampRow
+                        label={`${prop.label} ramp`}
+                        variant="color"
+                        gradient={rampGradient(write.palette, write.reverse, write.steps)}
+                        min={String(write.domainMin ?? domain[0])}
+                        max={String(write.domainMax ?? domain[1])}
+                    />
+                </UnstyledButton>
+            </Tooltip>
         );
     }
     if (write.binding === "ramp") {
@@ -1996,11 +2132,15 @@ function BindingSettings({
     prop,
     write,
     setWrite,
+    opened,
+    onOpenChange,
 }: {
     readonly layer: MockLayer;
     readonly prop: PropDef;
     readonly write: DerivedWrite;
     readonly setWrite: (write: Write | undefined) => void;
+    readonly opened: boolean;
+    readonly onOpenChange: (opened: boolean) => void;
 }): React.JSX.Element {
     const value = VALUES.find((v) => v.id === write.source);
     const title = `${prop.label} by ${value?.name ?? write.source}`;
@@ -2020,7 +2160,7 @@ function BindingSettings({
         write.combine !== "Replace" ||
         (write.hiddenValues?.length ?? 0) > 0;
     return (
-        <Popout>
+        <Popout opened={opened} onOpenChange={onOpenChange}>
             <Popout.Trigger>
                 <AdvancedButton label={`${title} settings`} changed={changed} />
             </Popout.Trigger>
@@ -2273,6 +2413,20 @@ function RampSettings({
                                 set({ midpoint });
                             }}
                         />
+                    )}
+                    {prop.control === "color" && write.scale !== "Equal ranges" && write.scale !== "Equal counts" && (
+                        <Box style={{ paddingBlock: 4 }}>
+                            <SegmentedControl
+                                size="xs"
+                                fullWidth
+                                aria-label="Draw the ramp smooth or in steps"
+                                data={["Smooth", "Steps"]}
+                                value={write.steps === undefined ? "Smooth" : "Steps"}
+                                onChange={(v) => {
+                                    set({ steps: v === "Steps" ? 5 : undefined });
+                                }}
+                            />
+                        </Box>
                     )}
                     {stepped && (
                         <StyleNumberInput
@@ -3675,9 +3829,10 @@ function countedPattern(layer: MockLayer): boolean {
 function textSection(
     layer: MockLayer,
     patch: (fn: (l: MockLayer) => MockLayer) => void,
+    target: "node" | "edge",
 ): { rows: React.ReactNode[]; items: AddItem[] } {
-    const { matches } = layer.rule;
-    const rows: React.ReactNode[] = layer.labels.map((entry) => (
+    const mine = layer.labels.filter((e) => isEdgeText(e) === (target === "edge"));
+    const rows: React.ReactNode[] = mine.map((entry) => (
         <LabelEntryRow
             key={entry.id}
             layer={layer}
@@ -3690,7 +3845,7 @@ function textSection(
             }}
         />
     ));
-    if (layer.tooltip !== undefined) {
+    if (target === "node" && layer.tooltip !== undefined) {
         const tip = layer.tooltip;
         rows.push(
             <LabelEntryRow
@@ -3711,18 +3866,18 @@ function textSection(
         patch((l) => ({ ...l, labels: [...l.labels, labelEntry(newId("label"), "name", position)] }));
     };
     const items: AddItem[] = [];
-    const mainLabels = layer.labels.filter((e) => e.preview !== true && !END_POSITIONS.includes(e.position));
+    const mainLabels = mine.filter((e) => e.preview !== true && !END_POSITIONS.includes(e.position));
     items.push(
         mainLabels.length > 0
             ? { label: "Label", reason: ONE_LABEL_REASON }
             : {
                   label: "Label",
                   onClick: () => {
-                      add(matches === "edge" ? "On the line" : "top");
+                      add(target === "edge" ? "On the line" : "top");
                   },
               },
     );
-    if (reaches(matches, "edge")) {
+    if (target === "edge") {
         for (const position of END_POSITIONS) {
             const label = position === "At target end" ? "Caption at the target end" : "Caption at the source end";
             items.push(
@@ -3737,9 +3892,9 @@ function textSection(
             );
         }
     }
-    if (layer.tooltip === undefined) {
+    if (target === "edge" || layer.tooltip === undefined) {
         items.push(
-            matches === "edge"
+            target === "edge"
                 ? { label: "Tooltip", reason: "Edges cannot be hovered today, so they show no tooltip" }
                 : {
                       label: "Tooltip",
@@ -3767,8 +3922,8 @@ function Section({
     const { update, layers, actions, showGaps } = useMock();
     const [menuOpen, setMenuOpen] = useState(false);
     const parent = layer.child === undefined ? undefined : layers[layer.child.parentId];
-    const { matches } = layer.rule;
-    const reachable = section.props.filter((p) => reaches(matches, PROPS[p].on));
+    const target = section.on;
+    const reachable = section.props;
     const inheritedOf = (p: PropId): Write | undefined => {
         if (parent === undefined || layer.child === undefined) {
             return undefined;
@@ -3792,25 +3947,24 @@ function Section({
     const notes: string[] = [];
 
     if (section.id === "text") {
-        ({ rows, items } = textSection(layer, patch));
+        ({ rows, items } = textSection(layer, patch, target));
     } else if (section.id === "effects") {
-        const types: EffectType[] = [
-            ...(reaches(matches, "node") ? (["Outline", "Glow", "Halo"] as const) : []),
-            ...(reaches(matches, "edge") ? (["Motion"] as const) : []),
-        ];
-        rows = layer.effects.map((entry) => (
-            <EffectRow
-                key={entry.id}
-                layer={layer}
-                entry={entry}
-                onEntry={(next) => {
-                    patch((l) => ({ ...l, effects: l.effects.map((e) => (e.id === next.id ? next : e)) }));
-                }}
-                onRemove={() => {
-                    patch((l) => ({ ...l, effects: l.effects.filter((e) => e.id !== entry.id) }));
-                }}
-            />
-        ));
+        const types: readonly EffectType[] = target === "node" ? ["Outline", "Glow", "Halo"] : ["Motion"];
+        rows = layer.effects
+            .filter((e) => types.includes(e.type))
+            .map((entry) => (
+                <EffectRow
+                    key={entry.id}
+                    layer={layer}
+                    entry={entry}
+                    onEntry={(next) => {
+                        patch((l) => ({ ...l, effects: l.effects.map((e) => (e.id === next.id ? next : e)) }));
+                    }}
+                    onRemove={() => {
+                        patch((l) => ({ ...l, effects: l.effects.filter((e) => e.id !== entry.id) }));
+                    }}
+                />
+            ));
         for (const type of types) {
             if (!layer.effects.some((e) => e.type === type)) {
                 items.push({
@@ -3874,7 +4028,7 @@ function Section({
                     prop: PROPS[p],
                     pending: layer.pending.includes(p),
                     inherited: layer.props[p] === undefined ? inheritedOf(p) : undefined,
-                    showLabel: shown.length > 1 || PROPS[p].label !== section.title,
+                    showLabel: shown.length > 1 || PROPS[p].short !== section.title,
                 }}
             />
         ));
@@ -3884,15 +4038,22 @@ function Section({
             }
             if (p === "patternCount" && !countedPattern(layer)) {
                 items.push({
-                    label: PROPS[p].label,
+                    label: PROPS[p].short,
                     reason: "Set a repeating pattern first: dot, star, box, dash, diamond or dash-dot",
                 });
                 continue;
             }
             items.push({
-                label: PROPS[p].label,
+                label: PROPS[p].short,
                 onClick: () => {
-                    update(layer.id, (l) => ({ ...l, pending: [...l.pending, p] }));
+                    // A switch is added to flip it, so it writes the other state at once; every
+                    // other property is added as an empty field showing its default.
+                    const def = PROPS[p];
+                    if (def.control === "switch") {
+                        update(layer.id, (l) => ({ ...l, props: { ...l.props, [p]: fixed(def.floor !== "on") } }));
+                    } else {
+                        update(layer.id, (l) => ({ ...l, pending: [...l.pending, p] }));
+                    }
                 },
             });
         }
@@ -3903,7 +4064,7 @@ function Section({
         const { curved } = layer.props;
         const { pattern } = layer.props;
         if (
-            section.id === "stroke" &&
+            section.id === "line" &&
             curved?.mode === "fixed" &&
             curved.value === true &&
             pattern !== undefined &&
@@ -3926,10 +4087,9 @@ function Section({
     }
 
     const empty = rows.length === 0;
+    const targetWord = target === "node" ? "Node" : "Edge";
     const info =
-        section.id === "text" && layer.labels.length > 0 ? (
-            <Text size="xs">Not drawable today. {GAPS.slots}</Text>
-        ) : undefined;
+        section.id === "text" && rows.length > 0 ? <Text size="xs">Not drawable today. {GAPS.slots}</Text> : undefined;
 
     return (
         <ControlSection
@@ -3947,7 +4107,7 @@ function Section({
             actions={
                 draft ? undefined : (
                     <SectionAdd
-                        section={section.title}
+                        section={`${targetWord} ${section.title.toLowerCase()}`}
                         items={items}
                         opened={menuOpen}
                         setOpened={setMenuOpen}
@@ -5152,11 +5312,47 @@ function StyleTab({ layer }: { readonly layer: MockLayer }): React.JSX.Element {
                         <ProseBlock variant="reading">Choose which elements, then set a property</ProseBlock>
                     </Box>
                 )}
-                {SECTIONS.filter((s) => reaches(layer.rule.matches, s.on)).map((s) => (
-                    <Section key={s.id} layer={layer} section={s} draft={draft} />
-                ))}
+                {(["node", "edge"] as const)
+                    .filter((target) => reaches(layer.rule.matches, target))
+                    .map((target) => (
+                        <Box key={target} role="group" aria-label={target === "node" ? "Nodes" : "Edges"}>
+                            <TargetHeading target={target} />
+                            {SECTIONS.filter((s) => s.on === target).map((s) => (
+                                <Section key={`${target}-${s.id}`} layer={layer} section={s} draft={draft} />
+                            ))}
+                        </Box>
+                    ))}
             </fieldset>
         </Box>
+    );
+}
+
+/**
+ * The heading over a group of sections: what every row under it styles.
+ */
+function TargetHeading({ target }: { readonly target: "node" | "edge" }): React.JSX.Element {
+    return (
+        <Group
+            gap={6}
+            wrap="nowrap"
+            style={{
+                height: 28,
+                marginTop: 8,
+                paddingInlineStart: PANEL_GRID.PAD_LEFT,
+                paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
+                background: PANEL_INK.SURFACE,
+                borderTop: `1px solid ${PANEL_INK.DIVIDER}`,
+                borderBottom: `1px solid ${PANEL_INK.DIVIDER}`,
+                color: PANEL_INK.VALUE,
+            }}
+        >
+            <Box style={{ display: "inline-flex", width: 12, justifyContent: "center" }} aria-hidden="true">
+                <TargetGlyph target={target} />
+            </Box>
+            <Text component="h3" m={0} fz={TITLE_SIZE} fw={700} c={PANEL_INK.VALUE}>
+                {target === "node" ? "Nodes" : "Edges"}
+            </Text>
+        </Group>
     );
 }
 

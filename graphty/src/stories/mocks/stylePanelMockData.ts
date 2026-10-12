@@ -137,7 +137,10 @@ export type SchemeKind = "palette" | "shapes" | "list" | "table" | "rule";
 
 export interface PropDef {
     readonly id: PropId;
+    /** The full name, used where the row's group is not in view ("Node opacity"). */
     readonly label: string;
+    /** The name on the row, under its Nodes or Edges heading ("Opacity"). */
+    readonly short: string;
     readonly on: "node" | "edge";
     readonly control: Control;
     readonly unit?: string;
@@ -210,6 +213,7 @@ export const ARROW_KINDS = [
 export const PROPS: Record<PropId, PropDef> = {
     shape: {
         id: "shape",
+        short: "Shape",
         label: "Shape",
         on: "node",
         control: "select",
@@ -219,10 +223,20 @@ export const PROPS: Record<PropId, PropDef> = {
         ramp: "none",
         capacity: 25,
     },
-    size: { id: "size", label: "Size", on: "node", control: "number", floor: 1, scheme: "table", ramp: "steps" },
+    size: {
+        id: "size",
+        short: "Size",
+        label: "Size",
+        on: "node",
+        control: "number",
+        floor: 1,
+        scheme: "table",
+        ramp: "steps",
+    },
     nodeVisible: {
         id: "nodeVisible",
-        label: "Node visible",
+        short: "Show",
+        label: "Show nodes",
         on: "node",
         control: "switch",
         floor: "on",
@@ -232,6 +246,7 @@ export const PROPS: Record<PropId, PropDef> = {
     },
     nodeOpacity: {
         id: "nodeOpacity",
+        short: "Opacity",
         label: "Node opacity",
         on: "node",
         control: "number",
@@ -244,7 +259,8 @@ export const PROPS: Record<PropId, PropDef> = {
     },
     edgeVisible: {
         id: "edgeVisible",
-        label: "Edge visible",
+        short: "Show",
+        label: "Show edges",
         on: "edge",
         control: "switch",
         floor: "on",
@@ -254,6 +270,7 @@ export const PROPS: Record<PropId, PropDef> = {
     },
     edgeOpacity: {
         id: "edgeOpacity",
+        short: "Opacity",
         label: "Edge opacity",
         on: "edge",
         control: "number",
@@ -266,6 +283,7 @@ export const PROPS: Record<PropId, PropDef> = {
     },
     nodeColor: {
         id: "nodeColor",
+        short: "Color",
         label: "Node color",
         on: "node",
         control: "color",
@@ -275,6 +293,7 @@ export const PROPS: Record<PropId, PropDef> = {
     },
     edgeColor: {
         id: "edgeColor",
+        short: "Color",
         label: "Edge color",
         on: "edge",
         control: "color",
@@ -284,6 +303,7 @@ export const PROPS: Record<PropId, PropDef> = {
     },
     edgeWidth: {
         id: "edgeWidth",
+        short: "Width",
         label: "Edge width",
         on: "edge",
         control: "number",
@@ -294,6 +314,7 @@ export const PROPS: Record<PropId, PropDef> = {
     },
     pattern: {
         id: "pattern",
+        short: "Pattern",
         label: "Pattern",
         on: "edge",
         control: "select",
@@ -305,6 +326,7 @@ export const PROPS: Record<PropId, PropDef> = {
     },
     patternCount: {
         id: "patternCount",
+        short: "Pattern count",
         label: "Pattern count",
         on: "edge",
         control: "number",
@@ -315,6 +337,7 @@ export const PROPS: Record<PropId, PropDef> = {
     },
     curved: {
         id: "curved",
+        short: "Curved",
         label: "Curved",
         on: "edge",
         control: "switch",
@@ -324,6 +347,7 @@ export const PROPS: Record<PropId, PropDef> = {
     },
     wireframe: {
         id: "wireframe",
+        short: "Wireframe",
         label: "Wireframe",
         on: "node",
         control: "switch",
@@ -333,35 +357,32 @@ export const PROPS: Record<PropId, PropDef> = {
     },
 };
 
-export type SectionId = "shape" | "visibility" | "text" | "fill" | "stroke" | "ends" | "effects" | "rendering";
+export type SectionId = "shape" | "visibility" | "text" | "fill" | "line" | "ends" | "effects" | "rendering";
 
 export interface SectionDef {
     readonly id: SectionId;
     readonly title: string;
-    readonly on: Target;
+    readonly on: "node" | "edge";
     readonly props: readonly PropId[];
 }
 
-/** The one fixed section order every layer shares. */
+/**
+ * The Style tab's two groups, Nodes then Edges, each in one fixed section order. A group shows
+ * only when the layer's rule can match that kind of element, and a section holds only what
+ * graphty-element can draw on that kind.
+ */
 export const SECTIONS: readonly SectionDef[] = [
     { id: "shape", title: "Shape", on: "node", props: ["shape", "size"] },
-    {
-        id: "visibility",
-        title: "Visibility",
-        on: "both",
-        props: ["nodeVisible", "nodeOpacity", "edgeVisible", "edgeOpacity"],
-    },
-    { id: "text", title: "Text", on: "both", props: [] },
+    { id: "visibility", title: "Visibility", on: "node", props: ["nodeVisible", "nodeOpacity"] },
+    { id: "text", title: "Text", on: "node", props: [] },
     { id: "fill", title: "Fill", on: "node", props: ["nodeColor"] },
-    {
-        id: "stroke",
-        title: "Stroke",
-        on: "edge",
-        props: ["edgeColor", "edgeWidth", "pattern", "patternCount", "curved"],
-    },
-    { id: "ends", title: "Ends", on: "edge", props: [] },
-    { id: "effects", title: "Effects", on: "both", props: [] },
+    { id: "effects", title: "Effects", on: "node", props: [] },
     { id: "rendering", title: "Rendering", on: "node", props: ["wireframe"] },
+    { id: "visibility", title: "Visibility", on: "edge", props: ["edgeVisible", "edgeOpacity"] },
+    { id: "text", title: "Text", on: "edge", props: [] },
+    { id: "line", title: "Line", on: "edge", props: ["edgeColor", "edgeWidth", "pattern", "patternCount", "curved"] },
+    { id: "ends", title: "Ends", on: "edge", props: [] },
+    { id: "effects", title: "Effects", on: "edge", props: [] },
 ];
 
 /**
@@ -846,7 +867,7 @@ export const PAINTED: Record<string, readonly (readonly [string, string])[]> = {
         ["Node color", "12 of 12"],
         ["Glow", "11 of 12"],
     ],
-    degree: [["Node color", "0 of 77, painted over"]],
+    degree: [["Node color", "11 of 77, the rest painted over by Louvain"]],
     route: [
         ["Label", "5 of 5"],
         ["Node color", "5 of 5"],
@@ -1114,8 +1135,8 @@ export const INITIAL_LAYERS: Record<string, MockLayer> = Object.fromEntries(
                 locked: false,
                 hidden: false,
                 rule: { kind: "everyNode", words: "Every node", count: "77 nodes", matches: "node" },
+                // Not painted over: Community 5 is hidden, so Degree still colors its 11 nodes.
                 props: { nodeColor: derived("degree", "ramp", DEFAULT_RAMP) },
-                paintedOver: { nodeColor: { by: "louvain", more: 0 } },
             },
             {
                 ...NO_LISTS,

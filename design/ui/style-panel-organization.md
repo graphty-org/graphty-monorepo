@@ -34,12 +34,19 @@ Where the mock shows something graphty-element cannot draw today, the control is
 1. **Two panels, two selections.** The tree lists style layers in paint order; the right panel
    edits the selected row. A canvas click selects nodes and edges, never a layer, because many
    layers paint one node; the inspector names the layer painting each property and opens it.
-2. **One fixed section order on every layer:** Header, Which elements, Split by (split parents
-   only), Shape, Visibility, Text, Fill, Stroke, Ends, Effects, Rendering. A section the layer does
-   not write is its dimmed title with "+"; a section the rule cannot match is left out.
+2. **Nodes and Edges are two headed groups, in one fixed order on every layer:** Header, Which
+   elements, Split by (split parents only), then **Nodes** (Shape, Visibility, Text, Fill, Effects,
+   Rendering) and **Edges** (Visibility, Text, Line, Ends, Effects). A group shows only when the
+   rule can match that kind of element, so a layer on nodes and edges shows both and a layer on
+   edges shows only Edges. Every section and property sits only under the kind graphty-element can
+   draw it on, and rows use short names under their heading ("Opacity", not "Node opacity"). A
+   section the layer does not write is its dimmed title with "+" (section 6).
 3. **No state words.** Off is an absent row, fixed is a value, derived is a pill naming the value.
-4. **Adding never repaints by surprise.** "+" and Add layer open a draft that writes nothing until
-   the first value is chosen.
+4. **Adding never repaints by surprise.** "+" adds the property as an empty, focused field whose
+   placeholder is the value it falls back to ("100", in placeholder gray); it writes nothing until
+   a value is typed or picked. A switch is added flipped, because flipping it is the only reason to
+   add one. Add layer opens a draft that writes nothing until its rule is chosen. No sentence says
+   so (4.2).
 5. **Every field can vary, wherever it sits.** A property row, an effect's color, an arrow's kind
    and a label's source all take the same vary glyph, "=" and value picker. A field that cannot
    vary shows the glyph disabled with the reason. The derive menu follows the kind of field (3.1,
@@ -58,8 +65,9 @@ Where the mock shows something graphty-element cannot draw today, the control is
 11. **Split parents carry schemes on their property rows; split children carry overrides,** shown
     in secondary and primary text, with "Follow parent" to undo an override.
 12. **Folders write nothing,** so a folder's panel lists its rows and the colors they paint.
-13. **The warning mark is for what the reader set that is not showing:** painted over, locked,
-    hidden. Every other note is plain secondary text.
+13. **What the reader set that is not showing gets a mark:** a property the layers above cover
+    entirely carries one quiet glyph on its row, with the sentence on hover and focus; locked and
+    hidden layers say so at the top. Every other note is plain secondary text.
 
 ---
 
@@ -75,7 +83,7 @@ The model's terms (off, fixed, derived) never appear on screen.
 | Vary by / Fix at <value>          | Derive a field from a value / turn it back into one value                                                                                    |
 | Scheme / Ramp                     | Looks for categories (palette, shapes, patterns, arrow kinds) / a palette or range over a number                                             |
 | Split into layers / Follow parent | Make a split parent / drop a child's override                                                                                                |
-| Painted over by <layer>           | Layers above cover every element this property paints. Words, never dimming alone                                                            |
+| Painted over by <layer>           | Layers above cover every element this property paints. One glyph on the row; the sentence is its tooltip and accessible name                 |
 | Combine                           | Replace, Multiply, Add, Mix, Set hue, Set lightness, Set transparency; on a ring (outline, glow, halo), Replace or Append                    |
 | Graph settings                    | What belongs to the whole graph, not to a layer                                                                                              |
 
@@ -228,7 +236,7 @@ opened inside it.
 | What a layer writes, and how                                                                     | Style tab                                                                      |
 | How many elements the rule matches                                                               | one count on Which elements; breakdown in Values                               |
 | Histograms, group sizes, members, path order, selected and hovered elements                      | Values tab (histograms also in the binding popover, where the scale is chosen) |
-| Painted counts per property                                                                      | Values tab; "Painted over by" as one line on the Style row                     |
+| Painted counts per property                                                                      | Values tab; "Painted over by" as one glyph on the Style row                    |
 | Label counts: labeled, drawn, hidden by overlap                                                  | Values tab                                                                     |
 | Run name, when it ran, whether it is out of date                                                 | Values tab                                                                     |
 | Which layer paints this node's color; a node's attributes                                        | Inspector, on a canvas selection                                               |
@@ -285,7 +293,7 @@ Consequences the panel respects:
   pill's name is the whole binding ("Node color varies by degree, linear, 1 to 36"). A field with a
   combine prefix names it ("Edge width, multiplied by"). A tree row's name carries its marks
   ("Community 3, overrides its parent"; "Everything, pinned to the bottom"). Moves are announced
-  ("Degree moved above Louvain"). "Painted over" and "Mixed" are words.
+  ("Degree moved above Louvain"). "Painted over" is the mark's accessible name; "Mixed" is words.
 - **Honesty.** The panel shows today's quirks: a node label switched on with no text draws the node
   id; label numbers draw as they are; label size scales with zoom and does not wrap; edge labels
   are never decluttered; label animation runs on node labels only.
@@ -325,8 +333,21 @@ graphty-element draws gradient fills but no style channel reaches them.
 - Combine, when not Replace: inside a number field as its glyph ("x 2", read as "Edge width,
   multiplied by"), or a word after a color ("Mix").
 - Row menu (`ContextMenu`): Combine submenu, Vary by, Remove; on a split child, Follow parent.
-- Under it, when the layers above cover it: "Painted over by <layer>" (and "and N more"), a link
-  selecting the topmost of them.
+- **Not set yet:** a property just added with "+" is the same row with an empty control, focused
+  so the reader can type at once. The placeholder is the value off falls back to ("100",
+  "Icosphere"), in placeholder gray, so the row reads as unset with no sentence under it. It
+  writes nothing until a value is chosen; the minus removes it. The placeholder is the bare value,
+  never "Default: 100": in a narrow field that truncates to "Default: ...", which reads as a
+  disabled control and leaves the vary glyph looking like the only way to set the property. This
+  is the empty-field-with-placeholder pattern of Figma's number fields and of every form. It is
+  chosen over Figma's "+ adds a default value" because a fixed value here covers every layer
+  beneath it, and over a sentence under the row because a sentence repeated on every added row is
+  noise. A switch has no empty state, so "+" adds it already flipped (Curved on, Show off).
+- **Painted over:** when the layers above cover every element the property paints, one 24 px
+  glyph (stacked layers) sits before the eye. Its tooltip and accessible name are the sentence
+  ("Node color is painted over by Louvain and 2 more"); clicking it selects the topmost of them.
+  It shows only when all of the property's paint is covered: a layer above that skips some
+  elements (a hidden split child, a narrower rule) leaves no mark.
 
 ### 4.3 Property row, derived
 
@@ -345,7 +366,10 @@ graphty-element draws gradient fills but no style channel reaches them.
   steps; a number ramp is a `FieldRow` with From and To; categories are up to 8 `ColorSwatch`
   chits (an override marked with a dot, a hidden category faded) and "+N"; pass-through text has
   none.
-- Notes: `ProseBlock`, plain secondary text. Only "Painted over by" carries the warning mark.
+- Notes: `ProseBlock`, plain secondary text. Painted over is the row's glyph, never a note.
+- **Changing the gradient:** the ramp itself is a button ("Change the node color gradient") that
+  opens the binding popover, as the settings button does: palette, Reverse, Smooth or Steps and
+  the step count, scale, domain, clamp. The pill reopens the value picker.
 
 ### 4.4 Value picker
 
@@ -457,7 +481,8 @@ Effects                                               [+]
 | Fixed / Derived                     | The value control / the pill, its second line and notes      |
 | Paused                              | Value in tertiary text, eye closed                           |
 | Child following parent / overriding | Parent's value in secondary text / own value in primary text |
-| Painted over                        | Plus "Painted over by <layer>", a link selecting that layer  |
+| Not set yet                         | Empty control with the default as placeholder; minus only    |
+| Painted over                        | Plus one glyph before the eye; sentence on hover and focus   |
 | Locked                              | Controls disabled; "This layer is locked" at the top         |
 | Hidden                              | "Hidden: changes will not show until it is shown" at the top |
 
@@ -482,7 +507,7 @@ Style layers                                 [+]
  v Louvain                                (lk)(eye)
      Community 1 ... 6                    (lk)(eye)
        (Community 3 overridden, Community 5 hidden)
-   Degree                   painted over  (lk)(eye)
+   Degree                                 (lk)(eye)
    Everything                        (pin)(lk)(eye)
 -------------------------------------------------
  Graph settings      (Restore starting layers)
@@ -498,7 +523,7 @@ Style layers                                 [+]
 | Route Valjean to Javert | a run, nodes and edges        | color D55E00, edge width 24 (graphty-element's highlight), head arrow, label from step     |
 | Edge betweenness        | a run                         | every edge: width by betweenness, 8 to 16 in 5 steps                                       |
 | Louvain                 | a run, split                  | every node: color by group; six children                                                   |
-| Degree                  | a run                         | every node: color by degree; entirely painted over by Louvain                              |
+| Degree                  | a run                         | every node: color by degree; Louvain covers it except hidden Community 5's 11 nodes        |
 | Everything              | starting layer, pinned bottom | graphty-element's base look: icosphere, size 1, 6366F1, edge A9A9A9 width 8, a Normal head |
 
 ### 5.2 Row anatomy
@@ -508,8 +533,10 @@ compact-mantine `Tree` and `TreeItem`: 32 px rows, 24 px per level.
 - Caret for folders and split parents, shown while the pointer is over the tree or the row is open.
 - Type icon (layer, folder, split parent); a split child shows its color chit (`ColorSwatch`).
 - Name, weight 600 top-level and 400 nested; rename by double-click or F2 (`InlineRename`).
-- Marks after the name, 16 px glyphs with tooltips, also in the row's accessible name: pin,
-  override dot, painted over.
+- Marks after the name, 16 px glyphs with tooltips, also in the row's accessible name: painted
+  over (a layer whose every write is covered), override dot, pin, and last what the row paints: a
+  dot for nodes, a line for edges, a dot on a line for both ("Paints nodes and edges"). A folder
+  and a draft paint nothing and have none.
 - Lock and eye `ToggleIconButton`s, shown on hover or focus and always when on, outside the Tab
   order. Pin is set from the row menu and shown as a mark, because only top-level rows can pin.
 - Hidden rows draw in tertiary text; a hidden folder dims its children.
@@ -546,14 +573,15 @@ compact-mantine `Tree` and `TreeItem`: 32 px rows, 24 px per level.
 | Which elements                             |
 |  Every node                    77 nodes    |
 +------------------------------------------+
+| (o) Nodes                                  |  heading
 | Shape                                  [+] |  dimmed
 | Visibility                             [+] |  dimmed
 | Text                                   [+] |  dimmed
 | Fill                                   [+] |
+|  Color                                     |
 |  [set] [ramp] degree         (eye) (-)     |
-|        [=========================]         |
+|        [=========================]         |  a button: the gradient
 |        1                          36       |
-|  ! Painted over by Louvain                 |
 | Effects                                [+] |  dimmed
 | Rendering                              [+] |  dimmed
 +------------------------------------------+
@@ -571,11 +599,26 @@ compact-mantine `Tree` and `TreeItem`: 32 px rows, 24 px per level.
   (`ComboInput` for the value, `StyleSelect` for the comparison, `TextInput` or `StyleNumberInput`
   for the operand); "+" on the section adds an "and" condition. Done keeps the rule; Escape puts it
   back. Either closes the editor and returns focus to the words.
-- **Sections:** the union of what the rule can match, in the fixed order. Visibility holds Node
-  visible, Node opacity, Edge visible and Edge opacity; Stroke holds Edge color, Edge width,
-  Pattern, Pattern count and Curved. Rows name their kind ("Node color", "Edge opacity").
-- **Placeholders** in empty controls show the floor in graphty-element's units ("Default:
-  icosphere", "Default: 8"), so the reader knows what off falls back to.
+- **Nodes and Edges:** two groups under a 28 px heading each (a dot or a line glyph and the word),
+  shown for the kinds the rule can match. A tab or a switch between them was rejected: a layer on
+  both (the route) would hide half of what it does. Effects are split the same way: Outline, Glow
+  and Halo under Nodes, Motion under Edges; label entries sit under the kind their position
+  belongs to, so a layer on both can hold a node label and an edge label.
+- **Sections:** in each group, the fixed order, holding only what that kind draws (from
+  graphty-element's channels). Nodes: Shape (Shape, Size), Visibility (Show, Opacity), Text
+  (labels, tooltip), Fill (Color), Effects, Rendering (Wireframe). Edges: Visibility (Show,
+  Opacity), Text (label, end captions), Line (Color, Width, Pattern, Pattern count, Curved), Ends,
+  Effects. "Line" replaces "Stroke", which a Figma user reads as an outline. The row names are
+  short under their heading; menus, tooltips and accessible names keep the full name ("Node
+  opacity").
+- **Show** is a switch with an "i" beside it: "Off hides these nodes and the edges and labels on
+  them. Opacity fades them instead; Which elements decides what this layer reaches." It is kept in
+  the default view, renamed from "Node visible", because hiding is a style a reader wants (hide
+  the leaves, show only the route) and it is distinct from opacity (the element is still drawn,
+  faded) and from filtering (which elements a layer reaches, or a session filter that removes
+  them from the view). graphty-element has no visibility channel yet (section 8).
+- **Placeholders** in empty controls show the floor in graphty-element's units ("Icosphere", "8"),
+  so the reader knows what off falls back to.
 
 ---
 
@@ -616,8 +659,9 @@ A folder lists the values its layers read, each with the layers that read it.
 
 - Which elements: "Every node and edge", "77 nodes, 254 edges".
 - Shape: Shape "Icosphere"; Size "1".
-- Fill: Node color "6366F1"; "Painted over by Louvain and 2 more".
-- Stroke: Edge color "A9A9A9"; Edge width "8"; "Painted over by Edge betweenness and 2 more".
+- Nodes, Fill: Color "6366F1", marked painted over ("Node color is painted over by Louvain and 2
+  more").
+- Edges, Line: Color "A9A9A9"; Width "8", marked painted over by Edge betweenness and 2 more.
 - Ends: Head "Normal", color following the line: the arrowhead every edge gets today, so the reader
   can see where arrows come from and choose None for all edges. Once the studio branch lands, the
   element draws it only on directed graphs.
@@ -625,7 +669,7 @@ A folder lists the values its layers read, each with the layers that read it.
 ### 7.3 Selected (pinned top)
 
 - Which elements: "Selected elements", "2 nodes" (this view's count).
-- Stroke: Edge width "x 2" (Multiply): a selected edge keeps its color and thickens.
+- Edges, Line: Width "x 2" (Multiply): a selected edge keeps its color and thickens.
 - Effects: Halo "FFD700", settings size 1.45 times the node and opacity 40%, appended: graphty-
   element's selection look today, carried by the layer instead of a separate selection setting
   (marked, section 8). When the studio branch lands, its edge band becomes a Band effect here and
@@ -662,8 +706,11 @@ A folder lists the values its layers read, each with the layers that read it.
 ### 7.7 Degree
 
 - Which elements: "Every node", "77 nodes".
-- Fill: Node color, derived: settings, pill "degree" (ramp glyph); `RampRow` "Orange to Brown", "1"
-  and "36" at its ends; "Painted over by Louvain", a link selecting Louvain.
+- Fill: Color, derived: settings, pill "degree" (ramp glyph); `RampRow` "Orange to Brown", "1" and
+  "36" at its ends. Not painted over: Louvain leaves hidden Community 5's 11 nodes to it, and its
+  Values tab says "Node color: 11 of 77".
+- Clicking the ramp opens the gradient settings; changing the palette, Reverse or Steps redraws
+  the ramp on the row.
 - Behind disclosure: the ramp popover (histogram, palette with Reverse, scale Linear, domain Auto,
   no clamp, No value Skip, Replace). Choosing Log adds "Log scale" to the row and the legend.
 
@@ -672,15 +719,16 @@ A folder lists the values its layers read, each with the layers that read it.
 - Which elements: "Nodes and edges on the route", "5 nodes, 4 edges".
 - Text: a label entry, pill "step, route", Size 36 px, Position "Above right"; note "Numbers draw
   as they are".
-- Fill: Node color "D55E00". Stroke: Edge color "D55E00"; Edge width "24".
+- Nodes, Fill: Color "D55E00". Edges, Line: Color "D55E00"; Width "24". The step label sits under
+  Nodes, its head under Edges, Ends.
 - Ends: Head, kind "Normal"; its settings show Color "Line color" and the caption line.
 
 ### 7.9 Edge betweenness
 
-- Which elements: "Every edge", "254 edges". Node-only sections are absent.
-- Stroke: Edge width, derived: pill "betweenness" (steps glyph); From 8 To 16; note "5 steps".
-  Stroke's "+" offers Edge color, Pattern and Curved; Pattern count waits for a repeating pattern.
-- Visibility "+" offers Edge visible and Edge opacity.
+- Which elements: "Every edge", "254 edges". Only the Edges group shows.
+- Line: Width, derived: pill "betweenness" (steps glyph); From 8 To 16; note "5 steps". Line's "+"
+  offers Color, Pattern and Curved; Pattern count waits for a repeating pattern.
+- Visibility "+" offers Show and Opacity.
 
 ### 7.10 Key people
 
@@ -730,7 +778,7 @@ reader's flag, one layer painting both kinds) are recorded in `design/ui/unified
 | Combine words                                                                           | a combine mode on each property write                                                                        |
 | Append on outline, glow and halo                                                        | rings that stack: more than one outline, glow or halo per node                                               |
 | The selection halo as a layer effect                                                    | halo color, size and opacity as style channels, instead of a setting drawn from the selection                |
-| Node visible and Edge visible                                                           | visibility as a style write (today only session filters hide elements)                                       |
+| Show, on nodes and on edges                                                             | visibility as a style write (today only session filters hide elements)                                       |
 | The per-property eye                                                                    | a paused flag on a property write, saved with the layer                                                      |
 | A second label entry (greyed)                                                           | label slots keyed by name, with a combine mode and stacking                                                  |
 | Label size, color, background varying (disabled)                                        | those look fields as properties that take bindings                                                           |

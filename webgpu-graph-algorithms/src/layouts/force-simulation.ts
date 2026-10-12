@@ -629,7 +629,7 @@ export class ForceSimulation<
     private stateValue: "created" | "loaded" | "disposed" = "created";
     private generationValue = 0;
     private tierValue: "exact" | "grid";
-    private dimValue: 2 | 3;
+    private readonly dimValue: 2 | 3;
     private snapshot: GraphSnapshot | null = null;
     private serial: number | null = null;
     private owner: F32 | null = null;

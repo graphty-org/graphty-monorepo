@@ -37,9 +37,9 @@ import type { Manager } from "./interfaces";
  */
 export class EventManager implements Manager {
     // Observables for different event types
-    private graphObservable = new Observable<GraphEvent>();
-    private nodeObservable = new Observable<NodeEvent>();
-    private edgeObservable = new Observable<EdgeEvent>();
+    private readonly graphObservable = new Observable<GraphEvent>();
+    private readonly nodeObservable = new Observable<NodeEvent>();
+    private readonly edgeObservable = new Observable<EdgeEvent>();
 
     // Expose for testing and advanced usage
     /**
@@ -73,7 +73,7 @@ export class EventManager implements Manager {
 
     // Track observers for cleanup
     // Using any here is required due to BabylonJS Observable/Observer type limitations
-    private observers = new Map<
+    private readonly observers = new Map<
         symbol,
         {
             type: "graph" | "node" | "edge";
@@ -85,8 +85,8 @@ export class EventManager implements Manager {
     >();
 
     // Error handling configuration
-    private errorRetryCount = 3;
-    private errorRetryDelay = 1000; // ms
+    private readonly errorRetryCount = 3;
+    private readonly errorRetryDelay = 1000; // ms
 
     /**
      * Initializes the event manager

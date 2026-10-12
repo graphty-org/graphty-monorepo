@@ -6,8 +6,8 @@
 #   - a train hold, "Release held: <what> failed on <sha>": a release train failed. A later train that fails
 #     retitles and comments on it; a train that passes closes it.
 #   - a publish hold, "Release held: publish failed on <sha>": the publish of a release already on master
-#     failed. Only re-running that publish run clears it, so trains never retitle or close it; a passing
-#     re-run closes it.
+#     failed. Re-running that publish run clears it, so trains never retitle it; a passing re-run closes it.
+#     One that npm accepted but had not listed yet closes once npm lists it (tools/publish-hold.mjs settle).
 #
 #   tools/release-held.sh find [prefix]                    any hold's number (title starts with prefix), or nothing
 #   tools/release-held.sh find --train                     the train hold's number, or nothing

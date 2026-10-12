@@ -29,8 +29,10 @@ name: Release
 #    merged again; a real conflict in a version field or a changelog holds the release.
 # 5. The publish job creates each package's GitHub release and publishes it to npm with trusted publishing (OIDC),
 #    from the builds of this run's CI call. A failed publish opens its own, separate hold, a "Release held: publish
-#    failed on <sha>" issue that no train retitles or closes; re-running this run's failed jobs (gh run rerun <id>
-#    --failed) re-runs only the publish job, which publishes what is missing and closes it.
+#    failed on <sha>" issue that no train retitles; re-running this run's failed jobs (gh run rerun <id> --failed)
+#    re-runs only the publish job, which publishes what is missing and closes it. When npm accepted every missing
+#    version and was only slow to list it, the next train attempt or master push closes it once npm lists them
+#    (tools/publish-hold.mjs).
 #
 # Why that order: master and the tags change together (atomic push) BEFORE anything reaches npm. A failure before
 # the push leaves nothing behind (a train hold; the next attempt starts over). A failure after it leaves master
@@ -93,7 +95,7 @@ jobs:
         runs-on: ubuntu-24.04
         permissions:
             contents: write # delete the branch of a release pull request left from the old design
-            issues: read
+            issues: write # close a publish hold npm has ended (tools/publish-hold.mjs settle)
             pull-requests: write # close that pull request
         env:
             GH_TOKEN: ${{ github.token }}
@@ -113,12 +115,26 @@ jobs:
               id: pending
               env:
                   CANDIDATE: ${{ github.event.workflow_run.head_sha || github.sha }}
+                  # tools/publish-hold.mjs settle announces a hold npm ended, as the publish job would have
+                  GITHUB_TOKEN: ${{ github.token }}
+                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
               run: |
                   set -euo pipefail
                   skip() { echo "::notice::$1"; echo "pending=true" >> "$GITHUB_OUTPUT"; exit 0; }
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                  # A publish hold opened only because npm was slow to list versions it had accepted ends here, once
+                  # npm lists them all; one npm refused stays for a person (tools/publish-hold.mjs). npm sends no
+                  # event when it lists a version, so every train attempt and master push asks again.
+                  publish_hold=$(tools/release-held.sh find "Release held: publish failed")
+                  if [ -n "$publish_hold" ]; then
+                      node tools/publish-hold.mjs settle --issue "$publish_hold" --run "$run_url" ||
+                          echo "::warning::could not check publish hold #${publish_hold} against npm; the next attempt asks again"
+                  fi
                   # A master push restarts only a held train; with nothing held it touches nothing. A publish hold
-                  # does not count: no train can clear it, only re-running the failed publish run.
+                  # does not count: no train can clear it, only re-running the failed publish run or npm listing
+                  # what it accepted (above).
                   if [ "$TRIGGER" = workflow_run ] && [ -z "$(tools/release-held.sh find --train)" ]; then
                       skip "no release train is held; a master push restarts only a held train"
                   fi
@@ -134,7 +150,8 @@ jobs:
                   done
                   # A held release waits for its fix: a scheduled attempt skips. The next master push whose build
                   # passed restarts a held train (workflow_run), and an ad hoc dispatch runs anyway; a train hold
-                  # closes when a train lands, a publish hold when its re-run publish passes.
+                  # closes when a train lands, a publish hold when its re-run publish passes or when npm lists what
+                  # it accepted (above).
                   if [ -n "$held" ] && [ "$TRIGGER" = schedule ]; then
                       skip "the release is held (issue #${held}); the next master push whose build passes restarts it"
                   fi
@@ -669,12 +686,12 @@ jobs:
                   HUSKY: "0"
 
             # Everything passed and the release is on master: a held train is released by this one. Only the train
-            # hold closes; a publish hold waits for its own re-run.
+            # hold closes; a publish hold waits for its own re-run, or for the registry to list what it accepted.
             - name: Close the held-release issue
               run: |
                   set -euo pipefail
                   tools/release-held.sh close \
-                      "The full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on ${SHA} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}), and its release (${TAGS}) is on master; this train releases what the failed train held. A publish hold (\"Release held: publish failed\"), if one is open, is a separate issue and stays open until its own run is re-run."
+                      "The full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on ${SHA} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}), and its release (${TAGS}) is on master; this train releases what the failed train held. A publish hold (\"Release held: publish failed\"), if one is open, is a separate issue and stays open until its own run is re-run or the registry lists what it accepted."
 
             # A step after the push failed: the release is not held (the held job skips) and the publish job still
             # runs, but the failure must not pass unseen. The run ends red, and this says what it means.
@@ -822,13 +839,16 @@ jobs:
                       sleep 30
                   done
                   for spec in $absent; do echo "::error::${spec} is versioned on master but not on npm; re-run this job to publish it"; done
+                  # for the report: whether npm accepted each of these and is only slow to list it
+                  printf '%s\n' "$absent" > "$RUNNER_TEMP/absent.txt"
                   exit 1
 
             # A failed publish leaves master versioned and tagged with versions missing from npm, which no later
             # train can version again, so it is reported as a hold of its own: a "Release held: publish failed" issue, separate from
-            # any train hold, which also stops the scheduled trains. A train never retitles or closes it, and a second
-            # failure of this run only comments on it. Re-running the failed jobs of this run publishes what is
-            # missing and closes it.
+            # any train hold, which also stops the scheduled trains. A train never retitles it, and a second failure
+            # of this run only comments on it. Re-running the failed jobs of this run publishes what is missing and
+            # closes it; a hold whose missing versions npm accepted and was only slow to list is closed by the pick
+            # job of a later run once npm lists them (tools/publish-hold.mjs).
             - name: Report a failed publish
               id: report
               if: ${{ failure() }}
@@ -851,8 +871,22 @@ jobs:
                       names+=("$(jq -r .name "${root}/package.json")")
                   done
                   title="Release held: publish failed on ${SHA:0:7}"
-                  [ "${#names[@]}" = 0 ] || title="${title}: owner must create the npm trusted publisher for ${names[*]}"
+                  # npm accepted every version the registry check could not find: the hold ends by itself once npm
+                  # lists them (tools/publish-hold.mjs settle, in the pick job). Anything else needs a person.
+                  marker=$(node tools/publish-hold.mjs classify --log "$RUNNER_TEMP/publish.log" --absent "$RUNNER_TEMP/absent.txt")
+                  awaiting=$(sed -n 's/^<!-- publish-hold: awaiting-registry \(.*\) -->$/\1/p' <<<"$marker")
+                  if [ "${#names[@]}" != 0 ]; then
+                      title="${title}: owner must create the npm trusted publisher for ${names[*]}"
+                  elif [ -n "$awaiting" ]; then
+                      title="${title}: npm has not listed ${awaiting} yet"
+                  fi
                   {
+                      if [ -n "$awaiting" ]; then
+                          echo "## Nothing to do: npm accepted ${awaiting} but has not listed it yet"
+                          echo
+                          echo "npm answered \"Published\" for every version the registry check could not find; npm sometimes takes much longer than that check waits to list one. This issue closes itself once npm lists them all: every release train attempt and every master push whose build passes checks npm again (release.yml's pick job, \`tools/publish-hold.mjs settle\`). Re-running the failed jobs (below) also clears it."
+                          echo
+                      fi
                       if [ "${#names[@]}" -gt 0 ]; then
                           echo "## OWNER ITEM: create the npm trusted publisher for ${names[*]}"
                           echo
@@ -866,6 +900,8 @@ jobs:
                       echo "The publish job failed on ${SHA} (released as ${COMMIT}): ${run_url}"
                       echo
                       echo "The release is on master and tagged, but its packages are not all on npm. Scheduled release trains skip while this issue is open. Read the failed step in the run, fix the cause (an npm rejection, a missing \`release-builds-<sha>\` artifact of the run), then re-run the failed jobs of run ${GITHUB_RUN_ID}: \`gh run rerun ${GITHUB_RUN_ID} --failed\`. The release stays held until that run is re-run and passes: a new release train cannot clear this, and a train that fails meanwhile opens its own, separate issue without touching this one. A publish that passes closes this issue. The builds the train kept expire 30 days after the train ran."
+                      echo
+                      echo "$marker"
                   } > "$RUNNER_TEMP/body.md"
                   open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md" "Release held: publish failed")
                   echo "issue=${open}" >> "$GITHUB_OUTPUT"

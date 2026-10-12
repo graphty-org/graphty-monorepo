@@ -341,7 +341,7 @@ The `tools/` directory contains build scripts:
 | `merge-coverage.sh` | Merges coverage from all packages, supports CI artifacts |
 | `run-tests.sh` | Runs a CI test shard locally with the exact command CI runs, read from `ci-test-matrix.mjs`: `--list`, `<shard>` or `all`. Shards run with coverage, so this also checks the thresholds. Build first |
 | `ci-test-matrix.mjs` | The CI test shards and their commands (ci.yml and `run-tests.sh` both read it) |
-| `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it, and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard). Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
+| `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it and caps a Node run at its share of the cores (`workerShare()`, cores / slots), and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard). Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
 | `vitest-time-budget.mjs` | A Vitest reporter that judges every passing test against its time limit (its own timeout, else the project's `testTimeout`): over 25% it prints a warning (a GitHub Actions annotation in CI); over 50% it fails a pull request's run only when the pull request changed that test's file (`git diff <base>...HEAD`, base from `VITEST_BUDGET_BASE`, which ci.yml sets on pull requests), and says to cut or split the test. Everywhere else -- untouched files, the merge queue, the release train, a dispatch, no base -- it only warns, because one test's duration varies about 2x between CI runs and a gate on every test failed unrelated pull requests. On in ci.yml's test job (`VITEST_BUDGET_CHECK=1`; set it locally, with `VITEST_BUDGET_BASE=origin/master`, to check before pushing), added to every package by `ciReporters()` in `vitest.ci-junit.mjs`. A changed file's slow test that cannot be cut in its pull request goes in `vitest-time-budget-allowlist.json` with a tracking issue; a timeout is never raised to get under either line |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` from the hook's own copy, which is `.worktrees/gate-live` for a push through the queue (see "Where a change takes effect"); `pnpm run prepush:fast` runs it by hand. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
@@ -634,11 +634,13 @@ should say `Refs #<issue>`, not `Fixes #<issue>`: the issue must stay open so th
 restarts the release. A train that lands closes the train hold; a restart that fails again retitles
 and comments on it. A failed publish (after the push: master is versioned and tagged, some version
 is missing from npm) opens a publish hold, a `Release held: publish failed on <sha>` issue that
-names the run: no train retitles, closes or is restarted for it, and it lasts until that run is
-re-run (`gh run rerun <run id> --failed`, which re-runs only the publish job), which publishes what
-is missing and closes it. The scheduled attempts skip while either hold is open. Every release
-outcome (a held attempt, a publish that succeeded or failed, again after a restart or a re-run) is
-announced as a comment on the one open `Release status` issue (label `release-status`) by
+names the run: no train retitles it or is restarted for it, and it lasts until that run is re-run
+(`gh run rerun <run id> --failed`, which re-runs only the publish job), which publishes what is
+missing and closes it. A publish hold whose only missing versions are ones npm accepted but had
+not listed yet needs nobody: the pick job of the next train attempt or master push closes it once
+npm lists them (`tools/publish-hold.mjs`). The scheduled attempts skip while either hold is open.
+Every release outcome (a held attempt, a publish that succeeded or failed, again after a restart or
+a re-run) is announced as a comment on the one open `Release status` issue (label `release-status`) by
 `tools/release-status.mjs`, mentioning the people in the repository variable `RELEASE_NOTIFY`; attempts
 that do nothing announce nothing. A run that ends badly before it announces anything (no job
 started, a job never got a runner, the announce step failed, a bookkeeping step that failed after the

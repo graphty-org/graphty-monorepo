@@ -51,7 +51,7 @@ const globalConsole = globalThis.console;
  */
 export class ConsoleCaptureUI {
     private logs: CapturedLogEntry[] = [];
-    private originalMethods: Record<ConsoleMethod, typeof globalConsole.log>;
+    private readonly originalMethods: Record<ConsoleMethod, typeof globalConsole.log>;
     private buttonContainer: HTMLElement | null = null;
 
     /**

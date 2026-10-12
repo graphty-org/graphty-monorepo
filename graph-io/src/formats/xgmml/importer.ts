@@ -439,7 +439,7 @@ function sniffXgmml(head: Uint8Array): number {
     const root = /<(?![?!])([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)[\s/>]/.exec(
         text.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""),
     );
-    if (root === null || root[2] !== "graph") {
+    if (root?.[2] !== "graph") {
         return 0;
     }
     const tagEnd = text.indexOf(">", root.index);

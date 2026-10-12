@@ -148,7 +148,7 @@ function attractionMs(sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2St
  */
 export async function runLayoutGridBenchmarks(ctx: GpuContext): Promise<BenchResult[]> {
     const results: BenchResult[] = [];
-    const profiled = ctx.profiler !== null && ctx.profiler.enabled;
+    const profiled = ctx.profiler?.enabled === true;
     const source = profiled ? "profiler" : "wall";
     const runs: readonly { readonly rung: LadderRung; readonly dims: readonly (2 | 3)[] }[] = [
         ...GRID_LADDER.map((rung) => ({ rung, dims: GRID_DIMS })),

@@ -564,7 +564,7 @@ function edgeIdsOf(graph: GraphSnapshot): (row: number) => EdgeId {
     const column = graph.edges.byRole("id");
 
     return (row: number): EdgeId => {
-        const counter = column !== null && column.isSet(row) ? column.value(row) : undefined;
+        const counter = column?.isSet(row) ? column.value(row) : undefined;
 
         return edgeIdOf(typeof counter === "number" ? counter : INVALID_INDEX);
     };

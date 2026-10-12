@@ -104,7 +104,7 @@ function attractionMs(sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2St
  * @returns the results in ladder order, or [] without the profiler
  */
 export async function runAttractionScaleBenchmarks(ctx: GpuContext): Promise<BenchResult[]> {
-    if (ctx.profiler === null || !ctx.profiler.enabled) {
+    if (!ctx.profiler?.enabled) {
         console.log("attraction-scale: the device did not grant timestamp-query; no per-pass figure to report");
         return [];
     }

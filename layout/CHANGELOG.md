@@ -1,3 +1,13 @@
+## 2.4.2 (2026-10-12)
+
+### 🩹 Fixes
+
+- **layout:** animate edges with their nodes in the layout stories ([#2073](https://github.com/graphty-org/graphty-monorepo/issues/2073))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.4.1 (2026-10-12)
 
 ### 🧱 Updated Dependencies

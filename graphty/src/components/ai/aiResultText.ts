@@ -78,6 +78,7 @@ const REASON_WORDS: Partial<Record<AiResultCode, Readonly<Record<string, string>
         "no-live-transport": "This browser cannot hold a live conversation, so you talk turn by turn.",
         "output-off":
             "A live conversation speaks its answers. Turn on Speak answers in Settings to talk live; until then you talk turn by turn.",
+        "live-busy": "The assistant is still working on what you said, so this goes next, turn by turn.",
     },
     // A spoken "yes" leaves these holds waiting: they are approved on screen.
     AI_CONFIRMATION_NEEDED: {

@@ -5,7 +5,9 @@ import type {
     AiQuestionRequest,
     AiStatus,
     AiToolOptions,
+    AiVoiceConversationMode,
     AiVoiceOptions,
+    AiVoiceStartEvent,
     AiVoiceSupport,
     ExecutionResult,
 } from "@graphty/graphty-element/ai";
@@ -224,7 +226,7 @@ interface UseAiManagerResult {
     /** Why the last utterance could not be heard, or why a press asked to be live ran turn by turn. */
     voiceNotice: AiHistoryNotice | null;
     /** How the last press reached the model, as the element reported it on `ai-voice-start`. */
-    voiceMode: "turns" | "live" | null;
+    voiceMode: AiVoiceConversationMode | null;
 }
 
 /**
@@ -255,7 +257,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
     const [voiceSupport, setVoiceSupport] = useState<AiVoiceSupport | null>(null);
     const [listening, setListening] = useState(false);
     const [voiceNotice, setVoiceNotice] = useState<AiHistoryNotice | null>(null);
-    const [voiceMode, setVoiceMode] = useState<"turns" | "live" | null>(null);
+    const [voiceMode, setVoiceMode] = useState<AiVoiceConversationMode | null>(null);
     // The tools already noticed for this provider: the element reports a left-out tool again
     // after every enable, and a switch turned on enables it again.
     const noticed = useRef(new Set<string>());
@@ -315,9 +317,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             }
         };
 
-        const onVoiceStart = (event: {
-            detail: { mode?: "turns" | "live"; code?: AiResultCode; params?: AiResultParams };
-        }): void => {
+        const onVoiceStart = (event: { detail: Omit<AiVoiceStartEvent, "type"> }): void => {
             const { mode, code, params } = event.detail;
             // Live asked for but run turn by turn carries the code that says why.
             setVoiceNotice(code === undefined ? null : { code, params: params ?? {} });

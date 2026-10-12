@@ -1,5 +1,5 @@
 import { ActionRow, PANEL_GRID, PANEL_INK, ProseBlock } from "@graphty/compact-mantine";
-import type { AiApprovalRequest, AiQuestionRequest } from "@graphty/graphty-element/ai";
+import type { AiApprovalRequest, AiQuestionRequest, AiVoiceConversationMode } from "@graphty/graphty-element/ai";
 import { ActionIcon, Box, Button, Group, Paper, Text, Textarea } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
@@ -116,7 +116,7 @@ export interface AiPanelProps {
     /** Where speech goes, in the app's words; the microphone's tooltip says it. */
     readonly speechDestination?: string;
     /** How the last press reached the model (`ai-voice-start`'s `mode`); the microphone's tooltip says it. */
-    readonly voiceMode?: "turns" | "live" | null;
+    readonly voiceMode?: AiVoiceConversationMode | null;
     /** Sends the console's text. */
     readonly onSend?: (text: string) => void;
     /** Cancels the in-flight message. */

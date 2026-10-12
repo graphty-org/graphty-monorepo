@@ -536,21 +536,38 @@ export function pajekStyledExport(
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const params = (i: number): Map<string, Written> =>
             target === "node" ? vertexParams(get(i), approximate) : lineParams(get(i), directed[i], approximate);
-        const columns = paramColumns(n, params);
-        for (const key of target === "node" ? [SHAPE_COLUMN, ...NODE_KEYS] : EDGE_KEYS) {
-            if (table.has(key)) {
-                table.remove(key);
-            }
-        }
-        for (const [key, col] of columns) {
-            const numeric = col.every((v) => v === null || typeof v === "number");
-            table.set(key, col, { dtype: numeric ? "f64" : "string" });
-        }
+        replaceParamColumns(
+            table,
+            target === "node" ? [SHAPE_COLUMN, ...NODE_KEYS] : EDGE_KEYS,
+            paramColumns(n, params),
+        );
     }
     const notes = approximated.notes("Pajek");
     const block = writeStyleBlock(input.rules, { inlineColumns: true, snapshot });
     notes.push(...styleBlockLosses(block, input.rules.styles.rules.length, "size"));
     return { snapshot: out, comment: PAJEK_STYLE_COMMENT + block, notes };
+}
+
+/**
+ * Replaces every drawing parameter column of a table with the ones written from the styles.
+ * @param table - the node or edge columns, changed in place
+ * @param keys - every drawing parameter key of the target
+ * @param columns - the written columns, by key
+ */
+function replaceParamColumns(
+    table: ReturnType<GraphSnapshot["withColumns"]>["nodes"],
+    keys: readonly string[],
+    columns: Map<string, (Written | null)[]>,
+): void {
+    for (const key of keys) {
+        if (table.has(key)) {
+            table.remove(key);
+        }
+    }
+    for (const [key, col] of columns) {
+        const numeric = col.every((v) => v === null || typeof v === "number");
+        table.set(key, col, { dtype: numeric ? "f64" : "string" });
+    }
 }
 
 /**

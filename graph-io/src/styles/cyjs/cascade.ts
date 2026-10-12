@@ -1548,7 +1548,29 @@ function drawnColumn(d: DrawnRead, name: string, spec: CyjsPropertySpec): (Style
             col[k] = neutralOfCell(spec, name, c, { notes, target: kind, property: spec.property, element: k });
         }
     }
-    for (let k = 0; k < out && rendered !== undefined; k++) {
+    if (rendered !== undefined) {
+        overrideRendered(d, rendered, name, spec, col);
+    }
+    return col;
+}
+
+/**
+ * Overrides a property's values with what a live core reports.
+ * @param d - the target's cells
+ * @param rendered - what a live core reports
+ * @param name - the property
+ * @param spec - its spec
+ * @param col - the values, in output order, changed in place
+ */
+function overrideRendered(
+    d: DrawnRead,
+    rendered: NonNullable<CyjsStyleInput["rendered"]>,
+    name: string,
+    spec: CyjsPropertySpec,
+    col: (StyleValue | null | undefined)[],
+): void {
+    const { kind, order, notes } = d;
+    for (let k = 0; k < order.length; k++) {
         const r = order[k] >= 0 ? rendered.get(d.els[order[k]].json) : undefined;
         if (r !== undefined && Object.hasOwn(r, name)) {
             const site = { notes, target: kind, property: spec.property, element: k };
@@ -1557,7 +1579,6 @@ function drawnColumn(d: DrawnRead, name: string, spec: CyjsPropertySpec): (Style
             col[k] = v === undefined || (v === "" && spec.type === "text") ? null : v;
         }
     }
-    return col;
 }
 
 /**

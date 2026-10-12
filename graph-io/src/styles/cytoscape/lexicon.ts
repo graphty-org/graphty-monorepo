@@ -590,6 +590,44 @@ function visualProperty(target: StyleTarget, k: string, v: unknown): [string, un
 }
 
 /**
+ * Normalizes the keys of one object of an element's graphics; a nested object is pushed onto the stack.
+ * @param target - nodes or edges
+ * @param top - the object and its depth
+ * @param stack - the objects still to walk
+ * @param out - visual property name to raw value, added to
+ * @returns how many nested objects were too deep to walk
+ */
+function normalizeObject(
+    target: StyleTarget,
+    top: [Record<string, unknown>, number],
+    stack: [Record<string, unknown>, number][],
+    out: Map<string, unknown>,
+): number {
+    const [obj, depth] = top;
+    let deep = 0;
+    for (const k of Object.keys(obj)) {
+        const v = obj[k];
+        if (k === "lockedVisualProperties" || v === null || v === undefined) {
+            continue;
+        }
+        if (typeof v === "object" && !Array.isArray(v) && !/^[A-Z_0-9]+$/.test(k)) {
+            if (depth + 1 > MAX_VP_DEPTH) {
+                deep++;
+            } else {
+                stack.push([v as Record<string, unknown>, depth + 1]);
+            }
+            continue;
+        }
+        const [name, value] = visualProperty(target, k, v);
+        // visual-property-named keys come first in 3.x graphics and win
+        if (!out.has(name)) {
+            out.set(name, value);
+        }
+    }
+    return deep;
+}
+
+/**
  * One element's raw visual properties, normalized: Cytoscape's old identifiers renamed to visual property names and
  * the legacy encodings converted (`nodeTransparency` 0..1 to `NODE_TRANSPARENCY` 0..255, `curved` to
  * `EDGE_CURVED`). Nested objects (`cytoscapeNodeGraphicsAttributes` and the like) are walked with an explicit stack
@@ -609,26 +647,7 @@ export function normalizeVisualProperties(target: StyleTarget, raw: unknown, not
     const stack: [Record<string, unknown>, number][] = [[raw as Record<string, unknown>, 0]];
     let deep = 0;
     for (let top = stack.pop(); top !== undefined; top = stack.pop()) {
-        const [obj, depth] = top;
-        for (const k of Object.keys(obj)) {
-            const v = obj[k];
-            if (k === "lockedVisualProperties" || v === null || v === undefined) {
-                continue;
-            }
-            if (typeof v === "object" && !Array.isArray(v) && !/^[A-Z_0-9]+$/.test(k)) {
-                if (depth + 1 > MAX_VP_DEPTH) {
-                    deep++;
-                } else {
-                    stack.push([v as Record<string, unknown>, depth + 1]);
-                }
-                continue;
-            }
-            const [name, value] = visualProperty(target, k, v);
-            // visual-property-named keys come first in 3.x graphics and win
-            if (!out.has(name)) {
-                out.set(name, value);
-            }
-        }
+        deep += normalizeObject(target, top, stack, out);
     }
     if (deep > 0) {
         notes?.add(STYLE_ISSUE.NESTING, target, "graphics", { sample: `deeper than ${MAX_VP_DEPTH}`, count: deep });

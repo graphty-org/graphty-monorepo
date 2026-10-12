@@ -137,27 +137,44 @@ export function continuousCandidate(
     const { values } = info.feature;
     spend(values.length);
     // the feature must be a number exactly where the family has a value
-    for (let i = 0; i < values.length; i++) {
-        const has = typeof values[i] === "number";
-        if (fam.blocks[i] === 0 ? has : !has) {
-            return null;
-        }
+    if (values.some((v, i) => (fam.blocks[i] === 0) === (typeof v === "number"))) {
+        return null;
     }
     for (const tolerant of [false, true]) {
-        const points = new Map<string, ContinuousPoint[]>();
-        for (const p of fam.props) {
-            const pts = rampOf(fam, values, truth.get(p) ?? [], tolerant, spend);
-            if (pts === null) {
-                break;
-            }
-            points.set(p, pts);
-        }
-        if (points.size === fam.props.length) {
+        const points = rampsOf(fam, values, truth, tolerant, spend);
+        if (points !== null) {
             const entries = Array.from(points.values()).reduce((sum, pts) => sum + pts.length, 0);
             return { type: "continuous", info, points, tolerant, cost: 50 + entries + (tolerant ? 10 : 0) };
         }
     }
     return null;
+}
+
+/**
+ * The ramp of every property of the family over the feature, or null when one has none.
+ * @param fam - the family
+ * @param values - the feature's values
+ * @param truth - the values per property
+ * @param tolerant - whether a ramp may miss a value by the tool's rounding
+ * @param spend - spends work from the budget
+ * @returns the points per property, or null
+ */
+function rampsOf(
+    fam: Family,
+    values: readonly unknown[],
+    truth: ReadonlyMap<string, readonly (StyleValue | null)[]>,
+    tolerant: boolean,
+    spend: (ops: number) => void,
+): Map<string, ContinuousPoint[]> | null {
+    const points = new Map<string, ContinuousPoint[]>();
+    for (const p of fam.props) {
+        const pts = rampOf(fam, values, truth.get(p) ?? [], tolerant, spend);
+        if (pts === null) {
+            return null;
+        }
+        points.set(p, pts);
+    }
+    return points;
 }
 
 /**

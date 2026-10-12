@@ -879,14 +879,7 @@ function poolOpaque(
     const classes = budgetHit > 0 ? null : styleClasses(target, props, truth, n, plan.spend);
     const classed = new Set(classes?.classed ?? []);
     if (classes !== null) {
-        plan.columns.set(CLASS_COLUMN, classes.column);
-        for (const r of classes.rules) {
-            if (r.role === "group") {
-                st.groups.push({ ...r, id: r.id, set: { ...r.set } } as Draft);
-            } else {
-                st.mappings.set(r.id, { ...r, map: { ...r.map } } as Draft);
-            }
-        }
+        addClassRules(plan, st, classes);
     }
     let distinct = 0;
     for (const { fam, raw } of st.opaque) {
@@ -900,6 +893,23 @@ function poolOpaque(
         }
     }
     st.copy.facts = { reason: budgetHit > 0 ? "BUDGET" : "NO_EXPLANATION", distinctValues: distinct };
+}
+
+/**
+ * Adds the style classes' column and rules.
+ * @param plan - the target's state
+ * @param st - the inference so far; changed in place
+ * @param classes - the style classes
+ */
+function addClassRules(plan: TargetPlan, st: Inference, classes: NonNullable<ReturnType<typeof styleClasses>>): void {
+    plan.columns.set(CLASS_COLUMN, classes.column);
+    for (const r of classes.rules) {
+        if (r.role === "group") {
+            st.groups.push({ ...r, id: r.id, set: { ...r.set } } as Draft);
+        } else {
+            st.mappings.set(r.id, { ...r, map: { ...r.map } } as Draft);
+        }
+    }
 }
 
 /**

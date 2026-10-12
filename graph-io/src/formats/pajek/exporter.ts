@@ -1066,6 +1066,33 @@ function ownedColumns(snapshot: GraphSnapshot, planned: readonly PlannedColumn[]
 }
 
 /**
+ * The generic capability gaps, without the list and dtype notes of a column Pajek writes in a slot of its own.
+ * @param snapshot - the snapshot
+ * @param resolved - the resolved export options
+ * @param owned - the columns written in a slot of their own, as `<domain>:<name>`
+ * @returns the loss notes
+ */
+function capabilityNotes(
+    snapshot: GraphSnapshot,
+    resolved: ReturnType<typeof resolveExportOptions>,
+    owned: ReadonlySet<string>,
+): LossNote[] {
+    const notes = checkCapabilities(snapshot, CAPABILITIES, resolved, {
+        roles: SLOT_ROLES,
+        roleNames: ROLE_NAMES,
+        // the label slot is a vertex slot; an edge label is a parameter under its own name
+        edgeRoleNames: {},
+    });
+    return notes.filter((n) => {
+        if (n.column === null || (n.code !== LOSS.LIST && n.code !== LOSS.DTYPE)) {
+            return true;
+        }
+        const domain = n.message.startsWith("node column") ? "node" : "edge";
+        return !owned.has(`${domain}:${n.column}`);
+    });
+}
+
+/**
  * Every loss the Pajek text of a snapshot would incur: the generic capability gaps plus the Pajek-specific ones.
  * @param snapshot - the snapshot
  * @param options - export options
@@ -1095,20 +1122,7 @@ function checkPlain(snapshot: GraphSnapshot, options?: PajekExportOptions & Comm
         );
     }
     const owned = ownedColumns(snapshot, [...nodePlan, ...edgePlan]);
-    for (const n of checkCapabilities(snapshot, CAPABILITIES, resolved, {
-        roles: SLOT_ROLES,
-        roleNames: ROLE_NAMES,
-        // the label slot is a vertex slot; an edge label is a parameter under its own name
-        edgeRoleNames: {},
-    })) {
-        if (n.column !== null && (n.code === LOSS.LIST || n.code === LOSS.DTYPE)) {
-            const domain = n.message.startsWith("node column") ? "node" : "edge";
-            if (owned.has(`${domain}:${n.column}`)) {
-                continue;
-            }
-        }
-        notes.push(n);
-    }
+    notes.push(...capabilityNotes(snapshot, resolved, owned));
     labelNotes(snapshot, nodePlan, notes);
     for (const column of [...snapshot.edges].filter((c) => c.meta.role === "label")) {
         notes.push(

@@ -426,8 +426,20 @@ function fontOut(
     if (fontReadsAs(java) !== fam) {
         approx();
     }
-    const style = bold || it ? `${bold ? "bold" : ""}${it ? "italic" : ""}` : "plain";
-    return `${java},${style},12`;
+    return `${java},${javaFontStyle(bold, it)},12`;
+}
+
+/**
+ * The style part of a Java font face.
+ * @param bold - whether bold
+ * @param italic - whether italic
+ * @returns `plain`, `bold`, `italic` or `bolditalic`
+ */
+function javaFontStyle(bold: boolean, italic: boolean): string {
+    if (!bold && !italic) {
+        return "plain";
+    }
+    return (bold ? "bold" : "") + (italic ? "italic" : "");
 }
 
 /**
@@ -722,8 +734,7 @@ function buildModel(
         notes.add(STYLE_ISSUE.LAYER_FLATTENED, target, p, { sample: id, count: carrying(p) });
     };
     const holds = (p: string): boolean => writers.has(p) || (FONT_PROPS as readonly string[]).includes(p);
-    for (const r of rules) {
-        const all = "all" in r.where && r.where.all;
+    const applySet = (r: StyleRule, all: boolean): void => {
         for (const [p, v] of Object.entries(r.set ?? {})) {
             if (v === undefined || !holds(p)) {
                 continue;
@@ -736,6 +747,8 @@ function buildModel(
             model.map.delete(p);
             model.mappedBy.delete(p);
         }
+    };
+    const applyMap = (r: StyleRule, all: boolean): void => {
         for (const [p, m] of Object.entries(r.map ?? {})) {
             if (m === undefined || !holds(p)) {
                 continue;
@@ -751,6 +764,11 @@ function buildModel(
             model.map.set(p, m);
             model.mappedBy.set(p, r.id);
         }
+    };
+    for (const r of rules) {
+        const all = "all" in r.where && r.where.all;
+        applySet(r, all);
+        applyMap(r, all);
     }
     return model;
 }

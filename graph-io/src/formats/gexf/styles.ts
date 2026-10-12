@@ -186,13 +186,23 @@ function vizValues(
         }
         // GEXF gives a shape a uri only to name the picture of an `image` shape
         if (shape !== null && readVizShape(viz, shape, i) && uri !== null) {
-            const v = plainCell(table.value(uri, i));
-            if (typeof v === "string" && v.length > 0) {
-                viz.column("image")[i] = v;
-            }
+            readVizImage(viz, uri, i);
         }
     }
     return out;
+}
+
+/**
+ * Reads the picture of one node whose viz shape is `image`.
+ * @param viz - the target's reading
+ * @param uri - the viz shape uri column
+ * @param i - the element
+ */
+function readVizImage(viz: VizRead, uri: string, i: number): void {
+    const v = plainCell(viz.table.value(uri, i));
+    if (typeof v === "string" && v.length > 0) {
+        viz.column("image")[i] = v;
+    }
 }
 
 /**

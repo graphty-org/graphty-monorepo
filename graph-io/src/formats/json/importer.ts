@@ -2029,8 +2029,8 @@ function importNodeLinkNodes(
  */
 function pushNodeLinkNode(ctx: ImportContext, record: JsonRecord, i: number, nodeIdKey: string | null): NodeId | null {
     const element = `nodes[${i}]`;
-    const id =
-        nodeIdKey === null ? i : ctx.coerceId(hasKey(record, nodeIdKey) ? record[nodeIdKey] : undefined, element);
+    const raw = nodeIdKey !== null && hasKey(record, nodeIdKey) ? record[nodeIdKey] : undefined;
+    const id = nodeIdKey === null ? i : ctx.coerceId(raw, element);
     if (id === null) {
         ctx.countSkipped("node");
         return null;
@@ -2823,13 +2823,8 @@ function importGraphologyEdges(
     const pairs = declared.multi === false ? new Set<string>() : null;
     for (let i = 0; i < edges.length; i++) {
         const element = `edges[${i}]`;
-        const record = edges[i];
-        if (!isJsonObject(record)) {
-            ctx.badElement("edge", element);
-            continue;
-        }
-        if (!present(record, "source") || !present(record, "target")) {
-            ctx.missingEndpoint(element, present(record, "source") ? "target" : "source");
+        const record = graphologyEdgeRecord(ctx, edges[i], element);
+        if (record === null) {
             continue;
         }
         try {
@@ -2843,6 +2838,25 @@ function importGraphologyEdges(
         }
     }
     return violations;
+}
+
+/**
+ * One graphology edge record, when it is an object with both endpoints.
+ * @param ctx - the context
+ * @param record - the edge record
+ * @param element - the element name
+ * @returns the record, or null when it was reported and is skipped
+ */
+function graphologyEdgeRecord(ctx: ImportContext, record: unknown, element: string): JsonRecord | null {
+    if (!isJsonObject(record)) {
+        ctx.badElement("edge", element);
+        return null;
+    }
+    if (!present(record, "source") || !present(record, "target")) {
+        ctx.missingEndpoint(element, present(record, "source") ? "target" : "source");
+        return null;
+    }
+    return record;
 }
 
 /**

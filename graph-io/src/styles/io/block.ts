@@ -1025,6 +1025,42 @@ function editedValues(
 }
 
 /**
+ * The passthrough mappings of the elements whose native value differs from what the rules give, each over a new
+ * exceptions column.
+ * @param own - the native per-element values by property
+ * @param rules - the block's rules
+ * @param target - nodes or edges
+ * @param src - what the rules read
+ * @param columns - the target's style columns, added to
+ * @param unsetOf - what the writing program draws for an unset property
+ * @returns the mappings by property, empty when nothing was edited
+ */
+function exceptionMappings(
+    own: Partial<Record<string, StyleColumn>>,
+    rules: readonly StyleRule[],
+    target: StyleTarget,
+    src: ReturnType<typeof refSource>,
+    columns: Map<string, StyleColumn>,
+    unsetOf: (property: string) => StyleValue | undefined,
+): Record<string, Mapping> {
+    const map = Object.create(null) as Record<string, Mapping>;
+    // in one order whatever order the reader found the properties in, so a file written again is the same
+    for (const [property, values] of Object.entries(own).sort(([a], [b]) => (a < b ? -1 : 1))) {
+        if (values === undefined) {
+            continue;
+        }
+        const resolved = resolveRules(rules, target, property, src);
+        const exceptions = editedValues(values, resolved, unsetOf(property), textProperty(target, property));
+        if (exceptions !== null) {
+            const key = freeName((k) => columns.has(k), `exceptions.${property}`);
+            columns.set(key, exceptions);
+            map[property] = { kind: "passthrough", by: { style: key } };
+        }
+    }
+    return map;
+}
+
+/**
  * The styles a valid block describes, read against the graph it was imported into. The block's rules are the
  * file's declared rules and read the tagged per-element values. Where the file's own native values are given, they
  * are the truth: an element whose value differs from what the rules give (another program edited it) is written
@@ -1072,20 +1108,7 @@ export function blockStyles(
                 (tool === null ? null : toolDefaults(tool))?.[target]?.[property as never] as
                     { readonly value: StyleValue } | undefined
             )?.value;
-        const map = Object.create(null) as Record<string, Mapping>;
-        // in one order whatever order the reader found the properties in, so a file written again is the same
-        for (const [property, values] of Object.entries(own ?? {}).sort(([a], [b]) => (a < b ? -1 : 1))) {
-            const resolved = values === undefined ? null : resolveRules(blockRules, target, property, src);
-            const exceptions =
-                values === undefined || resolved === null
-                    ? null
-                    : editedValues(values, resolved, unsetOf(property), textProperty(target, property));
-            if (exceptions !== null) {
-                const key = freeName((k) => columns[target].has(k), `exceptions.${property}`);
-                columns[target].set(key, exceptions);
-                map[property] = { kind: "passthrough", by: { style: key } };
-            }
-        }
+        const map = exceptionMappings(own ?? {}, blockRules, target, src, columns[target], unsetOf);
         if (Object.keys(map).length > 0) {
             // the block's own rules may hold an exceptions rule already (a file graphty wrote from an edited one)
             const id = freeName((x) => rules.some((r) => r.id === x), `${target}.exceptions`);

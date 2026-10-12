@@ -325,22 +325,8 @@ function strokeStyle(raw: unknown, kind: "borderStyle" | "lineStyle", writer: Gm
  */
 function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     const v = writer.vocabulary;
-    if (v === "yed" && Number(g.hasFill) === 0) {
-        noteAt(at("fill"), STYLE_ISSUE.NO_FILL, "hasFill 0");
-        put("fillOpacity", 0);
-    } else {
-        readColor(g.fill, "fill", "fillOpacity", writer, put, at);
-        if (g.fill2 !== undefined) {
-            noteAt(at("fill"), STYLE_ISSUE.GRADIENT, sampleOf(g.fill2));
-        }
-    }
-    if (v === "yed" && Number(g.hasOutline) === 0) {
-        put("borderWidth", 0);
-    } else {
-        readColor(v === "ogdf" ? g.line : g.outline, "borderColor", null, writer, put, at);
-        const width = outlineWidthOf(g, v);
-        put("borderWidth", width === undefined ? null : canonNumber(width, at("borderWidth")));
-    }
+    readNodeFill(g, writer, put, at);
+    readNodeOutline(g, writer, put, at);
     put(
         "borderStyle",
         strokeStyle(v === "ogdf" ? g.stipple : g.outlineStyle, "borderStyle", writer, at("borderStyle")),
@@ -352,6 +338,43 @@ function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
             v === "ogdf" && typeof g.type === "string" ? (OGDF_SHAPES.get(g.type.toLowerCase()) ?? g.type) : g.type;
         put("shape", canonEnum("shape", raw, writer.spelling, at("shape")));
     }
+}
+
+/**
+ * Reads the fill of one node's `graphics` record.
+ * @param g - the record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readNodeFill(g: Rec, writer: GmlWriter, put: Put, at: At): void {
+    if (writer.vocabulary === "yed" && Number(g.hasFill) === 0) {
+        noteAt(at("fill"), STYLE_ISSUE.NO_FILL, "hasFill 0");
+        put("fillOpacity", 0);
+        return;
+    }
+    readColor(g.fill, "fill", "fillOpacity", writer, put, at);
+    if (g.fill2 !== undefined) {
+        noteAt(at("fill"), STYLE_ISSUE.GRADIENT, sampleOf(g.fill2));
+    }
+}
+
+/**
+ * Reads the outline color and width of one node's `graphics` record.
+ * @param g - the record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readNodeOutline(g: Rec, writer: GmlWriter, put: Put, at: At): void {
+    const v = writer.vocabulary;
+    if (v === "yed" && Number(g.hasOutline) === 0) {
+        put("borderWidth", 0);
+        return;
+    }
+    readColor(v === "ogdf" ? g.line : g.outline, "borderColor", null, writer, put, at);
+    const width = outlineWidthOf(g, v);
+    put("borderWidth", width === undefined ? null : canonNumber(width, at("borderWidth")));
 }
 
 /**

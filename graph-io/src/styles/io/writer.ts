@@ -249,9 +249,9 @@ class LostInputs {
             return rule;
         }
         const { map: _given, ...unmapped } = given;
-        const moved = JSON.parse(
-            JSON.stringify(Object.keys(map).length === 0 ? { ...unmapped, where } : { ...unmapped, where, map }),
-        ) as StyleRule;
+        const plain = Object.keys(map).length === 0 ? { ...unmapped, where } : { ...unmapped, where, map };
+        // NOSONAR(S7784): a JSON copy drops undefined members, as the written block does; structuredClone keeps them
+        const moved = JSON.parse(JSON.stringify(plain)) as StyleRule;
         return ext === undefined ? moved : { ...moved, ext };
     }
 
@@ -464,20 +464,7 @@ function lossNotes(
             }
         }
     }
-    const graphWritten = new Set<string>(caps?.graph ?? []);
-    for (const property of Object.keys(extracted.styles.graph)) {
-        if (!graphWritten.has(property)) {
-            notes.push(
-                Object.freeze({
-                    code: STYLE_ISSUE.NOT_WRITTEN,
-                    message: `the graph's ${property} is not written: the ${exporter.format} format has no place for it`,
-                    column: null,
-                    count: 1,
-                    style: Object.freeze({ target: "graph" as const, property: property as "background" }),
-                }),
-            );
-        }
-    }
+    notes.push(...graphLossNotes(extracted, exporter, caps));
     if (kept) {
         notes.push(...styleBlockLosses(writeStyleBlock(extracted, { snapshot }), extracted.styles.rules.length));
     } else if (extracted.styles.rules.length > 0) {
@@ -491,6 +478,32 @@ function lossNotes(
         );
     }
     return notes;
+}
+
+/**
+ * W_STYLE_NOT_WRITTEN for every graph property the format does not write.
+ * @param extracted - the styles
+ * @param exporter - the exporter
+ * @param caps - its style capabilities, or null
+ * @returns the notes
+ */
+function graphLossNotes(
+    extracted: ExtractedStyles,
+    exporter: GraphExporter,
+    caps: StyleWriteCapabilities | null,
+): LossNote[] {
+    const graphWritten = new Set<string>(caps?.graph ?? []);
+    return Object.keys(extracted.styles.graph)
+        .filter((property) => !graphWritten.has(property))
+        .map((property) =>
+            Object.freeze({
+                code: STYLE_ISSUE.NOT_WRITTEN,
+                message: `the graph's ${property} is not written: the ${exporter.format} format has no place for it`,
+                column: null,
+                count: 1,
+                style: Object.freeze({ target: "graph" as const, property: property as "background" }),
+            }),
+        );
 }
 
 /**

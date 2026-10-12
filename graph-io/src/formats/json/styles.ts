@@ -506,17 +506,36 @@ function exactFromBlock(
             }
         }
         for (const [property, write] of Object.entries(written[target] ?? {})) {
-            const want = resolved(property);
-            const column = values[target];
-            for (let i = 0; i < n; i++) {
-                const w = want[i];
-                const native = column[property]?.[i] ?? null;
-                // a native value the writer made from the block's other values (vis.js's one size for a width) is the
-                // block's own value, none included
-                if (native !== w && native !== null && native === write((p) => resolved(p)[i], i, snapshot)) {
-                    setValue(column, property, n, i, w);
-                }
-            }
+            takeWritten(values[target], property, n, resolved, write, snapshot);
+        }
+    }
+}
+
+/**
+ * Takes the block's value of a property wherever the native value is what the writer writes for the block's values.
+ * @param column - the native values of the target, changed in place
+ * @param property - the property
+ * @param n - the element count
+ * @param resolved - the block's values of a property
+ * @param write - what the writer writes for an element, from the block's values
+ * @param snapshot - the graph
+ */
+function takeWritten(
+    column: Values,
+    property: string,
+    n: number,
+    resolved: (p: string) => readonly (StyleValue | null)[],
+    write: (want: (p: string) => StyleValue | null, i: number, snapshot: GraphSnapshot) => StyleValue | null,
+    snapshot: GraphSnapshot,
+): void {
+    const want = resolved(property);
+    for (let i = 0; i < n; i++) {
+        const w = want[i];
+        const native = column[property]?.[i] ?? null;
+        // a native value the writer made from the block's other values (vis.js's one size for a width) is the
+        // block's own value, none included
+        if (native !== w && native !== null && native === write((p) => resolved(p)[i], i, snapshot)) {
+            setValue(column, property, n, i, w);
         }
     }
 }
@@ -923,12 +942,6 @@ function visArrows(arrows: unknown, site: (property: string) => CanonSite): [str
 function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: StyleReadContext): ImporterStyles {
     const notes = new StyleNotes();
     const options = isJsonObject(src.options) ? src.options : {};
-    let groupDefs: Record<string, unknown> = {};
-    if (isJsonObject(options.groups)) {
-        groupDefs = options.groups;
-    } else if (isJsonObject(src.groups)) {
-        groupDefs = src.groups;
-    }
     const n = snapshot.nodeCount;
     const ruleSite =
         (target: StyleTarget) =>
@@ -943,22 +956,7 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
         const g = groupCol?.(i);
         return typeof g === "string" || typeof g === "number" ? String(g) : null;
     };
-    const groupLayers = new Map<string, VisLayer>();
-    let palette = 0;
-    const paletteRows = new Map<string, Row>();
-    for (let i = 0; i < n; i++) {
-        const g = groupOf(i);
-        if (g === null || groupLayers.has(g)) {
-            continue;
-        }
-        if (Object.hasOwn(groupDefs, g)) {
-            groupLayers.set(g, visLayer(groupDefs[g], "node"));
-        } else {
-            const [border, background] = VIS_GROUP_PALETTE[palette++ % VIS_GROUP_PALETTE.length];
-            groupLayers.set(g, { fill: background, border });
-            paletteRows.set(g, { fill: background.toLowerCase(), borderColor: border.toLowerCase() });
-        }
-    }
+    const { groupLayers, paletteRows } = visGroupLayers(n, groupOf, visGroupDefs(src, options));
     context.budget.spend("node", n);
 
     // what vis-network draws per node: its own keys over its group over options.nodes
@@ -1023,6 +1021,51 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
             edge: VIS_KEYS.edge.filter((x) => snapshot.edges.has(x)),
         },
     };
+}
+
+/**
+ * vis.js: the group definitions, from `options.groups` or a top-level `groups`.
+ * @param src - what the import kept
+ * @param options - the file's `options`
+ * @returns the definitions by group name
+ */
+function visGroupDefs(src: JsonStyleSource, options: Record<string, unknown>): Record<string, unknown> {
+    if (isJsonObject(options.groups)) {
+        return options.groups;
+    }
+    return isJsonObject(src.groups) ? src.groups : {};
+}
+
+/**
+ * vis.js: each group the nodes name, in the order first named, with its layer; a group the file does not define gets
+ * vis-network's palette.
+ * @param n - the node count
+ * @param groupOf - each node's group
+ * @param groupDefs - the group definitions
+ * @returns the layers by group, and the palette values of the groups that took them
+ */
+function visGroupLayers(
+    n: number,
+    groupOf: (i: number) => string | null,
+    groupDefs: Record<string, unknown>,
+): { groupLayers: Map<string, VisLayer>; paletteRows: Map<string, Row> } {
+    const groupLayers = new Map<string, VisLayer>();
+    const paletteRows = new Map<string, Row>();
+    let palette = 0;
+    for (let i = 0; i < n; i++) {
+        const g = groupOf(i);
+        if (g === null || groupLayers.has(g)) {
+            continue;
+        }
+        if (Object.hasOwn(groupDefs, g)) {
+            groupLayers.set(g, visLayer(groupDefs[g], "node"));
+        } else {
+            const [border, background] = VIS_GROUP_PALETTE[palette++ % VIS_GROUP_PALETTE.length];
+            groupLayers.set(g, { fill: background, border });
+            paletteRows.set(g, { fill: background.toLowerCase(), borderColor: border.toLowerCase() });
+        }
+    }
+    return { groupLayers, paletteRows };
 }
 
 /**

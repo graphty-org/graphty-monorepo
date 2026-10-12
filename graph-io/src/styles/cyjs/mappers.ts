@@ -401,7 +401,7 @@ export function isFontFamily(value: string): boolean {
     }
     return (
         firstFontPart(parts[0]) &&
-        lastFontPart(parts[parts.length - 1]) &&
+        lastFontPart(parts.at(-1) ?? "") &&
         parts.slice(1, -1).every((part) => middleFontPart(part))
     );
 }
@@ -478,6 +478,9 @@ function middleFontPart(part: string): boolean {
     return a === b ? part.includes(" ") : allOf(part.slice(a, b), isFontChar);
 }
 
+/** A flat value parsed: the value, null when Cytoscape.js refuses it, or `CYJS_THROWS` where Cytoscape.js throws. */
+type FlatParse = CyjsFlat | null | typeof CYJS_THROWS;
+
 /**
  * Parses a flat value (no mappers) the way Cytoscape.js does.
  * @param spec - the property
@@ -485,7 +488,7 @@ function middleFontPart(part: string): boolean {
  * @param rendered - the value is one Cytoscape.js reported (`ele.style(name)`), where every enumeration is text
  * @returns the parsed value, null when Cytoscape.js refuses it, or `CYJS_THROWS` where Cytoscape.js itself throws
  */
-function parseFlat(spec: CyjsPropertySpec, raw: unknown, rendered = false): CyjsFlat | null | typeof CYJS_THROWS {
+function parseFlat(spec: CyjsPropertySpec, raw: unknown, rendered = false): FlatParse {
     const value: unknown = typeof raw === "string" ? raw.trim() : raw;
     switch (spec.type) {
         case "color":
@@ -521,7 +524,7 @@ function parseFlat(spec: CyjsPropertySpec, raw: unknown, rendered = false): Cyjs
  * @param value - the value, trimmed
  * @returns the color, null when refused, or `CYJS_THROWS` for a value that is neither
  */
-function parseColorValue(value: unknown): CyjsFlat | null | typeof CYJS_THROWS {
+function parseColorValue(value: unknown): FlatParse {
     if (Array.isArray(value)) {
         const [r, g, b] = value as unknown[];
         const t: [number, number, number] = [Number(r), Number(g), Number(b)];
@@ -640,8 +643,7 @@ export function parseCyjsValue(
  */
 function parseMapper(spec: CyjsPropertySpec, value: string, mode: CyjsParseMode): CyjsParsed | null | undefined {
     if (value.startsWith("d")) {
-        const inner = callArgs(value, "data");
-        const field = inner?.trim();
+        const field = callArgs(value, "data")?.trim();
         if (field === undefined || !FIELD.test(field)) {
             return undefined;
         }
@@ -650,6 +652,17 @@ function parseMapper(spec: CyjsPropertySpec, value: string, mode: CyjsParseMode)
     if (!value.startsWith("m") || value.length < 10) {
         return undefined;
     }
+    return parseMapData(spec, value, mode);
+}
+
+/**
+ * A `mapData()` value.
+ * @param spec - the property
+ * @param value - the trimmed value, starting with `m`
+ * @param mode - a rule or a bypass
+ * @returns the mapper, null when it is refused (or its constant), or undefined when the value is not a mapper
+ */
+function parseMapData(spec: CyjsPropertySpec, value: string, mode: CyjsParseMode): CyjsParsed | null | undefined {
     const inner = callArgs(value, "mapData");
     if (inner === null) {
         return undefined;
@@ -738,7 +751,7 @@ export function applyCyjsMapper(
     spec: CyjsPropertySpec,
     m: CyjsParsed & { kind: "data" | "mapData" },
     data: unknown,
-): CyjsFlat | null | typeof CYJS_THROWS {
+): FlatParse {
     const v = mapperField(data, m.field);
     if (v === null || v === undefined) {
         return null;

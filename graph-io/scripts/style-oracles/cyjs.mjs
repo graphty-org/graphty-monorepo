@@ -67,7 +67,7 @@ const NODE = {
     shape: ["shape", (v) => toolEnum("shape", v, DIALECT)],
     width: ["width", px],
     height: ["height", px],
-    label: ["label", (v) => String(v)],
+    label: ["label", String],
     labelColor: ["color", col],
     labelSize: ["font-size", px],
     labelWeight: ["font-weight", (v) => (v === "bold" || Number(v) >= 600 ? "bold" : "normal")],
@@ -82,7 +82,7 @@ const EDGE = {
     sourceArrow: ["source-arrow-shape", (v) => toolEnum("arrow", v, DIALECT)],
     targetArrowColor: ["target-arrow-color", col],
     sourceArrowColor: ["source-arrow-color", col],
-    label: ["label", (v) => String(v)],
+    label: ["label", String],
     labelColor: ["color", col],
     labelSize: ["font-size", px],
 };

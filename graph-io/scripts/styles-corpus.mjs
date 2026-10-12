@@ -62,36 +62,30 @@ function walk(dir) {
     });
 }
 
+/** Every file under the subfolders of `parent` whose names match `pattern`. */
+function walkSets(parent, pattern) {
+    return readdirSync(parent)
+        .filter((d) => pattern.test(d))
+        .flatMap((d) => walk(join(parent, d)));
+}
+
 function inputs() {
-    const out = [];
-    const add = (path, format) => {
-        if (format !== undefined && !SKIP.test(path) && (ONLY === null || path.includes(ONLY))) {
-            out.push({ path, format });
-        }
-    };
     const byExtension = (path) => FORMAT_OF[extname(path).slice(1).toLowerCase()];
-    for (const path of walk(join(ROOT, "wild"))) {
-        add(path, byExtension(path));
-    }
-    for (const set of readdirSync(join(ROOT, "final-check")).filter((d) => /^adv\d*$/.test(d))) {
-        for (const path of walk(join(ROOT, "final-check", set))) {
-            add(path, byExtension(path));
-        }
-    }
+    const found = [
+        ...walk(join(ROOT, "wild")).map((path) => ({ path, format: byExtension(path) })),
+        ...walkSets(join(ROOT, "final-check"), /^adv\d*$/).map((path) => ({ path, format: byExtension(path) })),
+    ];
     if (flag("--mutants")) {
-        for (const fuzz of readdirSync(join(ROOT, "spike")).filter((d) => /^fuzz\d*$/.test(d))) {
-            for (const path of walk(join(ROOT, "spike", fuzz))) {
-                // spike/fuzz*/<format>/<file>: the format is the folder's
-                add(path, extname(path) === ".tsv" ? undefined : basename(dirname(path)));
-            }
-        }
+        // spike/fuzz*/<format>/<file>: the format is the folder's
+        const mutants = walkSets(join(ROOT, "spike"), /^fuzz\d*$/).filter((path) => extname(path) !== ".tsv");
+        found.push(...mutants.map((path) => ({ path, format: basename(dirname(path)) })));
     }
     if (flag("--synthetic")) {
-        for (const path of synthetic()) {
-            add(path, "json");
-        }
+        found.push(...synthetic().map((path) => ({ path, format: "json" })));
     }
-    return out;
+    return found.filter(
+        ({ path, format }) => format !== undefined && !SKIP.test(path) && (ONLY === null || path.includes(ONLY)),
+    );
 }
 
 // Large synthetic graphs as graphology JSON: two properties, one by a 12-value category, one per element, beside an
@@ -104,21 +98,21 @@ function synthetic() {
     for (const n of [300_000, 1_000_000]) {
         const path = join(dir, `big-${n}.json`);
         if (!existsSync(path)) {
-            const parts = ['{"attributes":{},"options":{"type":"undirected","multi":false},"nodes":['];
-            for (let i = 0; i < n; i++) {
-                const a = { cls: i % 12, suid: 1000 + i, color: palette[i % 9], size: 1 + (i % 12) * 0.5 };
-                parts.push(`${i ? "," : ""}{"key":"n${i}","attributes":${JSON.stringify(a)}}`);
-            }
-            parts.push('],"edges":[');
-            for (let i = 0; i < n; i++) {
-                parts.push(`${i ? "," : ""}{"source":"n${i}","target":"n${(i + 1) % n}"}`);
-            }
-            parts.push("]}");
-            writeFileSync(path, parts.join(""));
+            writeFileSync(path, syntheticGraph(n, palette));
         }
         paths.push(path);
     }
     return paths;
+}
+
+/** A graphology document of `n` nodes in a ring, with the columns synthetic() describes. */
+function syntheticGraph(n, palette) {
+    const nodes = Array.from({ length: n }, (_, i) => {
+        const a = { cls: i % 12, suid: 1000 + i, color: palette[i % 9], size: 1 + (i % 12) * 0.5 };
+        return `{"key":"n${i}","attributes":${JSON.stringify(a)}}`;
+    });
+    const edges = Array.from({ length: n }, (_, i) => `{"source":"n${i}","target":"n${(i + 1) % n}"}`);
+    return `{"attributes":{},"options":{"type":"undirected","multi":false},"nodes":[${nodes.join(",")}],"edges":[${edges.join(",")}]}`;
 }
 
 function check({ path, format }) {

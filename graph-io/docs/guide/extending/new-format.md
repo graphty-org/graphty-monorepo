@@ -1738,7 +1738,8 @@ function* lines(g: GraphSnapshot, options?: Options): Generator<string> {
     const fill = options?.styles?.picture("node", "fill"); // one value per node, null where it has none
     for (let i = 0; i < g.nodeCount; i++) {
         const color = fill?.[i]; // a node with no fill is written with no color, not a made-up one
-        yield `node ${String(g.ids.idOf(i))}${color == null ? "" : ` ${String(color)}`}\n`;
+        const written = color == null ? "" : " " + String(color);
+        yield `node ${String(g.ids.idOf(i))}${written}\n`;
     }
     for (let e = 0; e < g.edgeCount; e++) {
         yield `edge ${String(g.ids.idOf(g.edgeSource(e)))} ${String(g.ids.idOf(g.edgeTarget(e)))}\n`;

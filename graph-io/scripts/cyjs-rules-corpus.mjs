@@ -4,7 +4,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 const dir = new URL("../test/corpus/styles/cyjs/rules/", import.meta.url).pathname;
 mkdirSync(dir, { recursive: true });
 let seed = 7;
-const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+const rnd = () => {
+    seed = (seed * 1103515245 + 12345) >>> 0;
+    return seed / 4294967296;
+};
 const pick = (a) => a[Math.floor(rnd() * a.length)];
 
 // a compound graph with numeric and string ids, nested data, arrays of classes, flags and bypasses
@@ -87,7 +90,7 @@ const style = [
     { selector: "node[name *= 'a']", style: { "text-halign": "left-inside" } },
     { selector: "node[name $= 'a']", style: { "font-family": 'Arial, "Times New Roman" ,serif' } },
     { selector: "node[name ^= 'g']", style: { "font-size": 22 } },
-    { selector: 'node[name = "a\\"b"]', style: { opacity: 0.3 } },
+    { selector: String.raw`node[name = "a\"b"]`, style: { opacity: 0.3 } },
     { selector: "node[w > 2]", style: { "background-opacity": 0.5 } },
     { selector: "node[w !> 2]", style: { "border-style": "dotted" } },
     { selector: "node[?w]", style: { visibility: "visible" } },
@@ -96,7 +99,7 @@ const style = [
     { selector: "node[w]", style: { "text-valign": "center" } },
     { selector: "node[id = 7]", style: { shape: "star" } },
     { selector: "node[id = '7']", style: { shape: "vee" } },
-    { selector: "#n12, #\\31 4, #14", style: { "background-color": "black" } },
+    { selector: String.raw`#n12, #\31 4, #14`, style: { "background-color": "black" } },
     { selector: ".a.b", style: { width: 33 } },
     { selector: ".c", style: { height: "mapData(w, 10, 0, 5, 50)" } },
     { selector: ".d", style: { height: "mapData(w, 5, 5, 6, 60)" } },

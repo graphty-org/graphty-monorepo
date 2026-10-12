@@ -64,7 +64,8 @@ function within2(a, b) {
     if (typeof a !== "string" || typeof b !== "string") {
         return false;
     }
-    return [1, 3, 5].every((k) => Math.abs(parseInt(a.slice(k, k + 2), 16) - parseInt(b.slice(k, k + 2), 16)) <= 2);
+    const channel = (c, k) => Number.parseInt(c.slice(k, k + 2), 16);
+    return [1, 3, 5].every((k) => Math.abs(channel(a, k) - channel(b, k)) <= 2);
 }
 
 const parser = new XMLParser({
@@ -155,11 +156,11 @@ function gexfColor(el) {
         if (m === null) {
             return null;
         }
-        const h = m[1].length <= 4 ? [...m[1].slice(0, 3)].map((c) => c + c).join("") : m[1].slice(0, 6);
+        const h = m[1].length <= 4 ? m[1].slice(0, 3).replaceAll(/./g, "$&$&") : m[1].slice(0, 6);
         return `#${h.toLowerCase()}`;
     }
     const rgb = ["r", "g", "b"].map((k) => number(el.attrs[k]));
-    if (rgb.some((v) => v === null) || (el.attrs.a !== undefined && number(el.attrs.a) === null)) {
+    if (rgb.includes(null) || (el.attrs.a !== undefined && number(el.attrs.a) === null)) {
         return null;
     }
     return `#${rgb
@@ -171,13 +172,17 @@ function gexfColor(el) {
         .join("")}`;
 }
 
-/** Compares one value, with the notes graph-io made about that element's property. */
-function check(tally, g, key, at, target, property, i, stated, expected, toolDefault, notedAs = property) {
-    tally.compare(
+/**
+ * Compares one value, with the notes graph-io made about that element's property.
+ * `ctx` is { tally, g }; `where` is { target, property, i, notedAs? } (notedAs: the property the notes name).
+ */
+function check(ctx, key, at, where, stated, expected, toolDefault) {
+    const { target, property, i, notedAs = property } = where;
+    ctx.tally.compare(
         key,
-        { ...at, noted: g.notedAt(target, notedAs, i) },
+        { ...at, noted: ctx.g.notedAt(target, notedAs, i) },
         stated,
-        g.drawn(target, property, i),
+        ctx.g.drawn(target, property, i),
         expected,
         toolDefault,
         eq,
@@ -186,6 +191,7 @@ function check(tally, g, key, at, target, property, i, stated, expected, toolDef
 
 function gexf(doc, g, tally, name) {
     const s = g.snapshot;
+    const ctx = { tally, g };
     const fills = new Map();
     const nodes = all(doc, "node");
     const times = new Map();
@@ -204,12 +210,20 @@ function gexf(doc, g, tally, name) {
         const colors = children(el, "color");
         const fill = gexfColor(colors[colors.length - 1]);
         fills.set(el.attrs.id, fill ?? "#000000");
-        check(tally, g, "gexf node fill", at, "node", "fill", i, fill, fill ?? "#000000", "#000000");
+        check(ctx, "gexf node fill", at, { target: "node", property: "fill", i }, fill, fill ?? "#000000", "#000000");
         const sizes = children(el, "size");
         const size = number(sizes[sizes.length - 1]?.attrs.value);
         for (const p of ["width", "height"]) {
             // one viz:size gives both, noted once, as the width
-            check(tally, g, `gexf node ${p}`, at, "node", p, i, size, size ?? 10, 10, "width");
+            check(
+                ctx,
+                `gexf node ${p}`,
+                at,
+                { target: "node", property: p, i, notedAs: "width" },
+                size,
+                size ?? 10,
+                10,
+            );
         }
     }
     const weightIds = new Set(
@@ -230,7 +244,15 @@ function gexf(doc, g, tally, name) {
         const colors = children(el, "color");
         const color = gexfColor(colors[colors.length - 1]);
         const fromSource = fills.get(el.attrs.source) ?? "#000000";
-        check(tally, g, "gexf edge color", at, "edge", "color", e, color, color ?? fromSource, fromSource);
+        check(
+            ctx,
+            "gexf edge color",
+            at,
+            { target: "edge", property: "color", i: e },
+            color,
+            color ?? fromSource,
+            fromSource,
+        );
         const thickness = number(children(el, "thickness").at(-1)?.attrs.value);
         // Gephi draws an edge as thick as its weight: a static attvalue of the attribute titled "weight" over the
         // weight attribute, 1 when there is none. A weight of 0 or below is drawn 1 wide (style-tool-defaults.md).
@@ -239,23 +261,35 @@ function gexf(doc, g, tally, name) {
             .filter((a) => weightIds.has(a.attrs.for) && a.attrs.start === undefined && a.attrs.end === undefined);
         const w = number(static_.at(-1)?.attrs.value ?? el.attrs.weight);
         const weight = w !== null && w > 0 && Number.isFinite(w) ? w : 1;
-        check(tally, g, "gexf edge width", at, "edge", "width", e, thickness, thickness ?? weight, weight);
+        check(
+            ctx,
+            "gexf edge width",
+            at,
+            { target: "edge", property: "width", i: e },
+            thickness,
+            thickness ?? weight,
+            weight,
+        );
     });
+}
+
+/** A group node's active realizer, or its first. */
+function activeRealizer(proxy) {
+    const rs = child(proxy, "Realizers");
+    const kids = rs === undefined ? [] : children(rs).filter((k) => k.tag !== "#text");
+    const active = Number(rs?.attrs.active ?? 0);
+    return kids[active] ?? kids[0] ?? null;
 }
 
 /** An element's yEd realizer: the graphics inside its data, the active one of a group's. */
 function realizer(el, edge) {
-    for (const data of children(el, "data")) {
-        for (const r of children(data)) {
-            if (r.tag === "ProxyAutoBoundsNode") {
-                const rs = child(r, "Realizers");
-                const kids = rs === undefined ? [] : children(rs).filter((k) => k.tag !== "#text");
-                const active = Number(rs?.attrs.active ?? 0);
-                return kids[active] ?? kids[0] ?? null;
-            }
-            if (r.tag !== "#text" && r.tag.endsWith(edge ? "Edge" : "Node")) {
-                return r;
-            }
+    const suffix = edge ? "Edge" : "Node";
+    for (const r of children(el, "data").flatMap((data) => children(data))) {
+        if (r.tag === "ProxyAutoBoundsNode") {
+            return activeRealizer(r);
+        }
+        if (r.tag !== "#text" && r.tag.endsWith(suffix)) {
+            return r;
         }
     }
     return null;
@@ -272,8 +306,30 @@ function firstLabel(r, tag) {
     return null;
 }
 
+/** Compares one yEd node with the independent reading of its realizer. */
+function yedNode(ctx, el, i, name) {
+    const r = realizer(el, false);
+    const at = { file: name, id: el.attrs.id };
+    const fill = r === null ? undefined : child(r, "Fill");
+    if (fill !== undefined && (fill.attrs.hasColor === "false" || fill.attrs.transparent === "true")) {
+        check(ctx, "yed node fill", at, { target: "node", property: "fillOpacity", i }, 0, 0, null);
+    } else {
+        const color = fill === undefined ? null : hex6(fill.attrs.color);
+        const where = { target: "node", property: "fill", i };
+        check(ctx, "yed node fill", { ...at, raw: fill?.attrs.color }, where, color, color ?? "#ffcc00", "#ffcc00");
+    }
+    const label = r === null ? null : firstLabel(r, "NodeLabel");
+    check(ctx, "yed node label", at, { target: "node", property: "label", i }, label, label, null);
+    const geometry = r === null ? undefined : child(r, "Geometry");
+    for (const p of ["width", "height"]) {
+        const v = number(geometry?.attrs[p]);
+        check(ctx, `yed node ${p}`, at, { target: "node", property: p, i }, v, v, null);
+    }
+}
+
 function yed(doc, g, tally, name) {
     const s = g.snapshot;
+    const ctx = { tally, g };
     const seen = new Set();
     for (const el of all(doc, "node")) {
         const i = indexOf(s, el.attrs.id);
@@ -282,33 +338,7 @@ function yed(doc, g, tally, name) {
         }
         seen.add(i);
         tally.elements++;
-        const r = realizer(el, false);
-        const at = { file: name, id: el.attrs.id };
-        const fill = r === null ? undefined : child(r, "Fill");
-        if (fill !== undefined && (fill.attrs.hasColor === "false" || fill.attrs.transparent === "true")) {
-            check(tally, g, "yed node fill", at, "node", "fillOpacity", i, 0, 0, null);
-        } else {
-            const color = fill === undefined ? null : hex6(fill.attrs.color);
-            check(
-                tally,
-                g,
-                "yed node fill",
-                { ...at, raw: fill?.attrs.color },
-                "node",
-                "fill",
-                i,
-                color,
-                color ?? "#ffcc00",
-                "#ffcc00",
-            );
-        }
-        const label = r === null ? null : firstLabel(r, "NodeLabel");
-        check(tally, g, "yed node label", at, "node", "label", i, label, label, null);
-        const geometry = r === null ? undefined : child(r, "Geometry");
-        for (const p of ["width", "height"]) {
-            const v = number(geometry?.attrs[p]);
-            check(tally, g, `yed node ${p}`, at, "node", p, i, v, v, null);
-        }
+        yedNode(ctx, el, i, name);
     }
     const edges = all(doc, "edge");
     if (edges.length !== s.edgeCount) {
@@ -321,9 +351,17 @@ function yed(doc, g, tally, name) {
         const at = { file: name, edge: el.attrs.id ?? e };
         const line = r === null ? undefined : child(r, "LineStyle");
         const color = hex6(line?.attrs.color);
-        check(tally, g, "yed edge color", at, "edge", "color", e, color, color ?? "#000000", "#000000");
+        check(
+            ctx,
+            "yed edge color",
+            at,
+            { target: "edge", property: "color", i: e },
+            color,
+            color ?? "#000000",
+            "#000000",
+        );
         const label = r === null ? null : firstLabel(r, "EdgeLabel");
-        check(tally, g, "yed edge label", at, "edge", "label", e, label, label, null);
+        check(ctx, "yed edge label", at, { target: "edge", property: "label", i: e }, label, label, null);
     });
 }
 

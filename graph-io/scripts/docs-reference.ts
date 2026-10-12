@@ -728,7 +728,7 @@ function capabilityCell(v: unknown, caps?: ExportCapabilities): string {
         const rules = caps !== undefined && keepsRules(caps) ? "rules kept" : "rules not kept";
         return n === 0 ? rules : `${String(n)} properties, ${rules}`;
     }
-    return String(v);
+    return typeof v === "object" ? JSON.stringify(v) : String(v as string | number | bigint | symbol);
 }
 
 /**
@@ -1346,8 +1346,9 @@ function toolDefaultsBlock(ctx: Context): string[] {
         if (tool === "graphty") {
             continue;
         }
-        out.push(`### ${code(tool)}`, "");
         out.push(
+            `### ${code(tool)}`,
+            "",
             ...table(
                 ["", ""],
                 [

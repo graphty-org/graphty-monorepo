@@ -91,77 +91,97 @@ function ops(s) {
     return o;
 }
 // a gradient is "[x0 y0 x1 y1 n offset len -#color ...]" (or "(...)" radial): its first stop
-const firstStop = (c) => (/^[[(]/.test(c) ? (/\d+\s+-(#[0-9a-fA-F]{6,8})/.exec(c)?.[1] ?? c) : c);
+function firstStop(c) {
+    if (!/^[[(]/.test(c)) {
+        return c;
+    }
+    const stop = c
+        .split(/\s+/)
+        .map((token) => /^-(#[0-9a-fA-F]{6,8})/.exec(token)?.[1])
+        .find((color) => color !== undefined);
+    return stop ?? c;
+}
 const rgb = (c) => toolColor(firstStop(c), "graphviz");
 const transparent = (c) => /^#[0-9a-f]{6}00$/i.test(firstStop(c));
 
-/** -Tplain lines, tokenized (quoted names and labels kept whole). */
+/** A quoted token of a -Tplain line starting at `i` (the quote), escapes kept: [token, index after it]. */
+function quotedToken(line, i) {
+    let j = i + 1;
+    let v = "";
+    while (j < line.length && line[j] !== '"') {
+        const escaped = line[j] === "\\" && j + 1 < line.length;
+        v += escaped ? line[j] + line[j + 1] : line[j];
+        j += escaped ? 2 : 1;
+    }
+    return [v, j + 1];
+}
+
+/** An HTML-like label of a -Tplain line starting at `i` (the "<"), to its matching ">": [token, index after it]. */
+function angleToken(line, i) {
+    let depth = 0;
+    let j = i;
+    while (j < line.length) {
+        if (line[j] === "<") {
+            depth++;
+        } else if (line[j] === ">") {
+            depth--;
+            if (depth === 0) {
+                break;
+            }
+        }
+        j++;
+    }
+    return [line.slice(i, j + 1), j + 1];
+}
+
+/** A -Tplain line's tokens (quoted names and labels kept whole). */
+function tokens(line) {
+    const t = [];
+    let i = 0;
+    while (i < line.length) {
+        if (line[i] === " ") {
+            i++;
+            continue;
+        }
+        let token;
+        if (line[i] === '"') {
+            [token, i] = quotedToken(line, i);
+        } else if (line[i] === "<") {
+            [token, i] = angleToken(line, i);
+        } else {
+            const j = line.indexOf(" ", i);
+            const stop = j === -1 ? line.length : j;
+            token = line.slice(i, stop);
+            i = stop;
+        }
+        t.push(token);
+    }
+    return t;
+}
+
+/** -Tplain lines, tokenized. */
 function plain(text) {
     const nodes = new Map();
     const edges = [];
     for (const line of text.split("\n")) {
-        const t = [];
-        for (let i = 0; i < line.length;) {
-            if (line[i] === " ") {
-                i++;
-                continue;
-            }
-            if (line[i] === '"') {
-                let j = i + 1;
-                let v = "";
-                while (j < line.length && line[j] !== '"') {
-                    if (line[j] === "\\" && j + 1 < line.length) {
-                        v += line[j] + line[j + 1];
-                        j += 2;
-                        continue;
-                    }
-                    v += line[j++];
-                }
-                t.push(v);
-                i = j + 1;
-                continue;
-            }
-            if (line[i] === "<") {
-                let depth = 0;
-                let j = i;
-                for (; j < line.length; j++) {
-                    if (line[j] === "<") {
-                        depth++;
-                    } else if (line[j] === ">" && --depth === 0) {
-                        break;
-                    }
-                }
-                t.push(line.slice(i, j + 1));
-                i = j + 1;
-                continue;
-            }
-            let j = i;
-            while (j < line.length && line[j] !== " ") {
-                j++;
-            }
-            t.push(line.slice(i, j));
-            i = j;
-        }
+        const t = tokens(line);
         // read from the end: the label in the middle may hold spaces or markup
         if (t[0] === "node" && t.length >= 11) {
-            nodes.set(t[1], {
-                width: Number(t[4]),
-                height: Number(t[5]),
-                style: t[t.length - 4],
-                shape: t[t.length - 3],
-            });
+            nodes.set(t[1], { width: Number(t[4]), height: Number(t[5]), style: t.at(-4), shape: t.at(-3) });
         }
         if (t[0] === "edge") {
-            const n = Number(t[3]);
-            const rest = t.slice(4 + 2 * n);
-            edges.push({ tail: t[1], head: t[2], style: rest.length >= 2 ? rest[rest.length - 2] : null });
+            const rest = t.slice(4 + 2 * Number(t[3]));
+            edges.push({ tail: t[1], head: t[2], style: rest.length >= 2 ? rest.at(-2) : null });
         }
     }
     return { nodes, edges };
 }
 const lineOf = (st) => {
     const s = (st ?? "").split(",");
-    return s.includes("dashed") ? "dashed" : s.includes("dotted") ? "dotted" : "solid";
+    if (s.includes("dashed")) {
+        return "dashed";
+    }
+    return s.includes("dotted") ? "dotted" : "solid";
 };
 const cell = (table, name, i) => (table.has(name) ? (table.value(name, i) ?? null) : null);
 
@@ -185,7 +205,8 @@ for (const file of files) {
         xdot = run("xdot");
         pl = plain(run("plain").toString("utf8"));
     } catch (e) {
-        tally.skip(file, `Graphviz does not draw it (${e.signal ?? `exit ${e.status}`})`);
+        const why = e.signal ?? `exit ${e.status}`;
+        tally.skip(file, `Graphviz does not draw it (${why})`);
         continue;
     }
     for (const encoding of ["utf-8", undefined]) {

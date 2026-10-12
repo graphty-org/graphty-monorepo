@@ -199,7 +199,10 @@ export class Tally {
             this.record(key, "ok");
             return;
         }
-        const kind = stated !== null ? "disagree" : eq(tool, toolDefault) ? "default" : "missed";
+        let kind = "disagree";
+        if (stated === null) {
+            kind = eq(tool, toolDefault) ? "default" : "missed";
+        }
         this.record(key, kind, { ...detail, graphio: want, tool, toolDefault });
     }
 
@@ -265,7 +268,7 @@ export class Tally {
         if (out !== undefined) {
             mkdirSync(out, { recursive: true });
             writeFileSync(
-                join(out, `${this.name.replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()}.json`),
+                join(out, `${this.name.replaceAll(/[^A-Za-z0-9]+/g, "-").toLowerCase()}.json`),
                 JSON.stringify(
                     {
                         name: this.name,

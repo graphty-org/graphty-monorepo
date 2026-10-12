@@ -230,6 +230,40 @@ describe("GML styles: writing", () => {
 });
 
 describe("GML styles: booleans", () => {
+    it("keeps a rule over a boolean column GML cannot hold, reading a copy of it as booleans", async () => {
+        const b = new GraphBuilder({ directed: false });
+        const flag = b.declareNodeColumn({ name: "flag", dtype: "bool" });
+        for (let i = 1; i <= 4; i++) {
+            b.addNode(i);
+            b.setNodeValue(flag, i - 1, i % 2 === 0);
+        }
+        const g = b.freeze();
+        const planned = planStyles(
+            {
+                format: "test",
+                node: { values: { fill: ["#123456", "#123456", "#123456", "#123456"] } },
+                fingerprint: styleFingerprint(g),
+            },
+            { node: featuresOf(g, "node"), edge: [] },
+        );
+        const rule: StyleRule = {
+            id: "node.flagged",
+            target: "node",
+            role: "group",
+            origin: "declared",
+            where: { eq: [{ data: "flag" }, true] },
+            set: { fill: "#ff0000" },
+        };
+        const styles: ExtractedStyles = {
+            ...planned,
+            styles: { ...planned.styles, rules: [...planned.styles.rules, rule] },
+        };
+        const back = await load(await registry.exportGraphToString(g, "gml", { styles }));
+        expect(resolveStyles(back.styles, "node", "fill", back.snapshot)).toEqual(
+            resolveStyles(styles, "node", "fill", g),
+        );
+    });
+
     it("reads a boolean style value back as a boolean, though GML writes it as 0 or 1", async () => {
         const b = new GraphBuilder({ directed: false });
         for (let i = 1; i <= 5; i++) {

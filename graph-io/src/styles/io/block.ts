@@ -92,6 +92,16 @@ export interface StyleBlock {
      * read back in another order; absent without inline columns.
      */
     readonly order?: readonly string[];
+    /**
+     * The keys of the style columns that hold booleans, per target, so a format that has no booleans (GML writes 0
+     * and 1) reads them back as booleans; absent when none does.
+     */
+    readonly booleans?: {
+        /** Node style column keys. */
+        readonly node: readonly string[];
+        /** Edge style column keys. */
+        readonly edge: readonly string[];
+    };
     /** The style columns themselves, for a format with no per-element attributes; absent otherwise. */
     readonly values?: {
         /** Node style columns by key. */
@@ -150,6 +160,14 @@ export function writeStyleBlock(extracted: ExtractedStyles, options: WriteStyleB
         rules: styles.rules,
         columns: { node: Array.from(columns.node.keys()), edge: Array.from(columns.edge.keys()) },
     };
+    const booleanKeys = (byKey: ReadonlyMap<string, StyleColumn>): string[] =>
+        Array.from(byKey)
+            .filter(([, col]) => col.some((x) => x !== null) && col.every((x) => x === null || typeof x === "boolean"))
+            .map(([key]) => key);
+    const booleans = { node: booleanKeys(columns.node), edge: booleanKeys(columns.edge) };
+    if (booleans.node.length > 0 || booleans.edge.length > 0) {
+        out.booleans = booleans;
+    }
     if (options.inlineColumns === true) {
         if (options.snapshot !== undefined) {
             const { ids, nodeCount } = options.snapshot;
@@ -389,7 +407,21 @@ function readBlock(top: Record<string, unknown>): StyleBlock {
         },
         fingerprint: { nodes: count(fp.nodes), edges: count(fp.edges), ids: name(fp.ids) },
     };
-    const withData = top.data === undefined ? block : { ...block, data: readData(top.data) };
+    let booleans: Record<string, unknown> | null = null;
+    if (top.booleans !== undefined) {
+        booleans = isObject(top.booleans) ? top.booleans : invalid();
+    }
+    const read = top.data === undefined ? block : { ...block, data: readData(top.data) };
+    const withData =
+        booleans === null
+            ? read
+            : {
+                  ...read,
+                  booleans: {
+                      node: array(booleans.node ?? [], MAX_RULES).map(name),
+                      edge: array(booleans.edge ?? [], MAX_RULES).map(name),
+                  },
+              };
     if (top.values === undefined) {
         return withData;
     }
@@ -757,24 +789,32 @@ function blockColumns(
 }
 
 /**
- * The style columns a boolean property is passed through from, as booleans: a format with no booleans (GML) holds
- * them as 0 and 1.
- * @param rules - the block's rules
+ * The style columns the block lists as booleans, as booleans: a format with no booleans (GML) holds them as 0 and 1
+ * (or their text).
+ * @param block - the block
  * @param columns - the style columns per target, changed in place
  */
-function asBooleans(rules: readonly StyleRule[], columns: Record<StyleTarget, Map<string, StyleColumn>>): void {
-    for (const rule of rules) {
-        for (const [property, mapping] of Object.entries(rule.map ?? {})) {
-            const key = mapping?.kind === "passthrough" && "style" in mapping.by ? mapping.by.style : null;
-            const col = key === null ? undefined : columns[rule.target].get(key);
-            if (key !== null && col !== undefined && STYLE_PROPERTIES[rule.target].get(property) === "boolean") {
-                columns[rule.target].set(
-                    key,
-                    col.map((v) => (v === 0 || v === 1 ? v === 1 : v)),
-                );
+function asBooleans(block: StyleBlock, columns: Record<StyleTarget, Map<string, StyleColumn>>): void {
+    for (const target of TARGETS) {
+        for (const key of block.booleans?.[target] ?? []) {
+            const col = columns[target].get(key);
+            if (col !== undefined) {
+                columns[target].set(key, col.map(asBoolean));
             }
         }
     }
+}
+
+/**
+ * A value of a boolean style column as a boolean: 1 and 0, and their text, as GML and untyped formats hold them.
+ * @param v - the value read
+ * @returns the boolean, or the value when it is neither
+ */
+function asBoolean(v: StyleValue | null): StyleValue | null {
+    if (v === 1 || v === "1" || v === "true") {
+        return true;
+    }
+    return v === 0 || v === "0" || v === "false" ? false : v;
 }
 
 /**
@@ -871,7 +911,7 @@ export function blockStyles(
         return null;
     }
     const columns = { node, edge };
-    asBooleans(block.rules, columns);
+    asBooleans(block, columns);
     const features = { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") };
     // a data column the file holds under another name is read there
     const moved = { node: movedColumns(block, snapshot, "node"), edge: movedColumns(block, snapshot, "edge") };

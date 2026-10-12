@@ -531,8 +531,8 @@ The target flow:
 - Master runs no tests: a push to master only builds what graphty.app deploys. A red master build
   freezes the queue and opens a `priority:critical` revert automatically.
 - A release is attempted at 00:00, 06:00, 12:00 and 18:00 UTC: the full suite, the T4 GPU lane, Hosts and the security
-  audit run on the candidate commit, and only when all pass is a release pull request opened. Plus
-  an ad hoc release on demand.
+  audit run on the candidate commit, and only when all pass does the same run version it, put it on
+  master and publish it to npm (no release pull request). Plus an ad hoc release on demand.
 
 **Live today:** the pull request half of the target flow. A draft pull request runs no tests: ci.yml
 skips its build and test jobs and reports `All Checks Pass` and `Queue Checks Pass` as FAILED
@@ -566,12 +566,11 @@ CI, and Mergify queues only ready pull requests.
 |----------|---------|---------|
 | `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build (the packages, then the Storybooks, Lint, Checks and Docs jobs beside the tests), sharded tests (16 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. The test jobs start as soon as the `Build` job has built and uploaded the packages. On a push to master only the build jobs (Build, Storybooks, Lint, Checks, Docs) run; the summaries pass when they do |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
-| `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), push to master (publishes a merged release pull request), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
+| `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts, audit and LLM regression on the candidate; when all pass, in the same run, versions it, pushes the version merge and the tags to master with the release deploy key, and publishes with npm trusted publishing. Anything red before the push holds the release and opens one "Release held: <what> failed on <sha>" issue |
 | `release-watch.yml` | After every Release run (`workflow_run`, completed) | The backstop for the release announcements: a Release run that ended badly (failure, cancelled, timed out, startup failure) with no failure comment for that run attempt on the `Release status` issue gets one there (`tools/release-status.mjs run-ended`). Silent on success and skipped runs, on a pending run the release-train concurrency group replaced, and on a first attempt that only lost its T4 spot runner |
-| `release-dequeued.yml` | `pull_request_target` labeled `dequeued` on a `release/train-*` pull request by github-actions[bot] | Mergify dropped the release pull request from the merge queue: a comment on the `Release status` issue naming it, the reason, the failing checks and the queue run, read from its `Mergify Merge Queue` check run (`tools/release-status.mjs dequeued`), once per dequeue |
 | `deploy-pages.yml` | After every green CI run (the build) on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
-| `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- no release PR, nothing published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
+| `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- nothing pushed or published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
 | `restricted-cpu-stress.yml` | Weekly (Sundays), dispatch; never on PRs, master pushes or the release train | Every gating test shard of ci.yml under a fixed cgroup CPU quota (half the runner's CPU); files or comments on one issue per failing test in the flaky-test tracker's format, marked load-sensitive (`tools/restricted-cpu-stress.mjs`). Gates nothing; a branch dispatch files nothing |
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
 | `hosts.yml` | PR touching `webgpu-graph-algorithms/` or `graph-format/`, nightly, dispatch, called by `release.yml`; never on a push to master | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows; a PR runs the 15-minute `windows-scan-questions` scope, advisory); a red run on the release candidate holds the release |
@@ -610,40 +609,45 @@ The Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` wit
 because GitHub's own scheduler delays or drops this repository's scheduled runs (setup and
 operation: `tools/release-scheduler/README.md`); a person can still dispatch it by hand (the ad
 hoc release, below). Each scheduled attempt takes master's newest commit and runs the full CI
-suite (ci.yml, every shard), the T4 GPU lane, Hosts and the production security audit on it; only
-if all pass does it version that commit and open a
-`chore(release): publish` pull request (branch `release/train-<run id>`, which Mergify puts first in the queue)
-holding only version fields and changelogs; Mergify merges it, and the merge starts `release.yml`'s
-publish job, which tags each package, creates its GitHub release and publishes it with npm trusted
-publishing from the builds of the run that tested it. An attempt does nothing while the previous
-release is pending: a release pull request is open (one that conflicts with master, has a failed
-check or left the merge queue is closed and re-cut from the newest commit; one labelled `hold`
-waits), a "Release held" issue is open, the last release is not tagged yet, or nothing releasable
-changed. There are two kinds of hold, each its own issue, and neither touches the other. A
-red lane holds the whole release: no pull request, nothing published, and one train hold, a
+suite (ci.yml, every shard), the T4 GPU lane, Hosts, the production security audit and the LLM
+regression tests on it. Only if all pass does the same run release it, with no pull request and no
+merge queue (owner decision, 2026-10-11): the version job versions that commit (one
+`chore(release): publish` commit holding only version fields and changelogs); the land job merges
+it into master's current tip and pushes the merge and one `{projectName}@{version}` tag per package
+in one atomic push with the release deploy key (secret `RELEASE_DEPLOY_KEY`, the only key master's
+ruleset lets push without a pull request); the publish job creates each GitHub release and
+publishes to npm with trusted publishing from the builds of that run's CI call. The tags sit on the
+version commit (exactly the source npm ships), and the merge makes them reachable from master, so
+the next `nx release` reads each last version from its tag and bumps it from every commit that
+reached master after the candidate. A master that moved during the push is merged again on its new
+tip; a conflict (a commit on master changed a version field or changelog line the release writes)
+holds the release with nothing pushed. An attempt does nothing while a "Release held" issue is open
+(a schedule; a restart or a dispatch runs anyway) or nothing releasable changed; a version commit on
+master without its tags fails the attempt, which holds the release. There are two kinds of hold,
+each its own issue, and neither touches the other. A red lane, or a version or land job that fails
+before its push, holds the whole release: nothing pushed, nothing published, and one train hold, a
 `Release held: <what> failed on <sha>` issue (labels `bug`, `priority:high`, `effort:medium`) that
 githerd picks up. A held train restarts itself: after every push to master whose build passes,
 while a train hold is open, `release.yml` (triggered by `workflow_run` of CI) runs the same full
 attempt on that pushed commit at once; with no train hold it does nothing. Its fix pull request
 should say `Refs #<issue>`, not `Fixes #<issue>`: the issue must stay open so the fix's merge
-restarts the release. A passing train closes the train hold; a restart that fails again retitles
-and comments on it. A failed publish opens a publish hold, a `Release held: publish failed on
-<sha>` issue that names the run: no train retitles, closes or is restarted for it, and it lasts
-until that run is re-run (`gh run rerun <run id> --failed`), which publishes what is missing and
-closes it. A publish hold whose only missing versions are ones npm accepted but had not listed yet
-needs nobody: the next train attempt or master push closes it once npm lists them
-(`tools/publish-hold.mjs`). The scheduled attempts skip while either hold is open. Every release outcome (a held
-attempt, a release pull request opened, a publish that succeeded or failed, again after a restart or a
-re-run) is announced as a comment on the one open `Release status` issue (label `release-status`) by
+restarts the release. A train that lands closes the train hold; a restart that fails again retitles
+and comments on it. A failed publish (after the push: master is versioned and tagged, some version
+is missing from npm) opens a publish hold, a `Release held: publish failed on <sha>` issue that
+names the run: no train retitles it or is restarted for it, and it lasts until that run is re-run
+(`gh run rerun <run id> --failed`, which re-runs only the publish job), which publishes what is
+missing and closes it. A publish hold whose only missing versions are ones npm accepted but had
+not listed yet needs nobody: the pick job of the next train attempt or master push closes it once
+npm lists them (`tools/publish-hold.mjs`). The scheduled attempts skip while either hold is open.
+Every release outcome (a held attempt, a publish that succeeded or failed, again after a restart or
+a re-run) is announced as a comment on the one open `Release status` issue (label `release-status`) by
 `tools/release-status.mjs`, mentioning the people in the repository variable `RELEASE_NOTIFY`; attempts
 that do nothing announce nothing. A run that ends badly before it announces anything (no job
-started, a job never got a runner, the announce step failed, a failure after the release pull request
-was announced) is announced there by `release-watch.yml` instead. A release pull request that leaves the merge queue unmerged (Mergify labels it `dequeued`) is
-announced there by `release-dequeued.yml`, with the failing checks and the queue run. Each announcement, plus a
+started, a job never got a runner, the announce step failed, a bookkeeping step that failed after the
+release landed) is announced there by `release-watch.yml` instead. Each announcement, plus a
 train attempt that starts testing a candidate (or retries after a fix or a re-run), is also pushed to the owner's
-phone through Pushover (secrets `PUSHOVER_APP_TOKEN`, `PUSHOVER_USER_KEY`). Never edit or push to a release branch, and never close one
-unless it must be replaced: while one is open, no new train runs. An ad hoc release cuts the same
-pull request at once, for the owner or an agent the owner asked:
+phone through Pushover (secrets `PUSHOVER_APP_TOKEN`, `PUSHOVER_USER_KEY`). An ad hoc release runs the
+same attempt at once, for the owner or an agent the owner asked:
 `gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never
 start one on your own initiative. Everything below about versions, holds and changelogs holds for
 both.
@@ -1053,12 +1057,14 @@ succeeds there, and a failing batch is split in halves to find the culprit. The 
 batch only when every capture equals an image the owner approved on one of its pull requests, so
 the queue never asks for a new approval. Nobody turns on auto-merge by hand. Mergify posts no
 comments on pull requests (`status_comments: none`, `queue_controls_comment: false`, `post_comment:
-false`): every comment notified the owner. Its state is in its check runs.
+false`): every comment notified the owner. Its state is in its check runs. Releases never enter the
+queue: release.yml pushes its version merge straight to master, and `reset_on_external_merge: never`
+keeps that push from resetting the batches being checked.
 
 - To keep a pull request from merging, add the `hold` label; removing it releases the pull request.
   Adding `hold` also takes an already-queued pull request out of the queue.
 - To move a pull request ahead of ordinary ones, add the `queue:next` label: it goes behind the
-  release train and red-master fixes, and never interrupts a batch already being checked.
+  red-master fixes, and never interrupts a batch already being checked.
 - Never turn on GitHub's own auto-merge (`gh pr merge --auto`): it ignores labels, so a held pull
   request with it on would merge anyway.
 - Never push to a pull request while it carries the `queued` label: a push dequeues it and throws

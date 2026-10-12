@@ -97,7 +97,9 @@ describe("tools/run-tests.sh", () => {
             for (const f of ["run-tests.sh", "shard-verdict.mjs"]) copyFileSync(join(here, f), join(root, "tools", f));
             const command = [
                 'rm -rf "$TMPDIR"/* "$TMPDIR"/.[!.]*',
-                "ls -d tmp/run-tests/fake.*/output.log",
+                // The log's directory, not output.log: tee opens the file beside this command, so the
+                // file may not exist yet when the command runs.
+                "ls -d tmp/run-tests/fake.*",
                 "printf ' Test Files  1 passed (1)\\n'",
             ].join("; ");
             writeFileSync(
@@ -111,7 +113,7 @@ describe("tools/run-tests.sh", () => {
                 env: { ...process.env, TMPDIR: temp },
             });
             assert.equal(r.status, 0, r.stdout + r.stderr);
-            assert.match(r.stdout, /^tmp\/run-tests\/fake\.[^/]+\/output\.log$/m);
+            assert.match(r.stdout, /^tmp\/run-tests\/fake\.[^/]+$/m);
             assert.deepEqual(readdirSync(join(root, "tmp/run-tests")), [], "the run removes its own log");
         } finally {
             rmSync(root, { recursive: true, force: true });

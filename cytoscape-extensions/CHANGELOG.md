@@ -1,3 +1,20 @@
+## 0.0.12 (2026-10-12)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** refuse async graph methods on a destroyed core ([#2085](https://github.com/graphty-org/graphty-monorepo/issues/2085))
+- **cytoscape-extensions:** show frozen story pictures in a canvas, not an img ([#2051](https://github.com/graphty-org/graphty-monorepo/issues/2051))
+- **cytoscape-extensions:** stop layouts cleanly on a destroyed Cytoscape core ([#2062](https://github.com/graphty-org/graphty-monorepo/issues/2062))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.47
+- Updated layout to 2.4.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.11 (2026-10-12)
 
 ### 🧱 Updated Dependencies

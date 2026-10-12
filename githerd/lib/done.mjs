@@ -148,7 +148,9 @@ async function siblingGaps(siblings, io) {
         return [
             "siblings: a bug job reports its sibling search: what you searched (the pattern and the paths) and each other " +
                 "place that breaks the same rule, with whether you fixed it in this pull request, left it to an existing " +
-                'issue or filed it (with that issue\'s number). Found none is a full answer: {"searched": "...", "found": []}',
+                'issue or filed it (with that issue\'s number). Found none is a full answer: {"searched": "...", "found": []}. ' +
+                "If your githerd_done tool has no siblings field (a session started before it was added), run " +
+                "`githerd done <job> --outcome done ... --siblings '<that JSON>'` from your shell instead.",
         ];
     }
     const gaps = [];

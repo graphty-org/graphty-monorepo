@@ -7,9 +7,12 @@
 #
 # Each waiter writes a ticket named by its rank, its arrival time and its pid; it runs once its
 # ticket is among the SLOTS oldest tickets whose process is still alive, critical ones first.
-# Tickets of dead processes are removed, so a killed push never blocks the queue. The tickets live
-# in the main checkout's tmp/push-queue, which every worktree of the repository shares; githerd's
-# board reads them (githerd/lib/proc.mjs pushQueueTickets).
+# Tickets of dead processes are removed, so a killed push never blocks the queue. The tickets, the
+# push log and the gate logs live in the main checkout's tmp/, which every worktree of the
+# repository shares, whichever worktree this runs from; githerd's board reads the tickets
+# (githerd/lib/proc.mjs pushQueueTickets).
+# Settings, for tests: PUSH_QUEUE_SLOTS (3), PUSH_QUEUE_DIR (the tickets), PUSH_QUEUE_LOG (the push
+# log), PUSH_QUEUE_GATE (the gate's live worktree), PUSH_QUEUE_POLL (seconds between looks, 10).
 # Run from a private copy: bash reads a script from disk as it runs, so editing this file would
 # otherwise change the code of every push already waiting.
 # The copy goes in the main checkout's tmp/, not /tmp, which other processes on this machine clear.
@@ -30,6 +33,36 @@ trap 'rm -f "$ticket" "$PUSH_QUEUE_COPY"' EXIT
 gate_log="$(dirname "$dir")/push-gate-logs/$(basename "$ticket").log"
 mkdir -p "$(dirname "$gate_log")" 2>/dev/null && find "$(dirname "$gate_log")" -name '*.log' -mtime +14 -delete 2>/dev/null
 
+# The gate's live copy (CLAUDE.md, "Where a change takes effect"): every push's gate runs the scripts
+# of .worktrees/gate-live against the checkout being pushed, so a gate fix helps every branch as soon
+# as `tools/live.sh gate <branch>` puts it there, instead of after it merges and each branch picks it
+# up. First it follows origin/master: a fast-forward or plain merge when it holds no gate fixes of its
+# own (no commit that is not a merge is missing from master), else `tools/live.sh gate master`, which
+# tests the merge before it goes live. One update at a time (flock); a failed update is reported and
+# the push goes on with the gate as it was. Gates already running are not disturbed: git replaces a
+# changed file with a new one, and a running script keeps reading the old. A gate-live without the
+# split (no PREPUSH_ROOT in its hook) is not used; the push runs its own checkout's gate as before.
+gate_dir=${PUSH_QUEUE_GATE:-$main/.worktrees/gate-live}
+use_gate=0
+if [ "${1:-}" = git ] && [ -d "$gate_dir" ]; then
+    (
+        flock 8
+        git -C "$gate_dir" fetch -q origin master || exit 1
+        git -C "$gate_dir" merge-base --is-ancestor origin/master HEAD && exit 0
+        old=$(git -C "$gate_dir" rev-parse HEAD)
+        if [ -z "$(git -C "$gate_dir" rev-list --no-merges -1 HEAD ^origin/master)" ]; then
+            hooks=$(mktemp -d) && cp "$gate_dir/.husky/commit-msg" "$hooks/" &&
+                git -C "$gate_dir" -c core.hooksPath="$hooks" merge -q --no-edit origin/master
+            rc=$?; rm -rf "$hooks"
+            [ $rc = 0 ] || { git -C "$gate_dir" merge --abort 2>/dev/null; exit 1; }
+            git -C "$gate_dir" diff --quiet "$old" HEAD -- pnpm-lock.yaml || (cd "$gate_dir" && pnpm install --frozen-lockfile >/dev/null)
+        else
+            "$gate_dir/tools/live.sh" gate master
+        fi
+    ) 8>"$dir/../gate-live.lock" || echo "push-queue: could not bring $gate_dir up to origin/master; this push uses the gate as it is" >&2
+    grep -q PREPUSH_ROOT "$gate_dir/.husky/pre-push" 2>/dev/null && use_gate=1
+fi
+
 # The gate's source-only checks (formatting, links, the CI workflow tests, the config and tool checks:
 # tools/prepush-source-checks.sh of the checkout being pushed), run while this push already holds its
 # place in the queue, so a slip fails in about a minute instead of after the wait for a slot. The
@@ -37,14 +70,26 @@ mkdir -p "$(dirname "$gate_log")" 2>/dev/null && find "$(dirname "$gate_log")" -
 # script (a branch from before it existed) goes straight to the queue. Their output goes to the gate
 # log too, so a failure here is logged like a gate failure, and the push itself never runs.
 rc=0
-early="$(git rev-parse --show-toplevel 2>/dev/null)/tools/prepush-source-checks.sh"
+top="$(git rev-parse --show-toplevel 2>/dev/null)"
+early="$top/tools/prepush-source-checks.sh"
+use_gate_root=
+[ "$use_gate" = 1 ] && early="$gate_dir/tools/prepush-source-checks.sh" && use_gate_root=1
 if [ "${1:-}" = git ] && [ -f "$early" ]; then
-    bash "$early" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
+    env ${use_gate_root:+PREPUSH_ROOT="$top"} bash "$early" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
     rc=$?
     wait
 fi
 
-while [ "$rc" = 0 ]; do
+# Fast lane: a push that affects no package (documents, design files) runs only the gate's
+# whole-repository checks, a few minutes at most, so it does not wait behind full gates for a slot.
+# 2026-10-10: docs-only pushes sat 1-2 hours behind three 45-minute gates.
+fast=0
+if [ "$rc" = 0 ] && [ "${1:-}" = git ] && base=$(git merge-base origin/master HEAD 2>/dev/null); then
+    affected_json=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$base" --head=HEAD --json 2>/dev/null)
+    [ "$affected_json" = "[]" ] && fast=1 && echo "push-queue: no package affected; skipping the queue"
+fi
+
+while [ "$rc" = 0 ] && [ "$fast" = 0 ]; do
     live=()
     # Order by rank (0 critical, 1 normal; a ticket from before ranks existed counts as 1), then by
     # arrival time.
@@ -55,8 +100,14 @@ while [ "$rc" = 0 ]; do
     for ((i = 0; i < ${#live[@]} && i < SLOTS; i++)); do
         [ "${live[$i]}" = "$(basename "$ticket")" ] && break 2
     done
-    sleep 10
+    sleep "${PUSH_QUEUE_POLL:-10}"
 done
+# A running push's ticket becomes critical as of its start, so nothing that arrives later -- a
+# critical push included -- sorts ahead of it and takes a slot it still holds.
+if [ "$rc" = 0 ] && [ "$fast" = 0 ]; then
+    running="$dir/0-$(date +%s%N)-$$"
+    mv "$ticket" "$running" && ticket=$running
+fi
 started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 [ "$rc" = 0 ] || started_at=$queued_at
 
@@ -100,8 +151,11 @@ done
 # and the top-level directories the push changes against its merge base with origin/master
 # (Markdown left out). Recording never fails or slows the push: each part that fails is left out of
 # the line. Logs older than 14 days are removed.
+# Through the live gate: git runs gate-live's pre-push hook, in the pushed checkout.
+cmd=("$@")
+[ "$use_gate" = 1 ] && cmd=(git -c core.hooksPath="$gate_dir/.husky/_" "${@:2}") && echo "push-queue: gate from $gate_dir ($(git -C "$gate_dir" rev-parse --short HEAD))"
 if [ "$rc" = 0 ]; then
-    "$@" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
+    "${cmd[@]}" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
     rc=$?
 fi
 finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)

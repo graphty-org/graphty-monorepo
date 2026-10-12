@@ -315,6 +315,8 @@ interface FrameStats {
     drawCalls: number;
     activeMeshes: number;
     heapMB: number | null;
+    /** True if any measured frame drew a frozen mesh list (it should never be). */
+    frozen: boolean;
 }
 
 /** Wait for the browser to hand control back a few times (lets query results arrive). */
@@ -387,6 +389,11 @@ function makeProbe(graph: Graph, l: Lighting): object {
         },
         /** Draw `frames` frames after `warmupMs` of unmeasured ones (the GPU clocks up from idle). */
         measure: async (frames: number, warmupMs: number): Promise<FrameStats> => {
+            // The element freezes the list of drawn meshes while the view is still and unfreezes it
+            // from its own loop when the camera moves. This loop moves the camera without that loop
+            // running, so it unfreezes here: what is measured is an orbiting camera, culled afresh
+            // and with every instance matrix uploaded each frame, whatever state the element left.
+            scene.unfreezeActiveMeshes();
             const until = performance.now() + warmupMs;
             for (let i = 0; i < 2 || performance.now() < until; i++) {
                 draw(null);
@@ -395,6 +402,7 @@ function makeProbe(graph: Graph, l: Lighting): object {
             const wallMs: number[] = [];
             let dc = 0;
             let am = 0;
+            let frozen = false;
             for (let i = 0; i < frames; i++) {
                 const q = timer ? gl.createQuery() : null;
                 if (q) {
@@ -402,6 +410,7 @@ function makeProbe(graph: Graph, l: Lighting): object {
                 }
                 wallMs.push(draw(q));
                 dc += inst.drawCallsCounter.current;
+                frozen ||= (scene as unknown as { _activeMeshesFrozen: boolean })._activeMeshesFrozen;
                 am += scene.getActiveMeshes().length;
             }
             const gpuMs: number[] = [];
@@ -427,6 +436,7 @@ function makeProbe(graph: Graph, l: Lighting): object {
                 drawCalls: dc / frames,
                 activeMeshes: am / frames,
                 heapMB: mem ? mem.usedJSHeapSize / 2 ** 20 : null,
+                frozen,
             };
         },
     };

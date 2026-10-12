@@ -408,6 +408,11 @@ anywhere`, row `height: auto; min-height: 44px; padding-block: 6px`, pill and ri
   `~/.claude/projects/<proj>/<session>/subagents/`. Resuming after an interruption: check `git
 log`, the round folder and `tmp/<task>/` first.
 
+- (2026-10-12) **A plan item marked "built and kept" needs only a check.** The row that paints
+  nodes and edges (`styles.addRow` with target both, commit 262b846095) was re-listed in a later
+  plan; I confirmed the commit is on the branch and its 7 tests pass, and changed no code. Check
+  `git branch --contains <sha>` and run the named test before rebuilding anything.
+
 ## Sources
 
 - Digests in `design/ui/studio/digests/` (`tier1.md`, `decisions.md`, `study-rounds.md`,

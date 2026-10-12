@@ -572,9 +572,11 @@ export class AiController {
     private readonly hosted = new Map<string, readonly HostedToolSetting[]>();
     /** `tools.webContentMayWrite`: text read on the web does not hold or refuse a write. */
     private readonly webContentMayWrite: boolean;
-    /** Web tools asked for that cannot be used, not yet reported (they are, on the first message). */
+    /** `tools.inPageCode`, where the page can run it: the loop offers `run_code`. */
+    private readonly inPageCode: boolean;
+    /** Tools asked for that cannot be used, not yet reported (they are, on the first message). */
     private unreported: readonly UnavailableTool[] = [];
-    /** A web tool marked `required` that cannot be used: every message fails with it. */
+    /** A tool marked `required` that cannot be used: every message fails with it. */
     private readonly requiredMissing: UnavailableTool | undefined;
 
     /**
@@ -628,6 +630,7 @@ export class AiController {
 
         this.roles = [...consumerRoles, ...research];
         this.webContentMayWrite = options.tools?.webContentMayWrite === true;
+        this.inPageCode = main.inPageCode;
         this.unreported = unavailable.filter(
             (one, at) =>
                 unavailable.findIndex((other) => JSON.stringify(other.params) === JSON.stringify(one.params)) === at,
@@ -687,7 +690,7 @@ export class AiController {
         // Track input for retry
         this.lastInput = input;
 
-        // Web tools left out are reported once, on the first message.
+        // Tools left out are reported once, on the first message.
         for (const { tool, params } of this.unreported) {
             this.emitAiEvent({ type: "ai-capability-unavailable", tool, code: "AI_HOSTED_TOOL_UNSUPPORTED", params });
         }
@@ -939,6 +942,8 @@ export class AiController {
             let routed = NO_USAGE;
             // The question tool, from its own module, only when questions are on.
             const questions = this.asks ? await import("./questions") : undefined;
+            // In-page code, from its own module, only when it is on.
+            const program = this.inPageCode ? await import("./tools/program") : undefined;
             const plan = await run.plan?.((used) => {
                 routed = addUsage(routed, used);
             });
@@ -1009,6 +1014,7 @@ export class AiController {
                         : {}),
                     ...(answer === undefined ? {} : { answer: { callId: answer.call.id, values: answer.values } }),
                     ...(delegation === undefined ? {} : { delegation }),
+                    ...(program === undefined ? {} : { code: { tool: program.RUN_CODE_TOOL, run: program.runCode } }),
                     ...(plan === undefined ? {} : { plan }),
                     ...(this.confirmPlans ? { confirmDelegates: true } : {}),
                     newId: () => this.newMessageId(running),

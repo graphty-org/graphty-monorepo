@@ -219,11 +219,12 @@ export interface MessageState {
      */
     readonly policy?: (call: AiToolCallFacts) => AiApprovalVerdict;
     /**
-     * Set while a helper runs beside others (`"parallel-helper"`): every call that does not only
-     * read (a write, an undo or redo, a selection, the view, cancelling a run) is refused
-     * (`AI_TOOL_DENIED_BY_POLICY` with this as `reason`), before the policy is asked.
+     * Set while a helper runs beside others (`"parallel-helper"`) or a program the model wrote
+     * calls a tool (`"in-page-code"`): every call that does not only read (a write, an undo or
+     * redo, a selection, the view, cancelling a run) is refused (`AI_TOOL_DENIED_BY_POLICY` with
+     * this as `reason`), before the policy is asked.
      */
-    readonly readOnly?: "parallel-helper";
+    readonly readOnly?: "parallel-helper" | "in-page-code";
     /**
      * The model acted from a history window holding text read on the web: derived from the
      * conversation for each batch, never stored. Every call that does not only read is then held

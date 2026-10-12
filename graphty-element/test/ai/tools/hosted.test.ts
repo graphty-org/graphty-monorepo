@@ -63,6 +63,7 @@ describe("resolving the tool options", () => {
         assert.deepStrictEqual(resolveTools(undefined, capabilitiesOf("mine", "", BOTH)), {
             offered: [],
             unavailable: [],
+            inPageCode: false,
         });
         assert.deepStrictEqual(resolveTools({ webSearch: false }, capabilitiesOf("mine", "", BOTH)).offered, []);
     });

@@ -16,6 +16,7 @@ import {
     type AiResultParams,
 } from "../../catalog/ai";
 import type { AiAgentRole, AiHostedToolOptions, AiToolOptions } from "../agents";
+import { PROGRAM_IN_BUILD } from "../engine/programBuild";
 import type { EngineCapabilities, EngineHostedTool, HostedToolRequest } from "../engine/types";
 import { readerUrls } from "./readerUrls";
 
@@ -35,19 +36,48 @@ export interface HostedToolSetting {
     readonly allowedDomains?: readonly string[];
 }
 
-/** A web tool asked for that cannot be used: left out, and reported. */
+/** A tool asked for that cannot be used: left out, and reported. */
 export interface UnavailableTool {
-    readonly tool: EngineHostedTool;
+    readonly tool: AiHostedToolId;
     /** `AI_HOSTED_TOOL_UNSUPPORTED`'s `{ provider, model, tool }`. */
     readonly params: AiResultParams;
     /** The configuration marked it `required`: every command fails instead. */
     readonly required: boolean;
 }
 
-/** The web tools a configuration asked for, resolved. */
+/** The tools a configuration asked for, resolved. */
 export interface ResolvedTools {
     readonly offered: readonly HostedToolSetting[];
     readonly unavailable: readonly UnavailableTool[];
+    /** In-page code was asked for and can run: the loop offers `run_code`. */
+    readonly inPageCode: boolean;
+}
+
+let programProbe: boolean | undefined;
+
+/**
+ * Whether this page can run in-page code: the build carries the sandbox (`./bundle` does not), and
+ * the page may compile WebAssembly. A content security policy without `'wasm-unsafe-eval'` makes a
+ * synchronous compile throw. Probed once.
+ * @returns True when it can.
+ */
+export function programSupported(): boolean {
+    programProbe ??= PROGRAM_IN_BUILD && canCompileWasm();
+    return programProbe;
+}
+
+/**
+ * Compile the smallest WebAssembly module, synchronously.
+ * @returns False when the page may not.
+ */
+function canCompileWasm(): boolean {
+    try {
+        // The empty module: the magic number and version 1.
+        new WebAssembly.Module(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]));
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -87,7 +117,7 @@ export function capabilitiesOf(
     const status = (tool: AiHostedToolId): AiCapabilityStatus => {
         const listed = id === undefined ? undefined : aiHostedToolStatus(id, model, tool);
         if (tool === "in-page-code") {
-            return listed ?? "available";
+            return programSupported() ? (listed ?? "available") : "unsupported";
         }
 
         const engine = hosted?.[tool] ?? (listed === "available" ? "available" : "unsupported");
@@ -142,7 +172,17 @@ export function resolveTools(options: AiToolOptions | undefined, capabilities: A
         }
     }
 
-    return { offered, unavailable };
+    let inPageCode = false;
+    if (options?.inPageCode !== undefined && options.inPageCode !== false) {
+        const required = options.inPageCode !== true && options.inPageCode.required === true;
+        inPageCode = capabilities.tools["in-page-code"] === "available";
+        if (!inPageCode) {
+            const params = { provider: capabilities.provider, model: capabilities.model, tool: "in-page-code" };
+            unavailable.push({ tool: "in-page-code", params, required });
+        }
+    }
+
+    return { offered, unavailable, inPageCode };
 }
 
 /**

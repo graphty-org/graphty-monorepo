@@ -33,6 +33,16 @@ export function openProgramContexts(): number {
 const IDENTIFIER = /^[A-Za-z_]\w*$/;
 
 /**
+ * Whether this runs in Node (a test harness, a server): there QuickJS reads its WebAssembly from
+ * its own package's file, and a page URL such as a dev server's would not open.
+ * @returns True in Node.
+ */
+function inNode(): boolean {
+    const { process } = globalThis as { process?: { versions?: { node?: string } } };
+    return typeof process?.versions?.node === "string";
+}
+
+/**
  * The code that runs before the program: `tools` holds the bindings, and `console` keeps at most
  * `maxLogChars` characters, so a runaway loop cannot fill the page's memory with log lines.
  * @param names - The bindings' names.
@@ -186,7 +196,7 @@ export async function runProgram(
         };
     }
 
-    driver ??= createQuickJSIsolateDriver({ wasmLocation: WASM_LOCATION });
+    driver ??= createQuickJSIsolateDriver(inNode() ? {} : { wasmLocation: WASM_LOCATION });
     const context: Context = await driver.createContext({
         bindings: driverBindings,
         timeout: limits.timeoutMs,

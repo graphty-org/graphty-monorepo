@@ -39,8 +39,12 @@ export interface AiToolOptions {
     readonly webSearch?: boolean | AiHostedToolOptions;
     /** Read web pages the reader gave or `allowedDomains` admits, at the provider. */
     readonly webFetch?: boolean | AiHostedToolOptions;
-    /** Run a program the model writes, in a sandbox in the page, calling only commands that read. */
-    readonly inPageCode?: boolean;
+    /**
+     * Run a program the model writes (`run_code`), in a sandbox in the page, calling only commands
+     * that read. Needs a page whose content security policy allows `'wasm-unsafe-eval'`; not in
+     * `./bundle`. `{ required: true }`: when it cannot run, every command fails instead.
+     */
+    readonly inPageCode?: boolean | Pick<AiHostedToolOptions, "required">;
     /**
      * Let commands that change the graph run while the message holds web content. Default false:
      * they wait for the reader's approval, or are refused when approvals are off.

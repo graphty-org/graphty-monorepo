@@ -12,7 +12,8 @@ const NO_PROGRAM = "\0graphty-no-program";
 /**
  * Leaves the in-page code sandbox out of `./bundle`: one file cannot carry QuickJS's WebAssembly
  * beside it, and inlined it would add 700 kB to every page. `loadProgramRunner()` gets a sandbox
- * that refuses every program, so `./bundle` reports in-page code unsupported.
+ * that refuses every program, and `PROGRAM_IN_BUILD` is false, so `./bundle` reports in-page code
+ * unsupported.
  * @returns The plugin.
  */
 function withoutProgram(): Plugin {
@@ -26,6 +27,10 @@ function withoutProgram(): Plugin {
                 : undefined;
         },
         load(id): string | undefined {
+            if (id.endsWith("/src/ai/engine/programBuild.ts")) {
+                return "export const PROGRAM_IN_BUILD = false;";
+            }
+
             return id === NO_PROGRAM
                 ? [
                       'export const runProgram = () => Promise.reject(new Error("E_PROGRAM_UNSUPPORTED"));',

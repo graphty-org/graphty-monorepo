@@ -20,6 +20,7 @@ import { ASK_READER_TOOL } from "../../../src/ai/questions";
 import { turnTools } from "../../../src/ai/runConversation";
 import { researchRole } from "../../../src/ai/tools/hosted";
 import { installAssistantTools } from "../../../src/ai/tools/install";
+import { RUN_CODE_TOOL } from "../../../src/ai/tools/program";
 import { isAssistantTool } from "../../../src/ai/tools/toolset";
 import { clearRegisteredLayoutsForTesting } from "../../../src/catalog/layoutRegistry";
 import { clearRegisteredAlgorithmsForTesting } from "../../../src/catalog/registry";
@@ -67,12 +68,14 @@ const LARGEST_DELEGATE_TOOL = delegation({
  * @param profile - The profile.
  * @param questions - Whether `ask_reader` is offered.
  * @param helpers - Whether `delegate` is offered: for two helpers, or for the most a host may name.
+ * @param code - Whether `run_code` is offered.
  * @returns The tool count and the estimated tokens.
  */
 function declared(
     profile: "standard" | "small",
     questions = false,
     helpers: false | true | "largest" | "web" = false,
+    code = false,
 ): { tools: string[]; tokens: number; enumNames: boolean } {
     const registry = new CommandRegistry();
     installAssistantTools(registry, createGraphSession());
@@ -82,7 +85,11 @@ function declared(
         { largest: [LARGEST_DELEGATE_TOOL], true: [DELEGATE_TOOL], web: [WEB_DELEGATE_TOOL], false: [] }[
             String(helpers)
         ] ?? [];
-    const loopTools: ToolSpec[] = [...delegate, ...(questions ? [ASK_READER_TOOL] : [])];
+    const loopTools: ToolSpec[] = [
+        ...delegate,
+        ...(questions ? [ASK_READER_TOOL] : []),
+        ...(code ? [RUN_CODE_TOOL] : []),
+    ];
     let chars = 0;
     for (const tool of loopTools) {
         chars += tool.name.length + tool.description.length + JSON.stringify(tool.jsonSchema).length;
@@ -155,6 +162,16 @@ describe("the always-loaded tools fit a model's budget", () => {
         assert.isAtMost(standard.tokens, 5000);
         const small = declared("small", true, "web");
         assert.lengthOf(small.tools, 6);
+        assert.isAtMost(small.tokens, 1500);
+    });
+
+    it("stays within both budgets with in-page code, web tools and questions on: run_code follows", () => {
+        const standard = declared("standard", true, "web", true);
+        assert.lengthOf(standard.tools, 14);
+        assert.include(standard.tools, "run_code");
+        assert.isAtMost(standard.tokens, 5000);
+        const small = declared("small", true, "web", true);
+        assert.lengthOf(small.tools, 7);
         assert.isAtMost(small.tokens, 1500);
     });
 

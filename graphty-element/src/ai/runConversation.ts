@@ -42,6 +42,7 @@ import {
     modelView,
     type Outcome,
     runToolBatch,
+    type ToolBatch,
     type ToolCallRequest,
 } from "./ToolExecutor";
 import { type HostedToolSetting, turnHostedTools } from "./tools/hosted";
@@ -93,6 +94,30 @@ export interface QuestionTool {
 
 /** The loop's own tool for handing a task to a helper, offered only when helpers are configured. */
 export const DELEGATE = "delegate";
+
+/** The in-page code tool's name, which the loop offers when `tools.inPageCode` is on and can run. */
+export const RUN_CODE = "run_code";
+
+/** In-page code (`run_code`): the program module's, loaded only when it is on. */
+export interface CodeTool {
+    readonly tool: ToolSpec;
+    /**
+     * Run one call: its program, whose tool calls each run read-only through `callTool`.
+     * @param call - The `run_code` call.
+     * @param offered - The tools the turn offers.
+     * @param callTool - Runs one of the program's calls as a read-only batch of its own.
+     * @param signal - Cancels the program.
+     * @param cap - The most characters the result may take.
+     * @returns The call's result.
+     */
+    run(
+        call: ToolCallRequest,
+        offered: readonly GraphCommand[],
+        callTool: (request: ToolCallRequest) => Promise<BatchOutcome>,
+        signal: AbortSignal,
+        cap: number,
+    ): Promise<SavedPart>;
+}
 
 /** Tokens a model used. */
 export interface TokenUsage {
@@ -289,6 +314,8 @@ export interface ConversationRun {
      * none. Counted across the message in `state.hostedUses`.
      */
     readonly hostedTools?: readonly HostedToolSetting[];
+    /** In-page code; the loop offers `run_code` only when this is set. */
+    readonly code?: CodeTool;
 }
 
 /** The reader's answer to a question. */
@@ -891,6 +918,74 @@ function readFromWeb(run: ConversationRun): boolean {
 }
 
 /**
+ * A batch of calls, as the tool executor runs it.
+ * @param run - The loop's run.
+ * @param calls - The calls.
+ * @param state - The message's state.
+ * @returns The batch.
+ */
+function toolBatch(run: ConversationRun, calls: readonly ToolCallRequest[], state: MessageState): ToolBatch {
+    const { session, message } = run;
+    return {
+        calls,
+        registry: run.tools,
+        graph: run.graph,
+        session,
+        label: run.label,
+        message: readFromWeb(run) ? { ...state, webContent: true } : state,
+        after: latestStepOf(session, message),
+        abort: run.abort,
+        sink: run.sink,
+        host: run.host ?? {
+            emit: (event) => {
+                run.sink.emit(event);
+            },
+            readerText: run.label,
+        },
+    };
+}
+
+/**
+ * Run a turn's `run_code` calls once its other calls committed, one after another. Each call the
+ * program makes is a batch of its own that may only read (`readOnly: "in-page-code"`).
+ * @param run - The loop's run.
+ * @param code - The code tool.
+ * @param calls - The `run_code` calls.
+ * @param offered - The tools the turn offers.
+ * @param state - The message's state.
+ * @param cap - The most characters a result may take.
+ * @returns Their results.
+ */
+async function runCoded(
+    run: ConversationRun,
+    code: CodeTool,
+    calls: readonly ToolCallRequest[],
+    offered: readonly GraphCommand[],
+    state: MessageState,
+    cap: number,
+): Promise<SavedPart[]> {
+    const readOnly: MessageState = { ...state, readOnly: "in-page-code" };
+    const callTool = async (request: ToolCallRequest): Promise<BatchOutcome> => {
+        try {
+            return await runToolBatch(toolBatch(run, [request], readOnly));
+        } catch (error) {
+            // A tool that threw rolled its own batch back; the program reads that it failed.
+            if (error instanceof BatchThrew) {
+                return error.outcome;
+            }
+
+            throw error;
+        }
+    };
+    const parts: SavedPart[] = [];
+    for (const call of calls) {
+        parts.push(await code.run(call, offered, callTool, run.abort.signal, cap));
+    }
+
+    return parts;
+}
+
+/**
  * Run one batch of calls in its transaction.
  * @param run - The loop's run.
  * @param calls - The calls.
@@ -905,25 +1000,8 @@ async function runBatch(
     state: MessageState,
     resultOf: (threw: BatchOutcome) => ExecutionResult,
 ): Promise<BatchOutcome> {
-    const { session, message } = run;
     try {
-        return await runToolBatch({
-            calls,
-            registry: run.tools,
-            graph: run.graph,
-            session,
-            label: run.label,
-            message: readFromWeb(run) ? { ...state, webContent: true } : state,
-            after: latestStepOf(session, message),
-            abort: run.abort,
-            sink: run.sink,
-            host: run.host ?? {
-                emit: (event) => {
-                    run.sink.emit(event);
-                },
-                readerText: run.label,
-            },
-        });
+        return await runToolBatch(toolBatch(run, calls, state));
     } catch (error) {
         if (error instanceof BatchThrew) {
             throw new MessageRolledBack(resultOf(error.outcome));
@@ -1037,20 +1115,25 @@ async function applyDelegated(
  * @param parts - The parts.
  * @param added - The turn's tool message, when its other calls had one.
  * @param newId - Makes a message's id.
+ * @returns The tool message, which later parts of the turn join.
  */
 function addParts(
     run: ConversationRun,
     parts: readonly SavedPart[],
     added: SavedMessage | undefined,
     newId: () => string,
-): void {
+): SavedMessage {
     if (added === undefined) {
-        run.conversation.messages.push({ id: newId(), role: "tool", parts: [...parts] });
-    } else {
-        // The turn's one tool message answers every call of the turn.
-        const at = run.conversation.messages.indexOf(added);
-        run.conversation.messages[at] = { ...added, parts: [...added.parts, ...parts] };
+        const message: SavedMessage = { id: newId(), role: "tool", parts: [...parts] };
+        run.conversation.messages.push(message);
+        return message;
     }
+
+    // The turn's one tool message answers every call of the turn.
+    const at = run.conversation.messages.indexOf(added);
+    const message: SavedMessage = { ...added, parts: [...added.parts, ...parts] };
+    run.conversation.messages[at] = message;
+    return message;
 }
 
 /** A batch with nothing in it, which delegate calls of their own run after. */
@@ -1278,6 +1361,7 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
                     ...offered.map(toolSpec),
                     ...(run.delegation === undefined ? [] : [run.delegation.tool]),
                     ...(asks === undefined ? [] : [asks.tool]),
+                    ...(run.code === undefined ? [] : [run.code.tool]),
                 ],
                 ...(hostedTools.length === 0 ? {} : { hostedTools }),
                 toolMode: answerOnly ? "none" : "auto",
@@ -1324,17 +1408,18 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
 
         sink.status.startExecuting();
 
-        // A question ends the batch: the calls before it run first, and none after it. `delegate`
-        // calls run after the batch commits, outside any transaction.
+        // A question ends the batch: the calls before it run first, and none after it. `run_code`
+        // and `delegate` calls run after the batch commits, outside its transaction.
         const at = asks === undefined ? -1 : calls.findIndex((call) => call.name === ASK_READER);
         const upTo = at === -1 ? calls : calls.slice(0, at);
         const delegated = run.delegation === undefined ? [] : upTo.filter((call) => call.name === DELEGATE);
-        const before = delegated.length === 0 ? upTo : upTo.filter((call) => call.name !== DELEGATE);
+        const coded = run.code === undefined ? [] : upTo.filter((call) => call.name === RUN_CODE);
+        const before = upTo.filter((call) => !delegated.includes(call) && !coded.includes(call));
         const asking = at === -1 ? undefined : calls[at];
         const callsMessage = appendCalls(
             conversation,
             text,
-            [...before, ...delegated, ...(asking === undefined ? [] : [asking])],
+            [...before, ...coded, ...delegated, ...(asking === undefined ? [] : [asking])],
             newId,
             "model",
             hosted,
@@ -1342,7 +1427,7 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
         const batch: BatchOutcome =
             before.length === 0 ? { results: [], writes: false } : await runBatch(run, before, state, resultOf);
         await tallyBatch(tally, batch, run, callsMessage);
-        const added = before.length === 0 ? undefined : appendResults(conversation, before, batch, cap, newId);
+        let added = before.length === 0 ? undefined : appendResults(conversation, before, batch, cap, newId);
         // The turn's calls a hold keeps from running: answered so, apart from the held results the
         // decision replaces, so the model reads why they did not run.
         const unrun = (calls: readonly (ToolCallRequest | undefined)[]): void => {
@@ -1358,8 +1443,16 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
                 break;
             }
 
-            unrun([...delegated, asking]);
+            unrun([...coded, ...delegated, asking]);
             continue;
+        }
+
+        if (run.code !== undefined && coded.length > 0) {
+            const parts =
+                batch.failure === undefined
+                    ? await runCoded(run, run.code, coded, offered, state, cap)
+                    : closingResults(coded, { code: "AI_TOOL_NOT_RUN", params: {} }, "").parts;
+            added = addParts(run, parts, added, newId);
         }
 
         const verdict =

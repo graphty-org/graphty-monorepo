@@ -475,7 +475,7 @@ export interface AiToolCallFacts {
 
 // @public
 export interface AiToolOptions {
-    readonly inPageCode?: boolean;
+    readonly inPageCode?: boolean | Pick<AiHostedToolOptions, "required">;
     readonly webContentMayWrite?: boolean;
     readonly webFetch?: boolean | AiHostedToolOptions;
     readonly webSearch?: boolean | AiHostedToolOptions;

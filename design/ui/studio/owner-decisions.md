@@ -27,6 +27,39 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: a run's layers behave like a reader's (one route row, readable rules, kind change in place)
+
+**What.** Three additive changes in graphty-element, so where a layer came from never changes what
+it offers.
+
+- A run that paints nodes and edges (the shortest route) lands as one row of the style tree: its
+  node part and edge part share `row` and one name ("Shortest route"; the two layers were named
+  "Shortest route (nodes)" and "Shortest route (edges)"). `styles.highlight()` still returns the
+  node layer first, `styles.list()` still holds one layer per kind with its own `target`, and each
+  part still paints only the route's own elements.
+- `selectorRule(selector)` (from `@graphty/graphty-element/session`) and the type `RuleSelector`:
+  any layer's selector as an editable rule that matches the same elements. A run's `has` selector
+  reads as "has a value" (a `text` leaf with an empty `regex`), a `top` selector as a `threshold`
+  leaf, and the route's expression (onPath equals true) as the leaf "onPath is true". Selectors
+  with no rule form (every element, named ids, a set, the selection) come back `undefined`, and the
+  editor keeps drawing those its own way.
+- `RowWrite.target`: `styles.writeRow(id, { target })` adds a missing part (same name, rule and
+  eye, writing nothing until its first value) or drops one, in the same undo step; the row keeps
+  its id and its place. A part of a row may now be empty, as a starting row may.
+
+**Why.** The audit of the style panel's first build found the route drawn as two rows, the Which
+elements editor unable to read any run layer's rule, and Nodes, Edges and Both disabled on every
+layer the reader already had. Each was the element's to fix: the app would otherwise pair layers,
+parse expressions, or delete and re-create a layer to change its kind.
+
+**Checked, no change.** With `runPlacement: "top"`, Degree, then Edge betweenness, then the route
+stack in run order, above a reader's layer. The route sitting below Bridge edges in the app comes
+from the default placement, `"beneath"`, which the app does not change yet; setting `"top"` is the
+app's to do.
+
+**Not breaking.** Only new exports and an optional field. The route's layer names are default
+words, not a contract; a consumer that wants its own name passes `name`.
+
 ## 2026-10-12 -- Decided by the team: what a layer reads, and a histogram's minimum, median and maximum
 
 **What.** Two additive readings in graphty-element. `StyleCounts.reads`: every value a layer reads,

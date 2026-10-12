@@ -499,6 +499,7 @@ export type {
     RowStyle,
     RowTarget,
     RowWrite,
+    RuleSelector,
     SessionStylesApi,
     StyleAgreement,
     StyleChange,
@@ -519,7 +520,7 @@ export type {
     ValidationResult,
     ValueCategory,
 } from "./src/session/styles";
-export { quotePath, rulePath } from "./src/session/styles";
+export { quotePath, rulePath, selectorRule } from "./src/session/styles";
 
 // ---------------------------------------------------------------------------------------------
 // What a host may ask this session for before it offers a feature

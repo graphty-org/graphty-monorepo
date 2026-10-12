@@ -40,7 +40,7 @@
 
 import { maskTest, type U32 } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query, Scope } from "../../catalog/types";
+import type { EdgeId, NodeId, Path, Query, RuleTree, Scope } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 
@@ -1123,6 +1123,71 @@ function collectPaths(node: ExpressionNode, into: Path[]): void {
             return;
         default:
             return;
+    }
+}
+
+/**
+ * The leaf "carries a value for this path": the text test any value passes and no value fails.
+ * @param path - The value path.
+ * @returns The leaf.
+ */
+const hasValue = (path: Path): RuleTree => ({ kind: "text", reads: path, mode: "regex", text: "" });
+
+/**
+ * The rule leaf one parsed expression node reads as, or undefined when it has none.
+ * @param node - The node.
+ * @returns The rule.
+ */
+function nodeRule(node: ExpressionNode): RuleTree | undefined {
+    if (node.kind === "group") {
+        return nodeRule(node.inner);
+    }
+
+    if (node.kind === "and") {
+        const left = nodeRule(node.left);
+        const right = nodeRule(node.right);
+        return left === undefined || right === undefined ? undefined : { kind: "all", of: [left, right] };
+    }
+
+    if (node.kind !== "compare" || (node.operator !== "==" && node.operator !== "!=")) {
+        return undefined;
+    }
+
+    const literal = pickLiteral(node.left, node.right);
+    const other = node.left.kind === "literal" ? node.right : node.left;
+    if (literal === null || other.kind !== "path" || !/^(data|results)\./.test(other.path)) {
+        return undefined;
+    }
+
+    const { value } = literal;
+    const { path } = other;
+    let leaf: RuleTree | undefined;
+    if (value === null) {
+        // `!= null` is the presence test; `== null` its opposite.
+        return node.operator === "!=" ? hasValue(path) : { kind: "not", of: hasValue(path) };
+    } else if (typeof value === "number") {
+        leaf = { kind: "range", attribute: path, min: value, max: value };
+    } else if (typeof value === "boolean") {
+        leaf = { kind: "text", reads: path, mode: "exact", text: String(value), caseSensitive: true };
+    }
+
+    // ponytail: a string literal stays an expression: the text leaf folds spaces and accents.
+    return leaf === undefined || node.operator === "==" ? leaf : { kind: "not", of: leaf };
+}
+
+/**
+ * The rule tree an expression reads as, for an editor that draws rules: `results.route.onPath ==
+ * \`true\`` is the leaf "onPath is true". Only the forms whose rule matches exactly the same
+ * elements are read: equality with a number or a yes-or-no value, the presence test, and `&&` of
+ * those, over a `data.` or `results.` path.
+ * @param where - The expression.
+ * @returns The rule, or undefined when the expression has no exact rule form.
+ */
+export function expressionRule(where: Query): RuleTree | undefined {
+    try {
+        return nodeRule(parseExpression(where));
+    } catch {
+        return undefined;
     }
 }
 

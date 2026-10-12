@@ -78,6 +78,12 @@ await session.styles.add({
 The same conditions describe a visibility filter (`session.visibility.set`), so a rule that paints
 some nodes can hide them too.
 
+To edit any layer as a rule, read its selector with `selectorRule(layer.selector)` (from
+`@graphty/graphty-element/session`). A run's layer comes back as a rule over the run's value --
+"has a degree value", "on the route" -- that matches the same elements, so writing it back changes
+nothing. Selectors with no rule form (every element, named ids, a set, the selection) come back
+`undefined`.
+
 ## Which edges
 
 For a rule about nodes, `edges` says which edges come with them: `"incident"` for the edges

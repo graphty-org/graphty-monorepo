@@ -1025,9 +1025,10 @@ function checkShape(spec: LayerSpec, channels: readonly string[], log: ProblemLo
         });
     }
 
-    // A starting row (Everything, Hovered) is there to be written into, so it may start empty.
+    // A starting row (Everything, Hovered) is there to be written into, so it may start empty, and
+    // so may a part of a row, which a row write adds empty when it changes what the row paints.
     const starting = spec.source?.by === "template" && spec.source.templateId.startsWith("graphty:starting-");
-    if (channels.length === 0 && !starting) {
+    if (channels.length === 0 && !starting && spec.row === undefined) {
         report(log, {
             code: "E_BAD_LAYER",
             message: "A layer with neither a set nor an encode writes no channel and would paint nothing.",

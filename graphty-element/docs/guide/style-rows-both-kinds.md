@@ -42,6 +42,12 @@ console.log(session.styles.counts(row.edge!).matched, "edges"); // 2 edges
 To change a row later, `styles.writeRow(row.id, { set: { color: "#009e73" } })`. A key set to
 `undefined` clears it, so the layers beneath show again. `name` and `enabled` reach the whole row.
 
+`target` changes what the row paints, in the same step: `styles.writeRow(row.id, { target: "both" })`
+gives a node row an edge part that shares its name and rule and writes nothing until its first
+value, and `{ target: "edge" }` drops the node part. The row keeps its id and its place.
+
+A run that paints nodes and edges, such as a shortest route, lands as one row too.
+
 ## Which edges
 
 `edges` says which edges a rule about nodes holds:

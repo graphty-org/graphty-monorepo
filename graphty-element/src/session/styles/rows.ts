@@ -3,7 +3,7 @@
  *
  * A layer paints one kind, and `Layer.target` keeps saying which. A row that paints both kinds is
  * two layers, a node part and an edge part, sharing one selector and one id: the node part's id,
- * which both parts carry as `row`. The edge part sits immediately below the node part, and
+ * which both parts carry as `row`. The two parts sit next to each other in the stack, and
  * remove, move and the insertion places of the styles API treat the pair as one block, so the two
  * never drift apart and one undo step brings both back.
  *
@@ -46,6 +46,13 @@ export interface RowSpec extends Omit<LayerSpec, "target" | "set" | "encode" | "
  * `undefined` clears a key. `name` and `enabled` (the row's eye) reach every part.
  */
 export interface RowWrite {
+    /**
+     * What the row paints from now on: a missing part is added (sharing the row's name, rule and
+     * eye, writing nothing until its first value) and a part no longer wanted is dropped, in the
+     * same step as the rest of the write. The row keeps its id and its place.
+     * @since 3.26.0
+     */
+    readonly target?: RowTarget;
     /** A new name for every part. */
     readonly name?: string;
     /** Whether every part paints. */

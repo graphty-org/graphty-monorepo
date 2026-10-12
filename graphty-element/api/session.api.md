@@ -2696,10 +2696,16 @@ export interface RowWrite {
     readonly encode?: RowEncoding;
     readonly name?: string;
     readonly set?: RowStyle;
+    readonly target?: RowTarget;
 }
 
 // @public
 export function rulePath(path: Path): Query;
+
+// @public
+export type RuleSelector = Extract<Selector_2, {
+    readonly match: "rule";
+}>;
 
 // @public
 export type RuleTree = {
@@ -3309,6 +3315,9 @@ export type Selector = {
     match: "state";
     state: "selected" | "hovered";
 };
+
+// @public
+export function selectorRule(selector: Selector_2): RuleSelector | undefined;
 
 // @public
 export type SessionAttributes = Readonly<Record<string, unknown>>;

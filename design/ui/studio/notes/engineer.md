@@ -11,6 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **A run's layers now behave like a reader's in graphty-element.** A route is one
+  style-tree row (node and edge parts share `row` and the name "Shortest route"; `highlight()`
+  still returns the node layer first, because `const [nodes] = await styles.highlight(...)` is how
+  callers and tests read it). `selectorRule(selector)` (session entry) reads any selector as a
+  `{ match: "rule" }` that matches the same elements: `has` as an empty-regex text leaf, `top` as a
+  threshold leaf, and `path == number|boolean|null` (and `&&`) expressions as leaves; strings stay
+  expressions because the text leaf folds spaces and accents. `writeRow(id, { target })` adds or
+  drops a part in one step; a part with `row` may be empty. Next for the app: the Which elements
+  editor should read run layers through `selectorRule`, list run values as well as
+  `data.attributes()` (its `conditionOf` drops a `results.` path it cannot find there), enable
+  Nodes/Edges/Both through `target`, and set `runPlacement: "top"` -- with the default "beneath"
+  is why Bridge edges sat above the route; "top" already stacks runs in order (tested).
+
 - (2026-10-12) **The style panel's element additions are documented, and the examples are
   compiled against what npm ships.** Seven guide pages in `graphty-element/docs/guide/`
   (`style-tree`, `style-rows-both-kinds`, `starting-rows`, `style-rules`, `binding-preview`,
@@ -625,6 +638,22 @@ caseSensitive? }` on one matcher `textMatcher` (`session/text.ts`) that selectio
   is "replace"); weigh those findings up, not down.
 
 ## Tried: worked / did not work
+
+- (2026-10-12) WORKED: testing run layers in Node without the element's algorithms. A
+  `createGraphSession({ runs: { execute } })` whose executor reads `session.data.nodes()` and
+  `edges()` and returns `createRunResult` in the real shapes (node-metric, community, edge-metric,
+  path with `onPath` false off the route) exercises the real suggestion, auto-apply and placement
+  code in under a second (`test/session/run-rows.test.ts`). A plain `createGraphSession()` has no
+  executor and every run is refused.
+- (2026-10-12) DID NOT WORK at first: putting a highlight row's edge part under its node part,
+  as `addRow` does. It reversed what `styles.highlight()` returns and broke callers that
+  destructure the node layer first; the row helpers do not need a part order, so the highlight
+  keeps node first.
+
+- (2026-10-12) DID NOT WORK at first: putting a highlight row's edge part under its node part,
+  as `addRow` does. It reversed what `styles.highlight()` returns and broke callers that
+  destructure the node layer first; the row helpers do not need a part order, so the highlight
+  keeps node first.
 
 - (2026-10-11) WORKED: completing a committed audit instead of redoing it: list both size folders
   side by side, run only the missing walk, take its commands from the earlier transcript.

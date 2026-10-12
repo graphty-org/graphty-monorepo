@@ -196,6 +196,7 @@ import {
     type RowParts,
     rowParts,
     type RowSpec,
+    type RowTarget,
     type RowWrite,
     startingRowOf,
     startingRows,
@@ -2537,10 +2538,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const id = minter();
         const added: CompiledLayer[] = [];
         const unresolved = new Set<Path>();
+        // Both halves make one row, as `addRow` makes it, both carrying the node part's id as
+        // their row. The node part stays first, as `highlight()` has always returned it.
+        const ids = [...painting.keys()].map(() => id(called));
+        const row = painting.size > 1 ? ids[0] : undefined;
 
-        for (const [half, set] of painting) {
+        for (const [index, [half, set]] of [...painting].entries()) {
             const layerSpec: LayerSpec = {
-                name: painting.size > 1 ? `${called} (${half}s)` : called,
+                name: called,
                 target: half,
                 kind: "highlight",
                 // The membership column carries FALSE for the elements the run looked at and did
@@ -2550,8 +2555,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 selector: { match: "expression", where: `${quotePath(path)} == \`true\`` },
                 set,
                 source: { by: "run", runId: run.id, algorithm: run.algorithm, params: run.params },
+                ...(row === undefined ? {} : { row }),
             };
-            const checked = check(layerSpec, id(layerSpec.name));
+            const checked = check(layerSpec, ids[index]);
 
             if (checked.layer === null) {
                 throw refusedSpec(layerSpec.name, checked.result);
@@ -2803,14 +2809,72 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * The stack with a row painting other kinds: a part for each kind it lacks, added empty with the
+     * row's name, rule and eye, and its parts of kinds no longer wanted dropped. The parts stay
+     * together where the row was, the edge part under the node part, every one carrying the row's
+     * key once there are two.
+     * @param key - The row's key.
+     * @param target - What it paints from now on.
+     * @param changed - Collects the layers added, dropped or rewritten.
+     * @returns The stack.
+     * @throws Whatever {@link planUpdate} refuses a part with: a locked row is not retargeted.
+     */
+    const retargetRow = (key: LayerId, target: RowTarget, changed: LayerId[]): readonly CompiledLayer[] => {
+        const stack = current();
+        const parts = stack.filter((entry) => rowKeyOf(entry) === key);
+        const wanted: SelectorTarget[] = target === "both" ? ["edge", "node"] : [target];
+        if (wanted.length === parts.length && parts.every((entry) => wanted.includes(entry.layer.target))) {
+            return stack;
+        }
+
+        // The same refusals a write to each part gets: locked by the element or by the reader.
+        for (const part of parts) {
+            planUpdate(part.layer.id, {}, stack);
+        }
+
+        const id = minter();
+        const shared = specOf(parts[0].layer);
+        const placed = wanted.map((kind): CompiledLayer => {
+            const kept = parts.find((entry) => entry.layer.target === kind);
+            if (kept !== undefined && (wanted.length === 1 || kept.layer.row === key)) {
+                return kept;
+            }
+
+            // Every new part carries the row's key, so the row keeps its id and its place.
+            const spec: LayerSpec =
+                kept === undefined
+                    ? { ...shared, target: kind, set: undefined, encode: undefined, row: key }
+                    : { ...specOf(kept.layer), row: key };
+            const layerId = kept?.layer.id ?? id(spec.name);
+
+            const checked = check(spec, layerId);
+            if (checked.layer === null) {
+                throw refusedSpec(spec.name, checked.result);
+            }
+
+            return checked.layer;
+        });
+        changed.push(...new Set([...parts, ...placed].map((entry) => entry.layer.id)));
+
+        const at = stack.indexOf(parts[0]);
+        const next = stack.filter((entry) => rowKeyOf(entry) !== key);
+        next.splice(at, 0, ...placed);
+
+        return next;
+    };
+
+    /**
      * The plan for one write to every part of a row, each part taking the keys its kind has.
      * @param id - The row or any part.
      * @param write - The write.
      * @returns The plan.
      */
     const planWriteRow = (id: LayerId, write: RowWrite): EditPlan<RowParts> => {
-        require(id);
-        const parts = rowParts(current(), id);
+        const key = rowKeyOf(require(id));
+        const changed: LayerId[] = [];
+        let stack: readonly CompiledLayer[] =
+            write.target === undefined ? current() : retargetRow(key, write.target, changed);
+        const parts = stack.filter((entry) => rowKeyOf(entry) === key);
         assertRouted(
             write.set,
             parts.map((entry) => entry.layer.target),
@@ -2822,10 +2886,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             "encode",
         );
 
-        let stack: readonly CompiledLayer[] = current();
         const unresolved = new Set<Path>();
         const warnings: CodedFact<GraphtyWarningCode>[] = [];
-        const changed: LayerId[] = [];
         for (const part of parts) {
             const patch = partPatch(part.layer, write);
             if (patch === null) {
@@ -2841,7 +2903,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         return {
             stack,
-            result: rowOf(rowParts(stack, id)) as RowParts,
+            result: rowOf(stack.filter((entry) => rowKeyOf(entry) === key)) as RowParts,
             layers: changed,
             unresolvedPaths: Object.freeze([...unresolved]),
             warnings: Object.freeze(warnings),

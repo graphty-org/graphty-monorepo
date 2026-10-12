@@ -39,6 +39,7 @@ import {
     columnsFor,
     type CompiledSelector,
     compileExpressionPredicate,
+    expressionRule,
     hasPredicate,
     idsPredicate,
     scopePredicate,
@@ -323,6 +324,46 @@ export function selectorScope(selector: Selector): Scope | null {
             return { define: { kind: "rule", where: selector.where, reading: selector.edges ?? "clipped" } };
         default:
             return null;
+    }
+}
+
+/** A selector in its rule form, which an editor of rules reads and writes. */
+export type RuleSelector = Extract<Selector, { readonly match: "rule" }>;
+
+/**
+ * Read any layer's selector as an editable rule, so an editor draws a run's layer the way it draws
+ * a reader's: "carries a Degree value", "Louvain group is 3", "on the shortest route". The rule
+ * matches the same elements, so writing it back changes nothing on the canvas.
+ *
+ * ```ts
+ * import { selectorRule } from "@graphty/graphty-element/session";
+ *
+ * const route = session.styles.list().find((layer) => layer.source.by === "run" && layer.kind === "highlight");
+ * selectorRule(route.selector);
+ * // { match: "rule", where: { kind: "text", reads: "results.route.onPath", mode: "exact", text: "true", caseSensitive: true } }
+ * ```
+ * @param selector - Any selector.
+ * @returns Its rule form: a `rule` selector as it is; `has` as "has a value" (a `text` leaf
+ *     with an empty `regex`); `top` as a `threshold` leaf; an `expression` that compares a
+ *     `data.` or `results.` path with a number, a yes-or-no value or `null` (and `&&` of those)
+ *     as the matching leaves. Undefined for a selector with no rule form (`everything`, `ids`,
+ *     `member`, `state`, and any other expression), which an editor draws its own way.
+ * @since 3.26.0
+ */
+export function selectorRule(selector: Selector): RuleSelector | undefined {
+    switch (selector.match) {
+        case "rule":
+            return selector;
+        case "has":
+            return { match: "rule", where: { kind: "text", reads: selector.path, mode: "regex", text: "" } };
+        case "top":
+            return { match: "rule", where: { kind: "threshold", path: selector.path, top: selector.n } };
+        case "expression": {
+            const where = expressionRule(selector.where);
+            return where === undefined ? undefined : { match: "rule", where };
+        }
+        default:
+            return undefined;
     }
 }
 

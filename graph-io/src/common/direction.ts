@@ -497,7 +497,7 @@ export function pairFolding(snapshot: GraphSnapshot, options: PairFoldingOptions
     const mutualColumn = roleColumn(snapshot.edges.byRole("mutual"), "bool");
     const { edgeCount } = snapshot;
     const mateOf = (e: number): number => {
-        if (pairColumn === null || !pairColumn.isSet(e)) {
+        if (!pairColumn?.isSet(e)) {
             return INVALID_INDEX;
         }
         const mate = pairColumn.value(e);

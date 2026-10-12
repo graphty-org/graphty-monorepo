@@ -356,7 +356,7 @@ function encodedDictionary(dictionary: readonly string[]): EncodedUtf8 {
  */
 function encodedJsonText(column: JsonColumn): EncodedUtf8 {
     const cached = JSON_TEXT_CACHE.get(column);
-    if (cached !== undefined && cached.version === column.version && cacheUsable(cached.encoded, column.length)) {
+    if (cached?.version === column.version && cacheUsable(cached.encoded, column.length)) {
         return cached.encoded;
     }
     const texts = new Array<string>(column.length);

@@ -1173,7 +1173,7 @@ function keyElement(key: KeyPlan, indent: string): string {
     }
     const { column } = key;
     const desc = column?.meta.extra.desc;
-    const hasDefault = column !== null && column.meta.default !== undefined;
+    const hasDefault = column?.meta.default !== undefined;
     if (column === null || (typeof desc !== "string" && !hasDefault)) {
         return `${text}/>\n`;
     }
@@ -1371,7 +1371,7 @@ function* writeGraphml(snapshot: GraphSnapshot, plan: Plan): Generator<string, v
  * @returns the port name, or null when unset
  */
 function portText(column: Column | null, e: number): string | null {
-    if (column === null || !column.isSet(e)) {
+    if (!column?.isSet(e)) {
         return null;
     }
     const value = column.value(e);

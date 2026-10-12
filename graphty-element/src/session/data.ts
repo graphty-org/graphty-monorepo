@@ -1480,7 +1480,7 @@ export class SessionData implements SessionDataApi {
      * @returns the cache for that snapshot
      */
     private derivedFor(snapshot: GraphSnapshot): Derived {
-        if (this.derived === null || this.derived.snapshot !== snapshot) {
+        if (this.derived?.snapshot !== snapshot) {
             this.derived = { snapshot, statistics: null, fingerprint: null };
         }
 

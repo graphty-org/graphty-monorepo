@@ -27,6 +27,7 @@ import {
 import { CompoundSetLine, PAINT_FIELD_WIDTH, PaintLine, SetLine } from "./SetLine";
 import { focusLineNext, openListNext, useFocusLine } from "./useFocusLine";
 import { useStyleVersion } from "./useStyleVersion";
+import { WhichElements } from "./WhichElements";
 import { channelWord, type CompoundLine, compoundOf, isLineChannel, SECTIONS, type StyleSection } from "./words";
 
 /** Props for StyleTab. */
@@ -111,9 +112,17 @@ export function StyleTab({ layers }: Readonly<StyleTabProps>): React.JSX.Element
     }
     // Only the Everything row adds a layer of its own; a run's or a layer's row writes to its own.
     const everything = layers === undefined && (inspected?.kind ?? "everything-row") === "everything-row";
+    // A reader's own layer says which elements it paints, and its find field picks them anew.
+    const own = inspected?.kind === "layer-row" && row.every((id) => session.styles.get(id)?.source.by === "user");
     // Keyed by the row, so an empty label line and the side are dropped when the selection changes.
     return (
-        <RowStyle key={row.join(" ")} session={session} row={row} fresh={everything ? EVERYTHING_LAYER : undefined} />
+        <RowStyle
+            key={row.join(" ")}
+            session={session}
+            row={row}
+            fresh={everything ? EVERYTHING_LAYER : undefined}
+            head={own ? <WhichElements session={session} layer={row[0]} /> : undefined}
+        />
     );
 }
 
@@ -197,6 +206,7 @@ function SelectionRow({ session }: Readonly<{ session: GraphSession }>): React.J
  * @param props.sides - the sides the row can paint; one side draws no Nodes | Edges switch
  * @param props.fresh - the layer the row's first edit adds; left out, the row adds none, so a
  *   side the row has no layer on is not offered
+ * @param props.head - what the tab shows above the side switch (a layer's Which elements)
  * @returns The tab
  */
 function RowStyle({
@@ -204,11 +214,13 @@ function RowStyle({
     row,
     sides: offered = ["node", "edge"],
     fresh,
+    head,
 }: Readonly<{
     session: GraphSession;
     row: readonly LayerId[];
     sides?: readonly Target[];
     fresh?: NewLayer;
+    head?: React.ReactNode;
 }>): React.JSX.Element {
     // A side with no layer of the row's, and no layer to add, has no lines to offer.
     const sides = offered.filter((t) => fresh !== undefined || rowLayers(session, row, t).length > 0);
@@ -241,6 +253,7 @@ function RowStyle({
 
     return (
         <Stack ref={scope} gap={8} p={8} data-testid="style-tab">
+            {head}
             {sides.length > 1 && (
                 <SegmentedControl
                     size="xs"

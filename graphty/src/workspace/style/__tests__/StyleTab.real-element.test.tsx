@@ -1113,7 +1113,7 @@ describe("the selection's own row on the real element", () => {
         });
     });
 
-    it("a rule run from the find box names its row by the rule, in the layer list and the key; hand-picked ties keep their count", async () => {
+    it("a rule run from the find box makes its row that rule, named by it in the layer list and the key; hand-picked ties keep their count", async () => {
         const { session } = await openWithGraph();
         await session.data.addEdges([
             { source: "1", target: "3", minutes: 12 },
@@ -1129,10 +1129,13 @@ describe("the selection's own row on the real element", () => {
         await pickStyleTab();
         await addEdgeLine("Color");
         const rule = "minutes >= `10`";
+        // The row is the rule itself, live, not the ties it held when it ran.
         await waitFor(() => {
             assert.deepEqual(
-                idLayers(session).map((l) => l.name),
-                [rule],
+                readerLayers(session)
+                    .filter((l) => l.selector.match === "expression")
+                    .map((l) => [l.name, l.selector]),
+                [[rule, { match: "expression", where: rule }]],
             );
         });
         const place = screen.getByRole("region", { name: "Graph place" });

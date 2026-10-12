@@ -42,6 +42,7 @@ export type {
     ElementSession,
     Endpoint,
     FindAtLeastRow,
+    FindContainsRow,
     FindEnd,
     FindHit,
     FindHitBase,

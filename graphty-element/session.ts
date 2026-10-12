@@ -83,6 +83,7 @@ export type {
     EdgeRecordInput,
     Endpoint,
     FindAtLeastRow,
+    FindContainsRow,
     FindEnd,
     FindHit,
     FindHitBase,

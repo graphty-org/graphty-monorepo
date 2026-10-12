@@ -509,6 +509,26 @@ tools vitest.* eslint.config.js compact-mantine/eslint` into a temp tree, the co
   (`userEvent` from `vitest/browser`). No story was added: a new story is an unapproved image that
   blocks merging until the owner accepts it; add one when the app's panel uses the grid.
 
+- (2026-10-12) **A user layer that sets nothing is refused** (`E_BAD_LAYER`, "writes no channel"),
+  only starting rows may be empty. So "New layer from selection" cannot make a layer outright: it
+  opens the selection's own Style row, whose first value makes the layer (`selectionLayer` now uses
+  the element's `selection.layerSelector`, so a rule-made selection becomes a live expression
+  layer). Reason: the design makes a layer real with its first value (the draft), and relaxing the
+  refusal changes what `styles.add` does, a breaking change. The single-node menu leaves the door
+  out: a node always opens on Values, so the command would land on the wrong tab.
+
+- (2026-10-12) WORKED: find's "contains" offer from the element (`FindResult.contains`, each row
+  with the substring text leaf as `rule`) rather than the app building "name contains bob" from a
+  hit's `match.path` and the typed text. The value rows only say "is"; the count and the rule both
+  had to come from the element. Columns holding numbers are left out because find matches those
+  only whole and the substring rule would not agree.
+
+- (2026-10-12) **Another agent replaced the layer-row panel mid-task** (`LayerRowPanel` in
+  `graph-place/StyleTree.tsx` passes `layers` to `StyleTab`), so a section mounted on "StyleTab
+  with no layers" never showed. Mount on what is inspected (`inspected.kind === "layer-row"` and
+  every layer the reader's), not on how the caller built the tab. The other agent had also staged
+  deletions in the shared index: commit through a private `GIT_INDEX_FILE` built from HEAD.
+
 ## Sources
 
 - Digests in `design/ui/studio/digests/` (`tier1.md`, `decisions.md`, `study-rounds.md`,

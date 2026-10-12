@@ -29,7 +29,7 @@ import {
     type SelectorTarget,
 } from "./styles/predicate";
 import { matchText, normalizeText, textMatcher } from "./text";
-import type { FindAtLeastRow, FindEnd, FindHit, FindKind, FindResult, FindValueRow } from "./types";
+import type { FindAtLeastRow, FindContainsRow, FindEnd, FindHit, FindKind, FindResult, FindValueRow } from "./types";
 
 /** Everything the engine reads. */
 interface QueryEngineParts {
@@ -328,7 +328,10 @@ export interface SearchRequest {
 }
 
 /** What {@link QueryEngine.search} answers; the caller adds the window and the revision. */
-export type SearchAnswer = Pick<FindResult, "records" | "total" | "totals" | "values" | "atLeast" | "notSearchable">;
+export type SearchAnswer = Pick<
+    FindResult,
+    "records" | "total" | "totals" | "values" | "atLeast" | "contains" | "notSearchable"
+>;
 
 /** Where a match fell, in rank order within a tier. */
 const MATCH_ORDER = ["whole", "word-start", "anywhere"] as const;
@@ -441,6 +444,8 @@ interface BestMatch {
 interface ParsedFind {
     /** The normalized text to match. */
     readonly wanted: string;
+    /** The text to match as typed, after its prefix: what a `contains` row's rule tests. */
+    readonly typed: string;
     /** Whether only a whole value counts. */
     readonly exact: boolean;
     /** The one column per kind an `<attribute>:` prefix names; absent kinds read every column. */
@@ -479,7 +484,7 @@ function parseFind(index: FindIndex, typed: string): ParsedFind | "regex" | "exp
         }
     }
 
-    return { wanted: normalizeText(query), exact: parsed.mode === "exact", only };
+    return { wanted: normalizeText(query), typed: query.trim(), exact: parsed.mode === "exact", only };
 }
 
 /**
@@ -643,13 +648,61 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
     });
 
     const atLeast = atLeastRows(index, text.trim(), request);
+    const contains = find.exact ? [] : containsRows(index, find, request);
     return {
         records,
         total: sorted.length,
         totals,
         values: rows.slice(0, VALUE_ROWS).map((row) => valueRowOf(index, row, request)),
         ...(atLeast.length > 0 ? { atLeast } : {}),
+        ...(contains.length > 0 ? { contains } : {}),
     };
+}
+
+/**
+ * The "contains" rows: one per searched column where the text matched, with every element in
+ * scope whose value there contains it, most elements first. A column holding numbers or yes-or-no
+ * values is left out: find matches those only whole, and a "contains" rule would not.
+ * @param index - The index for this revision.
+ * @param find - What was typed, read.
+ * @param request - The kinds and the scope.
+ * @returns At most {@link VALUE_ROWS} rows.
+ */
+function containsRows(index: FindIndex, find: ParsedFind, request: SearchRequest): FindContainsRow[] {
+    const rows: FindContainsRow[] = [];
+    for (const kind of ["node", "edge"] as const) {
+        if (!request.kinds.has(kind)) {
+            continue;
+        }
+
+        const { ids } = index[kind];
+        const inScope = scopeOf(request, kind);
+        const only = find.only.get(kind);
+        for (const column of index[kind].columns) {
+            if ((find.only.has(kind) && column.path !== only) || column.values.some((entry) => entry.wholeOnly)) {
+                continue;
+            }
+
+            const members = column.values.flatMap((entry) =>
+                matchText(find.wanted, entry.norm) === null ? [] : inScopeOnly(entry.members, ids, inScope),
+            );
+            if (members.length === 0) {
+                continue;
+            }
+
+            const named = members.map((at) => ids[at]);
+            rows.push({
+                kind,
+                path: column.path,
+                text: find.typed,
+                count: members.length,
+                target: kind === "node" ? { nodes: named } : { edges: named.map(String) },
+                rule: { kind: "text", reads: column.path, mode: "substring", text: find.typed },
+            });
+        }
+    }
+
+    return rows.sort((a, b) => b.count - a.count).slice(0, VALUE_ROWS);
 }
 
 /**

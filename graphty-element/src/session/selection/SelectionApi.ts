@@ -34,7 +34,7 @@
 
 import type { GraphSnapshot, U8, U32 } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query, ScopeId } from "../../catalog/types";
+import type { EdgeId, NodeId, Path, Query, ScopeId, Selector } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { deepFreeze } from "../project/draft";
 import { arrayColumn, computeColumnStatistics } from "../results/statistics";
@@ -222,6 +222,19 @@ export interface SelectionApi {
      * ```
      */
     readonly originPaths: readonly Path[];
+    /**
+     * A style layer selector that holds what is selected: the rule the selection was made from,
+     * while the selection is still exactly that rule and it names no scope (`{ where }`, or text
+     * starting with `=`), as `{ match: "expression" }`, so a layer made from it follows the data;
+     * else the selected nodes and edges by id, `{ match: "ids" }`.
+     *
+     * ```ts
+     * await session.styles.add({ name: "Picked", target: "node", selector: session.selection.layerSelector,
+     *     set: { "node.color": "#e63946" } });
+     * ```
+     * @since 3.26.0
+     */
+    readonly layerSelector: Selector;
     /**
      * Whether one element is selected.
      *
@@ -656,6 +669,24 @@ class Selection implements SelectionOwner {
         this.#sync();
 
         return this.#origin;
+    }
+
+    /**
+     * A style layer selector that holds what is selected.
+     * @returns The origin rule as an expression, or the selected ids.
+     */
+    get layerSelector(): Selector {
+        const { origin } = this;
+        if (origin !== null && !("scope" in origin)) {
+            if ("where" in origin) {
+                return { match: "expression", where: origin.where };
+            }
+            if ("text" in origin && origin.mode === undefined && origin.text.startsWith("=")) {
+                return { match: "expression", where: origin.text.slice(1) };
+            }
+        }
+
+        return { match: "ids", nodes: [...this.nodes], edges: [...this.edges] };
     }
 
     /**

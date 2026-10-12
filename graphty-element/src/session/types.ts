@@ -362,6 +362,26 @@ export interface FindValueRow {
     readonly atLeast?: { readonly count: number; readonly target: SelectionTarget };
 }
 
+/** A column the text was found in, and every element whose value there contains it. */
+export interface FindContainsRow {
+    /** Whether nodes or edges carry it. */
+    readonly kind: FindKind;
+    /** `"id"` for the node id, else the attribute's literal column key, such as `"data.name"`. */
+    readonly path: Path;
+    /** The text, as typed after any prefix. */
+    readonly text: string;
+    /** How many elements in scope `target` names. */
+    readonly count: number;
+    /** A selection target naming exactly those elements: a fixed list, for `selection.apply`. */
+    readonly target: SelectionTarget;
+    /**
+     * The rule that holds them, over the whole graph rather than the find's scope: `{ kind:
+     * "text", reads: path, mode: "substring", text }`, folded as find folds. Live where `target`
+     * is a fixed list: as a layer's `{ match: "rule", where }` it follows the data.
+     */
+    readonly rule: Extract<RuleTree, { kind: "text" }>;
+}
+
 /** A number column the typed number falls inside, and the elements at or above it there. */
 export interface FindAtLeastRow {
     /** Whether nodes or edges carry the column. */
@@ -396,6 +416,13 @@ export interface FindResult {
      * nodes first. Each row's `count` and `target` read as {@link FindValueRow.atLeast}'s.
      */
     readonly atLeast?: readonly FindAtLeastRow[];
+    /**
+     * Present when plain text matched: one row per column the text was found in, at most three,
+     * most elements first, each holding every element whose value there contains the text ("name
+     * contains bob"). Absent for an `exact:` search, and for columns of numbers or yes-or-no
+     * values, which find matches only whole.
+     */
+    readonly contains?: readonly FindContainsRow[];
     /**
      * Set when the text is a pattern to run on commit, not text to find: a `regex:` or `=`
      * query. Find does not run it and lists nothing; `selection.apply({ text })` runs it.

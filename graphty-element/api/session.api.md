@@ -755,6 +755,18 @@ export interface FindAtLeastRow {
 }
 
 // @public
+export interface FindContainsRow {
+    readonly count: number;
+    readonly kind: FindKind;
+    readonly path: Path;
+    readonly rule: Extract<RuleTree, {
+        kind: "text";
+    }>;
+    readonly target: SelectionTarget;
+    readonly text: string;
+}
+
+// @public
 export interface FindEnd {
     readonly id: NodeId_2;
     readonly name: string;
@@ -801,6 +813,7 @@ export interface FindOptions {
 // @public
 export interface FindResult {
     readonly atLeast?: readonly FindAtLeastRow[];
+    readonly contains?: readonly FindContainsRow[];
     readonly notSearchable?: "regex" | "expression";
     readonly offset: number;
     readonly records: readonly FindHit[];
@@ -3097,6 +3110,7 @@ export interface SelectionApi {
     has(id: NodeId | EdgeId): boolean;
     hover(id: NodeId | null): void;
     readonly hovered: NodeId | null;
+    readonly layerSelector: Selector;
     nodeMask(): Uint8Array;
     readonly nodes: readonly NodeId[];
     readonly origin: SelectionTarget | null;

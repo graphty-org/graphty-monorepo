@@ -27,6 +27,31 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: find offers "contains" rules, and a selection offers its layer selector
+
+**What.** Two additions to graphty-element, for search and selection as ways into a layer's rule.
+
+- `FindResult.contains` (new type `FindContainsRow`): when plain text matched, one row per column
+  it was found in, at most three, most elements first, each with every element whose value there
+  contains the text: `kind`, `path`, `text`, `count`, a fixed-list `target`, and `rule`, the text
+  leaf `{ kind: "text", reads: path, mode: "substring", text }`. Columns of numbers or yes-or-no
+  values are left out (find matches those only whole), and so is an `exact:` search.
+- `selection.layerSelector`: the selector that holds what is selected. The rule the selection was
+  made from (`{ where }`, or text starting with `=`, with no scope) as `{ match: "expression" }`,
+  while the selection is still exactly that rule; else the selected nodes and edges by id.
+
+**Why.** "Nodes where name contains bob, 3 nodes" needs a count and a rule only the element can
+give; the value rows say "is", not "contains". Turning a selection's origin into a layer selector is
+what every consumer offering "New layer from selection" would otherwise write.
+
+**Not breaking.** A new optional field on a result, a new exported type, a new read-only property.
+
+**In the app.** The selection's own Style row (whose first value makes a layer) now uses
+`layerSelector`, so a selection made by a rule makes a live rule layer instead of a fixed list of
+what the rule held. "New layer from selection" in the selection's actions menu (and so the canvas
+menu) opens that row; the element still refuses a layer that sets nothing, so the layer is made by
+its first value, as the draft is.
+
 ## 2026-10-12 -- Decided by the team: a ramp editor in compact-mantine (`RampEditor`), and painted histogram bars
 
 **What.** A new compact-mantine control, `RampEditor`, with its types (`RampEditorProps`,

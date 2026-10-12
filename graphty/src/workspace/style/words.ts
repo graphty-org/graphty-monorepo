@@ -8,7 +8,7 @@
 import type { AlignmentMatrixValue } from "@graphty/compact-mantine";
 import type { ChannelDescriptor, KNOWN_PALETTE_IDS } from "@graphty/graphty-element/catalog";
 import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
-import type { CodedFact } from "@graphty/graphty-element/session";
+import type { CodedFact, GraphSession } from "@graphty/graphty-element/session";
 
 /** Where a label sits, as the element names it. */
 type LabelLocation = NonNullable<LabelStyle["location"]>;
@@ -410,4 +410,17 @@ export function matchesWordStart(name: string, query: string): boolean {
             .split(/[^a-z0-9]+/)
             .some((word) => word.startsWith(q)) || name.toLowerCase().startsWith(q)
     );
+}
+
+/**
+ * An attribute's name as the reader knows it, from its literal column key.
+ * @param session - the element's session.
+ * @param path - the column key, such as `"data.name"`, or `"id"`.
+ * @returns its plain name, else the key.
+ */
+export function attributeName(session: GraphSession, path: string): string {
+    if (path === "id") {
+        return "id";
+    }
+    return session.data.attributes().find((a) => a.path === path)?.plainName ?? path;
 }

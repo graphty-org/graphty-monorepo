@@ -133,6 +133,7 @@ export type { NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
 // What a find box lists without selecting: `element.session.find(text)`
 export type {
     FindAtLeastRow,
+    FindContainsRow,
     FindEnd,
     FindHit,
     FindHitBase,

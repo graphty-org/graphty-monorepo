@@ -8,6 +8,7 @@ import { GLYPHS } from "../glyphs";
 import { focusValuesNext } from "../inspector/reads";
 import { edgeJoiner, edgeName, selectionWords } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { attributeName } from "../style/words";
 import { useSessionVersion } from "./useSessionVersion";
 
 /** The find box's id, which `find.focus` ("/") moves focus to. */
@@ -208,22 +209,9 @@ function kindWords(kinds: ReadonlySet<"node" | "edge">): string {
 /** One pickable entry of the list: an element hit, a value row, a column for a rule, or a rule to run. */
 type Option =
     | { readonly type: "hit"; readonly hit: FindHit }
-    | { readonly type: "value"; readonly row: FindValueRow; readonly orMore?: boolean }
+    | { readonly type: "value"; readonly row: Omit<FindValueRow, "rule">; readonly orMore?: boolean }
     | { readonly type: "column"; readonly column: ColumnOption }
     | { readonly type: "rule"; readonly rule: string };
-
-/**
- * An attribute's name as the reader knows it, from its literal column key.
- * @param session - the element's session.
- * @param path - the column key, such as `"data.name"`, or `"id"`.
- * @returns its plain name, else the key.
- */
-function attributeName(session: GraphSession, path: string): string {
-    if (path === "id") {
-        return "id";
-    }
-    return session.data.attributes().find((a) => a.path === path)?.plainName ?? path;
-}
 
 /**
  * A hit's name: a node's name, or an edge's two ends written the way the inspector writes them.

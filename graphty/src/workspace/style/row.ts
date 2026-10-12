@@ -226,35 +226,37 @@ function sameIds(a: readonly (string | number)[] | undefined, b: readonly (strin
 }
 
 /**
- * The selection's own row: the reader's layers whose `{ match: "ids" }` selector names exactly
- * the selected nodes and edges. One set of ids has one row, so selecting the same things again
- * edits the same row.
+ * The selection's own row: the reader's layers whose selector is the selection's
+ * (`selection.layerSelector`): the rule the selection was made from, or, by id, exactly the
+ * selected nodes and edges. One selection has one row, so selecting the same things again edits
+ * the same row.
  * @param session - the element's session.
  * @returns the row's layer ids, empty when the selection has no row yet.
  */
 export function selectionRow(session: GraphSession): LayerId[] {
-    const { nodes, edges } = session.selection;
+    const wanted = session.selection.layerSelector;
     return session.styles
         .list()
-        .filter(
-            ({ source, selector }) =>
-                source.by === "user" &&
-                selector.match === "ids" &&
-                sameIds(selector.nodes, nodes) &&
-                sameIds(selector.edges, edges),
-        )
+        .filter(({ source, selector }) => {
+            if (source.by !== "user") {
+                return false;
+            }
+            if (wanted.match !== "ids" || selector.match !== "ids") {
+                return sameSelector(selector, wanted);
+            }
+            return sameIds(selector.nodes, wanted.nodes ?? []) && sameIds(selector.edges, wanted.edges ?? []);
+        })
         .map((layer) => layer.id);
 }
 
 /**
- * The layer the selection's first edit adds: its ids, named after what is selected.
+ * The layer the selection's first edit adds: the selection's own selector, named after it.
  * @param session - the element's session.
- * @param name - the selection's name (a node's label, "3 nodes").
+ * @param name - the selection's name (its rule, a node's label, "3 nodes").
  * @returns the layer to add.
  */
 export function selectionLayer(session: GraphSession, name: string): NewLayer {
-    const { nodes, edges } = session.selection;
-    return { name, selector: { match: "ids", nodes: [...nodes], edges: [...edges] } };
+    return { name, selector: session.selection.layerSelector };
 }
 
 /**

@@ -1,6 +1,7 @@
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
+import { resolveInspected } from "../inspector/inspected";
 import { addLabelRow } from "./row";
 
 /**
@@ -42,6 +43,27 @@ export const registration = defineRegistration({
                 } catch {
                     ctx.workspace.set({ notice: { message: `${column.name} could not label the nodes` } });
                 }
+            },
+        },
+        {
+            id: "style.layer-from-selection",
+            label: "New layer from selection",
+            group: "Graph tree",
+            description: "A layer for what is selected: the rule that selected it, or the selected elements",
+            disabled: (ctx) =>
+                ctx.session === null || ctx.session.selection.nodes.length + ctx.session.selection.edges.length === 0
+                    ? "Select something first"
+                    : null,
+            run: (ctx) => {
+                const { session, workspace } = ctx;
+                if (session === null) {
+                    return;
+                }
+                // The selection's Style tab is the new layer: it paints what the selection's rule
+                // holds, or the selected elements, and the first value set makes it a layer.
+                const { nodes, edges } = session.selection;
+                const { kind } = resolveInspected(null, { nodes, edges });
+                workspace.set({ inspected: null, tabs: { ...workspace.get().tabs, [kind]: "style" } });
             },
         },
     ],

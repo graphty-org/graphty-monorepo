@@ -28,7 +28,7 @@ const MARKER = /<!-- publish-hold: (awaiting-registry|rejected)((?: \S+)*) -->/g
 // propagating (E409, npm/cli#9889) or already published.
 const ACCEPTED =
     /Published to https:\/\/registry\.npmjs\.org\/|previously staged version|cannot publish over the previously published version/i;
-const COLOR = new RegExp(`${String.fromCodePoint(27)}\\[[0-9;]*m`, "g");
+const COLOR = new RegExp(String.raw`${String.fromCodePoint(27)}\[[0-9;]*m`, "g");
 // The only author whose markers count: anyone can comment on an issue of a public repository.
 export const BOT = "github-actions[bot]";
 

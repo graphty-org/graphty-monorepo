@@ -608,8 +608,13 @@ export function blockStyles(
             }
         }
         if (Object.keys(map).length > 0) {
+            // the block's own rules may hold an exceptions rule already (a file graphty wrote from an edited one)
+            let id = `${target}.exceptions`;
+            for (let k = 2; rules.some((r) => r.id === id); k++) {
+                id = `${target}.exceptions#${String(k)}`;
+            }
             rules.push({
-                id: `${target}.exceptions`,
+                id,
                 target,
                 role: "exceptions",
                 origin: "inferred",

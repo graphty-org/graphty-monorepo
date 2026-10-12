@@ -19,7 +19,7 @@ the expectation today; the reference points into
 | gexf | 110 | 104 | 6 | 101 | 1 |
 | gml | 109 | 100 | 9 | 90 | 4 |
 | graphml | 148 | 145 | 3 | 131 | 5 |
-| json | 427 | 398 | 29 | 80 | 0 |
+| json | 427 | 420 | 7 | 102 | 0 |
 | neo4j | 45 | 26 | 19 | 25 | 0 |
 | obo | 102 | 102 | 0 | 101 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
@@ -38,7 +38,7 @@ expectation follows the specification and the entry says why.
 | gexf | 30 | 30 | 0 | 0 |
 | gml | 30 | 30 | 0 | 0 |
 | graphml | 60 | 60 | 0 | 8 |
-| json | 60 | 38 | 22 | 30 |
+| json | 60 | 60 | 0 | 30 |
 | pajek | 30 | 30 | 0 | 0 |
 
 Where networkx is overruled:
@@ -315,31 +315,6 @@ No known failures.
 
 
 ## json
-
-### json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared "0", "1" (every node doubled) (22)
-
-- `networkx-generated/cytoscape-path-0.json`: nodes: expected 6, got 12; edge "0"->"1" missing
-- `networkx-generated/cytoscape-path-1.json`: nodes: expected 6, got 12; edge "0"->"1" missing
-- `networkx-generated/cytoscape-cycle-directed-0.json`: nodes: expected 7, got 14; edge "0"->"1" missing
-- `networkx-generated/cytoscape-cycle-directed-1.json`: nodes: expected 7, got 14; edge "0"->"1" missing
-- `networkx-generated/cytoscape-star-0.json`: nodes: expected 9, got 18; edge "0"->"1" missing
-- `networkx-generated/cytoscape-star-1.json`: nodes: expected 9, got 18; edge "0"->"1" missing
-- `networkx-generated/cytoscape-complete-0.json`: nodes: expected 5, got 10; edge "0"->"1" missing
-- `networkx-generated/cytoscape-complete-1.json`: nodes: expected 5, got 10; edge "0"->"1" missing
-- `networkx-generated/cytoscape-gnm-0.json`: nodes: expected 12, got 24; edge "0"->"4" missing
-- `networkx-generated/cytoscape-gnm-1.json`: nodes: expected 12, got 24; edge "0"->"4" missing
-- `networkx-generated/cytoscape-gnm-directed-0.json`: nodes: expected 10, got 20; edge "0"->"1" missing
-- `networkx-generated/cytoscape-gnm-directed-1.json`: nodes: expected 10, got 20; edge "0"->"1" missing
-- `networkx-generated/cytoscape-barabasi-albert-0.json`: nodes: expected 15, got 30; edge "0"->"1" missing
-- `networkx-generated/cytoscape-barabasi-albert-1.json`: nodes: expected 15, got 30; edge "0"->"1" missing
-- `networkx-generated/cytoscape-watts-strogatz-0.json`: nodes: expected 12, got 24; edge "0"->"11" missing
-- `networkx-generated/cytoscape-watts-strogatz-1.json`: nodes: expected 12, got 24; edge "0"->"11" missing
-- `networkx-generated/cytoscape-karate-0.json`: nodes: expected 34, got 68; edge "0"->"1" missing
-- `networkx-generated/cytoscape-karate-1.json`: nodes: expected 34, got 68; edge "0"->"1" missing
-- `networkx-generated/cytoscape-multigraph-0.json`: nodes: expected 5, got 10; edge "1"->"2" missing
-- `networkx-generated/cytoscape-multigraph-1.json`: nodes: expected 5, got 10; edge "1"->"2" missing
-- `networkx-generated/cytoscape-multidigraph-0.json`: nodes: expected 6, got 12; edge "0"->"5" missing
-- `networkx-generated/cytoscape-multidigraph-1.json`: nodes: expected 6, got 12; edge "0"->"5" missing
 
 ### top-level {nodes, edges} of Cytoscape data elements not detected as Cytoscape (sources.md 8.4 Cytoscape) (2)
 

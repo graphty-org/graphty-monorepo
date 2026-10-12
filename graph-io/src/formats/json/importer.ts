@@ -97,6 +97,7 @@ import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
 import { headBytes, sniffJsonDialectHead } from "../../sniff.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -125,6 +126,7 @@ import {
     SUFFIX,
 } from "./dialect.js";
 import { importObographs } from "./obographs.js";
+import { jsonStyles, type JsonStyleSource } from "./styles.js";
 
 /**
  * The format-specific options of the JSON importer. `graphIndex` / `graphName` choose one graph of
@@ -394,6 +396,12 @@ const GRAPHOLOGY_NODE_KEYS: ReadonlySet<string> = new Set(["key", "attributes"])
 
 /** The graphology edge keys that are not attributes. */
 const GRAPHOLOGY_EDGE_KEYS: ReadonlySet<string> = new Set(["key", "source", "target", "attributes", "undirected"]);
+
+/** The structural keys of a node in Gephi's JSON export. */
+const GEPHI_NODE_KEYS: ReadonlySet<string> = new Set(["id", "attributes"]);
+
+/** The structural keys of an edge in Gephi's JSON export. */
+const GEPHI_EDGE_KEYS: ReadonlySet<string> = new Set([...GRAPHOLOGY_EDGE_KEYS, "id"]);
 
 /** The vis.js endpoint keys. */
 const VIS_SOURCE_KEYS: readonly string[] = Object.freeze(["from"]);
@@ -1098,6 +1106,34 @@ export class ImportContext {
     /** Set when the document has no node section: every node comes from an edge (E_MISSING_SECTION says so). */
     nodesFromEdges = false;
 
+    /** What the dialect's reader keeps for the style reader (`report.keepForStyles()`), or null. */
+    styleSource: JsonStyleSource | null = null;
+
+    /**
+     * A Cytoscape.js endpoint or parent id: Cytoscape.js holds every id as text, so an endpoint `0` names the node
+     * `"0"` and an endpoint `"0"` the node `0` when the file has no node of the endpoint's own type.
+     * @param raw - the JSON value
+     * @param element - the element name for issues
+     * @returns the id, or null when the value was reported
+     */
+    textualId(raw: unknown, element: string): NodeId | null {
+        const id = this.coerceId(raw, element);
+        if (id === null || this.sink.indexOf(id) !== INVALID_INDEX) {
+            return id;
+        }
+        let other: unknown = null;
+        if (typeof raw === "number" && Number.isFinite(raw)) {
+            other = String(raw);
+        } else if (typeof raw === "string" && /^-?\d+(?:\.\d+)?$/.test(raw)) {
+            other = Number(raw);
+        }
+        if (other === null) {
+            return id;
+        }
+        const alt = this.ids.value(other);
+        return this.sink.indexOf(alt) === INVALID_INDEX ? id : alt;
+    }
+
     /** Dangling endpoints whose id, as the other JSON type, is a node (`"1"` next to the node 1). */
     private readonly nearMatches: NodeId[] = [];
 
@@ -1282,6 +1318,7 @@ export class ImportContext {
      * @param structural - the element keys that are not attributes
      * @param weightFrom - the weight key to skip in the dict, or null
      * @param element - the element name for issues
+     * @param plain - write the element-level keys under their own names, not with the `#element` suffix
      */
     writeNested(
         writer: AttributeWriter,
@@ -1291,6 +1328,7 @@ export class ImportContext {
         structural: ReadonlySet<string>,
         weightFrom: string | null,
         element: string,
+        plain = false,
     ): void {
         for (const key of Object.keys(dict)) {
             if (key !== weightFrom) {
@@ -1299,7 +1337,7 @@ export class ImportContext {
         }
         for (const key of Object.keys(record)) {
             if (!structural.has(key)) {
-                writer.write(row, `${key}${SUFFIX.element}`, record[key], SUFFIX.data, element);
+                writer.write(row, plain ? key : `${key}${SUFFIX.element}`, record[key], SUFFIX.data, element);
             }
         }
     }
@@ -1773,10 +1811,16 @@ function reportUnreadKeys(ctx: ImportContext, record: JsonRecord, known: Readonl
 }
 
 /** The keys of a vis.js document the reader reads. */
-const VIS_DOCUMENT_KEYS: ReadonlySet<string> = new Set(["nodes", "edges"]);
+const VIS_DOCUMENT_KEYS: ReadonlySet<string> = new Set(["nodes", "edges", STYLE_BLOCK_NAME]);
 
 /** The keys of a graphology serialization the reader reads. */
-const GRAPHOLOGY_DOCUMENT_KEYS: ReadonlySet<string> = new Set(["nodes", "edges", "options", "attributes"]);
+const GRAPHOLOGY_DOCUMENT_KEYS: ReadonlySet<string> = new Set([
+    "nodes",
+    "edges",
+    "options",
+    "attributes",
+    STYLE_BLOCK_NAME,
+]);
 
 /** The keys of a JGF graph object the reader reads. */
 const JGF_GRAPH_KEYS: ReadonlySet<string> = new Set([
@@ -1847,7 +1891,10 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
     const multigraph = hasKey(root, "multigraph") ? flagOf(root.multigraph, "multigraph", false, report) : null;
     ctx.setHeader(directed);
     ctx.writeGraphDict(root.graph, "graph");
-    reportUnreadKeys(ctx, root, new Set(["nodes", edgesKey, "directed", "multigraph", "graph"]), "");
+    reportUnreadKeys(ctx, root, new Set(["nodes", edgesKey, "directed", "multigraph", "graph", STYLE_BLOCK_NAME]), "");
+    // NetworkX's node_link_data writes all three keys; its drawing defaults then apply
+    const networkx = hasKey(root, "directed") && hasKey(root, "multigraph") && hasKey(root, "graph");
+    ctx.styleSource = { dialect, block: blockOf(root), networkx };
 
     const nodeList = nodes ?? [];
     const edgeList = edges ?? [];
@@ -2275,6 +2322,7 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
             { element: "arrows" },
         );
     }
+    ctx.styleSource = { dialect: "vis", block: blockOf(root), options: root.options, groups: root.groups };
     ctx.setMeta(
         { dialect: "vis", nodeIdKey, sourceKey: sourceKey ?? undefined, targetKey: targetKey ?? undefined },
         ctx.weightOriginPatch(),
@@ -2631,6 +2679,12 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
         ? flagOf(options.allowSelfLoops, "options.allowSelfLoops", true, report)
         : undefined;
     ctx.writeGraphDict(root.attributes, "attributes");
+    // Gephi's JSON export (for sigma.js) names nodes and edges by `id` and puts sigma's display keys (`label`, `x`,
+    // `y`, `color`, `size`) beside `attributes`; they are read as attributes, not as unknown element keys
+    const firstNode = nodes.find((n) => isJsonObject(n));
+    const gephi = isJsonObject(firstNode) && !hasKey(firstNode, "key") && hasKey(firstNode, "id");
+    const nodeKey = gephi ? "id" : "key";
+    ctx.styleSource = { dialect: "graphology", block: blockOf(root), gephi };
     ctx.reportNodeIdFrom("graphology", "the node key");
     ctx.sink.reserve(nodes.length, edges.length);
 
@@ -2641,16 +2695,16 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
             ctx.badElement("node", element);
             continue;
         }
-        const id = ctx.coerceId(hasKey(record, "key") ? record.key : undefined, element);
+        const id = ctx.coerceId(hasKey(record, nodeKey) ? record[nodeKey] : undefined, element);
         if (id === null) {
             ctx.countSkipped("node");
             continue;
         }
-        pushNestedNode(ctx, id, record, "attributes", GRAPHOLOGY_NODE_KEYS, element);
+        pushNestedNode(ctx, id, record, "attributes", gephi ? GEPHI_NODE_KEYS : GRAPHOLOGY_NODE_KEYS, element, gephi);
     }
     throwIfAborted(ctx.options.signal);
 
-    const ids = ctx.declareEdgeIds(edges, (edge) => edge.key, "key", true);
+    const ids = ctx.declareEdgeIds(edges, (edge) => (gephi && !hasKey(edge, "key") ? edge.id : edge.key), "key", true);
     // what the edges do against the declared options: graphology itself refuses such a document
     const violations = { selfLoops: 0, parallels: 0, flags: 0 };
     const pairs = multi === false ? new Set<string>() : null;
@@ -2694,7 +2748,16 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
             const idValue = ctx.edgeIdValue(ids, record.key);
             const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(attributes), element);
             ctx.setEdgeId(ids, edge, idValue);
-            ctx.writeNested(ctx.edges, edge, record, attributes, GRAPHOLOGY_EDGE_KEYS, ctx.options.weightFrom, element);
+            ctx.writeNested(
+                ctx.edges,
+                edge,
+                record,
+                attributes,
+                gephi ? GEPHI_EDGE_KEYS : GRAPHOLOGY_EDGE_KEYS,
+                ctx.options.weightFrom,
+                element,
+                gephi,
+            );
             if (allowSelfLoops === false && u === v) {
                 violations.selfLoops++;
             }
@@ -2758,6 +2821,7 @@ function reportGraphologyViolations(
  * @param dictKey - the key of the nested dict
  * @param structural - the element keys that are not attributes
  * @param element - the element name
+ * @param plain - write the element-level keys under their own names
  * @returns the node index, or -1 when skipped
  */
 function pushNestedNode(
@@ -2767,6 +2831,7 @@ function pushNestedNode(
     dictKey: string,
     structural: ReadonlySet<string>,
     element: string,
+    plain = false,
 ): number {
     const index = ctx.pushNode(id, element);
     if (index < 0) {
@@ -2782,7 +2847,7 @@ function pushNestedNode(
                 { element },
             );
         }
-        ctx.writeNested(ctx.nodes, index, record, isJsonObject(dict) ? dict : {}, structural, null, element);
+        ctx.writeNested(ctx.nodes, index, record, isJsonObject(dict) ? dict : {}, structural, null, element, plain);
     } catch (err) {
         ctx.report.recordError(err, { element: String(id) });
     }
@@ -3349,7 +3414,7 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
         ctx.writeGraphDict(root.data, "data");
         const rest: Record<string, unknown> = {};
         for (const key of Object.keys(root)) {
-            if (key !== "elements" && key !== "data") {
+            if (key !== "elements" && key !== "data" && key !== STYLE_BLOCK_NAME) {
                 rest[key] = root[key];
             }
         }
@@ -3360,6 +3425,15 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
         report.fail(JSON_ISSUE.SHAPE, `a Cytoscape document must be an object or an array, found ${describe(root)}`);
     }
     const { nodes, edges } = cytoscapeSections(ctx, elements);
+    const generatedIds = cytoscapeGeneratedIds(nodes);
+    ctx.styleSource = {
+        dialect: "cytoscape",
+        block: blockOf(root),
+        elements: elements ?? [],
+        style: isJsonObject(root) ? root.style : undefined,
+        generatedBy: isJsonObject(root) && typeof root.generated_by === "string" ? root.generated_by : null,
+        generatedIds,
+    };
     ctx.setHeader(ctx.defaultDirected("cytoscape"));
     ctx.reportNodeIdFrom("cytoscape", "data.id");
     ctx.sink.reserve(nodes.length, edges.length);
@@ -3403,7 +3477,8 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
             continue;
         }
         const { data } = record;
-        const id = ctx.coerceId(hasKey(data, "id") ? data.id : undefined, element);
+        // Cytoscape.js gives a node without data.id an id of its own
+        const id = ctx.coerceId(data.id === undefined ? generatedIds.get(record) : data.id, element);
         if (id === null) {
             ctx.countSkipped("node");
             continue;
@@ -3493,7 +3568,11 @@ function resolveCytoscapeParents(
     // the last link per child (a duplicate node's later parent wins), child -> its link
     const linkOf = new Map<number, ParentLink>();
     for (let order = 0; order < parents.length; order++) {
-        const { index, parent, element } = parents[order];
+        const { index, element } = parents[order];
+        let { parent } = parents[order];
+        if (ctx.sink.indexOf(parent) === INVALID_INDEX) {
+            parent = ctx.textualId(parent, element) ?? parent;
+        }
         const parentIndex = ctx.sink.indexOf(parent);
         if (parentIndex === INVALID_INDEX) {
             report.error(
@@ -3580,8 +3659,8 @@ function importCytoscapeEdges(ctx: ImportContext, edges: readonly unknown[], edg
             continue;
         }
         try {
-            const u = ctx.coerceId(data.source, `${element}.data.source`);
-            const v = ctx.coerceId(data.target, `${element}.data.target`);
+            const u = ctx.textualId(data.source, `${element}.data.source`);
+            const v = ctx.textualId(data.target, `${element}.data.target`);
             if (u === null || v === null) {
                 ctx.countSkipped("edge");
                 continue;
@@ -3645,6 +3724,47 @@ function cytoscapeSections(
         return { nodes: [], edges: [] };
     }
     return report.fail(JSON_ISSUE.SHAPE, `elements must be an object or an array, found ${describe(elements)}`);
+}
+
+/**
+ * The ids Cytoscape.js would give the nodes without a `data.id`: `n<k>` by their place among the nodes, made unique
+ * against every id the file states.
+ * @param nodes - the node elements
+ * @returns the generated id of each node element without one
+ */
+function cytoscapeGeneratedIds(nodes: readonly unknown[]): Map<object, string> {
+    const out = new Map<object, string>();
+    const missing = nodes.filter(
+        (n): n is JsonRecord => isJsonObject(n) && isJsonObject(n.data) && n.data.id === undefined,
+    );
+    if (missing.length === 0) {
+        return out;
+    }
+    const taken = new Set<string>();
+    for (const n of nodes) {
+        const id = isJsonObject(n) && isJsonObject(n.data) ? n.data.id : undefined;
+        if (typeof id === "string" || typeof id === "number") {
+            taken.add(String(id));
+        }
+    }
+    for (let k = 0; k < missing.length; k++) {
+        let id = `n${String(k)}`;
+        for (let j = 2; taken.has(id); j++) {
+            id = `n${String(k)}_${String(j)}`;
+        }
+        taken.add(id);
+        out.set(missing[k], id);
+    }
+    return out;
+}
+
+/**
+ * A `graphty.styles` block a document holds as a top-level key, or null.
+ * @param root - the document
+ * @returns the block's text
+ */
+function blockOf(root: unknown): string | null {
+    return isJsonObject(root) && typeof root[STYLE_BLOCK_NAME] === "string" ? root[STYLE_BLOCK_NAME] : null;
 }
 
 /**
@@ -3847,6 +3967,15 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         }
         return reports;
     },
+
+    /**
+     * The document's styles, read by its dialect's reader (Cytoscape.js stylesheets, graphology and vis.js keys,
+     * NetworkX's defaults); a `graphty.styles` block gives back the rules graphty wrote.
+     * @param snapshot - the graph the import built
+     * @param context - the work budget and what the import kept
+     * @returns the styles, or null when the dialect has none
+     */
+    styles: jsonStyles,
 });
 
 /**
@@ -3873,6 +4002,7 @@ function readGraph(
     reportSinkOptions(sink, options, report, dialect === "obographs");
     reportUnusedOptions(options, report, USED_OPTIONS);
     readDialect(ctx, root, dialect);
+    report.keepForStyles(ctx.styleSource ?? { dialect, block: blockOf(root) });
     ctx.reportDangling();
     ctx.nodes.reportNullOnly();
     ctx.edges.reportNullOnly();

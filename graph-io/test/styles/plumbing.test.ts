@@ -169,6 +169,8 @@ describe("what an import keeps for its styles", () => {
         let kept: unknown = "unset";
         const reg = createRegistry().registerImporter({
             ...thirdParty,
+            // a copy of the report: what the JSON import kept stays with the original
+            import: async (input, sink, options) => ({ ...(await jsonImporter.import(input, sink, options)) }),
             styles: (_s, { kept: given }) => {
                 kept = given;
                 return null;

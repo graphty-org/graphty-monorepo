@@ -297,6 +297,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_JSON_INDEX_LINKS"></a>`W_JSON_INDEX_LINKS`: IndexLinks "auto" read integer endpoints as array positions although they also name node ids. Import: [json](./formats/json.md).
 - <a id="W_JSON_NONSTANDARD_NUMBER"></a>`W_JSON_NONSTANDARD_NUMBER`: The document uses the bare tokens NaN, Infinity or -Infinity (Python's json writes them), which strict JSON does not allow; read as the numbers. Import: [json](./formats/json.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md).
 - <a id="W_JSON_OBOGRAPHS_SUBJ"></a>`W_JSON_OBOGRAPHS_SUBJ`: Obographs: an edge uses the outdated `subj` key of the OBO Graphs README; it is read as `sub`. Import: [json](./formats/json.md).
+- <a id="W_JSON_STYLE_KEY_REPLACED"></a>`W_JSON_STYLE_KEY_REPLACED`: Saving with styles: a column named like one of the dialect's style keys (graphology's `color`, `size`, `label`, vis.js's `color`, `shape`, `font`, ...) is written with what graphty draws, so the values it held differ. Save: [json](./formats/json.md).
 - <a id="W_JSON_UNREAD_KEY"></a>`W_JSON_UNREAD_KEY`: A node-link / d3 top-level key the importer does not read (the other of edges / links, an unknown key); it is dropped. Import: [json](./formats/json.md).
 - <a id="W_JSON_UNSUPPORTED"></a>`W_JSON_UNSUPPORTED`: A json column in a format without nested values. Save: any format.
 - <a id="W_LIST_SEPARATOR"></a>`W_LIST_SEPARATOR`: GEXF 1.2 liststring items are separated by `|`; an item containing one cannot be split back. Save: [gexf](./formats/gexf.md).

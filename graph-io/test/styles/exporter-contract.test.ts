@@ -74,12 +74,17 @@ const WRITTEN: { readonly node: readonly StyleProperty[]; readonly edge: readonl
  * @returns the exporter
  */
 function minimal(extra: Partial<GraphExporter> = {}): GraphExporter {
+    // node-link JSON written without the JSON exporter's own styles: this exporter writes none
+    const plain = (o: unknown): Record<string, unknown> => {
+        const { styles: _styles, ...rest } = (o ?? {}) as Record<string, unknown>;
+        return rest;
+    };
     return {
         format: "mine",
         capabilities: jsonExporter.capabilities,
-        check: (s, o) => jsonExporter.check(s, o),
-        export: (s, o) => jsonExporter.export(s, o),
-        exportToString: (s, o) => jsonExporter.exportToString(s, o),
+        check: (s, o) => jsonExporter.check(s, plain(o)),
+        export: (s, o) => jsonExporter.export(s, plain(o)),
+        exportToString: (s, o) => jsonExporter.exportToString(s, plain(o)),
         ...extra,
     };
 }
@@ -203,7 +208,8 @@ describe("what an exporter with a styles member receives", () => {
             },
             exportToString: (s, o) => {
                 input = (o as { styles?: ExporterStyleInput }).styles;
-                return jsonExporter.exportToString(s, o);
+                const { styles: _given, ...rest } = (o ?? {}) as Record<string, unknown>;
+                return jsonExporter.exportToString(s, rest);
             },
         });
         const reg = createRegistry().registerExporter(native);

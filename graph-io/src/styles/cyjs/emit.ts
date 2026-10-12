@@ -683,7 +683,11 @@ export function toCytoscapeStylesheet(
             edge: Array.from({ length: edges }, () => ({})),
         },
         keys: { node: new Map(), edge: new Map() },
-        used: { node: new Set([CYTOSCAPE_IMPORT_KEY]), edge: new Set([CYTOSCAPE_IMPORT_KEY]) },
+        // a flat key never takes the name of a data field the elements already hold
+        used: {
+            node: new Set([CYTOSCAPE_IMPORT_KEY, ...dataNames(extracted, "node")]),
+            edge: new Set([CYTOSCAPE_IMPORT_KEY, ...dataNames(extracted, "edge")]),
+        },
     };
     if (importId !== undefined) {
         for (const rows of [e.data.node, e.data.edge]) {
@@ -776,6 +780,16 @@ function exactness(e: Emit, rules: readonly StyleRule[]): CytoscapePerElement<st
         out[target] = rows;
     }
     return out;
+}
+
+/**
+ * The names of the data columns among the styles' features.
+ * @param extracted - the styles
+ * @param target - nodes or edges
+ * @returns the names
+ */
+function dataNames(extracted: ExtractedStyles, target: StyleTarget): string[] {
+    return extracted.features[target].flatMap((f) => ("data" in f.ref ? [f.ref.data] : []));
 }
 
 /**

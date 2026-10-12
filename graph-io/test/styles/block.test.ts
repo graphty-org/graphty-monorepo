@@ -175,7 +175,9 @@ describe("a block that is not to be trusted", () => {
         const result = await importGraph(doc, { format: "json", styles: true });
         const note = result.styles?.styles.notes.find((n) => n.code === "W_STYLE_BLOCK_IGNORED");
         expect(note?.params.samples).toEqual(["INVALID"]);
-        expect(result.styles?.styles.rules).toEqual([]);
+        // the file is read as NetworkX's node-link, with NetworkX's drawing defaults and nothing else
+        expect(result.styles?.styles.source.tool).toBe("networkx");
+        expect(result.styles?.styles.rules.filter((r) => r.origin !== "tool")).toEqual([]);
     });
 
     it("is ignored when a style column its rules read is missing from the file", () => {

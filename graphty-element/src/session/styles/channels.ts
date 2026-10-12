@@ -605,7 +605,8 @@ function labelFieldChannels<Target extends "node" | "edge">(
     });
     const rows = [
         row("Color", "Color", { accepts: "color" }),
-        row("Size", "Size", { accepts: "number", min: 0 }),
+        // No minimum: a channel takes exactly the numbers its schema path (`label.fontSize`) takes.
+        row("Size", "Size", { accepts: "number" }),
         row("Font", "Font", { accepts: "text" }),
         row("Weight", "Weight", { accepts: "enum", values: LABEL_WEIGHT_VALUES }),
         row("Italic", "Italic", { accepts: "boolean" }),

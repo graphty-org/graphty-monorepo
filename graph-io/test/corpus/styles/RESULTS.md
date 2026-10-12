@@ -173,7 +173,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/generated/networkx-graphics.gml | ok | 24 | 30 | 3 | 2 | 45 | 33% | 0% | 0 | 0 | 0 |  |
 | gml/generated/ogdf-escaped-labels.gml | ok | 25 | 35 | 9 | 6 | 67 | 18% | 4% | 0 | 0 | 0 |  |
 | gml/generated/tamper-block-truncated.gml | ok | 30 | 40 | 8 | 6 | 74 | 24% | 11% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_EXTRA_LABELS |
-| gml/generated/tamper-native-edited.gml | ok | 30 | 40 | 8 | 7 | 74 | 15% | 1% | 0 | 31 | 0 | W_STYLE_EXTRA_LABELS |
+| gml/generated/tamper-native-edited.gml | ok | 30 | 40 | 8 | 7 | 74 | 15% | 1% | 0 | 30 | 0 | W_STYLE_EXTRA_LABELS |
 | gml/generated/tamper-node-added.gml | ok | 31 | 40 | 8 | 6 | 74 | 24% | 11% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_EXTRA_LABELS |
 | gml/generated/yed-labels-and-arrows.gml | ok | 30 | 40 | 7 | 7 | 34 | 0% | 0% | 0 | 332 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
 | gml/spupyrev_bob__need4stacks261.gml | ok | 261 | 777 | 5 | 3 | 153 | 5% | 5% | 0 | 6681 | 0 |  |

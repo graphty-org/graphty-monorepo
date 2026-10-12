@@ -11,6 +11,27 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Starting rows and run placement are built in the element** (commit "starting
+  rows for Everything, Selected and Hovered"). Project settings `startingRows` and `runPlacement`
+  (config keys, so the app turns them on with `config.set` inside the baseline window and they save
+  with the project); `styles.restoreStartingRows()`; selector `{ match: "state", state }` read live
+  from the selection masks and `selection.hovered` (repaints only the changed elements, and does no
+  work while no layer reads state); channels `node.halo*` and `edge.band*` (color takes `"none"`).
+  Why a selector kind and not rule leaves: the "selection" scope resolves edges BETWEEN selected
+  nodes, not the selection's own edge mask, and changing that is breaking; a selector kind needed
+  one switch case instead of seven. Limits: Selected/Hovered cannot be combined inside a rule yet;
+  an empty layer is allowed only for a starting row (owner item); every distinct halo color and
+  opacity mints a cached source mesh (ponytail note in `Node.haloLook`). A starting row is found
+  by its template source, so renames keep it.
+- (2026-10-12) **Placing several new rows in one plan: pin them after all are placed.**
+  `reconcile` normalizes pin bands, so pinning Selected before Hovered was placed put Hovered below
+  it. And `planAddRow`'s minter reads `current()`, not the working stack: give rows distinct names.
+- (2026-10-12) **Browser tests that click: keep the element inside 414 px wide** (the test frame);
+  a 640-px canvas took clicks outside the frame and selected nothing while hover still worked.
+- (2026-10-12) **Isolating my hunks when HEAD moves under me:** snapshot the files before editing;
+  my patch = diff(snapshot, mine); when another commit lands, rebase it with diff(oldHEAD:file,
+  mine) applied to the new HEAD; commit from a temp `GIT_INDEX_FILE`, then point the main index at
+  the new HEAD blobs with `update-index --cacheinfo` (no reset).
 - (2026-10-12) **Glyphs and label looks are in the element's catalog** (`catalog/shapes.ts`,
   `catalog/label-looks.ts`). Glyph tables are rows `[id, plainName, svgBody]`, not objects keyed by
   value, because snake-case shape ids break `camelcase` and prettier strips quotes; completeness is

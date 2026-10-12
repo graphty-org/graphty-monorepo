@@ -1211,8 +1211,9 @@ this repository a message asking whose it is. If it is yours, call `githerd_mine
 (or claim its job); otherwise ignore the message. With no answer in 10 minutes githerd offers it as
 a job.
 githerd also infers each pull request's owner from pushes and worktrees, and asks the owner of a
-broken one "are you fixing it?": keep it with `githerd_mine`, give it up with `githerd disown`, or
-it is released to other sessions. A session without the githerd tools answers the same questions
+broken one "are you fixing it?": keep it by claiming its queued job (`githerd_mine` keeps it only
+when no job is queued for it), give it up with `githerd disown`, or it is released to other
+sessions. A session without the githerd tools answers the same questions
 from its shell, with the command line the message prints (`node <githerd>/bin/githerd.mjs mine
 <pr>` or `... disown <pr>`); the command acts only for the session it runs under.
 While your session holds a job, githerd asks it where the job stands every 15 minutes

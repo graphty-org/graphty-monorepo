@@ -102,6 +102,10 @@ describe("a durable owner record", () => {
             { kind: "pr-owner-dropped", pr: 710, session: "s1", name: "graphty-13", reason: "closed" },
         ]);
         expect(state.prOwners).toEqual({});
+        // Its stuck question goes too, so a reopened #710 is asked afresh.
+        state.brokenAsks = { 710: { head: HEAD, session: "s1", why: "x", at: NOW.toISOString(), heard: true } };
+        await statusStep(state, fake().opts({ minutes: 15 }));
+        expect(state.brokenAsks).toEqual({});
     });
 });
 
@@ -1079,9 +1083,14 @@ describe("telling an owner session that the job it held was cancelled", () => {
 describe("asking the owner of a broken pull request whether it is fixing it", () => {
     const at = (/** @type {string} */ hm) => new Date(`2026-10-05T${hm}:00Z`);
     const QUESTION =
+        "githerd: #710 is stuck: required check failing: All Checks Pass, and job pr-710 to fix it is queued, " +
+        "offered to this session first. To take it, claim pr-710 with githerd_claim and fix it; saying it is " +
+        "yours (githerd_mine) does not keep a stuck pull request. Unclaimed and unpushed when githerd asks " +
+        "again in 15 minutes, it goes to other sessions (`githerd disown 710` releases it now).";
+    const NO_JOB_QUESTION =
         "githerd: #710 is stuck: required check failing: All Checks Pass. Are you fixing it? " +
         "To keep it, call the githerd_mine tool with pr 710, or without githerd's tools run `githerd mine 710` " +
-        "from your shell (or githerd_claim pr-710); any other answer, or none, " +
+        "from your shell; any other answer, or none, " +
         "releases it to other sessions (`githerd disown 710` releases it now).";
     /**
      * #710 failing, inferred to be graphty-14's (it last pushed), with its pr job queued.
@@ -1094,6 +1103,12 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         state.prInferred = { 710: { session: "s2", name: "graphty-14", evidence: "pushed" } };
         return state;
     };
+    /**
+     * #710 as `owned`, with no job queued to fix it (its files not read yet, or its job failed):
+     * then saying it is its own is the only claim there is, and keeps it.
+     * @returns {any} the state
+     */
+    const unqueued = () => Object.assign(owned(), { jobs: {} });
     // The owner is outside workers.sessions: the question is about its own pull request.
     const opts = (/** @type {any} */ f, /** @type {any} */ over = {}) =>
         f.opts({ minutes: 15, sessions: () => [], owners: () => SESSIONS, ...over });
@@ -1133,6 +1148,72 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(state.prWaits).toEqual({});
     });
 
+    it("tells a session waiting for a pull request to merge, once per head and reason, that it cannot (#2081)", async () => {
+        const f = fake();
+        const state = owned();
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        // graphty-14 waits for #1520 with #710; graphty-13 holds a job that waits for it too.
+        state.prWaits = {
+            710: { session: "s2", name: "graphty-14", merge: "1520", reason: "x", at: at("12:01").toISOString() },
+        };
+        const job = newJob({ kind: "issue", target: "#5", id: "issue-5" }, at("11:00"));
+        move(job, "starting", at("11:00"), { holder: { session: "s1", startedBy: "owner" } });
+        move(job, "working", at("11:01"));
+        move(job, "waiting", at("11:02"), { waitingFor: { merge: "1520", reason: "after #1520" } });
+        state.jobs["issue-5"] = job;
+        state.prs[1520] = {
+            headSha: "c".repeat(40),
+            headRef: "fix/x",
+            baseRef: "master",
+            required: {},
+            conflictSightings: 2,
+        };
+        state.jobs["pr-1520"] = Object.assign(newJob({ kind: "pr", target: "#1520", id: "pr-1520" }, at("12:04")), {
+            pr: 1520,
+        });
+        const lines = await statusStep(state, opts(f, { now: at("12:05") }));
+        const why =
+            "#1520 cannot merge as it stands: conflicting with master. Waiting alone will not end this wait: " +
+            "fix #1520 (job pr-1520), or wait on something else.";
+        expect(f.sent.slice(1)).toEqual([
+            ["/s1.sock", `githerd: issue-5 waits for #1520 to merge, but ${why}`],
+            ["/s2.sock", `githerd: #710 waits for #1520 to merge, but ${why}`],
+        ]);
+        expect(lines).toContainEqual({
+            kind: "merge-wait-blocked",
+            waiter: "#710",
+            merge: "1520",
+            why: "conflicting with master",
+        });
+        expect(job.news.at(-1)).toMatchObject({ text: why, acked: false });
+        // The waits stay, and nobody is told again for the same head and reason.
+        expect(job.state).toBe("waiting");
+        await statusStep(state, opts(f, { now: at("12:30") }));
+        expect(f.sent).toHaveLength(3);
+        // Mergeable again, then failing a check: told again, with the new reason.
+        state.prs[1520].conflictSightings = 0;
+        await statusStep(state, opts(f, { now: at("12:31") }));
+        state.prs[1520].required = { "All Checks Pass": "FAILURE" };
+        await statusStep(state, opts(f, { now: at("12:32") }));
+        expect(f.sent).toHaveLength(5);
+        expect(f.sent[4][1]).toContain("#1520 cannot merge as it stands: required check failing: All Checks Pass");
+
+        // In dry-run: the news line and a would-do, no message.
+        const dry = owned();
+        const g = fake();
+        dry.prWaits = {
+            710: { session: "s2", name: "graphty-14", merge: "1520", reason: "x", at: at("12:01").toISOString() },
+        };
+        dry.prs[1520] = { headSha: "c".repeat(40), required: {}, conflictSightings: 2 };
+        const dryLines = await statusStep(dry, opts(g, { now: at("12:05"), acting: false }));
+        expect(g.sent).toEqual([]);
+        expect(dryLines).toContainEqual({
+            kind: "would-do",
+            group: "workers",
+            op: "tell graphty-14 that #1520 cannot merge",
+        });
+    });
+
     it("releases it when the question goes unanswered, and offers the pr job until a new push", async () => {
         const f = fake();
         const state = owned();
@@ -1156,9 +1237,9 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(f.sent).toHaveLength(2);
     });
 
-    it("keeps it when the owner claims it with githerd_mine, and asks again each interval", async () => {
+    it("keeps it when the owner claims it with githerd_mine while no job is queued, and asks again each interval", async () => {
         const f = fake();
-        const state = owned();
+        const state = unqueued();
         await statusStep(state, opts(f, { now: at("12:00") }));
         markMine(state, 710, { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" });
         // The explicit claim holds, and is asked about like a held job.
@@ -1171,12 +1252,44 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
             { kind: "pr-released", pr: 710, session: "s2" },
         ]);
         expect(state.prOwners).toEqual({});
-        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:30") })).toBeNull();
+        expect(prInUse(state, 710, { now: at("12:30") })).toBeNull();
+    });
+
+    it("offers its queued job to the owner first: githerd_mine does not keep it, a claim of the job does (#2081)", async () => {
+        const f = fake();
+        const state = owned();
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        expect(f.sent).toEqual([["/s2.sock", QUESTION]]);
+        // The owner may take its job, and nobody else may, until the next question.
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:05"), session: "s2" })).toMatch(/^yours:/);
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:05"), session: "s1" })).toMatch(/graphty-14/);
+        // It says the pull request is its own and does nothing more: released at the next question.
+        markMine(state, 710, { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" });
+        expect(await statusStep(state, opts(f, { now: at("12:15") }))).toEqual([
+            {
+                kind: "pr-released",
+                pr: 710,
+                head: HEAD,
+                session: "s2",
+                reason: "no claim in answer to the question of 2026-10-05T12:00:00.000Z",
+            },
+        ]);
+        expect(state.prOwners).toEqual({});
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:15"), session: "s1" })).toBeNull();
+        expect(f.sent).toHaveLength(1);
+
+        // Another owner claims the job in its window: in flight, so it is neither asked nor released.
+        const claimed = owned();
+        await statusStep(claimed, opts(f, { now: at("12:00") }));
+        move(claimed.jobs["pr-710"], "starting", at("12:06"), { holder: { session: "s2", startedBy: "owner" } });
+        expect(await statusStep(claimed, opts(f, { now: at("12:15") }))).toEqual([]);
+        expect(claimed.brokenAsks).toEqual({});
+        expect(prInUse(claimed, 710, { now: at("12:15"), session: "s1" })).toBe("claimed by session s2");
     });
 
     it("asks the stuck question once; after a claim it sends the status question, never the release threat", async () => {
         const f = fake();
-        const state = owned();
+        const state = unqueued();
         await statusStep(state, opts(f, { now: at("12:00") }));
         markMine(state, 710, { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" });
         for (const hm of ["12:15", "12:30", "12:45"]) {
@@ -1184,7 +1297,7 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
             markMine(state, 710, { session: "s2", name: "graphty-14", at: at(hm).toISOString(), by: "tool" });
         }
         expect(f.sent.map(([, text]) => text)).toEqual([
-            QUESTION,
+            NO_JOB_QUESTION,
             ...Array(3).fill(
                 "githerd: status check on #710 (stuck: required check failing: All Checks Pass), which this session " +
                     "claimed. Still working on it? To answer, call the githerd_mine tool with pr 710, or without " +
@@ -1196,12 +1309,12 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         state.prs[710].headSha = "b".repeat(40);
         await statusStep(state, opts(f, { now: at("12:46") }));
         await statusStep(state, opts(f, { now: at("13:01") }));
-        expect(f.sent.at(-1)?.[1]).toBe(QUESTION);
+        expect(f.sent.at(-1)?.[1]).toBe(NO_JOB_QUESTION);
     });
 
     it("does not ask about a claimed pull request while a push of its branch is in the push queue", async () => {
         const f = fake();
-        const state = owned();
+        const state = unqueued();
         await statusStep(state, opts(f, { now: at("12:00") }));
         markMine(state, 710, { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" });
         await statusStep(state, opts(f, { now: at("12:15") }));
@@ -1260,9 +1373,11 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(f.sent).toEqual([
             [
                 "/s2.sock",
-                "githerd: #710 is stuck: required check failing: All Checks Pass. Are you fixing it? This session " +
-                    `has no githerd tools, so answer from your shell: run \`${cli} mine 710\` to keep it, or ` +
-                    `\`${cli} disown 710\` to release it to other sessions now. No answer releases it too.`,
+                "githerd: #710 is stuck: required check failing: All Checks Pass, and job pr-710 to fix it is " +
+                    `queued, offered to this session first. To take it, run \`${cli} next\` from your shell and ` +
+                    `claim pr-710 with \`${cli} claim\` as it says; saying it is yours (githerd_mine) does not keep ` +
+                    "a stuck pull request. Unclaimed and unpushed when githerd asks again in 15 minutes, it goes to " +
+                    `other sessions (\`${cli} disown 710\` releases it now).`,
             ],
         ]);
         expect(prInUse(state, 710, { now: at("12:00") })).toBe("session graphty-14 owns it (pushed)");
@@ -1275,7 +1390,7 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
 
     it("keeps it for an owner without githerd's tools that answers with githerd mine from its shell", async () => {
         const f = fake();
-        const state = owned();
+        const state = unqueued();
         state.prInferred[710].noTools = true;
         await statusStep(state, opts(f, { now: at("12:00") }));
         const by = { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "session" };
@@ -1314,7 +1429,7 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
 
     it("holds an explicit claim while each question is answered, and names a new failing check", async () => {
         const f = fake();
-        const state = owned();
+        const state = unqueued();
         for (const hm of ["12:00", "12:15", "12:30", "12:45"]) {
             expect(await statusStep(state, opts(f, { now: at(hm) }))).toMatchObject([{ kind: "status-asked" }]);
             const by = { session: "s2", name: "graphty-14", at: at(hm).toISOString(), by: "tool" };
@@ -1425,10 +1540,10 @@ describe("a stuck pull request an old push holds", () => {
         expect(f.sent).toEqual([
             [
                 "/2d.sock",
-                "githerd: #1167 is stuck: conflicting with master. Are you fixing it? To keep it, call the " +
-                    "githerd_mine tool with pr 1167, or without githerd's tools run `githerd mine 1167` from your " +
-                    "shell (or githerd_claim pr-1167); any other answer, or none, releases it to other sessions " +
-                    "(`githerd disown 1167` releases it now).",
+                "githerd: #1167 is stuck: conflicting with master, and job pr-1167 to fix it is queued, offered " +
+                    "to this session first. To take it, claim pr-1167 with githerd_claim and fix it; saying it is " +
+                    "yours (githerd_mine) does not keep a stuck pull request. Unclaimed and unpushed when githerd " +
+                    "asks again in 15 minutes, it goes to other sessions (`githerd disown 1167` releases it now).",
             ],
         ]);
         // Held while the question is open.
@@ -1453,8 +1568,8 @@ describe("a stuck pull request an old push holds", () => {
         await statusStep(state, opts(f, { now: t("2026-10-07T05:40:00Z") }));
         expect(f.sent).toHaveLength(1);
         expect(f.sent[0][0]).toBe("/7c.sock");
-        expect(f.sent[0][1]).toContain("#1267 is stuck: required check failing: All Checks Pass. Are you fixing it?");
-        expect(f.sent[0][1]).toContain("`githerd mine 1267`");
+        expect(f.sent[0][1]).toContain("#1267 is stuck: required check failing: All Checks Pass, and job pr-1267");
+        expect(f.sent[0][1]).toContain("`githerd next`");
         expect(await statusStep(state, opts(f, { now: t("2026-10-07T05:55:00Z") }))).toMatchObject([
             { kind: "pr-released", pr: 1267, session: "s7c" },
         ]);

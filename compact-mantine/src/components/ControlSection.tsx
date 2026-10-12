@@ -44,9 +44,10 @@ export interface ControlSectionProps extends DisclosureProps {
     /**
      * Whether the section is set up at all.
      *
-     * An empty section is drawn as one 32px row: the name in the secondary text
-     * color, no chevron, and a single "+" in the trailing slot. It shows no
-     * content and no empty-state sentence, and its children are not rendered.
+     * An empty section is drawn as its 40px header alone, with the 1px rule
+     * below it (41px in all): the name in the secondary text color, no chevron,
+     * and a single "+" in the trailing slot. It shows no content and no
+     * empty-state sentence, and its children are not rendered.
      *
      * The dimmed name is never the only thing that says so. The chevron is
      * gone, the "+" is there, and the group holds nothing, so the state still

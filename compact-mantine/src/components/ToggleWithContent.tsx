@@ -37,7 +37,7 @@ const INLINE_GAP = 4;
  * as the row.
  *
  * WCAG 2.2 target size (2.5.8): the word is drawn at 11px, and stretching its
- * line box to the row pitch makes the clickable area 24px tall rather than the
+ * line box to the row pitch makes the clickable area 32px tall rather than the
  * 13px a 1.2 line height would give it.
  */
 const LABEL_LINE_HEIGHT = `${String(PANEL_GRID.TOGGLE_PITCH)}px`;
@@ -147,7 +147,7 @@ export interface ToggleWithContentProps {
  * 1. **The verb is deleted from the label.** The checkbox already says
  *    "enable", so `Enable glow` is written `Glow`.
  * 2. **A boolean with nothing underneath it is not this component.** Use
- *    `ToggleRow`, which packs a lone boolean onto a 24px row with a slot at its
+ *    `ToggleRow`, which packs a lone boolean onto a 32px row with a slot at its
  *    end, and use two or more of those inside a `ToggleRowGroup`.
  *
  * The checkbox says out loud that it opens something: it is marked as expanded

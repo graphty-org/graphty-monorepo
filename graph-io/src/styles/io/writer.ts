@@ -10,11 +10,13 @@ import { agree, plural } from "../../common/plural.js";
 import type { GraphExporter, LossNote } from "../../types.js";
 import { STYLE_ISSUE } from "../codes.js";
 import { styleFingerprint } from "../plan/features.js";
-import { resolveStyles } from "../plan/resolve.js";
+import { canonicalFor, degreeValues, plainCell, resolveStyles } from "../plan/resolve.js";
 import type {
     ExtractedStyles,
+    Mapping,
     StyleColumn,
     StyleProperty,
+    StyleRule,
     StyleTarget,
     StyleValue,
     StyleWriteCapabilities,
@@ -78,16 +80,18 @@ const TARGETS: readonly StyleTarget[] = ["node", "edge"];
  * `options.styles`, and the snapshot to write.
  * @param snapshot - the graph being written
  * @param exporter - the format's exporter
- * @param extracted - the styles
+ * @param given - the styles
+ * @param plain - the export's other options, which decide what the format loses of the graph's data
  * @returns what to write and what is lost
  */
 export function prepareStyleExport(
     snapshot: GraphSnapshot,
     exporter: GraphExporter,
-    extracted: ExtractedStyles,
+    given: ExtractedStyles,
+    plain?: Readonly<Record<string, unknown>>,
 ): PreparedStyleExport {
     const fp = styleFingerprint(snapshot);
-    const want = extracted.fingerprint;
+    const want = given.fingerprint;
     if (fp.nodes !== want.nodes || fp.edges !== want.edges || fp.ids !== want.ids) {
         return {
             snapshot,
@@ -102,6 +106,7 @@ export function prepareStyleExport(
         };
     }
     const caps = exporter.styles?.capabilities ?? null;
+    const extracted = keepsStyleBlock(exporter) ? withLostInputsCarried(given, snapshot, exporter, plain) : given;
     const pictures = new Map<string, readonly (StyleValue | null)[]>();
     const picture = (target: StyleTarget, property: StyleProperty): readonly (StyleValue | null)[] => {
         const key = `${target}\u0000${property}`;
@@ -125,6 +130,117 @@ export function prepareStyleExport(
         notes: lossNotes(extracted, exporter, caps, picture, snapshot),
         refusal: null,
     };
+}
+
+/** Loss notes that name columns the format still writes, elsewhere. */
+const COLUMNS_KEPT_ELSEWHERE: ReadonlySet<string> = new Set(["W_CSV_NODE_TABLE"]);
+
+/**
+ * The styles with every input the format will not read back as it is given carried as a style column of its own: a
+ * data column the export drops or changes (its loss notes name it, or the format writes its label slot from the
+ * styles), and the in and out degrees when the file does not keep the edges' direction. The rules then read the
+ * copies, which the file keeps beside the block, and give back the same values.
+ * @param extracted - the styles
+ * @param snapshot - the graph
+ * @param exporter - the exporter
+ * @param plain - the export's options without styles
+ * @returns the styles, the same object when nothing is lost
+ */
+function withLostInputsCarried(
+    extracted: ExtractedStyles,
+    snapshot: GraphSnapshot,
+    exporter: GraphExporter,
+    plain: Readonly<Record<string, unknown>> | undefined,
+): ExtractedStyles {
+    let notes: readonly LossNote[];
+    try {
+        notes = exporter.check(snapshot, plain);
+    } catch {
+        return extracted;
+    }
+    const lost = new Set<string>();
+    let direction = false;
+    for (const note of notes) {
+        if (!COLUMNS_KEPT_ELSEWHERE.has(note.code)) {
+            for (const name of note.columns ?? (note.column === null ? [] : [note.column])) {
+                lost.add(name);
+            }
+        }
+        direction ||= /DIRECTION/.test(note.code);
+    }
+    const caps = exporter.styles?.capabilities;
+    const rules: StyleRule[] = [];
+    const columns = { node: new Map(extracted.columns.node), edge: new Map(extracted.columns.edge) };
+    let changed = false;
+    for (const rule of extracted.styles.rules) {
+        const table = rule.target === "node" ? snapshot.nodes : snapshot.edges;
+        const n = rule.target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        // the label slot written from the styles takes the place of the label column
+        const label = caps?.[rule.target].includes("label") === true ? table.byRole("label")?.meta.name : undefined;
+        const held = columns[rule.target];
+        // one copy per input, shared by every rule that reads it
+        const carry = (base: string, values: () => StyleColumn): { style: string } => {
+            const key = `input.${base}`;
+            if (!held.has(key)) {
+                held.set(key, values());
+            }
+            return { style: key };
+        };
+        const isLost = (name: unknown): name is string =>
+            typeof name === "string" && (lost.has(name) || name === label) && table.has(name);
+        const cells = (name: string, read: (raw: unknown) => StyleValue | null): StyleColumn =>
+            Array.from({ length: n }, (_u, i) => read(plainCell(table.value(name, i))));
+        const { ext, ...given } = rule;
+        let touched = false;
+        // a passthrough reads a data column as the property's value: its copy holds those values
+        const map = Object.create(null) as Record<string, Mapping>;
+        for (const [property, mapping] of Object.entries(given.map ?? {})) {
+            const by = mapping?.by as { data?: unknown } | undefined;
+            if (mapping?.kind === "passthrough" && isLost(by?.data)) {
+                const name = by.data;
+                touched = true;
+                const canon = canonicalFor(rule.target, property);
+                map[property] = { ...mapping, by: carry(`${property}.data.${name}`, () => cells(name, canon)) };
+            } else if (mapping !== undefined) {
+                map[property] = mapping;
+            }
+        }
+        const rest = given.map === undefined ? given : { ...given, map };
+        const text = JSON.stringify(rest, (_k, v: unknown) => {
+            if (typeof v !== "object" || v === null || Array.isArray(v) || Object.keys(v).length !== 1) {
+                return v;
+            }
+            const ref = v as { data?: unknown; computed?: unknown };
+            if (isLost(ref.data)) {
+                const name = ref.data;
+                touched = true;
+                return carry(`data.${name}`, () => cells(name, (raw) => (isStyleScalar(raw) ? raw : null)));
+            }
+            if ((ref.computed === "indegree" || ref.computed === "outdegree") && direction && rule.target === "node") {
+                const which = ref.computed;
+                touched = true;
+                return carry(`computed.${which}`, () => degreeValues(snapshot, which));
+            }
+            return v;
+        });
+        if (touched) {
+            changed = true;
+            const moved = JSON.parse(text) as StyleRule;
+            rules.push(ext === undefined ? moved : { ...moved, ext });
+        } else {
+            rules.push(rule);
+        }
+    }
+    return changed ? { ...extracted, styles: { ...extracted.styles, rules }, columns } : extracted;
+}
+
+/**
+ * Whether a cell is a value a style column holds: text, a finite number or a boolean.
+ * @param v - the cell
+ * @returns true for a scalar
+ */
+function isStyleScalar(v: unknown): v is StyleValue {
+    return typeof v === "string" || typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v));
 }
 
 /**

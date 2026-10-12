@@ -73,17 +73,7 @@ function writerFor(format: string, snapshot: GraphSnapshot): StyleWriter | null 
  * Round trips that do not hold yet, by `<input> > <format>`, with the cause: each runs as an expected failure, so the
  * fix turns it red until it is removed from here.
  */
-const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map(
-    ["cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx", "cx2/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx2"].map(
-        (input) => [
-            `${input} > pajek`,
-            // the file has both a label column ("name") and a column named "label": Pajek writes the first as the
-            // vertex label and the second as a parameter its importer also reads as the label, so "name" is lost
-            // (W_ROLE_ASSUMED), and so is the width mapping that reads it, with no style note saying so
-            "a rule reads a column the format loses",
-        ],
-    ),
-);
+const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map();
 
 /**
  * One styled input per corpus format: its smallest committed file whose styles have rules beyond the defaults.

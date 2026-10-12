@@ -757,9 +757,16 @@ function compareRules(written: ExtractedStyles, read: ExtractedStyles, excused: 
             rules
                 .filter((r) => r.role !== "exceptions")
                 .map(({ ext, ...r }) => ({
+                    // a data column may come back under another name, or as the copy the writer carried for a
+                    // format that loses it (a style column `input.<...>`): the rule reads the same values
                     ...(JSON.parse(
                         JSON.stringify(r, (_k, v: unknown) =>
-                            v !== null && typeof v === "object" && Object.keys(v).length === 1 && "data" in v
+                            v !== null &&
+                            typeof v === "object" &&
+                            Object.keys(v).length === 1 &&
+                            ("data" in v ||
+                                ("computed" in v && v.computed !== "degree") ||
+                                ("style" in v && String(v.style).startsWith("input.")))
                                 ? { data: "" }
                                 : v,
                         ),

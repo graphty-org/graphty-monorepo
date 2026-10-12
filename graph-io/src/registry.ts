@@ -741,7 +741,7 @@ export class FormatRegistry {
         }
         const exporter = this.exporter(format);
         const { styles: _given, ...rest } = options as ExportGraphOptions;
-        const prepared = prepareStyleExport(snapshot, exporter, styles);
+        const prepared = prepareStyleExport(snapshot, exporter, styles, rest);
         return {
             exporter,
             snapshot: prepared.snapshot,

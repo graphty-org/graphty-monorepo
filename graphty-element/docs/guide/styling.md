@@ -177,7 +177,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.opacity`      | 0 to 1                                                             |
 | `node.outline`      | a colour                                                           |
 | `node.glow`         | a colour                                                           |
-| `node.glowStrength` | a number                                                           |
+| `node.glowStrength` | a number that scales `node.glow`; on its own it draws no glow      |
 | `node.wireframe`    | true or false                                                      |
 | `node.flat`         | true or false                                                      |
 

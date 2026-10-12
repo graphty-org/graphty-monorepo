@@ -11,6 +11,28 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Colors across rows and an effect's off value are built in the element**
+  (`styles.colors`, `styles.replaceColor`, `session/styles/colors.ts`; `ChannelDescriptor.off`).
+  Colors are fixed writes only (set, literal binding, `map` entry), keyed by `toColorValue().hex`
+  so spellings merge; a folder id reaches every layer in it, a layer id both parts of its row.
+  Replace is a `{ batch }` edit: `edit()` runs the commands in one `dispatcher.transaction`, which
+  joins a caller's own transaction; reader-locked layers are skipped. Off is `"none"` on outline
+  and glow (an `OFF_COLOR` sentinel whose hex is "none": the painter writes nothing, the mesh key
+  pushes absent) and `0` on `edge.animationSpeed`. Why a descriptor field and no new value type:
+  `ChannelValues` stays `ColorValue`, so no reader of a resolved color changes. Owed: the halo and
+  band channels (starting rows, landed beside this) need `off: EFFECT_OFF` too.
+  `ColorWrite.value` is `string | number | boolean`, not `string`: the API report's plain-string
+  check refuses a bare string on anything a session method returns.
+- (2026-10-12) **The shared worktree moved twice during one unit.** Two commits landed between my
+  isolated build and staging, so the first build was on a stale HEAD (177 foreign lines in one
+  file). Record the base sha with the build and refuse to stage when HEAD moved; replay edits as
+  anchored insertions, never whole-file copies, once another agent touches a file (doors.ts and
+  the cost lists gained starting-rows hunks mid-unit). `eslint --fix` on a shared file also edits
+  the other agent's half-written code: lint only my own files, or revert what it touched.
+- (2026-10-12) **A glow over a light canvas is pink, not magenta**: count pixels with red and blue
+  30 above green (`test/browser/effect-off-covers.test.ts`), not a full-magenta threshold (it
+  counted 0).
+
 - (2026-10-12) **Per-value entries replace the split** (`styles.categories(layer, channel)`,
   `styles.setValueEntry(layer, channel, value, entry)`; `session/styles/values.ts`). No split
   command, row or field: a community is a category row of its binding (design decision 1.7). On

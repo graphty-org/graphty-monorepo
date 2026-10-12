@@ -84,6 +84,8 @@ export function snapshotBlock(snapshot: GraphSnapshot): string | null {
 export interface CxStyleSource {
     /** The entries, in file order. */
     readonly entries: readonly unknown[];
+    /** How many other views the file styles, whose entries were left out. */
+    readonly otherViews?: number;
 }
 
 /** What a CX2 import keeps for its styles. */
@@ -182,6 +184,13 @@ export function readCxStyles(snapshot: GraphSnapshot, context: StyleReadContext)
     const notes = new StyleNotes();
     const kept = context.kept as CxStyleSource | undefined;
     const style = cytoscapeStyleFromCx(kept?.entries ?? [], notes);
+    const otherViews = kept?.otherViews ?? 0;
+    if (otherViews > 0) {
+        notes.add(STYLE_ISSUE.OTHER_VIEWS, null, "cyVisualProperties", {
+            sample: `${otherViews} more`,
+            count: otherViews,
+        });
+    }
     return readDeclaredStyles(snapshot, context, style, "cx.bypass", notes);
 }
 

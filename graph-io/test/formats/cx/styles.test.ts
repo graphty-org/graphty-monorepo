@@ -77,6 +77,12 @@ describe("reading CX styles", () => {
         expect(ex.styles.graph.background).toBe("#eeeeee");
     });
 
+    it("reads the first view of a file with several and notes the others", async () => {
+        const { styles } = await load(new Uint8Array(readFileSync(resolve(FIXTURES, "cx/cx2js/5views1network.cx"))));
+        const note = (styles as ExtractedStyles).styles.notes.find((n) => n.code === "W_STYLE_OTHER_VIEWS");
+        expect(note?.params.count).toBe(4);
+    });
+
     const keys = Object.keys(GOLDEN.files).filter((k) => k.startsWith("cx/"));
     it.each(keys)("reads %s as the prototype resolved it", async (key) => {
         const path = resolve(FIXTURES, key);

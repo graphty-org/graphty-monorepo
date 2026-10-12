@@ -2861,14 +2861,22 @@ class CxReader {
         // the graph's own view (its first): the one its positions come from; the others stay in meta.extra.cx
         const views = new Set(this.plan.views.slice(0, 1));
         // the style reader gets the entries of this graph's view (and those naming no view)
-        const source: CxStyleSource = {
+        const others = new Set<unknown>();
+        let source: CxStyleSource = {
             entries: entries
                 .map((h) => h.value)
                 .filter((v) => {
                     const view = isRecord(v) && v.view !== undefined && v.view !== null ? refId(v.view) : null;
-                    return view === null || views.size === 0 || views.has(view);
+                    const kept = view === null || views.size === 0 || views.has(view);
+                    if (!kept) {
+                        others.add(view);
+                    }
+                    return kept;
                 }),
         };
+        if (others.size > 0) {
+            source = { ...source, otherViews: others.size };
+        }
         this.report.keepForStyles(source);
         const columns = { node: new Map<string, [number, string][]>(), edge: new Map<string, [number, string][]>() };
         const network = new Map<string, string>();

@@ -25,8 +25,10 @@ import {
 import { handMade } from "./hand-made.js";
 import {
     corpusFiles,
+    fileInput,
     formatInputs,
     type LoadedGraph,
+    readCorpusFile,
     roundTrip,
     STYLE_CORPUS,
     styleFormats,
@@ -257,5 +259,30 @@ describe("what keeps styles across formats", () => {
     it("a rule over a boolean column selects the same elements when a format writes booleans as 1 and 0", () => {
         const read = three([1, 2, 3], "name", [1, 0, 1]);
         expect(resolveStyles(labelled(read), "node", "visible", read)).toEqual([false, null, false]);
+    });
+});
+
+describe("a file graphty wrote whose block was set aside", async () => {
+    const json = registered.find((f) => f.name === "json") ?? { name: "json" };
+    const files = [
+        "json/generated/graphology-tamper-node-added.json",
+        "json/generated/graphology-tamper-block-truncated.json",
+    ];
+
+    describe.each(files.map((f) => [f] as const))("%s", async (file) => {
+        const { bytes, filename } = readCorpusFile(`${STYLE_CORPUS}/${file}`);
+        const loaded = await fileInput(json, file, bytes, filename).load();
+        const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report) as ExtractedStyles;
+
+        // its old per-element style values are data now: the new ones replace them, so each writer reads back the
+        // styles extracted now, not the old values
+        for (const format of styled) {
+            it(`written as ${format} reads back as the styles extracted now`, async () => {
+                const writer = writerFor(format, loaded.snapshot);
+                if (writer !== null) {
+                    expect(await roundTrip(writer, loaded, ex)).toEqual([]);
+                }
+            });
+        }
     });
 });

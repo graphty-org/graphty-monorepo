@@ -165,7 +165,7 @@ function writePlan(
     }
     const block = writeStyleBlock(extracted, { snapshot });
     return {
-        snapshot: styledSnapshot(snapshot, caps, tags, block),
+        snapshot: styledSnapshot(snapshot, caps, tags, block, extracted.styles.rules),
         input: exporter.styles === undefined ? null : { picture, block, tags, rules: extracted },
         extracted,
         picture,
@@ -471,8 +471,17 @@ function styledSnapshot(
     caps: StyleWriteCapabilities | null,
     tags: { readonly node: ReadonlyMap<string, StyleColumn>; readonly edge: ReadonlyMap<string, StyleColumn> },
     block: string,
+    rules: readonly StyleRule[],
 ): GraphSnapshot {
     const attributes = caps?.block === "attributes";
+    // the per-element style values of an earlier write whose block was set aside are data now; these styles write
+    // their own under the same names, so the old ones go, unless these styles read them as data
+    const stale = (table: GraphSnapshot["nodes"], target: StyleTarget): string[] => {
+        const read = dataRead(rules, target);
+        return Array.from(table.names()).filter((name) => isStyleTagName(name) && !read.has(name));
+    };
+    const nodeStale = stale(snapshot.nodes, "node");
+    const edgeStale = stale(snapshot.edges, "edge");
     // a format that writes the label from the styles has its label slot taken: the label column is data there too
     const roled = (table: GraphSnapshot["nodes"], target: StyleTarget): string[] =>
         Array.from(table.names()).filter((name) => {
@@ -483,12 +492,27 @@ function styledSnapshot(
     const edgeRoles = roled(snapshot.edges, "edge");
     // the block of an earlier import is replaced by the one these styles write, wherever the format puts that
     const staleBlock = snapshot.graph.has(STYLE_BLOCK_NAME);
-    if (!attributes && !staleBlock && nodeRoles.length === 0 && edgeRoles.length === 0) {
+    if (
+        !attributes &&
+        !staleBlock &&
+        nodeRoles.length === 0 &&
+        edgeRoles.length === 0 &&
+        nodeStale.length === 0 &&
+        edgeStale.length === 0
+    ) {
         return snapshot;
     }
     const out = snapshot.withColumns();
     if (staleBlock) {
         out.graph.remove(STYLE_BLOCK_NAME);
+    }
+    for (const [table, names] of [
+        [out.nodes, nodeStale],
+        [out.edges, edgeStale],
+    ] as const) {
+        for (const name of names) {
+            table.remove(name);
+        }
     }
     for (const [table, names] of [
         [out.nodes, nodeRoles],
@@ -521,6 +545,37 @@ function styledSnapshot(
             }
         }
         out.graph.set(STYLE_BLOCK_NAME, [block], { dtype: "string" });
+    }
+    return out;
+}
+
+/**
+ * Whether a column name is one graphty writes per-element style values under: `graphty.style.<target>.<key>`, or
+ * `graphty_style_<...>` where the format allows no dots in a name (GML, Cytoscape.js).
+ * @param name - the column name
+ * @returns true for a style value name
+ */
+function isStyleTagName(name: string): boolean {
+    return name.startsWith("graphty.style.") || name.startsWith("graphty_style_");
+}
+
+/**
+ * The data columns the rules of one target read.
+ * @param rules - the rules
+ * @param target - nodes or edges
+ * @returns the column names
+ */
+function dataRead(rules: readonly StyleRule[], target: StyleTarget): Set<string> {
+    const out = new Set<string>();
+    for (const { ext: _ext, ...rule } of rules.filter((r) => r.target === target)) {
+        JSON.stringify(rule, (_k, v: unknown) => {
+            const data =
+                typeof v === "object" && v !== null && !Array.isArray(v) ? (v as { data?: unknown }).data : null;
+            if (typeof data === "string" && Object.keys(v as object).length === 1) {
+                out.add(data);
+            }
+            return v;
+        });
     }
     return out;
 }

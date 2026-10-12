@@ -260,13 +260,15 @@ cy.style().selector("#b").style("background-color", "gold").update();
 const graphml = await cy.graphtyExport("graphml", {
     directed,
     styles: true,
-    onLoss: (notes) => notes.forEach((n) => console.warn(n.code, n.message)),
+    onLoss: (notes) => notes.forEach((n) => console.warn(n.code, n.style ?? n.column, n.message)),
 });
 cy.destroy();
 ```
 
 `graphml` holds both colors (`b` in gold) as yEd draws them, and importing it with
-`styles: true, applyStyles: true` draws the same. A headless core needs `styleEnabled: true` to
+`styles: true, applyStyles: true` draws the same. The example runs as a Node module; in a module a
+bundler builds, put it in an `async` function, as
+[Getting started](./getting-started#keep-await-out-of-the-top-level) explains. A headless core needs `styleEnabled: true` to
 draw styles, and keeps a timer running: call `cy.destroy()` when done.
 
 ### Reading a file's styles
@@ -288,7 +290,9 @@ The stylesheet alone draws what the file's rules say; an element the rules canno
 (a file that sets one node's color by hand, for example) looks right only with `applyStyles`.
 
 What the file leaves to the program that wrote it gets that program's default, so the graph looks
-as it does there: Gephi's for GEXF, yEd's for yEd GraphML, Graphviz's for DOT, Cytoscape desktop's
+as it does there (a Gephi node with no size is drawn 10 wide, and a Gephi edge with no color takes
+its source node's color; graph-io's
+[Styles guide](https://graphty.app/docs/graph-io/guide/styles.html) lists every program's defaults): Gephi's for GEXF, yEd's for yEd GraphML, Graphviz's for DOT, Cytoscape desktop's
 for XGMML, CX, CX2 and sessions, Cytoscape.js's for Cytoscape JSON. `styles: { toolDefaults: false }`
 leaves the defaults out. CSV, Neo4j, OBO and NetworkX or d3 JSON carry no styles, so
 `stylesheet` is absent. Anything the import could not read is a `W_STYLE_` warning in `report.issues`.
@@ -305,7 +309,9 @@ With `styles: true`, `graphtyExport` writes the core's stylesheet (`cy.style()`)
 core draws for each element (`ele.style()`) as the truth. A selection writes the styles of its own
 elements. Each format gets the look in its own style slots, so the program the format belongs to
 draws it, plus the rules themselves in a `graphty.styles` block that other programs skip, so
-`graphtyImport` with `styles: true` rebuilds the same rules:
+`graphtyImport` with `styles: true` rebuilds the same rules. The values those rules read are
+written beside it as `graphty_style_*` (or `graphty.style.*`) attributes on the elements, with
+`graphty_import`; yEd and Cytoscape desktop show them as ordinary attributes:
 
 | Format    | Other programs see                                     | Rules come back |
 | --------- | ------------------------------------------------------ | --------------- |

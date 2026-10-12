@@ -398,9 +398,9 @@ export type GraphtyWarningCode =
      */
     | "W_UNKNOWN_ID"
     /**
-     * A style layer writes a colour with an alpha (`#rrggbbaa`, `rgba()`) to a channel that cannot
-     * draw it translucent, so the colour is drawn opaque. `params.channel` is the channel and
-     * `params.path` where in the layer the colour sits. Today only `node.outline` cannot.
+     * A style layer writes a color with an alpha (`#rrggbbaa`, `rgba()`) to a channel that cannot
+     * draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
+     * `params.path` where in the layer the color sits. Today only `node.outline` cannot.
      */
     | "W_ALPHA_IGNORED";
 

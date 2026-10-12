@@ -210,13 +210,13 @@ A channel is one visual property with one name. These are all of them:
 | `edge.label`              | the words to draw                                                          |
 | `edge.labelStyle`         | as `node.labelStyle`                                                       |
 
-A colour may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
-`edge.color` and the two arrow colours the alpha multiplies the matching opacity channel, so
-`#ff000080` draws as `#ff0000` at opacity 0.5; an arrow with no colour of its own takes its line's
-colour, alpha included. On `node.glow` it fades the glow. An outline cannot be drawn translucent:
-`node.outline` draws the colour opaque, and `styles.validate()` and the `style:changed` change
+A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
+`edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so
+`#ff000080` draws as `#ff0000` at opacity 0.5; an arrow with no color of its own takes its line's
+color, alpha included. On `node.glow` it fades the glow. An outline cannot be drawn translucent:
+`node.outline` draws the color opaque, and `styles.validate()` and the `style:changed` change
 report it as a `W_ALPHA_IGNORED` warning, with `params.channel` and `params.path`. The selection
-halo's colour (`setSelectionStyle`) works the same way, multiplied with its `opacity`.
+halo's color (`setSelectionStyle`) works the same way, multiplied with its `opacity`.
 
 Writing `node.label` or `edge.label` is what switches a label on. To switch node labels on
 without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labelled

@@ -120,12 +120,13 @@ is shaded, never the color itself, and 2D view is always drawn flat.
 element.lighting = "matte";
 ```
 
-See each one in Storybook:
+See each one in Storybook, where every mode is also shown from the back, top, bottom and two
+oblique angles:
 [the lighting control](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--default),
-[Studio](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--studio),
-[Headlight](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--headlight),
-[Matte](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--matte),
-[Flat](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--unlit).
+[Studio](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--studio-front),
+[Headlight](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--headlight-front),
+[Matte](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--matte-front),
+[Flat](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--unlit-front).
 
 ### Expanding a node's neighborhood on demand
 

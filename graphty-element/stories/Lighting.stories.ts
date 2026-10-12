@@ -6,7 +6,14 @@
  * never the colour itself, and 2D view is always drawn flat whatever it says.
  *
  * Every story draws the same sixteen nodes -- four shapes in four colours, a light one and a dark
- * one among them -- so the pictures differ only in the lighting.
+ * one among them -- so the pictures differ only in the lighting. The grid is tilted back 45
+ * degrees, so it is seen face-on from none of the fixed angles and edge-on from none of them.
+ *
+ * Default is the interactive one: a `lighting` control, and the reader orbits. Every other story is
+ * one mode seen from one fixed camera position -- front, back, top, bottom and two oblique angles
+ * -- because a lighting that only looks right from the front is broken, and a fixed camera is what
+ * lets a screenshot catch it from every side. One element per story, because several elements on
+ * one page do not yet draw every shape (see the note on `fixedView`).
  */
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
@@ -32,10 +39,48 @@ const SHAPES = ["sphere", "box", "cylinder", "torus"] as const;
 const COLORS = { red: "#e53935", yellow: "#fdd835", blue: "#1e88e5", slate: "#37474f" } as const;
 
 /** Space between two nodes in the grid, in scene units. */
-const SPACING = 3;
+const SPACING = 4;
+
+/** How the grid's rows lean back: each row is as far behind the one below it as it is above it. */
+const TILT = Math.SQRT1_2;
+
+/** How far each fixed view's camera stands from the middle of the grid, in scene units. */
+const VIEW_DISTANCE = 24;
 
 /**
- * One node per shape and colour, laid out as a grid facing the camera.
+ * The fixed camera positions every mode story is drawn from, each a direction from the middle of
+ * the grid. The element's own camera starts on -z looking toward +z, so that is the front. Top
+ * and bottom lean a hair toward the front so the camera never looks exactly along its own up.
+ */
+const VIEWS = {
+    Front: { name: "the front", from: { x: 0, y: 0, z: -1 } },
+    Back: { name: "the back", from: { x: 0, y: 0, z: 1 } },
+    Top: { name: "the top", from: { x: 0, y: 1, z: -0.02 } },
+    Bottom: { name: "the bottom", from: { x: 0, y: -1, z: -0.02 } },
+    AboveLeftFront: { name: "above left, in front", from: { x: -0.6, y: 0.7, z: -0.7 } },
+    BelowRightBehind: { name: "below right, behind", from: { x: 0.6, y: -0.6, z: 0.6 } },
+} as const;
+
+/** One of the fixed camera positions. */
+type View = keyof typeof VIEWS;
+
+/**
+ * Where a view's camera stands.
+ * @param from - The direction from the middle of the grid.
+ * @returns The point VIEW_DISTANCE along it.
+ */
+function cameraAt(from: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
+    const length = Math.hypot(from.x, from.y, from.z);
+
+    return {
+        x: (from.x / length) * VIEW_DISTANCE,
+        y: (from.y / length) * VIEW_DISTANCE,
+        z: (from.z / length) * VIEW_DISTANCE,
+    };
+}
+
+/**
+ * One node per shape and colour, laid out as a grid tilted back from the front camera.
  * @returns The sixteen nodes, each carrying its shape, its colour and a fixed position.
  */
 function gridNodes(): { id: string; shape: string; color: string; position: { x: number; y: number; z: number } }[] {
@@ -46,7 +91,11 @@ function gridNodes(): { id: string; shape: string; color: string; position: { x:
             id: `${shape}-${color}`,
             shape,
             color,
-            position: { x: (col - 1.5) * SPACING, y: (1.5 - row) * SPACING, z: 0 },
+            position: {
+                x: (col - 1.5) * SPACING,
+                y: (1.5 - row) * SPACING * TILT,
+                z: (1.5 - row) * SPACING * TILT,
+            },
         })),
     );
 }
@@ -157,117 +206,155 @@ export const Default: Story = {
 };
 
 /**
- * Studio, the default: a key light from above the camera, a soft fill, and a rim in each node's
- * own colour. Shapes read with depth, and no colour is washed out to white.
+ * Draw the grid from one fixed camera position, with the angle named under it.
  *
- * ```typescript
- * element.lighting = "studio"; // or leave it unset
- * ```
+ * ONE ELEMENT PER STORY. Six elements side by side on one page was the first shape of this, and
+ * every one of them drew only the cylinders and the rings: the spheres and boxes were loaded,
+ * placed and reported visible, and never reached the screen. One element draws all four rows.
+ * Until that is understood, each angle is its own story.
+ * @param view - Which camera position.
+ * @returns The story's render function.
  */
-export const Studio: Story = {
-    args: { lighting: "studio" },
-    parameters: {
-        docs: {
-            description: {
-                story:
-                    "The default 3D look: a key light, a soft fill and a rim in each node's own color, so round " +
-                    "shapes read as round and nothing is washed out to white. It is what every graph starts " +
-                    'with; to set it explicitly, `<graphty-element lighting="studio">` or `element.lighting = ' +
-                    '"studio"`.',
-            },
-        },
-    },
-    play: async ({ canvasElement }) => {
-        await lit(canvasElement, "Studio", "studio");
-    },
-};
+function fixedView(view: View): (args: LightingArgs, context: Parameters<typeof renderFn>[1]) => HTMLElement {
+    return (args, context) => {
+        const element = renderFn(args, context) as Graphty;
+        element.lighting = args.lighting;
+        // The camera is the story's: no reframing after the data loads, no animation.
+        element.autoFrame = false;
+        element.style.cssText = "display:block;width:100%;height:820px;";
+        void element.setCameraState(
+            { position: cameraAt(VIEWS[view].from), target: { x: 0, y: 0, z: 0 } },
+            { animate: false },
+        );
+
+        const caption = document.createElement("div");
+        caption.textContent = `${args.lighting} lighting, seen from ${VIEWS[view].name}`;
+        caption.style.cssText = "font:16px Verdana,sans-serif;text-align:center;padding:6px 0;";
+
+        const figure = document.createElement("div");
+        figure.append(element, caption);
+
+        return figure;
+    };
+}
 
 /**
- * Headlight: one light from beside the camera plus a soft fill. A face is never drawn brighter
- * than its style colour.
- *
- * ```typescript
- * element.lighting = "headlight";
- * ```
+ * Check a fixed view: the grid is drawn, under the story's lighting, from the story's camera.
+ * @param canvasElement - Where the story rendered.
+ * @param story - The story's name, for the failure message.
+ * @param want - The lighting the story sets.
+ * @param view - The camera position the story sets.
+ * @returns The scene.
  */
-export const Headlight: Story = {
-    args: { lighting: "headlight" },
-    parameters: {
-        docs: {
-            description: {
-                story:
-                    "One light from beside the camera and a soft fill. A face is never brighter than its style " +
-                    "color, so light colors stay true while the shapes still read in 3D. " +
-                    '`<graphty-element lighting="headlight">` or `element.lighting = "headlight"`.',
-            },
-        },
-    },
-    play: async ({ canvasElement }) => {
-        await lit(canvasElement, "Headlight", "headlight");
-    },
+async function litFrom(canvasElement: HTMLElement, story: string, want: Lighting, view: View): Promise<Drawn> {
+    const scene = await lit(canvasElement, story, want);
+    const at = cameraAt(VIEWS[view].from);
+    const { position } = scene.graph.getCameraState();
+    const off = position ? Math.hypot(position.x - at.x, position.y - at.y, position.z - at.z) : Infinity;
+
+    await holds(
+        off < 0.5,
+        `Styles/Lighting ${story}: the camera is ${off.toFixed(2)} units from where the story puts it`,
+    );
+
+    return scene;
+}
+
+/** What each mode is for, and how to set it, for the story descriptions. */
+const MODE_TEXT: Record<Lighting, string> = {
+    studio:
+        "Studio, the default 3D look: a key light, a soft fill and a rim in each node's own color, so round " +
+        "shapes read as round and nothing is washed out to white. It is what every graph starts with; to set " +
+        'it explicitly, `<graphty-element lighting="studio">` or `element.lighting = "studio"`.',
+    headlight:
+        "Headlight: one light from beside the camera and a soft fill. A face is never brighter than its style " +
+        "color, so light colors stay true while the shapes still read in 3D. " +
+        '`<graphty-element lighting="headlight">` or `element.lighting = "headlight"`.',
+    matte:
+        "Matte: one soft light from above and no highlight -- even shading, with a lit face exactly its style " +
+        "color at most. Shapes read flatter and a little darker than `studio`. " +
+        '`<graphty-element lighting="matte">` or `element.lighting = "matte"`.',
+    flat:
+        "Flat: no lighting. Every pixel of a node is exactly its style color, with a thin dark outline so " +
+        "overlapping nodes stay apart. Use it for color-coded analysis, where a reader matches a node's color " +
+        'against a legend. `<graphty-element lighting="flat">` or `element.lighting = "flat"`.',
 };
+
+/** What to call a mode in a story's name. */
+const MODE_LABEL: Record<Lighting, string> = { studio: "Studio", headlight: "Headlight", matte: "Matte", flat: "Flat" };
 
 /**
- * Matte: one soft light from above and no highlight. Even shading; a lit face is at most the
- * style colour.
- *
- * ```typescript
- * element.lighting = "matte";
- * ```
+ * One mode seen from one fixed camera position.
+ * @param mode - The lighting.
+ * @param view - The camera position.
+ * @returns The story.
  */
-export const Matte: Story = {
-    args: { lighting: "matte" },
-    parameters: {
-        docs: {
-            description: {
-                story:
-                    "One soft light from above and no highlight: even shading, with a lit face exactly its style " +
-                    "color at most. Shapes read flatter and a little darker than `studio`. " +
-                    '`<graphty-element lighting="matte">` or `element.lighting = "matte"`.',
-            },
+function modeFrom(mode: Lighting, view: View): Story {
+    const story = `${MODE_LABEL[mode]} - ${view}`;
+
+    return {
+        name: `${MODE_LABEL[mode]}, from ${VIEWS[view].name}`,
+        render: fixedView(view),
+        args: { lighting: mode },
+        parameters: {
+            docs: { description: { story: `${MODE_TEXT[mode]} Seen from ${VIEWS[view].name}.` } },
         },
-    },
-    play: async ({ canvasElement }) => {
-        await lit(canvasElement, "Matte", "matte");
-    },
-};
+        play: async ({ canvasElement }) => {
+            const scene = await litFrom(canvasElement, story, mode, view);
+
+            if (mode !== "flat") {
+                return;
+            }
+
+            // Unlit means the exact style colour, so a tight window around each one finds it on
+            // screen from any angle.
+            for (const [name, hex] of Object.entries(COLORS)) {
+                const count = await pixelsOfColour(scene, hex, 4);
+
+                await holds(count > 0, `Styles/Lighting ${story}: no pixel is drawn in the ${name} style color ${hex}`);
+            }
+        },
+    };
+}
 
 /**
- * Flat: no lighting. Every pixel of a node is exactly its style colour, with a thin dark outline
- * so overlapping nodes stay apart -- for colour-coded analysis, where a reader matches a node's
- * colour against a legend.
- *
- * ```typescript
- * element.lighting = "flat";
- * ```
+ * Studio, the default: a key light from above the camera, a soft fill and a rim in each node's own
+ * colour.
  */
-export const Unlit: Story = {
-    // Exported as Unlit, shown as Flat: "flat" is also the word for the node.flat style channel
-    // (flat-shaded facets), which this story does not set, so the story id must not claim it.
-    name: "Flat",
-    args: { lighting: "flat" },
-    parameters: {
-        docs: {
-            description: {
-                story:
-                    "No lighting: every pixel of a node is exactly its style color, with a thin dark outline so " +
-                    "overlapping nodes stay apart. Use it for color-coded analysis, where a reader matches a " +
-                    'node\'s color against a legend. `<graphty-element lighting="flat">` or ' +
-                    '`element.lighting = "flat"`.',
-            },
-        },
-    },
-    play: async ({ canvasElement }) => {
-        const scene = await lit(canvasElement, "Unlit", "flat");
+export const StudioFront: Story = modeFrom("studio", "Front");
+export const StudioBack: Story = modeFrom("studio", "Back");
+export const StudioTop: Story = modeFrom("studio", "Top");
+export const StudioBottom: Story = modeFrom("studio", "Bottom");
+export const StudioAboveLeftFront: Story = modeFrom("studio", "AboveLeftFront");
+export const StudioBelowRightBehind: Story = modeFrom("studio", "BelowRightBehind");
 
-        // Unlit means the exact style colour, so a tight window around each one finds it on screen.
-        for (const [name, hex] of Object.entries(COLORS)) {
-            const count = await pixelsOfColour(scene, hex, 4);
+/**
+ * Headlight: one light from beside the camera plus a soft fill; never brighter than the style colour.
+ */
+export const HeadlightFront: Story = modeFrom("headlight", "Front");
+export const HeadlightBack: Story = modeFrom("headlight", "Back");
+export const HeadlightTop: Story = modeFrom("headlight", "Top");
+export const HeadlightBottom: Story = modeFrom("headlight", "Bottom");
+export const HeadlightAboveLeftFront: Story = modeFrom("headlight", "AboveLeftFront");
+export const HeadlightBelowRightBehind: Story = modeFrom("headlight", "BelowRightBehind");
 
-            await holds(
-                count > 0,
-                `Styles/Lighting Unlit: no pixel is drawn in the ${name} style color ${hex} under flat lighting`,
-            );
-        }
-    },
-};
+/**
+ * Matte: one soft light from above and no highlight.
+ */
+export const MatteFront: Story = modeFrom("matte", "Front");
+export const MatteBack: Story = modeFrom("matte", "Back");
+export const MatteTop: Story = modeFrom("matte", "Top");
+export const MatteBottom: Story = modeFrom("matte", "Bottom");
+export const MatteAboveLeftFront: Story = modeFrom("matte", "AboveLeftFront");
+export const MatteBelowRightBehind: Story = modeFrom("matte", "BelowRightBehind");
+
+/**
+ * Flat: no lighting; exactly the style colour with a thin outline. Exported as Unlit, because
+ * "flat" is also the word for the node.flat style channel, which these stories do not set.
+ */
+export const UnlitFront: Story = modeFrom("flat", "Front");
+export const UnlitBack: Story = modeFrom("flat", "Back");
+export const UnlitTop: Story = modeFrom("flat", "Top");
+export const UnlitBottom: Story = modeFrom("flat", "Bottom");
+export const UnlitAboveLeftFront: Story = modeFrom("flat", "AboveLeftFront");
+export const UnlitBelowRightBehind: Story = modeFrom("flat", "BelowRightBehind");

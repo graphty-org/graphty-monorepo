@@ -625,6 +625,7 @@ export function gmlStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         node: { values: values.node },
         edge: { values: values.edge, rules: gephi.rules, columns: gephi.columns },
         notes: notes.list(),
+        opacityInColor: true,
         block,
         // the graphics records and the per-element style values of a file graphty wrote hold styles, not data
         readFrom: { node: styleColumns(snapshot.nodes), edge: styleColumns(snapshot.edges) },

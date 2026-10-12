@@ -744,6 +744,13 @@ export type ImporterStyles =
           /** The reader's notes. */
           readonly notes?: readonly StyleNote[];
           /**
+           * Whether the format writes a node's fill opacity and an edge's opacity as the alpha of its color (`rgba()`,
+           * `#RRGGBBAA`), so the reader gives an opacity only below 1. In a file graphty wrote, an opaque color then
+           * states opacity 1, which overrides a translucent value of the `graphty.styles` block (another program
+           * made the element opaque).
+           */
+          readonly opacityInColor?: boolean;
+          /**
            * The text of a `graphty.styles` block the file holds in a place of its own (an XML element, an aspect, a
            * comment) rather than as a graph attribute; graph-io reads it exactly as it reads a block carried as a
            * graph attribute.

@@ -341,6 +341,7 @@ export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): 
         node: { values: node },
         edge: { values: edge, rules, columns },
         notes: notes.list(),
+        opacityInColor: true,
         block,
         readFrom: {
             node: VIZ_COLUMNS.node.filter((name) => vizColumn(snapshot, "node", name) !== null),

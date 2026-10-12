@@ -4,10 +4,13 @@
  * prototype.
  */
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { importGraph } from "../../src/registry.js";
+import { createRegistry, importGraph } from "../../src/registry.js";
 import {
     blockStyles,
     type ExtractedStyles,
@@ -227,4 +230,42 @@ describe("a block that is not to be trusted", () => {
         expect(needs).toBeGreaterThan(0);
         expect(blockStyles(parsed.block, snapshot, "test")).toBeNull();
     });
+});
+
+describe("an opaque color another program wrote over a translucent one graphty wrote", () => {
+    // node 0 of this file is drawn #ffcc00 with fillOpacity 0 by a class rule
+    const gml = readFileSync(resolve(import.meta.dirname, "../corpus/styles/gml/generated/graphty-written.gml"));
+    // where each format writes node 0's fill, translucent, and the same fill made opaque
+    const slots: [string, string | undefined, RegExp, string][] = [
+        ["gml", undefined, /fill "#FFCC0000"/, 'fill "#FFCC00"'],
+        ["graphml", undefined, /<y:Fill color="#FFCC0000"/, '<y:Fill color="#FFCC00"'],
+        ["gexf", undefined, /r="255" g="204" b="0" a="0"/, 'r="255" g="204" b="0"'],
+        ["json", "vis", /rgba\(255,204,0,0\)/, "#FFCC00"],
+        ["json", "graphology", /rgba\(255,204,0,0\)/, "#FFCC00"],
+    ];
+
+    it.each(slots)(
+        "is read as opacity 1 in %s %s, as one exception over the same rules",
+        async (format, dialect, slot, opaque) => {
+            const registry = createRegistry();
+            const first = await registry.importGraph(new Uint8Array(gml), { format: "gml", styles: true });
+            const written = await registry.exportGraphToString(first.snapshot, format, {
+                styles: first.styles ?? undefined,
+                ...(dialect === undefined ? {} : { dialect }),
+            });
+            expect(written).toMatch(slot);
+            const unedited = await registry.importGraph(written, { format, styles: true });
+            const edited = await registry.importGraph(written.replace(slot, opaque), { format, styles: true });
+            const opacity = (r: typeof first): readonly unknown[] =>
+                resolveStyles(r.styles as ExtractedStyles, "node", "fillOpacity", r.snapshot);
+            expect(opacity(unedited)[0]).toBe(0);
+            expect(opacity(edited)[0]).toBe(1);
+            expect(opacity(edited).slice(1)).toEqual(opacity(unedited).slice(1));
+            expect(
+                [...(unedited.styles as ExtractedStyles).columns.node.keys()].filter((k) =>
+                    k.startsWith("exceptions."),
+                ),
+            ).toEqual([]);
+        },
+    );
 });

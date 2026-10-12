@@ -149,6 +149,7 @@ export function graphmlStyles(snapshot: GraphSnapshot, context: StyleReadContext
             node: { values: yed.node },
             edge: { values: yed.edge },
             notes: notes.list(),
+            opacityInColor: true,
             readFrom,
         };
     }

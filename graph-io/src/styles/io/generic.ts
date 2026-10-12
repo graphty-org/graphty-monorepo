@@ -77,6 +77,8 @@ interface StyleTruth {
     readonly notes: readonly StyleNote[];
     /** A `graphty.styles` block the importer found outside the graph attributes, or null. */
     readonly block?: string | null;
+    /** Whether the format writes an opacity as its color's alpha (see `ImporterStyles`). */
+    readonly opacityInColor?: boolean;
 }
 
 /**
@@ -115,6 +117,7 @@ export function extractStyles(
                 truth,
                 canonical?.notes ?? [],
                 canonical?.tool ?? null,
+                canonical?.opacityInColor === true,
             );
             if (fromBlock !== null) {
                 return fromBlock;
@@ -286,6 +289,7 @@ function canonicalOf(
             raw: { node: got.readFrom?.node ?? [], edge: got.readFrom?.edge ?? [] },
             notes: got.notes ?? [],
             block: got.block ?? null,
+            opacityInColor: got.opacityInColor === true,
         };
     }
     const { dialect } = got;

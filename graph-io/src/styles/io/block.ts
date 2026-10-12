@@ -881,6 +881,47 @@ function withPairValues(snapshot: GraphSnapshot, col: (StyleValue | null)[]): (S
     return col;
 }
 
+/** The color property whose alpha carries an opacity, and that opacity, per target. */
+const ALPHA_SLOT: Readonly<Record<StyleTarget, readonly [string, string]>> = {
+    node: ["fill", "fillOpacity"],
+    edge: ["color", "opacity"],
+};
+
+/**
+ * The native values with opacity 1 wherever the color is opaque (it has a color and no opacity) and the rules give a
+ * translucent opacity: a format that writes the opacity as the color's alpha states 1 with an opaque color.
+ * @param values - the native values of one target
+ * @param target - nodes or edges
+ * @param rules - the block's rules
+ * @param src - the values the rules read
+ * @param n - the element count
+ * @returns the values, the opacity column replaced where it changes
+ */
+function opaqueColors(
+    values: Partial<Record<string, StyleColumn>>,
+    target: StyleTarget,
+    rules: readonly StyleRule[],
+    src: ReturnType<typeof refSource>,
+    n: number,
+): Partial<Record<string, StyleColumn>> {
+    const [colorProperty, opacityProperty] = ALPHA_SLOT[target];
+    const color = values[colorProperty];
+    if (color === undefined) {
+        return values;
+    }
+    const native = values[opacityProperty];
+    const resolved = resolveRules(rules, target, opacityProperty, src);
+    let out: (StyleValue | null)[] | null = null;
+    for (let i = 0; i < n; i++) {
+        const r = resolved[i];
+        if ((color[i] ?? null) !== null && (native?.[i] ?? null) === null && r !== null && r !== 1) {
+            out ??= native === undefined ? new Array<StyleValue | null>(n).fill(null) : [...native];
+            out[i] = 1;
+        }
+    }
+    return out === null ? values : { ...values, [opacityProperty]: out };
+}
+
 /**
  * The styles a valid block describes, read against the graph it was imported into. The block's rules are the
  * file's declared rules and read the tagged per-element values. Where the file's own native values are given, they
@@ -894,6 +935,8 @@ function withPairValues(snapshot: GraphSnapshot, col: (StyleValue | null)[]): (S
  * @param tool - the program whose drawing the native values describe: where the rules give an element no value and
  * the file holds only what that program draws for an unset property (a font written with "plain" style), it is not
  * an edit
+ * @param opacityInColor - whether the format writes a fill's and an edge's opacity as its color's alpha: a native
+ * color with no native opacity then states opacity 1 where the rules give a translucent one
  * @returns the styles, or null when a style column the rules read is missing from the file
  * @category Styles
  */
@@ -904,6 +947,7 @@ export function blockStyles(
     truth: Partial<Record<StyleTarget, Partial<Record<string, StyleColumn>>>> = {},
     notes: readonly StyleNote[] = [],
     tool: StyleTool | null = null,
+    opacityInColor = false,
 ): ExtractedStyles | null {
     const node = blockColumns(block, snapshot, "node");
     const edge = blockColumns(block, snapshot, "edge");
@@ -921,8 +965,9 @@ export function blockStyles(
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const src = refSource(target, n, columns[target], features[target], snapshot);
         const map = Object.create(null) as Record<string, Mapping>;
+        const own = opacityInColor ? opaqueColors(truth[target] ?? {}, target, blockRules, src, n) : truth[target];
         // in one order whatever order the reader found the properties in, so a file written again is the same
-        for (const [property, values] of Object.entries(truth[target] ?? {}).sort(([a], [b]) => (a < b ? -1 : 1))) {
+        for (const [property, values] of Object.entries(own ?? {}).sort(([a], [b]) => (a < b ? -1 : 1))) {
             if (values === undefined) {
                 continue;
             }

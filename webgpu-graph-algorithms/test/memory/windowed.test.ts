@@ -1,9 +1,9 @@
 /**
- * The windowed upload EXECUTED by GraphResidency.core() (spec 4.2; P4-T7, PD-8) over a real device with FAKED limits
- * (fakeCaps, the residency.test.ts idiom): karate at a 256-byte binding limit plans windows and uploads rowPtr whole
- * plus one colIdx buffer; a maxBufferSize below the array splits colIdx across buffers exactly as placeWindows
- * reports; windowBinding addresses each window inside its buffer; release destroys every window buffer; a second
- * core() call uploads nothing.
+ * The windowed upload EXECUTED by GraphResidency.core() (spec 4.2; P4-T7, PD-8) over a device on Dawn's null backend
+ * (nothing is read back, issue #275) with FAKED limits (fakeCaps, the residency.test.ts idiom): karate at a 256-byte
+ * binding limit plans windows and uploads rowPtr whole plus one colIdx buffer; a maxBufferSize below the array splits
+ * colIdx across buffers exactly as placeWindows reports; windowBinding addresses each window inside its buffer;
+ * release destroys every window buffer; a second core() call uploads nothing.
  */
 
 import { type TestContext } from "vitest";
@@ -13,7 +13,7 @@ import { GraphResidency } from "../../src/memory/residency.js";
 import { planUpload } from "../../src/memory/upload-plan.js";
 import { windowBinding } from "../../src/primitives/core-shape.js";
 import { fakeCaps } from "../helpers/caps-tables.js";
-import { withContext } from "../helpers/device.js";
+import { withNullBackendContext } from "../helpers/device.js";
 import { KARATE_EDGES, snapshotOf } from "../helpers/graphs.js";
 import { requireGpu } from "../setup/gpu.js";
 
@@ -33,7 +33,7 @@ function codeOf(fn: () => unknown): string {
 describe("GraphResidency.core(): the windowed plan is executed (spec 4.2, PD-8)", () => {
     it("karate at a 256-byte binding limit: rowPtr whole, one colIdx buffer, the planner's windows, window bindings", async (t: TestContext) => {
         requireGpu(t);
-        await withContext(undefined, async (ctx) => {
+        await withNullBackendContext(async (ctx) => {
             // karate: rowPtr (140 B) fits a 256-byte binding, colIdx (624 B) does not
             const caps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256 });
             const residency = new GraphResidency(ctx.device, caps, ctx.allocator, { warnUnreleasedSnapshots: 2 });
@@ -75,7 +75,7 @@ describe("GraphResidency.core(): the windowed plan is executed (spec 4.2, PD-8)"
 
     it("a maxBufferSize below colIdx splits it across buffers at window boundaries, placed as the planner reports", async (t: TestContext) => {
         requireGpu(t);
-        await withContext(undefined, async (ctx) => {
+        await withNullBackendContext(async (ctx) => {
             const caps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256, maxBufferSize: 512 });
             const residency = new GraphResidency(ctx.device, caps, ctx.allocator, { warnUnreleasedSnapshots: 2 });
             const s = snapshotOf(KARATE_EDGES);
@@ -105,7 +105,7 @@ describe("GraphResidency.core(): the windowed plan is executed (spec 4.2, PD-8)"
 
     it("release destroys every window buffer; a second core() call returns the memoised bindings", async (t: TestContext) => {
         requireGpu(t);
-        await withContext(undefined, async (ctx) => {
+        await withNullBackendContext(async (ctx) => {
             const caps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256, maxBufferSize: 512 });
             const residency = new GraphResidency(ctx.device, caps, ctx.allocator, { warnUnreleasedSnapshots: 2 });
             const s = snapshotOf(KARATE_EDGES);

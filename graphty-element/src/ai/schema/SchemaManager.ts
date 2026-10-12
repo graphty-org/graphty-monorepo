@@ -20,8 +20,8 @@ import type { SchemaExtractorOptions, SchemaSummary } from "./types";
  * - Pass-through options to SchemaExtractor
  */
 export class SchemaManager {
-    private graph: Graph;
-    private options: SchemaExtractorOptions;
+    private readonly graph: Graph;
+    private readonly options: SchemaExtractorOptions;
     private cachedSchema: SchemaSummary | null = null;
     private cachedFormattedSchema: string | null = null;
 

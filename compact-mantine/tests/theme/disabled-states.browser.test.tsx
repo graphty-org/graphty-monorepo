@@ -88,7 +88,7 @@ const FAMILIES: readonly Family[] = [
     },
     {
         name: "ComboInput",
-        ui: (d) => <ComboInput aria-label="Shape" options={[{ value: "a", label: "Box" }]} value="a" disabled={d} />,
+        ui: (d) => <ComboInput label="Shape" options={[{ value: "a", label: "Box" }]} value="a" disabled={d} />,
         checks: [
             [".cm-input-wrapper", "backgroundColor", "bg"],
             ["input", "color", "textDisabled"],

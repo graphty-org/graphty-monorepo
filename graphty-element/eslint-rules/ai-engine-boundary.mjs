@@ -9,11 +9,12 @@
  *   src/ai/engine/tanstack/ and test/ai/engine/tanstack/.
  * - Inside the adapter, TanStack is imported by name only: `chat`, `generateTranscription`,
  *   `generateSpeech`, the adapter factories, and message and event types (the `EventType` enum
- *   among them), the provider tools `webSearchTool`, `webFetchTool` and `googleSearchTool` from
- *   the `/tools` subpaths, and for in-page code `createQuickJSIsolateDriver` and `stripTypeScript` (never
- *   `createCodeModeTool`). Middleware, agents,
- *   persistence and every other TanStack package are refused, so the loop, policies and plans stay
- *   graphty code.
+ *   among them), the realtime adapters `openaiRealtime` and `geminiRealtime` with the `Realtime*`
+ *   types of `@tanstack/ai` (never `RealtimeClient` from `@tanstack/ai-client`), the provider
+ *   tools `webSearchTool`, `webFetchTool` and `googleSearchTool` from the `/tools` subpaths, and
+ *   for in-page code `createQuickJSIsolateDriver` and `stripTypeScript` (never
+ *   `createCodeModeTool`). Middleware, agents, persistence and every other TanStack package are
+ *   refused, so the loop, policies and plans stay graphty code.
  * - The adapter folder is imported only by load.ts, and under src/ai/ every `import()` names a
  *   literal module, so nothing loads a framework by a computed name.
  * - The AI SDK 5 (`ai`, `@ai-sdk/*`) is refused everywhere: the TanStack engine replaced it, and its
@@ -100,16 +101,16 @@ function rules({ allow = [], loader = false, anyImport = true, named = false }, 
     if (named) {
         const message =
             "Inside the adapter, TanStack is imported by name: chat, generateTranscription, generateSpeech, the adapter " +
-            "factories, and message and event types. Loop, policies, plans, agents and persistence are graphty code.";
+            "factories, the realtime adapters, and message, event and Realtime* types. Loop, policies, plans, agents and persistence are graphty code.";
         patterns.push(
             {
                 regex: String.raw`^@tanstack\/ai$`,
-                allowImportNamePattern: String.raw`^(?:chat|generateTranscription|generateSpeech|EventType|[A-Z]\w*(?:Message|Chunk|Event)(?:Type)?)$`,
+                allowImportNamePattern: String.raw`^(?:chat|generateTranscription|generateSpeech|EventType|[A-Z]\w*(?:Message|Chunk|Event)(?:Type)?|Realtime[A-Z]\w*)$`,
                 message,
             },
             {
                 regex: String.raw`^@tanstack\/ai-(?:openai|anthropic|gemini)$`,
-                allowImportNamePattern: String.raw`^(?:create[A-Z]\w*|[A-Z]\w*(?:Config|ProviderOptions|Message|Chunk|Event))$`,
+                allowImportNamePattern: String.raw`^(?:create[A-Z]\w*|openaiRealtime|geminiRealtime|[A-Z]\w*(?:Config|ProviderOptions|Message|Chunk|Event))$`,
                 message,
             },
             {

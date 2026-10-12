@@ -39,6 +39,17 @@ patchedDependencies:
     # own sheet plus compact-mantine's) each lookup misses and recompiles, and getComputedStyle
     # slows about tenfold. A larger limit keeps every selector cached.
     "nwsapi@2.2.28": patches/nwsapi@2.2.28.patch
+    # graphty-element's live voice (src/ai/engine/tanstack/live.ts, UPSTREAM.md). OpenAI's realtime
+    # adapter sends response.create after every tool result, so a response with two calls asks for a
+    # second response while the first result is still alone: this sends one after the response's
+    # last result. It also reports a response with only calls as complete, and a data channel the
+    # provider closed, neither of which the adapter tells its caller.
+    "@tanstack/ai-openai@0.29.1": patches/@tanstack__ai-openai@0.29.1.patch
+    # Gemini's realtime adapter stops sending audio on stopAudioCapture and never ends the stream,
+    # so on push-to-talk release the server never ends the reader's turn: this pads the silence its
+    # turn detection waits for and sends audioStreamEnd. It also drops the setup's
+    # proactiveAudio: false, which gemini-3.8-live refuses.
+    "@tanstack/ai-gemini@0.37.2": patches/@tanstack__ai-gemini@0.37.2.patch
 
 # Security floors for transitive packages that a parent in pnpm-lock.yaml pins to a vulnerable
 # version. Each line names the parent that holds it back; delete an entry once that parent moves

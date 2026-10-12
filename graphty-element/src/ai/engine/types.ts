@@ -404,6 +404,14 @@ export type LiveOpened =
     | { readonly code: "AI_COMPLETED"; readonly params: AiResultParams; readonly connection: LiveConnection }
     | { readonly code: Exclude<AiResultCode, "AI_COMPLETED">; readonly params: AiResultParams };
 
+/**
+ * The adapter's live module (`loadProviderLive()` in load.ts): one connection per call, opened with
+ * a fresh token minted from the reader's key, for a provider `AI_VOICE_CAPABILITIES` lists as able.
+ */
+export interface ProviderLive {
+    openLive(settings: ProviderApiSettings, options: LiveOptions, signal: AbortSignal): Promise<LiveOpened>;
+}
+
 /** Talks to a model, one turn per call. */
 export interface AiEngine {
     readonly kind: "provider-api" | "llm-provider" | "fake";

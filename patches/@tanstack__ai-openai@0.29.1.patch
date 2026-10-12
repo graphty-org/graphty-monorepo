@@ -1,0 +1,46 @@
+diff --git a/dist/esm/realtime/adapter.js b/dist/esm/realtime/adapter.js
+index 6013106b853f242ee3e0a200dea4947cfacae806..a0d4ae5a920b9ef92d4916799f004b4999dd5850 100644
+--- a/dist/esm/realtime/adapter.js
++++ b/dist/esm/realtime/adapter.js
+@@ -58,6 +58,7 @@ async function createWebRTCConnection(token, logger) {
+ 	let dataChannel = null;
+ 	let currentMode = "idle";
+ 	let currentMessageId = null;
++	let unansweredCallIds = /* @__PURE__ */ new Set();
+ 	const emptyFrequencyData = /* @__PURE__ */ new Uint8Array(1024);
+ 	const emptyTimeDomainData = (/* @__PURE__ */ new Uint8Array(2048)).fill(128);
+ 	function emit(event, payload) {
+@@ -85,6 +86,9 @@ async function createWebRTCConnection(token, logger) {
+ 			});
+ 		}
+ 	};
++	channel.onclose = () => {
++		emit("status_change", { status: "idle" });
++	};
+ 	channel.onerror = (error) => {
+ 		logger.errors("openai.realtime fatal", {
+ 			error,
+@@ -234,6 +238,13 @@ async function createWebRTCConnection(token, logger) {
+ 				const output = event.response.output;
+ 				currentMode = "listening";
+ 				emit("mode_change", { mode: "listening" });
++				unansweredCallIds = new Set((output || []).filter((item) => item.type === "function_call").map((item) => item.call_id));
++				if (!currentMessageId) emit("message_complete", { message: {
++					id: event.response.id ?? "",
++					role: "assistant",
++					timestamp: Date.now(),
++					parts: []
++				} });
+ 				if (currentMessageId) {
+ 					const message = {
+ 						id: currentMessageId,
+@@ -380,7 +391,8 @@ async function createWebRTCConnection(token, logger) {
+ 					output: result
+ 				}
+ 			});
+-			sendEvent({ type: "response.create" });
++			unansweredCallIds.delete(callId);
++			if (unansweredCallIds.size === 0) sendEvent({ type: "response.create" });
+ 		},
+ 		updateSession(config) {
+ 			if (config.temperature !== void 0) logger.provider("provider=openai direction=out type=session.update dropped `temperature` (removed in the GA realtime API)", { frame: { temperature: config.temperature } });

@@ -46,6 +46,12 @@ overrides:
   quickjs-emscripten>@jitl/quickjs-wasmfile-release-sync: 0.31.0
 
 patchedDependencies:
+  '@tanstack/ai-gemini@0.37.2':
+    hash: 3c06607cba01b73aa29822c88ef3160f018ac85fd69fb5fbc8d37e12b0d986f7
+    path: patches/@tanstack__ai-gemini@0.37.2.patch
+  '@tanstack/ai-openai@0.29.1':
+    hash: 98d8ef7623553902becdde22b44952c07cffe41cd453f050c6249707f73f18a5
+    path: patches/@tanstack__ai-openai@0.29.1.patch
   '@vitest/browser@4.1.11':
     hash: 5860fc4758e760f7fedfc33fe2a20f7c1ee40625ab65617bb47a68677bd11e67
     path: patches/@vitest__browser@4.1.11.patch
@@ -804,13 +810,13 @@ importers:
         version: 0.5.2(@tanstack/ai@0.68.0(@opentelemetry/api@1.9.0)(zod@4.6.5))(zod@4.6.5)
       '@tanstack/ai-gemini':
         specifier: 0.37.2
-        version: 0.37.2(@modelcontextprotocol/sdk@1.32.1(zod@4.6.5))(@tanstack/ai@0.68.0(@opentelemetry/api@1.9.0)(zod@4.6.5))
+        version: 0.37.2(patch_hash=3c06607cba01b73aa29822c88ef3160f018ac85fd69fb5fbc8d37e12b0d986f7)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.5))(@tanstack/ai@0.68.0(@opentelemetry/api@1.9.0)(zod@4.6.5))
       '@tanstack/ai-isolate-quickjs':
         specifier: 0.3.2
         version: 0.3.2(@tanstack/ai-code-mode@0.5.2(@tanstack/ai@0.68.0(@opentelemetry/api@1.9.0)(zod@4.6.5))(zod@4.6.5))
       '@tanstack/ai-openai':
         specifier: 0.29.1
-        version: 0.29.1(@tanstack/ai@0.68.0(@opentelemetry/api@1.9.0)(zod@4.6.5))(undici@6.29.0)(ws@8.22.0)(zod@4.6.5)
+        version: 0.29.1(patch_hash=98d8ef7623553902becdde22b44952c07cffe41cd453f050c6249707f73f18a5)(@tanstack/ai@0.68.0(@opentelemetry/api@1.9.0)(zod@4.6.5))(undici@6.29.0)(ws@8.22.0)(zod@4.6.5)
       '@types/glob':
         specifier: ^8.1.0
         version: 8.1.0
@@ -14473,7 +14479,7 @@ snapshots:
     dependencies:
       '@tanstack/devtools-event-client': 0.4.4
 
-  '@tanstack/ai-gemini@0.37.2(@modelcontextprotocol/sdk@1.32.1(zod@4.6.5))(@tanstack/ai@0.68.0(@opentelemetry/api@1.9.0)(zod@4.6.5))':
+  '@tanstack/ai-gemini@0.37.2(patch_hash=3c06607cba01b73aa29822c88ef3160f018ac85fd69fb5fbc8d37e12b0d986f7)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.5))(@tanstack/ai@0.68.0(@opentelemetry/api@1.9.0)(zod@4.6.5))':
     dependencies:
       '@google/genai': 2.28.0(@modelcontextprotocol/sdk@1.32.1(zod@4.6.5))
       '@tanstack/ai': 0.68.0(@opentelemetry/api@1.9.0)(zod@4.6.5)
@@ -14490,7 +14496,7 @@ snapshots:
       '@tanstack/ai-code-mode': 0.5.2(@tanstack/ai@0.68.0(@opentelemetry/api@1.9.0)(zod@4.6.5))(zod@4.6.5)
       quickjs-emscripten: 0.31.0
 
-  '@tanstack/ai-openai@0.29.1(@tanstack/ai@0.68.0(@opentelemetry/api@1.9.0)(zod@4.6.5))(undici@6.29.0)(ws@8.22.0)(zod@4.6.5)':
+  '@tanstack/ai-openai@0.29.1(patch_hash=98d8ef7623553902becdde22b44952c07cffe41cd453f050c6249707f73f18a5)(@tanstack/ai@0.68.0(@opentelemetry/api@1.9.0)(zod@4.6.5))(undici@6.29.0)(ws@8.22.0)(zod@4.6.5)':
     dependencies:
       '@tanstack/ai': 0.68.0(@opentelemetry/api@1.9.0)(zod@4.6.5)
       '@tanstack/ai-utils': 0.4.1

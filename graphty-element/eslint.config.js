@@ -72,6 +72,7 @@ export default tseslint.config(
             "src/ai/engine/tanstack/**/*.ts",
             "test/ai/engine/providerApiFixtures.ts",
             "test/ai/engine/providerApi.test.ts",
+            "test/ai/engine/live.test.ts",
         ],
         rules: {
             camelcase: ["error", { properties: "never" }],

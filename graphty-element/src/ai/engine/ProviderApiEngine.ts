@@ -4,16 +4,25 @@
  * on the first turn. The retry schedule is graphty's: the adapter turns off every lower layer's.
  */
 
-import { aiHostedToolStatus, type AiResultCode, type AiResultParams, aiVoiceStatus } from "../../catalog/ai";
+import {
+    AI_VOICE_CAPABILITIES,
+    aiHostedToolStatus,
+    type AiResultCode,
+    type AiResultParams,
+    aiVoiceStatus,
+} from "../../catalog/ai";
 import { API_KEY_MISSING_ERROR } from "../safeError";
 import { providerFailure } from "./LlmProviderEngine";
-import { loadProviderApiTurn, loadProviderVoice } from "./load";
+import { loadProviderApiTurn, loadProviderLive, loadProviderVoice } from "./load";
 import {
     type AiEngine,
     type EngineCapabilities,
     type EngineOutcome,
+    type LiveOpened,
+    type LiveOptions,
     type ProviderApiSettings,
     type ProviderApiTurn,
+    type ProviderLive,
     type ProviderVoice,
     type SpeakOptions,
     type SpokenAudio,
@@ -78,6 +87,8 @@ export interface ProviderApiEngineOptions {
     readonly wait?: (ms: number, signal: AbortSignal) => Promise<void>;
     /** Loads the adapter's voice module. */
     readonly loadVoice?: () => Promise<ProviderVoice>;
+    /** Loads the adapter's live module. */
+    readonly loadLive?: () => Promise<ProviderLive>;
 }
 
 /**
@@ -110,6 +121,7 @@ export class ProviderApiEngine implements AiEngine {
     // the capability.
     declare transcribe?: (audio: Blob, options: TranscribeOptions, signal: AbortSignal) => Promise<TurnText>;
     declare speak?: (text: string, options: SpeakOptions, signal: AbortSignal) => Promise<SpokenAudio>;
+    declare openLive?: (options: LiveOptions, signal: AbortSignal) => Promise<LiveOpened>;
 
     /**
      * An engine over a provider's live configuration.
@@ -136,6 +148,10 @@ export class ProviderApiEngine implements AiEngine {
                 const done = await this.voiceCall((voice, now) => voice.speak(now, text, speakOptions, signal), signal);
                 return done.type === "done" ? { code: "AI_COMPLETED", params: {}, audio: done.value } : failed(done);
             };
+        }
+
+        if (AI_VOICE_CAPABILITIES[provider].live?.status === "available") {
+            this.openLive = (liveOptions, signal) => this.live(liveOptions, signal);
         }
     }
 
@@ -271,6 +287,32 @@ export class ProviderApiEngine implements AiEngine {
             } catch (error) {
                 return providerFailure(error, settings.provider, signal);
             }
+        }
+    }
+
+    /**
+     * Open a live conversation. No retry: a press that cannot open live runs turn by turn.
+     * @param options - The model, voice, language, instructions and tools.
+     * @param signal - Cancels the opening.
+     * @returns The connection, or the code it failed with.
+     */
+    private async live(options: LiveOptions, signal: AbortSignal): Promise<LiveOpened> {
+        const settings = this.settings();
+        if (settings.apiKey === undefined || settings.apiKey === "") {
+            return failed(keyMissing(settings.provider, signal));
+        }
+
+        // The realtime adapters reach only the provider's own host (UPSTREAM.md).
+        if (settings.baseUrl !== undefined) {
+            return { code: "AI_VOICE_UNAVAILABLE", params: { path: "input", reason: "live-custom-base-url" } };
+        }
+
+        try {
+            const live = await (this.options.loadLive ?? loadProviderLive)();
+            return await live.openLive(settings, options, signal);
+        } catch (error) {
+            // The adapter codes its own failures; anything it threw is coded here, never rethrown.
+            return failed(providerFailure(error, settings.provider, signal, [settings.apiKey]));
         }
     }
 

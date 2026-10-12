@@ -2,11 +2,12 @@
  * @file Google Gemini on TanStack AI. Loaded on the first Google turn.
  */
 
-import { createGeminiChat, createGeminiSpeech } from "@tanstack/ai-gemini";
+import { createGeminiChat, createGeminiSpeech, geminiRealtime } from "@tanstack/ai-gemini";
 import { googleSearchTool } from "@tanstack/ai-gemini/tools";
 
 import type { ProviderApiSettings } from "../types";
 import type { ProviderModule } from "./index";
+import type { ProviderLiveModule } from "./live";
 import type { ProviderVoiceModule } from "./voice";
 
 /**
@@ -107,4 +108,10 @@ export const googleVoice: ProviderVoiceModule = {
         }),
     // The adapter throws, in English, on a voice name `GeminiTTSVoices` does not list.
     refusesUnknownVoices: true,
+};
+
+/** Gemini's live conversations: a WebSocket to the fixed Gemini host, with the token in its URL. */
+export const googleLive: ProviderLiveModule = {
+    // Any model id the consumer names is passed on: the adapter's typed list is not the API's.
+    realtime: (model) => geminiRealtime({ model: model as NonNullable<Parameters<typeof geminiRealtime>[0]>["model"] }),
 };

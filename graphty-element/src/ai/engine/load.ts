@@ -6,7 +6,7 @@
 
 import type { LlmProvider } from "../providers/types";
 import { LlmProviderEngine } from "./LlmProviderEngine";
-import type { AiEngine, ProgramRunner, ProviderApiTurn, ProviderVoice } from "./types";
+import type { AiEngine, ProgramRunner, ProviderApiTurn, ProviderLive, ProviderVoice } from "./types";
 
 /**
  * An `AiController` option, keyed by this symbol, that runs a given engine instead of the
@@ -57,6 +57,15 @@ export async function loadProviderApiTurn(): Promise<ProviderApiTurn> {
  */
 export async function loadProviderVoice(): Promise<ProviderVoice> {
     return (await import("./tanstack/voice")).providerVoice;
+}
+
+/**
+ * Load the adapter's live module (speech to speech through the provider's realtime API), its own
+ * chunk, on the first live press. Each provider's realtime adapter comes with that provider's chunk.
+ * @returns The live module.
+ */
+export async function loadProviderLive(): Promise<ProviderLive> {
+    return (await import("./tanstack/live")).providerLive;
 }
 
 /** The in-page code sandbox, as its chunk exports it. */

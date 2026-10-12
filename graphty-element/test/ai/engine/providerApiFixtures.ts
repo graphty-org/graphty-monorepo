@@ -11,6 +11,7 @@ import { vi } from "vitest";
 
 import { ProviderApiEngine, type ProviderApiEngineOptions } from "../../../src/ai/engine/ProviderApiEngine";
 import type { ProviderApiId, ProviderApiSettings } from "../../../src/ai/engine/types";
+import { installFakeLiveTransport } from "../../helpers/fake-live-transport";
 import type { EngineFixture } from "./contract";
 
 /** A page a provider-run tool found or read. */
@@ -577,7 +578,8 @@ const VOICE: Partial<Record<ProviderApiId, { transcript: string; audio: Blob }>>
  */
 function requestBody(body: BodyInit | null | undefined): Record<string, unknown> {
     if (typeof body === "string") {
-        return JSON.parse(body) as Record<string, unknown>;
+        // A live connection's SDP offer is text.
+        return body.startsWith("v=") ? { sdp: body } : (JSON.parse(body) as Record<string, unknown>);
     }
 
     if (body instanceof FormData) {
@@ -613,6 +615,19 @@ function defaultReply(provider: ProviderApiId, url: string, body: Record<string,
     const ok = (payload: BodyInit, type: string): Reply => {
         return () => Promise.resolve(new Response(payload, { status: 200, headers: { "content-type": type } }));
     };
+    // Live: the token each provider mints, and OpenAI's SDP answer.
+    if (url.endsWith("/realtime/client_secrets")) {
+        return ok(JSON.stringify({ value: "ek_fixture", expires_at: 2_000_000_000 }), "application/json");
+    }
+
+    if (url.endsWith("/realtime/calls")) {
+        return ok("v=0 fixture-answer", "application/sdp");
+    }
+
+    if (url.endsWith("/v1alpha/auth_tokens")) {
+        return ok(JSON.stringify({ name: "auth_tokens/fixture" }), "application/json");
+    }
+
     if (url.endsWith("/audio/transcriptions")) {
         return ok(JSON.stringify({ text: TRANSCRIPT }), "application/json");
     }
@@ -704,6 +719,15 @@ export function providerApiFixture(
         },
         ...options,
     });
+    // A live connection opens over the fake page's transports and audio, stubbed only once one opens.
+    const { openLive } = engine;
+    if (openLive !== undefined) {
+        engine.openLive = (liveOptions, signal) => {
+            installFakeLiveTransport();
+            return openLive(liveOptions, signal);
+        };
+    }
+
     const fail = (status: number, retryAfterMs = 0): Reply =>
         respond(status, errorBody(provider, status), {
             "content-type": "application/json",
@@ -745,5 +769,6 @@ export function providerApiFixture(
         seen: () => requests.map((r) => SEEN[provider](r.body)),
         wire: () => requests.map((r) => r.body),
         ...(VOICE[provider] !== undefined && { voice: VOICE[provider] }),
+        ...(openLive !== undefined && { live: true as const }),
     };
 }

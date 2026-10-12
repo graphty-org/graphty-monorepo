@@ -91,6 +91,21 @@ describe("refused", () => {
             "src/ai/engine/tanstack/openai.ts",
             'import { codeInterpreterTool } from "@tanstack/ai-openai/tools";',
         ],
+        [
+            "TanStack's realtime client, whose tool runner and records are graphty's",
+            "src/ai/engine/tanstack/live.ts",
+            'import { RealtimeClient } from "@tanstack/ai-client";',
+        ],
+        [
+            "a realtime helper that is not on the list",
+            "src/ai/engine/tanstack/openai.ts",
+            'import { openaiRealtimeToken } from "@tanstack/ai-openai";',
+        ],
+        [
+            "a realtime emitter that is not a type",
+            "src/ai/engine/tanstack/live.ts",
+            'import { createRealtimeEventEmitter, realtimeToken } from "@tanstack/ai";',
+        ],
         ["the AI SDK in the adapter", "src/ai/engine/tanstack/openai.ts", 'import { generateText } from "ai";'],
         ["a vendor SDK outside the adapter", "src/ai/providers/VercelAiProvider.ts", 'import OpenAI from "openai";'],
         ["a zod subpath (the root's rule, kept)", "src/ai/engine/types.ts", 'import { z } from "zod/v4";'],
@@ -118,6 +133,15 @@ describe("allowed", () => {
                 'import { createOpenaiChat, type OpenAITextConfig } from "@tanstack/ai-openai";',
                 'import OpenAI from "openai";',
                 'import { other } from "./mapping.js";',
+            ].join("\n"),
+        ],
+        [
+            "the realtime adapters and the realtime types",
+            "src/ai/engine/tanstack/live.ts",
+            [
+                'import type { RealtimeAdapter, RealtimeConnection, RealtimeToken } from "@tanstack/ai";',
+                'import { openaiRealtime } from "@tanstack/ai-openai";',
+                'import { geminiRealtime } from "@tanstack/ai-gemini";',
             ].join("\n"),
         ],
         [

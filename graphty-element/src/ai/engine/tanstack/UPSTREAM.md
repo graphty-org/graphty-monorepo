@@ -46,6 +46,63 @@ its chat module (`openaiVoice` in `openai.ts`, `googleVoice` in `google.ts`).
   `Response` on the fetch it hands the SDK. Not reported: the SDK's own probe, harmless but for
   the extra request.
 
+## Live conversations: `@tanstack/ai-openai` 0.29.1, `@tanstack/ai-gemini` 0.37.2
+
+`live.ts` calls `openaiRealtime()` (WebRTC) and `geminiRealtime()` (WebSocket) through
+`RealtimeAdapter.connect` directly; the adapters come with their provider's chunk (`openaiLive` in
+`openai.ts`, `googleLive` in `google.ts`). `RealtimeClient` (`@tanstack/ai-client`) is not used:
+it runs client tools itself, unordered, answers an unknown tool with an English string and keeps
+message records of its own, all of which are graphty's. Two defects are fixed in place with pnpm
+patches (`patches/`, listed in `pnpm-workspace.yaml`); each has a test in
+`test/ai/engine/live.test.ts` that fails without it.
+
+- **OpenAI asks for a response after every tool result.** `sendToolResult` sends
+  `response.create` after each `function_call_output`, so a response with two calls asks for a
+  new response while only the first result is in. Patch (`@tanstack__ai-openai@0.29.1.patch`): it
+  remembers the calls of each `response.done` and sends one `response.create` after the last of
+  their results. To report: send the follow-up response once per batch, or leave it to the caller.
+- **OpenAI never says that a response with only calls ended**, and never that the data channel
+  closed: `message_complete` is emitted only for a response with a message item, and the channel
+  has no `onclose`. Patch (the same file): `message_complete` (with no parts) for a response
+  without a message, and `status_change` `idle` when the channel closes, as the Gemini adapter
+  does for its socket. `live.ts` reads `message_complete` as the end of a response and an `idle`
+  it did not cause as a lost connection. To report: a response-end event and a closed status.
+- **Gemini's `stopAudioCapture` never ends the reader's turn**: it only stops sending frames and
+  never sends `audioStreamEnd`. Measured on `gemini-3.8-live` (the paid live test): even with
+  `audioStreamEnd`, the server's activity detection ends a turn only after the setup's
+  `silenceDurationMs` (2,000 ms) of silence in the audio itself, so a reader who lets go half a
+  second after the last word never gets an answer. Patch (`@tanstack__ai-gemini@0.37.2.patch`):
+  `AudioStreamer.stopAudioCapture`, when it was streaming on a set-up session, sends that much
+  silence (512-sample frames of zeros) and then `{ realtimeInput: { audioStreamEnd: true } }`. To
+  report: end the turn on stop (or offer manual activity, `activityStart` / `activityEnd`, which
+  is push-to-talk's own mechanism).
+- **Gemini's setup always sends `proactivity: { proactiveAudio: false }`**, which
+  `gemini-3.8-live` refuses (the socket closes with 1007, "Explicitly disabling proactive audio is
+  not supported for this model"), so no session opens. Patch (the same file): the field is sent
+  only when proactive audio is on. To report: leave unset options out of the setup.
+- **Both adapters start the microphone in `connect`** (OpenAI leaves the track enabled; Gemini
+  streams once set up). Workaround: `live.ts` calls `stopAudioCapture()` right after `connect`,
+  before the session is configured, and starts it only while talk is held. Not a defect for a
+  hands-free client; to report as an option to connect muted.
+- **Both adapters throw English `Error`s** (a refused SDP exchange, a microphone OpenAI could not
+  open, a socket that closed before setup). Workaround: `live.ts` mints the token itself, so the
+  status of the one request that carries the key is graphty's own; Gemini's microphone failure is
+  the browser's `DOMException`, read by name; OpenAI's is read from the start of its sentence
+  (`Microphone access required`). To report: coded errors.
+- **Neither adapter takes a base URL**: `https://api.openai.com/v1/realtime/calls` and
+  `wss://generativelanguage.googleapis.com/...` are fixed. Workaround: `ProviderApiEngine`
+  refuses live with a custom `baseUrl` (`AI_VOICE_UNAVAILABLE`, `live-custom-base-url`), so the
+  press runs turn by turn. To report: a base URL option.
+- **The token helpers read the key from the environment** (`openaiRealtimeToken`,
+  `geminiRealtimeToken` read `process.env` / `window.env`). Not used: `getToken()` in `live.ts`
+  mints with the reader's key from the page, a fresh token per connection (Gemini: `uses: 1`, a
+  short expiry), so there is no refresh timer, and the key never reaches a URL. Not reported:
+  they are server helpers by design.
+- **OpenAI's data channel must not open while `connect` awaits the SDP answer**: `onopen` reads
+  `pendingEvents`, declared later in the function. A real handshake takes a network round trip, so
+  it does not happen in a page; the Node fake opens the channel a task later. To report: declare
+  the queue before the channel's handlers.
+
 ## In-page code: `@tanstack/ai-isolate-quickjs` 0.3.2 over `quickjs-emscripten` 0.31.0
 
 The in-page code sandbox is not part of the provider engine: a program runs in the page whichever

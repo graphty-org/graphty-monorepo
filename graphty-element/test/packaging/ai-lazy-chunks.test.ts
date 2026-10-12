@@ -217,6 +217,47 @@ describe("AI chunks load lazily", () => {
         }
     });
 
+    it("keeps live conversations (live.ts and the realtime adapters) out of every chunk an entry loads up front, one provider per chunk", () => {
+        const { chunks } = JSON.parse(readFileSync(META, "utf8")) as { chunks: Chunk[] };
+        const byFile = new Map(chunks.map((c) => [c.fileName, c]));
+        const liveModules = [
+            /^src\/ai\/engine\/tanstack\/live\.ts$/,
+            /@tanstack\/ai-openai\/dist\/esm\/realtime\/adapter\.js$/,
+            /@tanstack\/ai-gemini\/dist\/esm\/realtime\/(?:adapter|client|utils)\.js$/,
+        ];
+        for (const pattern of liveModules) {
+            assert.ok(
+                chunks.some((c) => c.modules.some((id) => pattern.test(id))),
+                `a chunk holds a module matching ${pattern}`,
+            );
+        }
+
+        const live = chunks.filter((c) => c.modules.some((id) => liveModules.some((p) => p.test(id))));
+        for (const entry of exportedEntries()) {
+            const reached = new Set<string>();
+            const queue = [entry];
+            for (let file = queue.pop(); file !== undefined; file = queue.pop()) {
+                if (!reached.has(file)) {
+                    reached.add(file);
+                    queue.push(...(byFile.get(file)?.imports ?? []).filter((i) => byFile.has(i)));
+                }
+            }
+
+            for (const chunk of live) {
+                assert.notInclude([...reached], chunk.fileName, `${entry} loads ${chunk.fileName} up front`);
+            }
+        }
+
+        const openai = chunks.find((c) => c.modules.includes("src/ai/engine/tanstack/openai.ts"));
+        assert.ok(openai, "a chunk holds the OpenAI module");
+        assert.ok(
+            openai.modules.some((id) => liveModules[1].test(id)),
+            "OpenAI's realtime adapter rides in the OpenAI chunk",
+        );
+        const gemini = openai.modules.filter((id) => /@tanstack\/ai-gemini\/|@google\/genai\//.test(id));
+        assert.deepEqual(gemini, [], "the OpenAI chunk holds no Gemini module");
+    });
+
     it("builds the in-page code sandbox into its own chunk, reached only by import(), with its WebAssembly beside it", () => {
         const { chunks } = JSON.parse(readFileSync(META, "utf8")) as { chunks: Chunk[] };
         const program = chunks.find((c) => c.modules.includes("src/ai/engine/tanstack/program.ts"));

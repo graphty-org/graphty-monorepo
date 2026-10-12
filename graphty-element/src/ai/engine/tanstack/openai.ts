@@ -2,11 +2,12 @@
  * @file OpenAI (the Responses API) on TanStack AI. Loaded on the first OpenAI turn.
  */
 
-import { createOpenaiChat, createOpenaiSpeech, createOpenaiTranscription } from "@tanstack/ai-openai";
+import { createOpenaiChat, createOpenaiSpeech, createOpenaiTranscription, openaiRealtime } from "@tanstack/ai-openai";
 import { webSearchTool } from "@tanstack/ai-openai/tools";
 
 import type { ProviderApiSettings } from "../types";
 import type { ProviderModule } from "./index";
+import type { ProviderLiveModule } from "./live";
 import type { ProviderVoiceModule } from "./voice";
 
 /**
@@ -80,4 +81,12 @@ export const openaiVoice: ProviderVoiceModule = {
             settings.apiKey ?? "",
             clientOptions(settings, fetch),
         ),
+};
+
+/**
+ * OpenAI's live conversations: WebRTC to the fixed `api.openai.com` host, the model named by the
+ * token. TanStack's logger is off, as for chat.
+ */
+export const openaiLive: ProviderLiveModule = {
+    realtime: () => openaiRealtime({ debug: false }),
 };

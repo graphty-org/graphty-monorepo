@@ -130,6 +130,37 @@ describe("GEXF styles: reading", () => {
     });
 });
 
+describe("GEXF node pictures", () => {
+    it("reads a uri as a picture only on an image shape, the one shape GEXF gives a uri", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes>
+            <node id="a"><viz:shape value="diamond" uri="pic.png"/></node>
+            <node id="b"><viz:shape value="image" uri="pic.png"/></node>
+            </nodes></graph></gexf>`,
+        );
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["diamond", "other:image"]);
+        expect(resolveStyles(styles, "node", "image", snapshot)).toEqual([null, "pic.png"]);
+    });
+
+    it("reports a shape it replaces with the image shape a picture needs", async () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addNode("a");
+        const snapshot = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                node: { values: { shape: ["diamond"], image: ["pic.png"] } },
+                fingerprint: styleFingerprint(snapshot),
+            },
+            { node: featuresOf(snapshot, "node"), edge: [] },
+        );
+        const losses = registry.checkExport(snapshot, "gexf", { styles });
+        expect(
+            losses.filter((l) => l.code === "W_STYLE_APPROXIMATED").map((l) => [l.style?.property, l.count]),
+        ).toEqual([["shape", 1]]);
+    });
+});
+
 describe("GEXF 1.0 files", () => {
     it("imports edges of type dir listed before their nodes, attvalue id values, and pid naming no node", async () => {
         const { snapshot, report, styles } = await load(

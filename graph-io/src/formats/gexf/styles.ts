@@ -184,14 +184,17 @@ function vizValues(
                 }
             }
         }
+        let imageShape = false;
         if (shape !== null) {
             const raw = plainCell(table.value(shape, i));
             if (raw !== null) {
                 const kind = target === "node" ? "shape" : "lineStyle";
                 column(kind)[i] = canonEnum(kind, raw, "gexf", site(kind));
+                imageShape = String(raw).toLowerCase() === "image";
             }
         }
-        if (uri !== null) {
+        // GEXF gives a shape a uri only to name the picture of an `image` shape
+        if (uri !== null && imageShape) {
             const v = plainCell(table.value(uri, i));
             if (typeof v === "string" && v.length > 0) {
                 column("image")[i] = v;
@@ -487,7 +490,15 @@ export function gexfStyledExport(
         return typeof h === "number" ? h : null;
     };
     // the approximations are counted once, up front, so check() reports them before anything is written
-    const nodeShapes = shape.map((_v, i) => (typeof image[i] === "string" ? "image" : nodeShape(i)));
+    // a node with a picture is an `image` shape, the only shape GEXF gives a uri: another shape is not written
+    const imageShape = (i: number): string => {
+        const s = shape[i];
+        if (typeof s === "string" && s !== "other:image") {
+            approximate("node", "shape", s);
+        }
+        return "image";
+    };
+    const nodeShapes = shape.map((_v, i) => (typeof image[i] === "string" ? imageShape(i) : nodeShape(i)));
     const nodeSizes = width.map((_v, i) => nodeSize(i));
     const edgeShapes = line.map((_v, e) => edgeShape(e));
     const notes: LossNote[] = [];

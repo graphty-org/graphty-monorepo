@@ -4,7 +4,7 @@
  * painted: every row, control and number is mock data, and graphty-element is never loaded.
  *
  * Controls that graphty-element cannot draw today carry an "i" that says what it would need;
- * the switch above the panels hides those marks.
+ * the switch above the panels shows those marks.
  */
 
 import {
@@ -64,30 +64,40 @@ import {
 } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { Folder, Hash, Hexagon, Layers, Split, Tags, ToggleLeft, Type } from "lucide-react";
-import React, { createContext, useContext, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import {
     ARROW_KINDS,
-    BETWEENNESS_BINS,
     CATEGORY_PALETTES,
     COLOR_COMBINES,
     type Combine,
     COMMUNITIES,
-    DEGREE_BINS,
+    COUNTED_PATTERNS,
+    DEFAULT_CATEGORICAL,
+    DEFAULT_RAMP,
     derived,
     type DerivedWrite,
     type EffectEntry,
+    type EffectField,
     type EffectType,
     type EndEntry,
+    type EndField,
     fixed,
+    type GapId,
+    GAPS,
     INITIAL_LAYERS,
     INITIAL_TREE,
+    LABEL_COUNTS,
     type LabelEntry,
+    labelEntry,
+    type LookValue,
     type MockLayer,
     newId,
     NUMBER_COMBINES,
+    NUMBER_FACTS,
+    OTHER_COLOR,
     PAINTED,
-    PATTERNS,
+    paletteOf,
     type PropDef,
     type PropId,
     PROPS,
@@ -117,29 +127,15 @@ import {
 /* ------------------------------------------------------------------------------------------ */
 
 const ONE_LABEL_REASON = "One label per element until graphty-element has label slots";
-const RING_REASON = "One outline and one glow per element: the renderer draws one of each at one width";
 const LOCKED_REASON = "This layer is locked";
 const LOOK_VARY_REASON = "Label looks take one value until graphty-element lets them vary";
 const MOTION_NOTE = "Not shown on curved or patterned edges, in 2D, in still exports or with reduced motion";
+const GRADIENT_REASON = "graphty-element draws gradient fills, but no style channel reaches them yet";
 const ROW_GAP = 4;
 const CHIP_LIMIT = 8;
-
-/** What graphty-element needs before it can draw each marked control (the mock's "i" marks). */
-const GAPS = {
-    facts: "graphty-element needs is-selected and is-hovered values, scoped to a view.",
-    tree: "graphty-element needs folders, pins and a reader-set lock in the layer stack.",
-    split: "graphty-element needs split by value, with children matched across re-runs.",
-    combine: "graphty-element needs a combine mode on each property write.",
-    pause: "graphty-element needs a paused flag on each property write, saved with the layer.",
-    slots: "graphty-element needs label slots keyed by name before a second label can be drawn.",
-    looks: "graphty-element needs label size, color and background to take bindings.",
-    format: "graphty-element needs a number format on text bindings.",
-    shapes: "graphty-element needs named shape schemes, distinct shapes first.",
-    keep: "graphty-element needs a domain kept across re-runs.",
-    unmapped: "graphty-element needs a Skip option for values a value table does not list.",
-} as const;
-
-type GapId = keyof typeof GAPS;
+const MEMBER_LIMIT = 8;
+/** Section titles and the panel's layer name: 11 px, the size Figma gives a section title. */
+const TITLE_SIZE = 11;
 
 const HEX = (color: string): string => `#${color.replace(/^#/, "")}`;
 const strip = (color: string | undefined): string | undefined => color?.replace(/^#/, "").toUpperCase();
@@ -155,6 +151,58 @@ const COMBINE_WORDS: Record<Combine, string | undefined> = {
     "Set transparency": "Alpha",
 };
 
+/** The same, read aloud: "Size, multiplied by". */
+const COMBINE_NAMES: Record<Combine, string | undefined> = {
+    Replace: undefined,
+    Multiply: "multiplied by",
+    Add: "plus",
+    Mix: "mixed with",
+    "Set hue": "hue set from",
+    "Set lightness": "lightness set from",
+    "Set transparency": "transparency set from",
+};
+
+/**
+ * A select's value, or undefined when it holds the neutral default, so the field offers no reset
+ * that would only write the default again.
+ * @param value - The stored value.
+ * @param neutral - The default.
+ * @returns What the select shows as set.
+ */
+function unlessDefault<T extends string>(value: T | undefined, neutral: T): T | undefined {
+    return value === neutral ? undefined : value;
+}
+
+/** Where a label sits on a node, by graphty-element's `location`, in the panel's words. */
+const NODE_POSITIONS: readonly (readonly [string, string])[] = [
+    ["top", "Above"],
+    ["top-left", "Above left"],
+    ["top-right", "Above right"],
+    ["left", "Left"],
+    ["center", "Center"],
+    ["right", "Right"],
+    ["bottom", "Below"],
+    ["bottom-left", "Below left"],
+    ["bottom-right", "Below right"],
+    ["automatic", "Automatic"],
+];
+
+/** The alignment grid's cell for a node `location`, and back. */
+const LOCATION_CELL: Record<string, AlignmentMatrixValue> = {
+    top: "top-center",
+    "top-left": "top-left",
+    "top-right": "top-right",
+    left: "middle-left",
+    center: "middle-center",
+    right: "middle-right",
+    bottom: "bottom-center",
+    "bottom-left": "bottom-left",
+    "bottom-right": "bottom-right",
+};
+
+const EDGE_POSITIONS = ["On the line", "Above", "Below", "At source end", "At target end"];
+const END_POSITIONS = ["At source end", "At target end"];
+
 /* ------------------------------------------------------------------------------------------ */
 /* The mock's state, shared through context                                                    */
 /* ------------------------------------------------------------------------------------------ */
@@ -165,7 +213,7 @@ interface MockApi {
     readonly selectedId: string | null;
     readonly showGaps: boolean;
     readonly renamingId: string | null;
-    readonly select: (id: string) => void;
+    readonly select: (id: string | null) => void;
     readonly update: (id: string, fn: (layer: MockLayer) => MockLayer) => void;
     readonly setRenamingId: (id: string | null) => void;
     readonly actions: RowActions;
@@ -177,7 +225,7 @@ interface RowActions {
     readonly moveToFolder: (id: string, folderId: string | null) => void;
     readonly pin: (id: string, pin: "top" | "bottom" | undefined) => void;
     readonly unsplit: (id: string) => void;
-    readonly split: (id: string) => void;
+    readonly split: (id: string, source: string) => void;
     readonly ungroup: (id: string) => void;
     readonly followParentAll: (id: string) => void;
     readonly addAbove: (id: string, rule: Rule) => void;
@@ -459,17 +507,60 @@ function childColor(layer: MockLayer): string {
 }
 
 /**
+ * Whether the layers above cover everything this layer writes, so the tree marks it.
+ * @param layer - The layer.
+ * @returns True when every property it writes is painted over and it writes nothing else.
+ */
+function fullyPaintedOver(layer: MockLayer): boolean {
+    const written = Object.keys(layer.props);
+    return (
+        written.length > 0 &&
+        written.every((p) => layer.paintedOver?.[p as PropId] !== undefined) &&
+        layer.labels.length === 0 &&
+        layer.effects.length === 0 &&
+        layer.ends.length === 0 &&
+        layer.tooltip === undefined
+    );
+}
+
+/**
+ * Whether a split child changes anything its parent writes.
+ * @param layer - The row.
+ * @returns True for a child with its own writes.
+ */
+function overridesParent(layer: MockLayer): boolean {
+    return layer.kind === "child" && (Object.keys(layer.props).length > 0 || layer.effects.length > 0);
+}
+
+/**
+ * The marks after a row's name, as words: what a screen reader hears after the name.
+ * @param layer - The row.
+ * @returns The words, empty when the row has no marks.
+ */
+function markWords(layer: MockLayer, layers: Readonly<Record<string, MockLayer>>): string[] {
+    const firstOver = Object.values(layer.paintedOver ?? {})[0];
+    return [
+        layer.pin === undefined ? undefined : `pinned to the ${layer.pin}`,
+        overridesParent(layer) ? "overrides its parent" : undefined,
+        fullyPaintedOver(layer) && firstOver !== undefined
+            ? `painted over by ${layers[firstOver.by]?.name ?? firstOver.by}`
+            : undefined,
+    ].filter((w): w is string => w !== undefined);
+}
+
+/**
  * The marks after a row's name: pin, override dot, painted over.
  */
 function RowMarks({ layer }: { readonly layer: MockLayer }): React.JSX.Element | null {
     const { layers } = useMock();
-    const overrides = layer.kind === "child" && (Object.keys(layer.props).length > 0 || layer.effects.length > 0);
-    const over = layer.paintedOverBy === undefined ? undefined : layers[layer.paintedOverBy];
+    const overrides = overridesParent(layer);
+    const firstOver = Object.values(layer.paintedOver ?? {})[0];
+    const over = fullyPaintedOver(layer) && firstOver !== undefined ? layers[firstOver.by] : undefined;
     if (layer.pin === undefined && !overrides && over === undefined) {
         return null;
     }
     return (
-        <Group gap={4} wrap="nowrap">
+        <Group gap={4} wrap="nowrap" aria-hidden="true">
             {over !== undefined && (
                 <Tooltip label={`Painted over by ${over.name}`}>
                     <Text size="xs" c={PANEL_INK.PLACEHOLDER} component="span">
@@ -481,7 +572,6 @@ function RowMarks({ layer }: { readonly layer: MockLayer }): React.JSX.Element |
                 <Tooltip label="Overrides its parent">
                     <Box
                         component="span"
-                        aria-label="Overrides its parent"
                         style={{ width: 6, height: 6, borderRadius: 3, background: PANEL_INK.ACCENT }}
                     />
                 </Tooltip>
@@ -566,6 +656,11 @@ function RowMenuItems({ id }: { readonly id: string }): React.JSX.Element {
                         {folders.map((f) => (
                             <Menu.Item
                                 key={f.id}
+                                title={
+                                    layer.pin === undefined
+                                        ? undefined
+                                        : "A row inside a folder takes its folder's place, so this unpins it"
+                                }
                                 onClick={() => {
                                     actions.moveToFolder(id, f.id);
                                 }}
@@ -588,7 +683,7 @@ function RowMenuItems({ id }: { readonly id: string }): React.JSX.Element {
             {layer.pin === undefined ? (
                 <>
                     <Menu.Item
-                        disabled={!topLevel || layer.kind === "folder"}
+                        disabled={!topLevel}
                         title={topLevel ? undefined : "Only top-level rows can pin"}
                         onClick={() => {
                             actions.pin(id, "top");
@@ -597,7 +692,8 @@ function RowMenuItems({ id }: { readonly id: string }): React.JSX.Element {
                         Pin to top
                     </Menu.Item>
                     <Menu.Item
-                        disabled={!topLevel || layer.kind === "folder"}
+                        disabled={!topLevel}
+                        title={topLevel ? undefined : "Only top-level rows can pin"}
                         onClick={() => {
                             actions.pin(id, "bottom");
                         }}
@@ -686,17 +782,15 @@ function LayerTreePanel({
                 return [];
             }
             const hidden = parentHidden || layer.hidden;
-            const over = layer.paintedOverBy === undefined ? undefined : layers[layer.paintedOverBy];
-            const words = [
-                layer.hidden ? "Hidden" : undefined,
-                layer.locked ? "Locked" : undefined,
-                layer.pin === undefined ? undefined : `Pinned to the ${layer.pin}`,
-                over === undefined ? undefined : `Painted over by ${over.name}`,
-            ].filter((w) => w !== undefined);
+            const marks = markWords(layer, layers);
+            const words = [layer.hidden ? "Hidden" : undefined, layer.locked ? "Locked" : undefined].filter(
+                (w) => w !== undefined,
+            );
             return [
                 {
                     id: layer.id,
                     name: layer.name,
+                    label: marks.length === 0 ? undefined : `${layer.name}, ${marks.join(", ")}`,
                     icon: <TypeGlyph layer={layer} />,
                     dimmed: hidden,
                     strong: findPlace(tree, layer.id)?.parentId === null,
@@ -713,6 +807,7 @@ function LayerTreePanel({
         });
 
     const items = build(tree, false);
+    const footerPad = `8px ${String(PANEL_GRID.PAD_RIGHT)}px 8px ${String(PANEL_GRID.PAD_LEFT)}px`;
 
     return (
         <Box
@@ -737,10 +832,10 @@ function LayerTreePanel({
                     borderBottom: `1px solid ${PANEL_INK.DIVIDER}`,
                 }}
             >
-                <Text component="h2" size="xs" fw={600} m={0} c={PANEL_INK.VALUE}>
+                <Text component="h2" fz={TITLE_SIZE} fw={600} m={0} c={PANEL_INK.VALUE}>
                     Style layers
                 </Text>
-                <Menu position="bottom-end" withinPortal>
+                <Menu position="bottom-end" withinPortal returnFocus={false}>
                     <Menu.Target>
                         <ActionIcon
                             variant="subtle"
@@ -813,13 +908,23 @@ function LayerTreePanel({
             >
                 {menuRow !== null && layers[menuRow] !== undefined ? <RowMenuItems id={menuRow} /> : null}
             </ContextMenu>
-            {missingStarting && (
-                <Box style={{ padding: `8px ${String(PANEL_GRID.PAD_RIGHT)}px 8px ${String(PANEL_GRID.PAD_LEFT)}px` }}>
+            <Group gap={4} style={{ padding: footerPad, borderTop: `1px solid ${PANEL_INK.DIVIDER}` }}>
+                <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    aria-pressed={selectedId === null}
+                    onClick={() => {
+                        select(null);
+                    }}
+                >
+                    Graph settings
+                </Button>
+                {missingStarting && (
                     <Button size="compact-xs" variant="subtle" onClick={onRestore}>
                         Restore starting layers
                     </Button>
-                </Box>
-            )}
+                )}
+            </Group>
         </Box>
     );
 }
@@ -835,11 +940,14 @@ const LEVEL_GLYPH: Record<ValueRef["level"], React.ReactNode> = {
     yesno: <ToggleLeft size={12} />,
 };
 
+/** What a field can be driven by: the parts of a property definition the picker checks. */
+type Fit = Pick<PropDef, "label" | "on" | "scheme" | "ramp" | "capacity">;
+
 /**
- * Why `value` cannot drive `prop`, or null when it can. graphty-element's reason codes, in the
+ * Why `value` cannot drive a field, or null when it can. graphty-element's reason codes, in the
  * app's words.
  */
-function incompatible(prop: PropDef, value: ValueRef): string | null {
+function incompatible(prop: Fit, value: ValueRef): string | null {
     if (prop.scheme === "rule") {
         return `${prop.label} turns on and off through Which elements: add a layer for the elements to change`;
     }
@@ -851,6 +959,9 @@ function incompatible(prop: PropDef, value: ValueRef): string | null {
     }
     if (prop.ramp === "none" && value.level === "number") {
         return `${prop.label} takes categories; ${value.name} is a number`;
+    }
+    if (prop.capacity !== undefined && (value.distinct ?? 0) > prop.capacity) {
+        return `${prop.label} tells ${String(prop.capacity)} categories apart; ${value.name} has ${String(value.distinct)}`;
     }
     return null;
 }
@@ -930,6 +1041,15 @@ function ValuePickerList({
     );
 }
 
+/** The range a picked number starts on, per property: graphty-element's own encode defaults. */
+const START_RANGE: Partial<Record<PropId, [number, number]>> = {
+    size: [1, 3],
+    edgeWidth: [8, 16],
+    nodeOpacity: [30, 100],
+    edgeOpacity: [30, 100],
+    patternCount: [2, 12],
+};
+
 /**
  * The derived write a picked value makes for a property: a ramp for a number, a scheme for
  * categories, a value table for numbers per category.
@@ -937,23 +1057,137 @@ function ValuePickerList({
 function bindingFor(prop: PropDef, value: ValueRef): DerivedWrite {
     if (value.level === "number") {
         if (prop.control === "color") {
-            return derived(value.id, "ramp", "Yellow-orange-brown");
+            return derived(value.id, "ramp", DEFAULT_RAMP);
         }
-        const range: Record<string, [number, number]> = {
-            size: [1, 3],
-            edgeWidth: [1, 6],
-            opacity: [30, 100],
-        };
-        const [from, to] = range[prop.id] ?? [1, 3];
-        return { ...derived(value.id, "ramp", "Yellow-orange-brown"), from, to, steps: 5 };
+        const [from, to] = START_RANGE[prop.id] ?? [1, 3];
+        return { ...derived(value.id, "ramp", DEFAULT_RAMP), from, to, steps: 5 };
     }
     if (prop.scheme === "palette") {
-        return derived(value.id, "categories", "Okabe-Ito");
+        return derived(value.id, "categories", DEFAULT_CATEGORICAL);
     }
     if (prop.scheme === "shapes") {
         return derived(value.id, "categories", "Distinct shapes");
     }
+    if (prop.scheme === "list") {
+        return derived(value.id, "categories", `${prop.label} list`);
+    }
     return { ...derived(value.id, "table", ""), table: { 1: Number(prop.floor) * 2 } };
+}
+
+/**
+ * Figma's apply-variable glyph at the end of a value control, shown on hover and focus. It opens
+ * the value picker; "=" in the field opens it too.
+ */
+function VaryGlyph({ reason, label }: { readonly reason: string | null; readonly label: string }): React.JSX.Element {
+    return (
+        <ActionIcon
+            className="spm-vary"
+            type="button"
+            variant="subtle"
+            size={PANEL_GRID.TRAIL}
+            c={reason === null ? PANEL_INK.CHROME : PANEL_INK.DISABLED}
+            aria-label={reason === null ? `Vary ${label} by a value` : `Vary ${label} by a value. ${reason}`}
+            title={reason ?? `Vary ${label} by a value`}
+            aria-disabled={reason === null ? undefined : true}
+            data-disabled={reason === null ? undefined : true}
+            style={reason === null ? undefined : { background: "transparent", cursor: "not-allowed" }}
+        >
+            <Hexagon size={12} />
+        </ActionIcon>
+    );
+}
+
+/**
+ * A field of a list entry (an effect's color, an arrow's kind) that can vary by a value: its own
+ * control with the vary glyph, or, once bound, a pill naming the value and a button that fixes it
+ * again. "=" in the control opens the picker, as on a property row.
+ */
+function VaryField({
+    label,
+    fit,
+    bound,
+    onBind,
+    children,
+}: {
+    readonly label: string;
+    readonly fit: Fit;
+    readonly bound: string | undefined;
+    readonly onBind: (valueId: string | undefined) => void;
+    readonly children: React.ReactNode;
+}): React.JSX.Element {
+    const [open, setOpen] = useState(false);
+    return (
+        <Popout opened={open} onOpenChange={setOpen}>
+            <Box
+                className="spm-row"
+                style={{ display: "flex", alignItems: "center", gap: ROW_GAP, flex: 1, minWidth: 0 }}
+                onKeyDown={(event: React.KeyboardEvent) => {
+                    if (event.key === "=" && bound === undefined) {
+                        event.preventDefault();
+                        setOpen(true);
+                    }
+                }}
+            >
+                {bound === undefined ? (
+                    <>
+                        <Box style={{ flex: 1, minWidth: 0 }}>{children}</Box>
+                        <Popout.Trigger>
+                            <span style={{ display: "inline-flex" }}>
+                                <VaryGlyph reason={null} label={label} />
+                            </span>
+                        </Popout.Trigger>
+                    </>
+                ) : (
+                    <>
+                        <Box style={{ flex: 1, minWidth: 0 }}>
+                            <Popout.Trigger>
+                                <span style={{ display: "flex", width: "100%" }}>
+                                    <VariablePill
+                                        name={valueLabel(bound)}
+                                        value={`${label} varies by ${valueLabel(bound)}`}
+                                        kind="property"
+                                        width="100%"
+                                        glyph={<UiGlyph name="component" size={10} />}
+                                    />
+                                </span>
+                            </Popout.Trigger>
+                        </Box>
+                        <ActionIcon
+                            type="button"
+                            variant="subtle"
+                            size={PANEL_GRID.TRAIL}
+                            c={PANEL_INK.CHROME}
+                            aria-label={`Fix ${label} at one value`}
+                            title={`Fix ${label} at one value`}
+                            onClick={() => {
+                                onBind(undefined);
+                            }}
+                        >
+                            <UiGlyph name="unlink" size={PANEL_GRID.GLYPH} />
+                        </ActionIcon>
+                    </>
+                )}
+            </Box>
+            <Popout.Panel
+                width={PANEL_GRID.POPOVER_WIDTH}
+                header={{ variant: "title", title: `Vary ${label} by` }}
+                placement="left"
+            >
+                <Popout.Content>
+                    <ValuePickerList
+                        reasonFor={(v) => incompatible(fit, v)}
+                        current={bound}
+                        onPick={(valueId) => {
+                            setOpen(false);
+                            if (valueId !== null) {
+                                onBind(valueId);
+                            }
+                        }}
+                    />
+                </Popout.Content>
+            </Popout.Panel>
+        </Popout>
+    );
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -985,21 +1219,32 @@ function useWriter(layer: MockLayer, prop: PropId): (write: Write | undefined) =
     };
 }
 
+const NUMBER_GLYPH: Partial<Record<PropId, "width" | "opacity" | "sizeLargest">> = {
+    edgeWidth: "width",
+    nodeOpacity: "opacity",
+    edgeOpacity: "opacity",
+};
+
 /**
- * The value control of a fixed row.
+ * The value control of a fixed row. A combine mode other than Replace sits inside the field, as
+ * its prefix, and in its accessible name ("Edge width, multiplied by").
  */
 function FixedControl({
     prop,
     value,
     placeholder,
+    combine,
     onChange,
 }: {
     readonly prop: PropDef;
     readonly value: string | number | boolean | undefined;
     readonly placeholder?: string | number;
+    readonly combine: Combine;
     readonly onChange: (value: string | number) => void;
 }): React.JSX.Element {
     const floor = placeholder ?? prop.floor;
+    const word = COMBINE_WORDS[combine];
+    const name = COMBINE_NAMES[combine] === undefined ? prop.label : `${prop.label}, ${String(COMBINE_NAMES[combine])}`;
     if (prop.control === "color") {
         return (
             <CompactColorInput
@@ -1033,42 +1278,28 @@ function FixedControl({
     }
     return (
         <PanelField
-            label={prop.label}
+            label={name}
             kind="number"
             width="fill"
-            glyph={NUMBER_GLYPH[prop.id] ?? "sizeLargest"}
+            glyph={
+                word === undefined ? (
+                    (NUMBER_GLYPH[prop.id] ?? "sizeLargest")
+                ) : (
+                    <Text span size="xs" c={PANEL_INK.CHROME} aria-hidden="true">
+                        {word}
+                    </Text>
+                )
+            }
             unit={prop.unit}
             value={typeof value === "number" ? value : null}
             placeholder={`Default: ${String(floor)}`}
-            min={0}
+            min={prop.min ?? 0}
+            max={prop.max}
             step={prop.id === "size" ? 0.25 : 1}
             onChange={(next) => {
                 onChange(Number(next));
             }}
         />
-    );
-}
-
-/**
- * Figma's apply-variable glyph at the end of a value control, shown on hover and focus. It opens
- * the value picker; "=" in the field opens it too.
- */
-function VaryGlyph({ reason, label }: { readonly reason: string | null; readonly label: string }): React.JSX.Element {
-    return (
-        <ActionIcon
-            className="spm-vary"
-            type="button"
-            variant="subtle"
-            size={PANEL_GRID.TRAIL}
-            c={reason === null ? PANEL_INK.CHROME : PANEL_INK.DISABLED}
-            aria-label={reason === null ? `Vary ${label} by a value` : `Vary ${label} by a value. ${reason}`}
-            title={reason ?? `Vary ${label} by a value`}
-            aria-disabled={reason === null ? undefined : true}
-            data-disabled={reason === null ? undefined : true}
-            style={reason === null ? undefined : { background: "transparent", cursor: "not-allowed" }}
-        >
-            <Hexagon size={12} />
-        </ActionIcon>
     );
 }
 
@@ -1125,7 +1356,37 @@ function PropMenuItems({
 }
 
 /**
- * One property row: fixed (a value control) or derived (a pill, its second line and notes).
+ * "Painted over by <layer>" under a property the layers above cover: a link selecting the topmost
+ * of them, and how many more.
+ */
+function PaintedOverNote({
+    layer,
+    prop,
+}: {
+    readonly layer: MockLayer;
+    readonly prop: PropId;
+}): React.JSX.Element | null {
+    const { layers, select } = useMock();
+    const over = layer.paintedOver?.[prop];
+    const by = over === undefined ? undefined : layers[over.by];
+    if (over === undefined || by === undefined) {
+        return null;
+    }
+    const more = over.more > 0 ? ` and ${String(over.more)} more` : "";
+    return (
+        <Note
+            warn
+            text={`Painted over by ${by.name}${more}`}
+            onClick={() => {
+                select(by.id);
+            }}
+        />
+    );
+}
+
+/**
+ * One property row: fixed (a value control) or derived (settings, a pill, its second line and
+ * notes).
  */
 function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
     const { layer, prop } = ctx;
@@ -1185,14 +1446,18 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
                                 setWrite(fixed(checked));
                             }}
                             trailing={
-                                <Minus
-                                    target={`${prop.label} from ${layer.name}`}
-                                    onRemove={() => {
-                                        setWrite(undefined);
-                                    }}
-                                />
+                                <Group gap={2} wrap="nowrap">
+                                    {prop.gap !== undefined && <Gap gap={prop.gap} label={prop.label} />}
+                                    <Minus
+                                        target={`${prop.label} from ${layer.name}`}
+                                        onRemove={() => {
+                                            setWrite(undefined);
+                                        }}
+                                    />
+                                </Group>
                             }
                         />
+                        {ctx.pending && <Note text="Writes nothing until you switch it" />}
                     </Box>
                 }
             >
@@ -1221,7 +1486,8 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
 
     const inheritedValue = ctx.inherited?.mode === "fixed" ? ctx.inherited.value : undefined;
     const paused = write?.paused ?? false;
-    const word = write === undefined ? undefined : COMBINE_WORDS[write.combine];
+    const combineMode = write?.combine ?? "Replace";
+    const colorWord = prop.control === "color" ? COMBINE_WORDS[combineMode] : undefined;
     return (
         <Popout opened={pickerOpen} onOpenChange={setPickerOpen}>
             <ContextMenu
@@ -1242,16 +1508,10 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
                                 wrap="nowrap"
                                 style={{ flex: 1, minWidth: 0, opacity: paused ? 0.45 : 1 }}
                             >
-                                {word !== undefined && (
-                                    <Tooltip label={`Combine: ${write?.combine ?? ""}`}>
-                                        <Text size="xs" c={PANEL_INK.CHROME} style={{ flex: "0 0 auto" }}>
-                                            {word}
-                                        </Text>
-                                    </Tooltip>
-                                )}
                                 <Box style={{ flex: 1, minWidth: 0 }}>
                                     <FixedControl
                                         prop={prop}
+                                        combine={combineMode}
                                         value={write?.mode === "fixed" ? write.value : undefined}
                                         placeholder={
                                             inheritedValue === undefined || typeof inheritedValue === "boolean"
@@ -1259,11 +1519,18 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
                                                 : inheritedValue
                                         }
                                         onChange={(next) => {
-                                            setWrite(fixed(next, write?.mode === "fixed" ? write.combine : "Replace"));
+                                            setWrite(fixed(next, combineMode));
                                         }}
                                     />
                                 </Box>
-                                {word !== undefined && <Gap gap="combine" label="Combine" />}
+                                {colorWord !== undefined && (
+                                    <Tooltip label={`Combine: ${combineMode}`}>
+                                        <Text size="xs" c={PANEL_INK.CHROME} style={{ flex: "0 0 auto" }}>
+                                            {colorWord}
+                                        </Text>
+                                    </Tooltip>
+                                )}
+                                {combineMode !== "Replace" && <Gap gap="combine" label="Combine" />}
                                 <Popout.Trigger>
                                     <span style={{ display: "inline-flex" }}>
                                         <VaryGlyph reason={varyReason} label={prop.label} />
@@ -1292,10 +1559,11 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
                                 />
                             )}
                         </Box>
-                        {ctx.pending && <Note neutral text="Writes nothing until you choose a value" />}
+                        {ctx.pending && <Note text="Writes nothing until you choose a value" />}
                         {ctx.inherited !== undefined && write === undefined && (
-                            <Note neutral text="Follows Louvain. Choose a value to override it here" />
+                            <Note text="Follows its parent. Choose a value to override it here" />
                         )}
+                        <PaintedOverNote layer={layer} prop={prop.id} />
                         {layer.kind === "child" && write !== undefined && (
                             <Box style={{ paddingInlineStart: PANEL_GRID.PAD_LEFT, paddingBottom: 4 }}>
                                 <Anchor
@@ -1320,11 +1588,6 @@ function PropRow({ ctx }: { readonly ctx: RowContext }): React.JSX.Element {
     );
 }
 
-const NUMBER_GLYPH: Partial<Record<PropId, "width" | "opacity" | "sizeLargest">> = {
-    edgeWidth: "width",
-    opacity: "opacity",
-};
-
 const rowStyle: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
@@ -1337,29 +1600,43 @@ const rowStyle: React.CSSProperties = {
 /**
  * The property's name above its control, where a section holds more than one property.
  */
-function RowCaption({ text }: { readonly text: string }): React.JSX.Element {
+function RowCaption({
+    text,
+    children,
+}: {
+    readonly text: string;
+    readonly children?: React.ReactNode;
+}): React.JSX.Element {
     return (
-        <Text size="xs" c={PANEL_INK.CHROME} style={{ paddingInlineStart: PANEL_GRID.PAD_LEFT, paddingTop: 4 }}>
-            {text}
-        </Text>
+        <Group
+            gap={4}
+            wrap="nowrap"
+            style={{ paddingInlineStart: PANEL_GRID.PAD_LEFT, paddingInlineEnd: PANEL_GRID.PAD_RIGHT, paddingTop: 4 }}
+        >
+            <Text size="xs" c={PANEL_INK.CHROME}>
+                {text}
+            </Text>
+            {children}
+        </Group>
     );
 }
 
 /**
- * One line of secondary text under a row: a note the note rule requires.
+ * One line of secondary text under a row: a note the note rule requires. The warning mark is kept
+ * for what the reader set that is not showing (painted over, locked, hidden).
  */
 function Note({
     text,
     onClick,
-    neutral,
+    warn,
 }: {
     readonly text: string;
     readonly onClick?: () => void;
-    readonly neutral?: boolean;
+    readonly warn?: boolean;
 }): React.JSX.Element {
     return (
         <Box style={{ paddingInlineStart: PANEL_GRID.PAD_LEFT, paddingInlineEnd: PANEL_GRID.PAD_RIGHT }}>
-            <ProseBlock variant={neutral === true ? "reading" : "departure"}>
+            <ProseBlock variant={warn === true ? "departure" : "reading"}>
                 {onClick === undefined ? (
                     text
                 ) : (
@@ -1373,11 +1650,40 @@ function Note({
 }
 
 /**
+ * The split children of a parent that change a property, by category.
+ * @param layers - Every layer.
+ * @param parentId - The split parent.
+ * @param prop - The property.
+ * @returns Category number to the child's color.
+ */
+function childOverrides(
+    layers: Readonly<Record<string, MockLayer>>,
+    parentId: string,
+    prop: PropId,
+): Record<number, string> {
+    const out: Record<number, string> = {};
+    for (const l of Object.values(layers)) {
+        const w = l.props[prop];
+        if (l.child?.parentId === parentId && w?.mode === "fixed" && typeof w.value === "string") {
+            out[l.child.group] = w.value;
+        }
+    }
+    return out;
+}
+
+/**
  * The notes a derived write leaves on its row and in the legend: every hidden setting that is not
  * neutral.
  */
-function notesFor(write: DerivedWrite, layer: MockLayer): string[] {
+function notesFor(write: DerivedWrite, layer: MockLayer, changed: number): string[] {
     const notes: string[] = [];
+    const value = VALUES.find((v) => v.id === write.source);
+    if (value?.guessed === true && write.readAs === undefined) {
+        notes.push(`Level guessed: ${value.level}`);
+    }
+    if (write.binding === "ramp" && value?.distinct !== undefined && value.distinct <= 5) {
+        notes.push(`Only ${String(value.distinct)} distinct values`);
+    }
     if (write.scale !== "Linear") {
         notes.push(`${write.scale} scale`);
     }
@@ -1401,10 +1707,17 @@ function notesFor(write: DerivedWrite, layer: MockLayer): string[] {
     if (write.combine !== "Replace") {
         notes.push(`Combine: ${write.combine}`);
     }
-    if (write.binding === "categories" && write.source === "group" && write.palette === "Tol vibrant") {
+    const hidden = write.hiddenValues?.length ?? 0;
+    if (hidden > 0) {
+        notes.push(`${String(hidden)} ${hidden === 1 ? "value" : "values"} hidden`);
+    }
+    if (
+        write.binding === "categories" &&
+        paletteOf(write.palette).id === write.palette &&
+        paletteOf(write.palette).colors.length < categoriesOf(write.source).length
+    ) {
         notes.push("Other: 16% of nodes");
     }
-    const changed = Object.keys(write.overrides ?? {}).length;
     if (layer.kind === "split" && changed > 0) {
         notes.push(`Mixed: ${String(changed)} ${changed === 1 ? "community" : "communities"} changed`);
     }
@@ -1434,8 +1747,8 @@ function categoriesOf(source: string): Category[] {
     }
     if (source === "hovered") {
         return [
-            { n: 1, name: "yes", count: 1 },
-            { n: 2, name: "no", count: 76 },
+            { n: 1, name: "yes", count: 0 },
+            { n: 2, name: "no", count: 77 },
         ];
     }
     return [
@@ -1445,7 +1758,22 @@ function categoriesOf(source: string): Category[] {
 }
 
 /**
- * A derived row: pill, settings, eye and minus; then a ramp, a range or swatches; then notes.
+ * The words a pill reads aloud: the whole binding ("Node color varies by degree, linear, 1 to 36").
+ */
+function bindingName(prop: PropDef, write: DerivedWrite, changed: number): string {
+    const value = valueLabel(write.source);
+    if (write.binding === "ramp") {
+        const [lo, hi] = domainOf(write.source);
+        const steps = write.steps === undefined ? "" : `, ${String(write.steps)} steps`;
+        return `${prop.label} varies by ${value}, ${write.scale.toLowerCase()}, ${String(write.domainMin ?? lo)} to ${String(write.domainMax ?? hi)}${steps}`;
+    }
+    const cats = categoriesOf(write.source).length;
+    const more = changed > 0 ? `, ${String(changed)} changed` : "";
+    return `${prop.label} by ${value}, ${String(cats)} categories${more}`;
+}
+
+/**
+ * A derived row: settings, pill, eye and minus; then a ramp, a range or swatches; then notes.
  */
 function DerivedRow({
     layer,
@@ -1458,17 +1786,20 @@ function DerivedRow({
     readonly write: DerivedWrite;
     readonly setWrite: (write: Write | undefined) => void;
 }): React.JSX.Element {
-    const { select, layers } = useMock();
-    const notes = notesFor(write, layer);
-    const over = layer.paintedOverBy === undefined ? undefined : layers[layer.paintedOverBy];
+    const { layers } = useMock();
+    const overrides = layer.kind === "split" ? childOverrides(layers, layer.id, prop.id) : {};
+    const changed = Object.keys(overrides).length;
+    const notes = notesFor(write, layer, changed);
     return (
         <Box>
             <Box style={rowStyle}>
+                <BindingSettings layer={layer} prop={prop} write={write} setWrite={setWrite} />
                 <Box style={{ flex: "1 1 0", minWidth: 0, opacity: write.paused ? 0.45 : 1 }}>
                     <Popout.Trigger>
                         <span style={{ display: "flex", width: "100%" }}>
                             <VariablePill
                                 name={valueLabel(write.source)}
+                                value={bindingName(prop, write, changed)}
                                 glyph={<UiGlyph name={write.binding === "ramp" ? "refresh" : "component"} size={10} />}
                                 width="100%"
                                 kind="property"
@@ -1476,7 +1807,6 @@ function DerivedRow({
                         </span>
                     </Popout.Trigger>
                 </Box>
-                <BindingSettings layer={layer} prop={prop} write={write} setWrite={setWrite} />
                 <Eye
                     hidden={write.paused}
                     target={`${prop.label} on ${layer.name}`}
@@ -1491,20 +1821,18 @@ function DerivedRow({
                     }}
                 />
             </Box>
-            <Box style={{ paddingInlineStart: PANEL_GRID.PAD_LEFT, paddingInlineEnd: PANEL_GRID.PAD_RIGHT + 4 }}>
-                <BindingPreview prop={prop} write={write} setWrite={setWrite} />
+            <Box
+                style={{
+                    paddingInlineStart: PANEL_GRID.PAD_LEFT + PANEL_GRID.TRAIL + ROW_GAP,
+                    paddingInlineEnd: PANEL_GRID.PAD_RIGHT + 4,
+                }}
+            >
+                <BindingPreview prop={prop} write={write} setWrite={setWrite} overrides={overrides} />
             </Box>
             {notes.map((n) => (
                 <Note key={n} text={n} />
             ))}
-            {over !== undefined && (
-                <Note
-                    text={`Painted over by ${over.name}`}
-                    onClick={() => {
-                        select(over.id);
-                    }}
-                />
-            )}
+            <PaintedOverNote layer={layer} prop={prop.id} />
         </Box>
     );
 }
@@ -1516,10 +1844,12 @@ function BindingPreview({
     prop,
     write,
     setWrite,
+    overrides,
 }: {
     readonly prop: PropDef;
     readonly write: DerivedWrite;
     readonly setWrite: (write: Write | undefined) => void;
+    readonly overrides: Readonly<Record<number, string>>;
 }): React.JSX.Element | null {
     const domain = domainOf(write.source);
     if (write.binding === "ramp" && prop.control === "color") {
@@ -1561,34 +1891,35 @@ function BindingPreview({
             </PanelLabelsProvider>
         );
     }
+    const cats = categoriesOf(write.source);
     if (write.binding === "table") {
-        const cats = categoriesOf(write.source);
         return (
             <Text size="xs" c={PANEL_INK.CHROME} style={{ paddingBottom: 4 }}>
                 {`${String(Object.keys(write.table ?? {}).length)} of ${String(cats.length)} categories set; the rest keep the layers beneath`}
             </Text>
         );
     }
-    const cats = categoriesOf(write.source);
-    if (prop.scheme === "shapes") {
+    if (prop.scheme !== "palette") {
+        const kinds = prop.options ?? [];
         return (
             <Text size="xs" c={PANEL_INK.CHROME} style={{ paddingBottom: 4 }}>
                 {cats
                     .slice(0, 4)
-                    .map((c, i) => `${c.name}: ${["Icosphere", "Box", "Octahedron", "Cylinder"][i]}`)
+                    .map((c, i) => `${c.name}: ${String(kinds[(i + 1) % kinds.length] ?? "")}`)
                     .join(", ")}
             </Text>
         );
     }
-    const palette = CATEGORY_PALETTES[write.palette] ?? CATEGORY_PALETTES["Okabe-Ito"];
+    const palette = paletteOf(write.palette).colors;
     const shown = [...cats].sort((a, b) => a.n - b.n).slice(0, CHIP_LIMIT);
     return (
         <Group gap={4} style={{ minHeight: 24, paddingBottom: 4 }}>
             {shown.map((c) => {
-                const override = write.overrides?.[c.n];
+                const override = overrides[c.n];
+                const hidden = write.hiddenValues?.includes(c.n) === true;
                 return (
-                    <Tooltip key={c.n} label={override === undefined ? c.name : `${c.name}: changed on its layer`}>
-                        <Box style={{ position: "relative", display: "inline-flex" }}>
+                    <Tooltip key={c.n} label={chipLabel(c.name, hidden, override !== undefined)}>
+                        <Box style={{ position: "relative", display: "inline-flex", opacity: hidden ? 0.3 : 1 }}>
                             <ColorSwatch
                                 color={HEX(override ?? palette[(c.n - 1) % palette.length])}
                                 size={16}
@@ -1623,26 +1954,39 @@ function BindingPreview({
 }
 
 /**
+ * A category chit's tooltip.
+ * @param name - The category.
+ * @param hidden - Whether the reader hid it.
+ * @param changed - Whether its split child overrides it.
+ * @returns The words.
+ */
+function chipLabel(name: string, hidden: boolean, changed: boolean): string {
+    if (hidden) {
+        return `${name}: hidden`;
+    }
+    return changed ? `${name}: changed on its layer` : name;
+}
+
+/**
  * A value's range, as the domain ends the ramp prints.
  */
-function domainOf(source: string): [number, number] {
-    switch (source) {
-        case "degree":
-            return [1, 36];
-        case "betweenness":
-            return [0, 1140];
-        case "step":
-            return [1, 5];
-        case "weight":
-            return [1, 31];
-        default:
-            return [0, 1];
+function domainOf(source: string): readonly [number, number] {
+    if (source === "group") {
+        return [1, 6];
     }
+    return NUMBER_FACTS[source]?.domain ?? [0, 1];
 }
 
 /* ------------------------------------------------------------------------------------------ */
 /* Binding popovers                                                                            */
 /* ------------------------------------------------------------------------------------------ */
+
+/** The tallest a popover's body grows before it scrolls: it never runs past the window. */
+const POPOVER_BODY: React.CSSProperties = {
+    maxHeight: "min(420px, calc(100vh - 160px))",
+    overflowY: "auto",
+    overflowX: "hidden",
+};
 
 /**
  * The settings button of a derived row and the popover it opens: a ramp or a categories popover.
@@ -1662,10 +2006,10 @@ function BindingSettings({
     const title = `${prop.label} by ${value?.name ?? write.source}`;
     let fixAt: string | number = write.from ?? prop.floor;
     if (prop.control === "color") {
-        fixAt =
-            write.binding === "ramp"
-                ? (RAMP_PALETTES[write.palette]?.[2] ?? "FEC44F")
-                : (CATEGORY_PALETTES[write.palette]?.[0] ?? "E69F00");
+        const { colors } = paletteOf(write.palette);
+        fixAt = write.binding === "ramp" ? colors[Math.floor(colors.length / 2)] : colors[0];
+    } else if (prop.control === "select") {
+        fixAt = prop.options?.[0] ?? prop.floor;
     }
     const changed =
         write.scale !== "Linear" ||
@@ -1673,7 +2017,8 @@ function BindingSettings({
         write.reverse ||
         write.noValue === "Paint" ||
         write.clampLow !== undefined ||
-        write.combine !== "Replace";
+        write.combine !== "Replace" ||
+        (write.hiddenValues?.length ?? 0) > 0;
     return (
         <Popout>
             <Popout.Trigger>
@@ -1695,9 +2040,7 @@ function BindingSettings({
                 ]}
             >
                 <Popout.Content>
-                    <Box
-                        style={{ maxHeight: "min(400px, calc(100vh - 200px))", overflowY: "auto", overflowX: "hidden" }}
-                    >
+                    <Box style={POPOVER_BODY}>
                         {write.binding === "ramp" ? (
                             <RampSettings prop={prop} write={write} setWrite={setWrite} />
                         ) : (
@@ -1711,7 +2054,78 @@ function BindingSettings({
 }
 
 /**
- * The ramp popover: histogram over ramp, look, scale, domain, missing values, combine.
+ * Elements with no value: skip them, or paint them one color.
+ */
+function NoValueRows({
+    write,
+    set,
+}: {
+    readonly write: DerivedWrite;
+    readonly set: (patch: Partial<DerivedWrite>) => void;
+}): React.JSX.Element {
+    return (
+        <Box style={{ padding: "0 8px 4px 16px" }}>
+            <SegmentedControl
+                size="xs"
+                fullWidth
+                aria-label="Elements with no value"
+                data={["Skip", "Paint"]}
+                value={write.noValue}
+                onChange={(v) => {
+                    set({ noValue: v === "Paint" ? "Paint" : "Skip" });
+                }}
+            />
+            {write.noValue === "Paint" && (
+                <Box style={{ paddingTop: 4 }}>
+                    <CompactColorInput
+                        label="No value color"
+                        color={write.noValueColor === undefined ? undefined : HEX(write.noValueColor)}
+                        defaultColor="#FF00FF"
+                        showOpacity={false}
+                        onColorChange={(c) => {
+                            set({ noValueColor: strip(c) });
+                        }}
+                    />
+                </Box>
+            )}
+        </Box>
+    );
+}
+
+/**
+ * The combine select at the foot of a binding popover.
+ */
+function CombineSelect({
+    prop,
+    write,
+    set,
+}: {
+    readonly prop: PropDef;
+    readonly write: DerivedWrite;
+    readonly set: (patch: Partial<DerivedWrite>) => void;
+}): React.JSX.Element {
+    const combines = prop.control === "color" ? COLOR_COMBINES : NUMBER_COMBINES;
+    return (
+        <Group gap={4} wrap="nowrap" align="flex-end">
+            <Box style={{ flex: 1 }}>
+                <StyleSelect
+                    label="Combine with the layers beneath"
+                    value={unlessDefault(write.combine, "Replace")}
+                    defaultValue="Replace"
+                    options={combines.map((c) => ({ value: c, label: c }))}
+                    onChange={(c) => {
+                        set({ combine: (c ?? "Replace") as Combine });
+                    }}
+                />
+            </Box>
+            {write.combine !== "Replace" && <Gap gap="combine" label="Combine" />}
+        </Group>
+    );
+}
+
+/**
+ * The ramp popover: the value with its histogram and ramp, the palette or range, scale and domain,
+ * missing values, combine.
  */
 function RampSettings({
     prop,
@@ -1726,63 +2140,94 @@ function RampSettings({
         setWrite({ ...write, ...patch });
     };
     const domain = domainOf(write.source);
-    const bins = write.source === "betweenness" ? BETWEENNESS_BINS : DEGREE_BINS;
-    const diverging = write.palette.includes("diverging");
+    const facts = NUMBER_FACTS[write.source] as (typeof NUMBER_FACTS)[string] | undefined;
+    const value = VALUES.find((v) => v.id === write.source);
+    const diverging = paletteOf(write.palette).kind === "diverging";
     const stepped = write.steps !== undefined || write.scale === "Equal ranges" || write.scale === "Equal counts";
-    const combines = prop.control === "color" ? COLOR_COMBINES : NUMBER_COMBINES;
+    const domainSet = write.domainMin !== undefined || write.domainMax !== undefined;
+    const clampSet = write.clampLow !== undefined || write.clampHigh !== undefined;
     return (
         <Box>
             <ControlGroup label="Values">
                 <Box style={{ padding: `4px ${String(PANEL_GRID.PAD_RIGHT)}px 4px ${String(PANEL_GRID.PAD_LEFT)}px` }}>
                     <VariablePill name={valueLabel(write.source)} kind="property" width={184} />
                 </Box>
-                <HistogramRow
-                    label={`${valueLabel(write.source)} histogram`}
-                    bins={bins.map((b) => ({ ...b }))}
-                    minLabel={String(domain[0])}
-                    maxLabel={String(domain[1])}
-                />
-                {prop.control === "color" ? (
-                    <RampRow
-                        label="Ramp"
-                        variant="color"
-                        gradient={rampGradient(write.palette, write.reverse, write.steps)}
-                        min={String(write.domainMin ?? domain[0])}
-                        max={String(write.domainMax ?? domain[1])}
-                    />
-                ) : (
-                    <RampRow
-                        label="Range"
-                        variant="size"
-                        min={`${String(write.from ?? 1)} ${prop.unit ?? ""}`}
-                        max={`${String(write.to ?? 3)} ${prop.unit ?? ""}`}
+                {write.readAs !== undefined && (
+                    <Box style={{ padding: "0 8px 4px 16px" }}>
+                        <Text size="xs" c={PANEL_INK.CHROME}>
+                            {`Read as a number (guessed: categories). `}
+                            <Anchor
+                                component="button"
+                                type="button"
+                                size="xs"
+                                onClick={() => {
+                                    setWrite({ ...derived(write.source, "categories", DEFAULT_CATEGORICAL) });
+                                }}
+                            >
+                                Read as categories
+                            </Anchor>
+                        </Text>
+                    </Box>
+                )}
+                {value?.distinct !== undefined && value.distinct <= 5 && (
+                    <Box style={{ padding: "0 8px 4px 16px" }}>
+                        <Text size="xs" c={PANEL_INK.CHROME}>
+                            {`Only ${String(value.distinct)} distinct values. `}
+                            {prop.scheme !== "table" && (
+                                <Anchor
+                                    component="button"
+                                    type="button"
+                                    size="xs"
+                                    onClick={() => {
+                                        setWrite(derived(write.source, "categories", DEFAULT_CATEGORICAL));
+                                    }}
+                                >
+                                    Use categories instead
+                                </Anchor>
+                            )}
+                        </Text>
+                    </Box>
+                )}
+                {facts !== undefined && (
+                    <HistogramRow
+                        label={`${valueLabel(write.source)} histogram`}
+                        bins={facts.bins.map((b) => ({ ...b }))}
+                        minLabel={String(domain[0])}
+                        maxLabel={String(domain[1])}
                     />
                 )}
-            </ControlGroup>
-            <ControlGroup label="Look">
                 {prop.control === "color" ? (
-                    <Group gap={4} wrap="nowrap" align="flex-end" style={{ padding: "0 8px 4px 16px" }}>
-                        <Box style={{ flex: 1 }}>
-                            <StyleSelect
-                                label="Palette"
-                                value={write.palette}
-                                defaultValue="Yellow-orange-brown"
-                                options={Object.keys(RAMP_PALETTES).map((p) => ({ value: p, label: p }))}
-                                onChange={(p) => {
-                                    set({ palette: p ?? "Yellow-orange-brown" });
+                    <>
+                        <RampRow
+                            label="Ramp"
+                            variant="color"
+                            gradient={rampGradient(write.palette, write.reverse, write.steps)}
+                            min={String(write.domainMin ?? domain[0])}
+                            max={String(write.domainMax ?? domain[1])}
+                        />
+                        <Group gap={4} wrap="nowrap" align="flex-end" style={{ padding: "0 8px 4px 16px" }}>
+                            <Box style={{ flex: 1 }}>
+                                <StyleSelect
+                                    label="Palette"
+                                    value={unlessDefault(write.palette, DEFAULT_RAMP)}
+                                    defaultValue={DEFAULT_RAMP}
+                                    options={RAMP_PALETTES.map((p) => ({ value: p.id, label: p.name }))}
+                                    onChange={(p) => {
+                                        set({ palette: p ?? DEFAULT_RAMP });
+                                    }}
+                                />
+                            </Box>
+                            <ToggleIconButton
+                                variant="fill"
+                                label="Reverse the palette"
+                                checked={write.reverse}
+                                icon={<UiGlyph name="flipHorizontal" size={PANEL_GRID.GLYPH} />}
+                                onChange={(reverse) => {
+                                    set({ reverse });
                                 }}
                             />
-                        </Box>
-                        <ToggleIconButton
-                            variant="fill"
-                            label="Reverse the palette"
-                            checked={write.reverse}
-                            icon={<UiGlyph name="flipHorizontal" size={PANEL_GRID.GLYPH} />}
-                            onChange={(reverse) => {
-                                set({ reverse });
-                            }}
-                        />
-                    </Group>
+                        </Group>
+                    </>
                 ) : (
                     <PanelLabelsProvider showLabels>
                         <FieldRow groupLabel="Range">
@@ -1808,11 +2253,11 @@ function RampSettings({
                     </PanelLabelsProvider>
                 )}
             </ControlGroup>
-            <ControlGroup label="Scale">
+            <ControlGroup label="Scale and domain">
                 <Box style={{ padding: "0 8px 4px 16px" }}>
                     <StyleSelect
                         label="Scale"
-                        value={write.scale}
+                        value={unlessDefault(write.scale, "Linear")}
                         defaultValue="Linear"
                         options={SCALES.map((s) => ({ value: s, label: s }))}
                         onChange={(s) => {
@@ -1835,7 +2280,7 @@ function RampSettings({
                             value={write.steps}
                             defaultValue={5}
                             min={2}
-                            max={9}
+                            max={20}
                             onChange={(steps) => {
                                 set({ steps });
                             }}
@@ -1845,8 +2290,8 @@ function RampSettings({
                         <StyleNumberInput
                             label="Exponent"
                             value={write.exponent}
-                            defaultValue={2}
-                            step={0.5}
+                            defaultValue={1}
+                            step={0.1}
                             onChange={(exponent) => {
                                 set({ exponent });
                             }}
@@ -1860,8 +2305,9 @@ function RampSettings({
                             kind="number"
                             value={write.domainMin ?? null}
                             placeholder="Auto"
+                            disabled={clampSet}
                             onChange={(v) => {
-                                set({ domainMin: Number(v) });
+                                set({ domainMin: v === "" ? undefined : Number(v) });
                             }}
                         />
                         <PanelField
@@ -1869,12 +2315,14 @@ function RampSettings({
                             kind="number"
                             value={write.domainMax ?? null}
                             placeholder="Auto"
+                            disabled={clampSet}
                             onChange={(v) => {
-                                set({ domainMax: Number(v) });
+                                set({ domainMax: v === "" ? undefined : Number(v) });
                             }}
                         />
                     </FieldRow>
                 </PanelLabelsProvider>
+                {clampSet && <Note text="Clear the clamp to type domain ends: the two exclude each other" />}
                 <Group gap={4} style={{ padding: "4px 8px 4px 16px" }}>
                     <Checkbox
                         size="xs"
@@ -1894,8 +2342,9 @@ function RampSettings({
                             unit="th"
                             value={write.clampLow ?? null}
                             placeholder="None"
+                            disabled={domainSet}
                             onChange={(v) => {
-                                set({ clampLow: Number(v) });
+                                set({ clampLow: v === "" ? undefined : Number(v) });
                             }}
                         />
                         <PanelField
@@ -1904,59 +2353,44 @@ function RampSettings({
                             unit="th"
                             value={write.clampHigh ?? null}
                             placeholder="None"
+                            disabled={domainSet}
                             onChange={(v) => {
-                                set({ clampHigh: Number(v) });
+                                set({ clampHigh: v === "" ? undefined : Number(v) });
                             }}
                         />
                     </FieldRow>
                 </PanelLabelsProvider>
+                {domainSet && <Note text="Clamp works on an automatic domain: clear the domain ends to clamp" />}
             </ControlGroup>
-            <ControlGroup label="No value">
-                <Box style={{ padding: "0 8px 4px 16px" }}>
-                    <SegmentedControl
-                        size="xs"
-                        fullWidth
-                        aria-label="Elements with no value"
-                        data={["Skip", "Paint"]}
-                        value={write.noValue}
-                        onChange={(v) => {
-                            set({ noValue: v === "Paint" ? "Paint" : "Skip" });
-                        }}
-                    />
-                    {write.noValue === "Paint" && (
-                        <Box style={{ paddingTop: 4 }}>
-                            <CompactColorInput
-                                label="No value color"
-                                color={write.noValueColor === undefined ? undefined : HEX(write.noValueColor)}
-                                defaultColor="#999999"
-                                showOpacity={false}
-                                onColorChange={(c) => {
-                                    set({ noValueColor: strip(c) });
-                                }}
-                            />
-                        </Box>
-                    )}
-                </Box>
+            <ControlGroup label="Elements with no value">
+                <NoValueRows write={write} set={set} />
             </ControlGroup>
-            <ControlGroup label="Combine">
-                <Box style={{ padding: "0 8px 8px 16px" }}>
-                    <StyleSelect
-                        label="Combine with the layers beneath"
-                        value={write.combine}
-                        defaultValue="Replace"
-                        options={combines.map((c) => ({ value: c, label: c }))}
-                        onChange={(c) => {
-                            set({ combine: (c ?? "Replace") as Combine });
-                        }}
-                    />
-                </Box>
-            </ControlGroup>
+            <Box style={{ padding: "4px 8px 8px 16px" }}>
+                <CombineSelect prop={prop} write={write} set={set} />
+            </Box>
         </Box>
     );
 }
 
 /**
- * The categories popover: scheme, category rows, Other, overflow, unmapped, combine, split.
+ * The schemes a categories binding can use for a property.
+ */
+function schemesFor(prop: PropDef, write: DerivedWrite): { value: string; label: string }[] {
+    if (write.binding === "table") {
+        return [];
+    }
+    if (prop.scheme === "shapes") {
+        return SHAPE_SCHEMES.map((s) => ({ value: s, label: s }));
+    }
+    if (prop.scheme === "list") {
+        return [{ value: write.palette, label: write.palette }];
+    }
+    return CATEGORY_PALETTES.map((p) => ({ value: p.id, label: p.name }));
+}
+
+/**
+ * The categories popover: the value and its level, scheme, category rows (each with an eye),
+ * Other, values with none, combine, split.
  */
 function CategorySettings({
     layer,
@@ -1969,34 +2403,60 @@ function CategorySettings({
     readonly write: DerivedWrite;
     readonly setWrite: (write: Write | undefined) => void;
 }): React.JSX.Element {
-    const { actions } = useMock();
+    const { actions, layers } = useMock();
     const [query, setQuery] = useState("");
     const set = (patch: Partial<DerivedWrite>): void => {
         setWrite({ ...write, ...patch });
     };
-    const cats = categoriesOf(write.source).filter((c) => c.name.toLowerCase().includes(query.toLowerCase()));
-    const palette = CATEGORY_PALETTES[write.palette] ?? CATEGORY_PALETTES["Okabe-Ito"];
-    let schemes: string[] = write.binding === "table" ? [] : Object.keys(CATEGORY_PALETTES);
-    if (prop.scheme === "shapes") {
-        schemes = SHAPE_SCHEMES;
-    }
-    const combines = prop.control === "color" ? COLOR_COMBINES : NUMBER_COMBINES;
+    const all = categoriesOf(write.source);
+    const cats = all.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()));
+    const palette = paletteOf(write.palette).colors;
+    const schemes = schemesFor(prop, write);
+    const overrides = layer.kind === "split" ? childOverrides(layers, layer.id, prop.id) : {};
+    const value = VALUES.find((v) => v.id === write.source);
+    const folds = prop.scheme === "palette" && all.length > palette.length;
+    const hidden = write.hiddenValues ?? [];
+    const toggleHidden = (n: number, hide: boolean): void => {
+        set({ hiddenValues: hide ? [...hidden, n] : hidden.filter((h) => h !== n) });
+    };
     return (
         <Box>
             <ControlGroup label="Values">
                 <Box style={{ padding: "4px 8px 4px 16px" }}>
                     <VariablePill name={valueLabel(write.source)} kind="property" width={184} />
                 </Box>
+                {value?.guessed === true && (
+                    <Box style={{ padding: "0 8px 4px 16px" }}>
+                        <Text size="xs" c={PANEL_INK.CHROME}>
+                            {`Level guessed: ${value.level}. `}
+                            {prop.ramp !== "none" && (
+                                <Anchor
+                                    component="button"
+                                    type="button"
+                                    size="xs"
+                                    onClick={() => {
+                                        setWrite({
+                                            ...bindingFor(prop, { ...value, level: "number" }),
+                                            readAs: "number",
+                                        });
+                                    }}
+                                >
+                                    Read as a number
+                                </Anchor>
+                            )}
+                        </Text>
+                    </Box>
+                )}
                 {schemes.length > 0 && (
                     <Group gap={4} wrap="nowrap" align="flex-end" style={{ padding: "0 8px 4px 16px" }}>
                         <Box style={{ flex: 1 }}>
                             <StyleSelect
                                 label="Scheme"
-                                value={write.palette}
-                                defaultValue={schemes[0]}
-                                options={schemes.map((s) => ({ value: s, label: s }))}
+                                value={unlessDefault(write.palette, schemes[0].value)}
+                                defaultValue={schemes[0].value}
+                                options={schemes}
                                 onChange={(p) => {
-                                    set({ palette: p ?? schemes[0] });
+                                    set({ palette: p ?? schemes[0].value });
                                 }}
                             />
                         </Box>
@@ -2005,37 +2465,55 @@ function CategorySettings({
                 )}
             </ControlGroup>
             <ControlGroup label="Categories">
-                {categoriesOf(write.source).length > CHIP_LIMIT && (
+                {all.length > CHIP_LIMIT && (
                     <Box style={{ padding: "0 8px 4px 16px" }}>
                         <SearchInput aria-label="Search categories" value={query} onChange={setQuery} />
                     </Box>
                 )}
-                {cats.slice(0, CHIP_LIMIT).map((c) => (
-                    <DataRow
-                        key={c.n}
-                        name={c.name}
-                        icon={
-                            prop.scheme === "palette" ? (
-                                <ColorSwatch
-                                    color={HEX(write.overrides?.[c.n] ?? palette[(c.n - 1) % palette.length])}
-                                    size={12}
-                                    withShadow={false}
-                                />
-                            ) : undefined
-                        }
-                        value={write.binding === "table" ? String(write.table?.[c.n] ?? "--") : undefined}
-                        trailing={<RankChip>{c.count}</RankChip>}
+                {cats.slice(0, CHIP_LIMIT).map((c) => {
+                    const isHidden = hidden.includes(c.n);
+                    return (
+                        <Box key={c.n} style={{ opacity: isHidden ? 0.5 : 1 }}>
+                            <DataRow
+                                name={c.name}
+                                icon={
+                                    prop.scheme === "palette" ? (
+                                        <ColorSwatch
+                                            color={HEX(overrides[c.n] ?? palette[(c.n - 1) % palette.length])}
+                                            size={12}
+                                            withShadow={false}
+                                        />
+                                    ) : undefined
+                                }
+                                value={write.binding === "table" ? String(write.table?.[c.n] ?? "--") : undefined}
+                                trailing={
+                                    <Group gap={2} wrap="nowrap">
+                                        <RankChip>{c.count}</RankChip>
+                                        <Eye
+                                            hidden={isHidden}
+                                            target={`${c.name} from ${prop.label}`}
+                                            onToggle={(hide) => {
+                                                toggleHidden(c.n, hide);
+                                            }}
+                                        />
+                                    </Group>
+                                }
+                            />
+                        </Box>
+                    );
+                })}
+                {hidden.length > 0 && (
+                    <Note
+                        text={`${String(hidden.length)} ${hidden.length === 1 ? "value" : "values"} hidden: not painted, kept in the legend`}
                     />
-                ))}
-                {write.palette === "Tol vibrant" && write.source === "group" && (
-                    <DataRow name="Other" value="16% of nodes" trailing={<RankChip>12</RankChip>} />
                 )}
+                {folds && <DataRow name="Other" value="16% of nodes" trailing={<RankChip>12</RankChip>} />}
             </ControlGroup>
             <ControlGroup label="More than the scheme holds">
                 <Box style={{ padding: "0 8px 4px 16px" }}>
                     <StyleSelect
                         label="Overflow"
-                        value={write.overflow}
+                        value={unlessDefault(write.overflow, "Fold into Other")}
                         defaultValue="Fold into Other"
                         options={["Fold into Other", "Cycle shapes", "Extend the ramp"].map((o) => ({
                             value: o,
@@ -2048,15 +2526,26 @@ function CategorySettings({
                     <StyleNumberInput
                         label="Other threshold"
                         suffix="%"
-                        value={write.otherThreshold}
+                        value={write.otherThreshold === 1 ? undefined : write.otherThreshold}
                         defaultValue={1}
                         onChange={(v) => {
                             set({ otherThreshold: v ?? 1 });
                         }}
                     />
+                    {prop.control === "color" && write.overflow === "Fold into Other" && (
+                        <CompactColorInput
+                            label="Other color"
+                            color={write.otherColor === undefined ? undefined : HEX(write.otherColor)}
+                            defaultColor={HEX(OTHER_COLOR)}
+                            showOpacity={false}
+                            onColorChange={(c) => {
+                                set({ otherColor: strip(c) });
+                            }}
+                        />
+                    )}
                     <StyleSelect
                         label="Order"
-                        value={write.order}
+                        value={unlessDefault(write.order, "Largest first")}
                         defaultValue="Largest first"
                         options={["Largest first", "By name", "As found"].map((o) => ({ value: o, label: o }))}
                         onChange={(o) => {
@@ -2079,34 +2568,27 @@ function CategorySettings({
                     )}
                 </Box>
             </ControlGroup>
-            <ControlGroup label="Combine">
-                <Box style={{ padding: "0 8px 8px 16px" }}>
-                    <StyleSelect
-                        label="Combine with the layers beneath"
-                        value={write.combine}
-                        defaultValue="Replace"
-                        options={combines.map((c) => ({ value: c, label: c }))}
-                        onChange={(c) => {
-                            set({ combine: (c ?? "Replace") as Combine });
-                        }}
-                    />
-                    {layer.kind === "layer" && (
-                        <Group gap={4} wrap="nowrap" style={{ paddingTop: 8 }}>
-                            <Button
-                                variant="default"
-                                size="compact-sm"
-                                fullWidth
-                                onClick={() => {
-                                    actions.split(layer.id);
-                                }}
-                            >
-                                Split into layers
-                            </Button>
-                            <Gap gap="split" label="Split into layers" />
-                        </Group>
-                    )}
-                </Box>
+            <ControlGroup label="Elements with no value">
+                <NoValueRows write={write} set={set} />
             </ControlGroup>
+            <Box style={{ padding: "4px 8px 8px 16px" }}>
+                <CombineSelect prop={prop} write={write} set={set} />
+                {layer.kind === "layer" && (
+                    <Group gap={4} wrap="nowrap" style={{ paddingTop: 8 }}>
+                        <Button
+                            variant="default"
+                            size="compact-sm"
+                            fullWidth
+                            onClick={() => {
+                                actions.split(layer.id, write.source);
+                            }}
+                        >
+                            Split into layers
+                        </Button>
+                        <Gap gap="split" label="Split into layers" />
+                    </Group>
+                )}
+            </Box>
         </Box>
     );
 }
@@ -2115,10 +2597,85 @@ function CategorySettings({
 /* Text: label entries and the tooltip                                                         */
 /* ------------------------------------------------------------------------------------------ */
 
-const EDGE_POSITIONS = ["On the line", "Above", "Below", "At source end", "At target end"];
+/** Which text block an entry is: its defaults differ (graphty-element's label and caption columns). */
+type TextKind = "label" | "tooltip" | "caption";
+
+/** graphty-element's defaults for every label look field, by block: what an empty field draws. */
+const LOOK_DEFAULTS: Record<TextKind, Readonly<Record<string, LookValue>>> = (() => {
+    const label: Record<string, LookValue> = {
+        color: "000000",
+        background: "000000",
+        font: "Verdana",
+        weight: "Normal",
+        lineHeight: 1.2,
+        textAlign: "Center",
+        padding: 0,
+        cornerRadius: 0,
+        marginTop: 5,
+        marginBottom: 5,
+        marginLeft: 5,
+        marginRight: 5,
+        borderWidth: 1,
+        borderColor: "000000",
+        gradientType: "Linear",
+        gradientFrom: "000000",
+        gradientTo: "323232",
+        gradientDirection: "Vertical",
+        outlineColor: "000000",
+        outlineWidth: 2,
+        shadowColor: "000000",
+        shadowBlur: 4,
+        shadowOffsetX: 2,
+        shadowOffsetY: 2,
+        attachOffset: 0,
+        priority: 0,
+        pointerDirection: "Auto",
+        pointerWidth: 20,
+        pointerHeight: 10,
+        pointerOffset: 0,
+        pointerCurve: false,
+        animation: "None",
+        animationSpeed: 1,
+        depthFadeNear: 10,
+        depthFadeFar: 50,
+        badge: "None",
+        icon: "",
+        iconPosition: "Left",
+        progress: 0,
+        maxNumber: 999,
+        overflowSuffix: "+",
+    };
+    return {
+        label,
+        tooltip: { ...label, background: "FFFFFF" },
+        caption: {
+            ...label,
+            borderColor: "FFFFFF",
+            attachOffset: 0.3,
+            pointerDirection: "Bottom",
+            pointerHeight: 15,
+            pointerCurve: true,
+            depthFadeNear: 5,
+            depthFadeFar: 20,
+        },
+    };
+})();
+
+/** Each block's background with nothing set: label and caption transparent, tooltip white. */
+const BACKGROUND_OPACITY: Record<TextKind, number> = { label: 0, tooltip: 100, caption: 0 };
+
+const NUMBER_FORMATS = ["As is", "1,234", "1.2k", "2 decimals", "Percent"];
 
 /**
- * One label entry: settings, source, eye, minus; then size and position.
+ * The fit a label text field checks a value against.
+ */
+function textFit(layer: MockLayer): Fit {
+    return { label: "Label text", on: layer.rule.matches === "edge" ? "edge" : "node", scheme: "table", ramp: "steps" };
+}
+
+/**
+ * One label entry: settings, source, eye, minus; then size and position. A preview entry is drawn
+ * greyed and inert: a second label graphty-element cannot draw today.
  */
 function LabelEntryRow({
     layer,
@@ -2135,16 +2692,34 @@ function LabelEntryRow({
 }): React.JSX.Element {
     const [pickerOpen, setPickerOpen] = useState(false);
     const onEdges = layer.rule.matches === "edge";
-    const what = tooltip === true ? "tooltip" : "label";
-    const endPosition = entry.position === "At source end" || entry.position === "At target end";
+    const endPosition = END_POSITIONS.includes(entry.position);
+    let kind: TextKind = endPosition ? "caption" : "label";
+    if (tooltip === true) {
+        kind = "tooltip";
+    }
+    const what = { label: "label", tooltip: "tooltip", caption: "caption" }[kind];
     const hasArrow = layer.ends.some(
         (e) => (entry.position === "At target end" ? e.end === "Head" : e.end === "Tail") && e.kind !== "None",
     );
-    return (
-        <Box className="spm-row" style={{ opacity: entry.hidden ? 0.6 : 1 }}>
+    const sourceId = entry.source.kind === "value" ? entry.source.value : undefined;
+    const source = VALUES.find((v) => v.id === sourceId);
+    const isNumber = source?.level === "number";
+    const positions = onEdges || endPosition ? EDGE_POSITIONS : NODE_POSITIONS.map(([, word]) => word);
+    const positionWord =
+        onEdges || endPosition ? entry.position : (NODE_POSITIONS.find(([v]) => v === entry.position)?.[1] ?? "Above");
+    const row = (
+        <Box className="spm-row" style={{ opacity: entry.hidden || entry.preview === true ? 0.5 : 1 }}>
             {tooltip === true && <RowCaption text="Tooltip" />}
+            {endPosition && (
+                <RowCaption text={entry.position === "At target end" ? "Caption, target end" : "Caption, source end"} />
+            )}
+            {entry.preview === true && (
+                <RowCaption text="Second label">
+                    <Gap gap="slots" label="Second label" />
+                </RowCaption>
+            )}
             <Box style={rowStyle}>
-                <LabelSettings entry={entry} onEntry={onEntry} what={what} />
+                <LabelSettings entry={entry} onEntry={onEntry} kind={kind} onNode={!onEdges && !endPosition} />
                 <Box style={{ flex: 1, minWidth: 0 }}>
                     {entry.source.kind === "value" ? (
                         <Popout opened={pickerOpen} onOpenChange={setPickerOpen}>
@@ -2152,6 +2727,7 @@ function LabelEntryRow({
                                 <span style={{ display: "inline-flex", maxWidth: "100%" }}>
                                     <VariablePill
                                         name={valueLabel(entry.source.value)}
+                                        value={`${what} text from ${valueLabel(entry.source.value)}`}
                                         kind="property"
                                         width={124}
                                         glyph={<Type size={10} />}
@@ -2160,31 +2736,85 @@ function LabelEntryRow({
                             </Popout.Trigger>
                             <Popout.Panel
                                 width={PANEL_GRID.POPOVER_WIDTH}
-                                header={{ variant: "title", title: `${what === "label" ? "Label" : "Tooltip"} text` }}
+                                header={{ variant: "title", title: `${what[0].toUpperCase()}${what.slice(1)} text` }}
                                 placement="left"
                             >
                                 <Popout.Content>
-                                    <ValuePickerList
-                                        allowWords
-                                        current={entry.source.value}
-                                        reasonFor={(v) =>
-                                            v.on !== "both" &&
-                                            layer.rule.matches !== "both" &&
-                                            v.on !== layer.rule.matches
-                                                ? `${v.name} is measured on ${v.on}s`
-                                                : null
-                                        }
-                                        onPick={(valueId) => {
-                                            setPickerOpen(false);
-                                            onEntry({
-                                                ...entry,
-                                                source:
-                                                    valueId === null
-                                                        ? { kind: "text", text: "" }
-                                                        : { kind: "value", value: valueId },
-                                            });
-                                        }}
-                                    />
+                                    <Box style={POPOVER_BODY}>
+                                        <ValuePickerList
+                                            allowWords
+                                            current={entry.source.value}
+                                            reasonFor={(v) =>
+                                                v.on !== "both" &&
+                                                layer.rule.matches !== "both" &&
+                                                v.on !== textFit(layer).on
+                                                    ? `${v.name} is measured on ${v.on}s`
+                                                    : null
+                                            }
+                                            onPick={(valueId) => {
+                                                setPickerOpen(false);
+                                                onEntry({
+                                                    ...entry,
+                                                    source:
+                                                        valueId === null
+                                                            ? { kind: "text", text: "" }
+                                                            : { kind: "value", value: valueId },
+                                                });
+                                            }}
+                                        />
+                                        <ControlGroup label="How it reads">
+                                            <Box style={{ padding: "0 8px 8px 16px" }}>
+                                                {isNumber && (
+                                                    <Group gap={4} wrap="nowrap" align="flex-end">
+                                                        <Box style={{ flex: 1 }}>
+                                                            <StyleSelect
+                                                                label="Number format"
+                                                                value={unlessDefault(entry.format, "As is")}
+                                                                defaultValue="As is"
+                                                                options={NUMBER_FORMATS.map((f) => ({
+                                                                    value: f,
+                                                                    label: f,
+                                                                }))}
+                                                                onChange={(f) => {
+                                                                    onEntry({ ...entry, format: f });
+                                                                }}
+                                                            />
+                                                        </Box>
+                                                        <Gap gap="format" label="Number format" />
+                                                    </Group>
+                                                )}
+                                                <SegmentedControl
+                                                    size="xs"
+                                                    fullWidth
+                                                    aria-label="When the value is missing"
+                                                    data={["Show nothing", "Show text"]}
+                                                    value={
+                                                        entry.missingText === undefined ? "Show nothing" : "Show text"
+                                                    }
+                                                    onChange={(v) => {
+                                                        onEntry({
+                                                            ...entry,
+                                                            missingText: v === "Show text" ? "" : undefined,
+                                                        });
+                                                    }}
+                                                />
+                                                {entry.missingText !== undefined && (
+                                                    <TextInput
+                                                        size="xs"
+                                                        aria-label="Text shown when the value is missing"
+                                                        placeholder="No value"
+                                                        value={entry.missingText}
+                                                        onChange={(event) => {
+                                                            onEntry({
+                                                                ...entry,
+                                                                missingText: event.currentTarget.value,
+                                                            });
+                                                        }}
+                                                    />
+                                                )}
+                                            </Box>
+                                        </ControlGroup>
+                                    </Box>
                                 </Popout.Content>
                             </Popout.Panel>
                         </Popout>
@@ -2215,167 +2845,323 @@ function LabelEntryRow({
                 />
                 <Minus target={`${what} from ${layer.name}`} onRemove={onRemove} />
             </Box>
-            {tooltip !== true && (
-                <Box style={{ ...rowStyle, alignItems: "flex-start", paddingBottom: 4 }}>
-                    <SlotSpacer />
-                    <Group gap={0} wrap="nowrap" style={{ flex: "0 0 88px" }}>
-                        <PanelField
-                            label="Label size"
-                            kind="number"
-                            width={PANEL_GRID.FIELD}
-                            glyph="sizeLargest"
-                            unit="px"
-                            value={entry.size}
-                            onChange={(v) => {
-                                onEntry({ ...entry, size: Number(v) });
-                            }}
-                        />
-                    </Group>
-                    <VaryGlyph reason={LOOK_VARY_REASON} label="label size" />
-                    {onEdges ? (
-                        <Box style={{ flex: 1, minWidth: 0 }}>
-                            <PanelField
-                                label="Position"
-                                kind="select"
-                                width="fill"
-                                data={EDGE_POSITIONS}
-                                value={entry.position}
-                                onChange={(v) => {
-                                    onEntry({ ...entry, position: String(v) });
-                                }}
-                            />
-                        </Box>
-                    ) : (
-                        <AlignmentMatrix
-                            label="Label position"
-                            value={entry.position as AlignmentMatrixValue}
-                            onChange={(v) => {
-                                onEntry({ ...entry, position: v });
-                            }}
-                        />
-                    )}
+            <Box style={{ ...rowStyle, paddingBottom: 4 }}>
+                <Box style={{ flex: "0 0 72px" }}>
+                    <PanelField
+                        label={`${what} size, label px`}
+                        kind="number"
+                        width="fill"
+                        glyph="sizeLargest"
+                        unit="px"
+                        value={entry.size ?? null}
+                        placeholder="48"
+                        onChange={(v) => {
+                            onEntry({ ...entry, size: v === "" ? undefined : Number(v) });
+                        }}
+                    />
                 </Box>
-            )}
-            {endPosition && !hasArrow && <Note neutral text="Needs an arrow at this end" />}
-            {entry.source.kind === "value" && valueLabel(entry.source.value).startsWith("step") && (
-                <Note text="Numbers draw unformatted" />
-            )}
+                <VaryGlyph reason={LOOK_VARY_REASON} label={`${what} size`} />
+                <Box style={{ flex: 1, minWidth: 0 }}>
+                    <PanelField
+                        label={`${what} position`}
+                        kind="select"
+                        width="fill"
+                        data={positions}
+                        value={positionWord}
+                        onChange={(v) => {
+                            const word = String(v);
+                            const location =
+                                onEdges || endPosition
+                                    ? word
+                                    : (NODE_POSITIONS.find(([, w]) => w === word)?.[0] ?? "top");
+                            onEntry({ ...entry, position: location });
+                        }}
+                    />
+                </Box>
+            </Box>
+            {endPosition && !hasArrow && <Note text="Needs an arrow at this end: add one in Ends" />}
+            {isNumber && entry.format === undefined && <Note text="Numbers draw as they are" />}
+            {entry.preview === true && <Note text="A second label on the same nodes: not drawable today" />}
         </Box>
     );
+    if (entry.preview === true) {
+        return (
+            <fieldset disabled style={fieldsetStyle} aria-label="Second label, not drawable today">
+                {row}
+            </fieldset>
+        );
+    }
+    return row;
 }
 
 /**
- * The label settings popover: colors, then captioned groups that open and close.
+ * The label settings popover: colors, then captioned groups. Every field shows graphty-element's
+ * own default while it is empty, and a switch shows its fields only while it is on.
  */
 function LabelSettings({
     entry,
     onEntry,
-    what,
+    kind,
+    onNode,
 }: {
     readonly entry: LabelEntry;
     readonly onEntry: (entry: LabelEntry) => void;
-    readonly what: string;
+    readonly kind: TextKind;
+    readonly onNode: boolean;
 }): React.JSX.Element {
-    const changed = entry.textColor !== undefined || entry.background !== undefined;
+    const defaults = LOOK_DEFAULTS[kind];
+    const { look } = entry;
+    const set = (key: string, value: LookValue | undefined): void => {
+        const next = Object.fromEntries(Object.entries(look).filter(([k]) => k !== key));
+        onEntry({ ...entry, look: value === undefined ? next : { ...next, [key]: value } });
+    };
+    const on = (key: string): boolean => look[key] === true;
+    const num = (
+        key: string,
+        label: string,
+        extra: { suffix?: string; step?: number; min?: number; max?: number } = {},
+    ): React.JSX.Element => (
+        <StyleNumberInput
+            key={key}
+            label={label}
+            value={typeof look[key] === "number" ? look[key] : undefined}
+            defaultValue={Number(defaults[key])}
+            suffix={extra.suffix}
+            step={extra.step}
+            min={extra.min ?? 0}
+            max={extra.max}
+            onChange={(v) => {
+                set(key, v);
+            }}
+        />
+    );
+    const sel = (key: string, label: string, options: readonly string[]): React.JSX.Element => (
+        <StyleSelect
+            key={key}
+            label={label}
+            value={unlessDefault(typeof look[key] === "string" ? look[key] : undefined, String(defaults[key]))}
+            defaultValue={String(defaults[key])}
+            options={options.map((o) => ({ value: o, label: o }))}
+            onChange={(v) => {
+                set(key, v);
+            }}
+        />
+    );
+    const col = (key: string, label: string, opacity?: number): React.JSX.Element => (
+        <CompactColorInput
+            key={key}
+            label={label}
+            color={typeof look[key] === "string" ? HEX(look[key]) : undefined}
+            defaultColor={HEX(String(defaults[key]))}
+            defaultOpacity={opacity}
+            showOpacity={opacity !== undefined}
+            onColorChange={(c) => {
+                set(key, strip(c));
+            }}
+        />
+    );
+    const sw = (key: string, label: string, trailing?: React.ReactNode): React.JSX.Element => (
+        <ToggleRow
+            key={key}
+            label={label}
+            control="switch"
+            checked={on(key)}
+            trailing={trailing}
+            onChange={(checked) => {
+                set(key, checked ? true : undefined);
+            }}
+        />
+    );
+    const changed = Object.keys(look).length > 0;
+    const badge = typeof look.badge === "string" ? look.badge : "None";
+    const animation = typeof look.animation === "string" ? look.animation : "None";
+    const title = { label: "Label settings", tooltip: "Tooltip settings", caption: "Caption settings" }[kind];
     return (
         <Popout>
             <Popout.Trigger>
-                <AdvancedButton label={`${what === "label" ? "Label" : "Tooltip"} settings`} changed={changed} />
+                <AdvancedButton label={title} changed={changed} />
             </Popout.Trigger>
-            <Popout.Panel
-                width={PANEL_GRID.POPOVER_WIDTH}
-                header={{ variant: "title", title: what === "label" ? "Label settings" : "Tooltip settings" }}
-                placement="left"
-            >
+            <Popout.Panel width={PANEL_GRID.POPOVER_WIDTH} header={{ variant: "title", title }} placement="left">
                 <Popout.Content>
-                    <Box
-                        style={{ maxHeight: "min(400px, calc(100vh - 200px))", overflowY: "auto", overflowX: "hidden" }}
-                    >
+                    <Box style={POPOVER_BODY}>
                         <Box style={{ padding: "4px 8px 4px 16px" }}>
                             <Group gap={4} wrap="nowrap" align="flex-end">
-                                <Box style={{ flex: 1 }}>
-                                    <CompactColorInput
-                                        label="Text color"
-                                        color={entry.textColor === undefined ? undefined : HEX(entry.textColor)}
-                                        defaultColor="#FFFFFF"
-                                        showOpacity={false}
-                                        onColorChange={(c) => {
-                                            onEntry({ ...entry, textColor: strip(c) });
-                                        }}
-                                    />
-                                </Box>
+                                <Box style={{ flex: 1 }}>{col("color", "Text color")}</Box>
                                 <VaryGlyph reason={LOOK_VARY_REASON} label="text color" />
                             </Group>
                             <Group gap={4} wrap="nowrap" align="flex-end">
                                 <Box style={{ flex: 1 }}>
-                                    <CompactColorInput
-                                        label="Background"
-                                        color={entry.background === undefined ? undefined : HEX(entry.background)}
-                                        defaultColor="#000000"
-                                        defaultOpacity={60}
-                                        onColorChange={(c) => {
-                                            onEntry({ ...entry, background: strip(c) });
-                                        }}
-                                    />
+                                    {col("background", "Background", BACKGROUND_OPACITY[kind])}
                                 </Box>
                                 <VaryGlyph reason={LOOK_VARY_REASON} label="background" />
                             </Group>
                             <Gap gap="looks" label="Label looks" />
                         </Box>
                         <ControlSubGroup label="Type" defaultOpened={false}>
-                            <StyleSelect
-                                label="Font"
-                                defaultValue="Inter"
-                                options={["Inter", "Roboto", "System UI", "Serif"].map((f) => ({ value: f, label: f }))}
-                            />
-                            <StyleSelect
-                                label="Weight"
-                                defaultValue="Regular"
-                                options={["Regular", "Medium", "Bold"].map((f) => ({ value: f, label: f }))}
-                            />
-                            <StyleNumberInput label="Line height" defaultValue={1.2} step={0.1} decimalScale={1} />
-                            <StyleSelect
-                                label="Alignment"
-                                defaultValue="Center"
-                                options={["Left", "Center", "Right"].map((f) => ({ value: f, label: f }))}
-                            />
+                            {sel("font", "Font", ["Verdana", "Inter", "Roboto", "System UI", "Georgia"])}
+                            {sel("weight", "Weight", ["Normal", "Medium", "Semibold", "Bold"])}
+                            {num("lineHeight", "Line height", { step: 0.1 })}
+                            {sel("textAlign", "Alignment", ["Left", "Center", "Right"])}
                         </ControlSubGroup>
                         <ControlSubGroup label="Box" defaultOpened={false}>
-                            <StyleNumberInput label="Padding" defaultValue={4} suffix="px" />
-                            <StyleNumberInput label="Corners" defaultValue={4} suffix="px" />
-                            <ToggleRow label="Border" control="switch" defaultChecked={false} />
-                            <ToggleRow label="Gradient" control="switch" defaultChecked={false} />
+                            {num("padding", "Padding", { suffix: " px" })}
+                            {num("cornerRadius", "Corners", { suffix: " px" })}
+                            {num("marginTop", "Margin, top", { suffix: " px" })}
+                            {num("marginBottom", "Margin, bottom", { suffix: " px" })}
+                            {num("marginLeft", "Margin, left", { suffix: " px" })}
+                            {num("marginRight", "Margin, right", { suffix: " px" })}
+                            {sw("border", "Border")}
+                            {on("border") && (
+                                <>
+                                    {num("borderWidth", "Border width", { suffix: " px", min: 1 })}
+                                    {col("borderColor", "Border color")}
+                                </>
+                            )}
+                            {sw("gradient", "Gradient")}
+                            {on("gradient") && (
+                                <>
+                                    {sel("gradientType", "Gradient type", ["Linear", "Radial"])}
+                                    {col("gradientFrom", "First color", 80)}
+                                    {col("gradientTo", "Last color", 80)}
+                                    {look.gradientType !== "Radial" &&
+                                        sel("gradientDirection", "Direction", ["Vertical", "Horizontal", "Diagonal"])}
+                                </>
+                            )}
                         </ControlSubGroup>
                         <ControlSubGroup label="Letters" defaultOpened={false}>
-                            <ToggleRow label="Outline" control="switch" defaultChecked={false} />
-                            <ToggleRow label="Shadow" control="switch" defaultChecked={false} />
+                            {sw("outline", "Outline")}
+                            {on("outline") && (
+                                <>
+                                    {col("outlineColor", "Outline color")}
+                                    {num("outlineWidth", "Outline width", { suffix: " px" })}
+                                </>
+                            )}
+                            {sw("shadow", "Shadow")}
+                            {on("shadow") && (
+                                <>
+                                    {col("shadowColor", "Shadow color")}
+                                    {num("shadowBlur", "Shadow blur", { suffix: " px" })}
+                                    {num("shadowOffsetX", "Shadow offset, across", { suffix: " px", min: -100 })}
+                                    {num("shadowOffsetY", "Shadow offset, down", { suffix: " px", min: -100 })}
+                                </>
+                            )}
                         </ControlSubGroup>
                         <ControlSubGroup label="Placement" defaultOpened={false}>
-                            <StyleNumberInput label="Offset" defaultValue={0} suffix="px" />
-                            <StyleNumberInput label="Priority" defaultValue={0} />
-                            <ToggleRow label="Pointer" control="switch" defaultChecked={false} />
+                            {onNode && (
+                                <Box style={{ padding: "4px 0" }}>
+                                    <AlignmentMatrix
+                                        label={`${kind === "tooltip" ? "Tooltip" : "Label"} position`}
+                                        value={LOCATION_CELL[entry.position]}
+                                        onChange={(cell) => {
+                                            const location = Object.entries(LOCATION_CELL).find(
+                                                ([, c]) => c === cell,
+                                            )?.[0];
+                                            if (location !== undefined) {
+                                                onEntry({ ...entry, position: location });
+                                            }
+                                        }}
+                                    />
+                                </Box>
+                            )}
+                            {num("attachOffset", "Offset, world units", { step: 0.1 })}
+                            <Group gap={4} wrap="nowrap" align="flex-end">
+                                <Box style={{ flex: 1 }}>{num("priority", "Priority when crowded")}</Box>
+                                <Gap gap="priority" label="Label priority" />
+                            </Group>
+                            {sw("pointer", "Pointer")}
+                            {on("pointer") && (
+                                <>
+                                    {sel("pointerDirection", "Pointer side", [
+                                        "Auto",
+                                        "Top",
+                                        "Bottom",
+                                        "Left",
+                                        "Right",
+                                    ])}
+                                    {num("pointerWidth", "Pointer width", { suffix: " px" })}
+                                    {num("pointerHeight", "Pointer height", { suffix: " px" })}
+                                    {num("pointerOffset", "Pointer offset", { suffix: " px", min: -100 })}
+                                    {sw("pointerCurve", "Curved pointer")}
+                                </>
+                            )}
+                            {kind !== "tooltip" &&
+                                sw("onTop", "Draw on top of the graph", <Gap gap="branch" label="Draw on top" />)}
+                            {onNode &&
+                                sw(
+                                    "pickable",
+                                    "Clicking the label picks the node",
+                                    <Gap gap="branch" label="Clickable label" />,
+                                )}
                         </ControlSubGroup>
                         <ControlSubGroup label="Motion and distance" defaultOpened={false}>
-                            <StyleSelect
-                                label="Animation"
-                                defaultValue="None"
-                                options={["None", "Pulse", "Bounce", "Shake", "Glow", "Fill"].map((f) => ({
-                                    value: f,
-                                    label: f,
-                                }))}
-                            />
-                            <ToggleRow label="Fade with distance" control="switch" defaultChecked={false} />
+                            {sel("animation", "Animation", ["None", "Pulse", "Bounce", "Shake", "Glow", "Fill"])}
+                            {animation !== "None" && num("animationSpeed", "Animation speed", { step: 0.25 })}
+                            {animation !== "None" && (
+                                <Text size="xs" c={PANEL_INK.CHROME} style={{ padding: "0 0 4px" }}>
+                                    Runs on node labels only, once the layout is at rest.
+                                </Text>
+                            )}
+                            {sw("depthFade", "Fade with distance")}
+                            {on("depthFade") && (
+                                <>
+                                    {num("depthFadeNear", "Fade starts at, world units")}
+                                    {num("depthFadeFar", "Gone at, world units")}
+                                </>
+                            )}
                         </ControlSubGroup>
                         <ControlSubGroup label="Badge" defaultOpened={false}>
-                            <StyleSelect
-                                label="Preset"
-                                defaultValue="None"
-                                options={["None", "Count", "Notification", "Label", "Progress"].map((f) => ({
-                                    value: f,
-                                    label: f,
-                                }))}
-                            />
-                            <ToggleRow label="Shorten numbers" control="switch" defaultChecked={false} />
+                            {sel("badge", "Preset", [
+                                "None",
+                                "Notification",
+                                "Count",
+                                "Label",
+                                "Label success",
+                                "Label warning",
+                                "Label danger",
+                                "Icon",
+                                "Progress",
+                                "Dot",
+                            ])}
+                            {badge === "Icon" && (
+                                <>
+                                    <TextInput
+                                        size="xs"
+                                        label="Icon"
+                                        placeholder="A character or emoji name"
+                                        value={typeof look.icon === "string" ? look.icon : ""}
+                                        onChange={(event) => {
+                                            set(
+                                                "icon",
+                                                event.currentTarget.value === ""
+                                                    ? undefined
+                                                    : event.currentTarget.value,
+                                            );
+                                        }}
+                                    />
+                                    {sel("iconPosition", "Icon side", ["Left", "Right"])}
+                                </>
+                            )}
+                            {badge === "Progress" && num("progress", "Progress, 0 to 1", { step: 0.1, max: 1 })}
+                            {sw("smartOverflow", "Shorten large numbers")}
+                            {on("smartOverflow") && (
+                                <>
+                                    {num("maxNumber", "Largest number in full")}
+                                    <TextInput
+                                        size="xs"
+                                        label="Suffix after a shortened number"
+                                        placeholder="+"
+                                        value={typeof look.overflowSuffix === "string" ? look.overflowSuffix : ""}
+                                        onChange={(event) => {
+                                            set(
+                                                "overflowSuffix",
+                                                event.currentTarget.value === ""
+                                                    ? undefined
+                                                    : event.currentTarget.value,
+                                            );
+                                        }}
+                                    />
+                                </>
+                            )}
                             <Text size="xs" c={PANEL_INK.CHROME} style={{ padding: "4px 0" }}>
                                 A badge restyles this label: a node cannot show a badge and a name at once today.
                             </Text>
@@ -2391,63 +3177,170 @@ function LabelSettings({
 /* Effects and ends                                                                            */
 /* ------------------------------------------------------------------------------------------ */
 
+/** What each effect field can be driven by. */
+const EFFECT_FITS: Record<EffectField, Fit> = {
+    color: { label: "Effect color", on: "node", scheme: "palette", ramp: "steps" },
+    strength: { label: "Glow strength", on: "node", scheme: "table", ramp: "steps" },
+    scale: { label: "Halo size", on: "node", scheme: "table", ramp: "steps" },
+    opacity: { label: "Halo opacity", on: "node", scheme: "table", ramp: "steps" },
+    speed: { label: "Motion speed", on: "edge", scheme: "table", ramp: "steps" },
+};
+
+/** What each arrow-end field can be driven by. */
+const END_FITS: Record<EndField, Fit> = {
+    kind: { label: "Arrow kind", on: "edge", scheme: "list", ramp: "none", capacity: 14 },
+    size: { label: "Arrow size", on: "edge", scheme: "table", ramp: "steps" },
+    color: { label: "Arrow color", on: "edge", scheme: "palette", ramp: "steps" },
+    opacity: { label: "Arrow opacity", on: "edge", scheme: "table", ramp: "steps" },
+};
+
+/** Each effect type's color when it is added: graphty-element's fallbacks, the halo's own. */
+const EFFECT_COLORS: Record<Exclude<EffectType, "Motion">, string> = {
+    Outline: "FFFF00",
+    Glow: "FFFFFF",
+    Halo: "FFD700",
+};
+
 /**
- * One effect entry: settings, its color (speed for Motion), eye, minus.
+ * A new effect of a type, at graphty-element's defaults.
+ * @param type - The effect type.
+ * @returns The entry.
+ */
+function newEffect(type: EffectType): EffectEntry {
+    const base = { id: newId("effect"), type, combine: "Replace", bound: {}, hidden: false } as const;
+    if (type === "Motion") {
+        return { ...base, speed: 1 };
+    }
+    if (type === "Halo") {
+        return { ...base, color: EFFECT_COLORS.Halo, scale: 1.45, opacity: 40 };
+    }
+    return { ...base, color: EFFECT_COLORS[type], strength: 1 };
+}
+
+/**
+ * One effect entry: settings, its color (speed for Motion), eye, minus. Outline, glow and halo can
+ * append a ring beside the layers beneath instead of replacing theirs.
  */
 function EffectRow({
     layer,
     entry,
-    index,
-    count,
     onEntry,
     onRemove,
-    onMove,
 }: {
     readonly layer: MockLayer;
     readonly entry: EffectEntry;
-    readonly index: number;
-    readonly count: number;
     readonly onEntry: (entry: EffectEntry) => void;
     readonly onRemove: () => void;
-    readonly onMove: (delta: number) => void;
 }): React.JSX.Element {
+    const bind = (field: EffectField) => (valueId: string | undefined) => {
+        onEntry({ ...entry, bound: { ...entry.bound, [field]: valueId } });
+    };
+    const settings =
+        entry.type === "Glow" || entry.type === "Halo" ? (
+            <Popout>
+                <Popout.Trigger>
+                    <AdvancedButton
+                        label={`${entry.type} settings`}
+                        changed={
+                            entry.type === "Glow"
+                                ? (entry.strength ?? 1) !== 1
+                                : (entry.scale ?? 1.45) !== 1.45 || (entry.opacity ?? 40) !== 40
+                        }
+                    />
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={PANEL_GRID.POPOVER_WIDTH}
+                    header={{ variant: "title", title: entry.type }}
+                    placement="left"
+                >
+                    <Popout.Content>
+                        <Box style={{ padding: "4px 8px 8px 16px" }}>
+                            {entry.type === "Glow" ? (
+                                <VaryField
+                                    label="glow strength"
+                                    fit={EFFECT_FITS.strength}
+                                    bound={entry.bound.strength}
+                                    onBind={bind("strength")}
+                                >
+                                    <StyleNumberInput
+                                        label="Strength"
+                                        value={entry.strength === 1 ? undefined : entry.strength}
+                                        defaultValue={1}
+                                        step={0.25}
+                                        min={0}
+                                        onChange={(strength) => {
+                                            onEntry({ ...entry, strength });
+                                        }}
+                                    />
+                                </VaryField>
+                            ) : (
+                                <>
+                                    <VaryField
+                                        label="halo size"
+                                        fit={EFFECT_FITS.scale}
+                                        bound={entry.bound.scale}
+                                        onBind={bind("scale")}
+                                    >
+                                        <StyleNumberInput
+                                            label="Size, times the node"
+                                            value={entry.scale === 1.45 ? undefined : entry.scale}
+                                            defaultValue={1.45}
+                                            step={0.05}
+                                            min={0}
+                                            onChange={(scale) => {
+                                                onEntry({ ...entry, scale });
+                                            }}
+                                        />
+                                    </VaryField>
+                                    <VaryField
+                                        label="halo opacity"
+                                        fit={EFFECT_FITS.opacity}
+                                        bound={entry.bound.opacity}
+                                        onBind={bind("opacity")}
+                                    >
+                                        <StyleNumberInput
+                                            label="Opacity"
+                                            suffix="%"
+                                            value={entry.opacity === 40 ? undefined : entry.opacity}
+                                            defaultValue={40}
+                                            min={0}
+                                            max={100}
+                                            onChange={(opacity) => {
+                                                onEntry({ ...entry, opacity });
+                                            }}
+                                        />
+                                    </VaryField>
+                                </>
+                            )}
+                        </Box>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        ) : (
+            <SlotSpacer />
+        );
     return (
         <ContextMenu
             target={
                 <Box className="spm-row" style={{ opacity: entry.hidden ? 0.6 : 1 }}>
-                    <RowCaption text={entry.type} />
-                    <Box style={rowStyle}>
-                        {entry.type === "Glow" ? (
-                            <Popout>
-                                <Popout.Trigger>
-                                    <AdvancedButton label="Glow settings" changed={(entry.strength ?? 1) !== 1} />
-                                </Popout.Trigger>
-                                <Popout.Panel
-                                    width={PANEL_GRID.POPOVER_WIDTH}
-                                    header={{ variant: "title", title: "Glow" }}
-                                    placement="left"
-                                >
-                                    <Popout.Content>
-                                        <Box style={{ padding: "4px 8px 8px 16px" }}>
-                                            <StyleNumberInput
-                                                label="Strength"
-                                                value={entry.strength}
-                                                defaultValue={1}
-                                                step={0.25}
-                                                min={0}
-                                                onChange={(strength) => {
-                                                    onEntry({ ...entry, strength });
-                                                }}
-                                            />
-                                        </Box>
-                                    </Popout.Content>
-                                </Popout.Panel>
-                            </Popout>
-                        ) : (
-                            <SlotSpacer />
+                    <RowCaption text={entry.type}>
+                        {entry.combine === "Append" && (
+                            <Text size="xs" c={PANEL_INK.CHROME}>
+                                appended
+                            </Text>
                         )}
-                        <Box style={{ flex: 1, minWidth: 0 }}>
-                            {entry.type === "Motion" ? (
+                        {entry.combine === "Append" && <Gap gap="append" label="Append" />}
+                        {entry.type === "Halo" && <Gap gap="halo" label="Halo" />}
+                    </RowCaption>
+                    <Box style={rowStyle}>
+                        {settings}
+                        {entry.type === "Motion" ? (
+                            <VaryField
+                                label="motion speed"
+                                fit={EFFECT_FITS.speed}
+                                bound={entry.bound.speed}
+                                onBind={bind("speed")}
+                            >
                                 <PanelField
                                     label="Motion speed"
                                     kind="number"
@@ -2458,10 +3351,17 @@ function EffectRow({
                                         onEntry({ ...entry, speed: Number(v) });
                                     }}
                                 />
-                            ) : (
+                            </VaryField>
+                        ) : (
+                            <VaryField
+                                label={`${entry.type.toLowerCase()} color`}
+                                fit={{ ...EFFECT_FITS.color, label: `${entry.type} color` }}
+                                bound={entry.bound.color}
+                                onBind={bind("color")}
+                            >
                                 <CompactColorInput
                                     color={entry.color === undefined ? undefined : HEX(entry.color)}
-                                    defaultColor="#FFD54F"
+                                    defaultColor={HEX(EFFECT_COLORS[entry.type])}
                                     showOpacity={false}
                                     showReset={false}
                                     width="100%"
@@ -2469,8 +3369,8 @@ function EffectRow({
                                         onEntry({ ...entry, color: strip(c) });
                                     }}
                                 />
-                            )}
-                        </Box>
+                            </VaryField>
+                        )}
                         <Eye
                             hidden={entry.hidden}
                             target={`${entry.type.toLowerCase()} on ${layer.name}`}
@@ -2480,30 +3380,30 @@ function EffectRow({
                         />
                         <Minus target={`${entry.type.toLowerCase()} from ${layer.name}`} onRemove={onRemove} />
                     </Box>
-                    {entry.type === "Motion" && <Note neutral text={MOTION_NOTE} />}
+                    {entry.type === "Motion" && <Note text={MOTION_NOTE} />}
                 </Box>
             }
         >
-            <Menu.Item
-                disabled={index === 0}
-                onClick={() => {
-                    onMove(-1);
-                }}
-            >
-                Move up
-            </Menu.Item>
-            <Menu.Item
-                disabled={index === count - 1}
-                onClick={() => {
-                    onMove(1);
-                }}
-            >
-                Move down
-            </Menu.Item>
             {entry.type !== "Motion" && (
-                <Menu.Item disabled title={RING_REASON}>
-                    Add a ring
-                </Menu.Item>
+                <Menu.Sub>
+                    <Menu.Sub.Target>
+                        <Menu.Sub.Item>Combine</Menu.Sub.Item>
+                    </Menu.Sub.Target>
+                    <Menu.Sub.Dropdown>
+                        {(["Replace", "Append"] as const).map((c) => (
+                            <MenuCheckItem
+                                key={c}
+                                radio
+                                checked={entry.combine === c}
+                                onClick={() => {
+                                    onEntry({ ...entry, combine: c });
+                                }}
+                            >
+                                {c === "Append" ? "Append: a ring beside theirs" : "Replace"}
+                            </MenuCheckItem>
+                        ))}
+                    </Menu.Sub.Dropdown>
+                </Menu.Sub>
             )}
             <Menu.Divider />
             <Menu.Item onClick={onRemove}>Remove</Menu.Item>
@@ -2512,20 +3412,28 @@ function EffectRow({
 }
 
 /**
- * One arrow end: settings (size, color, opacity, caption), kind, eye, minus.
+ * One arrow end: settings (size, color, opacity, caption), kind, eye, minus. Each field can vary
+ * by a value; the caption is a label entry in Text, at this end.
  */
 function EndRow({
     layer,
     entry,
     onEntry,
     onRemove,
+    onCaption,
 }: {
     readonly layer: MockLayer;
     readonly entry: EndEntry;
     readonly onEntry: (entry: EndEntry) => void;
     readonly onRemove: () => void;
+    /** Adds a caption at this end to the Text section, or undefined when it has one. */
+    readonly onCaption: (() => void) | undefined;
 }): React.JSX.Element {
-    const hasCap = entry.kind !== "None";
+    const hasCap = entry.kind !== "None" || entry.bound.kind !== undefined;
+    const bind = (field: EndField) => (valueId: string | undefined) => {
+        onEntry({ ...entry, bound: { ...entry.bound, [field]: valueId } });
+    };
+    const lower = entry.end.toLowerCase();
     return (
         <Box className="spm-row" style={{ opacity: entry.hidden ? 0.6 : 1 }}>
             <RowCaption text={entry.end === "Head" ? "Head (target end)" : "Tail (source end)"} />
@@ -2533,7 +3441,12 @@ function EndRow({
                 {hasCap ? (
                     <Popout>
                         <Popout.Trigger>
-                            <AdvancedButton label={`${entry.end} settings`} changed={entry.color !== undefined} />
+                            <AdvancedButton
+                                label={`${entry.end} settings`}
+                                changed={
+                                    entry.color !== undefined || entry.size !== undefined || entry.opacity !== undefined
+                                }
+                            />
                         </Popout.Trigger>
                         <Popout.Panel
                             width={PANEL_GRID.POPOVER_WIDTH}
@@ -2545,69 +3458,93 @@ function EndRow({
                         >
                             <Popout.Content>
                                 <Box style={{ padding: "4px 8px 8px 16px" }}>
-                                    <StyleNumberInput
-                                        label="Size"
-                                        value={entry.size}
-                                        defaultValue={1}
-                                        step={0.25}
-                                        onChange={(size) => {
-                                            onEntry({ ...entry, size });
-                                        }}
-                                    />
-                                    {entry.color === undefined ? (
-                                        <Group justify="space-between" style={{ minHeight: 32 }}>
-                                            <Text size="xs" c={PANEL_INK.CHROME}>
-                                                Color: Line color
-                                            </Text>
-                                            <Button
-                                                size="compact-xs"
-                                                variant="subtle"
-                                                onClick={() => {
-                                                    onEntry({ ...entry, color: "D55E00" });
-                                                }}
-                                            >
-                                                Choose
-                                            </Button>
-                                        </Group>
-                                    ) : (
-                                        <Group gap={4} wrap="nowrap" align="flex-end">
-                                            <Box style={{ flex: 1 }}>
-                                                <CompactColorInput
-                                                    label="Color"
-                                                    color={HEX(entry.color)}
-                                                    defaultColor="#A9A9A9"
-                                                    showOpacity={false}
-                                                    onColorChange={(c) => {
-                                                        onEntry({ ...entry, color: strip(c) });
+                                    <VaryField
+                                        label={`${lower} size`}
+                                        fit={END_FITS.size}
+                                        bound={entry.bound.size}
+                                        onBind={bind("size")}
+                                    >
+                                        <StyleNumberInput
+                                            label="Size"
+                                            value={entry.size}
+                                            defaultValue={1}
+                                            step={0.25}
+                                            onChange={(size) => {
+                                                onEntry({ ...entry, size });
+                                            }}
+                                        />
+                                    </VaryField>
+                                    <VaryField
+                                        label={`${lower} color`}
+                                        fit={END_FITS.color}
+                                        bound={entry.bound.color}
+                                        onBind={bind("color")}
+                                    >
+                                        {entry.color === undefined ? (
+                                            <Group justify="space-between" wrap="nowrap" style={{ minHeight: 32 }}>
+                                                <Text size="xs" c={PANEL_INK.CHROME}>
+                                                    Color: Line color
+                                                </Text>
+                                                <Button
+                                                    size="compact-xs"
+                                                    variant="subtle"
+                                                    onClick={() => {
+                                                        onEntry({ ...entry, color: "D55E00" });
+                                                    }}
+                                                >
+                                                    Choose
+                                                </Button>
+                                            </Group>
+                                        ) : (
+                                            <Group gap={4} wrap="nowrap" align="flex-end">
+                                                <Box style={{ flex: 1 }}>
+                                                    <CompactColorInput
+                                                        label="Color"
+                                                        color={HEX(entry.color)}
+                                                        defaultColor="#A9A9A9"
+                                                        showOpacity={false}
+                                                        onColorChange={(c) => {
+                                                            onEntry({ ...entry, color: strip(c) });
+                                                        }}
+                                                    />
+                                                </Box>
+                                                <Minus
+                                                    target="arrow color"
+                                                    onRemove={() => {
+                                                        onEntry({ ...entry, color: undefined });
                                                     }}
                                                 />
-                                            </Box>
-                                            <Minus
-                                                target="arrow color"
-                                                onRemove={() => {
-                                                    onEntry({ ...entry, color: undefined });
-                                                }}
-                                            />
-                                        </Group>
-                                    )}
-                                    <StyleNumberInput
-                                        label="Opacity"
-                                        suffix="%"
-                                        value={entry.opacity}
-                                        defaultValue={100}
-                                        onChange={(opacity) => {
-                                            onEntry({ ...entry, opacity });
-                                        }}
-                                    />
-                                    <TextInput
-                                        size="xs"
-                                        label="Caption"
-                                        placeholder="No caption"
-                                        value={entry.caption ?? ""}
-                                        onChange={(event) => {
-                                            onEntry({ ...entry, caption: event.currentTarget.value });
-                                        }}
-                                    />
+                                            </Group>
+                                        )}
+                                    </VaryField>
+                                    <VaryField
+                                        label={`${lower} opacity`}
+                                        fit={END_FITS.opacity}
+                                        bound={entry.bound.opacity}
+                                        onBind={bind("opacity")}
+                                    >
+                                        <StyleNumberInput
+                                            label="Opacity"
+                                            suffix="%"
+                                            value={entry.opacity}
+                                            defaultValue={100}
+                                            min={0}
+                                            max={100}
+                                            onChange={(opacity) => {
+                                                onEntry({ ...entry, opacity });
+                                            }}
+                                        />
+                                    </VaryField>
+                                    <Text size="xs" c={PANEL_INK.CHROME} style={{ paddingTop: 8 }}>
+                                        {onCaption === undefined
+                                            ? "Caption: in Text, at this end. "
+                                            : "Caption: none. "}
+                                        {onCaption !== undefined && (
+                                            <Anchor component="button" type="button" size="xs" onClick={onCaption}>
+                                                Add one in Text
+                                            </Anchor>
+                                        )}
+                                    </Text>
                                 </Box>
                             </Popout.Content>
                         </Popout.Panel>
@@ -2615,7 +3552,7 @@ function EndRow({
                 ) : (
                     <SlotSpacer />
                 )}
-                <Box style={{ flex: 1, minWidth: 0 }}>
+                <VaryField label={`${lower} kind`} fit={END_FITS.kind} bound={entry.bound.kind} onBind={bind("kind")}>
                     <PanelField
                         label={`${entry.end} kind`}
                         kind="select"
@@ -2626,17 +3563,17 @@ function EndRow({
                             onEntry({ ...entry, kind: String(v) });
                         }}
                     />
-                </Box>
+                </VaryField>
                 <Eye
                     hidden={entry.hidden}
-                    target={`${entry.end.toLowerCase()} on ${layer.name}`}
+                    target={`${lower} on ${layer.name}`}
                     onToggle={(hidden) => {
                         onEntry({ ...entry, hidden });
                     }}
                 />
-                <Minus target={`${entry.end.toLowerCase()} from ${layer.name}`} onRemove={onRemove} />
+                <Minus target={`${lower} from ${layer.name}`} onRemove={onRemove} />
             </Box>
-            {hasCap && entry.color === undefined && (
+            {hasCap && entry.color === undefined && entry.bound.color === undefined && (
                 <Box style={{ paddingInlineStart: PANEL_GRID.PAD_LEFT + PANEL_GRID.TRAIL + ROW_GAP }}>
                     <Text size="xs" c={PANEL_INK.CHROME}>
                         Color: Line color
@@ -2681,7 +3618,7 @@ function SectionAdd({
                     <Box
                         component="span"
                         aria-hidden="true"
-                        style={{ display: "inline-block", width: 1, height: 24 }}
+                        style={{ display: "inline-block", width: 1, height: 16 }}
                     />
                 ) : (
                     <ActionIcon
@@ -2725,6 +3662,97 @@ function SectionAdd({
 }
 
 /**
+ * Whether a layer's pattern write is one a pattern count can spread.
+ */
+function countedPattern(layer: MockLayer): boolean {
+    const w = layer.props.pattern;
+    return w?.mode === "derived" || (w?.mode === "fixed" && COUNTED_PATTERNS.includes(String(w.value)));
+}
+
+/**
+ * The Text section's rows and "+" items: label entries, end captions, the tooltip.
+ */
+function textSection(
+    layer: MockLayer,
+    patch: (fn: (l: MockLayer) => MockLayer) => void,
+): { rows: React.ReactNode[]; items: AddItem[] } {
+    const { matches } = layer.rule;
+    const rows: React.ReactNode[] = layer.labels.map((entry) => (
+        <LabelEntryRow
+            key={entry.id}
+            layer={layer}
+            entry={entry}
+            onEntry={(next) => {
+                patch((l) => ({ ...l, labels: l.labels.map((e) => (e.id === next.id ? next : e)) }));
+            }}
+            onRemove={() => {
+                patch((l) => ({ ...l, labels: l.labels.filter((e) => e.id !== entry.id) }));
+            }}
+        />
+    ));
+    if (layer.tooltip !== undefined) {
+        const tip = layer.tooltip;
+        rows.push(
+            <LabelEntryRow
+                key={tip.id}
+                layer={layer}
+                entry={tip}
+                tooltip
+                onEntry={(next) => {
+                    patch((l) => ({ ...l, tooltip: next }));
+                }}
+                onRemove={() => {
+                    patch((l) => ({ ...l, tooltip: undefined }));
+                }}
+            />,
+        );
+    }
+    const add = (position: string): void => {
+        patch((l) => ({ ...l, labels: [...l.labels, labelEntry(newId("label"), "name", position)] }));
+    };
+    const items: AddItem[] = [];
+    const mainLabels = layer.labels.filter((e) => e.preview !== true && !END_POSITIONS.includes(e.position));
+    items.push(
+        mainLabels.length > 0
+            ? { label: "Label", reason: ONE_LABEL_REASON }
+            : {
+                  label: "Label",
+                  onClick: () => {
+                      add(matches === "edge" ? "On the line" : "top");
+                  },
+              },
+    );
+    if (reaches(matches, "edge")) {
+        for (const position of END_POSITIONS) {
+            const label = position === "At target end" ? "Caption at the target end" : "Caption at the source end";
+            items.push(
+                layer.labels.some((e) => e.position === position)
+                    ? { label, reason: "One caption per end" }
+                    : {
+                          label,
+                          onClick: () => {
+                              add(position);
+                          },
+                      },
+            );
+        }
+    }
+    if (layer.tooltip === undefined) {
+        items.push(
+            matches === "edge"
+                ? { label: "Tooltip", reason: "Edges cannot be hovered today, so they show no tooltip" }
+                : {
+                      label: "Tooltip",
+                      onClick: () => {
+                          patch((l) => ({ ...l, tooltip: labelEntry(newId("tooltip"), "name", "top-right") }));
+                      },
+                  },
+        );
+    }
+    return { rows, items };
+}
+
+/**
  * One property section in the fixed order: written rows, or a dimmed title with "+".
  */
 function Section({
@@ -2747,7 +3775,7 @@ function Section({
         }
         const pw = parent.props[p];
         if (pw?.mode === "derived" && pw.binding === "categories" && p === "nodeColor") {
-            return fixed(layer.child.chit);
+            return fixed(paletteOf(pw.palette).colors[(layer.child.group - 1) % paletteOf(pw.palette).colors.length]);
         }
         return pw;
     };
@@ -2760,107 +3788,26 @@ function Section({
     };
 
     let rows: React.ReactNode[] = [];
-    const items: AddItem[] = [];
-    let sectionActions: React.ReactNode = null;
+    let items: AddItem[] = [];
+    const notes: string[] = [];
 
     if (section.id === "text") {
-        rows = layer.labels.map((entry) => (
-            <LabelEntryRow
-                key={entry.id}
-                layer={layer}
-                entry={entry}
-                onEntry={(next) => {
-                    patch((l) => ({ ...l, labels: l.labels.map((e) => (e.id === next.id ? next : e)) }));
-                }}
-                onRemove={() => {
-                    patch((l) => ({ ...l, labels: l.labels.filter((e) => e.id !== entry.id) }));
-                }}
-            />
-        ));
-        if (layer.tooltip !== undefined) {
-            const tip = layer.tooltip;
-            rows.push(
-                <LabelEntryRow
-                    key={tip.id}
-                    layer={layer}
-                    entry={tip}
-                    tooltip
-                    onEntry={(next) => {
-                        patch((l) => ({ ...l, tooltip: next }));
-                    }}
-                    onRemove={() => {
-                        patch((l) => ({ ...l, tooltip: undefined }));
-                    }}
-                />,
-            );
-        }
-        items.push(
-            layer.labels.length > 0
-                ? { label: "Label", reason: ONE_LABEL_REASON }
-                : {
-                      label: "Label",
-                      onClick: () => {
-                          patch((l) => ({
-                              ...l,
-                              labels: [
-                                  {
-                                      id: newId("label"),
-                                      source: { kind: "value", value: "name" },
-                                      size: 24,
-                                      position: matches === "edge" ? "On the line" : "top-center",
-                                      hidden: false,
-                                  },
-                              ],
-                          }));
-                      },
-                  },
-        );
-        if (layer.tooltip === undefined) {
-            items.push(
-                matches === "edge"
-                    ? { label: "Tooltip", reason: "Edges cannot be hovered today, so they show no tooltip" }
-                    : {
-                          label: "Tooltip",
-                          onClick: () => {
-                              patch((l) => ({
-                                  ...l,
-                                  tooltip: {
-                                      id: newId("tooltip"),
-                                      source: { kind: "value", value: "name" },
-                                      size: 12,
-                                      position: "top-center",
-                                      hidden: false,
-                                  },
-                              }));
-                          },
-                      },
-            );
-        }
+        ({ rows, items } = textSection(layer, patch));
     } else if (section.id === "effects") {
         const types: EffectType[] = [
-            ...(reaches(matches, "node") ? (["Outline", "Glow"] as const) : []),
+            ...(reaches(matches, "node") ? (["Outline", "Glow", "Halo"] as const) : []),
             ...(reaches(matches, "edge") ? (["Motion"] as const) : []),
         ];
-        rows = layer.effects.map((entry, index) => (
+        rows = layer.effects.map((entry) => (
             <EffectRow
                 key={entry.id}
                 layer={layer}
                 entry={entry}
-                index={index}
-                count={layer.effects.length}
                 onEntry={(next) => {
                     patch((l) => ({ ...l, effects: l.effects.map((e) => (e.id === next.id ? next : e)) }));
                 }}
                 onRemove={() => {
                     patch((l) => ({ ...l, effects: l.effects.filter((e) => e.id !== entry.id) }));
-                }}
-                onMove={(delta) => {
-                    patch((l) => {
-                        const list = [...l.effects];
-                        const [moved] = list.splice(index, 1);
-                        list.splice(index + delta, 0, moved);
-                        return { ...l, effects: list };
-                    });
                 }}
             />
         ));
@@ -2871,40 +3818,40 @@ function Section({
                     onClick: () => {
                         patch((l) => ({
                             ...l,
-                            effects: [
-                                ...l.effects,
-                                type === "Motion"
-                                    ? { id: newId("effect"), type, speed: 1, hidden: false }
-                                    : {
-                                          id: newId("effect"),
-                                          type,
-                                          color: type === "Glow" ? "FFD54F" : "0D99FF",
-                                          strength: 1,
-                                          hidden: false,
-                                      },
-                            ],
+                            effects: [...l.effects, newEffect(type)],
                         }));
                     },
                 });
             }
         }
-        if (reaches(matches, "node")) {
-            items.push({ label: "Add a ring", reason: RING_REASON });
-        }
     } else if (section.id === "ends") {
-        rows = layer.ends.map((entry) => (
-            <EndRow
-                key={entry.id}
-                layer={layer}
-                entry={entry}
-                onEntry={(next) => {
-                    patch((l) => ({ ...l, ends: l.ends.map((e) => (e.id === next.id ? next : e)) }));
-                }}
-                onRemove={() => {
-                    patch((l) => ({ ...l, ends: l.ends.filter((e) => e.id !== entry.id) }));
-                }}
-            />
-        ));
+        rows = layer.ends.map((entry) => {
+            const position = entry.end === "Head" ? "At target end" : "At source end";
+            const hasCaption = layer.labels.some((e) => e.position === position);
+            return (
+                <EndRow
+                    key={entry.id}
+                    layer={layer}
+                    entry={entry}
+                    onEntry={(next) => {
+                        patch((l) => ({ ...l, ends: l.ends.map((e) => (e.id === next.id ? next : e)) }));
+                    }}
+                    onRemove={() => {
+                        patch((l) => ({ ...l, ends: l.ends.filter((e) => e.id !== entry.id) }));
+                    }}
+                    onCaption={
+                        hasCaption
+                            ? undefined
+                            : () => {
+                                  patch((l) => ({
+                                      ...l,
+                                      labels: [...l.labels, labelEntry(newId("label"), "name", position)],
+                                  }));
+                              }
+                    }
+                />
+            );
+        });
         for (const end of ["Head", "Tail"] as const) {
             if (!layer.ends.some((e) => e.end === end)) {
                 items.push({
@@ -2912,7 +3859,7 @@ function Section({
                     onClick: () => {
                         patch((l) => ({
                             ...l,
-                            ends: [...l.ends, { id: newId("end"), end, kind: "Normal", hidden: false }],
+                            ends: [...l.ends, { id: newId("end"), end, kind: "Normal", bound: {}, hidden: false }],
                         }));
                     },
                 });
@@ -2932,40 +3879,53 @@ function Section({
             />
         ));
         for (const p of reachable) {
-            if (!shown.includes(p) || (layer.props[p] === undefined && inheritedOf(p) !== undefined)) {
-                if (shown.includes(p) && inheritedOf(p) !== undefined) {
-                    continue;
-                }
+            if (shown.includes(p)) {
+                continue;
+            }
+            if (p === "patternCount" && !countedPattern(layer)) {
                 items.push({
                     label: PROPS[p].label,
-                    onClick: () => {
-                        update(layer.id, (l) => ({ ...l, pending: [...l.pending, p] }));
-                    },
+                    reason: "Set a repeating pattern first: dot, star, box, dash, diamond or dash-dot",
                 });
+                continue;
             }
+            items.push({
+                label: PROPS[p].label,
+                onClick: () => {
+                    update(layer.id, (l) => ({ ...l, pending: [...l.pending, p] }));
+                },
+            });
         }
-        if (section.id === "stroke" && layer.line !== undefined) {
-            sectionActions = <LineSettings layer={layer} />;
+        if (section.id === "fill") {
+            items.push({ label: "Linear gradient", reason: GRADIENT_REASON });
+            items.push({ label: "Radial gradient", reason: GRADIENT_REASON });
+        }
+        const { curved } = layer.props;
+        const { pattern } = layer.props;
+        if (
+            section.id === "stroke" &&
+            curved?.mode === "fixed" &&
+            curved.value === true &&
+            pattern !== undefined &&
+            !(pattern.mode === "fixed" && pattern.value === "Solid")
+        ) {
+            notes.push("A curved edge draws solid: its pattern is not drawn");
         }
     }
 
     if (items.filter((i) => i.onClick !== undefined).length === 0 && rows.length > 0 && section.id !== "text") {
-        items.push({
-            label: "Add layer above, scoped like this one",
-            onClick: () => {
-                actions.addAbove(layer.id, layer.rule);
+        items = [
+            ...items,
+            {
+                label: "Add layer above, scoped like this one",
+                onClick: () => {
+                    actions.addAbove(layer.id, layer.rule);
+                },
             },
-        });
+        ];
     }
 
     const empty = rows.length === 0;
-    const lineNotes =
-        section.id === "stroke" && layer.line !== undefined
-            ? [
-                  layer.line.pattern !== "Solid" ? `${layer.line.pattern} pattern` : undefined,
-                  layer.line.curved ? "Curved" : undefined,
-              ].filter((n) => n !== undefined)
-            : [];
     const info =
         section.id === "text" && layer.labels.length > 0 ? (
             <Text size="xs">Not drawable today. {GAPS.slots}</Text>
@@ -2986,90 +3946,25 @@ function Section({
             info={showGaps ? info : undefined}
             actions={
                 draft ? undefined : (
-                    <>
-                        {sectionActions}
-                        <SectionAdd
-                            section={section.title}
-                            items={items}
-                            opened={menuOpen}
-                            setOpened={setMenuOpen}
-                            hidden={empty}
-                        />
-                    </>
+                    <SectionAdd
+                        section={section.title}
+                        items={items}
+                        opened={menuOpen}
+                        setOpened={setMenuOpen}
+                        hidden={empty}
+                    />
                 )
             }
         >
             {empty ? null : (
                 <>
                     {rows}
-                    {lineNotes.map((n) => (
+                    {notes.map((n) => (
                         <Note key={n} text={n} />
                     ))}
                 </>
             )}
         </ControlSection>
-    );
-}
-
-/**
- * The Stroke section's settings: pattern, pattern count, curved.
- */
-function LineSettings({ layer }: { readonly layer: MockLayer }): React.JSX.Element {
-    const { update } = useMock();
-    const line = layer.line ?? { pattern: "Solid", curved: false };
-    const set = (patch: Partial<NonNullable<MockLayer["line"]>>): void => {
-        update(layer.id, (l) => ({ ...l, line: { ...line, ...patch } }));
-    };
-    const counted = !["Solid", "Sine wave", "Zigzag"].includes(line.pattern);
-    return (
-        <Popout>
-            <Popout.Trigger>
-                <AdvancedButton label="Line settings" changed={line.pattern !== "Solid" || line.curved} />
-            </Popout.Trigger>
-            <Popout.Panel
-                width={PANEL_GRID.POPOVER_WIDTH}
-                header={{ variant: "title", title: "Line" }}
-                placement="left"
-            >
-                <Popout.Content>
-                    <Box style={{ padding: "4px 8px 8px 16px" }}>
-                        <StyleSelect
-                            label="Pattern"
-                            value={line.pattern}
-                            defaultValue="Solid"
-                            options={PATTERNS.map((p) => ({ value: p, label: p }))}
-                            onChange={(p) => {
-                                set({ pattern: p ?? "Solid" });
-                            }}
-                        />
-                        {counted && (
-                            <StyleNumberInput
-                                label="Pattern count"
-                                value={line.patternCount}
-                                defaultValue={8}
-                                min={2}
-                                onChange={(patternCount) => {
-                                    set({ patternCount });
-                                }}
-                            />
-                        )}
-                    </Box>
-                    <ToggleRow
-                        label="Curved"
-                        control="switch"
-                        checked={line.curved}
-                        onChange={(curved) => {
-                            set({ curved });
-                        }}
-                    />
-                    {line.curved && line.pattern !== "Solid" && (
-                        <Text size="xs" c={PANEL_INK.CHROME} style={{ padding: "0 8px 8px 16px" }}>
-                            A curved edge draws solid: patterns are not drawn on curves.
-                        </Text>
-                    )}
-                </Popout.Content>
-            </Popout.Panel>
-        </Popout>
     );
 }
 
@@ -3079,6 +3974,7 @@ function LineSettings({ layer }: { readonly layer: MockLayer }): React.JSX.Eleme
 
 const COMPARISONS = ["is", "is not", "is more than", "is less than"];
 const SETS = ["the route", "Community 3", "the selection"];
+const SET_VALUES: Record<string, string> = { "the route": "onRoute", "the selection": "selected" };
 const SET_COUNTS: Record<string, string> = { "the route": "5 nodes, 4 edges", "the selection": "2 nodes" };
 
 /**
@@ -3128,17 +4024,19 @@ function ruleFor(kind: RuleKind, value = "group", comparison = "is", operand = "
                 words: `Members of ${set}`,
                 count: SET_COUNTS[set] ?? "12 nodes",
                 matches: set === "Community 3" ? "node" : "both",
+                value: SET_VALUES[set] ?? "group",
                 operand: set,
             };
         case "selected":
             return { kind, words: "Selected elements", count: "2 nodes", matches: "both" };
         default:
-            return { kind: "hovered", words: "Hovered element", count: "1 node", matches: "both" };
+            return { kind: "hovered", words: "Hovered element", count: "None now", matches: "both" };
     }
 }
 
 /**
- * Which elements: the rule in words and its count; click to edit it in place.
+ * Which elements: the rule in words and its count; click to edit it in place. Opening the editor
+ * focuses the kind of rule; Escape puts the rule back and returns focus to the words; Done keeps it.
  */
 function WhichElements({ layer }: { readonly layer: MockLayer }): React.JSX.Element {
     const { update, showGaps } = useMock();
@@ -3147,11 +4045,41 @@ function WhichElements({ layer }: { readonly layer: MockLayer }): React.JSX.Elem
     const [ands, setAnds] = useState(0);
     const { rule } = layer;
     const readOnly = layer.kind === "child";
+    const before = useRef<Rule>(rule);
+    const editorRef = useRef<HTMLDivElement>(null);
+    const wordsRef = useRef<HTMLButtonElement>(null);
+    const returnFocus = useRef(false);
     const setRule = (next: Rule): void => {
         update(layer.id, (l) => ({ ...l, rule: next }));
     };
     const kind = rule.kind === "draft" ? undefined : rule.kind;
     const gap = (rule.kind === "selected" || rule.kind === "hovered") && showGaps;
+
+    useEffect(() => {
+        if (editing) {
+            // After the menu or button that opened the editor has finished moving focus.
+            const timer = window.setTimeout(() => {
+                editorRef.current?.querySelector<HTMLInputElement>("input")?.focus();
+            }, 0);
+            return () => {
+                window.clearTimeout(timer);
+            };
+        }
+        if (returnFocus.current) {
+            returnFocus.current = false;
+            wordsRef.current?.focus();
+        }
+        return undefined;
+    }, [editing]);
+
+    const close = (revert: boolean): void => {
+        if (revert && !draft) {
+            setRule(before.current);
+            setAnds(0);
+        }
+        returnFocus.current = true;
+        setEditing(false);
+    };
 
     return (
         <ControlSection
@@ -3176,12 +4104,29 @@ function WhichElements({ layer }: { readonly layer: MockLayer }): React.JSX.Elem
             }
         >
             {editing && !readOnly ? (
-                <Box style={{ padding: "0 8px 4px 16px" }}>
-                    <StyleSelectAutofocus
-                        autoFocus={draft}
+                <Box
+                    ref={editorRef}
+                    style={{ padding: "0 8px 4px 16px" }}
+                    onKeyDown={(event: React.KeyboardEvent) => {
+                        const target = event.target as HTMLElement;
+                        if (event.key === "Escape" && target.getAttribute("aria-expanded") !== "true" && !draft) {
+                            event.preventDefault();
+                            close(true);
+                        }
+                    }}
+                >
+                    <StyleSelect
+                        label="Kind of rule"
                         value={kind}
+                        defaultValue="Choose..."
+                        options={[
+                            { value: "Choose...", label: "Choose..." },
+                            ...RULE_KINDS.map((k) => ({ value: k.value, label: k.label })),
+                        ]}
                         onChange={(k) => {
-                            setRule(ruleFor(k));
+                            if (k !== undefined && k !== "Choose...") {
+                                setRule(ruleFor(k as RuleKind));
+                            }
                         }}
                     />
                     {rule.kind === "where" && (
@@ -3198,7 +4143,7 @@ function WhichElements({ layer }: { readonly layer: MockLayer }): React.JSX.Elem
                                 <Box style={{ flex: 1 }}>
                                     <StyleSelect
                                         label="Comparison"
-                                        value={rule.comparison}
+                                        value={unlessDefault(rule.comparison, "is")}
                                         defaultValue="is"
                                         options={COMPARISONS.map((c) => ({ value: c, label: c }))}
                                         onChange={(c) => {
@@ -3260,7 +4205,7 @@ function WhichElements({ layer }: { readonly layer: MockLayer }): React.JSX.Elem
                     {rule.kind === "members" && (
                         <StyleSelect
                             label="Set"
-                            value={rule.operand}
+                            value={unlessDefault(rule.operand, "the route")}
                             defaultValue="the route"
                             options={SETS.map((s) => ({ value: s, label: s }))}
                             onChange={(s) => {
@@ -3295,7 +4240,7 @@ function WhichElements({ layer }: { readonly layer: MockLayer }): React.JSX.Elem
                             variant="default"
                             disabled={rule.kind === "draft"}
                             onClick={() => {
-                                setEditing(false);
+                                close(false);
                             }}
                         >
                             Done
@@ -3304,11 +4249,13 @@ function WhichElements({ layer }: { readonly layer: MockLayer }): React.JSX.Elem
                 </Box>
             ) : (
                 <UnstyledButton
+                    ref={wordsRef}
                     aria-label={
                         readOnly ? `${rule.parentPart ?? ""} ${rule.words}` : `Edit which elements: ${rule.words}`
                     }
                     disabled={readOnly}
                     onClick={() => {
+                        before.current = rule;
                         setEditing(true);
                     }}
                     style={{
@@ -3337,53 +4284,14 @@ function WhichElements({ layer }: { readonly layer: MockLayer }): React.JSX.Elem
 }
 
 /**
- * The kind-of-rule select, focused when a new layer opens.
- */
-function StyleSelectAutofocus({
-    autoFocus,
-    value,
-    onChange,
-}: {
-    readonly autoFocus: boolean;
-    readonly value: RuleKind | undefined;
-    readonly onChange: (kind: RuleKind) => void;
-}): React.JSX.Element {
-    const ref = useRef<HTMLDivElement>(null);
-    React.useEffect(() => {
-        if (autoFocus) {
-            ref.current?.querySelector("input")?.focus();
-        }
-    }, [autoFocus]);
-    return (
-        <Box ref={ref}>
-            <StyleSelect
-                label="Kind of rule"
-                value={value}
-                defaultValue="Choose..."
-                options={[
-                    { value: "Choose...", label: "Choose..." },
-                    ...RULE_KINDS.map((k) => ({ value: k.value, label: k.label })),
-                ]}
-                onChange={(k) => {
-                    if (k !== undefined && k !== "Choose...") {
-                        onChange(k as RuleKind);
-                    }
-                }}
-            />
-        </Box>
-    );
-}
-
-/**
- * Split by, on a split parent: the value it splits on and the scheme its children start from.
+ * Split by, on a split parent: the value it splits on. The scheme its children start from is on
+ * the Fill row's binding, with the override marks and the Mixed note.
  */
 function SplitBy({ layer }: { readonly layer: MockLayer }): React.JSX.Element | null {
-    const { update, showGaps } = useMock();
+    const { showGaps } = useMock();
     if (layer.split === undefined) {
         return null;
     }
-    const { split } = layer;
-    const palette = CATEGORY_PALETTES[split.scheme] ?? CATEGORY_PALETTES["Okabe-Ito"];
     return (
         <ControlSection
             label="Split by"
@@ -3391,34 +4299,12 @@ function SplitBy({ layer }: { readonly layer: MockLayer }): React.JSX.Element | 
             info={showGaps ? <Text size="xs">Not drawable today. {GAPS.split}</Text> : undefined}
         >
             <Box style={rowStyle}>
-                <VariablePill name={valueLabel(split.value)} kind="property" width={184} />
-            </Box>
-            <Box style={{ padding: "0 8px 4px 16px" }}>
-                <StyleSelect
-                    label="Fill scheme"
-                    value={split.scheme}
-                    defaultValue="Okabe-Ito"
-                    options={Object.keys(CATEGORY_PALETTES).map((p) => ({ value: p, label: p }))}
-                    onChange={(scheme) => {
-                        update(layer.id, (l) => {
-                            const s = scheme ?? "Okabe-Ito";
-                            const { nodeColor } = l.props;
-                            return {
-                                ...l,
-                                split: { value: split.value, scheme: s },
-                                props:
-                                    nodeColor?.mode === "derived"
-                                        ? { ...l.props, nodeColor: { ...nodeColor, palette: s } }
-                                        : l.props,
-                            };
-                        });
-                    }}
+                <VariablePill
+                    name={valueLabel(layer.split.value)}
+                    value={`split by ${valueLabel(layer.split.value)}, ${String(categoriesOf(layer.split.value).length)} layers`}
+                    kind="property"
+                    width={184}
                 />
-                <Group gap={2} style={{ paddingTop: 4 }} aria-label={`${split.scheme} swatches`}>
-                    {palette.map((c) => (
-                        <ColorSwatch key={c} color={HEX(c)} size={12} radius={2} withShadow={false} />
-                    ))}
-                </Group>
             </Box>
         </ControlSection>
     );
@@ -3440,7 +4326,9 @@ function FolderPanel({ layer }: { readonly layer: MockLayer }): React.JSX.Elemen
             ...Object.values(kid.props).flatMap((w) =>
                 w?.mode === "fixed" && typeof w.value === "string" && /^[0-9A-F]{6}$/i.test(w.value) ? [w.value] : [],
             ),
-            ...kid.labels.flatMap((l) => [l.textColor, l.background].filter((c) => c !== undefined)),
+            ...kid.labels.flatMap((l) =>
+                [l.look.color, l.look.background].filter((c): c is string => typeof c === "string"),
+            ),
             ...kid.effects.flatMap((e) => (e.color === undefined ? [] : [e.color])),
         ];
         for (const color of found) {
@@ -3504,64 +4392,33 @@ function FolderPanel({ layer }: { readonly layer: MockLayer }): React.JSX.Elemen
 /* ------------------------------------------------------------------------------------------ */
 
 /**
- * A caption over a group of rows in the Values tab.
+ * A caption over a group of rows in the Values tab, with an optional count at its end.
  */
-function Caption({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
+function Caption({
+    children,
+    count,
+}: {
+    readonly children: React.ReactNode;
+    readonly count?: number;
+}): React.JSX.Element {
     return (
-        <Text size="xs" fw={600} c={PANEL_INK.CHROME} style={{ padding: "12px 8px 4px 16px" }}>
-            {children}
-        </Text>
+        <Group justify="space-between" wrap="nowrap" style={{ padding: "12px 8px 4px 16px" }}>
+            <Text size="xs" fw={600} c={PANEL_INK.CHROME}>
+                {children}
+            </Text>
+            {count !== undefined && <RankChip>{count}</RankChip>}
+        </Group>
     );
 }
 
 /**
- * The painted counts of a layer: how much of what each property writes reaches the canvas.
+ * A line of prose in the Values tab, on the panel's padding.
  */
-function PaintedCounts({ layer }: { readonly layer: MockLayer }): React.JSX.Element {
-    const key = layer.id === "community3" ? "community3" : layer.id;
-    const rows =
-        PAINTED[key] ??
-        Object.keys(layer.props).map((p): readonly [string, string] => [
-            PROPS[p as PropId].label,
-            layer.rule.count === "" ? "--" : `all of ${layer.rule.count}`,
-        ]);
+function Prose({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
     return (
-        <>
-            <Caption>Painted</Caption>
-            {rows.length === 0 ? (
-                <ProseBlock variant="reading">Writes nothing yet</ProseBlock>
-            ) : (
-                rows.map(([name, value]) => <DataRow key={name} name={name} value={value} />)
-            )}
-        </>
-    );
-}
-
-/**
- * The values a layer reads, with when they were computed.
- */
-function ValuesRead({ ids, note }: { readonly ids: readonly string[]; readonly note?: string }): React.JSX.Element {
-    return (
-        <>
-            <Caption>Values read</Caption>
-            {ids.length === 0 ? (
-                <Box style={{ padding: "0 8px 0 16px" }}>
-                    <ProseBlock variant="reading">None</ProseBlock>
-                </Box>
-            ) : (
-                ids.map((id) => {
-                    const v = VALUES.find((x) => x.id === id);
-                    return (
-                        <DataRow
-                            key={id}
-                            name={valueLabel(id)}
-                            icon={v ? LEVEL_GLYPH[v.level] : undefined}
-                            value={note ?? v?.state}
-                        />
-                    );
-                })
-            )}
-        </>
+        <Box style={{ padding: "0 8px 0 16px" }}>
+            <ProseBlock variant="reading">{children}</ProseBlock>
+        </Box>
     );
 }
 
@@ -3577,229 +4434,498 @@ function Padded({ children }: { readonly children: React.ReactNode }): React.JSX
 }
 
 /**
- * The Values tab: facts about what a layer reads and paints.
+ * Every value a layer reads, in the order the panel lists them: its rule's, its split's, then
+ * each write's.
+ * @param layer - The layer.
+ * @returns Value ids, each once.
  */
-function ValuesTab({ layer }: { readonly layer: MockLayer }): React.JSX.Element {
-    const { select, layers } = useMock();
-    const [query, setQuery] = useState("");
-    switch (layer.values) {
-        case "everything":
-            return (
-                <>
-                    <Caption>Matched</Caption>
-                    <DataRow name="Nodes" value="77" stat />
-                    <DataRow name="Edges" value="254" stat />
-                    <ValuesRead ids={[]} />
-                    <PaintedCounts layer={layer} />
-                </>
-            );
-        case "selected":
-            return (
-                <>
-                    <ValuesRead ids={["selected"]} note="this view only" />
-                    <Caption>Selected now</Caption>
-                    <DataRow name="Valjean" value="node" onClick={() => undefined} />
-                    <DataRow name="Javert" value="node" onClick={() => undefined} />
-                    <PaintedCounts layer={layer} />
-                </>
-            );
-        case "hovered":
-            return (
-                <>
-                    <ValuesRead ids={["hovered"]} note="this view only" />
-                    <Caption>Hovered now</Caption>
-                    <Box style={{ padding: "0 8px 0 16px" }}>
-                        <ProseBlock variant="reading">Nothing hovered</ProseBlock>
-                    </Box>
-                    <PaintedCounts layer={layer} />
-                </>
-            );
-        case "louvain":
-            return (
-                <>
-                    <ValuesRead ids={["group"]} />
-                    <Caption>Group sizes</Caption>
-                    {[...COMMUNITIES]
-                        .sort((a, b) => b.size - a.size)
-                        .map((c) => (
-                            <DataRow
-                                key={c.n}
-                                name={`Community ${String(c.n)}`}
-                                icon={
-                                    <ColorSwatch
-                                        color={HEX(childColor(layers[`community${String(c.n)}`] ?? layer))}
-                                        size={12}
-                                        withShadow={false}
-                                    />
-                                }
-                                trailing={<RankChip>{c.size}</RankChip>}
-                                onClick={() => {
-                                    select(`community${String(c.n)}`);
-                                }}
-                            />
-                        ))}
-                    <Caption>Last re-run</Caption>
-                    <Box style={{ padding: "0 8px 0 16px" }}>
-                        <ProseBlock variant="reading">
-                            Ran 2 minutes ago. All 6 communities matched; Community 3 kept its override.
-                        </ProseBlock>
-                    </Box>
-                    <PaintedCounts layer={layer} />
-                </>
-            );
-        case "community": {
-            const c = COMMUNITIES.find((x) => x.n === layer.child?.group) ?? COMMUNITIES[0];
-            const members = c.members.filter((m) => m.toLowerCase().includes(query.toLowerCase()));
-            return (
-                <>
-                    <Caption>{`Members: ${String(c.size)}`}</Caption>
-                    <Box style={{ padding: "0 8px 4px 16px" }}>
-                        <SearchInput
-                            aria-label="Search members"
-                            placeholder="Search members"
-                            value={query}
-                            onChange={setQuery}
+function valuesReadBy(layer: MockLayer): string[] {
+    const { rule } = layer;
+    const ids: string[] = [];
+    if (rule.kind === "selected") {
+        ids.push("selected");
+    }
+    if (rule.kind === "hovered") {
+        ids.push("hovered");
+    }
+    if (rule.kind === "named") {
+        ids.push("name");
+    }
+    if (rule.value !== undefined) {
+        ids.push(rule.value);
+    }
+    if (layer.split !== undefined) {
+        ids.push(layer.split.value);
+    }
+    for (const w of Object.values(layer.props)) {
+        if (w?.mode === "derived") {
+            ids.push(w.source);
+        }
+    }
+    for (const e of [...layer.labels, ...(layer.tooltip === undefined ? [] : [layer.tooltip])]) {
+        if (e.source.kind === "value" && e.preview !== true) {
+            ids.push(e.source.value);
+        }
+    }
+    for (const e of [...layer.effects, ...layer.ends]) {
+        ids.push(...Object.values(e.bound).filter((v): v is string => v !== undefined));
+    }
+    return [...new Set(ids)];
+}
+
+/**
+ * The values a layer reads, with when they were computed.
+ */
+function ValuesRead({ ids }: { readonly ids: readonly string[] }): React.JSX.Element {
+    return (
+        <>
+            <Caption>Values read</Caption>
+            {ids.length === 0 ? (
+                <Prose>None</Prose>
+            ) : (
+                ids.map((id) => {
+                    const v = VALUES.find((x) => x.id === id);
+                    return (
+                        <DataRow
+                            key={id}
+                            name={valueLabel(id)}
+                            icon={v ? LEVEL_GLYPH[v.level] : undefined}
+                            value={v?.group === "Facts" ? "this view only" : v?.state}
                         />
-                    </Box>
-                    {members.map((m) => (
-                        <DataRow key={m} name={m} onClick={() => undefined} />
-                    ))}
-                    {c.members.length < c.size && query === "" && (
-                        <Text size="xs" c={PANEL_INK.CHROME} style={{ padding: "0 8px 0 16px" }}>
-                            {`${String(c.size - c.members.length)} more`}
-                        </Text>
+                    );
+                })
+            )}
+        </>
+    );
+}
+
+/**
+ * A list of names, at most eight, then "N more"; searchable when longer.
+ */
+function NameList({ names, total }: { readonly names: readonly string[]; readonly total: number }): React.JSX.Element {
+    const [query, setQuery] = useState("");
+    const matching = names.filter((m) => m.toLowerCase().includes(query.toLowerCase()));
+    const shown = matching.slice(0, MEMBER_LIMIT);
+    const more = query === "" ? total - shown.length : matching.length - shown.length;
+    return (
+        <>
+            {total > MEMBER_LIMIT && (
+                <Box style={{ padding: "0 8px 4px 16px" }}>
+                    <SearchInput
+                        aria-label="Search members"
+                        placeholder="Search members"
+                        value={query}
+                        onChange={setQuery}
+                    />
+                </Box>
+            )}
+            {shown.map((m) => (
+                <DataRow key={m} name={m} onClick={() => undefined} />
+            ))}
+            {more > 0 && <Prose>{`${String(more)} more`}</Prose>}
+        </>
+    );
+}
+
+/**
+ * What one value a layer reads holds, by its level and by how the rule uses it: group sizes for
+ * categories, members for a rule on one category, a histogram for a number, an ordered list for a
+ * route or a top N, the current elements for selected and hovered, a found count for names.
+ */
+function ValueFacts({ id, layer }: { readonly id: string; readonly layer: MockLayer }): React.JSX.Element | null {
+    const { layers, select } = useMock();
+    const value = VALUES.find((v) => v.id === id);
+    const { rule } = layer;
+    if (value === undefined) {
+        return null;
+    }
+    if (value.level === "categories") {
+        if (rule.kind === "where" && rule.value === id && rule.comparison === "is") {
+            const c = COMMUNITIES.find((x) => String(x.n) === rule.operand);
+            if (c === undefined) {
+                return null;
+            }
+            return (
+                <>
+                    <Caption count={c.size}>Members</Caption>
+                    <NameList names={c.members} total={c.size} />
+                    <DataRow
+                        name="Share of the graph's nodes"
+                        value={`${String(Math.round((c.size / 77) * 100))}%`}
+                        stat
+                    />
+                    {layer.kind === "child" && (
+                        <Prose>{`Last re-run: matched by ${String(c.size - 1)} of its ${String(c.size)} members.`}</Prose>
                     )}
-                    <Caption>Share</Caption>
-                    <DataRow name="Of the graph's nodes" value={`${String(Math.round((c.size / 77) * 100))}%`} stat />
-                    <Caption>Last re-run</Caption>
-                    <Box style={{ padding: "0 8px 0 16px" }}>
-                        <ProseBlock variant="reading">{`Matched by ${String(c.size - 1)} of its ${String(c.size)} members.`}</ProseBlock>
-                    </Box>
-                    <PaintedCounts layer={layer} />
                 </>
             );
         }
-        case "degree":
-            return (
-                <>
-                    <ValuesRead ids={["degree"]} />
-                    <Caption>Degree, log-log</Caption>
-                    <Padded>
-                        <HistogramRow
-                            label="Degree histogram, log-log axes"
-                            bins={DEGREE_BINS.map((b) => ({ ...b }))}
-                            minLabel="1"
-                            maxLabel="36"
-                        />
-                    </Padded>
-                    <DataRow name="With no edges" value="0" stat />
-                    <Padded>
-                        <MetricRow name="Minimum" percentile={0} value="1" />
-                    </Padded>
-                    <Padded>
-                        <MetricRow name="Median" percentile={50} value="6" />
-                    </Padded>
-                    <Padded>
-                        <MetricRow name="Maximum" percentile={100} value="36" rank="Valjean" />
-                    </Padded>
-                    <PaintedCounts layer={layer} />
-                </>
-            );
-        case "route":
-            return (
-                <>
-                    <ValuesRead ids={["onRoute", "step"]} />
-                    <Caption>Route</Caption>
-                    {ROUTE.map((name, i) => (
+        const write = Object.values(layer.props).find((w) => w?.mode === "derived" && w.source === id);
+        const palette = write?.mode === "derived" ? paletteOf(write.palette).colors : undefined;
+        const kids = Object.values(layers).filter((l) => l.child?.parentId === layer.id);
+        return (
+            <>
+                <Caption>{`Group sizes, ${valueLabel(id)}`}</Caption>
+                {categoriesOf(id).map((c) => {
+                    const kid = kids.find((k) => k.child?.group === c.n);
+                    const color = kid === undefined ? palette?.[(c.n - 1) % palette.length] : childColor(kid);
+                    return (
                         <DataRow
-                            key={name}
-                            name={name}
-                            icon={<Text size="xs">{i + 1}</Text>}
-                            onClick={() => undefined}
+                            key={c.n}
+                            name={c.name}
+                            icon={
+                                color === undefined ? undefined : (
+                                    <ColorSwatch color={HEX(color)} size={12} withShadow={false} />
+                                )
+                            }
+                            trailing={<RankChip>{c.count}</RankChip>}
+                            onClick={
+                                kid === undefined
+                                    ? undefined
+                                    : () => {
+                                          select(kid.id);
+                                      }
+                            }
                         />
-                    ))}
-                    <DataRow name="Length" value="4 edges" stat />
-                    <DataRow name="Total weight" value="11" stat />
-                    <PaintedCounts layer={layer} />
-                </>
-            );
-        case "betweenness":
+                    );
+                })}
+                {layer.kind === "split" && (
+                    <Prose>{`Last re-run: ran 2 minutes ago. All ${String(kids.length)} groups matched.`}</Prose>
+                )}
+            </>
+        );
+    }
+    if (value.level === "yesno") {
+        if (id === "selected") {
             return (
                 <>
-                    <ValuesRead ids={["betweenness"]} />
-                    <Caption>Edge betweenness, 5 steps</Caption>
-                    <Padded>
-                        <HistogramRow
-                            label="Edge betweenness histogram"
-                            bins={BETWEENNESS_BINS.map((b) => ({ ...b }))}
-                            minLabel="0"
-                            maxLabel="1,140"
-                        />
-                    </Padded>
-                    {BETWEENNESS_BINS.map((b, i) => (
+                    <Caption count={2}>Selected now</Caption>
+                    <DataRow name="Valjean" value="node" onClick={() => undefined} />
+                    <DataRow name="Javert" value="node" onClick={() => undefined} />
+                </>
+            );
+        }
+        if (id === "hovered") {
+            return (
+                <>
+                    <Caption>Hovered now</Caption>
+                    <Prose>Nothing hovered</Prose>
+                </>
+            );
+        }
+        return (
+            <>
+                <Caption>{`${valueLabel(id)}: yes`}</Caption>
+                <DataRow name="Elements" value="5 nodes, 4 edges" stat />
+            </>
+        );
+    }
+    if (value.level === "number" && value.ordered === true) {
+        return (
+            <>
+                <Caption count={ROUTE.length}>{`In order, ${valueLabel(id)}`}</Caption>
+                {ROUTE.map((name, i) => (
+                    <DataRow key={name} name={name} icon={<Text size="xs">{i + 1}</Text>} onClick={() => undefined} />
+                ))}
+                <DataRow name="Length" value="4 edges" stat />
+                <DataRow name="Total weight" value="11" stat />
+            </>
+        );
+    }
+    if (value.level === "number") {
+        const facts = NUMBER_FACTS[id] as (typeof NUMBER_FACTS)[string] | undefined;
+        if (facts === undefined) {
+            return null;
+        }
+        const stepped = Object.values(layer.props).find(
+            (w) => w?.mode === "derived" && w.source === id && w.steps !== undefined,
+        );
+        return (
+            <>
+                <Caption>{facts.axes === undefined ? valueLabel(id) : `${valueLabel(id)}, ${facts.axes}`}</Caption>
+                <Padded>
+                    <HistogramRow
+                        label={`${valueLabel(id)} histogram`}
+                        bins={facts.bins.map((b) => ({ ...b }))}
+                        minLabel={String(facts.domain[0])}
+                        maxLabel={facts.max}
+                    />
+                </Padded>
+                {stepped !== undefined &&
+                    facts.bins.map((b, i) => (
                         <DataRow
                             key={b.label}
                             name={`Step ${String(i + 1)}: ${b.label.split(":")[0]}`}
                             trailing={<RankChip>{b.count}</RankChip>}
                         />
                     ))}
-                    <Padded>
-                        <MetricRow name="Minimum" percentile={0} value="0.5" />
-                    </Padded>
-                    <Padded>
-                        <MetricRow name="Maximum" percentile={100} value="1,140" />
-                    </Padded>
-                    <PaintedCounts layer={layer} />
-                </>
-            );
-        case "keyPeople":
-            return (
-                <>
-                    <ValuesRead ids={["name"]} />
-                    <Caption>Found</Caption>
-                    <DataRow name="Named nodes found" value="5 of 5" stat />
-                    <Caption>Labels</Caption>
-                    <DataRow name="Labeled" value="5" stat />
-                    <DataRow name="Drawn" value="5" stat />
-                    <DataRow name="Hidden by overlap" value="0" stat />
-                    <PaintedCounts layer={layer} />
-                </>
-            );
-        case "topTen":
-            return (
-                <>
-                    <ValuesRead ids={["degree", "name"]} />
-                    <Caption>Top 10 by degree</Caption>
-                    {TOP_TEN.map(([name, degree]) => (
-                        <DataRow key={name} name={name} trailing={<RankChip>{degree}</RankChip>} />
-                    ))}
-                    <Caption>Labels</Caption>
-                    <DataRow name="Labeled" value="10" stat />
-                    <DataRow name="Drawn" value="7" stat />
-                    <DataRow name="Hidden by overlap" value="3" stat />
-                    <PaintedCounts layer={layer} />
-                </>
-            );
-        case "folder":
-            return (
-                <>
-                    <Caption>Values its layers read</Caption>
-                    <DataRow name="degree" icon={LEVEL_GLYPH.number} value="Top 10 labels" />
-                    <DataRow name="name" icon={LEVEL_GLYPH.text} value="Key people, Top 10 labels" />
-                </>
-            );
-        default:
-            return (
-                <>
-                    <Caption>Matched</Caption>
-                    <DataRow name="Elements" value={layer.rule.count === "" ? "--" : layer.rule.count} stat />
-                    <ValuesRead
-                        ids={Object.values(layer.props).flatMap((w) => (w?.mode === "derived" ? [w.source] : []))}
-                    />
-                    <PaintedCounts layer={layer} />
-                </>
-            );
+                <Padded>
+                    <MetricRow name="Minimum" percentile={0} value={facts.min} />
+                </Padded>
+                <Padded>
+                    <MetricRow name="Median" percentile={50} value={facts.median} />
+                </Padded>
+                <Padded>
+                    <MetricRow name="Maximum" percentile={100} value={facts.max} rank={facts.maxAt} />
+                </Padded>
+                {rule.kind === "top" && rule.value === id && (
+                    <>
+                        <Caption
+                            count={TOP_TEN.length}
+                        >{`Top ${String(rule.operand ?? 10)} by ${valueLabel(id)}`}</Caption>
+                        {TOP_TEN.map(([name, n], i) => (
+                            <DataRow
+                                key={name}
+                                name={name}
+                                icon={<Text size="xs">{i + 1}</Text>}
+                                trailing={<RankChip>{n}</RankChip>}
+                            />
+                        ))}
+                    </>
+                )}
+            </>
+        );
     }
+    if (rule.kind === "named" && id === "name") {
+        const asked = (rule.operand ?? "").split(",").filter((s) => s.trim() !== "").length;
+        return (
+            <>
+                <Caption>Named elements</Caption>
+                <DataRow name="Found" value={`${String(asked)} of ${String(asked)}`} stat />
+            </>
+        );
+    }
+    return null;
+}
+
+/**
+ * The painted counts of a layer: how much of what each property it writes reaches the canvas. A
+ * split child counts what it follows from its parent too.
+ */
+function PaintedCounts({ layer }: { readonly layer: MockLayer }): React.JSX.Element {
+    const { layers } = useMock();
+    const parent = layer.child === undefined ? undefined : layers[layer.child.parentId];
+    const size = layer.rule.count.split(" ")[0];
+    const computed = (): (readonly [string, string])[] => {
+        const own = Object.keys(layer.props).map((p): readonly [string, string] => [
+            PROPS[p as PropId].label,
+            layer.rule.count === "" ? "--" : `${size} of ${size}`,
+        ]);
+        const followed =
+            parent === undefined
+                ? []
+                : Object.keys(parent.props)
+                      .filter((p) => layer.props[p as PropId] === undefined)
+                      .map((p): readonly [string, string] => [
+                          PROPS[p as PropId].label,
+                          `${size} of ${size}, follows ${parent.name}`,
+                      ]);
+        const lists = [
+            ...layer.labels
+                .filter((e) => e.preview !== true)
+                .map((): readonly [string, string] => ["Label", `${size} of ${size}`]),
+            ...layer.effects.map((e): readonly [string, string] => [e.type, `${size} of ${size}`]),
+            ...layer.ends.map((e): readonly [string, string] => [e.end, `${size} of ${size}`]),
+        ];
+        return [...own, ...followed, ...lists];
+    };
+    const rows = PAINTED[layer.id] ?? computed();
+    return (
+        <>
+            <Caption>Painted</Caption>
+            {rows.length === 0 ? (
+                <Prose>Writes nothing yet</Prose>
+            ) : (
+                rows.map(([name, value]) => <DataRow key={name} name={name} value={value} />)
+            )}
+        </>
+    );
+}
+
+/**
+ * The Values tab: facts about what a layer reads and paints, built from the values it reads and
+ * its rule, the same for every layer whoever made it.
+ */
+function ValuesTab({ layer }: { readonly layer: MockLayer }): React.JSX.Element {
+    const { layers, tree } = useMock();
+    if (layer.kind === "folder") {
+        const kids = (findPlace(tree, layer.id)?.node.children ?? []).map((n) => layers[n.id]).filter(Boolean);
+        const readers = new Map<string, string[]>();
+        for (const kid of kids) {
+            for (const id of valuesReadBy(kid)) {
+                readers.set(id, [...(readers.get(id) ?? []), kid.name]);
+            }
+        }
+        return (
+            <>
+                <Caption>Values its layers read</Caption>
+                {readers.size === 0 ? (
+                    <Prose>None</Prose>
+                ) : (
+                    [...readers.entries()].map(([id, names]) => {
+                        const v = VALUES.find((x) => x.id === id);
+                        return (
+                            <DataRow
+                                key={id}
+                                name={valueLabel(id)}
+                                icon={v ? LEVEL_GLYPH[v.level] : undefined}
+                                value={names.join(", ")}
+                            />
+                        );
+                    })
+                )}
+            </>
+        );
+    }
+    const read = valuesReadBy(layer);
+    const labels = layer.labels.filter((e) => e.preview !== true);
+    const counts = LABEL_COUNTS[layer.id] ?? [
+        Number(layer.rule.count.split(" ")[0]) || 0,
+        Number(layer.rule.count.split(" ")[0]) || 0,
+        0,
+    ];
+    const nothingNow = layer.rule.count === "None now";
+    return (
+        <>
+            <Caption>Matched</Caption>
+            <DataRow name="Elements" value={layer.rule.count === "" ? "--" : layer.rule.count} stat />
+            <ValuesRead ids={read} />
+            {read.map((id) => (
+                <ValueFacts key={id} id={id} layer={layer} />
+            ))}
+            {labels.length > 0 && (
+                <>
+                    <Caption>Labels</Caption>
+                    <DataRow name="Labeled" value={String(counts[0])} stat />
+                    <DataRow name="Drawn" value={String(counts[1])} stat />
+                    <DataRow name="Hidden by overlap" value={String(counts[2])} stat />
+                </>
+            )}
+            {!nothingNow && <PaintedCounts layer={layer} />}
+        </>
+    );
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Graph settings: the panel with no layer selected                                            */
+/* ------------------------------------------------------------------------------------------ */
+
+/**
+ * What belongs to the whole graph, not to a layer: background, view mode, label declutter and
+ * avoidance, and the settings the studio branch adds.
+ */
+function GraphSettings(): React.JSX.Element {
+    const { showGaps } = useMock();
+    const [background, setBackground] = useState<"Color" | "Image">("Color");
+    const [color, setColor] = useState<string | undefined>(undefined);
+    const [image, setImage] = useState("");
+    const [view, setView] = useState<string | undefined>(undefined);
+    const [declutter, setDeclutter] = useState(false);
+    const [avoid, setAvoid] = useState(false);
+    const [highlight, setHighlight] = useState<string | undefined>(undefined);
+    const [depthSize, setDepthSize] = useState(false);
+    const branch = showGaps ? <Text size="xs">Not drawable today. {GAPS.branch}</Text> : undefined;
+    return (
+        <>
+            <Group
+                gap={4}
+                wrap="nowrap"
+                style={{
+                    height: PANEL_GRID.SECTION_HEADER,
+                    paddingInlineStart: PANEL_GRID.PAD_LEFT,
+                    paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
+                    borderBottom: `1px solid ${PANEL_INK.DIVIDER}`,
+                }}
+            >
+                <Text component="h2" fz={TITLE_SIZE} fw={600} m={0} c={PANEL_INK.VALUE}>
+                    Graph settings
+                </Text>
+            </Group>
+            <Box style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
+                <ControlSection label="Background" collapsible={false}>
+                    <Box style={{ padding: "0 8px 4px 16px" }}>
+                        <SegmentedControl
+                            size="xs"
+                            fullWidth
+                            aria-label="Background kind"
+                            data={["Color", "Image"]}
+                            value={background}
+                            onChange={(v) => {
+                                setBackground(v === "Image" ? "Image" : "Color");
+                            }}
+                        />
+                        <Box style={{ paddingTop: 4 }}>
+                            {background === "Color" ? (
+                                <CompactColorInput
+                                    label="Background color"
+                                    color={color}
+                                    defaultColor="#F5F5F5"
+                                    onColorChange={setColor}
+                                />
+                            ) : (
+                                <TextInput
+                                    size="xs"
+                                    label="Image address, drawn as a sky around the graph"
+                                    placeholder="https://..."
+                                    value={image}
+                                    onChange={(event) => {
+                                        setImage(event.currentTarget.value);
+                                    }}
+                                />
+                            )}
+                        </Box>
+                    </Box>
+                </ControlSection>
+                <ControlSection label="View" collapsible={false}>
+                    <Box style={{ padding: "0 8px 4px 16px" }}>
+                        <StyleSelect
+                            label="View mode"
+                            value={view}
+                            defaultValue="3D"
+                            options={["3D", "2D", "VR", "AR"].map((v) => ({ value: v, label: v }))}
+                            onChange={setView}
+                        />
+                    </Box>
+                    <ToggleRow
+                        label="Same size at any depth"
+                        control="switch"
+                        checked={depthSize}
+                        onChange={setDepthSize}
+                        trailing={<Gap gap="branch" label="Same size at any depth" />}
+                    />
+                </ControlSection>
+                <ControlSection label="Labels" collapsible={false}>
+                    <ToggleRow
+                        label="Hide overlapping labels"
+                        control="switch"
+                        checked={declutter}
+                        onChange={setDeclutter}
+                    />
+                    <ToggleRow
+                        label="Move labels off nodes and edges"
+                        control="switch"
+                        checked={avoid}
+                        onChange={setAvoid}
+                    />
+                </ControlSection>
+                <ControlSection label="Highlight" collapsible={false} info={branch}>
+                    <Box style={{ padding: "0 8px 4px 16px" }}>
+                        <CompactColorInput
+                            label="Highlight color"
+                            color={highlight}
+                            defaultColor="#D55E00"
+                            showOpacity={false}
+                            onColorChange={setHighlight}
+                        />
+                    </Box>
+                    <Note text="The color a run paints its result in when no layer says otherwise" />
+                </ControlSection>
+                <Box style={{ padding: "12px 8px 8px 16px" }}>
+                    <ProseBlock variant="reading">Select a layer in the tree to edit it.</ProseBlock>
+                </Box>
+            </Box>
+        </>
+    );
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -3807,7 +4933,25 @@ function ValuesTab({ layer }: { readonly layer: MockLayer }): React.JSX.Element 
 /* ------------------------------------------------------------------------------------------ */
 
 /**
- * The right panel: Style and Values tabs, the header, and the selected row's sections.
+ * Whether a row or any folder holding it is hidden.
+ */
+function hiddenInTree(id: string, tree: readonly TreeShape[], layers: Readonly<Record<string, MockLayer>>): boolean {
+    let place = findPlace(tree, id);
+    if (layers[id]?.hidden === true) {
+        return true;
+    }
+    while (place !== null && place.parentId !== null) {
+        if (layers[place.parentId]?.hidden === true) {
+            return true;
+        }
+        place = findPlace(tree, place.parentId);
+    }
+    return false;
+}
+
+/**
+ * The right panel: Style and Values tabs, the header, and the selected row's sections; Graph
+ * settings when no row is selected.
  */
 function RightPanel({
     tab,
@@ -3821,9 +4965,7 @@ function RightPanel({
     if (layer === undefined) {
         return (
             <PanelFrame>
-                <Box style={{ padding: 16 }}>
-                    <ProseBlock variant="reading">Select a layer to edit it.</ProseBlock>
-                </Box>
+                <GraphSettings />
             </PanelFrame>
         );
     }
@@ -3897,7 +5039,7 @@ function RightPanel({
                             }}
                             style={{ maxWidth: "100%" }}
                         >
-                            <Text size="xs" fw={600} c={PANEL_INK.VALUE} truncate>
+                            <Text component="h2" m={0} fz={TITLE_SIZE} fw={600} c={PANEL_INK.VALUE} truncate>
                                 {layer.name}
                             </Text>
                         </UnstyledButton>
@@ -3905,14 +5047,16 @@ function RightPanel({
                 </Box>
                 {layer.pin !== undefined && (
                     <Tooltip label={`Pinned to the ${layer.pin}`}>
-                        <Box style={{ display: "inline-flex", color: PANEL_INK.CHROME }}>
+                        <Box
+                            style={{ display: "inline-flex", color: PANEL_INK.CHROME }}
+                            role="img"
+                            aria-label={`Pinned to the ${layer.pin}`}
+                        >
                             <UiGlyph name="pin" size={PANEL_GRID.GLYPH} />
                         </Box>
                     </Tooltip>
                 )}
-                {(layer.pin !== undefined || layer.kind === "folder") && (
-                    <Gap gap="tree" label="Pins, folders and locks" />
-                )}
+                <Gap gap="tree" label="Pins, folders and locks" />
                 <PressToggle
                     label={`Lock ${layer.name}`}
                     checked={layer.locked}
@@ -3920,6 +5064,15 @@ function RightPanel({
                     checkedIcon={<UiGlyph name="lock" size={PANEL_GRID.GLYPH} />}
                     onToggle={(locked) => {
                         update(layer.id, (l) => ({ ...l, locked }));
+                    }}
+                />
+                <PressToggle
+                    label={`Hide ${layer.name}`}
+                    checked={layer.hidden}
+                    icon={<UiGlyph name="eye" size={PANEL_GRID.GLYPH} />}
+                    checkedIcon={<UiGlyph name="eyeClosed" size={PANEL_GRID.GLYPH} />}
+                    onToggle={(hidden) => {
+                        update(layer.id, (l) => ({ ...l, hidden }));
                     }}
                 />
                 <Menu position="bottom-end" withinPortal>
@@ -3954,24 +5107,43 @@ function RightPanel({
 
 /**
  * The Style tab: Which elements, Split by, then every section in the fixed order. A locked
- * layer's controls are disabled with the reason.
+ * layer's controls are disabled with the reason; a hidden one says its changes will not show.
  */
 function StyleTab({ layer }: { readonly layer: MockLayer }): React.JSX.Element {
+    const { tree, layers } = useMock();
+    const hidden = hiddenInTree(layer.id, tree, layers);
+    const notes = (
+        <>
+            {layer.locked && (
+                <Box style={{ paddingTop: 8 }}>
+                    <Note warn text="This layer is locked. Unlock it to change it." />
+                </Box>
+            )}
+            {hidden && (
+                <Box style={{ paddingTop: 8 }}>
+                    <Note warn text="Hidden: changes will not show until it is shown." />
+                </Box>
+            )}
+        </>
+    );
     if (layer.kind === "folder") {
         return (
-            <fieldset disabled={layer.locked} style={fieldsetStyle} title={layer.locked ? LOCKED_REASON : undefined}>
-                <FolderPanel layer={layer} />
-            </fieldset>
+            <Box key={layer.id}>
+                {notes}
+                <fieldset
+                    disabled={layer.locked}
+                    style={fieldsetStyle}
+                    title={layer.locked ? LOCKED_REASON : undefined}
+                >
+                    <FolderPanel layer={layer} />
+                </fieldset>
+            </Box>
         );
     }
     const draft = layer.rule.kind === "draft";
     return (
         <Box key={layer.id}>
-            {layer.locked && (
-                <Box style={{ padding: "8px 8px 0 16px" }}>
-                    <ProseBlock variant="departure">This layer is locked. Unlock it to change it.</ProseBlock>
-                </Box>
-            )}
+            {notes}
             <fieldset disabled={layer.locked} style={fieldsetStyle} title={layer.locked ? LOCKED_REASON : undefined}>
                 <WhichElements layer={layer} />
                 <SplitBy layer={layer} />
@@ -4021,6 +5193,20 @@ function PanelFrame({ children }: { readonly children: React.ReactNode }): React
 
 const STARTING_IDS = ["hovered", "selected", "everything"];
 
+/** A row's band: pinned to the top, unpinned, or pinned to the bottom. */
+const BAND = { top: 0, none: 1, bottom: 2 } as const;
+
+/**
+ * Whether top-level rows run top band, then unpinned, then bottom band.
+ * @param tree - The tree.
+ * @param layers - Every layer.
+ * @returns True when every band is in its place.
+ */
+function bandsInOrder(tree: readonly TreeShape[], layers: Readonly<Record<string, MockLayer>>): boolean {
+    const bands = tree.map((n) => BAND[layers[n.id]?.pin ?? "none"]);
+    return bands.every((b, i) => i === 0 || b >= bands[i - 1]);
+}
+
 /**
  * The whole mock: tree, an empty canvas between, and the style panel.
  */
@@ -4029,30 +5215,18 @@ function StylePanelMock(): React.JSX.Element {
     const [tree, setTree] = useState<readonly TreeShape[]>(INITIAL_TREE);
     const [selectedId, setSelectedId] = useState<string | null>("degree");
     const [tab, setTab] = useState("style");
-    const [showGaps, setShowGaps] = useState(true);
+    const [showGaps, setShowGaps] = useState(false);
     const [renamingId, setRenamingId] = useState<string | null>(null);
 
     const update = (id: string, fn: (layer: MockLayer) => MockLayer): void => {
         setLayers((prev) => (prev[id] === undefined ? prev : { ...prev, [id]: fn(prev[id]) }));
     };
 
-    /** Where a new row goes: above the selected row, inside its folder. */
-    const insertionPoint = (): { parentId: string | null; index: number } => {
-        const [first, last] = unpinnedRange(tree, layers);
-        const place = selectedId === null ? null : findPlace(tree, selectedId);
-        if (place === null) {
-            return { parentId: null, index: first };
-        }
-        if (place.parentId !== null) {
-            const parent = layers[place.parentId];
-            if (parent.kind === "folder") {
-                return { parentId: place.parentId, index: place.index };
-            }
-            const parentPlace = findPlace(tree, place.parentId);
-            return { parentId: parentPlace?.parentId ?? null, index: parentPlace?.index ?? first };
-        }
-        return { parentId: null, index: Math.min(Math.max(place.index, first), last) };
-    };
+    /** Where a new row goes: the top of the unpinned stack, beneath the rows pinned to the top. */
+    const insertionPoint = (): { parentId: string | null; index: number } => ({
+        parentId: null,
+        index: unpinnedRange(tree, layers)[0],
+    });
 
     const addRow = (layer: MockLayer, at = insertionPoint()): void => {
         setLayers((prev) => ({ ...prev, [layer.id]: layer }));
@@ -4081,31 +5255,21 @@ function StylePanelMock(): React.JSX.Element {
         labels: [],
         effects: [],
         ends: [],
-        values: "generic",
     });
 
     const onAddLayer = (): void => {
         addRow(blankLayer("New layer", { kind: "draft", words: "", count: "", matches: "both" }));
     };
     const onAddFolder = (): void => {
-        const folder: MockLayer = {
-            ...blankLayer("New folder", ruleFor("everything")),
-            kind: "folder",
-            draft: false,
-            values: "folder",
-        };
-        const at = insertionPoint();
-        addRow(folder, {
-            parentId: at.parentId !== null && layers[at.parentId].kind === "folder" ? null : at.parentId,
-            index: at.index,
-        });
+        const folder: MockLayer = { ...blankLayer("New folder", ruleFor("everything")), kind: "folder", draft: false };
+        addRow(folder);
         setRenamingId(folder.id);
     };
 
     const onMove = (move: TreeMove): void => {
         const moved = layers[move.id];
         const from = findPlace(tree, move.id);
-        if (moved === undefined || from === null || moved.pin !== undefined) {
+        if (moved === undefined || from === null) {
             return;
         }
         const target = move.parentId === null ? undefined : layers[move.parentId];
@@ -4117,11 +5281,16 @@ function StylePanelMock(): React.JSX.Element {
         if (moved.kind === "folder" && move.parentId !== null) {
             return;
         }
+        // A pinned row dropped into a folder takes its folder's place, so it unpins.
+        const unpins = moved.pin !== undefined && move.parentId !== null;
+        const after = unpins ? { ...layers, [move.id]: { ...moved, pin: undefined } } : layers;
         const next = moveTreeItem([...tree] as TreeShape[], move);
-        const [first, last] = unpinnedRange(next, layers);
-        const idx = next.findIndex((n) => n.id === move.id);
-        if (move.parentId === null && (idx < first || idx >= last)) {
+        // Every row stays in its band: pinned rows move only within theirs.
+        if (!bandsInOrder(next, after)) {
             return;
+        }
+        if (unpins) {
+            update(move.id, (l) => ({ ...l, pin: undefined }));
         }
         setTree(next);
     };
@@ -4174,6 +5343,10 @@ function StylePanelMock(): React.JSX.Element {
             if (place === null) {
                 return;
             }
+            if (folderId !== null) {
+                // A row inside a folder takes its folder's place: it cannot keep a pin.
+                update(id, (l) => ({ ...l, pin: undefined }));
+            }
             setTree((prev) => {
                 const without = removeNode(prev, id);
                 if (folderId === null) {
@@ -4192,29 +5365,23 @@ function StylePanelMock(): React.JSX.Element {
                 }
                 const without = removeNode(prev, id);
                 const pinned = { ...layers, [id]: { ...layers[id], pin } };
-                const [first, last] = unpinnedRange(
-                    without,
-                    Object.fromEntries(Object.entries(pinned).map(([k, v]) => [k, v])),
-                );
+                const [first, last] = unpinnedRange(without, pinned);
                 const index = pin === "bottom" ? last : first;
                 return insertNode(without, null, index, place.node);
             });
         },
         unsplit: (id) => {
             const place = findPlace(tree, id);
-            update(id, (l) => ({ ...l, kind: "layer", split: undefined, values: "generic" }));
+            update(id, (l) => ({ ...l, kind: "layer", split: undefined }));
             setTree((prev) => prev.map((n) => (n.id === id ? { id } : n)));
             if (place !== null && selectedId !== null && (place.node.children ?? []).some((c) => c.id === selectedId)) {
                 setSelectedId(id);
             }
         },
-        split: (id) => {
+        split: (id, source) => {
             const layer = layers[id];
-            const write = layer.props.nodeColor;
-            const source = write?.mode === "derived" ? write.source : "group";
-            const palette =
-                CATEGORY_PALETTES[write?.mode === "derived" ? write.palette : "Okabe-Ito"] ??
-                CATEGORY_PALETTES["Okabe-Ito"];
+            const write = Object.values(layer.props).find((w) => w?.mode === "derived" && w.source === source);
+            const palette = paletteOf(write?.mode === "derived" ? write.palette : DEFAULT_CATEGORICAL).colors;
             const cats = categoriesOf(source).sort((a, b) => a.n - b.n);
             const kids: MockLayer[] = cats.map((c) => ({
                 id: newId("child"),
@@ -4225,9 +5392,12 @@ function StylePanelMock(): React.JSX.Element {
                 rule: {
                     kind: "where",
                     words: `where ${valueLabel(source)} is ${c.name}`,
-                    parentPart: `${layer.name}'s nodes`,
+                    parentPart: `${layer.name}'s ${layer.rule.matches === "edge" ? "edges" : "nodes"}`,
                     count: `${String(c.count)} nodes`,
                     matches: "node",
+                    value: source,
+                    comparison: "is",
+                    operand: String(c.n),
                 },
                 props: {},
                 pending: [],
@@ -4235,15 +5405,10 @@ function StylePanelMock(): React.JSX.Element {
                 effects: [],
                 ends: [],
                 child: { parentId: id, group: c.n, chit: palette[(c.n - 1) % palette.length] },
-                values: "generic",
             }));
             setLayers((prev) => ({
                 ...prev,
-                [id]: {
-                    ...prev[id],
-                    kind: "split",
-                    split: { value: source, scheme: write?.mode === "derived" ? write.palette : "Okabe-Ito" },
-                },
+                [id]: { ...prev[id], kind: "split", split: { value: source } },
                 ...Object.fromEntries(kids.map((k) => [k.id, k])),
             }));
             setTree((prev) => {
@@ -4360,9 +5525,6 @@ function StylePanelMock(): React.JSX.Element {
                                     {g.replace("graphty-element needs ", "- ")}
                                 </Text>
                             ))}
-                            <Text size="xs">
-                                - the per-property eye: {GAPS.pause.replace("graphty-element needs ", "")}
-                            </Text>
                         </InfoCircle>
                     </Group>
                 </Group>
@@ -4412,7 +5574,8 @@ type Story = StoryObj;
 
 /**
  * The layer tree and the style panel for the Les Miserables network. Select any row in the tree;
- * right-click a row for its menu; "+" in the tree header adds a layer or a folder.
+ * right-click a row for its menu; "+" in the tree header adds a layer or a folder; "Graph settings"
+ * under the tree shows what belongs to the whole graph.
  */
 export const StylePanel: Story = {
     render: () => <StylePanelMock />,

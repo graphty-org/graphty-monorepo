@@ -183,41 +183,17 @@ export async function parseXgmml(
     common: ResolvedImportOptions,
     options: XgmmlImportOptions | undefined,
 ): Promise<XgmmlDocument> {
-    const repairs: XmlRepairs = {
-        bareAmpersand: booleanOption("repairBareAmpersands", options?.repairBareAmpersands, false)
-            ? (line): void => {
-                  report.warning("parse-error", XGMML_ISSUE.AMPERSAND_REPAIRED, "a bare & was read as &amp;", { line });
-              }
-            : undefined,
-        surrogatePair: booleanOption("pairSurrogateReferences", options?.pairSurrogateReferences, false)
-            ? (line): void => {
-                  report.warning(
-                      "parse-error",
-                      XGMML_ISSUE.SURROGATE_PAIRED,
-                      "two surrogate character references were joined into one character",
-                      { line },
-                  );
-              }
-            : undefined,
-    };
     const parser = new XgmmlParser(report);
     const seen = { content: false };
     try {
         await tokenizeXml(
             watch(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding, xml: true }), seen),
             parser,
-            repairs,
+            xmlRepairs(report, options),
         );
     } catch (err) {
         if (err instanceof XmlSyntaxError) {
-            if (!seen.content) {
-                report.fail(XGMML_ISSUE.EMPTY_INPUT, "the input is empty");
-            }
-            report.fail(
-                err instanceof XmlNestingError ? XGMML_ISSUE.XML_NESTING : XGMML_ISSUE.XML_SYNTAX,
-                err.message,
-                { line: err.line },
-            );
+            failSyntax(report, err, seen.content);
         }
         throw err;
     }
@@ -231,6 +207,50 @@ export async function parseXgmml(
         );
     }
     return doc;
+}
+
+/**
+ * The XML repairs the options switch on, each reporting where it repaired.
+ * @param report - the report
+ * @param options - the XGMML options
+ * @returns the repairs
+ */
+function xmlRepairs(report: ImportReportBuilder, options: XgmmlImportOptions | undefined): XmlRepairs {
+    const ampersand = (line: number): void => {
+        report.warning("parse-error", XGMML_ISSUE.AMPERSAND_REPAIRED, "a bare & was read as &amp;", { line });
+    };
+    const surrogate = (line: number): void => {
+        report.warning(
+            "parse-error",
+            XGMML_ISSUE.SURROGATE_PAIRED,
+            "two surrogate character references were joined into one character",
+            { line },
+        );
+    };
+    return {
+        bareAmpersand: booleanOption("repairBareAmpersands", options?.repairBareAmpersands, false)
+            ? ampersand
+            : undefined,
+        surrogatePair: booleanOption("pairSurrogateReferences", options?.pairSurrogateReferences, false)
+            ? surrogate
+            : undefined,
+    };
+}
+
+/**
+ * Fails the report for an XML syntax error: an empty input, nesting too deep, or broken XML.
+ * @param report - the report
+ * @param err - the error
+ * @param content - whether the input held anything but white space
+ * @returns never: it throws the report's ImportError
+ */
+function failSyntax(report: ImportReportBuilder, err: XmlSyntaxError, content: boolean): never {
+    if (!content) {
+        report.fail(XGMML_ISSUE.EMPTY_INPUT, "the input is empty");
+    }
+    return report.fail(err instanceof XmlNestingError ? XGMML_ISSUE.XML_NESTING : XGMML_ISSUE.XML_SYNTAX, err.message, {
+        line: err.line,
+    });
 }
 
 /**

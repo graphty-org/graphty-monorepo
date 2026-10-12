@@ -30,6 +30,7 @@ import {
     sizeParser,
 } from "./lexicon.js";
 import {
+    type CytoscapeContinuousPoint,
     type CytoscapeMapping,
     type CytoscapeStyle,
     type CytoscapeTargetStyle,
@@ -175,28 +176,43 @@ export function parseMapping(m: CytoscapeMapping, parse: CytoscapeValueParser, s
             }
             return { kind: "discrete", column: m.column, table };
         }
-        default: {
-            const parsed: ContinuousPoint[] = [];
-            for (const p of m.points) {
-                const below = parse(p.below, site);
-                const value = parse(p.value, site);
-                const above = parse(p.above, site);
-                if (below !== null && value !== null && above !== null) {
-                    parsed.push({ at: p.at, below, value, above });
-                }
-            }
-            parsed.sort((a, b) => a.at - b.at);
-            const points: ContinuousPoint[] = [];
-            for (const p of parsed) {
-                if (points.length > 0 && points[points.length - 1].at === p.at) {
-                    points[points.length - 1] = p;
-                } else {
-                    points.push(p);
-                }
-            }
-            return { kind: "continuous", column: m.column, points };
+        default:
+            return { kind: "continuous", column: m.column, points: parsePoints(m.points, parse, site) };
+    }
+}
+
+/**
+ * A continuous mapping's points with canonical values: points whose values do not parse are dropped (and noted),
+ * points are sorted, and of two points at the same value the later one wins.
+ * @param raw - the points
+ * @param parse - the property's parser
+ * @param site - where problems are noted
+ * @returns the points
+ */
+function parsePoints(
+    raw: readonly CytoscapeContinuousPoint[],
+    parse: CytoscapeValueParser,
+    site: CanonSite,
+): ContinuousPoint[] {
+    const parsed: ContinuousPoint[] = [];
+    for (const p of raw) {
+        const below = parse(p.below, site);
+        const value = parse(p.value, site);
+        const above = parse(p.above, site);
+        if (below !== null && value !== null && above !== null) {
+            parsed.push({ at: p.at, below, value, above });
         }
     }
+    parsed.sort((a, b) => a.at - b.at);
+    const points: ContinuousPoint[] = [];
+    for (const p of parsed) {
+        if (points.at(-1)?.at === p.at) {
+            points[points.length - 1] = p;
+        } else {
+            points.push(p);
+        }
+    }
+    return points;
 }
 
 /**
@@ -269,33 +285,33 @@ function resolver(
         }
         return undefined;
     };
+    // a mapping parsed once per visual property and neutral property
+    const mappingOf = (vp: string, parse: CytoscapeValueParser, property: string): ParsedMapping | undefined => {
+        const raw = style.mappings.get(vp);
+        if (raw === undefined) {
+            return undefined;
+        }
+        const key = `${vp}\u0000${property}`;
+        let m = parsed.get(key);
+        if (m === undefined) {
+            const entries = raw.kind === "discrete" ? raw.table.length : 0;
+            budget?.spend(target, 1 + entries + (raw.kind === "continuous" ? raw.points.length : 0));
+            m = parseMapping(raw, parse, ruleSite(property));
+            parsed.set(key, m);
+        }
+        return m;
+    };
     const one = (vp: string, parse: CytoscapeValueParser, property: string, i: number): StyleValue | null => {
         const site: CanonSite = { notes, target, property, element: i, budget };
         const b = bypass(i, vp);
-        if (b !== undefined && b !== null) {
-            const v = parse(b, site);
-            if (v !== null) {
-                return v;
-            }
+        const fromBypass = b === undefined || b === null ? null : parse(b, site);
+        if (fromBypass !== null) {
+            return fromBypass;
         }
-        const raw = style.mappings.get(vp);
-        if (raw !== undefined) {
-            const key = `${vp}\u0000${property}`;
-            let m = parsed.get(key);
-            if (m === undefined) {
-                budget?.spend(
-                    target,
-                    1 +
-                        (raw.kind === "discrete" ? raw.table.length : 0) +
-                        (raw.kind === "continuous" ? raw.points.length : 0),
-                );
-                m = parseMapping(raw, parse, ruleSite(property));
-                parsed.set(key, m);
-            }
-            const v = evalMapping(m, elements.value(m.column, i), parse, site);
-            if (v !== null) {
-                return v;
-            }
+        const m = mappingOf(vp, parse, property);
+        const mapped = m === undefined ? null : evalMapping(m, elements.value(m.column, i), parse, site);
+        if (mapped !== null) {
+            return mapped;
         }
         return style.defaults.has(vp) ? parse(style.defaults.get(vp), ruleSite(property)) : null;
     };

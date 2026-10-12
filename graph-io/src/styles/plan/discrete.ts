@@ -13,6 +13,9 @@ const MAX_KEYS = 256;
 /** The share of styled elements a mapping may get wrong; the replay moves them into the exceptions. */
 const MAX_EXCEPTION_SHARE = 0.2;
 
+/** A key of a discrete table, as the feature holds it. */
+type KeyValue = string | number | boolean;
+
 /**
  * A discrete mapping that explains a family.
  */
@@ -22,7 +25,7 @@ export interface DiscreteCandidate {
     /** The feature the table reads. */
     readonly info: FeatureInfo;
     /** Each key (by its value key) with its raw value and the block it maps to. */
-    readonly table: Map<string, { readonly raw: string | number | boolean; readonly block: number }>;
+    readonly table: Map<string, { readonly raw: KeyValue; readonly block: number }>;
     /** The block the elements missing the feature share, or null. */
     readonly bucket: number | null;
     /** The description cost. */
@@ -52,54 +55,13 @@ export function discreteCandidate(
     }
     spend(n);
     const { values } = info.feature;
-    const votes = new Map<string, { raw: string | number | boolean; counts: Map<number, number> }>();
-    const nullBlocks = new Map<number, number>();
-    for (const i of fam.styled) {
-        const b = fam.blocks[i];
-        const kv = values[i];
-        if (kv === null) {
-            nullBlocks.set(b, (nullBlocks.get(b) ?? 0) + 1);
-            continue;
-        }
-        const key = valueKey(kv);
-        let vote = votes.get(key);
-        if (vote === undefined) {
-            vote = { raw: kv, counts: new Map() };
-            votes.set(key, vote);
-        }
-        vote.counts.set(b, (vote.counts.get(b) ?? 0) + 1);
-    }
-    const table = new Map<string, { raw: string | number | boolean; block: number }>();
-    let exceptions = 0;
-    for (const [key, { raw, counts }] of votes) {
-        let best = -1;
-        let bestCount = -1;
-        let total = 0;
-        for (const [b, c] of counts) {
-            total += c;
-            if (c > bestCount) {
-                bestCount = c;
-                best = b;
-            }
-        }
-        table.set(key, { raw, block: best });
-        exceptions += total - bestCount;
-    }
+    const { votes, nullBlocks } = votesOf(fam, values);
+    const { table, exceptions: wrong } = tableOf(votes);
+    let exceptions = wrong;
     // never paint an element the file left unstyled
-    let unstyledMissing = false;
-    for (let i = 0; i < n; i++) {
-        if (fam.blocks[i] !== 0) {
-            continue;
-        }
-        const v = values[i];
-        if (v === null) {
-            unstyledMissing = true;
-        } else if (table.has(valueKey(v))) {
-            return null;
-        } else if (v === false) {
-            // a missing-key group selects with "not has", which a false value also matches
-            unstyledMissing = true;
-        }
+    const unstyledMissing = unstyledOf(fam, values, table, n);
+    if (unstyledMissing === null) {
+        return null;
     }
     // the elements missing the key form one group when they share one style (Gephi's "null" partition)
     let bucket: number | null = null;
@@ -116,4 +78,88 @@ export function discreteCandidate(
     const cost =
         50 + table.size * fam.props.length + (exceptions > 0 ? 50 + exceptions : 0) + (bucket === null ? 0 : 50);
     return { type: "discrete", info, table, bucket, cost };
+}
+
+/** How the styled elements of each key fall into the family's blocks. */
+type Votes = Map<string, { raw: KeyValue; counts: Map<number, number> }>;
+
+/**
+ * Counts, per key of the feature, the styled elements in each block; and per block, those missing the feature.
+ * @param fam - the family
+ * @param values - the feature's values
+ * @returns the votes, and the blocks of the elements missing the feature
+ */
+function votesOf(fam: Family, values: readonly (KeyValue | null)[]): { votes: Votes; nullBlocks: Map<number, number> } {
+    const votes: Votes = new Map();
+    const nullBlocks = new Map<number, number>();
+    for (const i of fam.styled) {
+        const b = fam.blocks[i];
+        const kv = values[i];
+        if (kv === null) {
+            nullBlocks.set(b, (nullBlocks.get(b) ?? 0) + 1);
+            continue;
+        }
+        const key = valueKey(kv);
+        let vote = votes.get(key);
+        if (vote === undefined) {
+            vote = { raw: kv, counts: new Map() };
+            votes.set(key, vote);
+        }
+        vote.counts.set(b, (vote.counts.get(b) ?? 0) + 1);
+    }
+    return { votes, nullBlocks };
+}
+
+/**
+ * The table: each key maps to the block most of its elements are in; the others are exceptions.
+ * @param votes - the votes
+ * @returns the table and how many elements it gets wrong
+ */
+function tableOf(votes: Votes): { table: Map<string, { raw: KeyValue; block: number }>; exceptions: number } {
+    const table = new Map<string, { raw: KeyValue; block: number }>();
+    let exceptions = 0;
+    for (const [key, { raw, counts }] of votes) {
+        let best = -1;
+        let bestCount = -1;
+        let total = 0;
+        for (const [b, c] of counts) {
+            total += c;
+            if (c > bestCount) {
+                bestCount = c;
+                best = b;
+            }
+        }
+        table.set(key, { raw, block: best });
+        exceptions += total - bestCount;
+    }
+    return { table, exceptions };
+}
+
+/**
+ * Whether an element the file left unstyled misses the feature (or holds false, which a missing-key group's "not has"
+ * also matches).
+ * @param fam - the family
+ * @param values - the feature's values
+ * @param table - the table
+ * @param n - the element count
+ * @returns the answer, or null when the table would paint an unstyled element
+ */
+function unstyledOf(
+    fam: Family,
+    values: readonly (KeyValue | null)[],
+    table: ReadonlyMap<string, unknown>,
+    n: number,
+): boolean | null {
+    let missing = false;
+    for (let i = 0; i < n; i++) {
+        const v = values[i];
+        if (fam.blocks[i] !== 0) {
+            continue;
+        }
+        if (v !== null && table.has(valueKey(v))) {
+            return null;
+        }
+        missing ||= v === null || v === false;
+    }
+    return missing;
 }

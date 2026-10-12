@@ -47,6 +47,9 @@ import {
 import { OBOGRAPHS_LOSS, OBOGRAPHS_SHARED_LOSS, planObographs } from "./obographs-export.js";
 import { JSON_STYLE_CAPABILITIES, type JsonStyledExport, jsonStyledExport, STYLE_KEY_REPLACED_CODE } from "./styles.js";
 
+/** What the writer takes: the format's options, the common ones and the styles. */
+type JsonWriteOptions = JsonExportOptions & CommonExportOptions & ExporterStyleOptions;
+
 /**
  * The format-specific options of the JSON exporter.
  * @category Built-in formats
@@ -1640,7 +1643,6 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
     const c: Cursor = { w: new JsonWriter(resolved.indent), ids: snapshot.ids, nonfinite: { count: 0 } };
     const { w } = c;
     const parentSlots: ReadonlySet<Slot> = new Set(["parent"]);
-    const positionSlots: ReadonlySet<Slot> = new Set(["cytoscapePosition"]);
     w.open("{");
     w.key("elements");
     w.open("{");
@@ -1656,18 +1658,7 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
         writeSlots(c, p.nodes, i, parentSlots);
         writeSlots(c, p.nodes, i, ATTRIBUTE_SLOTS);
         w.close("}");
-        for (const item of p.nodes) {
-            if (positionSlots.has(item.slot) && item.column.isSet(i)) {
-                const value = item.column.value(i) as ArrayLike<number>;
-                const f32 = item.column.dtype === "f32";
-                w.key("position");
-                w.open("{");
-                w.member("x", numberText(value[0], f32, c.nonfinite));
-                // stored y-up; Cytoscape's y grows downward
-                w.member("y", numberText(flipY(value[1]), f32, c.nonfinite));
-                w.close("}");
-            }
-        }
+        writeCytoscapePosition(c, p, i);
         writeSlots(c, p.nodes, i, ELEMENT_SLOTS);
         w.close("}");
         yield w.take();
@@ -1704,22 +1695,51 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
         w.key("data");
         writeGraphObject(c, p);
     }
-    const extra = resolved.shape.cytoscape;
-    const stylesheet = resolved.styled?.stylesheet ?? null;
-    if (extra !== undefined) {
-        for (const key of Object.keys(extra)) {
-            // the styles written replace the stylesheet the file was read with
-            if (key !== "elements" && key !== "data" && !(key === "style" && stylesheet !== null)) {
-                w.member(key, valueText(extra[key], false, c.nonfinite));
-            }
+    writeCytoscapeTopLevel(c, p);
+    writeTopLevelBlock(c, p);
+    w.close("}");
+    yield w.take();
+}
+
+/**
+ * Write a Cytoscape.js node's position: stored y-up, written with Cytoscape's y growing downward.
+ * @param c - the cursor
+ * @param p - the plan
+ * @param i - the node
+ */
+function writeCytoscapePosition(c: Cursor, p: Plan, i: number): void {
+    const { w } = c;
+    for (const item of p.nodes) {
+        if (item.slot === "cytoscapePosition" && item.column.isSet(i)) {
+            const value = item.column.value(i) as ArrayLike<number>;
+            const f32 = item.column.dtype === "f32";
+            w.key("position");
+            w.open("{");
+            w.member("x", numberText(value[0], f32, c.nonfinite));
+            w.member("y", numberText(flipY(value[1]), f32, c.nonfinite));
+            w.close("}");
+        }
+    }
+}
+
+/**
+ * Write the top-level keys of a Cytoscape.js document an import kept, and the stylesheet: the styles written replace
+ * the stylesheet the file was read with.
+ * @param c - the cursor
+ * @param p - the plan
+ */
+function writeCytoscapeTopLevel(c: Cursor, p: Plan): void {
+    const { w } = c;
+    const extra = p.resolved.shape.cytoscape ?? {};
+    const stylesheet = p.resolved.styled?.stylesheet ?? null;
+    for (const key of Object.keys(extra)) {
+        if (key !== "elements" && key !== "data" && !(key === "style" && stylesheet !== null)) {
+            w.member(key, valueText(extra[key], false, c.nonfinite));
         }
     }
     if (stylesheet !== null) {
         w.member("style", valueText(stylesheet, false, c.nonfinite));
     }
-    writeTopLevelBlock(c, p);
-    w.close("}");
-    yield w.take();
 }
 
 /**
@@ -1772,10 +1792,7 @@ function parts(snapshot: GraphSnapshot, resolved: Resolved): Generator<string, v
  * @param options - the caller's options, with the styles graph-io hands an exporter
  * @returns the resolved options
  */
-function resolveStyled(
-    snapshot: GraphSnapshot,
-    options: (JsonExportOptions & CommonExportOptions & ExporterStyleOptions) | undefined,
-): Resolved {
+function resolveStyled(snapshot: GraphSnapshot, options: JsonWriteOptions | undefined): Resolved {
     const resolved = resolve(snapshot, options);
     const styled = jsonStyledExport(snapshot, resolved.dialect, options?.styles);
     return styled === null ? resolved : { ...resolved, styled };

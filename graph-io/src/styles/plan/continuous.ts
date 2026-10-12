@@ -60,20 +60,12 @@ function fitPieces(
         let b = a;
         // extend while the line from a to b + 1 reproduces every point between
         while (b + 1 < xs.length) {
-            const c = b + 1;
-            let ok = true;
-            for (let j = a + 1; j < c; j++) {
-                const v = interpolate(ys[a], ys[c], (xs[j] - xs[a]) / (xs[c] - xs[a]));
-                if (tolerant ? !within(v, ys[j]) : v !== ys[j]) {
-                    ok = false;
-                    break;
-                }
-            }
-            spend(c - a);
+            const ok = lineFits(xs, ys, a, b + 1, tolerant);
+            spend(b + 1 - a);
             if (!ok) {
                 break;
             }
-            b = c;
+            b++;
         }
         pieces.push([a, b]);
         if (pieces.length > MAX_PIECES) {
@@ -82,6 +74,25 @@ function fitPieces(
         a = b + 1;
     }
     return pieces;
+}
+
+/**
+ * Whether the line from point a to point c reproduces every point between.
+ * @param xs - the inputs, ascending
+ * @param ys - the outputs
+ * @param a - the first point
+ * @param c - the last point
+ * @param tolerant - whether the line may miss a point by the tool's rounding
+ * @returns true when it does
+ */
+function lineFits(xs: readonly number[], ys: readonly StyleValue[], a: number, c: number, tolerant: boolean): boolean {
+    for (let j = a + 1; j < c; j++) {
+        const v = interpolate(ys[a], ys[c], (xs[j] - xs[a]) / (xs[c] - xs[a]));
+        if (tolerant ? !within(v, ys[j]) : v !== ys[j]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**
@@ -134,42 +145,57 @@ export function continuousCandidate(
     }
     for (const tolerant of [false, true]) {
         const points = new Map<string, ContinuousPoint[]>();
-        let entries = 0;
-        let good = true;
         for (const p of fam.props) {
-            const ys0 = truth.get(p) ?? [];
-            const byX = new Map<number, StyleValue>();
-            for (const i of fam.styled) {
-                const y = ys0[i];
-                const x = values[i] as number;
-                const seen = byX.get(x);
-                if (!interpolable(y) || (seen !== undefined && seen !== y)) {
-                    good = false;
-                    break;
-                }
-                byX.set(x, y);
-            }
-            spend(fam.styled.length);
-            // a ramp needs at least 3 distinct outputs: two values over a number are a threshold, not a mapping
-            if (!good || byX.size < 2 || byX.size > MAX_DISTINCT_X || new Set(byX.values()).size < 3) {
-                good = false;
+            const pts = rampOf(fam, values, truth.get(p) ?? [], tolerant, spend);
+            if (pts === null) {
                 break;
             }
-            const xs = Array.from(byX.keys()).sort((a, b) => a - b);
-            const ys = xs.map((x) => byX.get(x) as StyleValue);
-            const pieces = fitPieces(xs, ys, tolerant, spend);
-            // every piece must explain at least 3 distinct inputs, or a few points fit anything
-            if (pieces === null || pieces.length * 3 > xs.length) {
-                good = false;
-                break;
-            }
-            const pts = piecesToPoints(xs, ys, pieces);
             points.set(p, pts);
-            entries += pts.length;
         }
-        if (good) {
+        if (points.size === fam.props.length) {
+            const entries = Array.from(points.values()).reduce((sum, pts) => sum + pts.length, 0);
             return { type: "continuous", info, points, tolerant, cost: 50 + entries + (tolerant ? 10 : 0) };
         }
     }
     return null;
+}
+
+/**
+ * The ramp of one property over the feature, or null when none explains it.
+ * @param fam - the family
+ * @param values - the feature's values
+ * @param ys0 - the property's values
+ * @param tolerant - whether the ramp may miss a value by the tool's rounding
+ * @param spend - spends work from the budget
+ * @returns the points, or null
+ */
+function rampOf(
+    fam: Family,
+    values: readonly unknown[],
+    ys0: readonly (StyleValue | null)[],
+    tolerant: boolean,
+    spend: (ops: number) => void,
+): ContinuousPoint[] | null {
+    const byX = new Map<number, StyleValue>();
+    let good = true;
+    for (const i of fam.styled) {
+        const y = ys0[i];
+        const x = values[i] as number;
+        const seen = byX.get(x);
+        if (!interpolable(y) || (seen !== undefined && seen !== y)) {
+            good = false;
+            break;
+        }
+        byX.set(x, y);
+    }
+    spend(fam.styled.length);
+    // a ramp needs at least 3 distinct outputs: two values over a number are a threshold, not a mapping
+    if (!good || byX.size < 2 || byX.size > MAX_DISTINCT_X || new Set(byX.values()).size < 3) {
+        return null;
+    }
+    const xs = Array.from(byX.keys()).sort((a, b) => a - b);
+    const ys = xs.map((x) => byX.get(x) as StyleValue);
+    const pieces = fitPieces(xs, ys, tolerant, spend);
+    // every piece must explain at least 3 distinct inputs, or a few points fit anything
+    return pieces === null || pieces.length * 3 > xs.length ? null : piecesToPoints(xs, ys, pieces);
 }

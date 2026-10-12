@@ -289,67 +289,99 @@ export class GmlTokens {
 export function tokenizeGml(text: string): GmlTokens {
     const tokens = new GmlTokens(text, Math.max(1024, text.length >>> 3));
     tokens.backslashEscapes = writtenByOgdf(text);
-    const n = text.length;
-    let i = 0;
-    let line = 1;
-    // the opening line of the first string that spans lines: where a missing quote most likely is
-    let spanningLine = 0;
-    while (i < n) {
-        const c = text.charCodeAt(i);
-        if (c === 10) {
-            line++;
-            i++;
-        } else if (c === 13) {
-            line++;
-            i++;
-            if (i < n && text.charCodeAt(i) === 10) {
-                i++;
-            }
-        } else if (c === 32 || c === 9 || c === 11 || c === 12) {
-            i++;
-        } else if (c === 0xfeff) {
-            // a BOM left inside by concatenated files is whitespace; the shared text check reports it
-            i++;
-        } else if (c === 35) {
-            i = endOfLine(text, i);
-        } else if (c === 91) {
-            tokens.push(TOKEN_OPEN, i, i + 1, line);
-            i++;
-        } else if (c === 93) {
-            tokens.push(TOKEN_CLOSE, i, i + 1, line);
-            i++;
-        } else if (c === 34) {
-            const close = tokens.backslashEscapes ? escapedClose(text, i + 1) : text.indexOf('"', i + 1);
-            if (close < 0) {
-                const hint =
-                    spanningLine === 0
-                        ? ""
-                        : `; the string opened at line ${spanningLine} spans lines, so a quote may be missing there`;
-                throw new GmlSyntaxError(SYNTAX_STRING_CODE, `unclosed string opened at line ${line}${hint}`, line);
-            }
-            tokens.push(TOKEN_STRING, i + 1, close, line);
-            const opened = line;
-            for (let k = i + 1; k < close; k++) {
-                const d = text.codePointAt(k);
-                if (d === 10 || (d === 13 && text.codePointAt(k + 1) !== 10)) {
-                    line++;
-                }
-            }
-            if (line !== opened && spanningLine === 0) {
-                spanningLine = opened;
-            }
-            i = close + 1;
-        } else {
-            let j = i + 1;
-            while (j < n && !isDelimiter(text.charCodeAt(j))) {
-                j++;
-            }
-            tokens.push(classifyBare(text, i, j, line), i, j, line);
-            i = j;
+    const lex: GmlLex = { text, tokens, i: 0, line: 1, spanningLine: 0 };
+    while (lex.i < text.length) {
+        const c = text.codePointAt(lex.i) ?? 0;
+        if (c === 34) {
+            lexString(lex);
+        } else if (c === 91 || c === 93) {
+            tokens.push(c === 91 ? TOKEN_OPEN : TOKEN_CLOSE, lex.i, lex.i + 1, lex.line);
+            lex.i++;
+        } else if (!skipSpace(lex, c)) {
+            lexBare(lex);
         }
     }
     validateStructure(tokens);
     return tokens;
+}
+
+/** Where tokenizeGml() is. */
+interface GmlLex {
+    readonly text: string;
+    readonly tokens: GmlTokens;
+    /** The offset of the next character. */
+    i: number;
+    /** The line of the next character. */
+    line: number;
+    /** The opening line of the first string that spans lines: where a missing quote most likely is; 0 for none. */
+    spanningLine: number;
+}
+
+/**
+ * Skips one line break, space or comment.
+ * @param lex - the lexer
+ * @param c - the char code at the offset
+ * @returns false when the character starts a token
+ */
+function skipSpace(lex: GmlLex, c: number): boolean {
+    const { text } = lex;
+    if (c === 10 || c === 13) {
+        lex.line++;
+        lex.i++;
+        if (c === 13 && lex.i < text.length && text.codePointAt(lex.i) === 10) {
+            lex.i++;
+        }
+    } else if (c === 32 || c === 9 || c === 11 || c === 12 || c === 0xfeff) {
+        // a BOM left inside by concatenated files is whitespace; the shared text check reports it
+        lex.i++;
+    } else if (c === 35) {
+        lex.i = endOfLine(text, lex.i);
+    } else {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Lexes a string starting at the offset (its opening quote).
+ * @param lex - the lexer
+ */
+function lexString(lex: GmlLex): void {
+    const { text, tokens, i } = lex;
+    const close = tokens.backslashEscapes ? escapedClose(text, i + 1) : text.indexOf('"', i + 1);
+    if (close < 0) {
+        const hint =
+            lex.spanningLine === 0
+                ? ""
+                : `; the string opened at line ${lex.spanningLine} spans lines, so a quote may be missing there`;
+        throw new GmlSyntaxError(SYNTAX_STRING_CODE, `unclosed string opened at line ${lex.line}${hint}`, lex.line);
+    }
+    tokens.push(TOKEN_STRING, i + 1, close, lex.line);
+    const opened = lex.line;
+    for (let k = i + 1; k < close; k++) {
+        const d = text.codePointAt(k);
+        if (d === 10 || (d === 13 && text.codePointAt(k + 1) !== 10)) {
+            lex.line++;
+        }
+    }
+    if (lex.line !== opened && lex.spanningLine === 0) {
+        lex.spanningLine = opened;
+    }
+    lex.i = close + 1;
+}
+
+/**
+ * Lexes a bare token (a key, a number) starting at the offset.
+ * @param lex - the lexer
+ */
+function lexBare(lex: GmlLex): void {
+    const { text, i } = lex;
+    let j = i + 1;
+    while (j < text.length && !isDelimiter(text.codePointAt(j) ?? 0)) {
+        j++;
+    }
+    lex.tokens.push(classifyBare(text, i, j, lex.line), i, j, lex.line);
+    lex.i = j;
 }
 
 /**
@@ -362,10 +394,10 @@ function writtenByOgdf(text: string): boolean {
     const end = Math.min(text.length, 512);
     let i = 0;
     while (i < end) {
-        const c = text.charCodeAt(i);
+        const c = text.codePointAt(i);
         if (c === 35) {
             // '#': a comment runs to the next line break
-            while (i < end && text.charCodeAt(i) !== 10 && text.charCodeAt(i) !== 13) {
+            while (i < end && text.codePointAt(i) !== 10 && text.codePointAt(i) !== 13) {
                 i++;
             }
         } else if (c === 32 || c === 9 || c === 10 || c === 13 || c === 12 || c === 11) {
@@ -384,13 +416,14 @@ function writtenByOgdf(text: string): boolean {
  * @returns the offset of the closing quote
  */
 function escapedClose(text: string, from: number): number {
-    for (let k = from; k < text.length; k++) {
-        const c = text.charCodeAt(k);
-        if (c === 92) {
-            k++;
-        } else if (c === 34) {
+    let k = from;
+    while (k < text.length) {
+        const c = text.codePointAt(k);
+        if (c === 34) {
             return k;
         }
+        // a backslash escapes the next character
+        k += c === 92 ? 2 : 1;
     }
     return -1;
 }
@@ -500,20 +533,8 @@ function validateStructure(tokens: GmlTokens): void {
                 tokens.line[i],
             );
         }
-        let vk = kind[value];
-        if (vk === TOKEN_WORD && tokens.textOf(i) === "Creator" && !NON_FINITE_WORD.test(tokens.textOf(value))) {
-            // Gephi writes its name unquoted (`Creator Gephi`): read the word as the string it means
-            kind[value] = TOKEN_STRING;
-            vk = TOKEN_STRING;
-        }
-        if (vk === TOKEN_OPEN) {
+        if (checkValue(tokens, i) === TOKEN_OPEN) {
             stack.push(value);
-        } else if (vk === TOKEN_CLOSE || (vk === TOKEN_WORD && !NON_FINITE_WORD.test(tokens.textOf(value)))) {
-            throw new GmlSyntaxError(
-                SYNTAX_STRUCTURE_CODE,
-                `expected a value for key "${tokens.textOf(i)}" at line ${tokens.line[i]}, found ${describeToken(tokens, value)}`,
-                tokens.line[value],
-            );
         }
         i = value + 1;
     }
@@ -526,6 +547,31 @@ function validateStructure(tokens: GmlTokens): void {
         );
     }
     tokens.match = match;
+}
+
+/**
+ * Checks the value of a key: a number, a string, `INF` / `NAN` or an opening bracket. Gephi writes its name
+ * unquoted (`Creator Gephi`): the word is read as the string it means.
+ * @param tokens - the lexed tokens
+ * @param key - the key's token index (its value follows it)
+ * @returns the value's kind
+ */
+function checkValue(tokens: GmlTokens, key: number): TokenKind {
+    const { kind } = tokens;
+    const value = key + 1;
+    const word = kind[value] === TOKEN_WORD && !NON_FINITE_WORD.test(tokens.textOf(value));
+    if (word && tokens.textOf(key) === "Creator") {
+        kind[value] = TOKEN_STRING;
+        return TOKEN_STRING;
+    }
+    if (kind[value] === TOKEN_CLOSE || word) {
+        throw new GmlSyntaxError(
+            SYNTAX_STRUCTURE_CODE,
+            `expected a value for key "${tokens.textOf(key)}" at line ${tokens.line[key]}, found ${describeToken(tokens, value)}`,
+            tokens.line[value],
+        );
+    }
+    return kind[value] as TokenKind;
 }
 
 /**

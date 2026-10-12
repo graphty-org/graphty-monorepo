@@ -220,67 +220,12 @@ function parentsOf(
  * @returns the elements and their links
  */
 export function cyjsGraph(elements: unknown): CyjsGraph {
-    const nodeJson: Record<string, unknown>[] = [];
-    const edgeJson: Record<string, unknown>[] = [];
-    const take = (item: unknown, group: unknown): void => {
-        if (!isObject(item)) {
-            return;
-        }
-        const data = item.data === undefined || item.data === null ? {} : item.data;
-        if (!isObject(data)) {
-            return;
-        }
-        let g = group ?? item.group;
-        if (g === undefined || g === null) {
-            g =
-                data.source !== undefined && data.source !== null && data.target !== undefined && data.target !== null
-                    ? "edges"
-                    : "nodes";
-        }
-        if (g === "nodes") {
-            nodeJson.push(item);
-        } else if (g === "edges") {
-            edgeJson.push(item);
-        }
-    };
-    if (Array.isArray(elements)) {
-        for (const item of elements) {
-            take(item, undefined);
-        }
-    } else if (isObject(elements)) {
-        for (const item of Array.isArray(elements.nodes) ? elements.nodes : []) {
-            take(item, "nodes");
-        }
-        for (const item of Array.isArray(elements.edges) ? elements.edges : []) {
-            take(item, "edges");
-        }
-    }
+    const { nodeJson, edgeJson } = elementGroups(elements);
     const ids = new Map<string, number>();
+    const make = elementMaker(ids);
     const nodes: CyjsElement[] = [];
-    let generated = 0;
-    const element = (
-        json: Record<string, unknown>,
-        edge: boolean,
-        overrides: Map<string, unknown>,
-    ): CyjsElement | null => {
-        const data = isObject(json.data) ? json.data : {};
-        let id: string | null;
-        if (data.id === undefined) {
-            id = `${String.fromCharCode(0)}generated-${String(generated++)}`;
-            overrides.set("id", id);
-        } else {
-            id = idText(data.id);
-            if (id === null || ids.has(id)) {
-                return null;
-            }
-            if (typeof data.id === "number") {
-                overrides.set("id", id);
-            }
-        }
-        return { json, data, overrides, id, classes: classSet(json.classes), ...flags(json, edge) };
-    };
     for (const json of nodeJson) {
-        const e = element(json, false, new Map());
+        const e = make(json, false, new Map());
         if (e !== null) {
             ids.set(e.id, nodes.length);
             nodes.push(e);
@@ -292,29 +237,14 @@ export function cyjsGraph(elements: unknown): CyjsGraph {
     const edgeIds = new Set<string>();
     for (const json of edgeJson) {
         const overrides = new Map<string, unknown>();
-        const e = element(json, true, overrides);
-        if (e === null || edgeIds.has(e.id)) {
-            continue;
+        const e = make(json, true, overrides);
+        const ends = e === null || edgeIds.has(e.id) ? null : edgeEnds(e, ids, overrides);
+        if (e !== null && ends !== null) {
+            edgeIds.add(e.id);
+            edges.push(e);
+            src.push(ends[0]);
+            tgt.push(ends[1]);
         }
-        const ends: number[] = [];
-        for (const field of ["source", "target"] as const) {
-            const raw = e.data[field];
-            const text = typeof raw === "number" && !Number.isNaN(raw) ? String(raw) : raw;
-            if (typeof raw === "number") {
-                overrides.set(field, text);
-            }
-            const at = typeof text === "string" ? ids.get(text) : undefined;
-            if (at !== undefined) {
-                ends.push(at);
-            }
-        }
-        if (ends.length !== 2) {
-            continue;
-        }
-        edgeIds.add(e.id);
-        edges.push(e);
-        src.push(ends[0]);
-        tgt.push(ends[1]);
     }
     for (const id of edgeIds) {
         ids.set(id, -1);
@@ -336,6 +266,120 @@ export function cyjsGraph(elements: unknown): CyjsGraph {
         children,
         incident,
     };
+}
+
+/**
+ * The node and edge JSON of `cy.add(elements)`: an array's items by their `group`, else an edge when they name a
+ * source and a target; a `{ nodes, edges }` object's by where they are.
+ * @param elements - an array of element JSON, or `{ nodes, edges }`
+ * @returns the node and edge JSON, in order
+ */
+function elementGroups(elements: unknown): {
+    nodeJson: Record<string, unknown>[];
+    edgeJson: Record<string, unknown>[];
+} {
+    const nodeJson: Record<string, unknown>[] = [];
+    const edgeJson: Record<string, unknown>[] = [];
+    const take = (item: unknown, group: unknown): void => {
+        const g = groupOf(item, group);
+        if (g === "nodes") {
+            nodeJson.push(item as Record<string, unknown>);
+        } else if (g === "edges") {
+            edgeJson.push(item as Record<string, unknown>);
+        }
+    };
+    if (Array.isArray(elements)) {
+        for (const item of elements) {
+            take(item, undefined);
+        }
+    } else if (isObject(elements)) {
+        for (const item of Array.isArray(elements.nodes) ? elements.nodes : []) {
+            take(item, "nodes");
+        }
+        for (const item of Array.isArray(elements.edges) ? elements.edges : []) {
+            take(item, "edges");
+        }
+    }
+    return { nodeJson, edgeJson };
+}
+
+/**
+ * The group an element JSON is added to: the one its place gives, else its own `group`, else an edge when its data
+ * names a source and a target.
+ * @param item - the element JSON
+ * @param group - the group its place gives, or undefined
+ * @returns the group, or undefined for no element
+ */
+function groupOf(item: unknown, group: unknown): unknown {
+    if (!isObject(item)) {
+        return undefined;
+    }
+    const data = item.data ?? {};
+    if (!isObject(data)) {
+        return undefined;
+    }
+    const given = group ?? item.group;
+    if (given !== undefined && given !== null) {
+        return given;
+    }
+    const ends = data.source !== undefined && data.source !== null && data.target !== undefined && data.target !== null;
+    return ends ? "edges" : "nodes";
+}
+
+/**
+ * Makes the elements of one core: an element without an id gets a generated one; one whose id is taken or not an id
+ * is dropped.
+ * @param ids - the ids taken so far, by node index
+ * @returns the maker: the element of a JSON, or null when it is dropped
+ */
+function elementMaker(
+    ids: ReadonlyMap<string, number>,
+): (json: Record<string, unknown>, edge: boolean, overrides: Map<string, unknown>) => CyjsElement | null {
+    let generated = 0;
+    return (json, edge, overrides) => {
+        const data = isObject(json.data) ? json.data : {};
+        let id: string | null;
+        if (data.id === undefined) {
+            id = `${String.fromCodePoint(0)}generated-${String(generated++)}`;
+            overrides.set("id", id);
+        } else {
+            id = idText(data.id);
+            if (id === null || ids.has(id)) {
+                return null;
+            }
+            if (typeof data.id === "number") {
+                overrides.set("id", id);
+            }
+        }
+        return { json, data, overrides, id, classes: classSet(json.classes), ...flags(json, edge) };
+    };
+}
+
+/**
+ * An edge's source and target nodes; a number endpoint is read as its text.
+ * @param e - the edge
+ * @param ids - the node ids
+ * @param overrides - the edge's data as Cytoscape.js rewrites it
+ * @returns the two node indexes, or null when an endpoint names no node
+ */
+function edgeEnds(
+    e: CyjsElement,
+    ids: ReadonlyMap<string, number>,
+    overrides: Map<string, unknown>,
+): [number, number] | null {
+    const ends: number[] = [];
+    for (const field of ["source", "target"] as const) {
+        const raw = e.data[field];
+        const text = typeof raw === "number" && !Number.isNaN(raw) ? String(raw) : raw;
+        if (typeof raw === "number") {
+            overrides.set(field, text);
+        }
+        const at = typeof text === "string" ? ids.get(text) : undefined;
+        if (at !== undefined) {
+            ends.push(at);
+        }
+    }
+    return ends.length === 2 ? [ends[0], ends[1]] : null;
 }
 
 /**
@@ -515,7 +559,7 @@ function valCmp(field: unknown, op: string, not: boolean, ci: boolean, value: st
             m = fs !== null && vs !== null && fs.includes(vs);
             break;
         case "$=":
-            m = fs !== null && vs !== null && fs.indexOf(vs, fs.length - vs.length) >= 0;
+            m = fs !== null && vs !== null && fs.endsWith(vs);
             break;
         case "^=":
             m = fs !== null && vs !== null && fs.startsWith(vs);
@@ -540,13 +584,27 @@ function valCmp(field: unknown, op: string, not: boolean, ci: boolean, value: st
             m = (a as number) <= (b as number);
             break;
         default:
-            m = false;
+            break;
     }
     if (not && ((field !== null && field !== undefined) || !ineq)) {
         m = !m;
     }
     return m;
 }
+
+/** The checks of an element's place in the graph: its parents, children and edges. */
+const STRUCTURE_CHECKS: ReadonlySet<string> = new Set([
+    "child",
+    "parent",
+    "descendant",
+    "ancestor",
+    "split",
+    "directedEdge",
+    "undirectedEdge",
+    "nodeSource",
+    "nodeTarget",
+    "nodeNeighbor",
+]);
 
 /** States whose value changes while Cytoscape.js runs; they are evaluated as at load and noted. */
 const RUNTIME_STATES: ReadonlySet<string> = new Set([
@@ -694,6 +752,17 @@ class Matcher {
      * @returns true when it matches
      */
     check(c: CyjsCheck, kind: StyleTarget, i: number): boolean {
+        return STRUCTURE_CHECKS.has(c.type) ? this.structureCheck(c, kind, i) : this.elementCheck(c, kind, i);
+    }
+
+    /**
+     * Whether an element matches a check of its own: its group, state, id, classes or data.
+     * @param c - the check
+     * @param kind - the element's kind
+     * @param i - the element
+     * @returns true when it matches
+     */
+    private elementCheck(c: CyjsCheck, kind: StyleTarget, i: number): boolean {
         const { g } = this;
         const e = kind === "node" ? g.nodes[i] : g.edges[i];
         switch (c.type) {
@@ -722,6 +791,21 @@ class Matcher {
             }
             case "true":
                 return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Whether an element matches a check of its place in the graph: its parents, children and edges.
+     * @param c - the check
+     * @param kind - the element's kind
+     * @param i - the element
+     * @returns true when it matches
+     */
+    private structureCheck(c: CyjsCheck, kind: StyleTarget, i: number): boolean {
+        const { g } = this;
+        switch (c.type) {
             case "child":
                 return (
                     this.sub(c.child, kind, i) &&
@@ -1235,7 +1319,7 @@ function evaluateTarget(
         forceLoopCurves(graph, cells.get("curve-style"));
     }
     const drawn = drawnValues(kind, els, cells, order, input.rendered, notes, spend);
-    const built = buildRules(kind, applied, els, order, coreToOut, input, drawn, matcher, notes, spend);
+    const built = buildRules(kind, applied, { els, order, coreToOut }, input, drawn, { matcher, notes, spend });
     return {
         n: order.length,
         values: drawn,
@@ -1282,20 +1366,10 @@ function cascade(
         if (props.length === 0) {
             continue;
         }
-        if (budget.exhausted(kind)) {
-            stopped = true;
-            break;
-        }
-        let list: readonly number[];
-        matcher.begin(kind, budget, input.signal);
-        try {
-            list = matchList(entry.selector, kind, n, matcher, ix);
-            matcher.end();
-        } catch (error) {
-            matcher.end();
-            if (!(error instanceof BudgetStop)) {
-                throw error;
-            }
+        const list = budget.exhausted(kind)
+            ? null
+            : budgetedMatch(entry.selector, { kind, n }, matcher, ix, input, budget);
+        if (list === null) {
             stopped = true;
             break;
         }
@@ -1316,6 +1390,39 @@ function cascade(
         notes.add(STYLE_ISSUE.NOT_CARRIED, kind, name, { count, sample: name });
     }
     return { cells, applied };
+}
+
+/**
+ * The elements a selector matches, within the counted budget.
+ * @param sel - the selector
+ * @param target - the target and its element count
+ * @param target.kind - nodes or edges
+ * @param target.n - the element count
+ * @param matcher - the evaluator
+ * @param ix - the target's indexes
+ * @param input - the input, whose signal cancels the match
+ * @param budget - the counted budget
+ * @returns the element indexes, or null when the budget ran out partway through
+ */
+function budgetedMatch(
+    sel: CyjsSelector,
+    target: { readonly kind: StyleTarget; readonly n: number },
+    matcher: Matcher,
+    ix: Indexes,
+    input: CyjsStyleInput,
+    budget: StyleWorkBudget,
+): readonly number[] | null {
+    matcher.begin(target.kind, budget, input.signal);
+    try {
+        return matchList(sel, target.kind, target.n, matcher, ix);
+    } catch (error) {
+        if (!(error instanceof BudgetStop)) {
+            throw error;
+        }
+        return null;
+    } finally {
+        matcher.end();
+    }
 }
 
 /**
@@ -1381,27 +1488,12 @@ function drawnValues(
     const out = order.length;
     const values: Record<string, (StyleValue | null)[]> = {};
     const words = new Map<string, (string | null)[]>();
+    const drawnOf: DrawnRead = { kind, els, cells, order, rendered, notes };
     for (const [name, spec] of cyjsProperties(kind)) {
         if (!cells.has(name) && rendered === undefined) {
             continue;
         }
-        const col = new Array<StyleValue | null | undefined>(out).fill(null);
-        const cellCol = cells.get(name);
-        for (let k = 0; k < out && cellCol !== undefined; k++) {
-            const c = order[k] >= 0 ? cellCol[order[k]] : undefined;
-            if (c !== undefined) {
-                col[k] = neutralOfCell(spec, name, c, { notes, target: kind, property: spec.property, element: k });
-            }
-        }
-        for (let k = 0; k < out && rendered !== undefined; k++) {
-            const r = order[k] >= 0 ? rendered.get(els[order[k]].json) : undefined;
-            if (r !== undefined && Object.hasOwn(r, name)) {
-                const site = { notes, target: kind, property: spec.property, element: k };
-                const v = cyjsRendered(kind, name, r[name], site);
-                // a live core reports "" for a label it does not draw
-                col[k] = v === undefined || (v === "" && spec.type === "text") ? null : v;
-            }
-        }
+        const col = drawnColumn(drawnOf, name, spec);
         spend(2 * out);
         if (spec.property.startsWith("_")) {
             words.set(
@@ -1410,13 +1502,13 @@ function drawnValues(
             );
             continue;
         }
-        const target = (values[spec.property] ??= new Array<StyleValue | null>(out).fill(null));
-        for (let k = 0; k < out; k++) {
-            const v = col[k];
+        values[spec.property] ??= new Array<StyleValue | null>(out).fill(null);
+        const target = values[spec.property];
+        col.forEach((v, k) => {
             if (v !== null && v !== undefined) {
                 target[k] = v;
             }
-        }
+        });
     }
     combineParts(kind, out, words, values, notes);
     const drawn: Record<string, (StyleValue | null)[]> = {};
@@ -1426,6 +1518,46 @@ function drawnValues(
         }
     }
     return drawn;
+}
+
+/** What drawnColumn() reads. */
+interface DrawnRead {
+    readonly kind: StyleTarget;
+    readonly els: readonly CyjsElement[];
+    readonly cells: Cells;
+    readonly order: Int32Array;
+    readonly rendered: CyjsStyleInput["rendered"];
+    readonly notes: StyleNotes;
+}
+
+/**
+ * One Cytoscape.js property's neutral value per output element: its cell, overridden by what a live core reports.
+ * @param d - the target's cells and what a live core reports
+ * @param name - the property
+ * @param spec - its spec
+ * @returns the values, in output order
+ */
+function drawnColumn(d: DrawnRead, name: string, spec: CyjsPropertySpec): (StyleValue | null | undefined)[] {
+    const { kind, order, notes, rendered } = d;
+    const out = order.length;
+    const col = new Array<StyleValue | null | undefined>(out).fill(null);
+    const cellCol = d.cells.get(name);
+    for (let k = 0; k < out && cellCol !== undefined; k++) {
+        const c = order[k] >= 0 ? cellCol[order[k]] : undefined;
+        if (c !== undefined) {
+            col[k] = neutralOfCell(spec, name, c, { notes, target: kind, property: spec.property, element: k });
+        }
+    }
+    for (let k = 0; k < out && rendered !== undefined; k++) {
+        const r = order[k] >= 0 ? rendered.get(d.els[order[k]].json) : undefined;
+        if (r !== undefined && Object.hasOwn(r, name)) {
+            const site = { notes, target: kind, property: spec.property, element: k };
+            const v = cyjsRendered(kind, name, r[name], site);
+            // a live core reports "" for a label it does not draw
+            col[k] = v === undefined || (v === "" && spec.type === "text") ? null : v;
+        }
+    }
+    return col;
 }
 
 /**
@@ -1470,10 +1602,7 @@ function entryProperties(
 ): EntryProperty[] {
     const out: EntryProperty[] = [];
     for (const [name0, value] of entry.properties) {
-        let name = cyjsPropertyName(name0);
-        if (entry.dashOnly) {
-            name = name0 === "content" ? "label" : name0;
-        }
+        const name = entry.dashOnly ? dashOnlyName(name0) : cyjsPropertyName(name0);
         const spec = specs.get(name);
         if (spec === undefined) {
             if (kind === "node" && !CYJS_EDGE_ONLY.has(name) && !entry.tool) {
@@ -1492,6 +1621,15 @@ function entryProperties(
         out.push({ name, spec, parsed });
     }
     return out;
+}
+
+/**
+ * A property name of an entry Cytoscape.js reads in dash form only: `content` is `label`, any other name as it is.
+ * @param name - the name as written
+ * @returns the name
+ */
+function dashOnlyName(name: string): string {
+    return name === "content" ? "label" : name;
 }
 
 /** Edge properties a node never carries: not noted as dropped on nodes. */
@@ -1526,23 +1664,23 @@ function matchList(sel: CyjsSelector, kind: StyleTarget, n: number, matcher: Mat
     const marked = ix.marks;
     const hits: number[] = [];
     let scanned = false;
+    const visit = (q: CyjsQuery, i: number): void => {
+        if (marked[i] !== stamp && matcher.query(q, kind, i)) {
+            marked[i] = stamp;
+            hits.push(i);
+        }
+    };
     for (const q of sel.queries) {
         const cands = candidates(q, kind, ix);
         if (cands === null) {
             scanned = true;
             for (let i = 0; i < n; i++) {
-                if (marked[i] !== stamp && matcher.query(q, kind, i)) {
-                    marked[i] = stamp;
-                    hits.push(i);
-                }
+                visit(q, i);
             }
-            continue;
-        }
-        matcher.work += cands.length;
-        for (const i of cands) {
-            if (marked[i] !== stamp && matcher.query(q, kind, i)) {
-                marked[i] = stamp;
-                hits.push(i);
+        } else {
+            matcher.work += cands.length;
+            for (const i of cands) {
+                visit(q, i);
             }
         }
     }
@@ -1562,8 +1700,7 @@ function matchList(sel: CyjsSelector, kind: StyleTarget, n: number, matcher: Mat
 function cellFor(p: EntryProperty, e: CyjsElement): Cell {
     const v = p.parsed;
     if (v.kind === "data" || v.kind === "mapData") {
-        const r = applyCyjsMapper(p.spec, v, mapperData(e));
-        return r === null ? "reset" : r;
+        return applyCyjsMapper(p.spec, v, mapperData(e)) ?? "reset";
     }
     if (v.kind === "fn") {
         return "fn";
@@ -1647,24 +1784,11 @@ function combineParts(
     const va = words.get("_valign");
     const ha = words.get("_halign");
     if (kind === "node" && (va !== undefined || ha !== undefined)) {
-        const col = new Array<StyleValue | null>(n).fill(null);
-        for (let i = 0; i < n; i++) {
-            const v = va?.[i] ?? null;
-            const h = ha?.[i] ?? null;
-            if (v === null && h === null) {
-                continue;
-            }
-            const vv = (v ?? "top").replace("-inside", "");
-            const hh = (h ?? "center").replace("-inside", "");
-            if ((v ?? "").endsWith("-inside") || (h ?? "").endsWith("-inside")) {
-                notes.add(STYLE_ISSUE.UNKNOWN_VALUE, kind, "labelPosition", {
-                    sample: `${v ?? ""} ${h ?? ""}`,
-                    element: i,
-                });
-            }
-            col[i] = POSITIONS.get(`${vv},${hh}`) ?? null;
-        }
-        values.labelPosition = col;
+        values.labelPosition = Array.from({ length: n }, (_, i) =>
+            labelPosition(va?.[i] ?? null, ha?.[i] ?? null, (sample) => {
+                notes.add(STYLE_ISSUE.UNKNOWN_VALUE, kind, "labelPosition", { sample, element: i });
+            }),
+        );
     }
     const vis = words.get("_visibility");
     const disp = words.get("_display");
@@ -1682,34 +1806,55 @@ function combineParts(
     }
 }
 
+/**
+ * A node label's position from its vertical and horizontal alignments; an `-inside` alignment is read as its
+ * outside one, noted.
+ * @param v - the vertical alignment, or null
+ * @param h - the horizontal alignment, or null
+ * @param note - notes an alignment read as another
+ * @returns the position, or null
+ */
+function labelPosition(v: string | null, h: string | null, note: (sample: string) => void): StyleValue | null {
+    if (v === null && h === null) {
+        return null;
+    }
+    const vv = (v ?? "top").replace("-inside", "");
+    const hh = (h ?? "center").replace("-inside", "");
+    if ((v ?? "").endsWith("-inside") || (h ?? "").endsWith("-inside")) {
+        note(`${v ?? ""} ${h ?? ""}`);
+    }
+    return POSITIONS.get(`${vv},${hh}`) ?? null;
+}
+
 // ============================================================ rules
 
 /**
  * The stylesheet as neutral rules over graph-io's columns and the style columns it adds.
  * @param kind - the target
  * @param applied - the entries with their matched elements and properties
- * @param els - the core's elements
- * @param order - the core element of each output index
- * @param coreToOut - the output index of each core element, or -1
+ * @param core - the core's elements, the core element of each output index and the output index of each core element
+ * (or -1)
+ * @param core.els - the core's elements
+ * @param core.order - the core element of each output index
+ * @param core.coreToOut - the output index of each core element, or -1
  * @param input - the input (the graph, the rendered values)
  * @param truth - what is drawn per property, by output index
- * @param matcher - the evaluator (degrees)
- * @param notes - where problems are noted
- * @param spend - spends from the budget
+ * @param env - the evaluator (degrees), where problems are noted and how the budget is spent
+ * @param env.matcher - the evaluator
+ * @param env.notes - where problems are noted
+ * @param env.spend - spends from the budget
  * @returns the rules, the style columns and the data columns they read
  */
 function buildRules(
     kind: StyleTarget,
     applied: readonly { entry: Entry; list: readonly number[]; props: EntryProperty[] }[],
-    els: readonly CyjsElement[],
-    order: Int32Array,
-    coreToOut: Int32Array,
+    core: { readonly els: readonly CyjsElement[]; readonly order: Int32Array; readonly coreToOut: Int32Array },
     input: CyjsStyleInput,
     truth: Readonly<Record<string, readonly (StyleValue | null)[]>>,
-    matcher: Matcher,
-    notes: StyleNotes,
-    spend: (ops: number) => void,
+    env: { readonly matcher: Matcher; readonly notes: StyleNotes; readonly spend: (ops: number) => void },
 ): { rules: StyleRule[]; columns: Map<string, StyleColumn>; rawColumns: string[] } {
+    const { els, order, coreToOut } = core;
+    const { matcher, notes, spend } = env;
     const out = order.length;
     const columns = new Map<string, StyleColumn>();
     const raw = new Set<string>();
@@ -1797,24 +1942,12 @@ function draftOf(ctx: RuleContext, entry: Entry, list: readonly number[], props:
         mapping.delete(p.spec.property);
         const v = p.parsed;
         if (v.kind === "fn") {
-            // a function: its values as the live core drew them, copied per element
-            const drawn = ctx.truth?.[p.spec.property];
-            if (drawn !== undefined) {
-                const key = `function.${String(entry.index)}.${p.spec.property}`;
-                const col = new Array<StyleValue | null>(ctx.out).fill(null);
-                for (const i of list) {
-                    const k = ctx.coreToOut[i];
-                    if (k >= 0) {
-                        col[k] = drawn[k];
-                    }
-                }
-                ctx.columns.set(key, col);
-                mapping.set(p.spec.property, { kind: "passthrough", by: { style: key } });
+            const copied = functionCopy(ctx, entry, list, p.spec.property);
+            if (copied !== null) {
+                mapping.set(p.spec.property, copied);
                 flattened = true;
             }
-            continue;
-        }
-        if (isFlat(v)) {
+        } else if (isFlat(v)) {
             const neutral = cyjsNeutral(p.spec, v, {
                 notes: new StyleNotes(),
                 target: ctx.kind,
@@ -1823,9 +1956,9 @@ function draftOf(ctx: RuleContext, entry: Entry, list: readonly number[], props:
             if (neutral !== undefined) {
                 setting.set(p.spec.property, neutral);
             }
-            continue;
+        } else {
+            mapping.set(p.spec.property, mapperMapping(ctx, entry, list, p));
         }
-        mapping.set(p.spec.property, mapperMapping(ctx, entry, list, p));
     }
     const set = Object.fromEntries(setting);
     const map = Object.fromEntries(mapping);
@@ -1852,6 +1985,31 @@ function draftOf(ctx: RuleContext, entry: Entry, list: readonly number[], props:
         single: hasMap || entry.tool ? null : singleTest(entry.selector, ctx.kind),
         list,
     };
+}
+
+/**
+ * A function-valued property: its values as the live core drew them, copied per element into a style column.
+ * @param ctx - the shared state
+ * @param entry - the entry
+ * @param list - the matched core elements
+ * @param property - the neutral property
+ * @returns the passthrough of the copy, or null without a live core's values
+ */
+function functionCopy(ctx: RuleContext, entry: Entry, list: readonly number[], property: string): Mapping | null {
+    const drawn = ctx.truth?.[property];
+    if (drawn === undefined) {
+        return null;
+    }
+    const key = `function.${String(entry.index)}.${property}`;
+    const col = new Array<StyleValue | null>(ctx.out).fill(null);
+    for (const i of list) {
+        const k = ctx.coreToOut[i];
+        if (k >= 0) {
+            col[k] = drawn[k];
+        }
+    }
+    ctx.columns.set(key, col);
+    return { kind: "passthrough", by: { style: key } };
 }
 
 /**
@@ -2006,25 +2164,13 @@ function shortPredicate(ctx: RuleContext, sel: CyjsSelector): Predicate | null {
     }
     const alts: Predicate[][] = [];
     for (const q of sel.queries) {
-        const terms: Predicate[] = [];
-        let never = false;
-        for (const c of q.checks) {
-            if (c.type === "group") {
-                if (c.value !== "*" && c.value !== `${ctx.kind}s`) {
-                    never = true;
-                }
-                continue;
-            }
-            const t = termOf(ctx, c);
-            if (t === null) {
-                return null;
-            }
-            terms.push(t);
+        const terms = queryTerms(ctx, q);
+        if (terms === null) {
+            return null;
         }
-        if (never) {
-            continue;
+        if (terms !== "never") {
+            alts.push(terms);
         }
-        alts.push(terms);
     }
     if (alts.length === 0) {
         return null;
@@ -2039,12 +2185,42 @@ function shortPredicate(ctx: RuleContext, sel: CyjsSelector): Predicate | null {
         }
         return t.length === 1 ? t[0] : { and: t };
     }
-    // several alternatives: equal tests of one column
-    const ref = alts[0][0];
+    return equalTests(alts);
+}
+
+/**
+ * A query's checks as short predicate terms.
+ * @param ctx - the shared state
+ * @param q - the query
+ * @returns the terms; "never" when its group test excludes the target; null when a check has no short term
+ */
+function queryTerms(ctx: RuleContext, q: CyjsQuery): Predicate[] | "never" | null {
+    const terms: Predicate[] = [];
+    let never = false;
+    for (const c of q.checks) {
+        if (c.type === "group") {
+            never ||= c.value !== "*" && c.value !== `${ctx.kind}s`;
+            continue;
+        }
+        const t = termOf(ctx, c);
+        if (t === null) {
+            return null;
+        }
+        terms.push(t);
+    }
+    return never ? "never" : terms;
+}
+
+/**
+ * Several alternatives as one `in` predicate: only equal tests of one column, at most 8.
+ * @param alts - the alternatives' terms
+ * @returns the predicate, or null
+ */
+function equalTests(alts: readonly Predicate[][]): Predicate | null {
     if (alts.length > 8 || !alts.every((t) => t.length === 1 && "eq" in t[0])) {
         return null;
     }
-    const by = (ref as { eq: readonly [ColumnRef, Scalar] }).eq[0];
+    const by = (alts[0][0] as { eq: readonly [ColumnRef, Scalar] }).eq[0];
     const values: Scalar[] = [];
     for (const t of alts) {
         const [r, v] = (t[0] as { eq: readonly [ColumnRef, Scalar] }).eq;
@@ -2141,23 +2317,14 @@ function mapperMapping(ctx: RuleContext, entry: Entry, list: readonly number[], 
     ctx.spend(list.length * 2);
     const candidate = candidateMapping(ctx, v, p);
     if (candidate !== null && ctx.snapshot !== undefined) {
-        const table = ctx.kind === "node" ? ctx.snapshot.nodes : ctx.snapshot.edges;
-        const canon = canonicalFor(ctx.kind, p.spec.property);
-        let exact = table.names().includes(v.field);
-        for (let k = 0; exact && k < list.length; k++) {
-            const o = ctx.coreToOut[list[k]];
-            if (o < 0) {
-                continue;
-            }
-            const cell = plainCell(table.value(v.field, o));
-            let got: StyleValue | null = null;
-            if (cell !== null && !Array.isArray(cell)) {
-                got = candidate.kind === "passthrough" ? canon(cell) : evalContinuous(candidate.points, numberOf(cell));
-            }
-            if (got !== want[k]) {
-                exact = false;
-            }
-        }
+        const exact = givesWanted(
+            ctx,
+            ctx.snapshot,
+            candidate,
+            { field: v.field, property: p.spec.property },
+            list,
+            want,
+        );
         ctx.spend(list.length);
         if (exact) {
             ctx.raw.add(v.field);
@@ -2174,6 +2341,45 @@ function mapperMapping(ctx: RuleContext, entry: Entry, list: readonly number[], 
     }
     ctx.columns.set(key, col);
     return { kind: "passthrough", by: { style: key } };
+}
+
+/**
+ * Whether a mapping over graph-io's column gives Cytoscape.js's value for every element a rule applies to.
+ * @param ctx - the shared state
+ * @param snapshot - the graph
+ * @param candidate - the mapping
+ * @param what - the column and the neutral property
+ * @param what.field - the column
+ * @param what.property - the neutral property
+ * @param list - the matched core elements
+ * @param want - Cytoscape.js's value of each, in list order
+ * @returns true when it gives every one
+ */
+function givesWanted(
+    ctx: RuleContext,
+    snapshot: GraphSnapshot,
+    candidate: (Mapping & { kind: "passthrough" }) | (Mapping & { kind: "continuous" }),
+    what: { readonly field: string; readonly property: string },
+    list: readonly number[],
+    want: readonly (StyleValue | null)[],
+): boolean {
+    const table = ctx.kind === "node" ? snapshot.nodes : snapshot.edges;
+    if (!table.names().includes(what.field)) {
+        return false;
+    }
+    const canon = canonicalFor(ctx.kind, what.property);
+    for (let k = 0; k < list.length; k++) {
+        const o = ctx.coreToOut[list[k]];
+        const cell = o < 0 ? null : plainCell(table.value(what.field, o));
+        let got: StyleValue | null = null;
+        if (cell !== null && !Array.isArray(cell)) {
+            got = candidate.kind === "passthrough" ? canon(cell) : evalContinuous(candidate.points, numberOf(cell));
+        }
+        if (o >= 0 && got !== want[k]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**
@@ -2217,81 +2423,103 @@ function candidateMapping(
 function collapse(ctx: RuleContext, drafts: readonly Draft[]): StyleRule[] {
     const out: StyleRule[] = [];
     let run = 0;
-    for (let i = 0; i < drafts.length;) {
+    let i = 0;
+    while (i < drafts.length) {
         const sig = drafts[i].single?.sig ?? null;
         let j = i + 1;
-        if (sig !== null) {
-            while (j < drafts.length && drafts[j].single?.sig === sig) {
-                j++;
-            }
+        while (sig !== null && j < drafts.length && drafts[j].single?.sig === sig) {
+            j++;
         }
         if (sig === null || j - i < 3) {
-            for (let k = i; k < j; k++) {
-                const rule = drafts[k].rule();
+            for (const d of drafts.slice(i, j)) {
+                const rule = d.rule();
                 // Cytoscape.js's own default rule over every element: the writing tool's constants already say it
-                if (!(drafts[k].tool && "all" in rule.where)) {
+                if (!(d.tool && "all" in rule.where)) {
                     out.push(rule);
                 }
             }
-            i = j;
-            continue;
+        } else {
+            run++;
+            out.push(runRule(ctx, drafts.slice(i, j), sig, run));
         }
-        run++;
-        const members = drafts.slice(i, j);
-        const props = new Set<string>();
-        for (const d of members) {
-            for (const p of Object.keys(d.set)) {
-                props.add(p);
-            }
-        }
-        // a value run with no shared tests may read the field itself
-        const parts = sig.split("\u0000");
-        const field = parts[0] === "eq" && parts[1] === "[]" ? parts[2] : null;
-        const map: Record<string, Mapping> = {};
-        for (const p of props) {
-            const winner = new Array<StyleValue | null>(ctx.out).fill(null);
-            const table = new Map<string, [Scalar, StyleValue]>();
-            for (const d of members) {
-                const value = (d.set as Record<string, StyleValue | undefined>)[p];
-                if (value === undefined || d.single === null) {
-                    continue;
-                }
-                const { key } = d.single;
-                table.set(`${typeof key}:${String(key)}`, [key, value]);
-                for (const c of d.list) {
-                    const k = ctx.coreToOut[c];
-                    if (k >= 0) {
-                        winner[k] = key;
-                    }
-                }
-                ctx.spend(d.list.length);
-            }
-            const entries = [...table.values()];
-            // a table key that names a later rule's value: the table maps each key to the last rule's value for it
-            const byKey = new Map(entries.map(([k, v]) => [`${typeof k}:${String(k)}`, v]));
-            let by: ColumnRef;
-            if (field !== null && faithful(ctx, field) && sameByData(ctx, field, winner, byKey)) {
-                by = { data: field };
-            } else {
-                const key = `winner.${String(run)}.${p}`;
-                ctx.columns.set(key, winner);
-                by = { style: key };
-            }
-            map[p] = { kind: "discrete", by, table: entries };
-        }
-        const first = members[0].id.split(".").pop() ?? "";
-        out.push({
-            id: `${ctx.kind}.sheet.by.${parts[0] === "eq" ? "value" : parts[0]}.${first}`,
-            target: ctx.kind,
-            role: "mapping",
-            origin: "declared",
-            where: { all: true },
-            map,
-            facts: { elements: members.reduce((s, d) => s + d.list.length, 0) },
-        });
         i = j;
     }
     return out;
+}
+
+/**
+ * A run of rules collapsed into one mapping rule.
+ * @param ctx - the shared state
+ * @param members - the run's rules, in order
+ * @param sig - their shared signature
+ * @param run - the run's number
+ * @returns the rule
+ */
+function runRule(ctx: RuleContext, members: readonly Draft[], sig: string, run: number): StyleRule {
+    const props = new Set(members.flatMap((d) => Object.keys(d.set)));
+    // a value run with no shared tests may read the field itself
+    const parts = sig.split("\u0000");
+    const field = parts[0] === "eq" && parts[1] === "[]" ? parts[2] : null;
+    const map: Record<string, Mapping> = {};
+    for (const p of props) {
+        map[p] = runMapping(ctx, members, p, { field, key: `winner.${String(run)}.${p}` });
+    }
+    const first = members[0].id.split(".").pop() ?? "";
+    return {
+        id: `${ctx.kind}.sheet.by.${parts[0] === "eq" ? "value" : parts[0]}.${first}`,
+        target: ctx.kind,
+        role: "mapping",
+        origin: "declared",
+        where: { all: true },
+        map,
+        facts: { elements: members.reduce((sum, d) => sum + d.list.length, 0) },
+    };
+}
+
+/**
+ * One property of a collapsed run: a winner column holds the key of the last rule in the run that matches the
+ * element and sets the property (the cascade's winner), and a discrete table maps each key to that rule's value; a
+ * run keyed by a value whose column graph-io holds exactly reads that column instead.
+ * @param ctx - the shared state
+ * @param members - the run's rules, in order
+ * @param p - the property
+ * @param names - the field a value run tests (null for another run) and the winner column's key
+ * @param names.field - the field a value run tests, or null
+ * @param names.key - the winner column's key
+ * @returns the mapping
+ */
+function runMapping(
+    ctx: RuleContext,
+    members: readonly Draft[],
+    p: string,
+    names: { readonly field: string | null; readonly key: string },
+): Mapping {
+    const winner = new Array<StyleValue | null>(ctx.out).fill(null);
+    const table = new Map<string, [Scalar, StyleValue]>();
+    for (const d of members) {
+        const value = (d.set as Record<string, StyleValue | undefined>)[p];
+        if (value === undefined || d.single === null) {
+            continue;
+        }
+        const { key } = d.single;
+        table.set(`${typeof key}:${String(key)}`, [key, value]);
+        for (const c of d.list) {
+            const k = ctx.coreToOut[c];
+            if (k >= 0) {
+                winner[k] = key;
+            }
+        }
+        ctx.spend(d.list.length);
+    }
+    const entries = [...table.values()];
+    // a table key that names a later rule's value: the table maps each key to the last rule's value for it
+    const byKey = new Map(entries.map(([k, v]) => [`${typeof k}:${String(k)}`, v]));
+    const { field } = names;
+    if (field !== null && faithful(ctx, field) && sameByData(ctx, field, winner, byKey)) {
+        return { kind: "discrete", by: { data: field }, table: entries };
+    }
+    ctx.columns.set(names.key, winner);
+    return { kind: "discrete", by: { style: names.key }, table: entries };
 }
 
 /**
@@ -2309,7 +2537,7 @@ function sameByData(
     byKey: ReadonlyMap<string, StyleValue>,
 ): boolean {
     const table = ctx.kind === "node" ? ctx.snapshot?.nodes : ctx.snapshot?.edges;
-    if (table === undefined || !table.names().includes(field)) {
+    if (!table?.names().includes(field)) {
         return false;
     }
     for (let k = 0; k < ctx.out; k++) {

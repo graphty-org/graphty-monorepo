@@ -54,37 +54,11 @@ export function readSessionStyles(snapshot: GraphSnapshot, context: StyleReadCon
         return readXgmmlStyles(snapshot, context, { tool: "cytoscape-fallbacks", hiddenColumn: HIDDEN_COLUMN });
     }
     const notes = new StyleNotes();
-    let style: CytoscapeStyle;
-    if (kept?.vizmap === null || kept?.vizmap === undefined) {
-        const problem = kept?.problem ?? null;
-        notes.add(problem === null ? STYLE_ISSUE.NO_VIZMAP : STYLE_ISSUE.UNREADABLE, null, "session_vizmap.xml", {
-            sample: problem ?? "absent",
-        });
-        style = emptyCytoscapeStyle();
-    } else {
-        style = cytoscapeStyleFromVizmap(kept.vizmap, kept.visualStyle, notes);
-    }
+    const style = sessionStyle(kept, notes);
     const out: Record<StyleTarget, ReaderOutput> = { node: { values: {} }, edge: { values: {} } };
     for (const target of ["node", "edge"] as const) {
         context.signal?.throwIfAborted();
-        const table = target === "node" ? snapshot.nodes : snapshot.edges;
-        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        for (const m of style[target].mappings.values()) {
-            if (!table.has(m.column)) {
-                notes.add(STYLE_ISSUE.MAPPING_COLUMN_MISSING, target, m.column, { sample: m.kind });
-            }
-        }
-        const elements: CytoscapeElements = {
-            count: n,
-            value: (column, i) => (table.has(column) ? dataCell(table, column, i) : null),
-            bypasses: graphicsBypasses(table, target, n, notes),
-        };
-        const values = resolveCytoscape(target, style, elements, { notes, budget: context.budget });
-        hiddenToVisible(table, HIDDEN_COLUMN, n, values);
-        // a session graphty wrote: a value its style writes as the nearest Cytoscape value is the block's
-        exactFromBlock(snapshot, target, values);
-        const { rules, columns } = cytoscapeRules(target, style, elements, { notes, budget: context.budget });
-        out[target] = { values: nonEmpty(values), rules, columns };
+        out[target] = sessionTargetStyles(snapshot, target, style, { notes, budget: context.budget });
     }
     const background = cytoscapeBackground(style, notes);
     return {
@@ -97,6 +71,60 @@ export function readSessionStyles(snapshot: GraphSnapshot, context: StyleReadCon
         graph: background === null ? {} : { background },
         notes: notes.list(),
     };
+}
+
+/**
+ * The Cytoscape style of a session: its vizmap's, or an empty one with a note saying why there is none.
+ * @param kept - what the import kept
+ * @param notes - where problems are noted
+ * @returns the style
+ */
+function sessionStyle(kept: SessionStyleSource | undefined, notes: StyleNotes): CytoscapeStyle {
+    if (kept?.vizmap === null || kept?.vizmap === undefined) {
+        const problem = kept?.problem ?? null;
+        notes.add(problem === null ? STYLE_ISSUE.NO_VIZMAP : STYLE_ISSUE.UNREADABLE, null, "session_vizmap.xml", {
+            sample: problem ?? "absent",
+        });
+        return emptyCytoscapeStyle();
+    }
+    return cytoscapeStyleFromVizmap(kept.vizmap, kept.visualStyle, notes);
+}
+
+/**
+ * The styles of a session's nodes or edges.
+ * @param snapshot - the network
+ * @param target - nodes or edges
+ * @param style - the session's style
+ * @param work - where problems are noted, and the work budget
+ * @param work.notes - where problems are noted
+ * @param work.budget - the work budget
+ * @returns the reader output for the target
+ */
+function sessionTargetStyles(
+    snapshot: GraphSnapshot,
+    target: StyleTarget,
+    style: CytoscapeStyle,
+    work: { readonly notes: StyleNotes; readonly budget: StyleReadContext["budget"] },
+): ReaderOutput {
+    const { notes } = work;
+    const table = target === "node" ? snapshot.nodes : snapshot.edges;
+    const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+    for (const m of style[target].mappings.values()) {
+        if (!table.has(m.column)) {
+            notes.add(STYLE_ISSUE.MAPPING_COLUMN_MISSING, target, m.column, { sample: m.kind });
+        }
+    }
+    const elements: CytoscapeElements = {
+        count: n,
+        value: (column, i) => (table.has(column) ? dataCell(table, column, i) : null),
+        bypasses: graphicsBypasses(table, target, n, notes),
+    };
+    const values = resolveCytoscape(target, style, elements, work);
+    hiddenToVisible(table, HIDDEN_COLUMN, n, values);
+    // a session graphty wrote: a value its style writes as the nearest Cytoscape value is the block's
+    exactFromBlock(snapshot, target, values);
+    const { rules, columns } = cytoscapeRules(target, style, elements, work);
+    return { values: nonEmpty(values), rules, columns };
 }
 
 /**
@@ -127,29 +155,41 @@ function cytoscapeStyleFromVizmap(root: XmlNode, name: string | null, notes: Sty
     }
     for (const kind of ["network", "node", "edge"] as const) {
         const section = chosen.children.find((c) => c.name === kind);
-        if (section === undefined) {
-            continue;
-        }
-        for (const child of section.children) {
-            const childName = child.attrs.get("name");
-            if (childName === undefined) {
-                continue;
-            }
-            if (child.name === "dependency" && kind !== "network") {
-                style[kind].dependencies.set(childName, child.attrs.get("value")?.trim().toLowerCase() === "true");
-            } else if (child.name === "visualProperty") {
-                const d = child.attrs.get("default");
-                if (d !== undefined) {
-                    style[kind].defaults.set(childName, d);
-                }
-                const mapping = kind === "network" ? null : vizmapMapping(child);
-                if (mapping !== null && kind !== "network") {
-                    style[kind].mappings.set(childName, mapping);
-                }
-            }
+        for (const child of section?.children ?? []) {
+            readVizmapEntry(style, kind, child);
         }
     }
     return style;
+}
+
+/**
+ * One dependency or visual property of a vizmap style section, into the style.
+ * @param style - the style being read
+ * @param kind - the section
+ * @param child - the entry
+ */
+function readVizmapEntry(style: CytoscapeStyle, kind: "network" | "node" | "edge", child: XmlNode): void {
+    const childName = child.attrs.get("name");
+    if (childName === undefined) {
+        return;
+    }
+    if (child.name === "dependency" && kind !== "network") {
+        style[kind].dependencies.set(childName, child.attrs.get("value")?.trim().toLowerCase() === "true");
+        return;
+    }
+    if (child.name !== "visualProperty") {
+        return;
+    }
+    const d = child.attrs.get("default");
+    if (d !== undefined) {
+        style[kind].defaults.set(childName, d);
+    }
+    if (kind !== "network") {
+        const mapping = vizmapMapping(child);
+        if (mapping !== null) {
+            style[kind].mappings.set(childName, mapping);
+        }
+    }
 }
 
 /**
@@ -168,31 +208,47 @@ function vizmapMapping(vp: XmlNode): CytoscapeMapping | null {
             return { kind: "passthrough", column, type };
         }
         if (m.name === "discreteMapping") {
-            const table: [string | number | boolean, unknown][] = [];
-            for (const e of m.children) {
-                const key = typedKey(e.attrs.get("attributeValue"), type);
-                const value = e.attrs.get("value");
-                if (e.name === "discreteMappingEntry" && key !== null && value !== undefined) {
-                    table.push([key, value]);
-                }
-            }
-            return { kind: "discrete", column, type, table };
+            return { kind: "discrete", column, type, table: discreteTable(m, type) };
         }
         if (m.name === "continuousMapping") {
-            const points = [];
-            for (const p of m.children) {
-                const at = Number(p.attrs.get("attrValue"));
-                if (p.name === "continuousMappingPoint" && Number.isFinite(at)) {
-                    points.push({
-                        at,
-                        below: p.attrs.get("lesserValue"),
-                        value: p.attrs.get("equalValue"),
-                        above: p.attrs.get("greaterValue"),
-                    });
-                }
-            }
-            return { kind: "continuous", column, type, points };
+            return { kind: "continuous", column, type, points: continuousPoints(m) };
         }
     }
     return null;
+}
+
+/**
+ * The entries of a `<discreteMapping>`.
+ * @param m - the element
+ * @param type - the attribute type its keys are read as
+ * @returns the key and value of each entry
+ */
+function discreteTable(m: XmlNode, type: string | null): [string | number | boolean, unknown][] {
+    const table: [string | number | boolean, unknown][] = [];
+    for (const e of m.children) {
+        const key = typedKey(e.attrs.get("attributeValue"), type);
+        const value = e.attrs.get("value");
+        if (e.name === "discreteMappingEntry" && key !== null && value !== undefined) {
+            table.push([key, value]);
+        }
+    }
+    return table;
+}
+
+/**
+ * The points of a `<continuousMapping>`.
+ * @param m - the element
+ * @returns the points with a finite position
+ */
+function continuousPoints(
+    m: XmlNode,
+): { at: number; below: string | undefined; value: string | undefined; above: string | undefined }[] {
+    return m.children
+        .filter((p) => p.name === "continuousMappingPoint" && Number.isFinite(Number(p.attrs.get("attrValue"))))
+        .map((p) => ({
+            at: Number(p.attrs.get("attrValue")),
+            below: p.attrs.get("lesserValue"),
+            value: p.attrs.get("equalValue"),
+            above: p.attrs.get("greaterValue"),
+        }));
 }

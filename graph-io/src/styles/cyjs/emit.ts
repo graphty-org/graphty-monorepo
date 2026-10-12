@@ -33,7 +33,7 @@ import type {
 } from "../types.js";
 import { STYLE_PROPERTIES } from "../vocabulary.js";
 import { evaluateCytoscapeJs } from "./cascade.js";
-import { CYJS_EDGE_PROPERTIES, CYJS_NODE_PROPERTIES } from "./mappers.js";
+import { CYJS_EDGE_PROPERTIES, CYJS_NODE_PROPERTIES, type CyjsPropertySpec, isFontFamily } from "./mappers.js";
 import { parseCyjsSelector } from "./selector.js";
 
 /** One rule of a Cytoscape.js stylesheet. */
@@ -87,7 +87,7 @@ export const CYTOSCAPE_IMPORT_KEY = "graphty_import";
  * @category Styles
  */
 export function cytoscapeStyleKey(key: string): string {
-    return `graphty_style_${key.replace(/[^A-Za-z0-9_]/g, "_")}`;
+    return `graphty_style_${key.replaceAll(/\W/g, "_")}`;
 }
 
 /** A name a selector and a mapper can both spell without escapes or paths. */
@@ -138,8 +138,6 @@ const ARROWS_NEAREST: ReadonlyMap<string, string> = new Map([
  * @returns the properties, or null when Cytoscape.js has no place for it
  */
 function toCyjs(target: StyleTarget, property: string, value: StyleValue): Written | null {
-    const exact = (props: Record<string, string | number>): Written => ({ props, approximate: false });
-    const near = (props: Record<string, string | number>): Written => ({ props, approximate: true });
     const specs = target === "node" ? CYJS_NODE_PROPERTIES : CYJS_EDGE_PROPERTIES;
     switch (property) {
         case "visible":
@@ -148,69 +146,144 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
             return exact({ "font-style": value === true ? "italic" : "normal" });
         case "curved":
             return exact({ "curve-style": value === true ? "bezier" : "straight" });
-        case "labelPosition": {
-            const text = String(value);
-            const v = ["top", "bottom"].find((x) => text.startsWith(x)) ?? "center";
-            const h = ["left", "right"].find((x) => text.endsWith(x)) ?? "center";
-            return exact({ "text-valign": v, "text-halign": h });
-        }
-        case "shape": {
-            const cy = SHAPES_TO_CYJS.get(String(value));
-            if (cy !== undefined) {
-                return exact({ shape: cy });
-            }
-            const other = String(value).startsWith("other:") ? String(value).slice(6) : null;
-            const spec = specs.get("shape");
-            return other !== null && spec?.enums?.includes(other) === true ? exact({ shape: other }) : null;
-        }
+        case "labelPosition":
+            return labelPositionToCyjs(String(value));
+        case "shape":
+            return enumToCyjs("shape", String(value), SHAPES_TO_CYJS, specs);
         case "borderStyle":
-            if (value === "dash-dot") {
-                return near({ "border-style": "dashed" });
-            }
-            return ["solid", "dotted", "dashed", "double"].includes(String(value))
-                ? exact({ "border-style": String(value) })
-                : null;
+            return borderStyleToCyjs(String(value));
         case "lineStyle":
-            if (["solid", "dotted", "dashed"].includes(String(value))) {
-                return exact({ "line-style": String(value) });
-            }
-            return value === "dash-dot" || value === "long-dash"
-                ? near({ "line-style": "dashed" })
-                : near({ "line-style": "solid" });
+            return lineStyleToCyjs(String(value));
         case "sourceArrow":
-        case "targetArrow": {
-            const name = property === "sourceArrow" ? "source-arrow-shape" : "target-arrow-shape";
-            const cy = ARROWS_TO_CYJS.get(String(value));
-            if (cy !== undefined) {
-                return exact({ [name]: cy });
-            }
-            const other = String(value).startsWith("other:") ? String(value).slice(6) : null;
-            if (other !== null && specs.get(name)?.enums?.includes(other) === true) {
-                return exact({ [name]: other });
-            }
-            const nearest = ARROWS_NEAREST.get(String(value));
-            return nearest === undefined ? null : near({ [name]: nearest });
-        }
+        case "targetArrow":
+            return arrowToCyjs(
+                property === "sourceArrow" ? "source-arrow-shape" : "target-arrow-shape",
+                String(value),
+                specs,
+            );
         case "labelFont":
-            return /^[\w\- "]+(?:\s*,\s*[\w\- "]+)*$/.test(String(value))
-                ? exact({ "font-family": String(value) })
-                : null;
+            return isFontFamily(String(value)) ? exact({ "font-family": String(value) }) : null;
         default:
-            break;
+            return propertyToCyjs(property, value, specs);
     }
-    for (const [name, spec] of specs) {
-        if (spec.property === property) {
-            if (spec.type === "positive" && !(typeof value === "number" && value > 0)) {
-                return null;
-            }
-            // Cytoscape.js takes an empty bypass as no bypass at all; a blank, which it trims, draws no text
-            if (value === "" && /label$/i.test(property)) {
-                return exact({ [name]: " " });
-            }
-            return exact({ [name]: typeof value === "boolean" ? String(value) : value });
-        }
+}
+
+/**
+ * Properties written exactly.
+ * @param props - the properties
+ * @returns the written value
+ */
+function exact(props: Record<string, string | number>): Written {
+    return { props, approximate: false };
+}
+
+/**
+ * Properties written as the nearest Cytoscape.js has.
+ * @param props - the properties
+ * @returns the written value
+ */
+function near(props: Record<string, string | number>): Written {
+    return { props, approximate: true };
+}
+
+/**
+ * A label position as the vertical and horizontal alignments.
+ * @param text - the position
+ * @returns the written value
+ */
+function labelPositionToCyjs(text: string): Written {
+    const v = ["top", "bottom"].find((x) => text.startsWith(x)) ?? "center";
+    const h = ["left", "right"].find((x) => text.endsWith(x)) ?? "center";
+    return exact({ "text-valign": v, "text-halign": h });
+}
+
+/**
+ * An enumeration value: Cytoscape.js's name for it, or an `other:` value Cytoscape.js has.
+ * @param name - the Cytoscape.js property
+ * @param value - the neutral value
+ * @param table - the neutral values Cytoscape.js has, by their Cytoscape.js names
+ * @param specs - the target's properties
+ * @returns the written value, or null when Cytoscape.js has none
+ */
+function enumToCyjs(
+    name: string,
+    value: string,
+    table: ReadonlyMap<string, string>,
+    specs: ReadonlyMap<string, CyjsPropertySpec>,
+): Written | null {
+    const cy = table.get(value);
+    if (cy !== undefined) {
+        return exact({ [name]: cy });
     }
-    return null;
+    const other = value.startsWith("other:") ? value.slice(6) : null;
+    return other !== null && specs.get(name)?.enums?.includes(other) === true ? exact({ [name]: other }) : null;
+}
+
+/**
+ * An arrow, or the nearest arrow Cytoscape.js has.
+ * @param name - the Cytoscape.js property
+ * @param value - the neutral arrow
+ * @param specs - the target's properties
+ * @returns the written value, or null when Cytoscape.js has none near
+ */
+function arrowToCyjs(name: string, value: string, specs: ReadonlyMap<string, CyjsPropertySpec>): Written | null {
+    const own = enumToCyjs(name, value, ARROWS_TO_CYJS, specs);
+    if (own !== null) {
+        return own;
+    }
+    const nearest = ARROWS_NEAREST.get(value);
+    return nearest === undefined ? null : near({ [name]: nearest });
+}
+
+/**
+ * A border style: dash-dot is drawn dashed.
+ * @param value - the neutral style
+ * @returns the written value, or null when Cytoscape.js has none
+ */
+function borderStyleToCyjs(value: string): Written | null {
+    if (value === "dash-dot") {
+        return near({ "border-style": "dashed" });
+    }
+    return ["solid", "dotted", "dashed", "double"].includes(value) ? exact({ "border-style": value }) : null;
+}
+
+/**
+ * A line style: the dashed kinds are drawn dashed, any other solid.
+ * @param value - the neutral style
+ * @returns the written value
+ */
+function lineStyleToCyjs(value: string): Written {
+    if (["solid", "dotted", "dashed"].includes(value)) {
+        return exact({ "line-style": value });
+    }
+    return near({ "line-style": value === "dash-dot" || value === "long-dash" ? "dashed" : "solid" });
+}
+
+/**
+ * Any other property: the Cytoscape.js property that carries it, the value as it is.
+ * @param property - the neutral property
+ * @param value - the value
+ * @param specs - the target's properties
+ * @returns the written value, or null when no property carries it
+ */
+function propertyToCyjs(
+    property: string,
+    value: StyleValue,
+    specs: ReadonlyMap<string, CyjsPropertySpec>,
+): Written | null {
+    const entry = Array.from(specs).find(([, spec]) => spec.property === property);
+    if (entry === undefined) {
+        return null;
+    }
+    const [name, spec] = entry;
+    if (spec.type === "positive" && !(typeof value === "number" && value > 0)) {
+        return null;
+    }
+    // Cytoscape.js takes an empty bypass as no bypass at all; a blank, which it trims, draws no text
+    if (value === "" && /label$/i.test(property)) {
+        return exact({ [name]: " " });
+    }
+    return exact({ [name]: typeof value === "boolean" ? String(value) : value });
 }
 
 /**
@@ -257,8 +330,10 @@ function flatKey(e: Emit, target: StyleTarget, source: string): { key: string; f
         return { key: known, fresh: false };
     }
     let key = cytoscapeStyleKey(source);
-    for (let k = 2; e.used[target].has(key); k++) {
+    let k = 2;
+    while (e.used[target].has(key)) {
         key = `${cytoscapeStyleKey(source)}_${String(k)}`;
+        k++;
     }
     e.keys[target].set(source, key);
     e.used[target].add(key);
@@ -303,61 +378,96 @@ function testsOf(e: Emit, target: StyleTarget, where: Predicate): string[] | nul
         return k === null || !("style" in where.has) ? null : [`[${k}]`];
     }
     if ("eq" in where) {
-        const k = keyOf(e, target, where.eq[0]);
-        const v = literal(where.eq[1]);
-        return k === null || v === null ? null : [`[${k} = ${v}]`];
+        return equalTest(e, target, where.eq, "=");
     }
     if ("in" in where) {
         const k = keyOf(e, target, where.in[0]);
-        const out: string[] = [];
-        for (const x of where.in[1]) {
-            const v = literal(x);
-            if (k === null || v === null) {
-                return null;
-            }
-            out.push(`[${k} = ${v}]`);
+        const values = where.in[1].map((x) => literal(x));
+        if (values.length === 0) {
+            return [];
         }
-        return out;
+        return k === null || values.includes(null) ? null : values.map((v) => `[${k} = ${String(v)}]`);
     }
     if ("not" in where) {
-        const inner = where.not;
-        if ("has" in inner && "style" in inner.has) {
-            const k = keyOf(e, target, inner.has);
-            return k === null ? null : [`[^${k}]`];
-        }
-        if ("eq" in inner) {
-            const k = keyOf(e, target, inner.eq[0]);
-            const v = literal(inner.eq[1]);
-            return k === null || v === null ? null : [`[${k} != ${v}]`];
-        }
-        return null;
+        return notTests(e, target, where.not);
     }
     if ("and" in where) {
-        let alts = [""];
-        for (const p of where.and) {
-            const t = testsOf(e, target, p);
-            if (t === null) {
-                return null;
-            }
-            alts = alts.flatMap((a) => t.map((b) => a + b));
-            if (alts.length > 8) {
-                return null;
-            }
-        }
-        return alts;
+        return andTests(e, target, where.and);
     }
     if ("or" in where) {
-        const out: string[] = [];
-        for (const p of where.or) {
-            const t = testsOf(e, target, p);
-            if (t === null) {
-                return null;
-            }
-            out.push(...t);
-        }
-        return out.length > 8 ? null : out;
+        return orTests(e, target, where.or);
     }
     return null;
+}
+
+/**
+ * An equality test, or its negation.
+ * @param e - the emit
+ * @param target - nodes or edges
+ * @param eq - the column and the value
+ * @param op - `=` or `!=`
+ * @returns the test, or null when a selector cannot state it
+ */
+function equalTest(e: Emit, target: StyleTarget, eq: readonly [ColumnRef, Scalar], op: "=" | "!="): string[] | null {
+    const k = keyOf(e, target, eq[0]);
+    const v = literal(eq[1]);
+    return k === null || v === null ? null : [`[${k} ${op} ${v}]`];
+}
+
+/**
+ * A negated predicate: only a style column's absence and an inequality are stated.
+ * @param e - the emit
+ * @param target - nodes or edges
+ * @param inner - the predicate negated
+ * @returns the tests, or null
+ */
+function notTests(e: Emit, target: StyleTarget, inner: Predicate): string[] | null {
+    if ("has" in inner && "style" in inner.has) {
+        const k = keyOf(e, target, inner.has);
+        return k === null ? null : [`[^${k}]`];
+    }
+    return "eq" in inner ? equalTest(e, target, inner.eq, "!=") : null;
+}
+
+/**
+ * A conjunction: every combination of its parts' alternatives, at most 8.
+ * @param e - the emit
+ * @param target - nodes or edges
+ * @param parts - the predicates joined
+ * @returns the alternatives, or null
+ */
+function andTests(e: Emit, target: StyleTarget, parts: readonly Predicate[]): string[] | null {
+    let alts = [""];
+    for (const p of parts) {
+        const t = testsOf(e, target, p);
+        if (t === null) {
+            return null;
+        }
+        alts = alts.flatMap((a) => t.map((b) => a + b));
+        if (alts.length > 8) {
+            return null;
+        }
+    }
+    return alts;
+}
+
+/**
+ * A disjunction: its parts' alternatives, at most 8.
+ * @param e - the emit
+ * @param target - nodes or edges
+ * @param parts - the predicates joined
+ * @returns the alternatives, or null
+ */
+function orTests(e: Emit, target: StyleTarget, parts: readonly Predicate[]): string[] | null {
+    const out: string[] = [];
+    for (const p of parts) {
+        const t = testsOf(e, target, p);
+        if (t === null) {
+            return null;
+        }
+        out.push(...t);
+    }
+    return out.length > 8 ? null : out;
 }
 
 /**
@@ -514,7 +624,7 @@ function emitMapping(
         // one rule per table key, when a selector can state every key; else the per-element values
         const key = keyOf(e, target, m.by);
         const keys = m.table.map(([k]) => literal(k));
-        if (key === null || keys.some((k) => k === null)) {
+        if (key === null || keys.includes(null)) {
             emitValues(e, rule, index, selectors, property);
             return;
         }
@@ -599,7 +709,7 @@ function emitContinuous(
     if (points.length === 0) {
         return;
     }
-    const lit = (x: number): string => String(x);
+    const lit = String;
     const push = (test: string, style: Record<string, string | number> | null): void => {
         if (style === null) {
             return;
@@ -609,7 +719,7 @@ function emitContinuous(
         }
     };
     const first = points[0];
-    const last = points[points.length - 1];
+    const last = points.at(-1) ?? first;
     push(`[${key} < ${lit(first.at)}]`, written(e, target, property, first.below));
     for (let k = 0; k + 1 < points.length; k++) {
         const a = points[k];
@@ -687,7 +797,7 @@ export function toCytoscapeStylesheet(
     options: CytoscapeStylesheetOptions = {},
 ): CytoscapeStylesheetResult {
     const notes = new StyleNotes();
-    const importId = options.importId?.replace(/["'\\\n\r\u2028\u2029]/g, "_");
+    const importId = options.importId?.replaceAll(/["'\\\n\r\u2028\u2029]/g, "_");
     const { nodes } = extracted.fingerprint;
     const { edges } = extracted.fingerprint;
     const e: Emit = {
@@ -781,22 +891,36 @@ function exactness(e: Emit, rules: readonly StyleRule[]): CytoscapePerElement<st
         const rows = new Array<Record<string, string | number> | null>(n).fill(null);
         for (const property of STYLE_PROPERTIES[target].keys()) {
             const want = resolveRules(rules, target, property, src);
-            const got = drawn[target].values[property];
-            for (let i = 0; i < n; i++) {
-                const w = want[i];
-                if (w === null || (got?.[i] ?? null) === w) {
-                    continue;
-                }
-                const conv = toCyjs(target, property, w);
-                if (conv === null || conv.approximate) {
-                    continue;
-                }
-                rows[i] = { ...rows[i], ...conv.props };
-            }
+            addBypasses(rows, target, property, want, drawn[target].values[property]);
         }
         out[target] = rows;
     }
     return out;
+}
+
+/**
+ * A bypass of one property for every element whose drawn value differs from the styles' and that Cytoscape.js can
+ * hold exactly.
+ * @param rows - the bypasses, changed in place
+ * @param target - nodes or edges
+ * @param property - the property
+ * @param want - the styles' values
+ * @param got - what is drawn, or undefined for nothing
+ */
+function addBypasses(
+    rows: (Record<string, string | number> | null)[],
+    target: StyleTarget,
+    property: string,
+    want: readonly (StyleValue | null)[],
+    got: readonly (StyleValue | null)[] | undefined,
+): void {
+    for (let i = 0; i < rows.length; i++) {
+        const w = want[i];
+        const conv = w === null || (got?.[i] ?? null) === w ? null : toCyjs(target, property, w);
+        if (conv !== null && !conv.approximate) {
+            rows[i] = { ...rows[i], ...conv.props };
+        }
+    }
 }
 
 /**

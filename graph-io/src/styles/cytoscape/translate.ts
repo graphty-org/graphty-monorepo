@@ -74,40 +74,13 @@ export function cytoscapeRules(
     const locked = target === "node" && s.dependencies.get("nodeSizeLocked") === true;
     const matched = target === "edge" && s.dependencies.get("arrowColorMatchesEdge") === true;
 
-    const set: Record<string, StyleValue> = {};
-    for (const [prop, [vp, parse]] of chosen) {
-        if (s.defaults.has(vp)) {
-            const v = parse(s.defaults.get(vp), site(prop));
-            if (v !== null) {
-                set[prop] = v;
-            }
-        }
-    }
-    if (locked) {
-        const size = s.defaults.has(NODE_SIZE_VP) ? sizeParser(s.defaults.get(NODE_SIZE_VP), site("width")) : null;
-        set.width = size ?? 50;
-        set.height = size ?? 50;
-    }
-    if (matched && set.color !== undefined) {
-        set.sourceArrowColor = set.color;
-        set.targetArrowColor = set.color;
-    }
-
+    const set = defaultValues(s, chosen, site, { locked, matched });
     const columns = new Map<string, StyleColumn>();
     const byColumn = new Map<string, MappingRule>();
+    const reading: MappingRead = { target, refOf, elements, columns, notes, budget: options.budget };
     const add = (props: readonly string[], raw: CytoscapeMapping, parse: CytoscapeValueParser): void => {
         const parsed = parseMapping(raw, parse, site(props[0]));
-        const mapping = neutralMapping(
-            parsed,
-            props[0],
-            parse,
-            refOf,
-            elements,
-            target,
-            columns,
-            notes,
-            options.budget,
-        );
+        const mapping = neutralMapping(parsed, props[0], parse, reading);
         const key = `${raw.kind}\u0000${raw.column}`;
         let rule = byColumn.get(key);
         if (rule === undefined) {
@@ -147,32 +120,71 @@ export function cytoscapeRules(
 }
 
 /**
+ * The defaults rule's values: each chosen visual property's default, a locked node size as the width and height
+ * (50 when unset), an edge color as both arrow colors when they match the edge.
+ * @param s - the target's style
+ * @param chosen - the visual property and parser each neutral property is read from
+ * @param site - where a value of a property is read
+ * @param deps - the dependencies that apply
+ * @param deps.locked - `nodeSizeLocked`
+ * @param deps.matched - `arrowColorMatchesEdge`
+ * @returns the values
+ */
+function defaultValues(
+    s: CytoscapeStyle["node"],
+    chosen: ReadonlyMap<string, readonly [string, CytoscapeValueParser]>,
+    site: (property: string) => CanonSite,
+    deps: { readonly locked: boolean; readonly matched: boolean },
+): Record<string, StyleValue> {
+    const set: Record<string, StyleValue> = {};
+    for (const [prop, [vp, parse]] of chosen) {
+        const v = s.defaults.has(vp) ? parse(s.defaults.get(vp), site(prop)) : null;
+        if (v !== null) {
+            set[prop] = v;
+        }
+    }
+    if (deps.locked) {
+        const size = s.defaults.has(NODE_SIZE_VP) ? sizeParser(s.defaults.get(NODE_SIZE_VP), site("width")) : null;
+        set.width = size ?? 50;
+        set.height = size ?? 50;
+    }
+    if (deps.matched && set.color !== undefined) {
+        set.sourceArrowColor = set.color;
+        set.targetArrowColor = set.color;
+    }
+    return set;
+}
+
+/** What turning one target's Cytoscape mappings into neutral ones reads. */
+interface MappingRead {
+    readonly target: StyleTarget;
+    /** How a file column is referenced. */
+    readonly refOf: (column: string) => ColumnRef;
+    readonly elements: CytoscapeElements;
+    /** Where a copied column is put. */
+    readonly columns: Map<string, StyleColumn>;
+    readonly notes: StyleNotes;
+    readonly budget: StyleWorkBudget | undefined;
+}
+
+/**
  * A parsed Cytoscape mapping as a neutral mapping. A passthrough stays a passthrough over the file's column when
  * the planner's reading of every value equals Cytoscape's; otherwise Cytoscape's values are copied into the style
  * column `cytoscape.<property>`, which the passthrough reads.
  * @param m - the parsed mapping
  * @param property - the first property it sets
  * @param parse - Cytoscape's parser for the property
- * @param refOf - how a file column is referenced
- * @param elements - the elements
- * @param target - nodes or edges
- * @param columns - where a copied column is put
- * @param notes - where problems are noted
- * @param budget - the work budget
+ * @param reading - the target, the elements and where copies go
  * @returns the neutral mapping
  */
 function neutralMapping(
     m: ParsedMapping,
     property: string,
     parse: CytoscapeValueParser,
-    refOf: (column: string) => ColumnRef,
-    elements: CytoscapeElements,
-    target: StyleTarget,
-    columns: Map<string, StyleColumn>,
-    notes: StyleNotes,
-    budget: StyleWorkBudget | undefined,
+    reading: MappingRead,
 ): Mapping {
-    const by = refOf(m.column);
+    const { target, elements, columns, notes, budget } = reading;
+    const by = reading.refOf(m.column);
     if (m.kind === "discrete") {
         return { kind: "discrete", by, table: m.table };
     }

@@ -23,6 +23,7 @@ import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt, scalarText } from "../.
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { CYTOSCAPE_LEXICON } from "../../styles/cytoscape/lexicon.js";
+import { StyleApproximations } from "../../styles/io/approximations.js";
 import {
     blockStyles,
     parseStyleBlock,
@@ -55,6 +56,7 @@ import {
     YED_LINES,
     YED_SHAPES,
     yedColor,
+    yedSpelled,
     yedValue,
 } from "../graphml/styles-yed.js";
 import { KEY_MANGLED_CODE, mangleGmlKey } from "./syntax.js";
@@ -336,16 +338,7 @@ function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         put("borderWidth", 0);
     } else {
         readColor(v === "ogdf" ? g.line : g.outline, "borderColor", null, writer, put, at);
-        let width: unknown;
-        if (v === "yed") {
-            width = g.outlineWidth;
-        } else if (v === "cytoscape") {
-            width = first(g, "outline_width", "width");
-        } else if (v === "ogdf") {
-            width = g.lineWidth;
-        } else {
-            width = first(g, "width", "outlineWidth");
-        }
+        const width = outlineWidthOf(g, v);
         put("borderWidth", width === undefined ? null : canonNumber(width, at("borderWidth")));
     }
     put(
@@ -358,6 +351,25 @@ function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         const raw =
             v === "ogdf" && typeof g.type === "string" ? (OGDF_SHAPES.get(g.type.toLowerCase()) ?? g.type) : g.type;
         put("shape", canonEnum("shape", raw, writer.spelling, at("shape")));
+    }
+}
+
+/**
+ * The outline width of a node's `graphics` record, under the key its writer uses.
+ * @param g - the record
+ * @param v - the writer's vocabulary
+ * @returns the raw width, or undefined
+ */
+function outlineWidthOf(g: Rec, v: GmlWriter["vocabulary"]): unknown {
+    switch (v) {
+        case "yed":
+            return g.outlineWidth;
+        case "cytoscape":
+            return first(g, "outline_width", "width");
+        case "ogdf":
+            return g.lineWidth;
+        default:
+            return first(g, "width", "outlineWidth");
     }
 }
 
@@ -411,25 +423,15 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
  * @param at - the sites
  */
 function readLabelGraphics(raw: unknown, writer: GmlWriter, put: Put, at: At): void {
-    let label: Rec | null = null;
-    let extra = 0;
-    for (const l of Array.isArray(raw) ? raw : [raw]) {
-        if (!isRec(l) || Number(l.visible) === 0) {
-            continue;
-        }
-        if (label === null) {
-            label = l;
-        } else if (l.text !== undefined) {
-            extra++;
-        }
-    }
-    if (label === null) {
+    const visible = (Array.isArray(raw) ? raw : [raw]).filter((l): l is Rec => isRec(l) && Number(l.visible) !== 0);
+    const lg = visible.at(0);
+    if (lg === undefined) {
         return;
     }
+    const extra = visible.slice(1).filter((l) => l.text !== undefined).length;
     if (extra > 0) {
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
-    const lg = label;
     if (lg.text !== undefined) {
         put("label", canonText(lg.text, at("label")));
     }
@@ -443,6 +445,16 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, put: Put, at: At): v
     if (lg.fill !== undefined && yedLabel) {
         noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "label background");
     }
+    readLabelFont(lg, put, at);
+}
+
+/**
+ * Reads a label record's font: its size, name, weight and slant.
+ * @param lg - the record
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readLabelFont(lg: Rec, put: Put, at: At): void {
     put("labelSize", lg.fontSize === undefined ? null : canonNumber(lg.fontSize, at("labelSize")));
     put("labelFont", lg.fontName === undefined ? null : canonText(lg.fontName, at("labelFont")));
     const style = scalarText(lg.fontStyle, at("labelWeight"))?.trim().toLowerCase();
@@ -529,7 +541,7 @@ function readValues(
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const out = valueColumns(n);
-        if (!table.has("graphics") && !table.has("LabelGraphics") && !(writer.vocabulary === "cytoscape")) {
+        if (!table.has("graphics") && !table.has("LabelGraphics") && writer.vocabulary !== "cytoscape") {
             return out.values;
         }
         for (let i = 0; i < n; i++) {
@@ -569,26 +581,42 @@ function blockWithValues(snapshot: GraphSnapshot, text: string): string {
     if (!parsed.ok || parsed.block.values !== undefined) {
         return text;
     }
-    const values: Record<StyleTarget, Record<string, StyleColumn>> = { node: {}, edge: {} };
-    for (const target of ["node", "edge"] as const) {
-        const table = target === "node" ? snapshot.nodes : snapshot.edges;
-        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        for (const key of parsed.block.columns[target]) {
-            const name = tagKey(target, key);
-            if (!table.has(name)) {
-                // a style column is missing: graph-io ignores the block with a note
-                return text;
-            }
-            const col: (StyleValue | null)[] = [];
-            for (let i = 0; i < n; i++) {
-                const v = plainCell(table.value(name, i));
-                col.push(typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? v : null);
-            }
-            values[target][key] = col;
-        }
+    const node = tagValues(snapshot, "node", parsed.block.columns.node);
+    const edge = tagValues(snapshot, "edge", parsed.block.columns.edge);
+    if (node === null || edge === null) {
+        // a style column is missing: graph-io ignores the block with a note
+        return text;
     }
     const raw = JSON.parse(text) as Record<string, unknown>;
-    return JSON.stringify({ ...raw, values });
+    return JSON.stringify({ ...raw, values: { node, edge } });
+}
+
+/**
+ * The per-element values of a target's style columns, read from their `graphty_style_*` keys.
+ * @param snapshot - the graph
+ * @param target - nodes or edges
+ * @param keys - the style columns the block names
+ * @returns the values by key, or null when a key is missing
+ */
+function tagValues(
+    snapshot: GraphSnapshot,
+    target: StyleTarget,
+    keys: readonly string[],
+): Record<string, StyleColumn> | null {
+    const table = target === "node" ? snapshot.nodes : snapshot.edges;
+    const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+    const values: Record<string, StyleColumn> = {};
+    for (const key of keys) {
+        const name = tagKey(target, key);
+        if (!table.has(name)) {
+            return null;
+        }
+        values[key] = Array.from({ length: n }, (_, i) => {
+            const v = plainCell(table.value(name, i));
+            return typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? v : null;
+        });
+    }
+    return values;
 }
 
 /**
@@ -792,20 +820,18 @@ function edgeGraphics(get: Get, approximate: Approximate): Rec {
     }
     const lineStyle = get("lineStyle");
     if (typeof lineStyle === "string") {
-        const w = yedValue(YED_LINES, lineStyle, lineStyle === "long-dash" ? "dashed" : "line");
-        if (!w.exact) {
-            approximate("lineStyle", lineStyle);
-        }
-        g.style = w.value;
+        g.style = yedSpelled(
+            YED_LINES,
+            lineStyle,
+            lineStyle === "long-dash" ? "dashed" : "line",
+            "lineStyle",
+            approximate,
+        );
     }
     for (const property of ["sourceArrow", "targetArrow"]) {
         const arrow = get(property);
         if (typeof arrow === "string") {
-            const w = yedValue(YED_ARROWS, arrow, "standard");
-            if (!w.exact) {
-                approximate(property, arrow);
-            }
-            g[property] = w.value;
+            g[property] = yedSpelled(YED_ARROWS, arrow, "standard", property, approximate);
         }
     }
     const curved = get("curved");
@@ -920,7 +946,6 @@ function exactFromBlock(
     if (ex === null) {
         return;
     }
-    const ignore: Approximate = () => undefined;
     const notes = new StyleNotes();
     for (const target of ["node", "edge"] as const) {
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
@@ -928,30 +953,44 @@ function exactFromBlock(
         const values = read[target];
         for (let i = 0; i < n; i++) {
             const want = get(i);
-            const g = target === "node" ? nodeGraphics(want, ignore) : edgeGraphics(want, ignore);
-            const back = new Map<string, StyleValue>();
-            readElement(
-                target,
-                g,
-                labelGraphics(want) ?? undefined,
-                undefined,
-                GRAPHTY_WRITER,
-                (property, value) => {
-                    if (value !== null) {
-                        back.set(property, value);
-                    }
-                },
-                (property) => ({ notes, target, property }),
-            );
+            const back = writtenAndReadBack(target, want, notes);
             for (const property of GML_STYLE_CAPABILITIES[target]) {
                 const native = values[property]?.[i] ?? null;
                 const w = want(property);
                 if (native !== w && native === (back.get(property) ?? null)) {
-                    (values[property] ??= new Array<StyleValue | null>(n).fill(null))[i] = w;
+                    values[property] ??= new Array<StyleValue | null>(n).fill(null);
+                    values[property][i] = w;
                 }
             }
         }
     }
+}
+
+/**
+ * An element's values written as the writer writes them and read back as the reader reads them.
+ * @param target - nodes or edges
+ * @param want - its values
+ * @param notes - a scratch for the notes the round trip makes
+ * @returns the values read back, by property
+ */
+function writtenAndReadBack(target: StyleTarget, want: Get, notes: StyleNotes): Map<string, StyleValue> {
+    const ignore: Approximate = () => undefined;
+    const g = target === "node" ? nodeGraphics(want, ignore) : edgeGraphics(want, ignore);
+    const back = new Map<string, StyleValue>();
+    readElement(
+        target,
+        g,
+        labelGraphics(want) ?? undefined,
+        undefined,
+        GRAPHTY_WRITER,
+        (property, value) => {
+            if (value !== null) {
+                back.set(property, value);
+            }
+        },
+        (property) => ({ notes, target, property }),
+    );
+    return back;
 }
 
 /** A GML export with styles worked out. */
@@ -978,66 +1017,21 @@ export function gmlStyledExport(
     if (input === undefined) {
         return null;
     }
-    const approximated = new Map<string, { count: number; samples: Set<string> }>();
+    const approximated = new StyleApproximations();
     const out = snapshot.withColumns();
     const renames: LossNote[] = [];
-    const picture = (target: StyleTarget, property: string): readonly (StyleValue | null)[] =>
-        input.picture(target, property as never);
     for (const target of ["node", "edge"] as const) {
         const table = target === "node" ? out.nodes : out.edges;
-        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const approximate: Approximate = (property, value) => {
-            const key = `${target}.${property}`;
-            const a = approximated.get(key) ?? { count: 0, samples: new Set<string>() };
-            a.count++;
-            if (a.samples.size < 8) {
-                a.samples.add(String(value));
-            }
-            approximated.set(key, a);
-        };
-        const get = getter(picture, target);
-        const graphics: unknown[] = [];
-        const labels: unknown[] = [];
-        for (let i = 0; i < n; i++) {
-            const g = target === "node" ? nodeGraphics(get(i), approximate) : edgeGraphics(get(i), approximate);
-            graphics.push(merged(cellOf(table, "graphics", i), OWNED[target], g));
-            labels.push(mergedLabels(cellOf(table, "LabelGraphics", i), labelGraphics(get(i))));
-        }
-        for (const [name, cells] of [
-            ["graphics", graphics],
-            ["LabelGraphics", labels],
-        ] as const) {
-            if (cells.some((c) => c !== undefined)) {
-                table.set(name, cells, { dtype: "json", nullable: true });
-            } else if (table.has(name)) {
-                table.remove(name);
-            }
-        }
+        writeGraphicsColumns(snapshot, input, target, table, approximated);
         // the per-element style values of an earlier write go; a data column the rules read, or any other whose key
         // would read back as a style value, is renamed out of the keys the style values take
         const read = dataRead(input.rules.styles.rules, target);
-        for (const name of [...table.names()]) {
-            if (!mangleGmlKey(name).startsWith(TAG_PREFIX)) {
-                continue;
-            }
+        for (const name of table.names().filter((c) => mangleGmlKey(c).startsWith(TAG_PREFIX))) {
             const col = table.get(name);
             table.remove(name);
-            if (col === null || (name.startsWith(TAG_PREFIX) && !read.has(name))) {
-                continue;
+            if (col !== null && !(name.startsWith(TAG_PREFIX) && !read.has(name))) {
+                renames.push(renameDataColumn(table, target, name, col));
             }
-            let renamed = `data_${name}`;
-            for (let k = 2; table.has(renamed); k++) {
-                renamed = `data_${name}_${String(k)}`;
-            }
-            table.set(renamed, col);
-            renames.push(
-                Object.freeze({
-                    code: KEY_MANGLED_CODE,
-                    message: `${target} column "${name}" is written as "${renamed}": keys starting with ${TAG_PREFIX} hold graphty's style values`,
-                    column: name,
-                    count: null,
-                }),
-            );
         }
     }
     let { block } = input;
@@ -1046,35 +1040,102 @@ export function gmlStyledExport(
     if (new Set(keys).size !== keys.length || new Set(edgeKeys).size !== edgeKeys.length) {
         block = writeStyleBlock(input.rules, { inlineColumns: true, snapshot });
     } else {
-        for (const target of ["node", "edge"] as const) {
-            const table = target === "node" ? out.nodes : out.edges;
-            for (const [key, col] of input.rules.columns[target]) {
-                const kinds = new Set(col.filter((v) => v !== null).map((v) => typeof v));
-                const text = kinds.size > 1 || kinds.has("string");
-                let dtype: "string" | "bool" | "f64" = kinds.has("boolean") ? "bool" : "f64";
-                if (text) {
-                    dtype = "string";
-                }
-                table.set(tagKey(target, key), text ? col.map((v) => (v === null ? null : String(v))) : col, { dtype });
-            }
-        }
+        setTagColumns(out, input);
     }
     out.graph.set(GML_STYLE_BLOCK_KEY, [block], { dtype: "string" });
     const notes: LossNote[] = [
         ...renames,
         ...(block === input.block ? [] : styleBlockLosses(block, input.rules.styles.rules.length, "size")),
+        ...approximated.notes("yEd's GML"),
     ];
-    for (const [key, a] of approximated) {
-        const [target, property] = key.split(".") as [StyleTarget, string];
-        notes.push(
-            Object.freeze({
-                code: STYLE_ISSUE.APPROXIMATED,
-                message: `${target} ${property} is written as the nearest value yEd's GML has for ${String(a.count)} ${target}${a.count === 1 ? "" : "s"} (${[...a.samples].join(", ")}); the graphty.styles block keeps the exact value`,
-                column: null,
-                count: a.count,
-                style: Object.freeze({ target, property: property as never }),
-            }),
-        );
-    }
     return { snapshot: out, notes };
+}
+
+/**
+ * Writes every element's `graphics` and `LabelGraphics` records of a target with yEd's keys for what graphty draws,
+ * keeping the keys that are not style keys.
+ * @param snapshot - the graph handed to the exporter
+ * @param input - the styles
+ * @param target - nodes or edges
+ * @param table - the target's table being written, changed in place
+ * @param approximated - where approximations are counted
+ */
+function writeGraphicsColumns(
+    snapshot: GraphSnapshot,
+    input: ExporterStyleInput,
+    target: StyleTarget,
+    table: GraphSnapshot["nodes"],
+    approximated: StyleApproximations,
+): void {
+    const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+    const approximate: Approximate = (property, value) => {
+        approximated.add(target, property, value);
+    };
+    const get = getter((t, p) => input.picture(t, p as never), target);
+    const graphics: unknown[] = [];
+    const labels: unknown[] = [];
+    for (let i = 0; i < n; i++) {
+        const g = target === "node" ? nodeGraphics(get(i), approximate) : edgeGraphics(get(i), approximate);
+        graphics.push(merged(cellOf(table, "graphics", i), OWNED[target], g));
+        labels.push(mergedLabels(cellOf(table, "LabelGraphics", i), labelGraphics(get(i))));
+    }
+    for (const [name, cells] of [
+        ["graphics", graphics],
+        ["LabelGraphics", labels],
+    ] as const) {
+        if (cells.some((c) => c !== undefined)) {
+            table.set(name, cells, { dtype: "json", nullable: true });
+        } else if (table.has(name)) {
+            table.remove(name);
+        }
+    }
+}
+
+/**
+ * Writes a data column under a name out of the keys the style values take.
+ * @param table - the table, changed in place
+ * @param target - nodes or edges
+ * @param name - the column's name
+ * @param col - the column
+ * @returns the note saying so
+ */
+function renameDataColumn(
+    table: GraphSnapshot["nodes"],
+    target: StyleTarget,
+    name: string,
+    col: NonNullable<ReturnType<GraphSnapshot["nodes"]["get"]>>,
+): LossNote {
+    let renamed = `data_${name}`;
+    let k = 2;
+    while (table.has(renamed)) {
+        renamed = `data_${name}_${String(k)}`;
+        k++;
+    }
+    table.set(renamed, col);
+    return Object.freeze({
+        code: KEY_MANGLED_CODE,
+        message: `${target} column "${name}" is written as "${renamed}": keys starting with ${TAG_PREFIX} hold graphty's style values`,
+        column: name,
+        count: null,
+    });
+}
+
+/**
+ * Sets the per-element values the rules read as element keys.
+ * @param out - the graph, changed in place
+ * @param input - the styles
+ */
+function setTagColumns(out: GraphSnapshot, input: ExporterStyleInput): void {
+    for (const target of ["node", "edge"] as const) {
+        const table = target === "node" ? out.nodes : out.edges;
+        for (const [key, col] of input.rules.columns[target]) {
+            const kinds = new Set(col.filter((v) => v !== null).map((v) => typeof v));
+            const text = kinds.size > 1 || kinds.has("string");
+            let dtype: "string" | "bool" | "f64" = kinds.has("boolean") ? "bool" : "f64";
+            if (text) {
+                dtype = "string";
+            }
+            table.set(tagKey(target, key), text ? col.map((v) => (v === null ? null : String(v))) : col, { dtype });
+        }
+    }
 }

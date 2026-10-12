@@ -12,7 +12,7 @@ import { canonColor } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
 import type { CanonSite } from "../../styles/canon/site.js";
-import { STYLE_ISSUE } from "../../styles/codes.js";
+import { StyleApproximations } from "../../styles/io/approximations.js";
 import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
@@ -140,6 +140,16 @@ function vizColumn(snapshot: GraphSnapshot, target: StyleTarget, name: string): 
     return col !== null && col.meta.origin?.namespace === VIZ_NAMESPACE ? name : null;
 }
 
+/** What the per-element readers of vizValues() share. */
+interface VizRead {
+    readonly table: GraphSnapshot["nodes"];
+    readonly target: StyleTarget;
+    /** The values of a property, created on first use. */
+    readonly column: (property: string) => (StyleValue | null)[];
+    /** Where a value of an element was read. */
+    readonly site: (i: number, property: string) => CanonSite;
+}
+
 /**
  * One target's canonical values from its viz columns.
  * @param snapshot - the graph
@@ -157,54 +167,87 @@ function vizValues(
     const table = target === "node" ? snapshot.nodes : snapshot.edges;
     const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
     const out: Record<string, (StyleValue | null)[]> = {};
-    const column = (p: string): (StyleValue | null)[] => (out[p] ??= new Array<StyleValue | null>(n).fill(null));
-    const [fill, opacity] = target === "node" ? ["fill", "fillOpacity"] : ["color", "opacity"];
+    const viz: VizRead = {
+        table,
+        target,
+        column: (p) => (out[p] ??= new Array<StyleValue | null>(n).fill(null)),
+        site: (i, property) => ({ notes, target, property, element: i, budget: context.budget }),
+    };
     const color = vizColumn(snapshot, target, "color");
     const size = vizColumn(snapshot, target, target === "node" ? "size" : "thickness");
     const shape = vizColumn(snapshot, target, "shape");
     const uri = target === "node" ? vizColumn(snapshot, target, "shape.uri") : null;
     for (let i = 0; i < n; i++) {
-        const site = (property: string): CanonSite => ({ notes, target, property, element: i, budget: context.budget });
         if (color !== null) {
-            const v = plainCell(table.value(color, i));
-            if (Array.isArray(v)) {
-                const [r, g, b, a = 1] = v as number[];
-                const c = canonColor({ r: r * 255, g: g * 255, b: b * 255, a }, "gexf", site(fill));
-                if (c !== null) {
-                    column(fill)[i] = c.color;
-                    if (c.alpha < 1) {
-                        column(opacity)[i] = c.alpha;
-                    }
-                }
-            }
+            readVizColor(viz, color, i);
         }
         if (size !== null) {
-            const v = canonNumber(plainCell(table.value(size, i)), site("width"));
-            if (v !== null) {
-                column("width")[i] = v;
-                if (target === "node") {
-                    column("height")[i] = v;
-                }
-            }
-        }
-        let imageShape = false;
-        if (shape !== null) {
-            const raw = plainCell(table.value(shape, i));
-            if (raw !== null) {
-                const kind = target === "node" ? "shape" : "lineStyle";
-                column(kind)[i] = canonEnum(kind, raw, "gexf", site(kind));
-                imageShape = typeof raw === "string" && raw.toLowerCase() === "image";
-            }
+            readVizSize(viz, size, i);
         }
         // GEXF gives a shape a uri only to name the picture of an `image` shape
-        if (uri !== null && imageShape) {
+        if (shape !== null && readVizShape(viz, shape, i) && uri !== null) {
             const v = plainCell(table.value(uri, i));
             if (typeof v === "string" && v.length > 0) {
-                column("image")[i] = v;
+                viz.column("image")[i] = v;
             }
         }
     }
     return out;
+}
+
+/**
+ * Reads one element's viz color: a fill on a node, a color on an edge, with its alpha as an opacity.
+ * @param viz - the target's reading
+ * @param color - the viz color column
+ * @param i - the element
+ */
+function readVizColor(viz: VizRead, color: string, i: number): void {
+    const v = plainCell(viz.table.value(color, i));
+    if (!Array.isArray(v)) {
+        return;
+    }
+    const [fill, opacity] = viz.target === "node" ? ["fill", "fillOpacity"] : ["color", "opacity"];
+    const [r, g, b, a = 1] = v as number[];
+    const c = canonColor({ r: r * 255, g: g * 255, b: b * 255, a }, "gexf", viz.site(i, fill));
+    if (c !== null) {
+        viz.column(fill)[i] = c.color;
+        if (c.alpha < 1) {
+            viz.column(opacity)[i] = c.alpha;
+        }
+    }
+}
+
+/**
+ * Reads one element's viz size (a node's width and height) or thickness (an edge's width).
+ * @param viz - the target's reading
+ * @param size - the viz size or thickness column
+ * @param i - the element
+ */
+function readVizSize(viz: VizRead, size: string, i: number): void {
+    const v = canonNumber(plainCell(viz.table.value(size, i)), viz.site(i, "width"));
+    if (v !== null) {
+        viz.column("width")[i] = v;
+        if (viz.target === "node") {
+            viz.column("height")[i] = v;
+        }
+    }
+}
+
+/**
+ * Reads one element's viz shape: a node's shape, an edge's line style.
+ * @param viz - the target's reading
+ * @param shape - the viz shape column
+ * @param i - the element
+ * @returns whether it is an `image` shape
+ */
+function readVizShape(viz: VizRead, shape: string, i: number): boolean {
+    const raw = plainCell(viz.table.value(shape, i));
+    if (raw === null) {
+        return false;
+    }
+    const kind = viz.target === "node" ? "shape" : "lineStyle";
+    viz.column(kind)[i] = canonEnum(kind, raw, "gexf", viz.site(i, kind));
+    return typeof raw === "string" && raw.toLowerCase() === "image";
 }
 
 /**
@@ -263,32 +306,23 @@ export function gephiRules(
     // the element has it (tracking issue "graphty-element: bind an edge's color to its source node's drawn color").
     // An undirected edge in a directed graph is one edge in the file and two halves here: Gephi draws it once, in
     // the color of the source the file names, so the second half takes the first half's source.
-    const own = edgeColor;
-    const pair = snapshot.edges.byRole("pair");
-    const sourceColor: (StyleValue | null)[] = new Array<StyleValue | null>(snapshot.edgeCount).fill(null);
-    let uncolored = 0;
-    for (let e = 0; e < snapshot.edgeCount; e++) {
-        if (own?.[e] === null || own === undefined) {
-            const first = pair?.isSet(e) === true ? Math.min(e, pair.value(e) as number) : e;
-            sourceColor[e] = nodeFill?.[snapshot.edgeSource(first)] ?? GEPHI_NODE_FILL;
-            uncolored++;
-        }
-    }
+    const first = firstHalf(snapshot);
+    const sourceColor = withoutOwn(
+        edgeColor,
+        snapshot.edgeCount,
+        (e) => nodeFill?.[snapshot.edgeSource(first(e))] ?? GEPHI_NODE_FILL,
+    );
+    const uncolored = sourceColor.filter((v) => v !== null).length;
     budget.spend("edge", snapshot.edgeCount);
     // Gephi draws an edge as thick as its weight (1 for an edge with none); a width of its own is the file's
     // The weights come from the snapshot's own weights (the role column exists only when some edge has none), read
     // as the shortest decimal of their dtype. A weight of 0 or below is drawn 1 wide, so the edge stays visible.
     const weights = explicitWeights(snapshot);
-    const weightWidth: (StyleValue | null)[] = new Array<StyleValue | null>(snapshot.edgeCount).fill(null);
-    let unsized = 0;
-    for (let e = 0; e < snapshot.edgeCount; e++) {
-        if (edgeWidth?.[e] === null || edgeWidth === undefined) {
-            const first = pair?.isSet(e) === true ? Math.min(e, pair.value(e) as number) : e;
-            const w = Number(weights.text(first) ?? 1);
-            weightWidth[e] = Number.isFinite(w) && w > 0 ? w : 1;
-            unsized++;
-        }
-    }
+    const weightWidth = withoutOwn(edgeWidth, snapshot.edgeCount, (e) => {
+        const w = Number(weights.text(first(e)) ?? 1);
+        return Number.isFinite(w) && w > 0 ? w : 1;
+    });
+    const unsized = weightWidth.filter((v) => v !== null).length;
     if (unsized > 0) {
         columns.set(WEIGHT_WIDTH_KEY, weightWidth);
         rules.push({
@@ -314,6 +348,38 @@ export function gephiRules(
         });
     }
     return { rules, columns };
+}
+
+/**
+ * The edge whose source Gephi draws for each edge: an undirected edge in a directed graph is one edge in the file
+ * and two halves here, and the second half takes the first half's.
+ * @param snapshot - the graph
+ * @returns the first half of each edge
+ */
+function firstHalf(snapshot: GraphSnapshot): (e: number) => number {
+    const pair = snapshot.edges.byRole("pair");
+    return (e) => (pair?.isSet(e) === true ? Math.min(e, pair.value(e) as number) : e);
+}
+
+/**
+ * A default value for every edge without a value of its own.
+ * @param own - each edge's own value, or undefined when no edge has one
+ * @param count - the edge count
+ * @param value - the default of an edge
+ * @returns the defaults, null where an edge has its own
+ */
+function withoutOwn(
+    own: readonly (StyleValue | null)[] | undefined,
+    count: number,
+    value: (e: number) => StyleValue,
+): (StyleValue | null)[] {
+    const out = new Array<StyleValue | null>(count).fill(null);
+    for (let e = 0; e < count; e++) {
+        if (own?.[e] === null || own === undefined) {
+            out[e] = value(e);
+        }
+    }
+    return out;
 }
 
 /**
@@ -454,6 +520,51 @@ export function gexfStyledExport(
     if (input === undefined) {
         return null;
     }
+    const p = (target: StyleTarget, property: string): readonly (StyleValue | null)[] =>
+        input.picture(target, property as never);
+    const fill = p("node", "fill");
+    const fillOpacity = p("node", "fillOpacity");
+    const image = p("node", "image");
+    const color = p("edge", "color");
+    const opacity = p("edge", "opacity");
+    const thickness = p("edge", "width");
+    const height = p("node", "height");
+    // the approximations are counted once, up front, so check() reports them before anything is written
+    const approximated = new StyleApproximations();
+    const nodeShapes = p("node", "shape").map((s, i) => gexfShapeOf(s, typeof image[i] === "string", approximated));
+    const nodeSizes = p("node", "width").map((w, i) => gexfSizeOf(w, height[i], approximated));
+    const edgeShapes = p("edge", "lineStyle").map((s) => gexfLineOf(s, approximated));
+    return {
+        snapshot: withTagColumns(snapshot, input),
+        blockElement: `<graphty:styles xmlns:graphty="${GRAPHTY_XML_NAMESPACE}" name="${STYLE_BLOCK_NAME}">${escapeXml(input.block)}</graphty:styles>`,
+        notes: approximated.notes("GEXF"),
+        node(i, indent) {
+            const size = nodeSizes[i];
+            const s = nodeShapes[i];
+            return (
+                colorElement(fill[i], fillOpacity[i], indent) +
+                (size === null ? "" : `${indent}<viz:size value="${String(size)}"/>\n`) +
+                shapeElement(s, s === "image" ? String(image[i]) : null, indent)
+            );
+        },
+        edge(e, indent) {
+            const w = thickness[e];
+            return (
+                colorElement(color[e], opacity[e], indent) +
+                (typeof w === "number" ? `${indent}<viz:thickness value="${String(w)}"/>\n` : "") +
+                shapeElement(edgeShapes[e], null, indent)
+            );
+        },
+    };
+}
+
+/**
+ * The snapshot to write: the viz columns the styles replace removed, the tagged style values added.
+ * @param snapshot - the graph handed to the exporter
+ * @param input - the styles
+ * @returns the snapshot
+ */
+function withTagColumns(snapshot: GraphSnapshot, input: ExporterStyleInput): GraphSnapshot {
     const out = snapshot.withColumns();
     for (const target of ["node", "edge"] as const) {
         const table = target === "node" ? out.nodes : out.edges;
@@ -467,127 +578,106 @@ export function gexfStyledExport(
             table.set(name, dtype === "string" ? col.map((v) => (v === null ? null : String(v))) : col, { dtype });
         }
     }
-    const p = (target: StyleTarget, property: string): readonly (StyleValue | null)[] =>
-        input.picture(target, property as never);
-    const fill = p("node", "fill");
-    const fillOpacity = p("node", "fillOpacity");
-    const width = p("node", "width");
-    const height = p("node", "height");
-    const shape = p("node", "shape");
-    const image = p("node", "image");
-    const color = p("edge", "color");
-    const opacity = p("edge", "opacity");
-    const thickness = p("edge", "width");
-    const line = p("edge", "lineStyle");
+    return out;
+}
 
-    const approximated = new Map<string, { count: number; samples: Set<string> }>();
-    const approximate = (target: StyleTarget, property: string, value: unknown): void => {
-        const key = `${target}.${property}`;
-        const a = approximated.get(key) ?? { count: 0, samples: new Set<string>() };
-        a.count++;
-        if (a.samples.size < 8) {
-            a.samples.add(String(value));
-        }
-        approximated.set(key, a);
-    };
-    const nodeShape = (i: number): string | null => {
-        const s = shape[i];
-        if (typeof s !== "string") {
-            return null;
-        }
-        const g = gexfNodeShape(s);
-        if (!g.exact) {
-            approximate("node", "shape", s);
-        }
-        return g.value;
-    };
-    const edgeShape = (e: number): string | null => {
-        const s = line[e];
-        if (typeof s !== "string") {
-            return null;
-        }
-        const g = gexfEdgeShape(s);
-        if (!g.exact) {
-            approximate("edge", "lineStyle", s);
-        }
-        return g.value;
-    };
-    const nodeSize = (i: number): number | null => {
-        const w = width[i];
-        const h = height[i];
-        if (typeof w === "number" && typeof h === "number" && w !== h) {
-            approximate("node", w > h ? "height" : "width", `${String(w)} x ${String(h)}`);
-            return Math.max(w, h);
-        }
-        if (typeof w === "number") {
-            return w;
-        }
-        return typeof h === "number" ? h : null;
-    };
-    // the approximations are counted once, up front, so check() reports them before anything is written
-    // a node with a picture is an `image` shape, the only shape GEXF gives a uri: another shape is not written
-    const imageShape = (i: number): string => {
-        const s = shape[i];
+/**
+ * A node's GEXF shape. A node with a picture is an `image` shape, the only shape GEXF gives a uri: another shape is
+ * not written.
+ * @param s - the node's shape
+ * @param pictured - whether the node has a picture
+ * @param approximated - where approximations are counted
+ * @returns the shape, or null for none
+ */
+function gexfShapeOf(s: StyleValue | null, pictured: boolean, approximated: StyleApproximations): string | null {
+    if (pictured) {
         if (typeof s === "string" && s !== "other:image") {
-            approximate("node", "shape", s);
+            approximated.add("node", "shape", s);
         }
         return "image";
-    };
-    const nodeShapes = shape.map((_v, i) => (typeof image[i] === "string" ? imageShape(i) : nodeShape(i)));
-    const nodeSizes = width.map((_v, i) => nodeSize(i));
-    const edgeShapes = line.map((_v, e) => edgeShape(e));
-    const notes: LossNote[] = [];
-    for (const [key, a] of approximated) {
-        const [target, property] = key.split(".") as [StyleTarget, string];
-        notes.push(
-            Object.freeze({
-                code: STYLE_ISSUE.APPROXIMATED,
-                message: `${target} ${property} is written as the nearest value GEXF has for ${String(a.count)} ${target}${a.count === 1 ? "" : "s"} (${[...a.samples].join(", ")}); the graphty.styles block keeps the exact value`,
-                column: null,
-                count: a.count,
-                style: Object.freeze({ target, property: property as never }),
-            }),
-        );
     }
-    const colorElement = (hex: StyleValue | null, alpha: StyleValue | null, indent: string): string => {
-        if (typeof hex !== "string") {
-            return "";
-        }
-        const n = Number.parseInt(hex.slice(1), 16);
-        const a = typeof alpha === "number" && alpha !== 1 ? ` a="${String(alpha)}"` : "";
-        return `${indent}<viz:color r="${String((n >> 16) & 255)}" g="${String((n >> 8) & 255)}" b="${String(n & 255)}"${a}/>\n`;
-    };
-    const escape = (text: string): string =>
-        text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    return {
-        snapshot: out,
-        blockElement: `<graphty:styles xmlns:graphty="${GRAPHTY_XML_NAMESPACE}" name="${STYLE_BLOCK_NAME}">${escape(input.block)}</graphty:styles>`,
-        notes,
-        node(i, indent) {
-            let body = colorElement(fill[i], fillOpacity[i], indent);
-            const size = nodeSizes[i];
-            if (size !== null) {
-                body += `${indent}<viz:size value="${String(size)}"/>\n`;
-            }
-            const s = nodeShapes[i];
-            if (s === "image") {
-                body += `${indent}<viz:shape value="image" uri="${escape(String(image[i]))}"/>\n`;
-            } else if (s !== null) {
-                body += `${indent}<viz:shape value="${s}"/>\n`;
-            }
-            return body;
-        },
-        edge(e, indent) {
-            let body = colorElement(color[e], opacity[e], indent);
-            const w = thickness[e];
-            if (typeof w === "number") {
-                body += `${indent}<viz:thickness value="${String(w)}"/>\n`;
-            }
-            const s = edgeShapes[e];
-            if (s !== null) {
-                body += `${indent}<viz:shape value="${s}"/>\n`;
-            }
-            return body;
-        },
-    };
+    if (typeof s !== "string") {
+        return null;
+    }
+    const g = gexfNodeShape(s);
+    if (!g.exact) {
+        approximated.add("node", "shape", s);
+    }
+    return g.value;
+}
+
+/**
+ * An edge's GEXF shape.
+ * @param s - the edge's line style
+ * @param approximated - where approximations are counted
+ * @returns the shape, or null for none
+ */
+function gexfLineOf(s: StyleValue | null, approximated: StyleApproximations): string | null {
+    if (typeof s !== "string") {
+        return null;
+    }
+    const g = gexfEdgeShape(s);
+    if (!g.exact) {
+        approximated.add("edge", "lineStyle", s);
+    }
+    return g.value;
+}
+
+/**
+ * A node's GEXF size: one value, the larger of a width and height that differ.
+ * @param w - the node's width
+ * @param h - its height
+ * @param approximated - where approximations are counted
+ * @returns the size, or null for none
+ */
+function gexfSizeOf(w: StyleValue | null, h: StyleValue | null, approximated: StyleApproximations): number | null {
+    if (typeof w === "number" && typeof h === "number" && w !== h) {
+        approximated.add("node", w > h ? "height" : "width", `${String(w)} x ${String(h)}`);
+        return Math.max(w, h);
+    }
+    if (typeof w === "number") {
+        return w;
+    }
+    return typeof h === "number" ? h : null;
+}
+
+/**
+ * A `<viz:color>` element.
+ * @param hex - the color, `#rrggbb`
+ * @param alpha - its opacity
+ * @param indent - the indentation
+ * @returns the element, "" without a color
+ */
+function colorElement(hex: StyleValue | null, alpha: StyleValue | null, indent: string): string {
+    if (typeof hex !== "string") {
+        return "";
+    }
+    const n = Number.parseInt(hex.slice(1), 16);
+    const a = typeof alpha === "number" && alpha !== 1 ? ` a="${String(alpha)}"` : "";
+    return `${indent}<viz:color r="${String((n >> 16) & 255)}" g="${String((n >> 8) & 255)}" b="${String(n & 255)}"${a}/>\n`;
+}
+
+/**
+ * A `<viz:shape>` element.
+ * @param shape - the GEXF shape, or null
+ * @param uri - the picture of an `image` shape, or null
+ * @param indent - the indentation
+ * @returns the element, "" without a shape
+ */
+function shapeElement(shape: string | null, uri: string | null, indent: string): string {
+    if (shape === null) {
+        return "";
+    }
+    return uri === null
+        ? `${indent}<viz:shape value="${shape}"/>\n`
+        : `${indent}<viz:shape value="${shape}" uri="${escapeXml(uri)}"/>\n`;
+}
+
+/**
+ * Text as XML character data or an attribute value.
+ * @param text - the text
+ * @returns the escaped text
+ */
+function escapeXml(text: string): string {
+    return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }

@@ -583,6 +583,115 @@ function attributesOf(plans: readonly AttributePlan[], row: number): Record<stri
 }
 
 /**
+ * The networkAttributes element and its declarations: the graph attributes, then the snapshot's name and
+ * description where no attribute of that name is written.
+ * @param snapshot - the snapshot
+ * @param p - the plan
+ * @returns the element and the declarations
+ */
+function networkOf(
+    snapshot: GraphSnapshot,
+    p: Plan,
+): { network: Record<string, unknown>; networkDecls: Record<string, unknown> } {
+    const networkDecls = declarations(p.graphAttrs, false);
+    const network: Record<string, unknown> = {};
+    for (const a of p.graphAttrs) {
+        const value = cellValue(a, 0);
+        if (value !== undefined) {
+            network[a.name] = value;
+        }
+    }
+    const { meta } = snapshot;
+    for (const [key, value] of [
+        ["name", meta.name],
+        ["description", meta.description],
+    ] as const) {
+        if (value !== null && !(key in network) && !(key in networkDecls)) {
+            network[key] = value;
+            networkDecls[key] = { d: "string" };
+        }
+    }
+    return { network, networkDecls };
+}
+
+/**
+ * The attributeDeclarations element: the kept declarations of other tables, then the network's, the nodes' and the
+ * edges' where there are any.
+ * @param p - the plan
+ * @param kept - what an import kept in meta.extra.cx2
+ * @param networkDecls - the network's declarations
+ * @returns the element
+ */
+function declarationsElementOf(
+    p: Plan,
+    kept: Record<string, unknown>,
+    networkDecls: Record<string, unknown>,
+): Record<string, unknown> {
+    const nodeDecls = declarations(p.nodeAttrs, true);
+    if (p.originalIds) {
+        nodeDecls[ORIGINAL_ID_ATTRIBUTE] = { d: "string" };
+    }
+    const edgeDecls = declarations(p.edgeAttrs, true);
+    if (p.weights.weighted) {
+        edgeDecls[WEIGHT_ATTRIBUTE] = { d: "double" };
+    }
+    const otherDecls = isRecord(kept.declarations) ? kept.declarations : {};
+    const element: Record<string, unknown> = { ...otherDecls };
+    for (const [key, table] of [
+        ["networkAttributes", networkDecls],
+        ["nodes", nodeDecls],
+        ["edges", edgeDecls],
+    ] as const) {
+        if (Object.keys(table).length > 0) {
+            element[key] = table;
+        }
+    }
+    return element;
+}
+
+/**
+ * One edge element.
+ * @param p - the plan
+ * @param ids - the written node ids
+ * @param src - the source of each edge
+ * @param dst - the target of each edge
+ * @param e - the edge
+ * @returns the element
+ */
+function edgeElement(
+    p: Plan,
+    ids: WrittenIds,
+    src: ArrayLike<number>,
+    dst: ArrayLike<number>,
+    e: number,
+): Record<string, unknown> {
+    const element: Record<string, unknown> = {
+        id: p.edgeIds[e],
+        s: ids.idAt(src[e]),
+        t: ids.idAt(dst[e]),
+    };
+    let v = attributesOf(p.edgeAttrs, e);
+    if (p.weights.isExplicit(e)) {
+        const w = p.weights.value(e);
+        v ??= {};
+        v[WEIGHT_ATTRIBUTE] = Number.isFinite(w) ? w : null;
+    }
+    if (v !== null) {
+        element.v = v;
+    }
+    return element;
+}
+
+/**
+ * The optional aspects of a document that are written: those with elements.
+ * @param aspects - each aspect's name and element count
+ * @returns the metaData counts
+ */
+function presentAspects(aspects: readonly (readonly [string, number])[]): [string, number][] {
+    return aspects.filter(([, n]) => n > 0).map(([name, n]) => [name, n]);
+}
+
+/**
  * Write the document as text parts.
  * @param snapshot - the snapshot
  * @param p - the plan
@@ -602,101 +711,45 @@ function* write(
     if (ids === null) {
         throw new GraphFormatError("E_INVALID_ID", "node ids cannot be written as CX2 integers", { reason: "charset" });
     }
-    const { src, dst } = snapshot.edgeList();
     const edges: number[] = [];
     for (let e = 0; e < snapshot.edgeCount; e++) {
         if (!p.folding.folded(e)) {
             edges.push(e);
         }
     }
-
-    const nodeDecls = declarations(p.nodeAttrs, true);
-    if (p.originalIds) {
-        nodeDecls[ORIGINAL_ID_ATTRIBUTE] = { d: "string" };
-    }
-    const edgeDecls = declarations(p.edgeAttrs, true);
-    if (p.weights.weighted) {
-        edgeDecls[WEIGHT_ATTRIBUTE] = { d: "double" };
-    }
-    const networkDecls = declarations(p.graphAttrs, false);
-    const network: Record<string, unknown> = {};
-    for (const a of p.graphAttrs) {
-        const value = cellValue(a, 0);
-        if (value !== undefined) {
-            network[a.name] = value;
-        }
-    }
+    const { network, networkDecls } = networkOf(snapshot, p);
     const { meta } = snapshot;
-    for (const [key, value] of [
-        ["name", meta.name],
-        ["description", meta.description],
-    ] as const) {
-        if (value !== null && !(key in network) && !(key in networkDecls)) {
-            network[key] = value;
-            networkDecls[key] = { d: "string" };
-        }
-    }
     const kept = isRecord(meta.extra.cx2) ? meta.extra.cx2 : {};
-    const otherDecls = isRecord(kept.declarations) ? kept.declarations : {};
     const opaque = meta.sourceFormat === CX2_FORMAT && isRecord(kept.opaque) ? kept.opaque : {};
-    const declarationsElement: Record<string, unknown> = { ...otherDecls };
-    for (const [key, table] of [
-        ["networkAttributes", networkDecls],
-        ["nodes", nodeDecls],
-        ["edges", edgeDecls],
-    ] as const) {
-        if (Object.keys(table).length > 0) {
-            declarationsElement[key] = table;
-        }
-    }
+    const declarationsElement = declarationsElementOf(p, kept, networkDecls);
     const { bypassOf, nodeBypassRows, edgeBypassRows, opaqueAspects } = styleParts(snapshot, p, styled, opaque);
-
-    const counts: [string, number][] = [];
     const hasDeclarations = Object.keys(declarationsElement).length > 0;
-    if (hasDeclarations) {
-        counts.push(["attributeDeclarations", 1]);
-    }
-    if (Object.keys(network).length > 0) {
-        counts.push(["networkAttributes", 1]);
-    }
-    counts.push(["nodes", snapshot.nodeCount], ["edges", edges.length]);
-    if (nodeBypassRows.length > 0) {
-        counts.push(["nodeBypasses", nodeBypassRows.length]);
-    }
-    if (edgeBypassRows.length > 0) {
-        counts.push(["edgeBypasses", edgeBypassRows.length]);
-    }
-    for (const [name, elements] of opaqueAspects) {
-        counts.push([name, elements.length]);
-    }
+    const hasNetwork = Object.keys(network).length > 0;
+    const counts: [string, number][] = [
+        ...presentAspects([
+            ["attributeDeclarations", hasDeclarations ? 1 : 0],
+            ["networkAttributes", hasNetwork ? 1 : 0],
+        ]),
+        ["nodes", snapshot.nodeCount],
+        ["edges", edges.length],
+        ...presentAspects([
+            ["nodeBypasses", nodeBypassRows.length],
+            ["edgeBypasses", edgeBypassRows.length],
+        ]),
+        ...opaqueAspects.map(([name, elements]): [string, number] => [name, elements.length]),
+    ];
 
     yield '[{"CXVersion":"2.0","hasFragments":false},\n';
     yield `{"metaData":${stringify(counts.map(([name, elementCount]) => ({ name, elementCount })))}},\n`;
     if (hasDeclarations) {
         yield `{"attributeDeclarations":[${stringify(declarationsElement)}]},\n`;
     }
-    if (Object.keys(network).length > 0) {
+    if (hasNetwork) {
         yield `{"networkAttributes":[${stringify(network)}]},\n`;
     }
     yield* block("nodes", snapshot.nodeCount, (i) => stringify(nodeElement(p, ids, i)));
-    yield* block("edges", edges.length, (k) => {
-        const e = edges[k];
-        const element: Record<string, unknown> = {
-            id: p.edgeIds[e],
-            s: ids.idAt(src[e]),
-            t: ids.idAt(dst[e]),
-        };
-        let v = attributesOf(p.edgeAttrs, e);
-        if (p.weights.isExplicit(e)) {
-            const w = p.weights.value(e);
-            v ??= {};
-            v[WEIGHT_ATTRIBUTE] = Number.isFinite(w) ? w : null;
-        }
-        if (v !== null) {
-            element.v = v;
-        }
-        return stringify(element);
-    });
+    const { src, dst } = snapshot.edgeList();
+    yield* block("edges", edges.length, (k) => stringify(edgeElement(p, ids, src, dst, edges[k])));
     if (nodeBypassRows.length > 0) {
         yield* block("nodeBypasses", nodeBypassRows.length, (k) => {
             const i = nodeBypassRows[k];

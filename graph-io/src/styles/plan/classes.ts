@@ -31,6 +31,44 @@ interface StyleClasses {
 }
 
 /**
+ * Whether a property's values have few enough distinct values to be part of a class.
+ * @param values - the values
+ * @returns true when they do
+ */
+function fewValues(values: readonly (StyleValue | null)[]): boolean {
+    const seen = new Set<string>();
+    for (const v of values) {
+        seen.add(valueKey(v));
+        if (seen.size > MAX_CLASSES + 1) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * One element's combination of values of the classable properties, as a key; null when it has none.
+ * @param classable - the properties
+ * @param truth - the values per property
+ * @param i - the element
+ * @returns the key
+ */
+function tupleKey(
+    classable: readonly string[],
+    truth: ReadonlyMap<string, readonly (StyleValue | null)[]>,
+    i: number,
+): string | null {
+    let key = "";
+    let any = false;
+    for (const p of classable) {
+        const v = (truth.get(p) ?? [])[i] ?? null;
+        any ||= v !== null;
+        key += `${valueKey(v)}\u0001`;
+    }
+    return any ? key : null;
+}
+
+/**
  * Finds the style classes of the opaque properties.
  * @param target - nodes or edges
  * @param props - the opaque properties
@@ -46,19 +84,9 @@ export function styleClasses(
     n: number,
     spend: (ops: number) => void,
 ): StyleClasses | null {
-    const classable = props.filter((p) => {
-        if (STYLE_PROPERTIES[target].get(p) === "text" || SIZES.has(p)) {
-            return false;
-        }
-        const seen = new Set<string>();
-        for (const v of truth.get(p) ?? []) {
-            seen.add(valueKey(v));
-            if (seen.size > MAX_CLASSES + 1) {
-                return false;
-            }
-        }
-        return true;
-    });
+    const classable = props.filter(
+        (p) => STYLE_PROPERTIES[target].get(p) !== "text" && !SIZES.has(p) && fewValues(truth.get(p) ?? []),
+    );
     if (classable.length === 0) {
         return null;
     }
@@ -67,14 +95,8 @@ export function styleClasses(
     const tupleOf = new Array<string | null>(n).fill(null);
     let withTuple = 0;
     for (let i = 0; i < n; i++) {
-        let key = "";
-        let any = false;
-        for (const p of classable) {
-            const v = (truth.get(p) ?? [])[i] ?? null;
-            any ||= v !== null;
-            key += `${valueKey(v)}\u0001`;
-        }
-        if (!any) {
+        const key = tupleKey(classable, truth, i);
+        if (key === null) {
             continue;
         }
         withTuple++;

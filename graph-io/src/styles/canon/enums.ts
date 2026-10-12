@@ -201,7 +201,7 @@ export function canonEnum(kind: StyleEnumKind, raw: unknown, dialect: StyleDiale
         return null;
     }
     const trimmed = text.trim();
-    const key = trimmed.toLowerCase().replace(/[\s_]+/g, "-");
+    const key = trimmed.toLowerCase().replaceAll(/[\s_]+/g, "-");
     const value = DIALECT.get(dialect)?.get(kind)?.get(key) ?? COMMON.get(kind)?.get(key);
     if (value !== undefined) {
         return value;

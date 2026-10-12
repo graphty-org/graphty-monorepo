@@ -274,18 +274,7 @@ function writeElements(name: string, value: unknown, indent: string | null, out:
         return;
     }
     const object = value as XmlTreeObject;
-    let attrs = "";
-    let text: string | null = null;
-    let hasChildren = false;
-    for (const [key, child] of Object.entries(object)) {
-        if (key === TEXT_KEY) {
-            text = scalarText(child);
-        } else if (key.startsWith(ATTRIBUTE_PREFIX)) {
-            attrs += ` ${key.slice(ATTRIBUTE_PREFIX.length)}="${escapeXmlAttribute(scalarText(child))}"`;
-        } else {
-            hasChildren = true;
-        }
-    }
+    const { attrs, text, hasChildren } = elementParts(object);
     if (!hasChildren) {
         out.push(
             text === null || text.length === 0
@@ -306,6 +295,27 @@ function writeElements(name: string, value: unknown, indent: string | null, out:
         }
     }
     out.push(inner === null ? `</${name}>` : `${brk}</${name}>`);
+}
+
+/**
+ * What a tree object holds besides its children: its attributes as text and its text.
+ * @param object - the object
+ * @returns the attribute text, the text (null for none) and whether it has child elements
+ */
+function elementParts(object: XmlTreeObject): { attrs: string; text: string | null; hasChildren: boolean } {
+    let attrs = "";
+    let text: string | null = null;
+    let hasChildren = false;
+    for (const [key, child] of Object.entries(object)) {
+        if (key === TEXT_KEY) {
+            text = scalarText(child);
+        } else if (key.startsWith(ATTRIBUTE_PREFIX)) {
+            attrs += ` ${key.slice(ATTRIBUTE_PREFIX.length)}="${escapeXmlAttribute(scalarText(child))}"`;
+        } else {
+            hasChildren = true;
+        }
+    }
+    return { attrs, text, hasChildren };
 }
 
 /**

@@ -1086,6 +1086,41 @@ function refId(raw: unknown): NodeId | null {
 }
 
 /**
+ * The view a cyVisualProperties entry names.
+ * @param entry - the entry
+ * @returns the view's id, or null when it names none
+ */
+function entryView(entry: Record<string, unknown>): NodeId | null {
+    return entry.view === undefined || entry.view === null ? null : refId(entry.view);
+}
+
+/**
+ * A visual property value as the text of a bypass cell.
+ * @param raw - the value
+ * @returns the string itself, else its JSON
+ */
+function cellText(raw: unknown): string {
+    return typeof raw === "string" ? raw : JSON.stringify(raw);
+}
+
+/** What readVisualProperties() collects from the entries of this graph's view. */
+interface VisualPropertiesRead {
+    /** The per-element values, by property: [row, text] pairs. */
+    readonly columns: {
+        readonly node: Map<string, [number, string][]>;
+        readonly edge: Map<string, [number, string][]>;
+    };
+    /** The network values, by property. */
+    readonly network: Map<string, string>;
+    /** How many default values the entries hold. */
+    defaults: number;
+    /** How many mappings. */
+    mappings: number;
+    /** How many dependencies. */
+    dependencies: number;
+}
+
+/**
  * A member list: the ids of an array, or null for "all" (an absent list is empty).
  * @param raw - the list
  * @param onBad - told about a list that is neither an array nor "all" (BAD_VALUE) and about a
@@ -2860,72 +2895,103 @@ class CxReader {
         const tableStyles = TABLE_STYLE_ASPECTS.reduce((n, name) => n + (this.doc.kept.get(name)?.length ?? 0), 0);
         // the graph's own view (its first): the one its positions come from; the others stay in meta.extra.cx
         const views = new Set(this.plan.views.slice(0, 1));
-        // the style reader gets the entries of this graph's view (and those naming no view)
-        const others = new Set<unknown>();
-        let source: CxStyleSource = {
-            entries: entries
-                .map((h) => h.value)
-                .filter((v) => {
-                    const view = isRecord(v) && v.view !== undefined && v.view !== null ? refId(v.view) : null;
-                    const kept = view === null || views.size === 0 || views.has(view);
-                    if (!kept) {
-                        others.add(view);
-                    }
-                    return kept;
-                }),
+        const ofThisView = (view: NodeId | null): boolean => view === null || views.size === 0 || views.has(view);
+        this.keepVisualPropertiesForStyles(entries, ofThisView);
+        const read: VisualPropertiesRead = {
+            columns: { node: new Map(), edge: new Map() },
+            network: new Map(),
+            defaults: 0,
+            mappings: 0,
+            dependencies: 0,
         };
-        if (others.size > 0) {
-            source = { ...source, otherViews: others.size };
-        }
-        this.report.keepForStyles(source);
-        const columns = { node: new Map<string, [number, string][]>(), edge: new Map<string, [number, string][]>() };
-        const network = new Map<string, string>();
-        let defaults = 0;
-        let mappings = 0;
-        let dependencies = 0;
         for (const { value } of entries) {
-            if (!isRecord(value)) {
-                continue;
-            }
-            const view = value.view === undefined || value.view === null ? null : refId(value.view);
-            if (view !== null && views.size > 0 && !views.has(view)) {
-                continue;
-            }
-            const properties = isRecord(value.properties) ? value.properties : {};
-            mappings += isRecord(value.mappings) ? Object.keys(value.mappings).length : 0;
-            dependencies += isRecord(value.dependencies) ? Object.keys(value.dependencies).length : 0;
-            switch (value.properties_of) {
-                case "nodes":
-                case "edges": {
-                    const domain = value.properties_of === "nodes" ? "node" : "edge";
-                    const target = refId(value.applies_to);
-                    const rows = domain === "node" ? this.nodeRows : this.edgeRows;
-                    const row = target === null ? undefined : rows.get(target);
-                    if (row === undefined) {
-                        if (target === null || !(domain === "node" ? this.rootNodes : this.rootEdges).has(target)) {
-                            this.dangle(`${domain} visual property entry`);
-                        }
-                        continue;
-                    }
-                    for (const [property, raw] of Object.entries(properties)) {
-                        const list = columns[domain].get(property) ?? [];
-                        list.push([row, typeof raw === "string" ? raw : JSON.stringify(raw)]);
-                        columns[domain].set(property, list);
-                    }
-                    break;
-                }
-                case "network":
-                    for (const [property, raw] of Object.entries(properties)) {
-                        network.set(property, typeof raw === "string" ? raw : JSON.stringify(raw));
-                    }
-                    break;
-                default:
-                    defaults += Object.keys(properties).length;
-                    break;
+            if (isRecord(value) && ofThisView(entryView(value))) {
+                this.collectVisualProperties(value, read);
             }
         }
+        this.writeBypassColumns(read);
+        this.warnStylesNotImported(read, tableStyles);
+    }
+
+    /**
+     * Hand the style reader the entries of this graph's view (and those naming no view).
+     * @param entries - every cyVisualProperties entry
+     * @param ofThisView - whether a view is this graph's
+     */
+    private keepVisualPropertiesForStyles(
+        entries: readonly { value: unknown }[],
+        ofThisView: (view: NodeId | null) => boolean,
+    ): void {
+        const others = new Set<unknown>();
+        const kept = entries
+            .map((h) => h.value)
+            .filter((v) => {
+                const view = isRecord(v) ? entryView(v) : null;
+                if (!ofThisView(view)) {
+                    others.add(view);
+                    return false;
+                }
+                return true;
+            });
+        const source: CxStyleSource = others.size > 0 ? { entries: kept, otherViews: others.size } : { entries: kept };
+        this.report.keepForStyles(source);
+    }
+
+    /**
+     * Collect one cyVisualProperties entry of this graph's view.
+     * @param value - the entry
+     * @param read - what is collected so far
+     */
+    private collectVisualProperties(value: Record<string, unknown>, read: VisualPropertiesRead): void {
+        const properties = isRecord(value.properties) ? value.properties : {};
+        read.mappings += isRecord(value.mappings) ? Object.keys(value.mappings).length : 0;
+        read.dependencies += isRecord(value.dependencies) ? Object.keys(value.dependencies).length : 0;
+        if (value.properties_of === "nodes" || value.properties_of === "edges") {
+            this.collectElementProperties(value, properties, read);
+        } else if (value.properties_of === "network") {
+            for (const [property, raw] of Object.entries(properties)) {
+                read.network.set(property, cellText(raw));
+            }
+        } else {
+            read.defaults += Object.keys(properties).length;
+        }
+    }
+
+    /**
+     * Collect the per-element values of a nodes or edges entry.
+     * @param value - the entry
+     * @param properties - its properties
+     * @param read - what is collected so far
+     */
+    private collectElementProperties(
+        value: Record<string, unknown>,
+        properties: Record<string, unknown>,
+        read: VisualPropertiesRead,
+    ): void {
+        const domain = value.properties_of === "nodes" ? "node" : "edge";
+        const target = refId(value.applies_to);
+        const rows = domain === "node" ? this.nodeRows : this.edgeRows;
+        const row = target === null ? undefined : rows.get(target);
+        if (row === undefined) {
+            if (target === null || !(domain === "node" ? this.rootNodes : this.rootEdges).has(target)) {
+                this.dangle(`${domain} visual property entry`);
+            }
+            return;
+        }
+        for (const [property, raw] of Object.entries(properties)) {
+            const list = read.columns[domain].get(property) ?? [];
+            list.push([row, cellText(raw)]);
+            read.columns[domain].set(property, list);
+        }
+    }
+
+    /**
+     * Write the per-element and network values as string columns in the cx.bypass namespace.
+     * @param read - what was collected
+     */
+    private writeBypassColumns(read: VisualPropertiesRead): void {
         for (const domain of ["node", "edge"] as const) {
-            for (const [property, cells] of columns[domain]) {
+            for (const [property, cells] of read.columns[domain]) {
                 const handle = declareFresh(
                     this.sink,
                     domain,
@@ -2946,7 +3012,7 @@ class CxReader {
                 }
             }
         }
-        for (const [property, text] of network) {
+        for (const [property, text] of read.network) {
             try {
                 this.sink.setGraphValue(property, text, {
                     dtype: "string",
@@ -2956,20 +3022,30 @@ class CxReader {
                 this.report.recordError(err, { element: property });
             }
         }
-        if (defaults + mappings + dependencies + tableStyles > 0) {
-            const parts = [
-                `cyVisualProperties: ${defaults} default${plural(defaults)}, ${mappings} mapping${plural(mappings)}, ${dependencies} dependenc(ies)`,
-            ];
-            if (tableStyles > 0) {
-                parts.push(`${tableStyles} table style element${plural(tableStyles)}`);
-            }
-            this.report.warning(
-                "unsupported",
-                STYLES_NOT_IMPORTED_CODE,
-                `the file's style rules are not applied (${parts.join("; ")}); they are kept in meta.extra.cx`,
-                { element: "cyVisualProperties" },
-            );
+    }
+
+    /**
+     * The warning that the file's style rules are kept and not applied, when it has any.
+     * @param read - what was collected
+     * @param tableStyles - how many table style elements the file holds
+     */
+    private warnStylesNotImported(read: VisualPropertiesRead, tableStyles: number): void {
+        const { defaults, mappings, dependencies } = read;
+        if (defaults + mappings + dependencies + tableStyles === 0) {
+            return;
         }
+        const parts = [
+            `cyVisualProperties: ${defaults} default${plural(defaults)}, ${mappings} mapping${plural(mappings)}, ${dependencies} dependenc(ies)`,
+        ];
+        if (tableStyles > 0) {
+            parts.push(`${tableStyles} table style element${plural(tableStyles)}`);
+        }
+        this.report.warning(
+            "unsupported",
+            STYLES_NOT_IMPORTED_CODE,
+            `the file's style rules are not applied (${parts.join("; ")}); they are kept in meta.extra.cx`,
+            { element: "cyVisualProperties" },
+        );
     }
 
     /** The `graphty.styles` aspect of a file graphty wrote, as the graph attribute of that name. */

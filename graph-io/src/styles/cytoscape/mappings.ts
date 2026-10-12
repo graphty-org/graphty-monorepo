@@ -176,12 +176,10 @@ function definitionTokens(def: string): string[] {
     const tokens: string[] = [];
     let parts: string[] = [];
     let start = 0;
-    for (let i = 0; i < def.length; i++) {
-        if (def.charCodeAt(i) !== 44) {
-            continue;
-        }
+    let i = def.indexOf(",");
+    while (i >= 0) {
         parts.push(def.slice(start, i));
-        if (def.charCodeAt(i + 1) === 44) {
+        if (def[i + 1] === ",") {
             parts.push(",");
             i++;
         } else {
@@ -189,10 +187,27 @@ function definitionTokens(def: string): string[] {
             parts = [];
         }
         start = i + 1;
+        i = def.indexOf(",", start);
     }
     parts.push(def.slice(start));
     tokens.push(parts.join(""));
     return tokens;
+}
+
+/**
+ * One indexed entry of a definition: `TAG=index=value`.
+ * @param t - the token
+ * @returns the tag, the index and the value, or null when the token is no indexed entry
+ */
+function indexedEntry(t: string): { tag: string; index: number; value: string } | null {
+    const eq1 = t.indexOf("=");
+    const eq2 = eq1 < 0 ? -1 : t.indexOf("=", eq1 + 1);
+    const tag = t.slice(0, eq1);
+    if (eq2 < 0 || !INDEXED.has(tag)) {
+        return null;
+    }
+    const indexText = t.slice(eq1 + 1, eq2);
+    return /^\d{1,15}$/.test(indexText) ? { tag, index: Number(indexText), value: t.slice(eq2 + 1) } : null;
 }
 
 /**
@@ -220,17 +235,11 @@ export function parseCx1Definition(def: string, notes?: StyleNotes, target: Styl
             type = t.slice(2);
             continue;
         }
-        const eq1 = t.indexOf("=");
-        const eq2 = eq1 < 0 ? -1 : t.indexOf("=", eq1 + 1);
-        const tag = t.slice(0, eq1);
-        if (eq2 < 0 || !INDEXED.has(tag)) {
+        const indexed = indexedEntry(t);
+        if (indexed === null) {
             continue;
         }
-        const indexText = t.slice(eq1 + 1, eq2);
-        if (!/^\d{1,15}$/.test(indexText)) {
-            continue;
-        }
-        const index = Number(indexText);
+        const { tag, index, value } = indexed;
         if (index > tokens.length) {
             beyond++;
             continue;
@@ -240,7 +249,7 @@ export function parseCx1Definition(def: string, notes?: StyleNotes, target: Styl
             byIndex = new Map();
             entries.set(tag as Cx1IndexedTag, byIndex);
         }
-        byIndex.set(index, t.slice(eq2 + 1));
+        byIndex.set(index, value);
     }
     if (beyond > 0) {
         notes?.add(STYLE_ISSUE.BAD_MAPPING, target, column ?? "definition", {
@@ -378,50 +387,67 @@ export function mappingFromCx2(m: unknown): CytoscapeMapping | null {
             }
             return { kind: "discrete", column, type, table };
         }
-        case "CONTINUOUS": {
-            const byAt = new Map<number, PointDraft>();
-            const point = (x: number): PointDraft => {
-                let p = byAt.get(x);
-                if (p === undefined) {
-                    p = { at: x };
-                    byAt.set(x, p);
-                }
-                return p;
-            };
-            for (const iv of entries) {
-                if (iv === null || typeof iv !== "object") {
-                    continue;
-                }
-                const lo = finiteOf(own(iv, "min"));
-                const hi = finiteOf(own(iv, "max"));
-                const minValue = own(iv, "minVPValue") ?? own(iv, "maxVPValue");
-                const maxValue = own(iv, "maxVPValue") ?? own(iv, "minVPValue");
-                if (lo !== null) {
-                    const p = point(lo);
-                    p.above = minValue;
-                    if (own(iv, "includeMin") !== false) {
-                        p.value = minValue;
-                    }
-                }
-                if (hi !== null) {
-                    const p = point(hi);
-                    p.below = maxValue;
-                    if (own(iv, "includeMax") !== false && p.value === undefined) {
-                        p.value = maxValue;
-                    }
-                }
-            }
-            const points = Array.from(byAt.values())
-                .sort((a, b) => a.at - b.at)
-                .map((p): CytoscapeContinuousPoint => {
-                    const below = p.below ?? p.value ?? p.above;
-                    const above = p.above ?? p.value ?? below;
-                    return { at: p.at, below, value: p.value ?? below, above };
-                });
-            return { kind: "continuous", column, type, points };
-        }
+        case "CONTINUOUS":
+            return { kind: "continuous", column, type, points: cx2Points(entries) };
         default:
             return null;
+    }
+}
+
+/**
+ * The points of CX2's continuous intervals.
+ * @param entries - the intervals
+ * @returns the points, ascending
+ */
+function cx2Points(entries: readonly unknown[]): CytoscapeContinuousPoint[] {
+    const byAt = new Map<number, PointDraft>();
+    const point = (x: number): PointDraft => {
+        let p = byAt.get(x);
+        if (p === undefined) {
+            p = { at: x };
+            byAt.set(x, p);
+        }
+        return p;
+    };
+    for (const iv of entries) {
+        if (iv !== null && typeof iv === "object") {
+            addInterval(iv, point);
+        }
+    }
+    return Array.from(byAt.values())
+        .sort((a, b) => a.at - b.at)
+        .map((p): CytoscapeContinuousPoint => {
+            const below = p.below ?? p.value ?? p.above;
+            const above = p.above ?? p.value ?? below;
+            return { at: p.at, below, value: p.value ?? below, above };
+        });
+}
+
+/**
+ * One CX2 interval into its points: its `minVPValue` is the value just above its `min` (and at it when
+ * `includeMin`), its `maxVPValue` the value just below its `max` (and at it when `includeMax` and the next interval
+ * does not include its `min`).
+ * @param iv - the interval
+ * @param point - the point at a position, made on first use
+ */
+function addInterval(iv: object, point: (x: number) => PointDraft): void {
+    const lo = finiteOf(own(iv, "min"));
+    const hi = finiteOf(own(iv, "max"));
+    const minValue = own(iv, "minVPValue") ?? own(iv, "maxVPValue");
+    const maxValue = own(iv, "maxVPValue") ?? own(iv, "minVPValue");
+    if (lo !== null) {
+        const p = point(lo);
+        p.above = minValue;
+        if (own(iv, "includeMin") !== false) {
+            p.value = minValue;
+        }
+    }
+    if (hi !== null) {
+        const p = point(hi);
+        p.below = maxValue;
+        if (own(iv, "includeMax") !== false && p.value === undefined) {
+            p.value = maxValue;
+        }
     }
 }
 
@@ -459,43 +485,52 @@ export function cytoscapeStyleFromCx(entries: readonly unknown[], notes?: StyleN
         });
     }
     for (const v of entries) {
-        if (v === null || typeof v !== "object" || viewOf(v) !== views[0]) {
-            continue;
-        }
-        const of = own(v, "properties_of");
-        let target: StyleTarget | "network" | null = null;
-        if (of === "nodes:default") {
-            target = "node";
-        } else if (of === "edges:default") {
-            target = "edge";
-        } else if (of === "network") {
-            target = "network";
-        }
-        if (target === null) {
+        const target =
+            v !== null && typeof v === "object" && viewOf(v) === views[0]
+                ? CX_SECTIONS.get(String(own(v, "properties_of")))
+                : undefined;
+        if (target === undefined) {
             continue;
         }
         const props = record(own(v, "properties"));
         for (const k of Object.keys(props)) {
             style[target].defaults.set(k, props[k]);
         }
-        if (target === "network") {
-            continue;
-        }
-        const mappings = record(own(v, "mappings"));
-        for (const vp of Object.keys(mappings)) {
-            const m = mappingFromCx1(mappings[vp], notes, target);
-            if (m === null) {
-                notes?.add(STYLE_ISSUE.BAD_MAPPING, target, vp, { sample: mappings[vp] });
-            } else {
-                style[target].mappings.set(vp, m);
-            }
-        }
-        const deps = record(own(v, "dependencies"));
-        for (const d of Object.keys(deps)) {
-            style[target].dependencies.set(d, String(deps[d]).toLowerCase() === "true");
+        if (target !== "network") {
+            readCxMappings(style, target, v, notes);
         }
     }
     return style;
+}
+
+/** The style section each `properties_of` of a CX `cyVisualProperties` entry fills. */
+const CX_SECTIONS: ReadonlyMap<string, StyleTarget | "network"> = new Map([
+    ["nodes:default", "node"],
+    ["edges:default", "edge"],
+    ["network", "network"],
+]);
+
+/**
+ * The mappings and dependencies of a CX `nodes:default` or `edges:default` entry, into the style.
+ * @param style - the style, changed in place
+ * @param target - nodes or edges
+ * @param v - the entry
+ * @param notes - where a mapping that cannot be read is noted
+ */
+function readCxMappings(style: CytoscapeStyle, target: StyleTarget, v: unknown, notes: StyleNotes | undefined): void {
+    const mappings = record(own(v, "mappings"));
+    for (const vp of Object.keys(mappings)) {
+        const m = mappingFromCx1(mappings[vp], notes, target);
+        if (m === null) {
+            notes?.add(STYLE_ISSUE.BAD_MAPPING, target, vp, { sample: mappings[vp] });
+        } else {
+            style[target].mappings.set(vp, m);
+        }
+    }
+    const deps = record(own(v, "dependencies"));
+    for (const d of Object.keys(deps)) {
+        style[target].dependencies.set(d, String(deps[d]).toLowerCase() === "true");
+    }
 }
 
 /**
@@ -540,20 +575,29 @@ export function cytoscapeStyleFromCx2(
             }
         }
     }
-    const { node } = style;
-    if (
-        node.dependencies.get("nodeSizeLocked") === true &&
-        !node.defaults.has("NODE_SIZE") &&
-        !node.mappings.has("NODE_SIZE")
-    ) {
-        if (node.defaults.has("NODE_WIDTH")) {
-            node.defaults.set("NODE_SIZE", node.defaults.get("NODE_WIDTH"));
-        }
-        const width = node.mappings.get("NODE_WIDTH");
-        if (width !== undefined) {
-            node.mappings.set("NODE_SIZE", width);
-        }
-        node.bypassAliases.set("NODE_WIDTH", "NODE_SIZE");
-    }
+    lockedSizeFromWidth(style.node);
     return style;
+}
+
+/**
+ * CX2 has no `NODE_SIZE`: a locked node size follows `NODE_WIDTH` (its default, mapping and bypasses) unless the
+ * file writes `NODE_SIZE` anyway.
+ * @param node - the node section, changed in place
+ */
+function lockedSizeFromWidth(node: CytoscapeStyle["node"]): void {
+    if (
+        node.dependencies.get("nodeSizeLocked") !== true ||
+        node.defaults.has("NODE_SIZE") ||
+        node.mappings.has("NODE_SIZE")
+    ) {
+        return;
+    }
+    if (node.defaults.has("NODE_WIDTH")) {
+        node.defaults.set("NODE_SIZE", node.defaults.get("NODE_WIDTH"));
+    }
+    const width = node.mappings.get("NODE_WIDTH");
+    if (width !== undefined) {
+        node.mappings.set("NODE_SIZE", width);
+    }
+    node.bypassAliases.set("NODE_WIDTH", "NODE_SIZE");
 }

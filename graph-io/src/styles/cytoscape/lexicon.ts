@@ -66,7 +66,7 @@ const CY_SHAPES: ReadonlyMap<string, string> = new Map([["rounded_rectangle", "r
  * @returns the value, an `other:` one in that form
  */
 const caseless = (v: StyleValue | null): StyleValue | null =>
-    typeof v === "string" && v.startsWith("other:") ? `other:${v.slice(6).toLowerCase().replace(/_/g, "-")}` : v;
+    typeof v === "string" && v.startsWith("other:") ? `other:${v.slice(6).toLowerCase().replaceAll("_", "-")}` : v;
 
 const shape: CytoscapeValueParser = (raw, site) => {
     const s = scalarText(raw, site);
@@ -216,22 +216,7 @@ interface FontFace {
  */
 function fontFace(raw: unknown, site: CanonSite): FontFace | null {
     if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
-        const o = raw as Record<string, unknown>;
-        const name = Object.hasOwn(o, "FONT_NAME") ? scalarText(o.FONT_NAME, site) : null;
-        let family = Object.hasOwn(o, "FONT_FAMILY") ? scalarText(o.FONT_FAMILY, site) : null;
-        if (name !== null && name.trim() !== "") {
-            family = name.trim().replace(/\.(?:bold|italic|plain|bolditalic)$/i, "");
-        }
-        if (family === null) {
-            return null;
-        }
-        const weight = Object.hasOwn(o, "FONT_WEIGHT") ? String(o.FONT_WEIGHT) : "";
-        const style = Object.hasOwn(o, "FONT_STYLE") ? String(o.FONT_STYLE) : "";
-        return {
-            family: family.trim(),
-            weight: /bold/i.test(weight.slice(0, 32)) ? "bold" : "normal",
-            italic: /italic/i.test(style.slice(0, 32)),
-        };
+        return cx2FontFace(raw as Record<string, unknown>, site);
     }
     const s = scalarText(raw, site);
     if (s === null) {
@@ -246,19 +231,52 @@ function fontFace(raw: unknown, site: CanonSite): FontFace | null {
             italic: st.includes("italic"),
         };
     }
-    // legacy "Family-style-size": the last two dash parts are numbers
-    const dash = s.split("-");
-    if (dash.length >= 3 && /^\d+(?:\.\d+)?$/.test(dash.at(-1) ?? "") && /^\d+(?:\.\d+)?$/.test(dash.at(-2) ?? "")) {
-        const bits = Math.trunc(Number(dash.at(-2)));
-        let family = dash.slice(0, -2).join("-");
-        let bold = (bits & 1) !== 0;
-        if (/-bold$/i.test(family)) {
-            family = family.slice(0, -"-bold".length);
-            bold = true;
-        }
-        return { family: family.replace(/\.bold$/i, ""), weight: bold ? "bold" : "normal", italic: (bits & 2) !== 0 };
+    return legacyFontFace(s) ?? { family: s.trim(), weight: "normal", italic: false };
+}
+
+/**
+ * CX2's font face object.
+ * @param o - the object
+ * @param site - where it was read
+ * @returns the face, or null without a family
+ */
+function cx2FontFace(o: Record<string, unknown>, site: CanonSite): FontFace | null {
+    const name = Object.hasOwn(o, "FONT_NAME") ? scalarText(o.FONT_NAME, site) : null;
+    let family = Object.hasOwn(o, "FONT_FAMILY") ? scalarText(o.FONT_FAMILY, site) : null;
+    if (name !== null && name.trim() !== "") {
+        family = name.trim().replace(/\.(?:bold|italic|plain|bolditalic)$/i, "");
     }
-    return { family: s.trim(), weight: "normal", italic: false };
+    if (family === null) {
+        return null;
+    }
+    const weight = Object.hasOwn(o, "FONT_WEIGHT") ? String(o.FONT_WEIGHT) : "";
+    const style = Object.hasOwn(o, "FONT_STYLE") ? String(o.FONT_STYLE) : "";
+    return {
+        family: family.trim(),
+        weight: /bold/i.test(weight.slice(0, 32)) ? "bold" : "normal",
+        italic: /italic/i.test(style.slice(0, 32)),
+    };
+}
+
+/**
+ * The legacy `Family-style-size` face: the last two dash parts are numbers, the style's bits 1 bold and 2 italic.
+ * @param s - the value
+ * @returns the face, or null when it is not one
+ */
+function legacyFontFace(s: string): FontFace | null {
+    const dash = s.split("-");
+    const numeric = (t: string | undefined): boolean => /^\d+(?:\.\d+)?$/.test(t ?? "");
+    if (dash.length < 3 || !numeric(dash.at(-1)) || !numeric(dash.at(-2))) {
+        return null;
+    }
+    const bits = Math.trunc(Number(dash.at(-2)));
+    let family = dash.slice(0, -2).join("-");
+    let bold = (bits & 1) !== 0;
+    if (/-bold$/i.test(family)) {
+        family = family.slice(0, -"-bold".length);
+        bold = true;
+    }
+    return { family: family.replace(/\.bold$/i, ""), weight: bold ? "bold" : "normal", italic: (bits & 2) !== 0 };
 }
 
 /** Java's logical font names, which Cytoscape desktop writes, as the CSS generic families they stand for. */
@@ -544,6 +562,34 @@ const MAX_VP_DEPTH = 8;
 const VP_NAME = /^[A-Z][A-Z_0-9]+$/;
 
 /**
+ * One graphics key as a visual property: its name (`?<key>` for one with none) and its value, a legacy encoding
+ * converted.
+ * @param target - nodes or edges
+ * @param k - the key
+ * @param v - its value
+ * @returns the name and the value
+ */
+function visualProperty(target: StyleTarget, k: string, v: unknown): [string, unknown] {
+    const name = VP_NAME.test(k) ? k : IDENTIFIERS[target].get(k.toLowerCase().replace(/^cy:/, ""));
+    if (name === undefined) {
+        return [`?${k}`, v];
+    }
+    if (name === "NODE_TRANSPARENCY_01") {
+        let f = Number.NaN;
+        if (typeof v === "number") {
+            f = v;
+        } else if (typeof v === "string") {
+            f = Number(v.trim());
+        }
+        return ["NODE_TRANSPARENCY", Number.isFinite(f) ? Math.round(f * 255) : null];
+    }
+    if (name === "EDGE_CURVED_LEGACY") {
+        return ["EDGE_CURVED", typeof v === "string" && v.toUpperCase() === "CURVED_LINES"];
+    }
+    return [name, v];
+}
+
+/**
  * One element's raw visual properties, normalized: Cytoscape's old identifiers renamed to visual property names and
  * the legacy encodings converted (`nodeTransparency` 0..1 to `NODE_TRANSPARENCY` 0..255, `curved` to
  * `EDGE_CURVED`). Nested objects (`cytoscapeNodeGraphicsAttributes` and the like) are walked with an explicit stack
@@ -577,22 +623,7 @@ export function normalizeVisualProperties(target: StyleTarget, raw: unknown, not
                 }
                 continue;
             }
-            let name = VP_NAME.test(k) ? k : IDENTIFIERS[target].get(k.toLowerCase().replace(/^cy:/, ""));
-            if (name === undefined) {
-                if (!out.has(`?${k}`)) {
-                    out.set(`?${k}`, v);
-                }
-                continue;
-            }
-            let value: unknown = v;
-            if (name === "NODE_TRANSPARENCY_01") {
-                const f = typeof v === "number" ? v : Number(typeof v === "string" ? v.trim() : Number.NaN);
-                name = "NODE_TRANSPARENCY";
-                value = Number.isFinite(f) ? Math.round(f * 255) : null;
-            } else if (name === "EDGE_CURVED_LEGACY") {
-                name = "EDGE_CURVED";
-                value = typeof v === "string" && v.toUpperCase() === "CURVED_LINES";
-            }
+            const [name, value] = visualProperty(target, k, v);
             // visual-property-named keys come first in 3.x graphics and win
             if (!out.has(name)) {
                 out.set(name, value);

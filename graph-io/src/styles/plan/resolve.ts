@@ -146,25 +146,33 @@ export function refSource(
             if (cache.has(k)) {
                 return cache.get(k) ?? null;
             }
-            let out: ArrayLike<unknown> | null = null;
-            if (snapshot !== undefined && "computed" in ref) {
-                out = target === "node" ? degreeValues(snapshot, ref.computed) : null;
-            } else if (snapshot !== undefined && "data" in ref) {
-                const table = target === "node" ? snapshot.nodes : snapshot.edges;
-                if (table.has(ref.data)) {
-                    const vals = new Array<unknown>(n);
-                    for (let i = 0; i < n; i++) {
-                        vals[i] = dataCell(table, ref.data, i);
-                    }
-                    out = vals;
-                }
-            } else {
-                out = byKey.get(k)?.values ?? null;
-            }
+            const out =
+                snapshot === undefined ? (byKey.get(k)?.values ?? null) : snapshotColumn(snapshot, target, n, ref);
             cache.set(k, out);
             return out;
         },
     };
+}
+
+/**
+ * A data or computed column read from the graph.
+ * @param snapshot - the graph
+ * @param target - nodes or edges
+ * @param n - the element count
+ * @param ref - the column, not a style column
+ * @returns the values, or null when the graph has no such column (a degree of an edge)
+ */
+function snapshotColumn(
+    snapshot: GraphSnapshot,
+    target: StyleTarget,
+    n: number,
+    ref: Exclude<ColumnRef, { style: string }>,
+): ArrayLike<unknown> | null {
+    if ("computed" in ref) {
+        return target === "node" ? degreeValues(snapshot, ref.computed) : null;
+    }
+    const table = target === "node" ? snapshot.nodes : snapshot.edges;
+    return table.has(ref.data) ? Array.from({ length: n }, (_, i) => dataCell(table, ref.data, i)) : null;
 }
 
 /**
@@ -460,8 +468,8 @@ export function interpolate(a: StyleValue, b: StyleValue, t: number): StyleValue
     if (typeof a === "string" && typeof b === "string" && HEX6.test(a) && HEX6.test(b)) {
         let out = "#";
         for (const k of [1, 3, 5]) {
-            const ca = parseInt(a.slice(k, k + 2), 16);
-            const cb = parseInt(b.slice(k, k + 2), 16);
+            const ca = Number.parseInt(a.slice(k, k + 2), 16);
+            const cb = Number.parseInt(b.slice(k, k + 2), 16);
             out += hex2(ca + (cb - ca) * t);
         }
         return out;
@@ -576,33 +584,20 @@ export function resolveRules(
     src: RefSource,
     budget?: StyleWorkBudget,
 ): (StyleValue | null)[] {
-    const writers: StyleRule[] = [];
-    for (let r = rules.length - 1; r >= 0; r--) {
-        const rule = rules[r];
-        if (rule.target !== target) {
-            continue;
-        }
-        if (setOf(rule, property) !== undefined || mapOf(rule, property) !== undefined) {
-            writers.push(rule);
-        }
-    }
+    // the rules that write the property, top first
+    const writers = rules
+        .filter(
+            (rule) =>
+                rule.target === target && (setOf(rule, property) !== undefined || mapOf(rule, property) !== undefined),
+        )
+        .reverse();
     const canon = canonicalFor(target, property);
     const out = new Array<StyleValue | null>(src.n).fill(null);
     let visits = 0;
     for (let i = 0; i < src.n; i++) {
         for (const rule of writers) {
             visits++;
-            if (!matches(rule.where, src, i)) {
-                continue;
-            }
-            const set = setOf(rule, property);
-            const mapping = mapOf(rule, property);
-            let v: StyleValue | null = null;
-            if (set !== undefined) {
-                v = set;
-            } else if (mapping !== undefined) {
-                v = evalMapping(mapping, canon, src, i);
-            }
+            const v = ruleValue(rule, property, canon, src, i);
             if (v !== null) {
                 out[i] = v;
                 break;
@@ -611,6 +606,33 @@ export function resolveRules(
     }
     budget?.spend(target, visits + src.n);
     return out;
+}
+
+/**
+ * The value one rule gives an element, or null when it selects the element but gives no value, or does not select it.
+ * @param rule - the rule
+ * @param property - the property
+ * @param canon - the property's canonicalizer
+ * @param src - the reference source
+ * @param i - the element
+ * @returns the value, or null
+ */
+function ruleValue(
+    rule: StyleRule,
+    property: string,
+    canon: ReturnType<typeof canonicalFor>,
+    src: RefSource,
+    i: number,
+): StyleValue | null {
+    if (!matches(rule.where, src, i)) {
+        return null;
+    }
+    const set = setOf(rule, property);
+    if (set !== undefined) {
+        return set;
+    }
+    const mapping = mapOf(rule, property);
+    return mapping === undefined ? null : evalMapping(mapping, canon, src, i);
 }
 
 /**
@@ -653,7 +675,7 @@ export function within(a: StyleValue | null, b: StyleValue | null): boolean {
     }
     if (typeof a === "string" && typeof b === "string" && HEX6.test(a) && HEX6.test(b)) {
         for (const k of [1, 3, 5]) {
-            if (Math.abs(parseInt(a.slice(k, k + 2), 16) - parseInt(b.slice(k, k + 2), 16)) > 2) {
+            if (Math.abs(Number.parseInt(a.slice(k, k + 2), 16) - Number.parseInt(b.slice(k, k + 2), 16)) > 2) {
                 return false;
             }
         }

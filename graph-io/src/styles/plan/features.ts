@@ -31,36 +31,20 @@ export function featuresOf(snapshot: GraphSnapshot, target: StyleTarget): StyleF
     const table = target === "node" ? snapshot.nodes : snapshot.edges;
     const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
     const out: StyleFeature[] = [];
-    for (const name of table.names()) {
-        if ((name.startsWith("graphty.") && name !== PARENT_COLUMN) || name === "selected" || COORDINATE.test(name)) {
-            continue;
-        }
-        const col = table.get(name);
-        if (col === null || col.meta.role === "position" || !SCALAR_DTYPES.has(col.meta.dtype)) {
-            continue;
-        }
-        if (col.meta.components !== 1) {
-            continue;
-        }
-        const values = new Array<Scalar | null>(n);
-        for (let i = 0; i < n; i++) {
+    for (const name of table.names().filter((c) => isFeatureColumn(table, c))) {
+        const values = Array.from({ length: n }, (_, i): Scalar | null => {
             const v = dataCell(table, name, i);
-            values[i] = typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? v : null;
-        }
-        if (name === PARENT_COLUMN) {
+            return typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? v : null;
+        });
+        if (name !== PARENT_COLUMN) {
+            out.push({ ref: { data: name }, values });
+        } else if (target === "node") {
             // the group a node sits in, by the group's id: graphty-element keeps no graphty.* column in its records
-            if (target !== "node") {
-                continue;
-            }
-            for (let i = 0; i < n; i++) {
-                const v = values[i];
-                values[i] =
-                    typeof v === "number" && v >= 0 && v < snapshot.nodeCount ? String(snapshot.ids.idOf(v)) : null;
-            }
-            out.push({ ref: { style: "group" }, values });
-            continue;
+            const group = values.map((v) =>
+                typeof v === "number" && v >= 0 && v < snapshot.nodeCount ? String(snapshot.ids.idOf(v)) : null,
+            );
+            out.push({ ref: { style: "group" }, values: group });
         }
-        out.push({ ref: { data: name }, values });
     }
     if (target === "node" && n > 0) {
         const kinds: ("degree" | "indegree" | "outdegree")[] = snapshot.directed
@@ -71,6 +55,23 @@ export function featuresOf(snapshot: GraphSnapshot, target: StyleTarget): StyleF
         }
     }
     return out;
+}
+
+/**
+ * Whether a column may explain styles: one scalar component, neither a position nor a coordinate, nor graphty's own
+ * columns (the parent excepted) or Cytoscape's selection state.
+ * @param table - the node or edge table
+ * @param name - the column
+ * @returns true for a candidate
+ */
+function isFeatureColumn(table: GraphSnapshot["nodes"], name: string): boolean {
+    if ((name.startsWith("graphty.") && name !== PARENT_COLUMN) || name === "selected" || COORDINATE.test(name)) {
+        return false;
+    }
+    const col = table.get(name);
+    return (
+        col !== null && col.meta.role !== "position" && SCALAR_DTYPES.has(col.meta.dtype) && col.meta.components === 1
+    );
 }
 
 /**
@@ -90,7 +91,7 @@ export function styleFingerprint(snapshot: GraphSnapshot): StyleFingerprint {
         let a = 0x811c9dc5;
         let b = 0x01000193 ^ 0x5bd1e995;
         for (let c = 0; c < text.length; c++) {
-            const code = text.charCodeAt(c);
+            const code = text.charCodeAt(c); // NOSONAR(S7758): hashes UTF-16 code units; code points would change every fingerprint
             a = Math.imul(a ^ code, 0x01000193);
             b = Math.imul(b ^ code, 0x01000193) ^ (b >>> 13);
         }
@@ -121,6 +122,59 @@ export function heldEdgeRows(snapshot: GraphSnapshot): number[] {
         }
     }
     return rows;
+}
+
+/** What describeFeature() reads off a feature's values. */
+interface ValueStats {
+    /** The distinct values, as type and text. */
+    readonly seen: ReadonlySet<string>;
+    /** Whether every value is text, a boolean or a finite integer. */
+    readonly categorical: boolean;
+    /** Whether every value is a finite number. */
+    readonly numeric: boolean;
+    /** Whether every value is an integer. */
+    readonly integers: boolean;
+    /** The smallest finite number. */
+    readonly lo: number;
+    /** The largest finite number. */
+    readonly hi: number;
+    /** How many values are set. */
+    readonly count: number;
+}
+
+/**
+ * The statistics of a feature's values.
+ * @param values - the values
+ * @returns the statistics
+ */
+function valueStats(values: readonly (Scalar | null)[]): ValueStats {
+    const seen = new Set<string>();
+    let categorical = true;
+    let numeric = true;
+    let integers = true;
+    let lo = Infinity;
+    let hi = -Infinity;
+    let count = 0;
+    for (const v of values) {
+        if (v === null) {
+            continue;
+        }
+        count++;
+        seen.add(`${typeof v}:${String(v)}`);
+        if (typeof v !== "number") {
+            numeric = false;
+            integers = false;
+        } else if (Number.isFinite(v)) {
+            integers &&= Number.isInteger(v);
+            categorical &&= Number.isInteger(v);
+            lo = Math.min(lo, v);
+            hi = Math.max(hi, v);
+        } else {
+            numeric = false;
+            categorical = false;
+        }
+    }
+    return { seen, categorical, numeric, integers, lo, hi, count };
 }
 
 /**
@@ -163,40 +217,7 @@ export interface FeatureInfo {
  * @returns what the planner knows about it
  */
 export function describeFeature(feature: StyleFeature, raw: boolean): FeatureInfo {
-    const seen = new Set<string>();
-    let categorical = true;
-    let numeric = true;
-    let integers = true;
-    let lo = Infinity;
-    let hi = -Infinity;
-    let count = 0;
-    for (const v of feature.values) {
-        if (v === null) {
-            continue;
-        }
-        count++;
-        seen.add(`${typeof v}:${String(v)}`);
-        if (typeof v === "number") {
-            if (!Number.isFinite(v)) {
-                numeric = false;
-                categorical = false;
-                continue;
-            }
-            if (!Number.isInteger(v)) {
-                integers = false;
-                categorical = false;
-            }
-            if (v < lo) {
-                lo = v;
-            }
-            if (v > hi) {
-                hi = v;
-            }
-        } else {
-            numeric = false;
-            integers = false;
-        }
-    }
+    const { seen, categorical, numeric, integers, lo, hi, count } = valueStats(feature.values);
     const computed = "computed" in feature.ref;
     // an integer column whose values are all different and fill a whole range (0..n-1, a z order) is an index:
     // a ramp on it would only replay the order the writer stored the elements in

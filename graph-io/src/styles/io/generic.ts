@@ -391,65 +391,123 @@ function canonicalize(
     notes: StyleNotes,
     budget: StyleBudget,
 ): Record<string, StyleColumn> {
+    const cx: CanonContext = { target, dialect, n, notes, budget };
     // keyed by the importer's property names: no prototype, so `__proto__` is a property like any other
     const out: Record<string, (StyleValue | null)[]> = Object.create(null) as Record<string, (StyleValue | null)[]>;
     const alphas = new Map<string, (number | null)[]>();
     for (const [property, raws] of columns) {
-        const kind = STYLE_PROPERTIES[target].get(property);
-        const col = new Array<StyleValue | null>(n).fill(null);
-        let alpha: (number | null)[] | null = null;
-        for (let i = 0; i < n && i < raws.length; i++) {
-            const site: CanonSite = { notes, target, property, element: i, budget };
-            let v = raws[i];
-            if (Array.isArray(v)) {
-                if (v.length > 1) {
-                    notes.add(STYLE_ISSUE.BAD_VALUE, target, property, { sample: v, element: i });
-                }
-                v = v.length === 0 ? null : v[0];
-            }
-            if (v === null || v === undefined) {
-                continue;
-            }
-            if (kind === "color") {
-                const c = canonColor(v, dialect, site, { use: colorUse(target, property) });
-                if (c !== null) {
-                    col[i] = c.color;
-                    if (c.alpha < 1) {
-                        alpha ??= new Array<number | null>(n).fill(null);
-                        alpha[i] = c.alpha;
-                    }
-                }
-                continue;
-            }
-            col[i] = canonValue(kind, property, v, dialect, site);
-        }
+        const { col, alpha } = canonicalColumn(cx, property, raws);
         out[property] = col;
         if (alpha !== null) {
             alphas.set(property, alpha);
         }
     }
     for (const [property, alpha] of alphas) {
-        const carrier = OPACITY_OF.get(`${target}.${property}`) ?? null;
-        const opacity = carrier === null ? null : (out[carrier] ??= new Array<StyleValue | null>(n).fill(null));
-        for (let i = 0; i < n; i++) {
-            const a = alpha[i];
-            if (a === null) {
-                continue;
-            }
-            const site: CanonSite = { notes, target, property, element: i, budget };
-            const stated = opacity === null ? null : (opacity[i] as number | null);
-            const merged = colorOpacity(
-                { color: out[property][i] as `#${string}`, alpha: a },
-                stated,
-                site,
-                carrier !== null,
-            );
-            if (opacity !== null) {
-                opacity[i] = merged;
-            }
-        }
+        moveAlpha(cx, out, property, alpha);
     }
     return out;
+}
+
+/** What canonicalize() reads one target's values with. */
+interface CanonContext {
+    readonly target: StyleTarget;
+    readonly dialect: StyleDialect;
+    /** The element count. */
+    readonly n: number;
+    readonly notes: StyleNotes;
+    readonly budget: StyleBudget;
+}
+
+/**
+ * Canonical values of one property; a color's alpha below 1 is kept apart.
+ * @param cx - the target being read
+ * @param property - the property
+ * @param raws - its raw values
+ * @returns the values, and the alphas (null when every color is opaque)
+ */
+function canonicalColumn(
+    cx: CanonContext,
+    property: string,
+    raws: readonly unknown[],
+): { col: (StyleValue | null)[]; alpha: (number | null)[] | null } {
+    const { target, dialect, n, notes, budget } = cx;
+    const kind = STYLE_PROPERTIES[target].get(property);
+    const col = new Array<StyleValue | null>(n).fill(null);
+    let alpha: (number | null)[] | null = null;
+    for (let i = 0; i < n && i < raws.length; i++) {
+        const site: CanonSite = { notes, target, property, element: i, budget };
+        const v = firstItem(raws[i], site);
+        if (v === null || v === undefined) {
+            continue;
+        }
+        if (kind !== "color") {
+            col[i] = canonValue(kind, property, v, dialect, site);
+            continue;
+        }
+        const c = canonColor(v, dialect, site, { use: colorUse(target, property) });
+        col[i] = c?.color ?? null;
+        if (c !== null && c.alpha < 1) {
+            alpha ??= new Array<number | null>(n).fill(null);
+            alpha[i] = c.alpha;
+        }
+    }
+    return { col, alpha };
+}
+
+/**
+ * A raw value, a list read as its first item (a longer list noted).
+ * @param v - the raw value
+ * @param site - where it was read
+ * @returns the value
+ */
+function firstItem(v: unknown, site: CanonSite): unknown {
+    if (!Array.isArray(v)) {
+        return v;
+    }
+    if (v.length > 1) {
+        site.notes.add(STYLE_ISSUE.BAD_VALUE, site.target, site.property, { sample: v, element: site.element });
+    }
+    return v.length === 0 ? null : v[0];
+}
+
+/**
+ * Moves a color property's alphas into its opacity (multiplied with an opacity the file also states), or drops them
+ * with a note where the property has none.
+ * @param cx - the target being read
+ * @param out - the canonical values, changed in place
+ * @param property - the color property
+ * @param alpha - its alphas
+ */
+function moveAlpha(
+    cx: CanonContext,
+    out: Record<string, (StyleValue | null)[]>,
+    property: string,
+    alpha: readonly (number | null)[],
+): void {
+    const { target, n, notes, budget } = cx;
+    const carrier = OPACITY_OF.get(`${target}.${property}`) ?? null;
+    let opacity: (StyleValue | null)[] | null = null;
+    if (carrier !== null) {
+        out[carrier] ??= new Array<StyleValue | null>(n).fill(null);
+        opacity = out[carrier];
+    }
+    for (let i = 0; i < n; i++) {
+        const a = alpha[i];
+        if (a === null) {
+            continue;
+        }
+        const site: CanonSite = { notes, target, property, element: i, budget };
+        const stated = opacity === null ? null : (opacity[i] as number | null);
+        const merged = colorOpacity(
+            { color: out[property][i] as `#${string}`, alpha: a },
+            stated,
+            site,
+            opacity !== null,
+        );
+        if (opacity !== null) {
+            opacity[i] = merged;
+        }
+    }
 }
 
 /** The opacity property that carries a color's alpha: a node's fill and an edge's line. */
@@ -555,20 +613,8 @@ function roleStyles(
             if (col === null) {
                 continue;
             }
-            const { name, dtype } = col.meta;
-            raw[target].push(name);
-            const vals = new Array<unknown>(n);
-            for (let i = 0; i < n; i++) {
-                const v = plainCell(table.value(name, i));
-                if (role === "color") {
-                    vals[i] = channelsColor(v, dtype);
-                } else if (role === "hidden") {
-                    // a hidden column holds booleans; the neutral property says the opposite
-                    vals[i] = typeof v === "boolean" ? !v : null;
-                } else {
-                    vals[i] = v;
-                }
-            }
+            raw[target].push(col.meta.name);
+            const vals = roleValues(table, col.meta, role, n);
             for (const p of properties) {
                 columns.set(p, vals);
             }
@@ -591,6 +637,34 @@ function roleStyles(
 }
 
 /**
+ * A role column's raw values: a color as text, a hidden flag as the visibility it says the opposite of.
+ * @param table - the node or edge table
+ * @param meta - the column's name and dtype
+ * @param meta.name - the column's name
+ * @param meta.dtype - its dtype
+ * @param role - its role
+ * @param n - the element count
+ * @returns the values
+ */
+function roleValues(
+    table: GraphSnapshot["nodes"],
+    meta: { readonly name: string; readonly dtype: string },
+    role: string,
+    n: number,
+): unknown[] {
+    return Array.from({ length: n }, (_, i) => {
+        const v = plainCell(table.value(meta.name, i));
+        if (role === "color") {
+            return channelsColor(v, meta.dtype);
+        }
+        if (role === "hidden") {
+            return typeof v === "boolean" ? !v : null;
+        }
+        return v;
+    });
+}
+
+/**
  * A color cell as text: channel numbers become `rgba()` (floats 0..1, integers 0..255); text stays as it is.
  * @param v - the cell
  * @param dtype - the column's dtype
@@ -606,6 +680,7 @@ function channelsColor(v: unknown, dtype: string): unknown {
     }
     const scale = dtype === "f32" || dtype === "f64" ? 255 : 1;
     const [r, g, b] = (v as number[]).map((x) => Math.round(x * scale));
-    const a = v.length === 4 ? (v[3] as number) / (scale === 255 ? 1 : 255) : 1;
+    const alphaScale = scale === 255 ? 1 : 255;
+    const a = v.length === 4 ? (v[3] as number) / alphaScale : 1;
     return `rgba(${String(r)}, ${String(g)}, ${String(b)}, ${String(a)})`;
 }

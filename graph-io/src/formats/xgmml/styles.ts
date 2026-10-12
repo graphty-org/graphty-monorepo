@@ -193,21 +193,32 @@ export function exactFromBlock(
     const readBack = resolveCytoscapeBypasses(target, written, { notes: new StyleNotes() });
     for (const [property, native] of Object.entries(values)) {
         const back = readBack[property];
-        if (native === undefined || back === undefined) {
-            continue;
-        }
-        const w = exact(property);
-        let changed: (StyleValue | null)[] | null = null;
-        for (let i = 0; i < n; i++) {
-            if (w[i] !== null && native[i] !== w[i] && native[i] === back[i]) {
-                changed ??= [...native];
-                changed[i] = w[i];
-            }
-        }
-        if (changed !== null) {
-            values[property] = changed;
+        if (native !== undefined && back !== undefined) {
+            values[property] = withBlockValues(native, back, exact(property));
         }
     }
+}
+
+/**
+ * A property's values with the block's exact value wherever the file's value is what the writer wrote for it.
+ * @param native - the file's values
+ * @param back - what the writer wrote for the block's values, read back
+ * @param w - the block's values
+ * @returns the values, the file's own array when none changes
+ */
+function withBlockValues(
+    native: StyleColumn,
+    back: readonly (StyleValue | null)[],
+    w: readonly (StyleValue | null)[],
+): StyleColumn {
+    let changed: (StyleValue | null)[] | null = null;
+    for (let i = 0; i < native.length; i++) {
+        if (w[i] !== null && native[i] !== w[i] && native[i] === back[i]) {
+            changed ??= [...native];
+            changed[i] = w[i];
+        }
+    }
+    return changed ?? native;
 }
 
 /**
@@ -381,7 +392,7 @@ export function styledGraphGraphics(
     kept: Record<string, unknown> | null,
 ): Record<string, unknown> | null {
     const { background } = styles.rules.styles.graph;
-    const out: Record<string, unknown> = { ...(kept ?? {}) };
+    const out: Record<string, unknown> = { ...kept };
     if (background !== undefined) {
         out.NETWORK_BACKGROUND_PAINT = background.toUpperCase();
     }

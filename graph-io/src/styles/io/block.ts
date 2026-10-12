@@ -141,7 +141,11 @@ export interface WriteStyleBlockOptions {
 }
 
 /** The JSON escapes a reader of Cytoscape's convention would change, as `\u` escapes that mean the same. */
-const SAFE_ESCAPES: Readonly<Record<string, string>> = { "\\": "\\u005c", n: "\\u000a", t: "\\u0009" };
+const SAFE_ESCAPES: Readonly<Record<string, string>> = {
+    "\\": String.raw`\u005c`,
+    n: String.raw`\u000a`,
+    t: String.raw`\u0009`,
+};
 
 /**
  * Writes a graph's styles as a `graphty.styles` block. Notes are not written. The output is deterministic: the same
@@ -202,7 +206,7 @@ export function writeStyleBlock(extracted: ExtractedStyles, options: WriteStyleB
         edges: fingerprint.heldEdges ?? fingerprint.edges,
         ids: fingerprint.ids,
     };
-    return JSON.stringify(out).replace(/\\(.)/g, (escape, c: string) => SAFE_ESCAPES[c] ?? escape);
+    return JSON.stringify(out).replaceAll(/\\(.)/g, (escape, c: string) => SAFE_ESCAPES[c] ?? escape);
 }
 
 /**
@@ -343,22 +347,11 @@ function safeTree(root: unknown): boolean {
         if (v === null || typeof v !== "object") {
             continue;
         }
-        if (depth >= MAX_DEPTH) {
+        if (depth >= MAX_DEPTH || (!Array.isArray(v) && Object.keys(v).some((key) => FORBIDDEN_KEYS.has(key)))) {
             return false;
         }
-        if (Array.isArray(v)) {
-            for (const item of v) {
-                if (item !== null && typeof item === "object") {
-                    stack.push([item, depth + 1]);
-                }
-            }
-            continue;
-        }
-        for (const key of Object.keys(v)) {
-            if (FORBIDDEN_KEYS.has(key)) {
-                return false;
-            }
-            const item = (v as Record<string, unknown>)[key];
+        const items: unknown[] = Array.isArray(v) ? v : Object.values(v);
+        for (const item of items) {
             if (item !== null && typeof item === "object") {
                 stack.push([item, depth + 1]);
             }
@@ -446,36 +439,52 @@ function readBlock(top: Record<string, unknown>): StyleBlock {
         },
         fingerprint: { nodes: count(fp.nodes), edges: count(fp.edges), ids: name(fp.ids) },
     };
-    let booleans: Record<string, unknown> | null = null;
-    if (top.booleans !== undefined) {
-        booleans = isObject(top.booleans) ? top.booleans : invalid();
-    }
     const read = top.data === undefined ? block : { ...block, data: readData(top.data) };
-    const withData =
-        booleans === null
-            ? read
-            : {
-                  ...read,
-                  booleans: {
-                      node: array(booleans.node ?? [], MAX_RULES).map(name),
-                      edge: array(booleans.edge ?? [], MAX_RULES).map(name),
-                  },
-              };
+    const withData = top.booleans === undefined ? read : { ...read, booleans: readBooleans(top.booleans) };
     if (top.values === undefined) {
         return withData;
     }
-    const v = isObject(top.values) ? top.values : invalid();
-    const order =
-        top.order === undefined
-            ? undefined
-            : array(top.order, block.fingerprint.nodes).map((id) => (typeof id === "string" ? id : invalid()));
-    if (order !== undefined && order.length !== block.fingerprint.nodes) {
-        invalid();
-    }
+    const order = top.order === undefined ? undefined : readOrder(top.order, block.fingerprint.nodes);
+    const inline = readInline(top.values, block);
+    return { ...withData, ...(order === undefined ? {} : { order }), values: inline };
+}
+
+/**
+ * The boolean style columns of a block, by target.
+ * @param v - the parsed `booleans` member
+ * @returns the column keys
+ */
+function readBooleans(v: unknown): NonNullable<StyleBlock["booleans"]> {
+    const booleans = isObject(v) ? v : invalid();
+    return {
+        node: array(booleans.node ?? [], MAX_RULES).map(name),
+        edge: array(booleans.edge ?? [], MAX_RULES).map(name),
+    };
+}
+
+/**
+ * The node ids of a block, in the order its inline values list the nodes.
+ * @param v - the parsed `order` member
+ * @param nodes - the node count of its fingerprint
+ * @returns the ids
+ */
+function readOrder(v: unknown, nodes: number): string[] {
+    const order = array(v, nodes).map((id) => (typeof id === "string" ? id : invalid()));
+    return order.length === nodes ? order : invalid();
+}
+
+/**
+ * The style columns written inside a block: one value per node or edge for each column the block names.
+ * @param v - the parsed `values` member
+ * @param block - the block read so far
+ * @returns the columns, by target
+ */
+function readInline(v: unknown, block: StyleBlock): { node: Map<string, StyleColumn>; edge: Map<string, StyleColumn> } {
+    const values = isObject(v) ? v : invalid();
     const inline = { node: new Map<string, StyleColumn>(), edge: new Map<string, StyleColumn>() };
     for (const target of TARGETS) {
         const n = target === "node" ? block.fingerprint.nodes : block.fingerprint.edges;
-        const byKey = isObject(v[target]) ? v[target] : invalid();
+        const byKey = isObject(values[target]) ? values[target] : invalid();
         for (const key of block.columns[target]) {
             const col = array(Object.hasOwn(byKey, key) ? byKey[key] : invalid(), n);
             if (col.length !== n) {
@@ -487,7 +496,7 @@ function readBlock(top: Record<string, unknown>): StyleBlock {
             );
         }
     }
-    return { ...withData, ...(order === undefined ? {} : { order }), values: inline };
+    return inline;
 }
 
 /**
@@ -537,7 +546,7 @@ function columnHash(table: GraphSnapshot["nodes"], column: string, n: number): s
     for (let i = 0; i < n; i++) {
         const text = `${cellText(plainCell(table.value(column, i)))}\u0000`;
         for (let c = 0; c < text.length; c++) {
-            const code = text.charCodeAt(c);
+            const code = text.charCodeAt(c); // NOSONAR(S7758): hashes UTF-16 code units; code points would change every written hash
             h1 = Math.imul(h1 ^ code, 0x01000193);
             h2 = Math.imul(h2 ^ code, 0x01000193) ^ (h2 >>> 13);
         }
@@ -817,11 +826,10 @@ function blockColumns(
         if (!table.has(tag)) {
             return null;
         }
-        const col = new Array<StyleValue | null>(n);
-        for (let i = 0; i < n; i++) {
+        const col = Array.from({ length: n }, (_, i): StyleValue | null => {
             const v = plainCell(table.value(tag, i));
-            col[i] = isScalar(v) ? v : null;
-        }
+            return isScalar(v) ? v : null;
+        });
         out.set(key, target === "edge" ? withPairValues(snapshot, col) : col);
     }
     return out;
@@ -962,6 +970,61 @@ function opaqueColors(
 }
 
 /**
+ * A name not yet taken: the base, else the base with `#2`, `#3` and so on.
+ * @param taken - whether a name is taken
+ * @param base - the preferred name
+ * @returns the name
+ */
+function freeName(taken: (name: string) => boolean, base: string): string {
+    let name = base;
+    let k = 2;
+    while (taken(name)) {
+        name = `${base}#${String(k)}`;
+        k++;
+    }
+    return name;
+}
+
+/**
+ * Whether a property's values are text: an empty text draws what no text draws, so a format that holds no "unset"
+ * (CyCSV) reads one back as "".
+ * @param target - nodes or edges
+ * @param property - the property
+ * @returns true for text
+ */
+function textProperty(target: StyleTarget, property: string): boolean {
+    return STYLE_PROPERTIES[target].get(property) === "text";
+}
+
+/**
+ * The elements whose native value differs from what the rules give: another program edited them. Where the rules
+ * give no value, the program's own drawing of an unset property, and an empty text, are no edit.
+ * @param values - the native values
+ * @param resolved - what the rules give
+ * @param unset - what the writing program draws for the unset property, or undefined
+ * @param text - whether the property is text
+ * @returns the edited values, null where an element is not edited; null when none is
+ */
+function editedValues(
+    values: readonly (StyleValue | null)[],
+    resolved: readonly (StyleValue | null)[],
+    unset: StyleValue | undefined,
+    text: boolean,
+): (StyleValue | null)[] | null {
+    const empty = text ? "" : undefined;
+    let exceptions: (StyleValue | null)[] | null = null;
+    for (let i = 0; i < resolved.length; i++) {
+        const t = values[i] ?? null;
+        const unchanged = resolved[i] === null && (t === unset || t === empty);
+        if (t !== null && !within(t, resolved[i]) && !unchanged) {
+            exceptions ??= new Array<StyleValue | null>(resolved.length).fill(null);
+            exceptions[i] = t;
+        }
+    }
+    return exceptions;
+}
+
+/**
  * The styles a valid block describes, read against the graph it was imported into. The block's rules are the
  * file's declared rules and read the tagged per-element values. Where the file's own native values are given, they
  * are the truth: an element whose value differs from what the rules give (another program edited it) is written
@@ -1003,42 +1066,29 @@ export function blockStyles(
     for (const target of TARGETS) {
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const src = refSource(target, n, columns[target], features[target], snapshot);
-        const map = Object.create(null) as Record<string, Mapping>;
         const own = opacityInColor ? opaqueColors(truth[target] ?? {}, target, blockRules, src, n) : truth[target];
+        const unsetOf = (property: string): StyleValue | undefined =>
+            (
+                (tool === null ? null : toolDefaults(tool))?.[target]?.[property as never] as
+                    { readonly value: StyleValue } | undefined
+            )?.value;
+        const map = Object.create(null) as Record<string, Mapping>;
         // in one order whatever order the reader found the properties in, so a file written again is the same
         for (const [property, values] of Object.entries(own ?? {}).sort(([a], [b]) => (a < b ? -1 : 1))) {
-            if (values === undefined) {
-                continue;
-            }
-            const resolved = resolveRules(blockRules, target, property, src);
-            const unset = (tool === null ? null : toolDefaults(tool))?.[target]?.[property as never] as
-                { readonly value: StyleValue } | undefined;
-            // an empty text draws what no text draws: a format that holds no "unset" (CyCSV) reads one back as ""
-            const empty = STYLE_PROPERTIES[target].get(property) === "text" ? "" : undefined;
-            let exceptions: (StyleValue | null)[] | null = null;
-            for (let i = 0; i < n; i++) {
-                const t = values[i] ?? null;
-                const unchanged = resolved[i] === null && (t === unset?.value || t === empty);
-                if (t !== null && !within(t, resolved[i]) && !unchanged) {
-                    exceptions ??= new Array<StyleValue | null>(n).fill(null);
-                    exceptions[i] = t;
-                }
-            }
+            const resolved = values === undefined ? null : resolveRules(blockRules, target, property, src);
+            const exceptions =
+                values === undefined || resolved === null
+                    ? null
+                    : editedValues(values, resolved, unsetOf(property), textProperty(target, property));
             if (exceptions !== null) {
-                let key = `exceptions.${property}`;
-                for (let k = 2; columns[target].has(key); k++) {
-                    key = `exceptions.${property}#${String(k)}`;
-                }
+                const key = freeName((k) => columns[target].has(k), `exceptions.${property}`);
                 columns[target].set(key, exceptions);
                 map[property] = { kind: "passthrough", by: { style: key } };
             }
         }
         if (Object.keys(map).length > 0) {
             // the block's own rules may hold an exceptions rule already (a file graphty wrote from an edited one)
-            let id = `${target}.exceptions`;
-            for (let k = 2; rules.some((r) => r.id === id); k++) {
-                id = `${target}.exceptions#${String(k)}`;
-            }
+            const id = freeName((x) => rules.some((r) => r.id === x), `${target}.exceptions`);
             rules.push({
                 id,
                 target,

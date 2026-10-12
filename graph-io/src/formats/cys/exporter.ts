@@ -40,7 +40,7 @@ import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import type { StyleValue, StyleWriteCapabilities } from "../../styles/types.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
-import { lossOf } from "../cx/styles.js";
+import { lossOf, snapshotBlock } from "../cx/styles.js";
 import { ORIGINAL_ID_ATTRIBUTE } from "../graphml/constants.js";
 import {
     CY_NAMESPACE,
@@ -1031,16 +1031,13 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions, styles?: E
     const note: NoteFn = (code, message, column = null, count = null) => {
         notes.push(Object.freeze({ code, message, column, count }));
     };
-    for (const gen of checkCapabilities(snapshot, CYS_CAPABILITIES, common, {
+    const generic = checkCapabilities(snapshot, CYS_CAPABILITIES, common, {
         roles: SLOT_ROLES,
         roleNames: ROLE_NAMES,
         positionDtype: "f64",
-    })) {
-        // json is reported per column below; ids by the SUID rule (positive integers)
-        if (gen.code !== LOSS.JSON && gen.code !== LOSS.ID_CHARSET && gen.code !== LOSS.ID_MANGLED) {
-            notes.push(gen);
-        }
-    }
+    });
+    // json is reported per column below; ids by the SUID rule (positive integers)
+    notes.push(...generic.filter((gen) => !SESSION_OWN_CODES.has(gen.code)));
 
     const ids = planIds(snapshot, common, note);
     const { nodeSuids, edgeSuids, mangled, fatal } = ids;
@@ -1050,14 +1047,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions, styles?: E
 
     // direction
     const folding = pairFolding(snapshot);
-    if (folding.mutualCount > 0) {
-        note(
-            LOSS.MUTUAL_EXPANDED,
-            `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as two directed edges; the mutual mark is lost`,
-            null,
-            folding.mutualCount,
-        );
-    }
+    noteMutualPairs(folding.mutualCount, note);
 
     // positions
     const position = snapshot.nodes.byRole("position");
@@ -1066,35 +1056,20 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions, styles?: E
     if (position !== null) {
         positionNotes(position, z, note);
     }
-    const placed =
-        (position !== null && position.nullCount < position.length) || (z !== null && z.nullCount < z.length);
+    const placed = holdsValues(position) || holdsValues(z);
     const emitNotes = new StyleNotes();
     const styled =
         styles === undefined
             ? null
             : emitCytoscapeStyle(styles.rules, snapshot, { dialect: "desktop", notes: emitNotes });
     // written with styles, the graphics an XGMML or session import kept are the view's to say, from the styles
-    const superseded = (c: Column): boolean =>
-        styled !== null &&
-        c.dtype === "json" &&
-        c.meta.origin?.type === "graphics" &&
-        c.meta.origin.namespace === XGMML_ORIGIN_NAMESPACE;
+    const superseded = (c: Column): boolean => styled !== null && isKeptGraphics(c);
     // a styled session always has a view: the view names the style and holds the bypasses
     const viewSuid = placed || styled !== null ? next++ : null;
     const viewNodeBase = next;
 
     // node table
-    const nodeOwn: Candidate[] = mangled
-        ? [
-              {
-                  name: ORIGINAL_ID_ATTRIBUTE,
-                  source: null,
-                  javaClass: STRING,
-                  // every node carries its original, so an empty id ("") is told apart from an unset cell
-                  cell: (row) => String(snapshot.ids.idOf(row)),
-              },
-          ]
-        : [];
+    const nodeOwn = mangled ? [originalIdCandidate(snapshot)] : [];
     const nodeTable = planTable(
         "node",
         [
@@ -1106,21 +1081,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions, styles?: E
     );
 
     // edge table
-    const weights: ExplicitWeights = explicitWeights(snapshot);
-    const plainWeight = snapshot.edges.get("weight");
-    if (plainWeight !== null && plainWeight.meta.role === null && !weights.weighted) {
-        note(LOSS.WEIGHT_KEY_CLASH, `edge column "weight" reads back as the edge weight`, "weight", null);
-    }
-    const edgeOwn: Candidate[] = weights.weighted
-        ? [
-              {
-                  name: "weight",
-                  source: null,
-                  javaClass: DOUBLE,
-                  cell: (e) => (weights.isExplicit(e) ? formatDecimal(weights.value(e)) : null),
-              },
-          ]
-        : [];
+    const edgeOwn = weightCandidates(snapshot, note);
     const edgeRows = snapshot.edgeCount;
     const edgeTable = planTable(
         "edge",
@@ -1136,6 +1097,8 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions, styles?: E
     const networkTable = planTable("network", networkCandidates(snapshot, name), 1, note);
     const rootTable: TableColumn[] = [{ name: "name", javaClass: STRING, cell: () => name }];
     const inlineBlock = styles === undefined ? null : writeStyleBlock(styles.rules, { inlineColumns: true, snapshot });
+    const blockNotes =
+        inlineBlock === null ? [] : styleBlockLosses(inlineBlock, styles?.rules.styles.rules.length ?? 0, "size");
     return {
         notes,
         fatal,
@@ -1155,25 +1118,88 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions, styles?: E
         z: placed ? z : null,
         positionZ,
         styled,
-        styleNotes: [
-            ...emitNotes.list().map(lossOf),
-            ...(inlineBlock === null
-                ? []
-                : styleBlockLosses(inlineBlock, styles?.rules.styles.rules.length ?? 0, "size")),
-        ],
-        block: styles === undefined ? blockOf(snapshot) : inlineBlock,
+        styleNotes: [...emitNotes.list().map(lossOf), ...blockNotes],
+        block: styles === undefined ? snapshotBlock(snapshot) : inlineBlock,
+    };
+}
+
+/** The generic notes a session export reports itself: json per column, ids by the SUID rule (positive integers). */
+const SESSION_OWN_CODES: ReadonlySet<string> = new Set([LOSS.JSON, LOSS.ID_CHARSET, LOSS.ID_MANGLED]);
+
+/**
+ * MUTUAL_EXPANDED for the mutual pairs written as two directed edges.
+ * @param mutualCount - how many mutual pairs
+ * @param note - the recorder
+ */
+function noteMutualPairs(mutualCount: number, note: NoteFn): void {
+    if (mutualCount > 0) {
+        note(
+            LOSS.MUTUAL_EXPANDED,
+            `${mutualCount} mutual pair${plural(mutualCount)} ${agree(mutualCount, "is", "are")} written as two directed edges; the mutual mark is lost`,
+            null,
+            mutualCount,
+        );
+    }
+}
+
+/**
+ * Whether a column holds any value.
+ * @param column - the column, or null
+ * @returns false for null or an empty column
+ */
+function holdsValues(column: Column | null): boolean {
+    return column !== null && column.nullCount < column.length;
+}
+
+/**
+ * Whether a column is the graphics an XGMML or session import kept.
+ * @param c - the column
+ * @returns true for kept graphics
+ */
+function isKeptGraphics(c: Column): boolean {
+    return (
+        c.dtype === "json" && c.meta.origin?.type === "graphics" && c.meta.origin.namespace === XGMML_ORIGIN_NAMESPACE
+    );
+}
+
+/**
+ * The node column of original ids, for ids written as SUIDs.
+ * @param snapshot - the snapshot
+ * @returns the candidate
+ */
+function originalIdCandidate(snapshot: GraphSnapshot): Candidate {
+    return {
+        name: ORIGINAL_ID_ATTRIBUTE,
+        source: null,
+        javaClass: STRING,
+        // every node carries its original, so an empty id ("") is told apart from an unset cell
+        cell: (row) => String(snapshot.ids.idOf(row)),
     };
 }
 
 /**
- * The `graphty.styles` block a snapshot carries as a graph attribute, or null.
+ * The edge weight column, when the graph is weighted, and WEIGHT_KEY_CLASH for a plain column named weight.
  * @param snapshot - the snapshot
- * @returns the block's text
+ * @param note - the recorder
+ * @returns the candidates
  */
-function blockOf(snapshot: GraphSnapshot): string | null {
-    const column = snapshot.graph.get(STYLE_BLOCK_NAME);
-    const value = column !== null && column.isSet(0) ? column.value(0) : null;
-    return typeof value === "string" ? value : null;
+function weightCandidates(snapshot: GraphSnapshot, note: NoteFn): Candidate[] {
+    const weights: ExplicitWeights = explicitWeights(snapshot);
+    const plainWeight = snapshot.edges.get("weight");
+    if (plainWeight !== null && plainWeight.meta.role === null && !weights.weighted) {
+        note(LOSS.WEIGHT_KEY_CLASH, `edge column "weight" reads back as the edge weight`, "weight", null);
+    }
+    if (!weights.weighted) {
+        return [];
+    }
+    return [
+        {
+            name: "weight",
+            source: null,
+            javaClass: DOUBLE,
+            cell: (e) => (weights.isExplicit(e) ? formatDecimal(weights.value(e)) : null),
+        },
+    ];
 }
 
 /**

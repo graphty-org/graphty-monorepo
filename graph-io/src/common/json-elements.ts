@@ -518,7 +518,8 @@ function skipJsonValue(text: string, at: number): number {
         return i;
     }
     let depth = 0;
-    for (let i = at; i < text.length; i++) {
+    let i = at;
+    while (i < text.length) {
         const d = text.codePointAt(i);
         if (d === 34) {
             i = closingQuote(text, i + 1);
@@ -527,6 +528,7 @@ function skipJsonValue(text: string, at: number): number {
         } else if ((d === 125 || d === 93) && --depth === 0) {
             return i + 1;
         }
+        i++;
     }
     return text.length;
 }
@@ -752,7 +754,7 @@ function duplicateKey(text: string): string | null {
             const start = i;
             i = stringEnd(text, i + 1);
             const keys = stack.at(-1) ?? null;
-            if (keys !== null && text[skipSpace(text, i + 1)] === ":") {
+            if (keys !== null && text[skipJsonSpace(text, i + 1)] === ":") {
                 const key = JSON.parse(text.slice(start, i + 1)) as string;
                 if (keys.has(key)) {
                     return key;
@@ -775,20 +777,6 @@ function stringEnd(text: string, from: number): number {
     let i = from;
     while (i < text.length && text[i] !== '"') {
         i += text[i] === "\\" ? 2 : 1;
-    }
-    return i;
-}
-
-/**
- * The index of the first character at or after `from` that is not JSON whitespace.
- * @param text - the text
- * @param from - the first index
- * @returns the index (text.length at the end)
- */
-function skipSpace(text: string, from: number): number {
-    let i = from;
-    while (i < text.length && isSpace(text.codePointAt(i))) {
-        i++;
     }
     return i;
 }
@@ -1739,9 +1727,9 @@ export function inexactLiteral(text: string, key: string, keyDepth = 1): boolean
             const start = i;
             i = stringEnd(text, i + 1);
             // the key itself (a string at depth 1 followed by a colon), not a value spelled like it
-            const colon = skipSpace(text, i + 1);
+            const colon = skipJsonSpace(text, i + 1);
             if (depth === keyDepth && text.startsWith(quoted, start) && text[colon] === ":") {
-                return inexactNumberAt(text, skipSpace(text, colon + 1));
+                return inexactNumberAt(text, skipJsonSpace(text, colon + 1));
             }
         }
         i++;

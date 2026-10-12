@@ -39,6 +39,9 @@ import {
     SHAPES,
 } from "./syntax.js";
 
+/** What the writer takes: the format's options, the common ones and the styles. */
+type PajekWriteOptions = PajekExportOptions & CommonExportOptions & ExporterStyleOptions;
+
 /**
  * The format-specific options of the Pajek exporter.
  * @category Built-in formats
@@ -345,15 +348,7 @@ function labelNotes(snapshot: GraphSnapshot, nodePlan: readonly PlannedColumn[],
             );
         }
     }
-    if (carried === 0) {
-        return;
-    }
-    let gained = 0;
-    for (let i = 0; i < snapshot.nodeCount; i++) {
-        if (!labels?.isSet(i)) {
-            gained++;
-        }
-    }
+    const gained = carried === 0 ? 0 : unlabeled(snapshot.nodeCount, labels);
     if (gained > 0) {
         notes.push(
             note(
@@ -364,6 +359,22 @@ function labelNotes(snapshot: GraphSnapshot, nodePlan: readonly PlannedColumn[],
             ),
         );
     }
+}
+
+/**
+ * How many nodes have no label value.
+ * @param nodeCount - the node count
+ * @param labels - the label column, or null
+ * @returns the count
+ */
+function unlabeled(nodeCount: number, labels: Column | null): number {
+    let count = 0;
+    for (let i = 0; i < nodeCount; i++) {
+        if (!labels?.isSet(i)) {
+            count++;
+        }
+    }
+    return count;
 }
 
 /**
@@ -974,10 +985,7 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
      * @param options - export options
      * @returns the loss notes, empty when the export is exact
      */
-    check(
-        snapshot: GraphSnapshot,
-        options?: PajekExportOptions & CommonExportOptions & ExporterStyleOptions,
-    ): readonly LossNote[] {
+    check(snapshot: GraphSnapshot, options?: PajekWriteOptions): readonly LossNote[] {
         const styled = pajekStyledExport(snapshot, options?.styles);
         if (styled === null) {
             return checkPlain(snapshot, options);
@@ -991,10 +999,7 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
      * @param options - export options
      * @returns the chunks
      */
-    export(
-        snapshot: GraphSnapshot,
-        options?: PajekExportOptions & CommonExportOptions & ExporterStyleOptions,
-    ): AsyncIterable<Uint8Array> {
+    export(snapshot: GraphSnapshot, options?: PajekWriteOptions): AsyncIterable<Uint8Array> {
         return encodeChunks(styledParts(snapshot, options));
     },
 
@@ -1004,10 +1009,7 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
      * @param options - export options
      * @returns the document
      */
-    exportToString(
-        snapshot: GraphSnapshot,
-        options?: PajekExportOptions & CommonExportOptions & ExporterStyleOptions,
-    ): Promise<string> {
+    exportToString(snapshot: GraphSnapshot, options?: PajekWriteOptions): Promise<string> {
         return joinText(styledParts(snapshot, options));
     },
 });
@@ -1018,10 +1020,7 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
  * @param options - export options
  * @returns the parts
  */
-function styledParts(
-    snapshot: GraphSnapshot,
-    options?: PajekExportOptions & CommonExportOptions & ExporterStyleOptions,
-): Generator<string, void, undefined> {
+function styledParts(snapshot: GraphSnapshot, options?: PajekWriteOptions): Generator<string, void, undefined> {
     const styled = pajekStyledExport(snapshot, options?.styles);
     if (styled === null) {
         return writeParts(snapshot, resolvePajekOptions(snapshot, options));
@@ -1042,6 +1041,31 @@ function withOriginalIds(
 }
 
 /**
+ * The columns this exporter handles itself although the generic table says otherwise: the spells list (written as an
+ * interval token, or reported with the spells code), the shape keyword and the relation name (dict columns written as
+ * keywords), and a shape written as a parameter (its own note says the column reads back as string).
+ * @param snapshot - the snapshot
+ * @param planned - the node and edge column plans
+ * @returns the columns, as `<domain>:<name>`
+ */
+function ownedColumns(snapshot: GraphSnapshot, planned: readonly PlannedColumn[]): Set<string> {
+    const owned = new Set<string>();
+    const key = (column: Column): string => `${column.meta.domain}:${column.meta.name}`;
+    for (const { column, slot } of planned) {
+        const shapeParam = slot === "param" && column.meta.domain === "node" && column.meta.name === SHAPE_COLUMN;
+        if (slot === "shape" || slot === "relation" || shapeParam) {
+            owned.add(key(column));
+        }
+    }
+    for (const column of [...snapshot.nodes, ...snapshot.edges]) {
+        if (column.meta.role === "spells") {
+            owned.add(key(column));
+        }
+    }
+    return owned;
+}
+
+/**
  * Every loss the Pajek text of a snapshot would incur: the generic capability gaps plus the Pajek-specific ones.
  * @param snapshot - the snapshot
  * @param options - export options
@@ -1056,38 +1080,21 @@ function checkPlain(snapshot: GraphSnapshot, options?: PajekExportOptions & Comm
     const edgePlan = plan(snapshot.edges, "edge", notes);
     const ids = sanitizeIds(snapshot, CAPABILITIES.idCharset, mangle ? "mangle" : "error");
     checkIdTexts(snapshot.nodeCount, ids, mangle, notes);
-    if (nodePlan.length !== planned.length) {
-        const reserved = planned.find((p) => p.slot === "param" && p.column.meta.name === ORIGINAL_ID_KEY);
-        if (reserved !== undefined) {
-            notes.push(
-                note(
-                    PAJEK_LOSS.KEY_DROPPED,
-                    `node column "${ORIGINAL_ID_KEY}" is the parameter the exporter writes the original ids under (sanitizeIds "mangle"); it is not written`,
-                    ORIGINAL_ID_KEY,
-                    reserved.column.length - reserved.column.nullCount,
-                ),
-            );
-        }
+    const reserved =
+        nodePlan.length === planned.length
+            ? undefined
+            : planned.find((p) => p.slot === "param" && p.column.meta.name === ORIGINAL_ID_KEY);
+    if (reserved !== undefined) {
+        notes.push(
+            note(
+                PAJEK_LOSS.KEY_DROPPED,
+                `node column "${ORIGINAL_ID_KEY}" is the parameter the exporter writes the original ids under (sanitizeIds "mangle"); it is not written`,
+                ORIGINAL_ID_KEY,
+                reserved.column.length - reserved.column.nullCount,
+            ),
+        );
     }
-    // columns this exporter handles itself although the generic table says otherwise: the spells
-    // list (written as an interval token, or reported above with the spells code), the shape
-    // keyword and the relation name (dict columns written as keywords)
-    const owned = new Set<string>();
-    for (const { column, slot } of [...nodePlan, ...edgePlan]) {
-        if (slot === "shape" || slot === "relation") {
-            owned.add(`${column.meta.domain}:${column.meta.name}`);
-        } else if (slot === "param" && column.meta.domain === "node" && column.meta.name === SHAPE_COLUMN) {
-            // the shape-as-parameter note already says the column reads back as string
-            owned.add(`${column.meta.domain}:${column.meta.name}`);
-        }
-    }
-    for (const table of [snapshot.nodes, snapshot.edges]) {
-        for (const column of table) {
-            if (column.meta.role === "spells") {
-                owned.add(`${column.meta.domain}:${column.meta.name}`);
-            }
-        }
-    }
+    const owned = ownedColumns(snapshot, [...nodePlan, ...edgePlan]);
     for (const n of checkCapabilities(snapshot, CAPABILITIES, resolved, {
         roles: SLOT_ROLES,
         roleNames: ROLE_NAMES,
@@ -1103,17 +1110,15 @@ function checkPlain(snapshot: GraphSnapshot, options?: PajekExportOptions & Comm
         notes.push(n);
     }
     labelNotes(snapshot, nodePlan, notes);
-    for (const column of snapshot.edges) {
-        if (column.meta.role === "label") {
-            notes.push(
-                note(
-                    LOSS.ROLE,
-                    `edge column "${column.meta.name}" (label) is written as a plain parameter; Pajek labels vertices only and the role is lost`,
-                    column.meta.name,
-                    column.length - column.nullCount,
-                ),
-            );
-        }
+    for (const column of [...snapshot.edges].filter((c) => c.meta.role === "label")) {
+        notes.push(
+            note(
+                LOSS.ROLE,
+                `edge column "${column.meta.name}" (label) is written as a plain parameter; Pajek labels vertices only and the role is lost`,
+                column.meta.name,
+                column.length - column.nullCount,
+            ),
+        );
     }
     checkCells(nodePlan, "node", notes);
     checkCells(edgePlan, "edge", notes);

@@ -15,6 +15,7 @@ import { canonNumber } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { StyleApproximations } from "../../styles/io/approximations.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import type { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
@@ -207,25 +208,28 @@ function realizerOf(tree: unknown, names: ReadonlySet<string>): Realizer | null 
         }
         const value = tree[key];
         const r = Array.isArray(value) ? value[0] : value;
-        if (type !== "ProxyAutoBoundsNode") {
-            return { type, r };
-        }
-        const realizers = treeChild(r, "Realizers");
-        const all: Realizer[] = [];
-        if (isTree(realizers)) {
-            for (const k of Object.keys(realizers)) {
-                if (k.startsWith("@_") || k === "#text") {
-                    continue;
-                }
-                for (const item of treeChildren(realizers, localOf(k))) {
-                    all.push({ type: localOf(k), r: item });
-                }
-            }
-        }
-        const active = Number(treeAttr(realizers, "active") ?? "0");
-        return all[Number.isInteger(active) && active >= 0 && active < all.length ? active : 0] ?? null;
+        return type === "ProxyAutoBoundsNode" ? activeRealizer(r) : { type, r };
     }
     return null;
+}
+
+/**
+ * The active realizer of a `y:ProxyAutoBoundsNode`, else its first.
+ * @param proxy - the proxy element
+ * @returns the realizer, or null when it has none
+ */
+function activeRealizer(proxy: unknown): Realizer | null {
+    const realizers = treeChild(proxy, "Realizers");
+    const all: Realizer[] = [];
+    if (isTree(realizers)) {
+        for (const k of Object.keys(realizers).filter((key) => !key.startsWith("@_") && key !== "#text")) {
+            for (const item of treeChildren(realizers, localOf(k))) {
+                all.push({ type: localOf(k), r: item });
+            }
+        }
+    }
+    const active = Number(treeAttr(realizers, "active") ?? "0");
+    return all[Number.isInteger(active) && active >= 0 && active < all.length ? active : 0] ?? null;
 }
 
 /** GenericNode configurations, by a word they contain, to the shape they draw; the first match wins. */
@@ -323,6 +327,17 @@ function readLabels(labels: readonly unknown[], node: boolean, put: PutValue, at
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
     put("label", canonText(text, at("label")));
+    readLabelLook(label, node, put, at);
+}
+
+/**
+ * Reads a label's look: its color, font and, for a node label, its position.
+ * @param label - the label element
+ * @param node - whether it is a node label
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf): void {
     readColor(treeAttr(label, "textColor"), "labelColor", null, put, at);
     put("labelSize", canonNumber(treeAttr(label, "fontSize"), at("labelSize")));
     put("labelFont", canonText(treeAttr(label, "fontFamily"), at("labelFont")));
@@ -462,7 +477,8 @@ export function valueColumns(n: number): {
         values,
         put(i, property, value) {
             if (value !== null) {
-                (values[property] ??= new Array<StyleValue | null>(n).fill(null))[i] = value;
+                values[property] ??= new Array<StyleValue | null>(n).fill(null);
+                values[property][i] = value;
             }
         },
     };
@@ -656,17 +672,31 @@ export function yedColor(color: string, opacity: StyleValue | null): string {
     );
 }
 
-/**
- * A number as yEd writes it.
- * @param value - the number
- * @returns the text
- */
-function yedNumber(value: number): string {
-    return String(value);
-}
-
 /** Records a value written as the nearest one yEd has. */
 type Approximate = (property: string, value: StyleValue) => void;
+
+/**
+ * A value in yEd's spelling, recorded as approximated when yEd has no exact one.
+ * @param table - yEd's spellings
+ * @param value - the neutral value
+ * @param nearest - the spelling written when there is no exact one
+ * @param property - the property, for the approximation note
+ * @param approximate - records approximations
+ * @returns the spelling
+ */
+export function yedSpelled(
+    table: ReadonlyMap<string, string>,
+    value: string,
+    nearest: string,
+    property: string,
+    approximate: Approximate,
+): string {
+    const w = yedValue(table, value, nearest);
+    if (!w.exact) {
+        approximate(property, value);
+    }
+    return w.value;
+}
 
 /** One element's value of a property. */
 type GetValue = (property: string) => StyleValue | null;
@@ -690,7 +720,7 @@ function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree
     }
     const size = get("labelSize");
     if (typeof size === "number") {
-        label["@_fontSize"] = yedNumber(size);
+        label["@_fontSize"] = String(size);
     }
     const weight = get("labelWeight");
     const italic = get("labelItalic");
@@ -724,20 +754,7 @@ function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree
  */
 function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, approximate: Approximate): Tree {
     const node: Tree = {};
-    const geometry: Tree = {};
-    const height = get("height");
-    const width = get("width");
-    if (typeof height === "number") {
-        geometry["@_height"] = yedNumber(height);
-    }
-    if (typeof width === "number") {
-        geometry["@_width"] = yedNumber(width);
-    }
-    if (at !== null) {
-        geometry["@_x"] = at[0];
-        geometry["@_y"] = at[1];
-    }
-    node["y:Geometry"] = geometry;
+    node["y:Geometry"] = geometryTree(get, at);
     const fill = get("fill");
     const fillOpacity = get("fillOpacity");
     if (typeof fill === "string") {
@@ -745,24 +762,8 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
     } else if (fillOpacity === 0) {
         node["y:Fill"] = { "@_hasColor": "false", "@_transparent": "false" };
     }
-    const borderColor = get("borderColor");
-    const borderWidth = get("borderWidth");
-    const borderStyle = get("borderStyle");
-    if (borderColor !== null || borderWidth !== null || borderStyle !== null) {
-        const border: Tree = {};
-        if (typeof borderColor === "string") {
-            border["@_color"] = borderColor.toUpperCase();
-        }
-        if (typeof borderStyle === "string") {
-            const w = yedValue(YED_LINES, borderStyle, "line");
-            if (!w.exact) {
-                approximate("borderStyle", borderStyle);
-            }
-            border["@_type"] = w.value;
-        }
-        if (typeof borderWidth === "number") {
-            border["@_width"] = yedNumber(borderWidth);
-        }
+    const border = lineTree(get, ["borderColor", "borderWidth", "borderStyle"], approximate);
+    if (border !== null) {
         node["y:BorderStyle"] = border;
     }
     const label = labelTree(get, true, approximate);
@@ -771,13 +772,70 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
     }
     const shape = get("shape");
     if (typeof shape === "string") {
-        const w = yedValue(YED_SHAPES, shape, shape === "vee" ? "triangle" : "rectangle");
-        if (!w.exact) {
-            approximate("shape", shape);
-        }
-        node["y:Shape"] = { "@_type": w.value };
+        node["y:Shape"] = {
+            "@_type": yedSpelled(YED_SHAPES, shape, shape === "vee" ? "triangle" : "rectangle", "shape", approximate),
+        };
     }
     return { "y:ShapeNode": node };
+}
+
+/**
+ * A node's `y:Geometry`: its size, and its position from the graphics it had.
+ * @param get - the node's values
+ * @param at - the node's position, or null
+ * @returns the geometry
+ */
+function geometryTree(get: GetValue, at: readonly [string, string] | null): Tree {
+    const geometry: Tree = {};
+    const height = get("height");
+    const width = get("width");
+    if (typeof height === "number") {
+        geometry["@_height"] = String(height);
+    }
+    if (typeof width === "number") {
+        geometry["@_width"] = String(width);
+    }
+    if (at !== null) {
+        geometry["@_x"] = at[0];
+        geometry["@_y"] = at[1];
+    }
+    return geometry;
+}
+
+/**
+ * A `y:BorderStyle` or `y:LineStyle`: a color, a width and a line type. A node's border color is written opaque; an
+ * edge's color carries its opacity.
+ * @param get - the element's values
+ * @param properties - the color, width and style properties
+ * @param approximate - records approximations
+ * @param opacity - the opacity of the color, for an edge's line
+ * @returns the element, or null when none of the three is set
+ */
+function lineTree(
+    get: GetValue,
+    properties: readonly [string, string, string],
+    approximate: Approximate,
+    opacity?: StyleValue | null,
+): Tree | null {
+    const [colorKey, widthKey, styleKey] = properties;
+    const color = get(colorKey);
+    const width = get(widthKey);
+    const style = get(styleKey);
+    if (color === null && width === null && style === null) {
+        return null;
+    }
+    const line: Tree = {};
+    if (typeof color === "string") {
+        line["@_color"] = opacity === undefined ? color.toUpperCase() : yedColor(color, opacity);
+    }
+    if (typeof style === "string") {
+        const nearest = styleKey === "lineStyle" && style === "long-dash" ? "dashed" : "line";
+        line["@_type"] = yedSpelled(YED_LINES, style, nearest, styleKey, approximate);
+    }
+    if (typeof width === "number") {
+        line["@_width"] = String(width);
+    }
+    return line;
 }
 
 /**
@@ -792,40 +850,15 @@ function polyLineEdgeTree(get: GetValue, path: unknown, approximate: Approximate
     if (path !== undefined) {
         edge["y:Path"] = path;
     }
-    const color = get("color");
-    const opacity = get("opacity");
-    const width = get("width");
-    const lineStyle = get("lineStyle");
-    if (color !== null || width !== null || lineStyle !== null) {
-        const line: Tree = {};
-        if (typeof color === "string") {
-            line["@_color"] = yedColor(color, opacity);
-        }
-        if (typeof lineStyle === "string") {
-            const w = yedValue(YED_LINES, lineStyle, lineStyle === "long-dash" ? "dashed" : "line");
-            if (!w.exact) {
-                approximate("lineStyle", lineStyle);
-            }
-            line["@_type"] = w.value;
-        }
-        if (typeof width === "number") {
-            line["@_width"] = yedNumber(width);
-        }
+    const line = lineTree(get, ["color", "width", "lineStyle"], approximate, get("opacity"));
+    if (line !== null) {
         edge["y:LineStyle"] = line;
     }
     const source = get("sourceArrow");
     const target = get("targetArrow");
     if (source !== null || target !== null) {
-        const arrow = (property: string, value: StyleValue | null): string => {
-            if (typeof value !== "string") {
-                return "none";
-            }
-            const w = yedValue(YED_ARROWS, value, "standard");
-            if (!w.exact) {
-                approximate(property, value);
-            }
-            return w.value;
-        };
+        const arrow = (property: string, value: StyleValue | null): string =>
+            typeof value === "string" ? yedSpelled(YED_ARROWS, value, "standard", property, approximate) : "none";
         edge["y:Arrows"] = { "@_source": arrow("sourceArrow", source), "@_target": arrow("targetArrow", target) };
     }
     const label = labelTree(get, false, approximate);
@@ -873,43 +906,54 @@ export function exactFromBlock(
     counts: { readonly node: number; readonly edge: number },
     notes: StyleNotes,
 ): void {
-    const ignore: Approximate = () => undefined;
     for (const target of ["node", "edge"] as const) {
         const values = read[target];
         const get = getter(picture, target);
         for (let i = 0; i < counts[target]; i++) {
             const want = get(i);
-            const tree =
-                target === "node" ? shapeNodeTree(want, null, ignore) : polyLineEdgeTree(want, undefined, ignore);
-            const real = realizerOf(tree, target === "node" ? NODE_REALIZERS : EDGE_REALIZERS);
-            if (real === null) {
+            const back = writtenAndReadBack(target, want, notes);
+            if (back === null) {
                 continue;
             }
-            const back = new Map<string, StyleValue>();
-            const at: SiteOf = (property) => ({ notes, target, property });
-            const put: PutValue = (property, value) => {
-                if (value !== null) {
-                    back.set(property, value);
-                }
-            };
-            if (target === "node") {
-                readNode(real, put, at);
-            } else {
-                readEdge(real, put, at);
-            }
             for (const property of GRAPHML_STYLE_CAPABILITIES[target]) {
-                const column = values[property];
-                const native = column?.[i] ?? null;
+                const native = values[property]?.[i] ?? null;
                 const w = want(property);
                 if (native !== w && native === (back.get(property) ?? null)) {
-                    if (column === undefined) {
-                        values[property] = new Array<StyleValue | null>(counts[target]).fill(null);
-                    }
+                    values[property] ??= new Array<StyleValue | null>(counts[target]).fill(null);
                     values[property][i] = w;
                 }
             }
         }
     }
+}
+
+/**
+ * An element's values written as the writer writes them and read back as the reader reads them.
+ * @param target - nodes or edges
+ * @param want - its values
+ * @param notes - a scratch for the notes the round trip makes
+ * @returns the values read back, by property, or null when the written graphics hold no realizer
+ */
+function writtenAndReadBack(target: StyleTarget, want: GetValue, notes: StyleNotes): Map<string, StyleValue> | null {
+    const ignore: Approximate = () => undefined;
+    const tree = target === "node" ? shapeNodeTree(want, null, ignore) : polyLineEdgeTree(want, undefined, ignore);
+    const real = realizerOf(tree, target === "node" ? NODE_REALIZERS : EDGE_REALIZERS);
+    if (real === null) {
+        return null;
+    }
+    const back = new Map<string, StyleValue>();
+    const at: SiteOf = (property) => ({ notes, target, property });
+    const put: PutValue = (property, value) => {
+        if (value !== null) {
+            back.set(property, value);
+        }
+    };
+    if (target === "node") {
+        readNode(real, put, at);
+    } else {
+        readEdge(real, put, at);
+    }
+    return back;
 }
 
 /** A GraphML export with styles worked out. */
@@ -970,8 +1014,10 @@ function keptPath(table: GraphSnapshot["edges"], columns: readonly string[], e: 
  */
 function freeName(table: GraphSnapshot["nodes"], base: string): string {
     let name = base;
-    for (let k = 2; table.has(name); k++) {
+    let k = 2;
+    while (table.has(name)) {
         name = `${base}#${String(k)}`;
+        k++;
     }
     return name;
 }
@@ -992,17 +1038,11 @@ export function graphmlStyledExport(
     if (input === undefined) {
         return null;
     }
-    const approximated = new Map<string, { count: number; samples: Set<string> }>();
+    const approximated = new StyleApproximations();
     const approximateFor =
         (target: StyleTarget): Approximate =>
         (property, value) => {
-            const key = `${target}.${property}`;
-            const a = approximated.get(key) ?? { count: 0, samples: new Set<string>() };
-            a.count++;
-            if (a.samples.size < 8) {
-                a.samples.add(String(value));
-            }
-            approximated.set(key, a);
+            approximated.add(target, property, value);
         };
     const picture = (target: StyleTarget, property: string): readonly (StyleValue | null)[] =>
         input.picture(target, property as never);
@@ -1033,23 +1073,11 @@ export function graphmlStyledExport(
             origin: { format: "graphml", id: null, title: null, type: GRAPHICS_TYPES[target], namespace: "yfiles" },
         });
     }
-    for (const col of [...out.graph]) {
-        if (col.meta.origin?.namespace === "yfiles" && (col.meta.origin.type ?? "").includes("://")) {
-            out.graph.remove(col.meta.name);
-        }
+    const yfiles3 = [...out.graph].filter(
+        (col) => col.meta.origin?.namespace === "yfiles" && (col.meta.origin.type ?? "").includes("://"),
+    );
+    for (const col of yfiles3) {
+        out.graph.remove(col.meta.name);
     }
-    const notes: LossNote[] = [];
-    for (const [key, a] of approximated) {
-        const [target, property] = key.split(".") as [StyleTarget, string];
-        notes.push(
-            Object.freeze({
-                code: STYLE_ISSUE.APPROXIMATED,
-                message: `${target} ${property} is written as the nearest value yEd has for ${String(a.count)} ${target}${a.count === 1 ? "" : "s"} (${[...a.samples].join(", ")}); the graphty.styles block keeps the exact value`,
-                column: null,
-                count: a.count,
-                style: Object.freeze({ target, property: property as never }),
-            }),
-        );
-    }
-    return { snapshot: out, notes };
+    return { snapshot: out, notes: approximated.notes("yEd") };
 }

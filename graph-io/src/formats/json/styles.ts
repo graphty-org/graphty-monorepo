@@ -35,6 +35,7 @@ import {
 } from "../../styles/cyjs/emit.js";
 import { CYJS_EDGE_PROPERTIES, CYJS_NODE_PROPERTIES } from "../../styles/cyjs/mappers.js";
 import { toolDefaults } from "../../styles/defaults.js";
+import { StyleApproximations } from "../../styles/io/approximations.js";
 import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
@@ -285,10 +286,23 @@ function valuesOf(n: number): { values: Values; put: (p: string, i: number, v: S
         values,
         put: (p, i, v) => {
             if (v !== null) {
-                (values[p] ??= new Array<StyleValue | null>(n).fill(null))[i] = v;
+                setValue(values, p, n, i, v);
             }
         },
     };
+}
+
+/**
+ * Sets one element's value of a property, making the property's column on first use.
+ * @param values - the values per property
+ * @param property - the property
+ * @param n - the element count
+ * @param i - the element
+ * @param v - the value; null clears it
+ */
+function setValue(values: Values, property: string, n: number, i: number, v: StyleValue | null): void {
+    values[property] ??= new Array<StyleValue | null>(n).fill(null);
+    values[property][i] = v;
 }
 
 /**
@@ -305,21 +319,13 @@ function graphologyStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context
     for (const target of TARGETS) {
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const { values, put } = valuesOf(n);
-        const [fill, opacity] = target === "node" ? ["fill", "fillOpacity"] : ["color", "opacity"];
-        const color = cells(snapshot, target, "color");
-        const size = cells(snapshot, target, "size");
-        const label = cells(snapshot, target, "label");
-        const hidden = cells(snapshot, target, "hidden");
-        for (const [name, c] of [
-            ["color", color],
-            ["size", size],
-            ["label", label],
-            ["hidden", hidden],
-        ] as const) {
-            if (c !== null) {
-                readFrom[target].push(name);
-            }
-        }
+        const keys: SigmaKeys = {
+            color: cells(snapshot, target, "color"),
+            size: cells(snapshot, target, "size"),
+            label: cells(snapshot, target, "label"),
+            hidden: cells(snapshot, target, "hidden"),
+        };
+        readFrom[target].push(...Object.entries(keys).flatMap(([name, c]) => (c === null ? [] : [name])));
         for (let i = 0; i < n; i++) {
             const site = (property: string): CanonSite => ({
                 notes,
@@ -328,22 +334,7 @@ function graphologyStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context
                 element: i,
                 budget: context.budget,
             });
-            if (color !== null) {
-                putColor(put, fill, opacity, i, color(i), site(fill));
-            }
-            if (size !== null) {
-                const v = canonNumber(size(i), site("width"));
-                put("width", i, v);
-                if (target === "node") {
-                    put("height", i, v);
-                }
-            }
-            if (label !== null) {
-                put("label", i, canonText(label(i), site("label")));
-            }
-            if (hidden !== null && canonBoolean(hidden(i), site("visible")) === true) {
-                put("visible", i, false);
-            }
+            readSigmaRow(keys, target, i, put, site);
         }
         out[target] = values;
     }
@@ -359,6 +350,49 @@ function graphologyStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context
         notes: notes.list(),
         readFrom,
     };
+}
+
+/** The cell readers of the keys sigma.js draws, null for a key the graph does not have. */
+interface SigmaKeys {
+    readonly color: ((i: number) => unknown) | null;
+    readonly size: ((i: number) => unknown) | null;
+    readonly label: ((i: number) => unknown) | null;
+    readonly hidden: ((i: number) => unknown) | null;
+}
+
+/**
+ * Reads one element's sigma.js keys.
+ * @param keys - the cell readers
+ * @param target - nodes or edges
+ * @param i - the element
+ * @param put - the setter
+ * @param site - where a value of a property was read
+ */
+function readSigmaRow(
+    keys: SigmaKeys,
+    target: StyleTarget,
+    i: number,
+    put: (p: string, i: number, v: StyleValue | null) => void,
+    site: (property: string) => CanonSite,
+): void {
+    const { color, size, label, hidden } = keys;
+    if (color !== null) {
+        const [fill, opacity] = target === "node" ? ["fill", "fillOpacity"] : ["color", "opacity"];
+        putColor(put, fill, opacity, i, color(i), site(fill));
+    }
+    if (size !== null) {
+        const v = canonNumber(size(i), site("width"));
+        put("width", i, v);
+        if (target === "node") {
+            put("height", i, v);
+        }
+    }
+    if (label !== null) {
+        put("label", i, canonText(label(i), site("label")));
+    }
+    if (hidden !== null && canonBoolean(hidden(i), site("visible")) === true) {
+        put("visible", i, false);
+    }
 }
 
 /**
@@ -467,26 +501,45 @@ function exactFromBlock(
                     .flatMap((r) => [...Object.keys(r.set ?? {}), ...Object.keys(r.map ?? {})]),
             );
             for (const property of properties) {
-                const want = resolved(property);
-                for (let i = 0; i < n; i++) {
-                    const w = want[i];
-                    if (w !== null && !holdsExactly(target, property, w)) {
-                        (values[target][property] ??= new Array<StyleValue | null>(n).fill(null))[i] = w;
-                    }
-                }
+                const held = (w: StyleValue): boolean => holdsExactly(target, property, w);
+                takeUnheld(values[target], property, resolved(property), n, held);
             }
         }
         for (const [property, write] of Object.entries(written[target] ?? {})) {
             const want = resolved(property);
+            const column = values[target];
             for (let i = 0; i < n; i++) {
                 const w = want[i];
-                const native = values[target][property]?.[i] ?? null;
+                const native = column[property]?.[i] ?? null;
                 // a native value the writer made from the block's other values (vis.js's one size for a width) is the
                 // block's own value, none included
                 if (native !== w && native !== null && native === write((p) => resolved(p)[i], i, snapshot)) {
-                    (values[target][property] ??= new Array<StyleValue | null>(n).fill(null))[i] = w;
+                    setValue(column, property, n, i, w);
                 }
             }
+        }
+    }
+}
+
+/**
+ * Takes the block's value of a property wherever the dialect does not hold it exactly.
+ * @param values - the native values of the target, changed in place
+ * @param property - the property
+ * @param want - the block's values
+ * @param n - the element count
+ * @param held - whether the dialect holds a value exactly
+ */
+function takeUnheld(
+    values: Values,
+    property: string,
+    want: readonly (StyleValue | null)[],
+    n: number,
+    held: (w: StyleValue) => boolean,
+): void {
+    for (let i = 0; i < n; i++) {
+        const w = want[i];
+        if (w !== null && !held(w)) {
+            setValue(values, property, n, i, w);
         }
     }
 }
@@ -559,13 +612,22 @@ const VIS_EDGE_COLOR = "#848484";
 function visParseColor(text: string): { background: string; border: string } {
     let hex = text;
     const rgb = /^rgb\( *(\d{1,3}) *, *(\d{1,3}) *, *(\d{1,3}) *\)$/i.exec(text);
-    if (rgb !== null && rgb.slice(1).every((c) => Number(c) <= 255)) {
+    if (rgb?.slice(1).every((c) => Number(c) <= 255)) {
         hex = `#${((1 << 24) + (Number(rgb[1]) << 16) + (Number(rgb[2]) << 8) + Number(rgb[3])).toString(16).slice(1)}`;
     }
     if (!/^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(hex)) {
         return { background: text, border: text };
     }
     const full = hex.length === 4 ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}` : hex;
+    return { background: full, border: visBorder(full) };
+}
+
+/**
+ * vis-util's border of a background color: 20% darker and 25% more saturated, through HSV.
+ * @param full - the background, `#rrggbb`
+ * @returns the border, `#rrggbb`
+ */
+function visBorder(full: string): string {
     const n = Number.parseInt(full.slice(1), 16);
     const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => c / 255);
     const max = Math.max(r, g, b);
@@ -600,8 +662,7 @@ function visParseColor(text: string): { background: string; border: string } {
         [t, p, vv],
         [vv, p, q],
     ][i % 6].map((c) => Math.floor(c * 255));
-    const border = `#${((1 << 24) + (rgbOut[0] << 16) + (rgbOut[1] << 8) + rgbOut[2]).toString(16).slice(1)}`;
-    return { background: full, border };
+    return `#${((1 << 24) + (rgbOut[0] << 16) + (rgbOut[1] << 8) + rgbOut[2]).toString(16).slice(1)}`;
 }
 
 /** One layer of vis.js options for an element: the file's raw values, before canonicalization. */
@@ -637,45 +698,74 @@ function visLayer(o: unknown, target: StyleTarget): VisLayer {
         return {};
     }
     const layer: VisLayer = {};
-    const set = (k: keyof VisLayer, v: unknown): void => {
+    const set: SetLayer = (k, v) => {
         if (v !== undefined && v !== null) {
             layer[k] = v;
         }
     };
-    const { color, font } = o;
     if (target === "node") {
-        if (typeof color === "string") {
-            const parsed = visParseColor(color.trim());
-            set("fill", parsed.background);
-            set("border", parsed.border);
-        } else if (isJsonObject(color)) {
-            set("fill", color.background);
-            set("border", color.border);
-        }
-        set("shape", o.shape);
-        set("size", o.size);
-        set("borderWidth", o.borderWidth);
-        set("opacity", o.opacity);
+        visNodeLayer(o, set);
     } else {
-        if (typeof color === "string") {
-            set("edgeColor", color);
-            layer.inherit = false;
-        } else if (isJsonObject(color)) {
-            set("edgeColor", color.color);
-            set("edgeOpacity", color.opacity);
-            if (color.color !== undefined || color.highlight !== undefined || color.hover !== undefined) {
-                layer.inherit = false;
-            } else {
-                set("inherit", color.inherit);
-            }
-        }
-        set("width", o.width);
-        set("dashes", o.dashes);
-        set("arrows", o.arrows);
+        visEdgeLayer(o, set);
     }
     set("hidden", o.hidden);
     set("label", o.label);
     set("title", o.title);
+    visFontLayer(o.font, set);
+    return layer;
+}
+
+/** Sets a key of a vis.js layer when the value is neither undefined nor null. */
+type SetLayer = (k: keyof VisLayer, v: unknown) => void;
+
+/**
+ * The node keys of a vis.js options object: a color given as text has vis-util's darker border.
+ * @param o - the options
+ * @param set - the layer's setter
+ */
+function visNodeLayer(o: Record<string, unknown>, set: SetLayer): void {
+    const { color } = o;
+    if (typeof color === "string") {
+        const parsed = visParseColor(color.trim());
+        set("fill", parsed.background);
+        set("border", parsed.border);
+    } else if (isJsonObject(color)) {
+        set("fill", color.background);
+        set("border", color.border);
+    }
+    set("shape", o.shape);
+    set("size", o.size);
+    set("borderWidth", o.borderWidth);
+    set("opacity", o.opacity);
+}
+
+/**
+ * The edge keys of a vis.js options object: a color of its own stops the edge inheriting its node's.
+ * @param o - the options
+ * @param set - the layer's setter
+ */
+function visEdgeLayer(o: Record<string, unknown>, set: SetLayer): void {
+    const { color } = o;
+    if (typeof color === "string") {
+        set("edgeColor", color);
+        set("inherit", false);
+    } else if (isJsonObject(color)) {
+        set("edgeColor", color.color);
+        set("edgeOpacity", color.opacity);
+        const own = color.color !== undefined || color.highlight !== undefined || color.hover !== undefined;
+        set("inherit", own ? false : color.inherit);
+    }
+    set("width", o.width);
+    set("dashes", o.dashes);
+    set("arrows", o.arrows);
+}
+
+/**
+ * The font keys of a vis.js options object: an object, or text like `"14px arial red"`.
+ * @param font - the `font` value
+ * @param set - the layer's setter
+ */
+function visFontLayer(font: unknown, set: SetLayer): void {
     if (isJsonObject(font)) {
         set("fontColor", font.color);
         set("fontSize", font.size);
@@ -683,12 +773,11 @@ function visLayer(o: unknown, target: StyleTarget): VisLayer {
     } else if (typeof font === "string") {
         const m = /^\s*(\d+(?:\.\d+)?)(?:px)?\s+(\S+)(?:\s+(\S+))?/.exec(font.slice(0, 256));
         if (m !== null) {
-            layer.fontSize = Number(m[1]);
-            layer.fontFace = m[2];
+            set("fontSize", Number(m[1]));
+            set("fontFace", m[2]);
             set("fontColor", m[3]);
         }
     }
-    return layer;
 }
 
 /**
@@ -701,7 +790,7 @@ function visLayer(o: unknown, target: StyleTarget): VisLayer {
  */
 function visValues(layer: VisLayer, target: StyleTarget, site: (property: string) => CanonSite, sized: boolean): Row {
     const out: Row = {};
-    const put = (p: string, v: StyleValue | null): void => {
+    const put: PutRow = (p, v) => {
         if (v !== null) {
             out[p] = v;
         }
@@ -721,36 +810,10 @@ function visValues(layer: VisLayer, target: StyleTarget, site: (property: string
     if (target === "node") {
         color("fill", "fillOpacity", layer.fill);
         color("borderColor", null, layer.border);
-        if (layer.shape !== undefined) {
-            put("shape", canonEnum("shape", layer.shape, "vis", site("shape")));
-        }
-        if (sized && layer.size !== undefined) {
-            const v = canonNumber(layer.size, site("width"));
-            put("width", v);
-            put("height", v);
-        }
-        if (layer.borderWidth !== undefined) {
-            put("borderWidth", canonNumber(layer.borderWidth, site("borderWidth")));
-        }
-        if (layer.opacity !== undefined) {
-            put("opacity", canonOpacity(layer.opacity, "vis", site("opacity")));
-        }
+        visNodeValues(layer, sized, put, site);
     } else {
         color("color", "opacity", layer.edgeColor);
-        if (layer.edgeOpacity !== undefined) {
-            put("opacity", canonOpacity(layer.edgeOpacity, "vis", site("opacity")));
-        }
-        if (layer.width !== undefined) {
-            put("width", canonNumber(layer.width, site("width")));
-        }
-        if (layer.dashes !== undefined) {
-            put("lineStyle", layer.dashes === false || layer.dashes === "false" ? "solid" : "dashed");
-        }
-        if (layer.arrows !== undefined) {
-            const [to, from] = visArrows(layer.arrows, site);
-            put("targetArrow", to);
-            put("sourceArrow", from);
-        }
+        visEdgeValues(layer, put, site);
     }
     if (layer.hidden !== undefined && canonBoolean(layer.hidden, site("visible")) === true) {
         put("visible", false);
@@ -771,6 +834,56 @@ function visValues(layer: VisLayer, target: StyleTarget, site: (property: string
     return out;
 }
 
+/** Sets a value of a row when it is not null. */
+type PutRow = (p: string, v: StyleValue | null) => void;
+
+/**
+ * The node values of a vis.js layer besides its colors.
+ * @param layer - the layer
+ * @param sized - whether the shape takes its size from `size`
+ * @param put - the row's setter
+ * @param site - where its values are read
+ */
+function visNodeValues(layer: VisLayer, sized: boolean, put: PutRow, site: (property: string) => CanonSite): void {
+    if (layer.shape !== undefined) {
+        put("shape", canonEnum("shape", layer.shape, "vis", site("shape")));
+    }
+    if (sized && layer.size !== undefined) {
+        const v = canonNumber(layer.size, site("width"));
+        put("width", v);
+        put("height", v);
+    }
+    if (layer.borderWidth !== undefined) {
+        put("borderWidth", canonNumber(layer.borderWidth, site("borderWidth")));
+    }
+    if (layer.opacity !== undefined) {
+        put("opacity", canonOpacity(layer.opacity, "vis", site("opacity")));
+    }
+}
+
+/**
+ * The edge values of a vis.js layer besides its color.
+ * @param layer - the layer
+ * @param put - the row's setter
+ * @param site - where its values are read
+ */
+function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) => CanonSite): void {
+    if (layer.edgeOpacity !== undefined) {
+        put("opacity", canonOpacity(layer.edgeOpacity, "vis", site("opacity")));
+    }
+    if (layer.width !== undefined) {
+        put("width", canonNumber(layer.width, site("width")));
+    }
+    if (layer.dashes !== undefined) {
+        put("lineStyle", layer.dashes === false || layer.dashes === "false" ? "solid" : "dashed");
+    }
+    if (layer.arrows !== undefined) {
+        const [to, from] = visArrows(layer.arrows, site);
+        put("targetArrow", to);
+        put("sourceArrow", from);
+    }
+}
+
 /**
  * vis.js `arrows` as the target and source arrows: `"to"`, `"to, from"`, or `{ to: true | { enabled, type } }`.
  * @param arrows - the value
@@ -780,7 +893,7 @@ function visValues(layer: VisLayer, target: StyleTarget, site: (property: string
 function visArrows(arrows: unknown, site: (property: string) => CanonSite): [string | null, string | null] {
     const end = (name: string, property: string): string | null => {
         if (typeof arrows === "string") {
-            return new RegExp(`\\b${name}\\b`).test(arrows.slice(0, 256)) ? "triangle" : "none";
+            return new RegExp(String.raw`\b${name}\b`).test(arrows.slice(0, 256)) ? "triangle" : "none";
         }
         if (!isJsonObject(arrows)) {
             return null;
@@ -1123,7 +1236,8 @@ function visArrowType(arrow: string): readonly [string | null, boolean] {
  */
 const visSize = (want: (p: string) => StyleValue | null): StyleValue | null => {
     const s = want("shape");
-    return VIS_SIZED.has(typeof s === "string" ? visShape(s)[0] : "ellipse") ? oneSize(want) : null;
+    const shape = typeof s === "string" ? visShape(s)[0] : "ellipse";
+    return VIS_SIZED.has(shape) ? oneSize(want) : null;
 };
 
 const VIS_WRITTEN: Written = {
@@ -1287,29 +1401,9 @@ export function jsonStyledExport(
     if (input === undefined) {
         return null;
     }
-    const notes: LossNote[] = [];
     const native = dialect === "cytoscape" || dialect === "graphology" || dialect === "vis" ? NATIVE[dialect] : null;
-    notes.push(...notWritten(input, dialect, native));
-    if (dialect === "jgf" && !jgfKeepsNodes(snapshot)) {
-        notes.push(
-            Object.freeze({
-                code: STYLE_ISSUE.RULES_NOT_KEPT,
-                message:
-                    "the style rules are not kept: JGF changes the node ids' type or order (number ids become text, integer-like ids are read first), so the graphty.styles block no longer matches the graph read back",
-                column: null,
-                count: input.rules.styles.rules.length,
-            }),
-        );
-    }
+    const notes: LossNote[] = [...notWritten(input, dialect, native), ...rulesNotKept(snapshot, dialect, input)];
     if (dialect === "obographs") {
-        notes.push(
-            Object.freeze({
-                code: STYLE_ISSUE.RULES_NOT_KEPT,
-                message: "the style rules are not kept: OBO Graphs has no place for them",
-                column: null,
-                count: input.rules.styles.rules.length,
-            }),
-        );
         return { snapshot, topLevelBlock: null, stylesheet: null, groups: null, notes };
     }
     const out = snapshot.withColumns();
@@ -1318,21 +1412,7 @@ export function jsonStyledExport(
         [out.nodes, "node"],
         [out.edges, "edge"],
     ] as const) {
-        // the style values an earlier write left in the data, unless the styles themselves read them as data
-        for (const name of Array.from(table.names())) {
-            const styleKey =
-                name.startsWith("graphty.style.") || name.startsWith("graphty_style_") || name === CYTOSCAPE_IMPORT_KEY;
-            if (styleKey && !read[target].has(name)) {
-                table.remove(name);
-            }
-        }
-        if (dialect === "cytoscape") {
-            for (const name of ["style#element", "css#element"]) {
-                if (table.has(name)) {
-                    table.remove(name);
-                }
-            }
-        }
+        removeEarlierStyleKeys(table, dialect, read[target]);
         for (const [name, col] of input.tags[target]) {
             setColumn(table, name, col);
         }
@@ -1344,60 +1424,19 @@ export function jsonStyledExport(
         out.graph.set(STYLE_BLOCK_NAME, [input.block], { dtype: "string" });
     }
     let stylesheet: readonly CytoscapeStylesheetRule[] | null = null;
-    const approximated = new Approximations();
+    const approximated = new StyleApproximations();
     const replaced = new Replaced(out.nodes);
     if (dialect === "cytoscape") {
-        // the element data the stylesheet is checked against is the data written: without the style values of an
-        // earlier write, which are not written again
-        const features = {
-            node: input.rules.features.node.filter((f) => !("data" in f.ref) || out.nodes.has(f.ref.data)),
-            edge: input.rules.features.edge.filter((f) => !("data" in f.ref) || out.edges.has(f.ref.data)),
-        };
-        const emitted = toCytoscapeStylesheet({ ...input.rules, features });
+        const emitted = writeCytoscapeStyles(out, input);
         ({ stylesheet } = emitted);
-        for (const [table, target] of [
-            [out.nodes, "node"],
-            [out.edges, "edge"],
-        ] as const) {
-            const rows = emitted.elementData[target];
-            const keys = new Set<string>();
-            for (const row of rows) {
-                for (const key of Object.keys(row ?? {})) {
-                    keys.add(key);
-                }
-            }
-            for (const key of keys) {
-                setColumn(
-                    table,
-                    key,
-                    rows.map((row) => row?.[key] ?? null),
-                );
-            }
-            const bypass = emitted.bypass[target];
-            if (bypass.some((b) => b !== null && Object.keys(b).length > 0)) {
-                setColumn(
-                    table,
-                    "style#element",
-                    bypass.map((b) => (b === null || Object.keys(b).length === 0 ? null : b)),
-                );
-            }
-        }
         notes.push(...emitted.notes.map(lossOf));
-        for (const target of TARGETS) {
-            for (const property of CYJS_TEXT[target]) {
-                for (const v of input.picture(target, property as never)) {
-                    if (typeof v === "string" && v.trim() !== v) {
-                        approximated.add(target, property, JSON.stringify(v));
-                    }
-                }
-            }
-        }
+        addUntrimmedText(input, approximated);
     } else if (dialect === "graphology") {
         writeGraphology(out, input, approximated, replaced);
     } else if (dialect === "vis") {
         writeVis(out, input, approximated, replaced);
     }
-    notes.push(...approximated.notes(dialect), ...replaced.notes(dialect));
+    notes.push(...approximated.notes(`the ${dialect} dialect of JSON`), ...replaced.notes(dialect));
     return {
         snapshot: out,
         topLevelBlock: BLOCK_AS_ATTRIBUTE.has(dialect) ? null : input.block,
@@ -1405,6 +1444,109 @@ export function jsonStyledExport(
         groups: dialect === "vis" ? visGroups(out) : null,
         notes,
     };
+}
+
+/**
+ * W_STYLE_RULES_NOT_KEPT for a dialect that cannot give the rules back: JGF when it changes the node ids' type or
+ * order, OBO Graphs always.
+ * @param snapshot - the graph handed to the exporter
+ * @param dialect - the dialect written
+ * @param input - the styles
+ * @returns the notes
+ */
+function rulesNotKept(snapshot: GraphSnapshot, dialect: JsonDialect, input: ExporterStyleInput): LossNote[] {
+    let message: string | null = null;
+    if (dialect === "jgf" && !jgfKeepsNodes(snapshot)) {
+        message =
+            "the style rules are not kept: JGF changes the node ids' type or order (number ids become text, integer-like ids are read first), so the graphty.styles block no longer matches the graph read back";
+    } else if (dialect === "obographs") {
+        message = "the style rules are not kept: OBO Graphs has no place for them";
+    }
+    if (message === null) {
+        return [];
+    }
+    return [
+        Object.freeze({
+            code: STYLE_ISSUE.RULES_NOT_KEPT,
+            message,
+            column: null,
+            count: input.rules.styles.rules.length,
+        }),
+    ];
+}
+
+/**
+ * Removes the style values an earlier write left in the data, unless the styles themselves read them as data, and,
+ * for Cytoscape.js, the element style an import kept.
+ * @param table - the node or edge table, changed in place
+ * @param dialect - the dialect written
+ * @param read - the data columns the target's rules read
+ */
+function removeEarlierStyleKeys(table: Table, dialect: JsonDialect, read: ReadonlySet<string>): void {
+    for (const name of table.names()) {
+        const styleKey =
+            name.startsWith("graphty.style.") || name.startsWith("graphty_style_") || name === CYTOSCAPE_IMPORT_KEY;
+        if (styleKey && !read.has(name)) {
+            table.remove(name);
+        }
+    }
+    if (dialect === "cytoscape") {
+        for (const name of ["style#element", "css#element"].filter((c) => table.has(c))) {
+            table.remove(name);
+        }
+    }
+}
+
+/**
+ * Writes the Cytoscape.js element data and bypasses the stylesheet reads.
+ * @param out - the graph written, changed in place
+ * @param input - the styles
+ * @returns what toCytoscapeStylesheet() emitted
+ */
+function writeCytoscapeStyles(out: GraphSnapshot, input: ExporterStyleInput): ReturnType<typeof toCytoscapeStylesheet> {
+    // the element data the stylesheet is checked against is the data written: without the style values of an
+    // earlier write, which are not written again
+    const features = {
+        node: input.rules.features.node.filter((f) => !("data" in f.ref) || out.nodes.has(f.ref.data)),
+        edge: input.rules.features.edge.filter((f) => !("data" in f.ref) || out.edges.has(f.ref.data)),
+    };
+    const emitted = toCytoscapeStylesheet({ ...input.rules, features });
+    for (const [table, target] of [
+        [out.nodes, "node"],
+        [out.edges, "edge"],
+    ] as const) {
+        const rows = emitted.elementData[target];
+        const keys = new Set(rows.flatMap((row) => Object.keys(row ?? {})));
+        for (const key of keys) {
+            setColumn(
+                table,
+                key,
+                rows.map((row) => row?.[key] ?? null),
+            );
+        }
+        const bypass = emitted.bypass[target].map((b) => (b === null || Object.keys(b).length === 0 ? null : b));
+        if (bypass.some((b) => b !== null)) {
+            setColumn(table, "style#element", bypass);
+        }
+    }
+    return emitted;
+}
+
+/**
+ * Counts as approximated the text values with leading or trailing white space, which Cytoscape.js trims.
+ * @param input - the styles
+ * @param approximated - where approximations are counted
+ */
+function addUntrimmedText(input: ExporterStyleInput, approximated: StyleApproximations): void {
+    for (const target of TARGETS) {
+        for (const property of CYJS_TEXT[target]) {
+            for (const v of input.picture(target, property as never)) {
+                if (typeof v === "string" && v.trim() !== v) {
+                    approximated.add(target, property, JSON.stringify(v));
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -1435,35 +1577,44 @@ function visGroups(snapshot: GraphSnapshot): Record<string, Record<string, never
 function dataColumnsRead(rules: readonly StyleRule[]): Record<StyleTarget, Set<string>> {
     const out: Record<StyleTarget, Set<string>> = { node: new Set(), edge: new Set() };
     for (const rule of rules) {
-        const add = (ref: ColumnRef): void => {
+        const refs = [
+            ...predicateRefs(rule.where),
+            ...Object.values(rule.map ?? {}).flatMap((m) => (m === undefined ? [] : [m.by])),
+        ];
+        for (const ref of refs) {
             if ("data" in ref) {
                 out[rule.target].add(ref.data);
-            }
-        };
-        const stack: Predicate[] = [rule.where];
-        while (stack.length > 0) {
-            const p = stack.pop() as Predicate;
-            if ("has" in p) {
-                add(p.has);
-            } else if ("eq" in p) {
-                add(p.eq[0]);
-            } else if ("in" in p) {
-                add(p.in[0]);
-            } else if ("and" in p) {
-                stack.push(...p.and);
-            } else if ("or" in p) {
-                stack.push(...p.or);
-            } else if ("not" in p) {
-                stack.push(p.not);
-            }
-        }
-        for (const m of Object.values(rule.map ?? {})) {
-            if (m !== undefined) {
-                add(m.by);
             }
         }
     }
     return out;
+}
+
+/**
+ * The columns a predicate tests.
+ * @param where - the predicate
+ * @returns the column references
+ */
+function predicateRefs(where: Predicate): ColumnRef[] {
+    const refs: ColumnRef[] = [];
+    const stack: Predicate[] = [where];
+    while (stack.length > 0) {
+        const p = stack.pop() as Predicate;
+        if ("has" in p) {
+            refs.push(p.has);
+        } else if ("eq" in p) {
+            refs.push(p.eq[0]);
+        } else if ("in" in p) {
+            refs.push(p.in[0]);
+        } else if ("and" in p) {
+            stack.push(...p.and);
+        } else if ("or" in p) {
+            stack.push(...p.or);
+        } else if ("not" in p) {
+            stack.push(p.not);
+        }
+    }
+    return refs;
 }
 
 /**
@@ -1552,45 +1703,6 @@ function lossOf(n: StyleNote): LossNote {
                 ? undefined
                 : Object.freeze({ target: n.params.target, property: n.params.property as never }),
     });
-}
-
-/** Counts the values written as the nearest value a dialect holds, per target and property. */
-class Approximations {
-    readonly #seen = new Map<string, { count: number; samples: Set<string> }>();
-
-    /**
-     * Records one value written approximately.
-     * @param target - nodes or edges
-     * @param property - the property
-     * @param value - the exact value
-     */
-    add(target: StyleTarget, property: string, value: unknown): void {
-        const key = `${target}.${property}`;
-        const a = this.#seen.get(key) ?? { count: 0, samples: new Set<string>() };
-        a.count++;
-        if (a.samples.size < 8) {
-            a.samples.add(String(value));
-        }
-        this.#seen.set(key, a);
-    }
-
-    /**
-     * The W_STYLE_APPROXIMATED notes.
-     * @param dialect - the dialect, for the message
-     * @returns the notes
-     */
-    notes(dialect: JsonDialect): LossNote[] {
-        return Array.from(this.#seen, ([key, a]) => {
-            const [target, property] = key.split(".") as [StyleTarget, string];
-            return Object.freeze({
-                code: STYLE_ISSUE.APPROXIMATED,
-                message: `${target} ${property} is written as the nearest value the ${dialect} dialect of JSON has for ${String(a.count)} ${target}${a.count === 1 ? "" : "s"} (${[...a.samples].join(", ")}); the graphty.styles block keeps the exact value`,
-                column: null,
-                count: a.count,
-                style: Object.freeze({ target, property: property as never }),
-            });
-        });
-    }
 }
 
 /** An editable attribute table of `snapshot.withColumns()`. */
@@ -1726,7 +1838,7 @@ function cssColor(color: StyleValue | null, alpha: StyleValue | null): string | 
 function nodeSizes(
     width: readonly (StyleValue | null)[],
     height: readonly (StyleValue | null)[],
-    approximated: Approximations,
+    approximated: StyleApproximations,
 ): (number | null)[] {
     return width.map((_v, i) => {
         const w = width[i];
@@ -1752,7 +1864,7 @@ function nodeSizes(
 function writeGraphology(
     out: ReturnType<GraphSnapshot["withColumns"]>,
     input: ExporterStyleInput,
-    approximated: Approximations,
+    approximated: StyleApproximations,
     replaced: Replaced,
 ): void {
     const p = (target: StyleTarget, property: string): readonly (StyleValue | null)[] =>
@@ -1796,7 +1908,7 @@ function writeGraphology(
 function writeVis(
     out: ReturnType<GraphSnapshot["withColumns"]>,
     input: ExporterStyleInput,
-    approximated: Approximations,
+    approximated: StyleApproximations,
     replaced: Replaced,
 ): void {
     const p = (target: StyleTarget, property: string): readonly (StyleValue | null)[] =>

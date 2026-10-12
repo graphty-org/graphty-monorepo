@@ -55,6 +55,9 @@ import {
     ORIGINAL_ID_KEY,
 } from "./syntax.js";
 
+/** What the writer takes: the format's options, the common ones and the styles. */
+type GmlWriteOptions = GmlExportOptions & CommonExportOptions & ExporterStyleOptions;
+
 /**
  * The format-specific options of the GML exporter.
  * @category Built-in formats
@@ -1442,10 +1445,7 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
      * @param options - the options
      * @returns the notes, empty when the export is exact
      */
-    check(
-        snapshot: GraphSnapshot,
-        options?: GmlExportOptions & CommonExportOptions & ExporterStyleOptions,
-    ): readonly LossNote[] {
+    check(snapshot: GraphSnapshot, options?: GmlWriteOptions): readonly LossNote[] {
         const styled = gmlStyledExport(snapshot, options?.styles);
         if (styled === null) {
             return check(snapshot, options);
@@ -1459,10 +1459,7 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
      * @param options - the options
      * @returns the chunks
      */
-    export(
-        snapshot: GraphSnapshot,
-        options?: GmlExportOptions & CommonExportOptions & ExporterStyleOptions,
-    ): AsyncIterable<Uint8Array> {
+    export(snapshot: GraphSnapshot, options?: GmlWriteOptions): AsyncIterable<Uint8Array> {
         return encodeChunks(lazyParts(snapshot, options));
     },
     /**
@@ -1471,10 +1468,7 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
      * @param options - the options
      * @returns the document
      */
-    exportToString(
-        snapshot: GraphSnapshot,
-        options?: GmlExportOptions & CommonExportOptions & ExporterStyleOptions,
-    ): Promise<string> {
+    exportToString(snapshot: GraphSnapshot, options?: GmlWriteOptions): Promise<string> {
         return joinText(lazyParts(snapshot, options));
     },
 });
@@ -1486,9 +1480,6 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
  * @yields the parts
  * @returns nothing
  */
-function* lazyParts(
-    snapshot: GraphSnapshot,
-    options: (GmlExportOptions & CommonExportOptions & ExporterStyleOptions) | undefined,
-): Generator<string, void, undefined> {
+function* lazyParts(snapshot: GraphSnapshot, options: GmlWriteOptions | undefined): Generator<string, void, undefined> {
     yield* gmlParts(contextOf(gmlStyledExport(snapshot, options?.styles)?.snapshot ?? snapshot, options));
 }

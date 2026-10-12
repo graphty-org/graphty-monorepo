@@ -37,6 +37,7 @@ import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/can
 import { type DotEscapeNames, dotLabelText, htmlLabelText, recordLabelText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { toolDefaults } from "../../styles/defaults.js";
+import { StyleApproximations } from "../../styles/io/approximations.js";
 import {
     blockStyles,
     parseStyleBlock,
@@ -59,13 +60,14 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
+import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE } from "./names.js";
 
 /**
  * The graph attribute holding the `graphty.styles` block of a DOT file graphty wrote.
  * @category Built-in formats
  */
-export const DOT_STYLE_BLOCK_ATTRIBUTE = STYLE_BLOCK_NAME;
+export { STYLE_BLOCK_NAME as DOT_STYLE_BLOCK_ATTRIBUTE } from "../../styles/io/block.js";
 
 /**
  * What the DOT writer holds natively: Graphviz's node, cluster and edge attributes, and the graph's `bgcolor`. The
@@ -217,7 +219,7 @@ export function isHtmlString(text: string): boolean {
     }
     let depth = 0;
     for (let i = 0; i < text.length; i++) {
-        const c = text.charCodeAt(i);
+        const c = text.codePointAt(i);
         if (c === 0x3c) {
             depth++;
         } else if (c === 0x3e) {
@@ -437,6 +439,23 @@ function readCommon(
     }
 }
 
+/** What the parts of readNode() read: the node's attributes and what is worked out from them once. */
+interface NodeRead {
+    readonly get: Attr;
+    readonly cx: NodeContext;
+    readonly put: Put;
+    readonly at: At;
+    readonly tokens: readonly string[];
+    /** The shape as written, or null. */
+    readonly shapeRaw: string | null;
+    /** The shape, lowercase ("" when none is written). */
+    readonly shape: string;
+    /** Whether it is a point (never a cluster). */
+    readonly point: boolean;
+    readonly scheme: string | null;
+    readonly color: string | null;
+}
+
 /**
  * Reads one node, or one cluster's container, the way Graphviz draws it.
  * @param get - its attributes
@@ -448,49 +467,88 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     const tokens = styleTokens(get("style"), at("visible"));
     const shapeRaw = nonEmpty(get("shape"));
     const shape = (shapeRaw ?? "").toLowerCase();
-    const point = !cx.cluster && shape === "point";
-    const scheme = get("colorscheme");
-    const color = nonEmpty(get("color"));
-    const fillcolor = nonEmpty(get("fillcolor"));
+    const n: NodeRead = {
+        get,
+        cx,
+        put,
+        at,
+        tokens,
+        shapeRaw,
+        shape,
+        point: !cx.cluster && shape === "point",
+        scheme: get("colorscheme"),
+        color: nonEmpty(get("color")),
+    };
     // in a node's label \E stands for nothing (measured with dot 2.43); \T and \H stand for their letters
     const names: DotEscapeNames = cx.cluster ? { graph: cx.name } : { node: cx.name, graph: cx.graph, edge: "" };
-    readCommon(get, tokens, scheme, names, put, at);
-    // fill
+    readCommon(get, tokens, n.scheme, names, put, at);
     if (cx.cluster) {
-        const filled = tokens.includes("filled") || tokens.includes("radial") || tokens.includes("striped");
-        const bg = nonEmpty(get("bgcolor"));
-        const raw = filled ? (fillcolor ?? color ?? bg ?? "lightgrey") : bg;
-        readColor(raw, scheme, "fill", "fill", "fillOpacity", put, at);
+        readClusterFill(n);
     } else {
-        const filled =
-            point ||
-            tokens.some(
-                (t) =>
-                    t === "filled" ||
-                    t === "radial" ||
-                    (t === "striped" && BOX_LIKE.has(shape)) ||
-                    (t === "wedged" && ELLIPSE_LIKE.has(shape)),
-            );
-        if (filled) {
-            readColor(
-                fillcolor ?? color ?? (point ? "black" : "lightgrey"),
-                scheme,
-                "fill",
-                "fill",
-                "fillOpacity",
-                put,
-                at,
-            );
-        } else if (fillcolor !== null) {
-            noteAt(at("fill"), STYLE_ISSUE.UNFILLED, fillcolor.slice(0, MAX_STYLE_VALUE_LENGTH));
-        }
+        readNodeFill(n);
     }
-    // outline
-    if (!cx.cluster && NO_OUTLINE.has(shape)) {
+    readNodeOutline(n);
+    readNodeShape(n);
+    // label: a node shows its name unless it has a label (the tool-default rule); a cluster and a point show none
+    const label = n.point ? null : get(LABEL_ATTRIBUTE);
+    if (label !== null) {
+        put("label", labelText(label, names, cx.html, RECORD.has(shape), at("label")));
+    }
+    if (!cx.cluster) {
+        readSize(get, shape, n.point, label ?? (n.point ? null : cx.name), put, at);
+    }
+    if (Number(get("peripheries")) > 1 || nonEmpty(get("xlabel")) !== null) {
+        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, nonEmpty(get("xlabel")) === null ? "peripheries" : "xlabel");
+    }
+}
+
+/**
+ * Reads a cluster's fill: its fill color when filled, else its background.
+ * @param n - the cluster
+ */
+function readClusterFill(n: NodeRead): void {
+    const { get, tokens } = n;
+    const filled = tokens.includes("filled") || tokens.includes("radial") || tokens.includes("striped");
+    const bg = nonEmpty(get("bgcolor"));
+    const raw = filled ? (nonEmpty(get("fillcolor")) ?? n.color ?? bg ?? "lightgrey") : bg;
+    readColor(raw, n.scheme, "fill", "fill", "fillOpacity", n.put, n.at);
+}
+
+/**
+ * Reads a node's fill: a point is always filled; a striped fill fills a box and a wedged one an ellipse only.
+ * @param n - the node
+ */
+function readNodeFill(n: NodeRead): void {
+    const { shape, point } = n;
+    const fillcolor = nonEmpty(n.get("fillcolor"));
+    const filled =
+        point ||
+        n.tokens.some(
+            (t) =>
+                t === "filled" ||
+                t === "radial" ||
+                (t === "striped" && BOX_LIKE.has(shape)) ||
+                (t === "wedged" && ELLIPSE_LIKE.has(shape)),
+        );
+    if (filled) {
+        const raw = fillcolor ?? n.color ?? (point ? "black" : "lightgrey");
+        readColor(raw, n.scheme, "fill", "fill", "fillOpacity", n.put, n.at);
+    } else if (fillcolor !== null) {
+        noteAt(n.at("fill"), STYLE_ISSUE.UNFILLED, fillcolor.slice(0, MAX_STYLE_VALUE_LENGTH));
+    }
+}
+
+/**
+ * Reads a node's or cluster's outline: its color, width and dashes.
+ * @param n - the node
+ */
+function readNodeOutline(n: NodeRead): void {
+    const { get, cx, put, at, tokens } = n;
+    if (!cx.cluster && NO_OUTLINE.has(n.shape)) {
         put("borderWidth", 0);
     } else {
-        const outline = cx.cluster ? (nonEmpty(get("pencolor")) ?? color) : color;
-        const alpha = readColor(outline, scheme, "line", "borderColor", null, put, at);
+        const outline = cx.cluster ? (nonEmpty(get("pencolor")) ?? n.color) : n.color;
+        const alpha = readColor(outline, n.scheme, "line", "borderColor", null, put, at);
         const width = nonEmpty(get("penwidth")) ?? setLineWidth(tokens);
         if (alpha === 0) {
             put("borderWidth", 0);
@@ -505,26 +563,23 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     } else if (tokens.includes("dotted")) {
         put("borderStyle", "dotted");
     }
-    // shape
-    const rounded = tokens.includes("rounded");
-    if (cx.cluster) {
-        put("shape", rounded ? "round-rectangle" : "rectangle");
-    } else if (shapeRaw !== null) {
-        put(
+}
+
+/**
+ * Reads a node's or cluster's shape: a cluster is a rectangle, rounded by the `rounded` style as a box is.
+ * @param n - the node
+ */
+function readNodeShape(n: NodeRead): void {
+    const rounded = n.tokens.includes("rounded");
+    if (n.cx.cluster) {
+        n.put("shape", rounded ? "round-rectangle" : "rectangle");
+    } else if (n.shapeRaw !== null) {
+        n.put(
             "shape",
-            rounded && BOX_LIKE.has(shape) ? "round-rectangle" : canonEnum("shape", shapeRaw, "graphviz", at("shape")),
+            rounded && BOX_LIKE.has(n.shape)
+                ? "round-rectangle"
+                : canonEnum("shape", n.shapeRaw, "graphviz", n.at("shape")),
         );
-    }
-    // label: a node shows its name unless it has a label (the tool-default rule); a cluster and a point show none
-    const label = point ? null : get(LABEL_ATTRIBUTE);
-    if (label !== null) {
-        put("label", labelText(label, names, cx.html, RECORD.has(shape), at("label")));
-    }
-    if (!cx.cluster) {
-        readSize(get, shape, point, label ?? (point ? null : cx.name), put, at);
-    }
-    if (Number(get("peripheries")) > 1 || nonEmpty(get("xlabel")) !== null) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, nonEmpty(get("xlabel")) === null ? "peripheries" : "xlabel");
     }
 }
 
@@ -600,6 +655,31 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     const scheme = get("colorscheme");
     readCommon(get, tokens, scheme, cx.names, put, at);
     readColor(nonEmpty(get("color")), scheme, "edge", "color", "opacity", put, at);
+    readEdgeLine(get, tokens, put, at);
+    readEdgeArrows(get, cx, put, at);
+    for (const [attribute, property] of [
+        [LABEL_ATTRIBUTE, "label"],
+        ["headlabel", "targetLabel"],
+        ["taillabel", "sourceLabel"],
+    ] as const) {
+        const raw = get(attribute);
+        if (raw !== null) {
+            put(property, labelText(raw, cx.names, cx.html, false, at(property)));
+        }
+    }
+    if (nonEmpty(get("xlabel")) !== null) {
+        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
+    }
+}
+
+/**
+ * Reads an edge's line: its width and dashes.
+ * @param get - its attributes
+ * @param tokens - its style tokens
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readEdgeLine(get: Attr, tokens: readonly string[], put: Put, at: At): void {
     const width = nonEmpty(get("penwidth")) ?? setLineWidth(tokens);
     if (width !== null) {
         put("width", penWidth(width, get("penwidth") !== null, at("width")));
@@ -615,6 +695,16 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     } else if (tokens.includes("tapered")) {
         put("lineStyle", "other:tapered");
     }
+}
+
+/**
+ * Reads an edge's arrows and their size.
+ * @param get - its attributes
+ * @param cx - its names and direction
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readEdgeArrows(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     const dirRaw = nonEmpty(get("dir"));
     const head = nonEmpty(get("arrowhead"));
     const tail = nonEmpty(get("arrowtail"));
@@ -629,19 +719,6 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     const size = get("arrowsize");
     if (size !== null) {
         put("arrowSize", canonNumber(size, at("arrowSize")));
-    }
-    for (const [attribute, property] of [
-        [LABEL_ATTRIBUTE, "label"],
-        ["headlabel", "targetLabel"],
-        ["taillabel", "sourceLabel"],
-    ] as const) {
-        const raw = get(attribute);
-        if (raw !== null) {
-            put(property, labelText(raw, cx.names, cx.html, false, at(property)));
-        }
-    }
-    if (nonEmpty(get("xlabel")) !== null) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
     }
 }
 
@@ -662,19 +739,27 @@ function htmlStrings(snapshot: GraphSnapshot): Set<string> {
         [snapshot.nodes, snapshot.nodeCount],
         [snapshot.edges, snapshot.edgeCount],
     ] as const) {
-        for (const name of [LABEL_ATTRIBUTE, "headlabel", "taillabel"]) {
-            if (!table.has(name)) {
-                continue;
-            }
-            for (let i = 0; i < n; i++) {
-                const v = cellText(table, name, i);
-                if (v !== null && isHtmlString(v)) {
-                    out.add(v);
-                }
-            }
+        for (const name of [LABEL_ATTRIBUTE, "headlabel", "taillabel"].filter((c) => table.has(c))) {
+            addHtmlCells(table, name, n, out);
         }
     }
     return out;
+}
+
+/**
+ * Adds the HTML strings of one label column.
+ * @param table - the node or edge table
+ * @param name - the column
+ * @param n - its rows
+ * @param out - receives the strings
+ */
+function addHtmlCells(table: GraphSnapshot["nodes"], name: string, n: number, out: Set<string>): void {
+    for (let i = 0; i < n; i++) {
+        const v = cellText(table, name, i);
+        if (v !== null && isHtmlString(v)) {
+            out.add(v);
+        }
+    }
 }
 
 /**
@@ -754,30 +839,7 @@ function defaultLabel(cx: NodeContext, shape: string, notes: StyleNotes): string
     const at: CanonSite = { notes, target: "node", property: "label" };
     return isHtmlString(cx.name)
         ? htmlLabelText(cx.name, at)
-        : dotLabelText("\\N", { node: cx.name, graph: cx.graph }, at);
-}
-
-/** Every element's values, by property. */
-type ValueColumns = Record<string, (StyleValue | null)[]>;
-
-/**
- * A collector of values per property.
- * @param n - the element count
- * @returns the values and a setter
- */
-function valueColumns(n: number): {
-    readonly values: ValueColumns;
-    put(i: number, property: string, value: StyleValue | null): void;
-} {
-    const values = Object.create(null) as ValueColumns;
-    return {
-        values,
-        put(i, property, value) {
-            if (value !== null) {
-                (values[property] ??= new Array<StyleValue | null>(n).fill(null))[i] = value;
-            }
-        },
-    };
+        : dotLabelText(String.raw`\N`, { node: cx.name, graph: cx.graph }, at);
 }
 
 /**
@@ -1042,7 +1104,7 @@ function gvColor(color: string, opacity: StyleValue | null): string {
  * @returns the label
  */
 function escapeLabel(text: string): string {
-    return text.replaceAll("\\", "\\\\").replaceAll("\n", "\\n");
+    return text.replaceAll("\\", String.raw`\\`).replaceAll("\n", String.raw`\n`);
 }
 
 /**
@@ -1112,6 +1174,40 @@ function nodeAttributes(get: Get, cx: NodeContext, approximate: Approximate, not
     const out = new Map<string, Written>();
     const tokens: string[] = [];
     writeCommon(get, out, tokens);
+    writeNodeOutline(get, cx, approximate, out, tokens);
+    const gvShape = writeNodeShape(get, cx, approximate, out, tokens);
+    if (!cx.cluster) {
+        writeNodeSize(get, out);
+    }
+    // the label is written where it differs from what Graphviz shows without one (the name), "" for none
+    const label = get("label");
+    const shown = defaultLabel(cx, gvShape, notes);
+    if (typeof label === "string" && label !== shown) {
+        out.set(LABEL_ATTRIBUTE, escapeLabel(label));
+    } else if (label === null && shown !== null) {
+        out.set(LABEL_ATTRIBUTE, "");
+    }
+    if (tokens.length > 0) {
+        out.set("style", tokens.join(","));
+    }
+    return withoutDefaults(out, "node");
+}
+
+/**
+ * A node's or cluster's fill and outline attributes.
+ * @param get - the node's values
+ * @param cx - the node's name and kind
+ * @param approximate - records approximations
+ * @param out - the attributes, added to
+ * @param tokens - the style tokens, added to
+ */
+function writeNodeOutline(
+    get: Get,
+    cx: NodeContext,
+    approximate: Approximate,
+    out: Map<string, Written>,
+    tokens: string[],
+): void {
     const fill = get("fill");
     const fillOpacity = get("fillOpacity");
     if (typeof fill === "string" && fillOpacity !== 0) {
@@ -1128,56 +1224,62 @@ function nodeAttributes(get: Get, cx: NodeContext, approximate: Approximate, not
     }
     const borderStyle = get("borderStyle");
     if (typeof borderStyle === "string" && borderStyle !== "solid") {
-        tokens.push(
-            spelled(
-                STROKES,
-                borderStyle,
-                borderStyle.includes("dash") ? "dashed" : "solid",
-                "borderStyle",
-                approximate,
-            ),
-        );
+        const nearest = borderStyle.includes("dash") ? "dashed" : "solid";
+        tokens.push(spelled(STROKES, borderStyle, nearest, "borderStyle", approximate));
     }
+}
+
+/**
+ * A node's shape attribute; a cluster is always a rectangle, rounded or not, and any other shape is approximated.
+ * @param get - the node's values
+ * @param cx - the node's name and kind
+ * @param approximate - records approximations
+ * @param out - the attributes, added to
+ * @param tokens - the style tokens, added to
+ * @returns the Graphviz shape written, "" for none
+ */
+function writeNodeShape(
+    get: Get,
+    cx: NodeContext,
+    approximate: Approximate,
+    out: Map<string, Written>,
+    tokens: string[],
+): string {
     const shape = get("shape");
-    let gvShape = "";
-    if (typeof shape === "string") {
-        if (shape === "round-rectangle") {
-            tokens.push("rounded");
-        }
-        if (cx.cluster) {
-            if (shape !== "rectangle" && shape !== "round-rectangle") {
-                approximate("shape", shape);
-            }
-        } else {
-            gvShape = spelled(SHAPES, shape, shape === "vee" ? "invtriangle" : "box", "shape", approximate);
-            out.set("shape", gvShape);
-        }
+    if (typeof shape !== "string") {
+        return "";
     }
-    if (!cx.cluster) {
-        const width = get("width");
-        const height = get("height");
-        if (typeof width === "number" || typeof height === "number") {
-            out.set("fixedsize", "true");
-        }
-        if (typeof width === "number") {
-            out.set("width", inchesOf(width));
-        }
-        if (typeof height === "number") {
-            out.set("height", inchesOf(height));
-        }
+    if (shape === "round-rectangle") {
+        tokens.push("rounded");
     }
-    // the label is written where it differs from what Graphviz shows without one (the name), "" for none
-    const label = get("label");
-    const shown = defaultLabel(cx, gvShape, notes);
-    if (typeof label === "string" && label !== shown) {
-        out.set(LABEL_ATTRIBUTE, escapeLabel(label));
-    } else if (label === null && shown !== null) {
-        out.set(LABEL_ATTRIBUTE, "");
+    if (cx.cluster) {
+        if (shape !== "rectangle" && shape !== "round-rectangle") {
+            approximate("shape", shape);
+        }
+        return "";
     }
-    if (tokens.length > 0) {
-        out.set("style", tokens.join(","));
+    const gvShape = spelled(SHAPES, shape, shape === "vee" ? "invtriangle" : "box", "shape", approximate);
+    out.set("shape", gvShape);
+    return gvShape;
+}
+
+/**
+ * A node's width and height, fixed so Graphviz does not grow them to fit the label.
+ * @param get - the node's values
+ * @param out - the attributes, added to
+ */
+function writeNodeSize(get: Get, out: Map<string, Written>): void {
+    const width = get("width");
+    const height = get("height");
+    if (typeof width === "number" || typeof height === "number") {
+        out.set("fixedsize", "true");
     }
-    return withoutDefaults(out, "node");
+    if (typeof width === "number") {
+        out.set("width", inchesOf(width));
+    }
+    if (typeof height === "number") {
+        out.set("height", inchesOf(height));
+    }
 }
 
 /**
@@ -1203,29 +1305,7 @@ function edgeAttributes(get: Get, directed: boolean, approximate: Approximate): 
     if (typeof line === "string" && line !== "solid") {
         tokens.push(spelled(STROKES, line, line.includes("dash") ? "dashed" : "solid", "lineStyle", approximate));
     }
-    const source = get("sourceArrow");
-    const target = get("targetArrow");
-    const tail = typeof source === "string" && source !== "none";
-    const head = typeof target === "string" && target !== "none";
-    let dir = "none";
-    if (head && tail) {
-        dir = "both";
-    } else if (head) {
-        dir = "forward";
-    } else if (tail) {
-        dir = "back";
-    }
-    // the arrows are written where they differ from the graph's own: a target arrow on a directed edge
-    const plain = directed ? head && !tail && target === "triangle" : !head && !tail;
-    if (!plain && (source !== null || target !== null)) {
-        out.set("dir", dir);
-        if (head) {
-            out.set("arrowhead", spelled(ARROWS, target, "normal", "targetArrow", approximate));
-        }
-        if (tail) {
-            out.set("arrowtail", spelled(ARROWS, source, "normal", "sourceArrow", approximate));
-        }
-    }
+    writeEdgeArrows(get, directed, approximate, out);
     const arrowSize = get("arrowSize");
     if (typeof arrowSize === "number") {
         out.set("arrowsize", arrowSize);
@@ -1244,6 +1324,39 @@ function edgeAttributes(get: Get, directed: boolean, approximate: Approximate): 
         out.set("style", tokens.join(","));
     }
     return withoutDefaults(out, "edge");
+}
+
+/**
+ * An edge's arrow attributes, written where they differ from the graph's own: a target arrow on a directed edge.
+ * @param get - the edge's values
+ * @param directed - whether the edge is directed
+ * @param approximate - records approximations
+ * @param out - the attributes, added to
+ */
+function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, out: Map<string, Written>): void {
+    const source = get("sourceArrow");
+    const target = get("targetArrow");
+    const tail = typeof source === "string" && source !== "none";
+    const head = typeof target === "string" && target !== "none";
+    const plain = directed ? head && !tail && target === "triangle" : !head && !tail;
+    if (plain || (source === null && target === null)) {
+        return;
+    }
+    let dir = "none";
+    if (head && tail) {
+        dir = "both";
+    } else if (head) {
+        dir = "forward";
+    } else if (tail) {
+        dir = "back";
+    }
+    out.set("dir", dir);
+    if (head) {
+        out.set("arrowhead", spelled(ARROWS, target, "normal", "targetArrow", approximate));
+    }
+    if (tail) {
+        out.set("arrowtail", spelled(ARROWS, source, "normal", "sourceArrow", approximate));
+    }
 }
 
 /**
@@ -1286,7 +1399,6 @@ function exactFromBlock(
     if (ex === null) {
         return;
     }
-    const ignore: Approximate = () => undefined;
     const notes = new StyleNotes();
     for (const target of ["node", "edge"] as const) {
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
@@ -1294,31 +1406,53 @@ function exactFromBlock(
         const values = read[target];
         for (let i = 0; i < n; i++) {
             const want = get(i);
-            const back = new Map<string, StyleValue>();
-            const put: Put = (property, value) => {
-                if (value !== null) {
-                    back.set(property, value);
-                }
-            };
-            const at: At = (property) => ({ notes, target, property });
-            if (target === "node") {
-                const ncx = cx.node(i);
-                const attrs = nodeAttributes(want, ncx, ignore, notes);
-                readNode((name) => textOf(attrs.get(name)), ncx, put, at);
-            } else {
-                const ecx = cx.edge(i);
-                const attrs = edgeAttributes(want, ecx.directed, ignore);
-                readEdge((name) => textOf(attrs.get(name)), ecx, put, at);
-            }
+            const back = writtenAndReadBack(target, i, want, cx, notes);
             for (const property of DOT_STYLE_CAPABILITIES[target]) {
                 const native = values[property]?.[i] ?? null;
                 const w = want(property);
                 if (native !== w && native === (back.get(property) ?? null)) {
-                    (values[property] ??= new Array<StyleValue | null>(n).fill(null))[i] = w;
+                    values[property] ??= new Array<StyleValue | null>(n).fill(null);
+                    values[property][i] = w;
                 }
             }
         }
     }
+}
+
+/**
+ * An element's values written as the writer writes them and read back as the reader reads them.
+ * @param target - nodes or edges
+ * @param i - the element
+ * @param want - its values
+ * @param cx - the elements' contexts
+ * @param notes - a scratch for the notes the round trip makes
+ * @returns the values read back, by property
+ */
+function writtenAndReadBack(
+    target: StyleTarget,
+    i: number,
+    want: Get,
+    cx: ReturnType<typeof contexts>,
+    notes: StyleNotes,
+): Map<string, StyleValue> {
+    const ignore: Approximate = () => undefined;
+    const back = new Map<string, StyleValue>();
+    const put: Put = (property, value) => {
+        if (value !== null) {
+            back.set(property, value);
+        }
+    };
+    const at: At = (property) => ({ notes, target, property });
+    if (target === "node") {
+        const ncx = cx.node(i);
+        const attrs = nodeAttributes(want, ncx, ignore, notes);
+        readNode((name) => textOf(attrs.get(name)), ncx, put, at);
+    } else {
+        const ecx = cx.edge(i);
+        const attrs = edgeAttributes(want, ecx.directed, ignore);
+        readEdge((name) => textOf(attrs.get(name)), ecx, put, at);
+    }
+    return back;
 }
 
 /**
@@ -1357,7 +1491,7 @@ function readsBack(col: StyleColumn): boolean {
  * @returns the block
  */
 function dotSafeJson(json: string): string {
-    return json.replace(/\\(["\\])/g, (_m, c: string) => (c === '"' ? "\\u0022" : "\\u005c"));
+    return json.replaceAll(/\\(["\\])/g, (_m, c: string) => (c === '"' ? String.raw`\u0022` : String.raw`\u005c`));
 }
 
 /** A DOT export with styles worked out. */
@@ -1387,81 +1521,21 @@ export function dotStyledExport(
     if (input === undefined) {
         return null;
     }
-    const approximated = new Map<string, { count: number; samples: Set<string> }>();
+    const approximated = new StyleApproximations();
     const replaced: LossNote[] = [];
     const out = snapshot.withColumns();
     const written = onMixedDirection === "directed" || onMixedDirection === "undirected";
     const cx = contexts(snapshot, written ? onMixedDirection === "directed" : null);
     const notes = new StyleNotes();
-    const picture = (target: StyleTarget, property: string): readonly (StyleValue | null)[] =>
-        input.picture(target, property as never);
     for (const target of ["node", "edge"] as const) {
         const table = target === "node" ? out.nodes : out.edges;
-        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const approximate: Approximate = (property, value) => {
-            const key = `${target}.${property}`;
-            const a = approximated.get(key) ?? { count: 0, samples: new Set<string>() };
-            a.count++;
-            if (a.samples.size < 8) {
-                a.samples.add(String(value));
-            }
-            approximated.set(key, a);
-        };
-        const get = getter(picture, target);
-        const columns = new Map<string, (Written | null)[]>();
         const read = dataRead(input.rules.styles.rules, target);
-        for (let i = 0; i < n; i++) {
-            const attrs =
-                target === "node"
-                    ? nodeAttributes(get(i), cx.node(i), approximate, notes)
-                    : edgeAttributes(get(i), cx.edge(i).directed, approximate);
-            // no label is written label="" (Graphviz would show the name), which a rule reading the label column
-            // reads back as the empty label
-            if (read.has(LABEL_ATTRIBUTE) && attrs.get(LABEL_ATTRIBUTE) === "" && get(i)("label") === null) {
-                approximate("label", "");
-            }
-            for (const [name, value] of attrs) {
-                let col = columns.get(name);
-                if (col === undefined) {
-                    col = new Array<Written | null>(n).fill(null);
-                    columns.set(name, col);
-                }
-                col[i] = value;
-            }
-        }
-        const attributes = target === "node" ? NODE_ATTRIBUTES : EDGE_ATTRIBUTES;
-        // Graphviz reads these names as how to draw: the picture writes them, so a data column of the same name
-        // (a `label` attribute graphty does not draw) would draw something graphty does not. One a rule reads, whose
-        // values the picture does not write, is lost to the rule, and said so.
-        for (const name of [...table.names()]) {
-            if (attributes.includes(name) || name === LABEL_ATTRIBUTE || name.startsWith("graphty.style.")) {
-                const differs = read.has(name) ? replacedRows(table, name, columns.get(name)) : 0;
-                if (differs > 0) {
-                    replaced.push(
-                        Object.freeze({
-                            code: DOT_ATTRIBUTE_CLASH_CODE,
-                            message: `${target} column "${name}" is not written: the ${name} attribute holds what graphty draws (${String(differs)} ${target}${differs === 1 ? "" : "s"} differ)`,
-                            column: name,
-                            count: differs,
-                        }),
-                    );
-                }
-                table.remove(name);
-            }
-        }
-        for (const [name, col] of columns) {
-            if (name === LABEL_ATTRIBUTE) {
-                table.set(name, col, { dtype: "string", role: "label" }, { replaceRole: true });
-            } else if (col.every((v) => v === null || typeof v === "number")) {
-                table.set(name, col, { dtype: "f64" });
-            } else {
-                table.set(
-                    name,
-                    col.map((v) => (v === null ? null : String(v))),
-                    { dtype: "string" },
-                );
-            }
-        }
+        const approximate: Approximate = (property, value) => {
+            approximated.add(target, property, value);
+        };
+        const columns = attributeColumns(snapshot, input, target, { cx, approximate, notes, read });
+        replaced.push(...removeStyleAttributes(table, target, columns, read));
+        setAttributeColumns(table, columns);
     }
     const { background } = input.rules.styles.graph;
     if (out.graph.has("bgcolor")) {
@@ -1472,39 +1546,146 @@ export function dotStyledExport(
     }
     const inline = [...input.tags.node.values(), ...input.tags.edge.values()].some((col) => !readsBack(col));
     if (!inline) {
-        for (const target of ["node", "edge"] as const) {
-            const table = target === "node" ? out.nodes : out.edges;
-            for (const [name, col] of input.tags[target]) {
-                const kinds = new Set(col.filter((v) => v !== null).map((v) => typeof v));
-                let dtype: "string" | "bool" | "f64" = "string";
-                if (kinds.has("number")) {
-                    dtype = "f64";
-                } else if (kinds.has("boolean")) {
-                    dtype = "bool";
-                }
-                table.set(name, col, { dtype });
-            }
-        }
+        setTagColumns(out, input);
     }
     const block = inline ? writeStyleBlock(input.rules, { inlineColumns: true, snapshot }) : input.block;
     out.graph.set(STYLE_BLOCK_NAME, [dotSafeJson(block)], { dtype: "string" });
-    const losses: LossNote[] = [];
-    for (const [key, a] of approximated) {
-        const [target, property] = key.split(".") as [StyleTarget, string];
-        losses.push(
-            Object.freeze({
-                code: STYLE_ISSUE.APPROXIMATED,
-                message: `${target} ${property} is written as the nearest value Graphviz has for ${String(a.count)} ${target}${a.count === 1 ? "" : "s"} (${[...a.samples].join(", ")}); the graphty.styles block keeps the exact value`,
-                column: null,
-                count: a.count,
-                style: Object.freeze({ target, property: property as never }),
-            }),
-        );
-    }
+    const losses = approximated.notes("Graphviz");
     if (inline) {
         losses.push(...styleBlockLosses(block, input.rules.styles.rules.length, "size"));
     }
     return { snapshot: out, notes: [...replaced, ...losses] };
+}
+
+/** What attributeColumns() reads besides the graph and the styles. */
+interface AttributeWrite {
+    /** The elements' contexts. */
+    readonly cx: ReturnType<typeof contexts>;
+    /** Records approximations. */
+    readonly approximate: Approximate;
+    /** Where an HTML name is noted. */
+    readonly notes: StyleNotes;
+    /** The data columns the target's rules read. */
+    readonly read: ReadonlySet<string>;
+}
+
+/**
+ * Every element's Graphviz attributes of a target, as columns.
+ * @param snapshot - the graph handed to the exporter
+ * @param input - the styles
+ * @param target - nodes or edges
+ * @param w - the contexts, the recorders and the columns the rules read
+ * @returns the attribute columns, by name
+ */
+function attributeColumns(
+    snapshot: GraphSnapshot,
+    input: ExporterStyleInput,
+    target: StyleTarget,
+    w: AttributeWrite,
+): Map<string, (Written | null)[]> {
+    const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+    const get = getter((t, p) => input.picture(t, p as never), target);
+    const columns = new Map<string, (Written | null)[]>();
+    for (let i = 0; i < n; i++) {
+        const attrs =
+            target === "node"
+                ? nodeAttributes(get(i), w.cx.node(i), w.approximate, w.notes)
+                : edgeAttributes(get(i), w.cx.edge(i).directed, w.approximate);
+        // no label is written label="" (Graphviz would show the name), which a rule reading the label column
+        // reads back as the empty label
+        if (w.read.has(LABEL_ATTRIBUTE) && attrs.get(LABEL_ATTRIBUTE) === "" && get(i)("label") === null) {
+            w.approximate("label", "");
+        }
+        for (const [name, value] of attrs) {
+            let col = columns.get(name);
+            if (col === undefined) {
+                col = new Array<Written | null>(n).fill(null);
+                columns.set(name, col);
+            }
+            col[i] = value;
+        }
+    }
+    return columns;
+}
+
+/**
+ * Removes every column Graphviz reads as how to draw: the picture writes them, so a data column of the same name (a
+ * `label` attribute graphty does not draw) would draw something graphty does not. One a rule reads, whose values the
+ * picture does not write, is lost to the rule, and said so.
+ * @param table - the node or edge table, changed in place
+ * @param target - nodes or edges
+ * @param columns - the attributes the picture writes
+ * @param read - the data columns the rules read
+ * @returns the notes of the columns lost to a rule
+ */
+function removeStyleAttributes(
+    table: GraphSnapshot["nodes"],
+    target: StyleTarget,
+    columns: ReadonlyMap<string, (Written | null)[]>,
+    read: ReadonlySet<string>,
+): LossNote[] {
+    const attributes = target === "node" ? NODE_ATTRIBUTES : EDGE_ATTRIBUTES;
+    const replaced: LossNote[] = [];
+    for (const name of table.names()) {
+        if (!attributes.includes(name) && name !== LABEL_ATTRIBUTE && !name.startsWith("graphty.style.")) {
+            continue;
+        }
+        const differs = read.has(name) ? replacedRows(table, name, columns.get(name)) : 0;
+        if (differs > 0) {
+            replaced.push(
+                Object.freeze({
+                    code: DOT_ATTRIBUTE_CLASH_CODE,
+                    message: `${target} column "${name}" is not written: the ${name} attribute holds what graphty draws (${String(differs)} ${target}${differs === 1 ? "" : "s"} differ)`,
+                    column: name,
+                    count: differs,
+                }),
+            );
+        }
+        table.remove(name);
+    }
+    return replaced;
+}
+
+/**
+ * Sets the attribute columns the picture writes: the label with its role, numbers as f64, the rest as text.
+ * @param table - the node or edge table, changed in place
+ * @param columns - the attributes
+ */
+function setAttributeColumns(table: GraphSnapshot["nodes"], columns: ReadonlyMap<string, (Written | null)[]>): void {
+    for (const [name, col] of columns) {
+        if (name === LABEL_ATTRIBUTE) {
+            table.set(name, col, { dtype: "string", role: "label" }, { replaceRole: true });
+        } else if (col.every((v) => v === null || typeof v === "number")) {
+            table.set(name, col, { dtype: "f64" });
+        } else {
+            table.set(
+                name,
+                col.map((v) => (v === null ? null : String(v))),
+                { dtype: "string" },
+            );
+        }
+    }
+}
+
+/**
+ * Sets the per-element values the rules read as `"graphty.style.<target>.<key>"` attributes.
+ * @param out - the graph, changed in place
+ * @param input - the styles
+ */
+function setTagColumns(out: GraphSnapshot, input: ExporterStyleInput): void {
+    for (const target of ["node", "edge"] as const) {
+        const table = target === "node" ? out.nodes : out.edges;
+        for (const [name, col] of input.tags[target]) {
+            const kinds = new Set(col.filter((v) => v !== null).map((v) => typeof v));
+            let dtype: "string" | "bool" | "f64" = "string";
+            if (kinds.has("number")) {
+                dtype = "f64";
+            } else if (kinds.has("boolean")) {
+                dtype = "bool";
+            }
+            table.set(name, col, { dtype });
+        }
+    }
 }
 
 /**

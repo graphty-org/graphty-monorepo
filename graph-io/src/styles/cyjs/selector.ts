@@ -180,7 +180,7 @@ function isWord(c: string | undefined): boolean {
     if (c === undefined) {
         return false;
     }
-    const k = c.charCodeAt(0);
+    const k = c.codePointAt(0) ?? 0;
     return (k >= 48 && k <= 57) || (k >= 65 && k <= 90) || (k >= 97 && k <= 122) || k === 95;
 }
 
@@ -341,13 +341,11 @@ class Cursor {
  */
 function cleanMeta(raw: string): string {
     let out = "";
-    for (let i = 0; i < raw.length; i++) {
-        if (raw[i] === "\\" && i + 1 < raw.length && META.has(raw[i + 1])) {
-            out += raw[i + 1];
-            i++;
-        } else {
-            out += raw[i];
-        }
+    let i = 0;
+    while (i < raw.length) {
+        const escaped = raw[i] === "\\" && i + 1 < raw.length && META.has(raw[i + 1]);
+        out += escaped ? raw[i + 1] : raw[i];
+        i += escaped ? 2 : 1;
     }
     return out;
 }
@@ -397,6 +395,15 @@ function replaceLast(b: Building, q: CyjsQuery): void {
 }
 
 /**
+ * The last query of the selector (a selector always has one).
+ * @param b - the selector being built
+ * @returns the query
+ */
+function lastQuery(b: Building): CyjsQuery {
+    return b.queries.at(-1) as CyjsQuery;
+}
+
+/**
  * The compound separators (`>` and a space) as Cytoscape.js fills them.
  * @param kind - child or descendant
  * @returns the fill function
@@ -406,7 +413,7 @@ function compoundFill(kind: "child" | "descendant"): Token["fill"] {
         if (b.subject === null) {
             const outer: CyjsQuery = { checks: [] };
             const inner: CyjsQuery = { checks: [] };
-            const left = b.queries[b.queries.length - 1];
+            const left = lastQuery(b);
             outer.checks.push(
                 kind === "child"
                     ? { type: "child", parent: left, child: inner }
@@ -418,7 +425,7 @@ function compoundFill(kind: "child" | "descendant"): Token["fill"] {
         }
         if (b.subject === query) {
             const compound: CyjsQuery = { checks: [] };
-            const left = b.queries[b.queries.length - 1];
+            const left = lastQuery(b);
             const right: CyjsQuery = { checks: [] };
             const subject: CyjsQuery = { checks: query.checks };
             const inner: CyjsQuery = { checks: [] };
@@ -453,116 +460,148 @@ function compoundFill(kind: "child" | "descendant"): Token["fill"] {
  * @returns the token, or null when none matches (the selector is invalid)
  */
 function nextToken(c: Cursor): Token | null {
-    const t = c.text;
+    const ch = c.text[c.pos];
+    return (
+        groupToken(c) ??
+        (ch === ":" ? stateToken(c) : null) ??
+        (ch === "#" || ch === "." ? nameToken(c, ch) : null) ??
+        (ch === "[" ? dataToken(c, c.pos) : null) ??
+        separatorToken(c) ??
+        (ch === "$" ? subjectToken(c) : null)
+    );
+}
+
+/**
+ * A check that fills the query with a fixed check.
+ * @param end - where the token ends
+ * @param check - the check
+ * @returns the token
+ */
+function checkToken(end: number, check: CyjsCheck): Token {
+    return {
+        end,
+        fill: (_b, q) => {
+            q.checks.push(check);
+            return null;
+        },
+    };
+}
+
+/**
+ * A group: `node`, `edge` or `*`.
+ * @param c - the cursor
+ * @returns the token, or null
+ */
+function groupToken(c: Cursor): Token | null {
     const i = c.pos;
-    const ch = t[i];
-    // group
     for (const [g, value] of [
         ["node", "nodes"],
         ["edge", "edges"],
         ["*", "*"],
     ] as const) {
-        if (t.startsWith(g, i)) {
-            return {
-                end: i + g.length,
-                fill: (_b, q) => {
-                    q.checks.push({ type: "group", value });
-                    return null;
-                },
-            };
+        if (c.text.startsWith(g, i)) {
+            return checkToken(i + g.length, { type: "group", value });
         }
-    }
-    // state: the longest state name that is a prefix here
-    if (ch === ":") {
-        let best: string | null = null;
-        for (const s of CYJS_STATES) {
-            if (t.startsWith(s, i + 1) && (best === null || s.length > best.length)) {
-                best = s;
-            }
-        }
-        if (best !== null) {
-            const value = best;
-            return {
-                end: i + 1 + best.length,
-                fill: (_b, q) => {
-                    q.checks.push({ type: "state", value });
-                    return null;
-                },
-            };
-        }
-    }
-    // id and class
-    if (ch === "#" || ch === ".") {
-        const n = c.name(i + 1, ch === "#");
-        if (n !== null) {
-            const value = cleanMeta(n.raw);
-            const type = ch === "#" ? "id" : "class";
-            return {
-                end: n.end,
-                fill: (_b, q) => {
-                    q.checks.push({ type, value });
-                    return null;
-                },
-            };
-        }
-    }
-    if (ch === "[") {
-        const tok = dataToken(c, i);
-        if (tok !== null) {
-            return tok;
-        }
-    }
-    // separators: `\s*,\s*`, `\s+->\s+`, `\s+<->\s+`, `\s+>\s+`, `\s+`
-    const ws = c.spaceEnd(i);
-    if (t[ws] === ",") {
-        return {
-            end: c.spaceEnd(ws + 1),
-            fill: (b) => {
-                b.counts.push({ edgeCount: b.edgeCount, compoundCount: b.compoundCount, subject: b.subject });
-                b.subject = null;
-                b.edgeCount = 0;
-                b.compoundCount = 0;
-                const next: CyjsQuery = { checks: [] };
-                b.queries.push(next);
-                return next;
-            },
-        };
-    }
-    if (ws > i) {
-        for (const [sep, kind] of [
-            ["->", "directed"],
-            ["<->", "undirected"],
-            [">", "child"],
-        ] as const) {
-            if (t.startsWith(sep, ws)) {
-                const after = c.spaceEnd(ws + sep.length);
-                if (after > ws + sep.length) {
-                    return { end: after, fill: kind === "child" ? compoundFill("child") : edgeFill(kind) };
-                }
-            }
-        }
-        return { end: ws, fill: compoundFill("descendant") };
-    }
-    if (ch === "$") {
-        return {
-            end: i + 1,
-            fill: (b, q) => {
-                if (b.subject !== null && b.subject !== q) {
-                    return false;
-                }
-                b.subject = q;
-                const top = b.queries[b.queries.length - 1];
-                const first = top.checks.at(0);
-                if (first?.type === "directedEdge") {
-                    top.checks[0] = { type: "nodeTarget", source: first.source, target: first.target };
-                } else if (first?.type === "undirectedEdge") {
-                    top.checks[0] = { type: "nodeNeighbor", node: first.nodes[1], neighbor: first.nodes[0] };
-                }
-                return null;
-            },
-        };
     }
     return null;
+}
+
+/**
+ * A state: the longest state name that is a prefix after the `:`.
+ * @param c - the cursor
+ * @returns the token, or null
+ */
+function stateToken(c: Cursor): Token | null {
+    const i = c.pos;
+    let best: string | null = null;
+    for (const s of CYJS_STATES) {
+        if (c.text.startsWith(s, i + 1) && (best === null || s.length > best.length)) {
+            best = s;
+        }
+    }
+    return best === null ? null : checkToken(i + 1 + best.length, { type: "state", value: best });
+}
+
+/**
+ * An id (`#`) or a class (`.`).
+ * @param c - the cursor
+ * @param ch - the `#` or `.`
+ * @returns the token, or null
+ */
+function nameToken(c: Cursor, ch: "#" | "."): Token | null {
+    const n = c.name(c.pos + 1, ch === "#");
+    if (n === null) {
+        return null;
+    }
+    return checkToken(n.end, { type: ch === "#" ? "id" : "class", value: cleanMeta(n.raw) });
+}
+
+/**
+ * A separator: `\s*,\s*`, `\s+->\s+`, `\s+<->\s+`, `\s+>\s+` or `\s+`.
+ * @param c - the cursor
+ * @returns the token, or null
+ */
+function separatorToken(c: Cursor): Token | null {
+    const t = c.text;
+    const i = c.pos;
+    const ws = c.spaceEnd(i);
+    if (t[ws] === ",") {
+        return { end: c.spaceEnd(ws + 1), fill: nextQuery };
+    }
+    if (ws === i) {
+        return null;
+    }
+    for (const [sep, kind] of [
+        ["->", "directed"],
+        ["<->", "undirected"],
+        [">", "child"],
+    ] as const) {
+        const after = t.startsWith(sep, ws) ? c.spaceEnd(ws + sep.length) : -1;
+        if (after > ws + sep.length) {
+            return { end: after, fill: kind === "child" ? compoundFill("child") : edgeFill(kind) };
+        }
+    }
+    return { end: ws, fill: compoundFill("descendant") };
+}
+
+/**
+ * Starts the next query of a selector list (`,`).
+ * @param b - the selector being built
+ * @returns the new query
+ */
+function nextQuery(b: Building): CyjsQuery {
+    b.counts.push({ edgeCount: b.edgeCount, compoundCount: b.compoundCount, subject: b.subject });
+    b.subject = null;
+    b.edgeCount = 0;
+    b.compoundCount = 0;
+    const next: CyjsQuery = { checks: [] };
+    b.queries.push(next);
+    return next;
+}
+
+/**
+ * The subject marker `$`: the query it follows is the one the selector selects.
+ * @param c - the cursor
+ * @returns the token
+ */
+function subjectToken(c: Cursor): Token {
+    return {
+        end: c.pos + 1,
+        fill: (b, q) => {
+            if (b.subject !== null && b.subject !== q) {
+                return false;
+            }
+            b.subject = q;
+            const top = lastQuery(b);
+            const first = top.checks.at(0);
+            if (first?.type === "directedEdge") {
+                top.checks[0] = { type: "nodeTarget", source: first.source, target: first.target };
+            } else if (first?.type === "undirectedEdge") {
+                top.checks[0] = { type: "nodeNeighbor", node: first.nodes[1], neighbor: first.nodes[0] };
+            }
+            return null;
+        },
+    };
 }
 
 /**
@@ -604,90 +643,97 @@ function edgeFill(kind: "directed" | "undirected"): Token["fill"] {
  * @returns the token, or null
  */
 function dataToken(c: Cursor, i: number): Token | null {
-    const t = c.text;
     const inner = c.spaceEnd(i + 1);
+    return compareToken(c, inner) ?? boolToken(c, inner) ?? (c.text[i + 1] === "[" ? metaToken(c, i) : null);
+}
+
+/**
+ * `[a]` or `[a op value]`.
+ * @param c - the cursor
+ * @param inner - the position after `[` and its whitespace
+ * @returns the token, or null
+ */
+function compareToken(c: Cursor, inner: number): Token | null {
+    const t = c.text;
     const v = c.name(inner, true);
-    if (v !== null) {
-        const field = cleanMeta(v.raw);
-        const afterName = c.spaceEnd(v.end);
-        // [a]
-        if (t[afterName] === "]") {
-            return {
-                end: afterName + 1,
-                fill: (_b, q) => {
-                    q.checks.push({ type: "exist", field });
-                    return null;
-                },
-            };
-        }
-        // [a op value]
-        const op = c.op(afterName);
-        if (op !== null) {
-            const at = c.spaceEnd(op.end);
-            const quoted = t[at] === '"' || t[at] === "'";
-            const ends = quoted ? c.stringEnds(at) : c.numberEnds(at);
-            for (const end of ends) {
-                const close = c.spaceEnd(end);
-                if (t[close] !== "]") {
-                    continue;
-                }
-                const literal = t.slice(at, end);
-                const value: string | number = quoted ? literal.slice(1, -1) : parseFloat(literal);
-                const { op: base, not, ci } = splitOp(op.text);
-                return {
-                    end: close + 1,
-                    fill: (_b, q) => {
-                        q.checks.push({ type: "compare", field, op: base, not, ci, value });
-                        return null;
-                    },
-                };
-            }
-        }
+    if (v === null) {
+        return null;
     }
-    // [?a] [!a] [^a]
+    const field = cleanMeta(v.raw);
+    const afterName = c.spaceEnd(v.end);
+    if (t[afterName] === "]") {
+        return checkToken(afterName + 1, { type: "exist", field });
+    }
+    const op = c.op(afterName);
+    if (op === null) {
+        return null;
+    }
+    const at = c.spaceEnd(op.end);
+    const quoted = t[at] === '"' || t[at] === "'";
+    const end = (quoted ? c.stringEnds(at) : c.numberEnds(at)).find((x) => t[c.spaceEnd(x)] === "]");
+    if (end === undefined) {
+        return null;
+    }
+    const literal = t.slice(at, end);
+    const value: string | number = quoted ? literal.slice(1, -1) : Number.parseFloat(literal);
+    const { op: base, not, ci } = splitOp(op.text);
+    return checkToken(c.spaceEnd(end) + 1, { type: "compare", field, op: base, not, ci, value });
+}
+
+/**
+ * `[?a]`, `[!a]` or `[^a]`.
+ * @param c - the cursor
+ * @param inner - the position after `[` and its whitespace
+ * @returns the token, or null
+ */
+function boolToken(c: Cursor, inner: number): Token | null {
+    const t = c.text;
     const flag = t[inner];
-    if (flag === "?" || flag === "!" || flag === "^") {
-        const n = c.name(c.spaceEnd(inner + 1), true);
-        if (n !== null) {
-            const close = c.spaceEnd(n.end);
-            if (t[close] === "]") {
-                const field = cleanMeta(n.raw);
-                return {
-                    end: close + 1,
-                    fill: (_b, q) => {
-                        q.checks.push({ type: "bool", field, op: flag });
-                        return null;
-                    },
-                };
-            }
-        }
+    if (flag !== "?" && flag !== "!" && flag !== "^") {
+        return null;
     }
-    // [[degree op n]]
-    if (t[i + 1] === "[") {
-        const at = c.spaceEnd(i + 2);
-        const field = META_FIELDS.find((f) => t.startsWith(f, at));
-        if (field !== undefined) {
-            const op = c.op(c.spaceEnd(at + field.length));
-            if (op !== null) {
-                const numAt = c.spaceEnd(op.end);
-                for (const end of c.numberEnds(numAt)) {
-                    const close = c.spaceEnd(end);
-                    if (t[close] === "]" && t[close + 1] === "]") {
-                        const value = parseFloat(t.slice(numAt, end));
-                        const { op: base, not, ci } = splitOp(op.text);
-                        return {
-                            end: close + 2,
-                            fill: (_b, q) => {
-                                q.checks.push({ type: "meta", field, op: base, not, ci, value });
-                                return null;
-                            },
-                        };
-                    }
-                }
-            }
-        }
+    const n = c.name(c.spaceEnd(inner + 1), true);
+    const close = n === null ? -1 : c.spaceEnd(n.end);
+    if (n === null || t[close] !== "]") {
+        return null;
     }
-    return null;
+    return checkToken(close + 1, { type: "bool", field: cleanMeta(n.raw), op: flag });
+}
+
+/**
+ * `[[degree op n]]`.
+ * @param c - the cursor
+ * @param i - the position of the first `[`
+ * @returns the token, or null
+ */
+function metaToken(c: Cursor, i: number): Token | null {
+    const t = c.text;
+    const at = c.spaceEnd(i + 2);
+    const field = META_FIELDS.find((f) => t.startsWith(f, at));
+    const op = field === undefined ? null : c.op(c.spaceEnd(at + field.length));
+    if (field === undefined || op === null) {
+        return null;
+    }
+    const numAt = c.spaceEnd(op.end);
+    const end = c.numberEnds(numAt).find((x) => {
+        const close = c.spaceEnd(x);
+        return t[close] === "]" && t[close + 1] === "]";
+    });
+    if (end === undefined) {
+        return null;
+    }
+    const value = Number.parseFloat(t.slice(numAt, end));
+    const { op: base, not, ci } = splitOp(op.text);
+    return checkToken(c.spaceEnd(end) + 2, { type: "meta", field, op: base, not, ci, value });
+}
+
+/**
+ * Whether a selector is blank: white space only.
+ * @param text - the selector
+ * @returns true when blank
+ */
+function isBlank(text: string): boolean {
+    return /^\s*$/.test(text.length > 1024 ? text.slice(0, 1024) : text) && text.trim() === "";
 }
 
 /**
@@ -696,11 +742,8 @@ function dataToken(c: Cursor, i: number): Token | null {
  * @returns the queries and whether Cytoscape.js rejects the selector
  */
 export function parseCyjsSelector(text: unknown): CyjsSelector {
-    if (
-        typeof text !== "string" ||
-        (/^\s*$/.test(text.length > 1024 ? text.slice(0, 1024) : text) && text.trim() === "")
-    ) {
-        // a missing or blank selector matches nothing
+    // a missing or blank selector matches nothing
+    if (typeof text !== "string" || isBlank(text)) {
         return { queries: [], invalid: false };
     }
     if (text.length > MAX_SELECTOR_LENGTH) {
@@ -729,10 +772,7 @@ export function parseCyjsSelector(text: unknown): CyjsSelector {
         }
     }
     b.counts.push({ edgeCount: b.edgeCount, compoundCount: b.compoundCount, subject: b.subject });
-    for (const k of b.counts) {
-        if ((k.compoundCount > 0 && k.edgeCount > 0) || k.edgeCount > 1) {
-            return { queries: b.queries, invalid: true };
-        }
-    }
-    return { queries: b.queries, invalid: false };
+    // a query may hold one edge or compound relation, not both and not two edges
+    const invalid = b.counts.some((k) => (k.compoundCount > 0 && k.edgeCount > 0) || k.edgeCount > 1);
+    return { queries: b.queries, invalid };
 }

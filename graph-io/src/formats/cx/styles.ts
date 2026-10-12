@@ -76,7 +76,7 @@ export function blockAspect(block: string): Record<string, unknown>[] {
  */
 export function snapshotBlock(snapshot: GraphSnapshot): string | null {
     const column = snapshot.graph.get(STYLE_BLOCK_NAME);
-    const value = column !== null && column.isSet(0) ? column.value(0) : null;
+    const value = column?.isSet(0) ? column.value(0) : null;
     return typeof value === "string" ? value : null;
 }
 
@@ -276,20 +276,29 @@ export function cytoscapeStyledExport(
     }
     const notes = new StyleNotes();
     const styled = emitCytoscapeStyle(input.rules, snapshot, { dialect, notes });
-    let out: GraphSnapshot = snapshot;
-    for (const target of ["node", "edge"] as const) {
-        for (const [name, values] of styled.columns[target]) {
-            const table = target === "node" ? snapshot.nodes : snapshot.edges;
-            if (table.has(name)) {
-                continue;
-            }
-            if (out === snapshot) {
-                out = snapshot.withColumns();
-            }
-            const dtype = valuesDtype(values);
-            const col = dtype === "string" ? values.map((v) => (v === null ? null : String(v))) : values;
-            (target === "node" ? out.nodes : out.edges).set(name, col, { dtype });
-        }
+    return { snapshot: withMappedColumns(snapshot, styled), styled, notes: notes.list().map(lossOf) };
+}
+
+/**
+ * The snapshot with the columns the emitted mappings read and it lacks added.
+ * @param snapshot - the graph handed to the exporter
+ * @param styled - the emitted style
+ * @returns the snapshot itself when it lacks none
+ */
+function withMappedColumns(snapshot: GraphSnapshot, styled: CytoscapeEmitted): GraphSnapshot {
+    const missing = (["node", "edge"] as const).flatMap((target) =>
+        [...styled.columns[target]]
+            .filter(([name]) => !(target === "node" ? snapshot.nodes : snapshot.edges).has(name))
+            .map(([name, values]) => ({ target, name, values })),
+    );
+    if (missing.length === 0) {
+        return snapshot;
     }
-    return { snapshot: out, styled, notes: notes.list().map(lossOf) };
+    const out = snapshot.withColumns();
+    for (const { target, name, values } of missing) {
+        const dtype = valuesDtype(values);
+        const col = dtype === "string" ? values.map((v) => (v === null ? null : String(v))) : values;
+        (target === "node" ? out.nodes : out.edges).set(name, col, { dtype });
+    }
+    return out;
 }

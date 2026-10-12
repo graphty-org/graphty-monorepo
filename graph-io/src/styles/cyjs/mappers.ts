@@ -184,7 +184,7 @@ export function cyjsProperties(target: StyleTarget): ReadonlyMap<string, CyjsPro
  * @returns the dash-form name
  */
 export function cyjsPropertyName(name: string): string {
-    const dashed = name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+    const dashed = name.replaceAll(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
     return dashed === "content" ? "label" : dashed;
 }
 
@@ -251,15 +251,17 @@ type CyjsParseMode = "rule" | "bypass" | "flat";
 /** Thrown by Cytoscape.js itself: a color given as a number makes its parser call `toLowerCase` on a number. */
 export const CYJS_THROWS = "throws";
 
-const NUM = "[-+]?(?:(?:\\d+|\\d*\\.\\d+)(?:[Ee][+-]?\\d+)?)";
+const NUM = String.raw`[-+]?(?:(?:\d+|\d*\.\d+)(?:[Ee][+-]?\d+)?)`;
 const NUMBER_UNITS = new RegExp(`^(${NUM})(px|em)?$`);
-const NUMBER_ONLY = new RegExp(`^\\s*${NUM}\\s*$`);
-const RGBA = new RegExp(`^rgb[a]?\\((${NUM}[%]?)\\s*,\\s*(${NUM}[%]?)\\s*,\\s*(${NUM}[%]?)(?:\\s*,\\s*(${NUM}))?\\)$`);
-const HSLA = new RegExp(`^hsl[a]?\\((${NUM})\\s*,\\s*(${NUM}[%])\\s*,\\s*(${NUM}[%])(?:\\s*,\\s*(${NUM}))?\\)$`);
+const NUMBER_ONLY = new RegExp(String.raw`^\s*${NUM}\s*$`);
+const RGBA = new RegExp(
+    String.raw`^rgb[a]?\((${NUM}[%]?)\s*,\s*(${NUM}[%]?)\s*,\s*(${NUM}[%]?)(?:\s*,\s*(${NUM}))?\)$`,
+);
+const HSLA = new RegExp(String.raw`^hsl[a]?\((${NUM})\s*,\s*(${NUM}[%])\s*,\s*(${NUM}[%])(?:\s*,\s*(${NUM}))?\)$`);
 const MAP_ARG = new RegExp(
-    `^(?:${NUM}|\\w+|rgb[a]?\\((?:${NUM}[%]?)\\s*,\\s*(?:${NUM}[%]?)\\s*,\\s*(?:${NUM}[%]?)(?:\\s*,\\s*(?:${NUM}))?\\)` +
-        `|hsl[a]?\\((?:${NUM})\\s*,\\s*(?:${NUM}[%])\\s*,\\s*(?:${NUM}[%])(?:\\s*,\\s*(?:${NUM}))?\\)` +
-        `|\\#[0-9a-fA-F]{3}|\\#[0-9a-fA-F]{6})$`,
+    String.raw`^(?:${NUM}|\w+|rgb[a]?\((?:${NUM}[%]?)\s*,\s*(?:${NUM}[%]?)\s*,\s*(?:${NUM}[%]?)(?:\s*,\s*(?:${NUM}))?\)` +
+        String.raw`|hsl[a]?\((?:${NUM})\s*,\s*(?:${NUM}[%])\s*,\s*(?:${NUM}[%])(?:\s*,\s*(?:${NUM}))?\)` +
+        String.raw`|\#[0-9a-fA-F]{3}|\#[0-9a-fA-F]{6})$`,
 );
 const FIELD = /^[\w.]+$/;
 const WORD_FONT = /^[\w\- "]$/;
@@ -284,38 +286,45 @@ function namedColor(name: string): string | undefined {
 function colorTuple(value: string): [number, number, number] | null {
     const named = namedColor(value.toLowerCase());
     if (named !== undefined) {
-        return [parseInt(named.slice(1, 3), 16), parseInt(named.slice(3, 5), 16), parseInt(named.slice(5, 7), 16)];
+        return [
+            Number.parseInt(named.slice(1, 3), 16),
+            Number.parseInt(named.slice(3, 5), 16),
+            Number.parseInt(named.slice(5, 7), 16),
+        ];
     }
     if ((value.length === 4 || value.length === 7) && value.startsWith("#")) {
         const short = value.length === 4;
         const pair = (k: number): number =>
-            parseInt(short ? value[k] + value[k] : value.slice(2 * k - 1, 2 * k + 1), 16);
+            Number.parseInt(short ? value[k] + value[k] : value.slice(2 * k - 1, 2 * k + 1), 16);
         return [pair(1), pair(2), pair(3)];
     }
     const m = RGBA.exec(value);
-    if (m !== null) {
-        const pct = [1, 2, 3].map((k) => m[k].endsWith("%"));
-        if (pct.some(Boolean) && !pct.every(Boolean)) {
-            return null;
-        }
-        const out: number[] = [];
-        for (let k = 1; k <= 3; k++) {
-            let c = parseFloat(m[k]);
-            if (pct[k - 1]) {
-                c = (c / 100) * 255;
-            }
-            if (c < 0 || c > 255) {
-                return null;
-            }
-            out.push(Math.floor(c));
-        }
-        const alpha = m.at(4);
-        if (alpha !== undefined && (parseFloat(alpha) < 0 || parseFloat(alpha) > 1)) {
-            return null;
-        }
-        return [out[0], out[1], out[2]];
+    return m === null ? hslTuple(value) : rgbaTuple(m);
+}
+
+/**
+ * `rgb()` and `rgba()` as Cytoscape.js reads them: channels all numbers or all percentages, within 0..255, and an
+ * alpha within 0..1.
+ * @param m - the match of the pattern
+ * @returns red, green and blue, or null
+ */
+function rgbaTuple(m: RegExpExecArray): [number, number, number] | null {
+    const pct = [1, 2, 3].map((k) => m[k].endsWith("%"));
+    if (pct.some(Boolean) && !pct.every(Boolean)) {
+        return null;
     }
-    return hslTuple(value);
+    const channels = [1, 2, 3].map((k) => {
+        const c = Number.parseFloat(m[k]);
+        return pct[k - 1] ? (c / 100) * 255 : c;
+    });
+    if (channels.some((c) => c < 0 || c > 255)) {
+        return null;
+    }
+    const alpha = m.at(4);
+    if (alpha !== undefined && (Number.parseFloat(alpha) < 0 || Number.parseFloat(alpha) > 1)) {
+        return null;
+    }
+    return [Math.floor(channels[0]), Math.floor(channels[1]), Math.floor(channels[2])];
 }
 
 /**
@@ -328,20 +337,20 @@ function hslTuple(value: string): [number, number, number] | null {
     if (m === null) {
         return null;
     }
-    let h = parseInt(m[1], 10);
+    let h = Number.parseInt(m[1], 10);
     if (h < 0) {
         h = (360 - ((-1 * h) % 360)) % 360;
     } else if (h > 360) {
         h = h % 360;
     }
     h /= 360;
-    const s = parseFloat(m[2]);
-    const l = parseFloat(m[3]);
+    const s = Number.parseFloat(m[2]);
+    const l = Number.parseFloat(m[3]);
     if (s < 0 || s > 100 || l < 0 || l > 100) {
         return null;
     }
     const alpha = m.at(4);
-    if (alpha !== undefined && (parseFloat(alpha) < 0 || parseFloat(alpha) > 1)) {
+    if (alpha !== undefined && (Number.parseFloat(alpha) < 0 || Number.parseFloat(alpha) > 1)) {
         return null;
     }
     const sn = s / 100;
@@ -385,60 +394,88 @@ function hslTuple(value: string): [number, number, number] | null {
  * @param value - the text
  * @returns true when Cytoscape.js accepts it
  */
-function isFontFamily(value: string): boolean {
-    const item = (c: string): boolean => WORD_FONT.test(c);
-    const space = (c: string): boolean => /\s/.test(c);
+export function isFontFamily(value: string): boolean {
     const parts = value.split(",");
-    const last = parts.length - 1;
-    for (let k = 0; k <= last; k++) {
-        const part = parts[k];
-        let a = 0;
-        let b = part.length;
-        if (k === 0 && k === last) {
-            // the whole value is one item
-        } else if (k === 0) {
-            // an item, then whitespace before the comma
-            while (a < b && item(part[a])) {
-                a++;
-            }
-            if (a === 0 || !Array.from(part.slice(a)).every(space)) {
-                return false;
-            }
-            continue;
-        } else if (k === last) {
-            // whitespace after the comma, then an item to the end
-            while (b > 0 && item(part[b - 1])) {
-                b--;
-            }
-            if (b === part.length || !Array.from(part.slice(0, b)).every(space)) {
-                return false;
-            }
-            continue;
-        } else {
-            while (a < b && space(part[a])) {
-                a++;
-            }
-            while (b > a && space(part[b - 1])) {
-                b--;
-            }
-            if (a === b) {
-                // only whitespace: one of its spaces is the item
-                if (!part.includes(" ")) {
-                    return false;
-                }
-                continue;
-            }
-        }
-        if (a === b) {
-            return false;
-        }
-        for (let i = a; i < b; i++) {
-            if (!item(part[i])) {
-                return false;
-            }
-        }
+    if (parts.length === 1) {
+        return parts[0].length > 0 && allOf(parts[0], isFontChar);
     }
-    return true;
+    return (
+        firstFontPart(parts[0]) &&
+        lastFontPart(parts[parts.length - 1]) &&
+        parts.slice(1, -1).every((part) => middleFontPart(part))
+    );
+}
+
+/**
+ * Whether a character may be part of a font family item: a word character, `-`, space or `"`.
+ * @param c - the character
+ * @returns true when it may
+ */
+function isFontChar(c: string): boolean {
+    return WORD_FONT.test(c);
+}
+
+/**
+ * Whether a character is whitespace.
+ * @param c - the character
+ * @returns true for whitespace
+ */
+function isSpace(c: string): boolean {
+    return /\s/.test(c);
+}
+
+/**
+ * Whether every character of a text passes a test.
+ * @param text - the text
+ * @param test - the test
+ * @returns true when all do (and for an empty text)
+ */
+function allOf(text: string, test: (c: string) => boolean): boolean {
+    return Array.from(text).every(test);
+}
+
+/**
+ * The part before the first comma: an item, then whitespace before the comma.
+ * @param part - the part
+ * @returns true when it is one
+ */
+function firstFontPart(part: string): boolean {
+    let a = 0;
+    while (a < part.length && isFontChar(part[a])) {
+        a++;
+    }
+    return a > 0 && allOf(part.slice(a), isSpace);
+}
+
+/**
+ * The part after the last comma: whitespace after the comma, then an item to the end.
+ * @param part - the part
+ * @returns true when it is one
+ */
+function lastFontPart(part: string): boolean {
+    let b = part.length;
+    while (b > 0 && isFontChar(part[b - 1])) {
+        b--;
+    }
+    return b < part.length && allOf(part.slice(0, b), isSpace);
+}
+
+/**
+ * A part between two commas: whitespace, an item, whitespace; a part of whitespace only holds an item when one of its
+ * characters is a space.
+ * @param part - the part
+ * @returns true when it is one
+ */
+function middleFontPart(part: string): boolean {
+    let a = 0;
+    let b = part.length;
+    while (a < b && isSpace(part[a])) {
+        a++;
+    }
+    while (b > a && isSpace(part[b - 1])) {
+        b--;
+    }
+    return a === b ? part.includes(" ") : allOf(part.slice(a, b), isFontChar);
 }
 
 /**
@@ -449,55 +486,19 @@ function isFontFamily(value: string): boolean {
  * @returns the parsed value, null when Cytoscape.js refuses it, or `CYJS_THROWS` where Cytoscape.js itself throws
  */
 function parseFlat(spec: CyjsPropertySpec, raw: unknown, rendered = false): CyjsFlat | null | typeof CYJS_THROWS {
-    const isString = typeof raw === "string";
-    const value: unknown = isString ? raw.trim() : raw;
+    const value: unknown = typeof raw === "string" ? raw.trim() : raw;
     switch (spec.type) {
-        case "color": {
-            if (Array.isArray(value)) {
-                const [r, g, b] = value as unknown[];
-                const t: [number, number, number] = [Number(r), Number(g), Number(b)];
-                return { kind: "color", rgb: t, str: `rgb(${t[0]},${t[1]},${t[2]})` };
-            }
-            if (typeof value !== "string") {
-                return CYJS_THROWS;
-            }
-            const t = colorTuple(value);
-            return t === null ? null : { kind: "color", rgb: t, str: `rgb(${t[0]},${t[1]},${t[2]})` };
-        }
+        case "color":
+            return parseColorValue(value);
         case "zeroOne":
         case "positive": {
-            const x = parseFloat(String(value));
-            if (Number.isNaN(x)) {
-                return null;
-            }
+            const x = Number.parseFloat(String(value));
             const ok = spec.type === "zeroOne" ? x >= 0 && x <= 1 : x > 0;
             return ok ? { kind: "number", value: x, units: null, str: String(x) } : null;
         }
         case "size":
-        case "nodeSize": {
-            let units: "px" | "em" | null = "px";
-            let text: unknown = value;
-            if (typeof value === "string") {
-                const m = NUMBER_UNITS.exec(value);
-                if (m === null) {
-                    units = null;
-                } else {
-                    text = m[1];
-                    units = m.at(2) === "em" ? "em" : "px";
-                }
-            }
-            const x = parseFloat(String(text));
-            if (Number.isNaN(x)) {
-                if (spec.type === "nodeSize" && raw === "label") {
-                    return { kind: "word", value: "label", str: "label" };
-                }
-                return null;
-            }
-            if (x < 0) {
-                return null;
-            }
-            return { kind: "number", value: x, units, str: `${String(x)}${units ?? ""}` };
-        }
+        case "nodeSize":
+            return parseSizeValue(spec, value, raw);
         case "text":
             return { kind: "word", value: String(value), str: String(value) };
         case "fontFamily": {
@@ -507,16 +508,57 @@ function parseFlat(spec: CyjsPropertySpec, raw: unknown, rendered = false): Cyjs
         case "fontWeight":
         case "enum": {
             const enums = spec.type === "fontWeight" ? FONT_WEIGHTS : (spec.enums ?? []);
-            for (const e of enums) {
-                if (e === value || (rendered && String(e) === value)) {
-                    return { kind: "word", value: e, str: String(e) };
-                }
-            }
-            return null;
+            const e = enums.find((x) => x === value || (rendered && String(x) === value));
+            return e === undefined ? null : { kind: "word", value: e, str: String(e) };
         }
         default:
             return null;
     }
+}
+
+/**
+ * A color as Cytoscape.js reads it: an `[r, g, b]` array as it is, else text.
+ * @param value - the value, trimmed
+ * @returns the color, null when refused, or `CYJS_THROWS` for a value that is neither
+ */
+function parseColorValue(value: unknown): CyjsFlat | null | typeof CYJS_THROWS {
+    if (Array.isArray(value)) {
+        const [r, g, b] = value as unknown[];
+        const t: [number, number, number] = [Number(r), Number(g), Number(b)];
+        return { kind: "color", rgb: t, str: `rgb(${t[0]},${t[1]},${t[2]})` };
+    }
+    if (typeof value !== "string") {
+        return CYJS_THROWS;
+    }
+    const t = colorTuple(value);
+    return t === null ? null : { kind: "color", rgb: t, str: `rgb(${t[0]},${t[1]},${t[2]})` };
+}
+
+/**
+ * A size as Cytoscape.js reads it: a non-negative number in `px` or `em`, a number read past an unknown suffix, and
+ * a node size of `label`.
+ * @param spec - the property
+ * @param value - the value, trimmed
+ * @param raw - the value as given
+ * @returns the size, or null when refused
+ */
+function parseSizeValue(spec: CyjsPropertySpec, value: unknown, raw: unknown): CyjsFlat | null {
+    let units: "px" | "em" | null = "px";
+    let text: unknown = value;
+    if (typeof value === "string") {
+        const m = NUMBER_UNITS.exec(value);
+        if (m === null) {
+            units = null;
+        } else {
+            text = m[1];
+            units = m.at(2) === "em" ? "em" : "px";
+        }
+    }
+    const x = Number.parseFloat(String(text));
+    if (Number.isNaN(x)) {
+        return spec.type === "nodeSize" && raw === "label" ? { kind: "word", value: "label", str: "label" } : null;
+    }
+    return x < 0 ? null : { kind: "number", value: x, units, str: `${String(x)}${units ?? ""}` };
 }
 
 /**
@@ -597,7 +639,7 @@ export function parseCyjsValue(
  * @returns the mapper, null when it is refused (or its constant), or undefined when the value is not a mapper
  */
 function parseMapper(spec: CyjsPropertySpec, value: string, mode: CyjsParseMode): CyjsParsed | null | undefined {
-    if (value[0] === "d") {
+    if (value.startsWith("d")) {
         const inner = callArgs(value, "data");
         const field = inner?.trim();
         if (field === undefined || !FIELD.test(field)) {
@@ -605,7 +647,7 @@ function parseMapper(spec: CyjsPropertySpec, value: string, mode: CyjsParseMode)
         }
         return mode === "bypass" ? null : { kind: "data", field };
     }
-    if (value[0] !== "m" || value.length < 10) {
+    if (!value.startsWith("m") || value.length < 10) {
         return undefined;
     }
     const inner = callArgs(value, "mapData");
@@ -613,14 +655,7 @@ function parseMapper(spec: CyjsPropertySpec, value: string, mode: CyjsParseMode)
         return undefined;
     }
     const args = splitArgs(inner);
-    if (
-        args.length !== 5 ||
-        !/^[\w.]+\s*$/.test(args[0]) ||
-        !NUMBER_ONLY.test(args[1]) ||
-        !NUMBER_ONLY.test(args[2]) ||
-        !MAP_ARG.test(args[3].trim()) ||
-        !MAP_ARG.test(args[4].replace(/^\s+/, ""))
-    ) {
+    if (!isMapDataArgs(args)) {
         return undefined;
     }
     if (mode === "bypass") {
@@ -643,11 +678,27 @@ function parseMapper(spec: CyjsPropertySpec, value: string, mode: CyjsParseMode)
     return {
         kind: "mapData",
         field: args[0].trim(),
-        fieldMin: parseFloat(args[1]),
-        fieldMax: parseFloat(args[2]),
+        fieldMin: Number.parseFloat(args[1]),
+        fieldMax: Number.parseFloat(args[2]),
         min,
         max,
     };
+}
+
+/**
+ * Whether `mapData`'s arguments have Cytoscape.js's shape: a field, two numbers and two values.
+ * @param args - the arguments
+ * @returns true when they do
+ */
+function isMapDataArgs(args: readonly string[]): boolean {
+    return (
+        args.length === 5 &&
+        /^[\w.]+\s*$/.test(args[0]) &&
+        NUMBER_ONLY.test(args[1]) &&
+        NUMBER_ONLY.test(args[2]) &&
+        MAP_ARG.test(args[3].trim()) &&
+        MAP_ARG.test(args[4].replace(/^\s+/, ""))
+    );
 }
 
 /**

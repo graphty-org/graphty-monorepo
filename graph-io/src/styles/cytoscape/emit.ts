@@ -116,9 +116,9 @@ function enumOut(
         if (Object.hasOwn(table, s)) {
             return table[s];
         }
-        if (s.startsWith("other:") && cytoscape.has(s.slice("other:".length).toLowerCase().replace(/_/g, "-"))) {
+        if (s.startsWith("other:") && cytoscape.has(s.slice("other:".length).toLowerCase().replaceAll("_", "-"))) {
             const raw = s.slice("other:".length);
-            const out = upper ? raw.toUpperCase().replace(/-/g, "_") : raw;
+            const out = upper ? raw.toUpperCase().replaceAll("-", "_") : raw;
             if (out !== raw) {
                 // read back in Cytoscape's spelling, which is another value
                 approx();
@@ -233,9 +233,9 @@ const CX2_ANCHORS: Readonly<Record<string, readonly [string, string]>> = {
     "bottom-right": ["right", "bottom"],
 };
 
-const desktopNumber: Write = (v) => String(v);
+const desktopNumber: Write = String;
 const cx2Number: Write = (v) => v;
-const textOut: Write = (v) => String(v);
+const textOut: Write = String;
 const desktopBool: Write = (v) => String(v === true);
 const opacity255: Write = (v, approx) => {
     const b = Math.round(Number(v) * 255);
@@ -414,32 +414,31 @@ function fontOut(
 ): unknown {
     const bold = weight === "bold";
     const it = italic === true;
-    let fam = family === null ? "sans-serif" : String(family);
-    // the reader drops a face suffix (Dialog.plain is Dialog) and reads a Java logical name as the family Cytoscape
-    // draws it with (Dialog as sans-serif)
-    const readsAs = (name: string): string => {
-        const family = name.replace(/\.(?:bold|italic|plain|bolditalic)$/i, "");
-        return JAVA_FONTS.get(family.toLowerCase()) ?? family;
-    };
+    const fam = family === null ? "sans-serif" : String(family);
     if (dialect === "cx2") {
-        if (readsAs(fam) !== fam) {
+        if (fontReadsAs(fam) !== fam) {
             approx();
         }
         return { FONT_FAMILY: fam, FONT_STYLE: it ? "italic" : "normal", FONT_WEIGHT: bold ? "bold" : "normal" };
     }
-    const whole = fam;
-    if (fam.includes(",")) {
-        fam = fam.split(",")[0].trim();
-    }
-    const java = Object.hasOwn(CSS_TO_JAVA, fam) ? CSS_TO_JAVA[fam] : fam;
-    if (readsAs(java) !== whole) {
+    const first = fam.includes(",") ? fam.split(",")[0].trim() : fam;
+    const java = Object.hasOwn(CSS_TO_JAVA, first) ? CSS_TO_JAVA[first] : first;
+    if (fontReadsAs(java) !== fam) {
         approx();
     }
-    let style = "plain";
-    if (bold || it) {
-        style = `${bold ? "bold" : ""}${it ? "italic" : ""}`;
-    }
+    const style = bold || it ? `${bold ? "bold" : ""}${it ? "italic" : ""}` : "plain";
     return `${java},${style},12`;
+}
+
+/**
+ * The family a font face reads back as: the reader drops a face suffix (Dialog.plain is Dialog) and reads a Java
+ * logical name as the family Cytoscape draws it with (Dialog as sans-serif).
+ * @param name - the face
+ * @returns the family
+ */
+function fontReadsAs(name: string): string {
+    const family = name.replace(/\.(?:bold|italic|plain|bolditalic)$/i, "");
+    return JAVA_FONTS.get(family.toLowerCase()) ?? family;
 }
 
 /**
@@ -487,7 +486,7 @@ export function emitCytoscapeStyle(
         edge: new Map<string, readonly (StyleValue | null)[]>(),
     };
     for (const target of ["node", "edge"] as const) {
-        emitTarget(target, extracted, snapshot, options, notes, style, bypasses[target], columns[target]);
+        emitTarget(targetEmit(target, extracted, snapshot, options, notes), style, bypasses[target], columns[target]);
     }
     const bg = extracted.styles.graph.background;
     if (bg !== undefined) {
@@ -506,45 +505,86 @@ interface Model {
     readonly mappedBy: Map<string, string>;
 }
 
+/** What emitting one target reads. */
+interface TargetEmit {
+    readonly target: StyleTarget;
+    readonly extracted: ExtractedStyles;
+    readonly snapshot: GraphSnapshot;
+    readonly options: CytoscapeEmitOptions;
+    readonly notes: StyleNotes;
+    /** The element count. */
+    readonly n: number;
+    readonly src: ReturnType<typeof refSource>;
+    /** The target's rules. */
+    readonly rules: readonly StyleRule[];
+    /** Every element's value of each property the rules write. */
+    readonly truth: ReadonlyMap<string, (StyleValue | null)[]>;
+    /** The approximation note of a property. */
+    readonly approx: (p: string) => () => void;
+    /** The approximation note of a default, counted over the elements that draw it. */
+    readonly approxDefault: (p: string, value: StyleValue) => () => void;
+}
+
 /**
- * Emits one target.
+ * What emitting one target reads, worked out once.
  * @param target - nodes or edges
  * @param extracted - the styles
  * @param snapshot - the graph
  * @param options - the options
  * @param notes - where losses are noted
- * @param style - the style being written
- * @param bypasses - the target's bypasses, filled in
- * @param columns - the target's added columns, filled in
+ * @returns the target's emission
  */
-function emitTarget(
+function targetEmit(
     target: StyleTarget,
     extracted: ExtractedStyles,
     snapshot: GraphSnapshot,
     options: CytoscapeEmitOptions,
     notes: StyleNotes,
+): TargetEmit {
+    const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+    const src = refSource(target, n, extracted.columns[target], extracted.features[target], snapshot);
+    const rules = extracted.styles.rules.filter((r) => r.target === target);
+    const written = new Set(rules.flatMap((r) => [...Object.keys(r.set ?? {}), ...Object.keys(r.map ?? {})]));
+    const truth = new Map(Array.from(written, (p) => [p, resolveRules(rules, target, p, src)] as const));
+    return {
+        target,
+        extracted,
+        snapshot,
+        options,
+        notes,
+        n,
+        src,
+        rules,
+        truth,
+        approx: (p) => () => {
+            notes.add(STYLE_ISSUE.APPROXIMATED, target, p);
+        },
+        // a default written as an approximation changes every element that draws it
+        approxDefault: (p, value) => () => {
+            const count = (truth.get(p) ?? []).filter((v) => v === value).length;
+            notes.add(STYLE_ISSUE.APPROXIMATED, target, p, { count: Math.max(count, 1) });
+        },
+    };
+}
+
+/**
+ * Emits one target.
+ * @param e - the target's emission
+ * @param style - the style being written
+ * @param bypasses - the target's bypasses, filled in
+ * @param columns - the target's added columns, filled in
+ */
+function emitTarget(
+    e: TargetEmit,
     style: CytoscapeStyle,
     bypasses: (Map<string, unknown> | null)[],
     columns: Map<string, readonly (StyleValue | null)[]>,
 ): void {
-    const { dialect } = options;
-    const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-    const src = refSource(target, n, extracted.columns[target], extracted.features[target], snapshot);
-    const rules = extracted.styles.rules.filter((r) => r.target === target);
-    const writers = WRITERS[dialect][target];
-    const written = new Set<string>();
-    for (const r of rules) {
-        for (const p of [...Object.keys(r.set ?? {}), ...Object.keys(r.map ?? {})]) {
-            written.add(p);
-        }
-    }
-    const truth = new Map<string, (StyleValue | null)[]>();
-    for (const p of written) {
-        truth.set(p, resolveRules(rules, target, p, src));
-    }
-    for (const p of written) {
+    const { target, notes, truth } = e;
+    const writers = WRITERS[e.options.dialect][target];
+    for (const [p, values] of truth) {
         if (!writers.has(p) && !(FONT_PROPS as readonly string[]).includes(p)) {
-            const count = (truth.get(p) ?? []).filter((v) => v !== null).length;
+            const count = values.filter((v) => v !== null).length;
             notes.add(STYLE_ISSUE.NOT_WRITTEN, target, p, { count: Math.max(count, 1) });
         }
     }
@@ -558,43 +598,73 @@ function emitTarget(
         counted.add(p);
         return Math.max((truth.get(p) ?? []).filter((v) => v !== null).length, 1);
     };
-    const model = buildModel(target, rules, writers, notes, carrying);
+    const model = buildModel(target, e.rules, writers, notes, carrying);
     const s = style[target];
     s.dependencies.set(target === "node" ? "nodeSizeLocked" : "arrowColorMatchesEdge", false);
-    const approx =
-        (p: string): (() => void) =>
-        () => {
-            notes.add(STYLE_ISSUE.APPROXIMATED, target, p);
-        };
-    // a default written as an approximation changes every element that draws it
-    const approxDefault =
-        (p: string, value: StyleValue): (() => void) =>
-        () => {
-            const count = (truth.get(p) ?? []).filter((v) => v === value).length;
-            notes.add(STYLE_ISSUE.APPROXIMATED, target, p, { count: Math.max(count, 1) });
-        };
     for (const [p, w] of writers) {
-        const set = model.set.get(p);
-        if (written.has(p) && set !== undefined) {
-            s.defaults.set(w.vp, w.write(set, approxDefault(p, set)));
-        }
-        let m = model.map.get(p);
-        if (!written.has(p) || m === undefined) {
-            continue;
-        }
-        if (dialect === "cx2" && m.kind === "continuous") {
-            m = cx2Points(m, approx(p));
-            model.map.set(p, m);
-        }
-        const cm = cytoscapeMapping(target, p, m, w, src, snapshot, extracted, options, columns, approx(p));
-        if (cm === null) {
-            notes.add(STYLE_ISSUE.LAYER_FLATTENED, target, p, { sample: model.mappedBy.get(p), count: carrying(p) });
-            model.map.delete(p);
-        } else {
-            s.mappings.set(w.vp, cm);
+        if (truth.has(p)) {
+            emitProperty(e, s, model, p, w, columns, carrying);
         }
     }
-    // what that style draws, per element; every element it draws differently gets a bypass
+    addBypasses(e, model, writers, bypasses);
+    emitFont(e, model, s, bypasses);
+}
+
+/**
+ * Emits one property the rules write: its default, and its mapping, or the mapping noted as flattened when
+ * Cytoscape cannot read the column it needs.
+ * @param e - the target's emission
+ * @param s - the target's style
+ * @param model - the model; a mapping not written is removed
+ * @param p - the property
+ * @param w - its writer
+ * @param columns - where added columns go
+ * @param carrying - how many elements carry a value of a property, once
+ */
+function emitProperty(
+    e: TargetEmit,
+    s: CytoscapeStyle["node"],
+    model: Model,
+    p: string,
+    w: Writer,
+    columns: Map<string, readonly (StyleValue | null)[]>,
+    carrying: (p: string) => number,
+): void {
+    const set = model.set.get(p);
+    if (set !== undefined) {
+        s.defaults.set(w.vp, w.write(set, e.approxDefault(p, set)));
+    }
+    let m = model.map.get(p);
+    if (m === undefined) {
+        return;
+    }
+    if (e.options.dialect === "cx2" && m.kind === "continuous") {
+        m = cx2Points(m, e.approx(p));
+        model.map.set(p, m);
+    }
+    const cm = cytoscapeMapping(e, p, m, w, columns);
+    if (cm === null) {
+        e.notes.add(STYLE_ISSUE.LAYER_FLATTENED, e.target, p, { sample: model.mappedBy.get(p), count: carrying(p) });
+        model.map.delete(p);
+    } else {
+        s.mappings.set(w.vp, cm);
+    }
+}
+
+/**
+ * A bypass for every element the written style draws differently from the rules.
+ * @param e - the target's emission
+ * @param model - the defaults and mappings written
+ * @param writers - the dialect's writers
+ * @param bypasses - the bypasses, filled in
+ */
+function addBypasses(
+    e: TargetEmit,
+    model: Model,
+    writers: ReadonlyMap<string, Writer>,
+    bypasses: (Map<string, unknown> | null)[],
+): void {
+    const { target } = e;
     const modelRules: StyleRule[] = [
         {
             id: "defaults",
@@ -614,20 +684,19 @@ function emitTarget(
         },
     ];
     for (const [p, w] of writers) {
-        const want = truth.get(p);
+        const want = e.truth.get(p);
         if (want === undefined) {
             continue;
         }
-        const drawn = resolveRules(modelRules, target, p, src);
-        for (let i = 0; i < n; i++) {
+        const drawn = resolveRules(modelRules, target, p, e.src);
+        for (let i = 0; i < e.n; i++) {
             const v = want[i];
             if (v !== null && v !== drawn[i]) {
                 bypasses[i] ??= new Map();
-                bypasses[i]?.set(w.vp, w.write(v, approx(p)));
+                bypasses[i]?.set(w.vp, w.write(v, e.approx(p)));
             }
         }
     }
-    emitFont(target, dialect, model, truth, n, s, bypasses, approx, approxDefault);
 }
 
 /**
@@ -688,68 +757,28 @@ function buildModel(
 
 /**
  * One neutral mapping as a Cytoscape mapping.
- * @param target - nodes or edges
+ * @param e - the target's emission
  * @param p - the property
  * @param m - the mapping
  * @param w - the property's writer
- * @param src - the reference source
- * @param snapshot - the graph
- * @param extracted - the styles
- * @param options - the options
  * @param columns - where added columns go
- * @param approx - called on an approximated value
  * @returns the mapping, or null when Cytoscape cannot read the column it needs
  */
 function cytoscapeMapping(
-    target: StyleTarget,
+    e: TargetEmit,
     p: string,
     m: Mapping,
     w: Writer,
-    src: ReturnType<typeof refSource>,
-    snapshot: GraphSnapshot,
-    extracted: ExtractedStyles,
-    options: CytoscapeEmitOptions,
     columns: Map<string, readonly (StyleValue | null)[]>,
-    approx: () => void,
 ): CytoscapeMapping | null {
-    let column: string;
-    if ("data" in m.by) {
-        column = m.by.data;
-    } else {
-        column = (options.columnName ?? defaultColumnName)(target, m.by);
-        let values: readonly (StyleValue | null)[] | null = null;
-        if ("style" in m.by) {
-            values = extracted.columns[target].get(m.by.style) ?? null;
-        } else if ("computed" in m.by && target === "node") {
-            values = degreeValues(snapshot, m.by.computed);
-        }
-        if (values === null) {
-            return null;
-        }
-        columns.set(column, values);
+    const column = mappingColumn(e, m.by, columns);
+    if (column === null) {
+        return null;
     }
+    const approx = e.approx(p);
     const write = (v: StyleValue): unknown => w.write(v, approx);
     if (m.kind === "passthrough") {
-        const kind = STYLE_PROPERTIES[target].get(p) ?? "";
-        const cells = src.column(m.by) ?? [];
-        if (PASSTHROUGH_SAFE.has(kind)) {
-            return { kind: "passthrough", column, type: typeOf(Array.from(cells)) };
-        }
-        // Cytoscape spells this value differently: a table over the values the graph holds
-        const read =
-            "style" in m.by ? (v: unknown): StyleValue | null => (isScalar(v) ? v : null) : canonicalFor(target, p);
-        const seen = new Map<Scalar, unknown>();
-        for (let i = 0; i < cells.length; i++) {
-            const raw = cells[i];
-            if (isScalar(raw) && !seen.has(raw)) {
-                const v = read(raw);
-                if (v !== null) {
-                    seen.set(raw, write(v));
-                }
-            }
-        }
-        const table = Array.from(seen);
-        return { kind: "discrete", column, type: typeOf(table.map(([k]) => k)), table };
+        return passthroughMapping(e, p, m.by, column, write);
     }
     if (m.kind === "discrete") {
         return {
@@ -769,6 +798,73 @@ function cytoscapeMapping(
         return { kind: "continuous", column, type: "double", points };
     }
     return null;
+}
+
+/**
+ * The column a mapping reads, by its name in the file: a data column's own, else an added column of the style
+ * column's or the degree's values.
+ * @param e - the target's emission
+ * @param ref - the column
+ * @param columns - where added columns go
+ * @returns the name, or null when the values cannot be written (a degree of an edge)
+ */
+function mappingColumn(
+    e: TargetEmit,
+    ref: ColumnRef,
+    columns: Map<string, readonly (StyleValue | null)[]>,
+): string | null {
+    if ("data" in ref) {
+        return ref.data;
+    }
+    const { target } = e;
+    const column = (e.options.columnName ?? defaultColumnName)(target, ref);
+    let values: readonly (StyleValue | null)[] | null = null;
+    if ("style" in ref) {
+        values = e.extracted.columns[target].get(ref.style) ?? null;
+    } else if ("computed" in ref && target === "node") {
+        values = degreeValues(e.snapshot, ref.computed);
+    }
+    if (values === null) {
+        return null;
+    }
+    columns.set(column, values);
+    return column;
+}
+
+/**
+ * A passthrough as Cytoscape reads it: a passthrough where Cytoscape reads the values as the neutral reading does,
+ * else a table over the values the graph holds, in Cytoscape's spelling.
+ * @param e - the target's emission
+ * @param p - the property
+ * @param by - the column
+ * @param column - its name in the file
+ * @param write - a value in Cytoscape's spelling
+ * @returns the mapping
+ */
+function passthroughMapping(
+    e: TargetEmit,
+    p: string,
+    by: ColumnRef,
+    column: string,
+    write: (v: StyleValue) => unknown,
+): CytoscapeMapping {
+    const { target } = e;
+    const kind = STYLE_PROPERTIES[target].get(p) ?? "";
+    const cells = e.src.column(by) ?? [];
+    if (PASSTHROUGH_SAFE.has(kind)) {
+        return { kind: "passthrough", column, type: typeOf(Array.from(cells)) };
+    }
+    const read = "style" in by ? (v: unknown): StyleValue | null => (isScalar(v) ? v : null) : canonicalFor(target, p);
+    const seen = new Map<Scalar, unknown>();
+    for (let i = 0; i < cells.length; i++) {
+        const raw = cells[i];
+        const v = isScalar(raw) && !seen.has(raw) ? read(raw) : null;
+        if (v !== null) {
+            seen.set(raw as Scalar, write(v));
+        }
+    }
+    const table = Array.from(seen);
+    return { kind: "discrete", column, type: typeOf(table.map(([k]) => k)), table };
 }
 
 /**
@@ -839,27 +935,19 @@ function typeOf(values: readonly unknown[]): string {
 /**
  * The font face: a default from the constant font properties, and a bypass for every element whose family, weight
  * or italic differs from it.
- * @param target - nodes or edges
- * @param dialect - the dialect
+ * @param e - the target's emission
  * @param model - the model
- * @param truth - every element's value per property
- * @param n - the element count
  * @param s - the target's style
  * @param bypasses - the bypasses
- * @param approx - the approximation note
- * @param approxDefault - the approximation note of a default, counted over the elements that draw it
  */
 function emitFont(
-    target: StyleTarget,
-    dialect: CytoscapeDialect,
+    e: TargetEmit,
     model: Model,
-    truth: ReadonlyMap<string, readonly (StyleValue | null)[]>,
-    n: number,
     s: CytoscapeStyle["node"],
     bypasses: (Map<string, unknown> | null)[],
-    approx: (p: string) => () => void,
-    approxDefault: (p: string, value: StyleValue) => () => void,
 ): void {
+    const { target, truth, n, approx, approxDefault } = e;
+    const { dialect } = e.options;
     if (!FONT_PROPS.some((p) => truth.has(p))) {
         return;
     }
@@ -892,7 +980,7 @@ function emitFont(
  * @returns the text
  */
 function defText(v: unknown): string {
-    return String(v).replace(/,/g, ",,");
+    return String(v).replaceAll(",", ",,");
 }
 
 /**
@@ -1063,28 +1151,9 @@ export function cytoscapeVizmapXml(style: CytoscapeStyle, name: string): string 
             const m = t?.mappings.get(vp);
             if (m === undefined) {
                 lines.push(`    <visualProperty${attr("name", vp)}${d}/>`);
-                continue;
-            }
-            lines.push(`    <visualProperty${attr("name", vp)}${d}>`);
-            const head = `${attr("attributeName", m.column)}${attr("attributeType", m.kind === "continuous" ? "float" : (m.type ?? "string"))}`;
-            if (m.kind === "passthrough") {
-                lines.push(`      <passthroughMapping${head}/>`);
-            } else if (m.kind === "discrete") {
-                lines.push(`      <discreteMapping${head}>`);
-                for (const [k, v] of m.table) {
-                    lines.push(`        <discreteMappingEntry${attr("attributeValue", k)}${attr("value", v)}/>`);
-                }
-                lines.push("      </discreteMapping>");
             } else {
-                lines.push(`      <continuousMapping${head}>`);
-                for (const p of m.points) {
-                    lines.push(
-                        `        <continuousMappingPoint${attr("attrValue", p.at)}${attr("lesserValue", p.below)}${attr("equalValue", p.value)}${attr("greaterValue", p.above)}/>`,
-                    );
-                }
-                lines.push("      </continuousMapping>");
+                lines.push(`    <visualProperty${attr("name", vp)}${d}>`, ...mappingXml(m), "    </visualProperty>");
             }
-            lines.push("    </visualProperty>");
         }
         lines.push(`  </${tag}>`);
     };
@@ -1093,6 +1162,35 @@ export function cytoscapeVizmapXml(style: CytoscapeStyle, name: string): string 
     section("edge", style.edge.defaults, style.edge);
     lines.push("</visualStyle>");
     return lines.join("\n");
+}
+
+/**
+ * A mapping as the lines of its `session_vizmap.xml` element.
+ * @param m - the mapping
+ * @returns the lines
+ */
+function mappingXml(m: CytoscapeMapping): string[] {
+    const head = `${attr("attributeName", m.column)}${attr("attributeType", m.kind === "continuous" ? "float" : (m.type ?? "string"))}`;
+    if (m.kind === "passthrough") {
+        return [`      <passthroughMapping${head}/>`];
+    }
+    if (m.kind === "discrete") {
+        return [
+            `      <discreteMapping${head}>`,
+            ...m.table.map(
+                ([k, v]) => `        <discreteMappingEntry${attr("attributeValue", k)}${attr("value", v)}/>`,
+            ),
+            "      </discreteMapping>",
+        ];
+    }
+    return [
+        `      <continuousMapping${head}>`,
+        ...m.points.map(
+            (p) =>
+                `        <continuousMappingPoint${attr("attrValue", p.at)}${attr("lesserValue", p.below)}${attr("equalValue", p.value)}${attr("greaterValue", p.above)}/>`,
+        ),
+        "      </continuousMapping>",
+    ];
 }
 
 // ------------------------------------------------------------------ per-element values

@@ -151,22 +151,7 @@ export function planStyles(values: StyleValues, features: StyleFeatures, options
                 ? { ...given, rules: given.rules.filter((r) => r.origin !== "tool") }
                 : given;
         allFeatures[target] = [...features[target], ...(out?.features ?? [])];
-        let toolSet: Record<string, StyleValue> | null = null;
-        if (defaults !== null) {
-            toolSet = {};
-            for (const [p, d] of Object.entries(defaults[target]) as [string, { value: unknown } | undefined][]) {
-                if (d === undefined || !isStyleValue(target, p, d.value)) {
-                    continue;
-                }
-                if (LENGTHS.has(p) && defaults.units !== units) {
-                    continue;
-                }
-                toolSet[p] = d.value as StyleValue;
-            }
-            if (Object.keys(toolSet).length === 0) {
-                toolSet = null;
-            }
-        }
+        const toolSet = defaults === null ? null : toolSetOf(defaults, target, units);
         const plan: TargetPlan = {
             target,
             n: target === "node" ? values.fingerprint.nodes : values.fingerprint.edges,
@@ -189,19 +174,7 @@ export function planStyles(values: StyleValues, features: StyleFeatures, options
             ),
         );
     }
-    const graph: Record<string, StyleValue> = {};
-    if (defaults !== null) {
-        for (const [p, d] of Object.entries(defaults.graph) as [string, { value: unknown } | undefined][]) {
-            if (d !== undefined && isStyleValue("graph", p, d.value)) {
-                graph[p] = d.value as StyleValue;
-            }
-        }
-    }
-    for (const [p, v] of Object.entries(values.graph ?? {}) as [string, unknown][]) {
-        if (isStyleValue("graph", p, v)) {
-            graph[p] = v as StyleValue;
-        }
-    }
+    const graph = graphStyles(defaults, values.graph ?? {});
     return {
         styles: {
             version: 1,
@@ -222,6 +195,54 @@ export function planStyles(values: StyleValues, features: StyleFeatures, options
 }
 
 /**
+ * The tool's default values of a target, as one defaults rule sets them; a length in other units than the file's is
+ * left out.
+ * @param defaults - the tool's defaults
+ * @param target - nodes or edges
+ * @param units - the file's length units
+ * @returns the values, or null when none applies
+ */
+function toolSetOf(
+    defaults: NonNullable<ReturnType<typeof toolDefaults>>,
+    target: StyleTarget,
+    units: string,
+): Record<string, StyleValue> | null {
+    const toolSet: Record<string, StyleValue> = {};
+    for (const [p, d] of Object.entries(defaults[target]) as [string, { value: unknown } | undefined][]) {
+        const fits = d !== undefined && isStyleValue(target, p, d.value);
+        if (fits && !(LENGTHS.has(p) && defaults.units !== units)) {
+            toolSet[p] = d.value as StyleValue;
+        }
+    }
+    return Object.keys(toolSet).length === 0 ? null : toolSet;
+}
+
+/**
+ * The graph's styles: the tool's defaults, then the file's own values over them.
+ * @param defaults - the tool's defaults, or null
+ * @param given - the file's graph values
+ * @returns the values
+ */
+function graphStyles(
+    defaults: ReturnType<typeof toolDefaults> | null,
+    given: Readonly<Record<string, unknown>>,
+): Record<string, StyleValue> {
+    const graph: Record<string, StyleValue> = {};
+    const own = Object.entries(defaults?.graph ?? {}) as [string, { value: unknown } | undefined][];
+    for (const [p, d] of own) {
+        if (d !== undefined && isStyleValue("graph", p, d.value)) {
+            graph[p] = d.value as StyleValue;
+        }
+    }
+    for (const [p, v] of Object.entries(given)) {
+        if (isStyleValue("graph", p, v)) {
+            graph[p] = v as StyleValue;
+        }
+    }
+    return graph;
+}
+
+/**
  * A rule id not used yet in this target.
  * @param plan - the target's state
  * @param base - the wanted id
@@ -229,11 +250,24 @@ export function planStyles(values: StyleValues, features: StyleFeatures, options
  */
 function uniqueId(plan: TargetPlan, base: string): string {
     let id = base;
-    for (let k = 2; plan.ids.has(id); k++) {
+    let k = 2;
+    while (plan.ids.has(id)) {
         id = `${base}#${String(k)}`;
+        k++;
     }
     plan.ids.add(id);
     return id;
+}
+
+/**
+ * Sets one property's mapping of a rule, making the rule's mappings on first use.
+ * @param rule - the rule, changed in place
+ * @param property - the property
+ * @param mapping - the mapping
+ */
+function setMapping(rule: Draft, property: string, mapping: Mapping): void {
+    rule.map ??= {};
+    rule.map[property] = mapping;
 }
 
 /**
@@ -252,26 +286,33 @@ function checkedTruth(plan: TargetPlan, out: ReaderOutput | undefined): Map<stri
             plan.notes.add(STYLE_ISSUE.NOT_CARRIED, plan.target, p, { sample: p });
             continue;
         }
-        const vals = new Array<StyleValue | null>(plan.n).fill(null);
-        let any = false;
-        for (let i = 0; i < plan.n && i < arr.length; i++) {
-            const v = arr[i] ?? null;
-            if (v === null) {
-                continue;
-            }
-            if (!isStyleValue(plan.target, p, v)) {
-                plan.notes.add(STYLE_ISSUE.BAD_VALUE, plan.target, p, { sample: v, element: i });
-                continue;
-            }
-            vals[i] = v;
-            any = true;
-        }
+        const vals = checkedValues(plan, p, arr);
         plan.spend(plan.n);
-        if (any) {
+        if (vals.some((v) => v !== null)) {
             truth.set(p, vals);
         }
     }
     return truth;
+}
+
+/**
+ * One property's values, a value of the wrong kind noted and dropped.
+ * @param plan - the target's state
+ * @param p - the property
+ * @param arr - the reader's values
+ * @returns the values, one per element
+ */
+function checkedValues(plan: TargetPlan, p: string, arr: StyleColumn): (StyleValue | null)[] {
+    const vals = new Array<StyleValue | null>(plan.n).fill(null);
+    for (let i = 0; i < plan.n && i < arr.length; i++) {
+        const v = arr[i] ?? null;
+        if (v !== null && isStyleValue(plan.target, p, v)) {
+            vals[i] = v;
+        } else if (v !== null) {
+            plan.notes.add(STYLE_ISSUE.BAD_VALUE, plan.target, p, { sample: v, element: i });
+        }
+    }
+    return vals;
 }
 
 /**
@@ -311,12 +352,8 @@ function writes(r: Draft | StyleRule): string[] {
  */
 function prepareDeclared(plan: TargetPlan, declared: readonly StyleRule[], features: readonly StyleFeature[]): Draft[] {
     const src = refSource(plan.target, plan.n, plan.columns, features);
-    let member = 1;
     const drafts: Draft[] = [];
-    for (const r of declared) {
-        if (r.target !== plan.target) {
-            continue;
-        }
+    for (const r of declared.filter((x) => x.target === plan.target)) {
         const d: Draft = { ...r, set: defined(r.set), map: defined(r.map) };
         if (d.set === undefined) {
             delete d.set;
@@ -325,56 +362,73 @@ function prepareDeclared(plan: TargetPlan, declared: readonly StyleRule[], featu
             delete d.map;
         }
         if (!isShortPredicate(r.where)) {
-            while (plan.columns.has(`member.${String(member)}`)) {
-                member++;
-            }
-            const key = `member.${String(member)}`;
-            const col = new Array<StyleValue | null>(plan.n).fill(null);
-            let count = 0;
-            for (let i = 0; i < plan.n; i++) {
-                if (matches(r.where, src, i)) {
-                    col[i] = true;
-                    count++;
-                }
-            }
-            plan.spend(plan.n * 8);
-            plan.columns.set(key, col);
-            d.where = { has: { style: key } };
-            d.facts = { ...r.facts, elements: count, reason: r.facts?.reason ?? "SELECTOR" };
-            plan.notes.add(STYLE_ISSUE.SELECTOR_AS_COLUMN, plan.target, r.id, { count });
+            asMembership(plan, d, r, src);
         }
         drafts.push(d);
     }
-    // consecutive declared rules that select everything and only set values are one defaults rule (later wins)
+    const merged = mergedDefaults(plan.target, drafts);
+    for (const d of merged) {
+        d.id = uniqueId(plan, d.id);
+    }
+    return merged;
+}
+
+/**
+ * Evaluates a long predicate into a membership style column the rule selects instead.
+ * @param plan - the target's state
+ * @param d - the rule's draft, changed in place
+ * @param r - the declared rule
+ * @param src - the reference source
+ */
+function asMembership(plan: TargetPlan, d: Draft, r: StyleRule, src: ReturnType<typeof refSource>): void {
+    let member = 1;
+    while (plan.columns.has(`member.${String(member)}`)) {
+        member++;
+    }
+    const key = `member.${String(member)}`;
+    const col = new Array<StyleValue | null>(plan.n).fill(null);
+    let count = 0;
+    for (let i = 0; i < plan.n; i++) {
+        if (matches(r.where, src, i)) {
+            col[i] = true;
+            count++;
+        }
+    }
+    plan.spend(plan.n * 8);
+    plan.columns.set(key, col);
+    d.where = { has: { style: key } };
+    d.facts = { ...r.facts, elements: count, reason: r.facts?.reason ?? "SELECTOR" };
+    plan.notes.add(STYLE_ISSUE.SELECTOR_AS_COLUMN, plan.target, r.id, { count });
+}
+
+/**
+ * Consecutive declared rules that select everything and only set values, as one defaults rule (later wins).
+ * @param target - nodes or edges
+ * @param drafts - the declared rules
+ * @returns the rules, runs merged
+ */
+function mergedDefaults(target: StyleTarget, drafts: readonly Draft[]): Draft[] {
     const merged: Draft[] = [];
     const plain = (x: Draft): boolean => "all" in x.where && x.set !== undefined && x.map === undefined;
-    for (let i = 0; i < drafts.length;) {
+    let i = 0;
+    while (i < drafts.length) {
         let j = i + 1;
-        if (plain(drafts[i])) {
-            while (j < drafts.length && plain(drafts[j])) {
-                j++;
-            }
+        while (plain(drafts[i]) && j < drafts.length && plain(drafts[j])) {
+            j++;
         }
         if (j - i >= 2) {
-            const set: Record<string, StyleValue> = {};
-            for (const x of drafts.slice(i, j)) {
-                Object.assign(set, x.set);
-            }
             merged.push({
                 id: drafts[i].id,
-                target: plan.target,
+                target,
                 role: "defaults",
                 origin: "declared",
                 where: { all: true },
-                set,
+                set: Object.assign({}, ...drafts.slice(i, j).map((x) => x.set)) as Record<string, StyleValue>,
             });
         } else {
             merged.push(drafts[i]);
         }
         i = j;
-    }
-    for (const d of merged) {
-        d.id = uniqueId(plan, d.id);
     }
     return merged;
 }
@@ -482,20 +536,7 @@ function planTarget(
     const declared = prepareDeclared(plan, out?.rules ?? [], features);
     const declaredProps = new Set(declared.flatMap(writes));
 
-    // inferred defaults: a property non-null and equal on every element
-    const defaults: Record<string, StyleValue> = {};
-    const rest: [string, (StyleValue | null)[]][] = [];
-    for (const [p, a] of truth) {
-        if (declaredProps.has(p)) {
-            continue;
-        }
-        const first = a[0];
-        if (n > 0 && first !== null && a.every((v) => v === first)) {
-            defaults[p] = first;
-        } else {
-            rest.push([p, a]);
-        }
-    }
+    const { defaults, rest } = splitDefaults(n, truth, declaredProps);
     plan.spend(n * truth.size);
     const inferred: Draft[] = [];
     if (Object.keys(defaults).length > 0) {
@@ -587,6 +628,35 @@ function planTarget(
     return drafts.map(finish);
 }
 
+/**
+ * The inferred defaults: each property non-null and equal on every element; the others are left to explain. A
+ * property a declared rule writes is the declared rule's.
+ * @param n - the element count
+ * @param truth - the values per property
+ * @param declaredProps - the properties the declared rules write
+ * @returns the defaults, and the properties left
+ */
+function splitDefaults(
+    n: number,
+    truth: ReadonlyMap<string, (StyleValue | null)[]>,
+    declaredProps: ReadonlySet<string>,
+): { defaults: Record<string, StyleValue>; rest: [string, (StyleValue | null)[]][] } {
+    const defaults: Record<string, StyleValue> = {};
+    const rest: [string, (StyleValue | null)[]][] = [];
+    for (const [p, a] of truth) {
+        const first = a[0];
+        if (declaredProps.has(p)) {
+            continue;
+        }
+        if (n > 0 && first !== null && a.every((v) => v === first)) {
+            defaults[p] = first;
+        } else {
+            rest.push([p, a]);
+        }
+    }
+    return { defaults, rest };
+}
+
 /** What the inference of one target collects. */
 interface Inference {
     readonly groups: Draft[];
@@ -658,77 +728,133 @@ function applyChoice(
     c: Candidate,
     truth: ReadonlyMap<string, readonly (StyleValue | null)[]>,
 ): void {
-    const { target } = plan;
-    const mappingRule = (key: string, id: string): Draft => {
-        let r = st.mappings.get(key);
-        if (r === undefined) {
-            r = { id, target, role: "mapping", origin: "inferred", where: { all: true }, map: {} };
-            st.mappings.set(key, r);
-        }
-        return r;
-    };
-    const materialize = (info: FeatureInfo): void => {
-        if ("style" in info.feature.ref) {
-            plan.columns.set(info.feature.ref.style, info.feature.values);
-        }
-    };
     if (c.type === "discrete") {
-        materialize(c.info);
-        const rule = mappingRule(`discrete|${c.info.name}`, `${target}.by.${c.info.name}`);
-        const rep = new Map<number, number>();
-        for (const i of fam.styled) {
-            if (!rep.has(fam.blocks[i])) {
-                rep.set(fam.blocks[i], i);
-            }
-        }
-        for (const p of fam.props) {
-            const t = truth.get(p) ?? [];
-            const table: [string | number | boolean, StyleValue][] = [];
-            for (const { raw, block } of c.table.values()) {
-                table.push([raw, t[rep.get(block) ?? -1] as StyleValue]);
-            }
-            (rule.map ??= {})[p] = { kind: "discrete", by: c.info.feature.ref, table };
-        }
-        if (c.bucket !== null) {
-            const set: Record<string, StyleValue> = {};
-            for (const p of fam.props) {
-                set[p] = (truth.get(p) ?? [])[rep.get(c.bucket) ?? -1] as StyleValue;
-            }
-            st.groups.push({
-                id: `${target}.missing.${c.info.name}`,
-                target,
-                role: "group",
-                origin: "inferred",
-                where: { not: { has: c.info.feature.ref } },
-                set,
-            });
-        }
+        applyDiscrete(plan, st, fam, c, truth);
     } else if (c.type === "continuous") {
-        materialize(c.info);
-        const rule = mappingRule(`continuous|${c.info.name}`, `${target}.ramp.${c.info.name}`);
-        for (const p of fam.props) {
-            const points = c.points.get(p) ?? [];
-            (rule.map ??= {})[p] = { kind: "continuous", by: c.info.feature.ref, points };
-            if (c.tolerant) {
-                const t = truth.get(p) ?? [];
-                const set = new Set<number>();
-                for (const i of fam.styled) {
-                    if (evalContinuous(points, numberOf(c.info.feature.values[i])) !== t[i]) {
-                        set.add(i);
-                        plan.notes.add(STYLE_ISSUE.RAMP_ROUNDED, target, p, { element: i, sample: t[i] });
-                    }
-                }
-                st.tolerated.set(p, set);
-            }
-        }
+        applyContinuous(plan, st, fam, c, truth);
     } else if (c.type === "passdata" && !c.raw) {
         for (const p of fam.props) {
-            (st.passData.map ??= {})[p] = { kind: "passthrough", by: (c.cols.get(p) as FeatureInfo).feature.ref };
+            setMapping(st.passData, p, { kind: "passthrough", by: (c.cols.get(p) as FeatureInfo).feature.ref });
         }
     } else {
         // the raw style column recovers nothing: the family joins the opaque pool, where it may become part
         // of a style class, and otherwise reads the raw column
         st.opaque.push({ fam, raw: c.type === "passdata" ? c.cols : null });
+    }
+}
+
+/**
+ * The mapping rule of a feature, made on first use; one rule holds every family the feature explains.
+ * @param plan - the target's state
+ * @param st - the inference so far; changed in place
+ * @param key - the rule's key among the mappings
+ * @param id - its id
+ * @returns the rule
+ */
+function mappingRule(plan: TargetPlan, st: Inference, key: string, id: string): Draft {
+    let r = st.mappings.get(key);
+    if (r === undefined) {
+        r = { id, target: plan.target, role: "mapping", origin: "inferred", where: { all: true }, map: {} };
+        st.mappings.set(key, r);
+    }
+    return r;
+}
+
+/**
+ * Makes a feature computed for the inference (a style column) a column of the styles.
+ * @param plan - the target's state
+ * @param info - the feature
+ */
+function materialize(plan: TargetPlan, info: FeatureInfo): void {
+    if ("style" in info.feature.ref) {
+        plan.columns.set(info.feature.ref.style, info.feature.values);
+    }
+}
+
+/**
+ * Records a discrete mapping: one table per property, and a group for the elements the feature gives no value.
+ * @param plan - the target's state
+ * @param st - the inference so far; changed in place
+ * @param fam - the family
+ * @param c - the candidate
+ * @param truth - the values per property
+ */
+function applyDiscrete(
+    plan: TargetPlan,
+    st: Inference,
+    fam: Family,
+    c: DiscreteCandidate,
+    truth: ReadonlyMap<string, readonly (StyleValue | null)[]>,
+): void {
+    const { target } = plan;
+    materialize(plan, c.info);
+    const rule = mappingRule(plan, st, `discrete|${c.info.name}`, `${target}.by.${c.info.name}`);
+    // the first element of each block stands for the block
+    const rep = new Map<number, number>();
+    for (const i of fam.styled) {
+        if (!rep.has(fam.blocks[i])) {
+            rep.set(fam.blocks[i], i);
+        }
+    }
+    for (const p of fam.props) {
+        const t = truth.get(p) ?? [];
+        const table = Array.from(c.table.values(), ({ raw, block }): [string | number | boolean, StyleValue] => [
+            raw,
+            t[rep.get(block) ?? -1] as StyleValue,
+        ]);
+        setMapping(rule, p, { kind: "discrete", by: c.info.feature.ref, table });
+    }
+    if (c.bucket === null) {
+        return;
+    }
+    const set: Record<string, StyleValue> = {};
+    for (const p of fam.props) {
+        set[p] = (truth.get(p) ?? [])[rep.get(c.bucket) ?? -1] as StyleValue;
+    }
+    st.groups.push({
+        id: `${target}.missing.${c.info.name}`,
+        target,
+        role: "group",
+        origin: "inferred",
+        where: { not: { has: c.info.feature.ref } },
+        set,
+    });
+}
+
+/**
+ * Records a continuous mapping: one ramp per property; a ramp that matches only within the tool's rounding tolerates
+ * those elements, noted.
+ * @param plan - the target's state
+ * @param st - the inference so far; changed in place
+ * @param fam - the family
+ * @param c - the candidate
+ * @param truth - the values per property
+ */
+function applyContinuous(
+    plan: TargetPlan,
+    st: Inference,
+    fam: Family,
+    c: ContinuousCandidate,
+    truth: ReadonlyMap<string, readonly (StyleValue | null)[]>,
+): void {
+    const { target } = plan;
+    materialize(plan, c.info);
+    const rule = mappingRule(plan, st, `continuous|${c.info.name}`, `${target}.ramp.${c.info.name}`);
+    for (const p of fam.props) {
+        const points = c.points.get(p) ?? [];
+        setMapping(rule, p, { kind: "continuous", by: c.info.feature.ref, points });
+        if (!c.tolerant) {
+            continue;
+        }
+        const t = truth.get(p) ?? [];
+        const set = new Set<number>();
+        for (const i of fam.styled) {
+            if (evalContinuous(points, numberOf(c.info.feature.values[i])) !== t[i]) {
+                set.add(i);
+                plan.notes.add(STYLE_ISSUE.RAMP_ROUNDED, target, p, { element: i, sample: t[i] });
+            }
+        }
+        st.tolerated.set(p, set);
     }
 }
 
@@ -764,23 +890,31 @@ function poolOpaque(
     }
     let distinct = 0;
     for (const { fam, raw } of st.opaque) {
-        for (const p of fam.props) {
-            if (classed.has(p)) {
-                continue;
-            }
+        for (const p of fam.props.filter((x) => !classed.has(x))) {
             const viaRaw = raw?.get(p);
-            if (viaRaw !== undefined) {
-                (st.passRaw.map ??= {})[p] = { kind: "passthrough", by: viaRaw.feature.ref };
-                continue;
+            if (viaRaw === undefined) {
+                distinct = Math.max(distinct, copyProperty(plan, st.copy, p, truth.get(p) ?? []));
+            } else {
+                setMapping(st.passRaw, p, { kind: "passthrough", by: viaRaw.feature.ref });
             }
-            const t = truth.get(p) ?? [];
-            plan.columns.set(`copy.${p}`, t.slice());
-            (st.copy.map ??= {})[p] = { kind: "passthrough", by: { style: `copy.${p}` } };
-            distinct = Math.max(distinct, new Set(t.filter((v) => v !== null)).size);
-            plan.spend(n);
         }
     }
     st.copy.facts = { reason: budgetHit > 0 ? "BUDGET" : "NO_EXPLANATION", distinctValues: distinct };
+}
+
+/**
+ * Copies a property's values into a style column the copy rule passes through.
+ * @param plan - the target's state
+ * @param copy - the copy rule, changed in place
+ * @param p - the property
+ * @param t - its values
+ * @returns how many distinct values it holds
+ */
+function copyProperty(plan: TargetPlan, copy: Draft, p: string, t: readonly (StyleValue | null)[]): number {
+    plan.columns.set(`copy.${p}`, t.slice());
+    setMapping(copy, p, { kind: "passthrough", by: { style: `copy.${p}` } });
+    plan.spend(plan.n);
+    return new Set(t.filter((v) => v !== null)).size;
 }
 
 /**
@@ -894,7 +1028,7 @@ function enforceCap(
             const t = truth.get(p);
             const vals = t === undefined ? resolveRules(before, plan.target, p, src, plan.budget) : t.slice();
             plan.columns.set(`copy.${p}`, vals);
-            (copy.map ??= {})[p] = { kind: "passthrough", by: { style: `copy.${p}` } };
+            setMapping(copy, p, { kind: "passthrough", by: { style: `copy.${p}` } });
         }
         copy.facts = { ...copy.facts, reason: "LAYER_CAP" };
         drafts.push(copy);
@@ -903,6 +1037,33 @@ function enforceCap(
     if (folded > 0) {
         plan.notes.add(STYLE_ISSUE.LAYER_CAP, plan.target, null, { count: folded });
     }
+}
+
+/**
+ * The elements whose resolved value is not the one wanted, with the wanted value; none where nothing is wanted, and
+ * none where a ramp is tolerated within the tool's rounding.
+ * @param n - the element count
+ * @param got - the resolved values
+ * @param want - the value wanted for an element, or null for none
+ * @param tolerated - the elements a ramp matches only within the tool's rounding
+ * @returns the wanted values where they differ, or null when none does
+ */
+function differences(
+    n: number,
+    got: readonly (StyleValue | null)[],
+    want: (i: number) => StyleValue | null,
+    tolerated: ReadonlySet<number> | undefined,
+): (StyleValue | null)[] | null {
+    let col: (StyleValue | null)[] | null = null;
+    for (let i = 0; i < n; i++) {
+        const w = want(i);
+        const differs = w !== null && got[i] !== w && !(tolerated?.has(i) === true && within(got[i], w));
+        if (differs) {
+            col ??= new Array<StyleValue | null>(n).fill(null);
+            col[i] = w;
+        }
+    }
+    return col;
 }
 
 /**
@@ -934,18 +1095,8 @@ function replay(
         const got = resolveRules(rules, plan.target, p, src, plan.budget);
         const perElement = ownToolRules ? resolveRules(toolRules, plan.target, p, src, plan.budget) : null;
         const constant = toolSet?.[p] ?? null;
-        let col: (StyleValue | null)[] | null = null;
-        for (let i = 0; i < plan.n; i++) {
-            const want = t[i] ?? (perElement === null ? constant : perElement[i]);
-            if (got[i] === want || want === null) {
-                continue;
-            }
-            if (tolerated.get(p)?.has(i) === true && within(got[i], want)) {
-                continue;
-            }
-            col ??= new Array<StyleValue | null>(plan.n).fill(null);
-            col[i] = want;
-        }
+        const want = (i: number): StyleValue | null => t[i] ?? (perElement === null ? constant : perElement[i]);
+        const col = differences(plan.n, got, want, tolerated.get(p));
         if (col !== null) {
             plan.columns.set(`exceptions.${p}`, col);
             map[p] = { kind: "passthrough", by: { style: `exceptions.${p}` } };

@@ -63,6 +63,21 @@ interface RowProblems {
     repeated: number;
 }
 
+/** One CSV record of a table: its cells, its line, and the cells written as a quoted empty string. */
+interface TableRecord {
+    readonly cells: string[];
+    readonly line: number;
+    readonly quotedEmpty?: Set<number>;
+}
+
+/** The rows of a table, by key. */
+interface TableRows {
+    readonly rows: Map<string, readonly string[]>;
+    readonly lines: Map<string, number>;
+    readonly quotedEmpty: Map<string, ReadonlySet<number>>;
+    readonly problems: RowProblems;
+}
+
 /**
  * Read one CyCSV table. A table that cannot be read at all (an unknown CyCSV version or column
  * class, a malformed header, broken CSV) is recorded as E_CYS_TABLE and skipped (null); rows with
@@ -81,96 +96,19 @@ export async function readCyTable(
     report: ImportReportBuilder,
     common: ResolvedImportOptions,
 ): Promise<CyTable | null> {
-    const scratch = new ImportReportBuilder(FORMAT, 0);
-    const reader = new CsvRecordReader(bytes, scratch, { delimiter: ",", encoding: "utf-8", signal: common.signal });
-    const records: { readonly cells: string[]; readonly line: number; readonly quotedEmpty?: Set<number> }[] = [];
-    try {
-        for await (const cells of reader) {
-            let quotedEmpty: Set<number> | undefined;
-            cells.forEach((cell, i) => {
-                if (cell.length === 0 && reader.quoted[i]) {
-                    (quotedEmpty ??= new Set()).add(i);
-                }
-            });
-            records.push({ cells, line: reader.line, quotedEmpty });
-        }
-    } catch (err) {
-        if (err instanceof ImportError) {
-            return tableError(report, entry, scratch.issues.at(-1)?.message ?? err.message);
-        }
-        throw err;
+    const records = await tableRecords(bytes, common);
+    if (typeof records === "string") {
+        return tableError(report, entry, records);
     }
-    let at = 0;
-    let version = 0;
-    if (records[0]?.cells[0] === "CyCSV-Version") {
-        const { cells } = records[0];
-        if (cells.length !== 2 || !/^\d+$/.test(cells[1].trim())) {
-            return tableError(report, entry, `the version row ${JSON.stringify(cells)} does not parse`);
-        }
-        version = Number(cells[1]);
-        at = 1;
+    const header = tableHeader(records);
+    if (typeof header === "string") {
+        return tableError(report, entry, header);
     }
-    if (version !== 0 && version !== 1) {
-        return tableError(report, entry, `CyCSV version "${records[0].cells[1]}" is not 0 or 1`);
+    const columns = tableColumns(records[header.at].cells, records[header.at + 1].cells);
+    if (typeof columns === "string") {
+        return tableError(report, entry, columns);
     }
-    // version 1: names, types, column options, table title; version 0: names, types, table title
-    let headerLines = version === 1 ? 4 : 3;
-    if (records.length < at + headerLines - 1) {
-        return tableError(report, entry, "the table header is incomplete");
-    }
-    // the reader skips blank lines, so a blank title line (another tool's) shows only as a gap
-    // in the line numbers: the record after the row before the title is then the first data row
-    const beforeTitle = records[at + headerLines - 2];
-    const title = records.at(at + headerLines - 1);
-    if (
-        title === undefined ||
-        (title.line > beforeTitle.line + 1 && !beforeTitle.cells.some((c) => /[\r\n]/.test(c)))
-    ) {
-        headerLines--;
-    }
-    const names = records[at].cells;
-    const classes = records[at + 1].cells;
-    if (names.length === 0 || classes.length !== names.length) {
-        return tableError(
-            report,
-            entry,
-            `${names.length} column name${plural(names.length)} but ${classes.length} column class(es)`,
-        );
-    }
-    const columns: CyColumn[] = [];
-    for (let i = 0; i < names.length; i++) {
-        const column = columnOf(names[i], classes[i]);
-        if (column === null) {
-            return tableError(
-                report,
-                entry,
-                `column "${names[i]}" has the class "${classes[i]}", which graph-io cannot read`,
-            );
-        }
-        columns.push(column);
-    }
-    const rows = new Map<string, readonly string[]>();
-    const lines = new Map<string, number>();
-    const quotedEmpty = new Map<string, ReadonlySet<number>>();
-    const problems: RowProblems = { short: 0, long: 0, repeated: 0 };
-    for (const record of records.slice(at + headerLines)) {
-        const { cells } = record;
-        if (cells.length < columns.length) {
-            problems.short++;
-        } else if (cells.length > columns.length) {
-            problems.long++;
-        }
-        const key = cells[0];
-        if (rows.has(key)) {
-            problems.repeated++;
-            continue;
-        }
-        rows.set(key, cells.slice(0, columns.length));
-        lines.set(key, record.line);
-        if (record.quotedEmpty !== undefined) {
-            quotedEmpty.set(key, record.quotedEmpty);
-        }
-    }
+    const { rows, lines, quotedEmpty, problems } = tableRows(records.slice(header.at + header.lines), columns.length);
     if (problems.short + problems.long + problems.repeated > 0) {
         report.warning(
             "parse-error",
@@ -179,6 +117,116 @@ export async function readCyTable(
         );
     }
     return { path, entry, columns, rows, lines, quotedEmpty };
+}
+
+/**
+ * A table's CSV records.
+ * @param bytes - the entry's bytes
+ * @param common - cancellation
+ * @returns the records, or why the CSV is broken
+ */
+async function tableRecords(bytes: Uint8Array, common: ResolvedImportOptions): Promise<TableRecord[] | string> {
+    const scratch = new ImportReportBuilder(FORMAT, 0);
+    const reader = new CsvRecordReader(bytes, scratch, { delimiter: ",", encoding: "utf-8", signal: common.signal });
+    const records: TableRecord[] = [];
+    try {
+        for await (const cells of reader) {
+            const empty = cells.flatMap((cell, i) => (cell.length === 0 && reader.quoted[i] ? [i] : []));
+            records.push({ cells, line: reader.line, quotedEmpty: empty.length === 0 ? undefined : new Set(empty) });
+        }
+    } catch (err) {
+        if (err instanceof ImportError) {
+            return scratch.issues.at(-1)?.message ?? err.message;
+        }
+        throw err;
+    }
+    return records;
+}
+
+/**
+ * Where a table's header starts and how many lines it takes.
+ * @param records - the table's records
+ * @returns the header, or why it does not parse
+ */
+function tableHeader(records: readonly TableRecord[]): { readonly at: number; readonly lines: number } | string {
+    let at = 0;
+    let version = 0;
+    if (records[0]?.cells[0] === "CyCSV-Version") {
+        const { cells } = records[0];
+        if (cells.length !== 2 || !/^\d+$/.test(cells[1].trim())) {
+            return `the version row ${JSON.stringify(cells)} does not parse`;
+        }
+        version = Number(cells[1]);
+        at = 1;
+    }
+    if (version !== 0 && version !== 1) {
+        return `CyCSV version "${records[0].cells[1]}" is not 0 or 1`;
+    }
+    // version 1: names, types, column options, table title; version 0: names, types, table title
+    const lines = version === 1 ? 4 : 3;
+    if (records.length < at + lines - 1) {
+        return "the table header is incomplete";
+    }
+    // the reader skips blank lines, so a blank title line (another tool's) shows only as a gap
+    // in the line numbers: the record after the row before the title is then the first data row
+    const beforeTitle = records[at + lines - 2];
+    const title = records.at(at + lines - 1);
+    const titleBlank =
+        title === undefined || (title.line > beforeTitle.line + 1 && !beforeTitle.cells.some((c) => /[\r\n]/.test(c)));
+    return { at, lines: titleBlank ? lines - 1 : lines };
+}
+
+/**
+ * A table's columns.
+ * @param names - the column names
+ * @param classes - their Java classes
+ * @returns the columns, or why they cannot be read
+ */
+function tableColumns(names: readonly string[], classes: readonly string[]): CyColumn[] | string {
+    if (names.length === 0 || classes.length !== names.length) {
+        return `${names.length} column name${plural(names.length)} but ${classes.length} column class(es)`;
+    }
+    const columns: CyColumn[] = [];
+    for (let i = 0; i < names.length; i++) {
+        const column = columnOf(names[i], classes[i]);
+        if (column === null) {
+            return `column "${names[i]}" has the class "${classes[i]}", which graph-io cannot read`;
+        }
+        columns.push(column);
+    }
+    return columns;
+}
+
+/**
+ * A table's rows by key: the first row of a repeated key is read, and rows of the wrong length are counted.
+ * @param records - the data records
+ * @param width - how many columns the table has
+ * @returns the rows
+ */
+function tableRows(records: readonly TableRecord[], width: number): TableRows {
+    const rows = new Map<string, readonly string[]>();
+    const lines = new Map<string, number>();
+    const quotedEmpty = new Map<string, ReadonlySet<number>>();
+    const problems: RowProblems = { short: 0, long: 0, repeated: 0 };
+    for (const record of records) {
+        const { cells } = record;
+        if (cells.length < width) {
+            problems.short++;
+        } else if (cells.length > width) {
+            problems.long++;
+        }
+        const key = cells[0];
+        if (rows.has(key)) {
+            problems.repeated++;
+            continue;
+        }
+        rows.set(key, cells.slice(0, width));
+        lines.set(key, record.line);
+        if (record.quotedEmpty !== undefined) {
+            quotedEmpty.set(key, record.quotedEmpty);
+        }
+    }
+    return { rows, lines, quotedEmpty, problems };
 }
 
 /**

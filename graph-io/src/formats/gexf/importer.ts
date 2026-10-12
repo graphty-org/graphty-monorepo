@@ -415,6 +415,16 @@ interface TrackedAttribute {
     table: ExtensionHandle;
 }
 
+/** A `<parents>` list waiting for every node to be declared. */
+interface ParentsRef {
+    /** The child's node index. */
+    readonly child: number;
+    /** The parents' ids. */
+    readonly ids: readonly NodeId[];
+    /** Where the list was read. */
+    readonly where: IssueLocation;
+}
+
 /** A pending containment reference resolved after every node is declared. */
 interface ParentRef {
     /** The child's node index. */
@@ -672,8 +682,7 @@ class GexfReader implements XmlHandler {
 
     private parentRefs: ParentRef[] = [];
 
-    private parentsRefs: { readonly child: number; readonly ids: readonly NodeId[]; readonly where: IssueLocation }[] =
-        [];
+    private parentsRefs: ParentsRef[] = [];
 
     private readonly unknownAttributes = new Set<string>();
 
@@ -1751,29 +1760,8 @@ class GexfReader implements XmlHandler {
             return false;
         };
         for (const ref of refs) {
-            let parent = ref.parentIndex;
-            if (ref.parentId !== null) {
-                parent = sink.indexOf(ref.parentId);
-                if (parent === INVALID_INDEX && this.meta.sourceVersion === "1.0") {
-                    report.warnOnce(
-                        "missing-value",
-                        UNKNOWN_PID_CODE,
-                        `pid "${String(ref.parentId)}" names no node; GEXF 1.0 files write it on top-level nodes, which stay top-level`,
-                        ref.where,
-                    );
-                    continue;
-                }
-                if (parent === INVALID_INDEX) {
-                    report.error(
-                        "missing-value",
-                        UNKNOWN_PARENT_CODE,
-                        `pid "${String(ref.parentId)}" names a node the document does not declare`,
-                        ref.where,
-                    );
-                    continue;
-                }
-            }
-            if (parentOf.get(ref.child) === parent) {
+            const parent = this.parentIndexOf(ref);
+            if (parent === null || parentOf.get(ref.child) === parent) {
                 continue;
             }
             if (isAncestorOrSelf(ref.child, parent)) {
@@ -1793,25 +1781,65 @@ class GexfReader implements XmlHandler {
             }
         }
         for (const ref of lists) {
-            const indices: number[] = [];
-            for (const id of ref.ids) {
-                const parent = sink.indexOf(id);
-                if (parent === INVALID_INDEX) {
-                    report.error(
-                        "missing-value",
-                        UNKNOWN_PARENT_CODE,
-                        `<parent for="${String(id)}"> names a node the document does not declare`,
-                        ref.where,
-                    );
-                    continue;
-                }
-                indices.push(parent);
+            this.resolveParentsList(ref);
+        }
+    }
+
+    /**
+     * The parent a `pid` or a nesting names.
+     * @param ref - the reference
+     * @returns its index, or null when the id names no node (reported)
+     */
+    private parentIndexOf(ref: ParentRef): number | null {
+        if (ref.parentId === null) {
+            return ref.parentIndex;
+        }
+        const parent = this.sink.indexOf(ref.parentId);
+        if (parent !== INVALID_INDEX) {
+            return parent;
+        }
+        if (this.meta.sourceVersion === "1.0") {
+            this.report.warnOnce(
+                "missing-value",
+                UNKNOWN_PID_CODE,
+                `pid "${String(ref.parentId)}" names no node; GEXF 1.0 files write it on top-level nodes, which stay top-level`,
+                ref.where,
+            );
+        } else {
+            this.report.error(
+                "missing-value",
+                UNKNOWN_PARENT_CODE,
+                `pid "${String(ref.parentId)}" names a node the document does not declare`,
+                ref.where,
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Resolve one `<parents>` list; an id that names no node is reported and left out.
+     * @param ref - the list
+     */
+    private resolveParentsList(ref: ParentsRef): void {
+        const { sink, report } = this;
+        const indices: number[] = [];
+        for (const id of ref.ids) {
+            const parent = sink.indexOf(id);
+            if (parent === INVALID_INDEX) {
+                report.error(
+                    "missing-value",
+                    UNKNOWN_PARENT_CODE,
+                    `<parent for="${String(id)}"> names a node the document does not declare`,
+                    ref.where,
+                );
+                continue;
             }
-            try {
-                this.parentsColumn.set(sink, report, ref.child, indices, ref.where);
-            } catch (err) {
-                report.recordError(err, ref.where);
-            }
+            indices.push(parent);
+        }
+        try {
+            this.parentsColumn.set(sink, report, ref.child, indices, ref.where);
+        } catch (err) {
+            report.recordError(err, ref.where);
         }
     }
 
@@ -1838,7 +1866,7 @@ class GexfReader implements XmlHandler {
      * @param line - the line
      */
     private beginEdge(attrs: ReadonlyMap<string, string>, line: number): void {
-        const { report, sink, options } = this;
+        const { report, sink } = this;
         this.checkAbort();
         this.ctx.push(Ctx.Edge);
         this.edge = null;
@@ -1861,21 +1889,10 @@ class GexfReader implements XmlHandler {
             report.counts.skippedEdges++;
             return;
         }
-        let kind: EdgeKind = this.defaultKind;
-        const typeText = attrs.get("type");
-        if (typeText !== undefined) {
-            const type = edgeTypeKeyword(typeText);
-            if (!EDGE_TYPES.has(type)) {
-                report.error(
-                    "validation-error",
-                    EDGE_TYPE_CODE,
-                    `edge type "${typeText}" is not directed, undirected or mutual`,
-                    where,
-                );
-                report.counts.skippedEdges++;
-                return;
-            }
-            kind = type as EdgeKind;
+        const kind = this.edgeKindOf(attrs, where);
+        if (kind === null) {
+            report.counts.skippedEdges++;
+            return;
         }
         if (idText !== undefined && this.edgeIds.has(idText)) {
             report.error(
@@ -1889,28 +1906,7 @@ class GexfReader implements XmlHandler {
         }
         let index: number;
         try {
-            const source = this.coerceId(sourceText, where);
-            const target = this.coerceId(targetText, where);
-            if (this.edgesFirst && !this.nodesSeen) {
-                for (const end of [source, target]) {
-                    if (sink.indexOf(end) === INVALID_INDEX) {
-                        this.implicitNodes.set(sink.addNode(end), end);
-                        report.counts.nodes++;
-                    }
-                }
-            }
-            if (!options.addMissingNodes) {
-                if (sink.indexOf(source) === INVALID_INDEX) {
-                    throw new GraphFormatError("E_UNKNOWN_NODE", `edge references undeclared node "${sourceText}"`, {
-                        id: source,
-                    });
-                }
-                if (sink.indexOf(target) === INVALID_INDEX) {
-                    throw new GraphFormatError("E_UNKNOWN_NODE", `edge references undeclared node "${targetText}"`, {
-                        id: target,
-                    });
-                }
-            }
+            const [source, target] = this.endpoints(sourceText, targetText, where);
             const weight = this.xmlWeight(attrs, where);
             const before = sink.edgeCount;
             index = this.resolver.addEdge(source, target, kind, weight, where);
@@ -1929,6 +1925,71 @@ class GexfReader implements XmlHandler {
         frame.mirror = this.resolver.lastMirror;
         frame.xmlWeight = attrs.get("weight") ?? null;
         this.edge = frame;
+        this.writeEdgeAttributes(attrs, index, where);
+    }
+
+    /**
+     * The kind of an `<edge>`: its `type`, else the graph's default.
+     * @param attrs - its attributes
+     * @param where - where it was read
+     * @returns the kind, or null for a type GEXF does not have (reported)
+     */
+    private edgeKindOf(attrs: ReadonlyMap<string, string>, where: IssueLocation): EdgeKind | null {
+        const typeText = attrs.get("type");
+        if (typeText === undefined) {
+            return this.defaultKind;
+        }
+        const type = edgeTypeKeyword(typeText);
+        if (!EDGE_TYPES.has(type)) {
+            this.report.error(
+                "validation-error",
+                EDGE_TYPE_CODE,
+                `edge type "${typeText}" is not directed, undirected or mutual`,
+                where,
+            );
+            return null;
+        }
+        return type as EdgeKind;
+    }
+
+    /**
+     * An edge's endpoints: in GEXF 1.0 with its edges first, a node no `<node>` declared yet is added for now; without
+     * addMissingNodes, a node the document does not declare throws E_UNKNOWN_NODE.
+     * @param sourceText - the source's id text
+     * @param targetText - the target's id text
+     * @param where - where it was read
+     * @returns the ids
+     */
+    private endpoints(sourceText: string, targetText: string, where: IssueLocation): [NodeId, NodeId] {
+        const { sink } = this;
+        const ends: [NodeId, NodeId] = [this.coerceId(sourceText, where), this.coerceId(targetText, where)];
+        if (this.edgesFirst && !this.nodesSeen) {
+            for (const end of ends) {
+                if (sink.indexOf(end) === INVALID_INDEX) {
+                    this.implicitNodes.set(sink.addNode(end), end);
+                    this.report.counts.nodes++;
+                }
+            }
+        }
+        const texts = [sourceText, targetText];
+        const unknown = this.options.addMissingNodes ? -1 : ends.findIndex((id) => sink.indexOf(id) === INVALID_INDEX);
+        if (unknown !== -1) {
+            throw new GraphFormatError("E_UNKNOWN_NODE", `edge references undeclared node "${texts[unknown]}"`, {
+                id: ends[unknown],
+            });
+        }
+        return ends;
+    }
+
+    /**
+     * Write an added edge's id, label, kind and lifetime.
+     * @param attrs - its attributes
+     * @param index - its index
+     * @param where - where it was read
+     */
+    private writeEdgeAttributes(attrs: ReadonlyMap<string, string>, index: number, where: IssueLocation): void {
+        const { report, sink } = this;
+        const idText = attrs.get("id");
         try {
             if (idText !== undefined) {
                 this.edgeIdColumn.set(sink, report, index, idText, where);

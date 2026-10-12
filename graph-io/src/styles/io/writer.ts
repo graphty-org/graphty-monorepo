@@ -203,87 +203,178 @@ function withLostInputsCarried(
         }
         direction ||= /DIRECTION/.test(note.code);
     }
-    const rules: StyleRule[] = [];
-    const columns = { node: new Map(extracted.columns.node), edge: new Map(extracted.columns.edge) };
-    let changed = false;
-    for (const rule of extracted.styles.rules) {
-        const table = rule.target === "node" ? snapshot.nodes : snapshot.edges;
-        const n = rule.target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const held = columns[rule.target];
-        // one copy per input, shared by every rule that reads it
-        const carry = (base: string, values: () => StyleColumn): { style: string } => {
-            const key = `input.${base}`;
-            if (!held.has(key)) {
-                held.set(key, values());
-            }
-            return { style: key };
-        };
-        // only a column of plain values can be copied: a list, or a column with no value, stays as it is
-        const isLost = (name: unknown): name is string =>
-            typeof name === "string" && lost.has(name) && table.has(name) && carriable(table, n, name);
-        const cells = (name: string, read: (raw: unknown) => StyleValue | null): StyleColumn =>
-            Array.from({ length: n }, (_u, i) => read(dataCell(table, name, i)));
+    const carrier = new LostInputs(snapshot, lost, direction, extracted.columns);
+    const rules = extracted.styles.rules.map((rule) => carrier.carry(rule));
+    const changed = rules.some((rule, i) => rule !== extracted.styles.rules[i]);
+    return changed ? { ...extracted, styles: { ...extracted.styles, rules }, columns: carrier.columns } : extracted;
+}
+
+/** Carries the inputs of rules that the format will not read back into style columns of their own. */
+class LostInputs {
+    /** The style columns, the copies added. */
+    readonly columns: { readonly node: Map<string, StyleColumn>; readonly edge: Map<string, StyleColumn> };
+
+    /** Whether the rule being carried read a lost input. */
+    private touched = false;
+
+    /**
+     * A carrier for one export.
+     * @param snapshot - the graph
+     * @param lost - the data columns the export drops or changes
+     * @param direction - whether the file loses the edges' direction (and so the in and out degrees)
+     * @param columns - the styles' own style columns
+     * @param columns.node - the node columns
+     * @param columns.edge - the edge columns
+     */
+    constructor(
+        private readonly snapshot: GraphSnapshot,
+        private readonly lost: ReadonlySet<string>,
+        private readonly direction: boolean,
+        columns: { readonly node: ReadonlyMap<string, StyleColumn>; readonly edge: ReadonlyMap<string, StyleColumn> },
+    ) {
+        this.columns = { node: new Map(columns.node), edge: new Map(columns.edge) };
+    }
+
+    /**
+     * A rule with every lost input it reads replaced by a copy of its values.
+     * @param rule - the rule
+     * @returns the rule read from copies, or the rule itself when it reads no lost input
+     */
+    carry(rule: StyleRule): StyleRule {
+        this.touched = false;
         const { ext, ...given } = rule;
-        let touched = false;
-        // every other reference to a lost input reads a copy of its values as they are
-        const walk = <T>(value: T): T =>
-            JSON.parse(
-                JSON.stringify(value, (_k, v: unknown) => {
-                    if (typeof v !== "object" || v === null || Array.isArray(v) || Object.keys(v).length !== 1) {
-                        return v;
-                    }
-                    const ref = v as { data?: unknown; computed?: unknown };
-                    if (isLost(ref.data)) {
-                        const name = ref.data;
-                        touched = true;
-                        return carry(`data.${name}`, () => cells(name, (raw) => (isStyleScalar(raw) ? raw : null)));
-                    }
-                    const which = ref.computed;
-                    if ((which === "indegree" || which === "outdegree") && direction && rule.target === "node") {
-                        touched = true;
-                        return carry(`computed.${which}`, () => degreeValues(snapshot, which));
-                    }
-                    return v;
-                }),
-            ) as T;
-        // a passthrough reads a data column as the property's value: its copy holds those values
+        const map = this.carryMap(rule);
+        const where = this.walk(rule, given.where);
+        if (!this.touched) {
+            return rule;
+        }
+        const { map: _given, ...unmapped } = given;
+        const moved = JSON.parse(
+            JSON.stringify(Object.keys(map).length === 0 ? { ...unmapped, where } : { ...unmapped, where, map }),
+        ) as StyleRule;
+        return ext === undefined ? moved : { ...moved, ext };
+    }
+
+    /**
+     * A rule's mappings with their lost inputs replaced. A passthrough reads a data column as the property's value: its
+     * copy holds those values; one that gives no element a value (a list, text that is not a color) is left out, so
+     * no other value the file reads back in the column (a list written as text) is given either.
+     * @param rule - the rule
+     * @returns the mappings
+     */
+    private carryMap(rule: StyleRule): Record<string, Mapping> {
         const map = Object.create(null) as Record<string, Mapping>;
-        for (const [property, mapping] of Object.entries(given.map ?? {})) {
+        const { table } = this.tableOf(rule.target);
+        for (const [property, mapping] of Object.entries(rule.map ?? {})) {
             if (mapping === undefined) {
                 continue;
             }
-            const name = (mapping.by as { data?: unknown }).data;
             if (mapping.kind !== "passthrough") {
-                map[property] = walk(mapping);
+                map[property] = this.walk(rule, mapping);
                 continue;
             }
-            const lostColumn = typeof name === "string" && lost.has(name) && table.has(name);
-            const values = lostColumn ? cells(name, canonicalFor(rule.target, property)) : null;
+            const name = (mapping.by as { data?: unknown }).data;
+            const lostColumn = typeof name === "string" && this.lost.has(name) && table.has(name);
+            const values = lostColumn ? this.cells(rule.target, name, canonicalFor(rule.target, property)) : null;
             if (values !== null && !values.some((v) => v !== null)) {
-                // it gave no element a value (a list, text that is not a color): it is left out, so no other value
-                // the file reads back in the column (a list written as text) is given either
-                touched = true;
-            } else if (values !== null && isLost(name)) {
-                touched = true;
-                map[property] = { ...mapping, by: carry(`${property}.data.${name}`, () => values) };
+                this.touched = true;
+            } else if (values !== null && this.isLost(rule.target, name)) {
+                this.touched = true;
+                map[property] = { ...mapping, by: this.copy(rule.target, `${property}.data.${name}`, () => values) };
             } else {
                 map[property] = mapping;
             }
         }
-        const where = walk(given.where);
-        const { map: _given, ...unmapped } = given;
-        const text = JSON.stringify(
-            Object.keys(map).length === 0 ? { ...unmapped, where } : { ...unmapped, where, map },
-        );
-        if (touched) {
-            changed = true;
-            const moved = JSON.parse(text) as StyleRule;
-            rules.push(ext === undefined ? moved : { ...moved, ext });
-        } else {
-            rules.push(rule);
-        }
+        return map;
     }
-    return changed ? { ...extracted, styles: { ...extracted.styles, rules }, columns } : extracted;
+
+    /**
+     * A value with every other reference to a lost input reading a copy of its values as they are.
+     * @param rule - the rule it belongs to
+     * @param value - the value
+     * @returns the value, references replaced
+     */
+    private walk<T>(rule: StyleRule, value: T): T {
+        return JSON.parse(JSON.stringify(value, (_k, v: unknown) => this.replaced(rule, v))) as T;
+    }
+
+    /**
+     * One reference with a lost input replaced by its copy: a data column, or a degree the file does not keep.
+     * @param rule - the rule it belongs to
+     * @param v - a value of the rule
+     * @returns the value, or the reference to the copy
+     */
+    private replaced(rule: StyleRule, v: unknown): unknown {
+        if (typeof v !== "object" || v === null || Array.isArray(v) || Object.keys(v).length !== 1) {
+            return v;
+        }
+        const ref = v as { data?: unknown; computed?: unknown };
+        if (this.isLost(rule.target, ref.data)) {
+            const name = ref.data;
+            this.touched = true;
+            return this.copy(rule.target, `data.${name}`, () =>
+                this.cells(rule.target, name, (raw) => (isStyleScalar(raw) ? raw : null)),
+            );
+        }
+        const which = ref.computed;
+        if ((which === "indegree" || which === "outdegree") && this.direction && rule.target === "node") {
+            this.touched = true;
+            return this.copy(rule.target, `computed.${which}`, () => degreeValues(this.snapshot, which));
+        }
+        return v;
+    }
+
+    /**
+     * The reference to a copy of an input, made on first use and shared by every rule that reads it.
+     * @param target - nodes or edges
+     * @param base - what is copied
+     * @param values - its values
+     * @returns the reference
+     */
+    private copy(target: StyleTarget, base: string, values: () => StyleColumn): { style: string } {
+        const key = `input.${base}`;
+        const held = this.columns[target];
+        if (!held.has(key)) {
+            held.set(key, values());
+        }
+        return { style: key };
+    }
+
+    /**
+     * Whether a name is a lost input that can be copied: only a column of plain values can, and a list, or a column with
+     * no value, stays as it is.
+     * @param target - nodes or edges
+     * @param name - the name
+     * @returns true for a lost input
+     */
+    private isLost(target: StyleTarget, name: unknown): name is string {
+        const { table, n } = this.tableOf(target);
+        return typeof name === "string" && this.lost.has(name) && table.has(name) && carriable(table, n, name);
+    }
+
+    /**
+     * Every element's value of a data column.
+     * @param target - nodes or edges
+     * @param name - the column
+     * @param read - the value of a cell
+     * @returns the values
+     */
+    private cells(target: StyleTarget, name: string, read: (raw: unknown) => StyleValue | null): StyleColumn {
+        const { table, n } = this.tableOf(target);
+        return Array.from({ length: n }, (_u, i) => read(dataCell(table, name, i)));
+    }
+
+    /**
+     * A target's table and row count.
+     * @param target - nodes or edges
+     * @returns the table and its row count
+     */
+    private tableOf(target: StyleTarget): { table: GraphSnapshot["nodes"]; n: number } {
+        const { snapshot } = this;
+        return target === "node"
+            ? { table: snapshot.nodes, n: snapshot.nodeCount }
+            : { table: snapshot.edges, n: snapshot.edgeCount };
+    }
 }
 
 /**
@@ -362,32 +453,15 @@ function lossNotes(
     const kept = keepsStyleBlock(exporter);
     for (const target of TARGETS) {
         const written = new Set<string>(caps?.[target] ?? []);
-        const properties = new Set<string>();
-        for (const rule of extracted.styles.rules) {
-            if (rule.target === target) {
-                for (const p of [...Object.keys(rule.set ?? {}), ...Object.keys(rule.map ?? {})]) {
-                    properties.add(p);
-                }
-            }
-        }
-        for (const property of properties) {
+        for (const property of ruleProperties(extracted.styles.rules, target)) {
             // a property only graphty draws is written into the block alone: lost only when the block is
             if (written.has(property) || (kept && property.startsWith("graphty:"))) {
                 if (target === "edge") {
                     notes.push(...pairNotes(snapshot, exporter, property, picture("edge", property as StyleProperty)));
                 }
-                continue;
+            } else {
+                notes.push(notWrittenNote(target, property, exporter, picture));
             }
-            const count = picture(target, property as StyleProperty).filter((v) => v !== null).length;
-            notes.push(
-                Object.freeze({
-                    code: STYLE_ISSUE.NOT_WRITTEN,
-                    message: `${target} ${property} is not written: the ${exporter.format} format has no place for it (${String(count)} ${target}${plural(count)} ${agree(count, "has", "have")} a value)`,
-                    column: null,
-                    count,
-                    style: Object.freeze({ target, property: property as StyleProperty }),
-                }),
-            );
         }
     }
     const graphWritten = new Set<string>(caps?.graph ?? []);
@@ -417,6 +491,44 @@ function lossNotes(
         );
     }
     return notes;
+}
+
+/**
+ * The properties the rules of a target write, in first-written order.
+ * @param rules - the rules
+ * @param target - nodes or edges
+ * @returns the properties
+ */
+function ruleProperties(rules: readonly StyleRule[], target: StyleTarget): Set<string> {
+    return new Set(
+        rules
+            .filter((rule) => rule.target === target)
+            .flatMap((rule) => [...Object.keys(rule.set ?? {}), ...Object.keys(rule.map ?? {})]),
+    );
+}
+
+/**
+ * W_STYLE_NOT_WRITTEN for a property the format has no place for.
+ * @param target - nodes or edges
+ * @param property - the property
+ * @param exporter - the exporter
+ * @param picture - each element's value of a property
+ * @returns the note
+ */
+function notWrittenNote(
+    target: StyleTarget,
+    property: string,
+    exporter: GraphExporter,
+    picture: (target: StyleTarget, property: StyleProperty) => readonly (StyleValue | null)[],
+): LossNote {
+    const count = picture(target, property as StyleProperty).filter((v) => v !== null).length;
+    return Object.freeze({
+        code: STYLE_ISSUE.NOT_WRITTEN,
+        message: `${target} ${property} is not written: the ${exporter.format} format has no place for it (${String(count)} ${target}${plural(count)} ${agree(count, "has", "have")} a value)`,
+        column: null,
+        count,
+        style: Object.freeze({ target, property: property as StyleProperty }),
+    });
 }
 
 /**
@@ -479,49 +591,25 @@ function styledSnapshot(
     const attributes = caps?.block === "attributes";
     // the per-element style values of an earlier write whose block was set aside are data now; these styles write
     // their own under the same names, so the old ones go, unless these styles read them as data
-    const stale = (table: GraphSnapshot["nodes"], target: StyleTarget): string[] => {
-        const read = dataRead(rules, target);
-        return Array.from(table.names()).filter((name) => isStyleTagName(name) && !read.has(name));
-    };
-    const nodeStale = stale(snapshot.nodes, "node");
-    const edgeStale = stale(snapshot.edges, "edge");
+    const stale = { node: staleTags(snapshot.nodes, rules, "node"), edge: staleTags(snapshot.edges, rules, "edge") };
     // a format that writes the label from the styles has its label slot taken: the label column is data there too
-    const roled = (table: GraphSnapshot["nodes"], target: StyleTarget): string[] =>
-        Array.from(table.names()).filter((name) => {
-            const role = table.get(name)?.meta.role ?? "";
-            return STYLE_ROLES.has(role) || (role === "label" && (caps?.[target] ?? []).includes("label"));
-        });
-    const nodeRoles = roled(snapshot.nodes, "node");
-    const edgeRoles = roled(snapshot.edges, "edge");
+    const roles = { node: roledNames(snapshot.nodes, caps, "node"), edge: roledNames(snapshot.edges, caps, "edge") };
     // the block of an earlier import is replaced by the one these styles write, wherever the format puts that
     const staleBlock = snapshot.graph.has(STYLE_BLOCK_NAME);
-    if (
-        !attributes &&
-        !staleBlock &&
-        nodeRoles.length === 0 &&
-        edgeRoles.length === 0 &&
-        nodeStale.length === 0 &&
-        edgeStale.length === 0
-    ) {
+    const changes = [stale.node, stale.edge, roles.node, roles.edge].some((names) => names.length > 0);
+    if (!attributes && !staleBlock && !changes) {
         return snapshot;
     }
     const out = snapshot.withColumns();
     if (staleBlock) {
         out.graph.remove(STYLE_BLOCK_NAME);
     }
-    for (const [table, names] of [
-        [out.nodes, nodeStale],
-        [out.edges, edgeStale],
-    ] as const) {
-        for (const name of names) {
+    for (const target of TARGETS) {
+        const table = target === "node" ? out.nodes : out.edges;
+        for (const name of stale[target]) {
             table.remove(name);
         }
-    }
-    for (const [table, names] of [
-        [out.nodes, nodeRoles],
-        [out.edges, edgeRoles],
-    ] as const) {
-        for (const name of names) {
+        for (const name of roles[target]) {
             const col = table.get(name);
             if (col !== null) {
                 // an explicit undefined role in the patch replaces the column's role with none
@@ -530,26 +618,63 @@ function styledSnapshot(
         }
     }
     if (attributes) {
-        for (const [table, byName, target] of [
-            [out.nodes, tags.node, "node"],
-            [out.edges, tags.edge, "edge"],
-        ] as const) {
-            // the tagged values of an earlier import are replaced, in the order of these styles' columns, so writing
-            // a file read back gives the same bytes whichever elements held a value first
-            const prefix = styleTag(target, "");
-            for (const name of Array.from(table.names())) {
-                if (name.startsWith(prefix)) {
-                    table.remove(name);
-                }
-            }
-            for (const [name, col] of byName) {
-                const dtype = tagDtype(col);
-                table.set(name, dtype === "string" ? col.map((v) => (v === null ? null : String(v))) : col, { dtype });
-            }
-        }
+        setTagAttributes(out, tags);
         out.graph.set(STYLE_BLOCK_NAME, [block], { dtype: "string" });
     }
     return out;
+}
+
+/**
+ * The per-element style values of an earlier write that these rules do not read as data.
+ * @param table - the node or edge table
+ * @param rules - the rules written
+ * @param target - nodes or edges
+ * @returns the column names
+ */
+function staleTags(table: GraphSnapshot["nodes"], rules: readonly StyleRule[], target: StyleTarget): string[] {
+    const read = dataRead(rules, target);
+    return table.names().filter((name) => isStyleTagName(name) && !read.has(name));
+}
+
+/**
+ * The columns whose style role the styles take: every style role, and the label where the format writes the label
+ * from the styles.
+ * @param table - the node or edge table
+ * @param caps - the exporter's style capabilities, or null
+ * @param target - nodes or edges
+ * @returns the column names
+ */
+function roledNames(table: GraphSnapshot["nodes"], caps: StyleWriteCapabilities | null, target: StyleTarget): string[] {
+    const writesLabel = (caps?.[target] ?? []).includes("label");
+    return table.names().filter((name) => {
+        const role = table.get(name)?.meta.role ?? "";
+        return STYLE_ROLES.has(role) || (role === "label" && writesLabel);
+    });
+}
+
+/**
+ * Sets the tagged per-element values as element attributes, replacing those of an earlier import in the order of
+ * these styles' columns, so writing a file read back gives the same bytes whichever elements held a value first.
+ * @param out - the graph, changed in place
+ * @param tags - the tagged values
+ * @param tags.node - node values by attribute name
+ * @param tags.edge - edge values by attribute name
+ */
+function setTagAttributes(
+    out: GraphSnapshot,
+    tags: { readonly node: ReadonlyMap<string, StyleColumn>; readonly edge: ReadonlyMap<string, StyleColumn> },
+): void {
+    for (const target of TARGETS) {
+        const table = target === "node" ? out.nodes : out.edges;
+        const prefix = styleTag(target, "");
+        for (const name of table.names().filter((c) => c.startsWith(prefix))) {
+            table.remove(name);
+        }
+        for (const [name, col] of tags[target]) {
+            const dtype = tagDtype(col);
+            table.set(name, dtype === "string" ? col.map((v) => (v === null ? null : String(v))) : col, { dtype });
+        }
+    }
 }
 
 /**

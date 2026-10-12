@@ -94,40 +94,69 @@ function resolveOne(text: string, scheme: string): { hex: string; alpha: number 
             alpha: m[4] === undefined ? 1 : Number.parseInt(m[4], 16) / 255,
         };
     }
-    if (/^[.\d]/.test(text)) {
-        const parts = text.split(/[ ,]+/);
-        if (parts.length >= 3 && parts.slice(0, 3).every((p) => HSV_PART.test(p))) {
-            const [h, s, v] = parts.slice(0, 3).map((p) => Math.min(1, Math.max(0, Number(p))));
-            return { hex: hsvHex(h, s, v), alpha: 1 };
-        }
+    const hsv = /^[.\d]/.test(text) ? hsvColor(text) : null;
+    if (hsv !== null) {
+        return { hex: hsv, alpha: 1 };
     }
-    let name = text.toLowerCase();
-    let sc = scheme;
-    if (name.startsWith("/")) {
-        const slash = name.indexOf("/", 1);
-        if (slash < 0) {
-            return null;
-        }
-        const prefix = name.slice(1, slash);
-        name = name.slice(slash + 1);
-        if (prefix !== "") {
-            sc = prefix;
-        }
+    const named = schemedName(text.toLowerCase(), scheme);
+    if (named === null) {
+        return null;
     }
-    if (TRANSPARENT.has(name)) {
+    if (TRANSPARENT.has(named.name)) {
         return { hex: "#fffffe", alpha: 0 };
     }
-    let hex: string | undefined;
-    if (sc === "x11") {
-        hex = X11_COLORS.get(name);
-    } else if (sc === "svg") {
-        hex = CSS_COLORS.get(name);
-    } else {
-        const colors = BREWER_SCHEMES.get(sc);
-        const index = /^\d{1,3}$/.test(name) ? Number(name) : 0;
-        hex = colors !== undefined && index >= 1 ? colors[index - 1] : undefined;
-    }
+    const hex = schemeColor(named.name, named.scheme);
     return hex === undefined ? null : { hex, alpha: 1 };
+}
+
+/**
+ * An HSV color: three numbers 0..1 separated by blanks or commas, clamped.
+ * @param text - the color
+ * @returns `#rrggbb`, or null when it is not one
+ */
+function hsvColor(text: string): string | null {
+    const parts = text.split(/[ ,]+/);
+    if (parts.length < 3 || !parts.slice(0, 3).every((p) => HSV_PART.test(p))) {
+        return null;
+    }
+    const [h, s, v] = parts.slice(0, 3).map((p) => Math.min(1, Math.max(0, Number(p))));
+    return hsvHex(h, s, v);
+}
+
+/**
+ * A color name and the scheme it is looked up in: `/scheme/name` names its own scheme, `//name` the object's.
+ * @param name - the name, lowercase
+ * @param scheme - the object's color scheme
+ * @returns the name and scheme, or null for a malformed `/scheme/name`
+ */
+function schemedName(name: string, scheme: string): { name: string; scheme: string } | null {
+    if (!name.startsWith("/")) {
+        return { name, scheme };
+    }
+    const slash = name.indexOf("/", 1);
+    if (slash < 0) {
+        return null;
+    }
+    const prefix = name.slice(1, slash);
+    return { name: name.slice(slash + 1), scheme: prefix === "" ? scheme : prefix };
+}
+
+/**
+ * A color in a scheme: X11's or SVG's names, or a Brewer scheme's colors by their 1-based index.
+ * @param name - the name or index
+ * @param scheme - the scheme
+ * @returns `#rrggbb`, or undefined when the scheme has no such color
+ */
+function schemeColor(name: string, scheme: string): string | undefined {
+    if (scheme === "x11") {
+        return X11_COLORS.get(name);
+    }
+    if (scheme === "svg") {
+        return CSS_COLORS.get(name);
+    }
+    const colors = BREWER_SCHEMES.get(scheme);
+    const index = /^\d{1,3}$/.test(name) ? Number(name) : 0;
+    return colors !== undefined && index >= 1 ? colors[index - 1] : undefined;
 }
 
 /**

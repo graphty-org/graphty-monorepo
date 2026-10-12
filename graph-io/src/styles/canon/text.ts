@@ -69,28 +69,31 @@ export function dotLabelText(text: string, names: DotEscapeNames, site?: CanonSi
         T: names.tail,
         H: names.head,
     };
-    let first = "";
-    for (let i = 0; i < text.length; i++) {
-        const c = text[i];
-        if (c !== "\\" || i + 1 >= text.length) {
-            first += c;
-            continue;
-        }
-        const e = text[++i];
-        const sub = Object.hasOwn(subs, e) ? subs[e] : undefined;
-        first += sub ?? c + e;
-    }
-    let out = "";
-    for (let i = 0; i < first.length; i++) {
-        const c = first[i];
-        if (c !== "\\" || i + 1 >= first.length) {
-            out += c;
-            continue;
-        }
-        const e = first[++i];
-        out += e === "n" || e === "l" || e === "r" ? "\n" : e;
-    }
+    const first = replaceEscapes(text, (e) => (Object.hasOwn(subs, e) ? subs[e] : undefined) ?? `\\${e}`);
+    const out = replaceEscapes(first, (e) => (e === "n" || e === "l" || e === "r" ? "\n" : e));
     return out.endsWith("\n") ? out.slice(0, -1) : out;
+}
+
+/**
+ * A text with every backslash escape (a backslash and the character after it) replaced; a backslash at the end stays.
+ * @param text - the text
+ * @param replace - the replacement of an escape, given the escaped character
+ * @returns the text
+ */
+function replaceEscapes(text: string, replace: (escaped: string) => string): string {
+    let out = "";
+    let i = 0;
+    while (i < text.length) {
+        const c = text[i];
+        if (c === "\\" && i + 1 < text.length) {
+            out += replace(text[i + 1]);
+            i += 2;
+        } else {
+            out += c;
+            i++;
+        }
+    }
+    return out;
 }
 
 /** HTML entity names an HTML-like label may use. */
@@ -147,23 +150,29 @@ export function htmlLabelText(html: string, site: CanonSite): string {
             }
             i = close + 1;
         } else if (c === "&") {
-            // An entity is at most 9 characters, so the search for its ";" stays short and the pass stays linear.
-            const near = body.slice(i + 1, i + 10).indexOf(";");
-            const semi = near < 0 ? -1 : i + 1 + near;
-            const decoded = semi > i ? entity(body.slice(i + 1, semi)) : undefined;
-            if (decoded === undefined) {
-                out += c;
-                i++;
-            } else {
-                out += decoded;
-                i = semi + 1;
-            }
+            const [text, next] = entityAt(body, i);
+            out += text;
+            i = next;
         } else {
             out += c;
             i++;
         }
     }
     return out.trim();
+}
+
+/**
+ * The entity starting at an `&`, decoded; an `&` that starts none is itself. An entity is at most 9 characters, so
+ * the search for its ";" stays short and the pass stays linear.
+ * @param body - the text
+ * @param i - the offset of the `&`
+ * @returns the text it stands for and the offset after it
+ */
+function entityAt(body: string, i: number): [string, number] {
+    const near = body.slice(i + 1, i + 10).indexOf(";");
+    const semi = near < 0 ? -1 : i + 1 + near;
+    const decoded = semi > i ? entity(body.slice(i + 1, semi)) : undefined;
+    return decoded === undefined ? ["&", i + 1] : [decoded, semi + 1];
 }
 
 /**
@@ -186,18 +195,26 @@ export function recordLabelText(label: string, site: CanonSite): string {
         }
         field = "";
     };
-    for (let i = 0; i < label.length; i++) {
+    let i = 0;
+    while (i < label.length) {
         const c = label[i];
         if (c === "\\" && i + 1 < label.length && "|{}<> ".includes(label[i + 1])) {
-            field += label[++i];
-        } else if (c === "<") {
+            field += label[i + 1];
+            i += 2;
+            continue;
+        }
+        if (c === "<") {
+            // a port name runs to its ">"
             const close = label.indexOf(">", i + 1);
-            i = close < 0 ? label.length : close;
-        } else if (c === "|" || c === "{" || c === "}") {
+            i = close < 0 ? label.length : close + 1;
+            continue;
+        }
+        if (c === "|" || c === "{" || c === "}") {
             flush();
         } else {
             field += c;
         }
+        i++;
     }
     flush();
     return fields.join(" | ");

@@ -257,7 +257,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 },
                 graph: {},
                 derived: [
-                    { kind: "labelFromId", source: `${GV}/label/ (default \\N, the node name)` },
+                    { kind: "labelFromId", source: String.raw`${GV}/label/ (default \N, the node name)` },
                     {
                         kind: "targetArrowOnDirected",
                         arrow: "triangle",

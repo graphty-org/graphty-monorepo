@@ -18,7 +18,7 @@ import { DVIPS_COLORS } from "../../styles/canon/color-tables.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
 import type { CanonSite } from "../../styles/canon/site.js";
-import { STYLE_ISSUE } from "../../styles/codes.js";
+import { StyleApproximations } from "../../styles/io/approximations.js";
 import { blockStyles, parseStyleBlock, styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
@@ -383,16 +383,8 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
         out.set("w", width);
     }
     const lineStyle = get("lineStyle");
-    if (typeof lineStyle === "string" && lineStyle !== "solid") {
-        if (lineStyle === "dotted") {
-            out.set("p", "Dots");
-        } else {
-            // Pajek draws Solid and Dots only; a dashed kind is nearest to Dots, any other line to Solid
-            approximate("lineStyle", lineStyle);
-            if (lineStyle === "dashed" || lineStyle === "dash-dot" || lineStyle === "long-dash") {
-                out.set("p", "Dots");
-            }
-        }
+    if (typeof lineStyle === "string" && lineStyle !== "solid" && pajekDots(lineStyle, approximate)) {
+        out.set("p", "Dots");
     }
     const target = get("targetArrow");
     if (target !== null && target !== (directed ? "triangle" : "none")) {
@@ -403,6 +395,21 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
         approximate("sourceArrow", source);
     }
     return out;
+}
+
+/**
+ * Whether a line other than a solid one is written as Pajek's Dots: Pajek draws Solid and Dots only; a dashed kind is
+ * nearest to Dots, any other line to Solid.
+ * @param lineStyle - the line style
+ * @param approximate - records approximations
+ * @returns true for Dots
+ */
+function pajekDots(lineStyle: string, approximate: Approximate): boolean {
+    if (lineStyle === "dotted") {
+        return true;
+    }
+    approximate("lineStyle", lineStyle);
+    return lineStyle === "dashed" || lineStyle === "dash-dot" || lineStyle === "long-dash";
 }
 
 /**
@@ -442,7 +449,6 @@ function exactFromBlock(
     if (ex === null) {
         return;
     }
-    const ignore: Approximate = () => undefined;
     const notes = new StyleNotes();
     const directed = directedEdges(snapshot);
     for (const target of ["node", "edge"] as const) {
@@ -451,26 +457,46 @@ function exactFromBlock(
         const values = read[target];
         for (let i = 0; i < n; i++) {
             const want = get(i);
-            const params = target === "node" ? vertexParams(want, ignore) : lineParams(want, directed[i], ignore);
-            const back = new Map<string, StyleValue>();
-            (target === "node" ? readVertex : readLine)(
-                (key) => params.get(key) ?? null,
-                (property, value) => {
-                    if (value !== null) {
-                        back.set(property, value);
-                    }
-                },
-                (property) => ({ notes, target, property }),
-            );
+            const back = writtenAndReadBack(target, want, directed[i], notes);
             for (const property of READ[target]) {
                 const native = values[property]?.[i] ?? null;
                 const w = want(property);
                 if (w !== null && native !== w && native === (back.get(property) ?? null)) {
-                    (values[property] ??= new Array<StyleValue | null>(n).fill(null))[i] = w;
+                    values[property] ??= new Array<StyleValue | null>(n).fill(null);
+                    values[property][i] = w;
                 }
             }
         }
     }
+}
+
+/**
+ * An element's values written as the writer writes them and read back as the reader reads them.
+ * @param target - nodes or edges
+ * @param want - its values
+ * @param directed - for a line, whether it is an arc
+ * @param notes - a scratch for the notes the round trip makes
+ * @returns the values read back, by property
+ */
+function writtenAndReadBack(
+    target: StyleTarget,
+    want: Get,
+    directed: boolean,
+    notes: StyleNotes,
+): Map<string, StyleValue> {
+    const ignore: Approximate = () => undefined;
+    const params = target === "node" ? vertexParams(want, ignore) : lineParams(want, directed, ignore);
+    const back = new Map<string, StyleValue>();
+    (target === "node" ? readVertex : readLine)(
+        (key) => params.get(key) ?? null,
+        (property, value) => {
+            if (value !== null) {
+                back.set(property, value);
+            }
+        },
+        (property) => ({ notes, target, property }),
+    );
+    return back;
 }
 
 /** A Pajek export with styles worked out. */
@@ -498,64 +524,52 @@ export function pajekStyledExport(
     if (input === undefined) {
         return null;
     }
-    const approximated = new Map<string, { count: number; samples: Set<string> }>();
+    const approximated = new StyleApproximations();
     const out = snapshot.withColumns();
     const directed = directedEdges(snapshot);
-    const picture = (target: StyleTarget, property: string): readonly (StyleValue | null)[] =>
-        input.picture(target, property as never);
     for (const target of ["node", "edge"] as const) {
         const table = target === "node" ? out.nodes : out.edges;
-        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const approximate: Approximate = (property, value) => {
-            const key = `${target}.${property}`;
-            const a = approximated.get(key) ?? { count: 0, samples: new Set<string>() };
-            a.count++;
-            if (a.samples.size < 8) {
-                a.samples.add(String(value));
-            }
-            approximated.set(key, a);
+            approximated.add(target, property, value);
         };
-        const get = getter(picture, target);
-        const columns = new Map<string, (Written | null)[]>();
-        for (let i = 0; i < n; i++) {
-            const params =
-                target === "node" ? vertexParams(get(i), approximate) : lineParams(get(i), directed[i], approximate);
-            for (const [key, value] of params) {
-                let col = columns.get(key);
-                if (col === undefined) {
-                    col = new Array<Written | null>(n).fill(null);
-                    columns.set(key, col);
-                }
-                col[i] = value;
-            }
-        }
+        const get = getter((t, p) => input.picture(t, p as never), target);
+        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        const params = (i: number): Map<string, Written> =>
+            target === "node" ? vertexParams(get(i), approximate) : lineParams(get(i), directed[i], approximate);
+        const columns = paramColumns(n, params);
         for (const key of target === "node" ? [SHAPE_COLUMN, ...NODE_KEYS] : EDGE_KEYS) {
             if (table.has(key)) {
                 table.remove(key);
             }
         }
         for (const [key, col] of columns) {
-            if (col.every((v) => v === null || typeof v === "number")) {
-                table.set(key, col, { dtype: "f64" });
-            } else {
-                table.set(key, col, { dtype: "string" });
-            }
+            const numeric = col.every((v) => v === null || typeof v === "number");
+            table.set(key, col, { dtype: numeric ? "f64" : "string" });
         }
     }
-    const notes: LossNote[] = [];
-    for (const [key, a] of approximated) {
-        const [target, property] = key.split(".") as [StyleTarget, string];
-        notes.push(
-            Object.freeze({
-                code: STYLE_ISSUE.APPROXIMATED,
-                message: `${target} ${property} is written as the nearest value Pajek has for ${String(a.count)} ${target}${a.count === 1 ? "" : "s"} (${[...a.samples].join(", ")}); the graphty.styles block keeps the exact value`,
-                column: null,
-                count: a.count,
-                style: Object.freeze({ target, property: property as never }),
-            }),
-        );
-    }
+    const notes = approximated.notes("Pajek");
     const block = writeStyleBlock(input.rules, { inlineColumns: true, snapshot });
     notes.push(...styleBlockLosses(block, input.rules.styles.rules.length, "size"));
     return { snapshot: out, comment: PAJEK_STYLE_COMMENT + block, notes };
+}
+
+/**
+ * Every element's parameters, as columns.
+ * @param n - the element count
+ * @param params - an element's parameters
+ * @returns the columns, by parameter key
+ */
+function paramColumns(n: number, params: (i: number) => Map<string, Written>): Map<string, (Written | null)[]> {
+    const columns = new Map<string, (Written | null)[]>();
+    for (let i = 0; i < n; i++) {
+        for (const [key, value] of params(i)) {
+            let col = columns.get(key);
+            if (col === undefined) {
+                col = new Array<Written | null>(n).fill(null);
+                columns.set(key, col);
+            }
+            col[i] = value;
+        }
+    }
+    return columns;
 }

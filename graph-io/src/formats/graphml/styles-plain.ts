@@ -15,7 +15,7 @@ import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/
 import { StyleNotes } from "../../styles/notes.js";
 import { styleFingerprint } from "../../styles/plan/features.js";
 import { plainCell, resolveStyles } from "../../styles/plan/resolve.js";
-import type { ImporterStyles, StyleReadContext, StyleTarget } from "../../styles/types.js";
+import type { ImporterStyles, StyleReadContext, StyleTarget, StyleValue } from "../../styles/types.js";
 import { gephiRules } from "../gexf/styles.js";
 import {
     exactFromBlock,
@@ -56,9 +56,7 @@ function readGephi(
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const out = valueColumns(n);
-        const rgb = hasRgb(table);
-        const size = target === "node" && table.has("size");
-        const label = table.has("label");
+        const has = { rgb: hasRgb(table), size: target === "node" && table.has("size"), label: table.has("label") };
         for (let i = 0; i < n; i++) {
             context.budget.spend(target, 1);
             const at = (property: string): Parameters<typeof canonNumber>[1] => ({
@@ -68,25 +66,57 @@ function readGephi(
                 element: i,
                 budget: context.budget,
             });
-            if (rgb) {
-                const [r, g, b] = ["r", "g", "b"].map((c) => plainCell(table.value(c, i)));
-                if (r !== null && g !== null && b !== null) {
-                    const property = target === "node" ? "fill" : "color";
-                    out.put(i, property, canonColor({ r, g, b }, "gephi", at(property))?.color ?? null);
-                }
-            }
-            if (size) {
-                const v = canonNumber(plainCell(table.value("size", i)), at("width"));
-                out.put(i, "width", v);
-                out.put(i, "height", v);
-            }
-            if (label) {
-                out.put(i, "label", canonText(plainCell(table.value("label", i)), at("label")));
-            }
+            readGephiRow(
+                table,
+                target,
+                i,
+                has,
+                (property, value) => {
+                    out.put(i, property, value);
+                },
+                at,
+            );
         }
         return out.values;
     };
     return { node: read("node"), edge: read("edge") };
+}
+
+/**
+ * Reads one Gephi element.
+ * @param table - the node or edge table
+ * @param target - nodes or edges
+ * @param i - the element
+ * @param has - which of Gephi's columns the table has
+ * @param has.rgb - the `r`, `g` and `b` columns
+ * @param has.size - a node `size` column
+ * @param has.label - a `label` column
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readGephiRow(
+    table: GraphSnapshot["nodes"],
+    target: StyleTarget,
+    i: number,
+    has: { readonly rgb: boolean; readonly size: boolean; readonly label: boolean },
+    put: (property: string, value: StyleValue | null) => void,
+    at: (property: string) => Parameters<typeof canonNumber>[1],
+): void {
+    if (has.rgb) {
+        const [r, g, b] = ["r", "g", "b"].map((c) => plainCell(table.value(c, i)));
+        if (r !== null && g !== null && b !== null) {
+            const property = target === "node" ? "fill" : "color";
+            put(property, canonColor({ r, g, b }, "gephi", at(property))?.color ?? null);
+        }
+    }
+    if (has.size) {
+        const v = canonNumber(plainCell(table.value("size", i)), at("width"));
+        put("width", v);
+        put("height", v);
+    }
+    if (has.label) {
+        put("label", canonText(plainCell(table.value("label", i)), at("label")));
+    }
 }
 
 /**

@@ -184,23 +184,31 @@ export function parseCyjsStylesheetText(text: string): {
         if (selector !== "core" && parseCyjsSelector(selector).invalid) {
             continue;
         }
-        const properties: [string, unknown][] = [];
-        const next = nextNonSpace(block);
-        let from = 0;
-        let bad = false;
-        while (next[from] < block.length) {
-            const p = readProperty(block, from, next);
-            if (p === null) {
-                bad = true;
-                break;
-            }
-            properties.push([p.name, p.value]);
-            from = p.end;
-        }
-        if (bad) {
+        const properties = blockProperties(block);
+        if (properties === null) {
             return { entries, stop: "BAD_PROPERTY" };
         }
         entries.push({ selector, properties, dashOnly: true });
     }
     return { entries, stop: null };
+}
+
+/**
+ * The properties of one block, in order.
+ * @param block - the text between the braces
+ * @returns the name and value of each, or null when one does not read
+ */
+function blockProperties(block: string): [string, unknown][] | null {
+    const properties: [string, unknown][] = [];
+    const next = nextNonSpace(block);
+    let from = 0;
+    while (next[from] < block.length) {
+        const p = readProperty(block, from, next);
+        if (p === null) {
+            return null;
+        }
+        properties.push([p.name, p.value]);
+        from = p.end;
+    }
+    return properties;
 }

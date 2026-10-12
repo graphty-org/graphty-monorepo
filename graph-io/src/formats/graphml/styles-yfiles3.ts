@@ -100,18 +100,22 @@ class References {
      */
     constructor(data: unknown) {
         for (const sd of treeChildren(data, "SharedData")) {
-            if (!isTree(sd)) {
-                continue;
+            if (isTree(sd)) {
+                this.collect(sd);
             }
-            for (const key of Object.keys(sd)) {
-                if (key.startsWith("@_") || key === "#text") {
-                    continue;
-                }
-                for (const e of treeChildren(sd, localOf(key))) {
-                    const name = sharedKey(e);
-                    if (name !== null && !this.shared.has(name)) {
-                        this.shared.set(name, { tag: localOf(key), e });
-                    }
+        }
+    }
+
+    /**
+     * Collects the shared objects of one SharedData element: the first of each key wins.
+     * @param sd - the element
+     */
+    private collect(sd: Record<string, unknown>): void {
+        for (const key of Object.keys(sd).filter((k) => !k.startsWith("@_") && k !== "#text")) {
+            for (const e of treeChildren(sd, localOf(key))) {
+                const name = sharedKey(e);
+                if (name !== null && !this.shared.has(name)) {
+                    this.shared.set(name, { tag: localOf(key), e });
                 }
             }
         }
@@ -300,7 +304,7 @@ function strokeOf(refs: References, v: unknown): Stroke | typeof NULL | null {
     let line = "solid";
     const d = refs.deref(prop(x, "dashStyle"), 1);
     if (typeof d === "string") {
-        const lower = d.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase().replace(/_/g, "");
+        const lower = d.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase().replaceAll("_", "");
         line = DASHES.get(lower) ?? `other:${lower}`;
     } else if (d !== null && d !== NULL) {
         // a DashStyle object: two numbers dash or dot, four dash-dot
@@ -353,18 +357,7 @@ function putPaint(pt: Paint, property: string, opacity: string | null, put: PutV
  * @param at - the sites
  */
 function readNodeStyle(refs: References, data: unknown, put: PutValue, at: SiteOf): void {
-    let st: Resolved = refs.first(data);
-    // a collapsible group wraps the style that draws it; a decorator that wraps itself is a cycle
-    const seen = new Set<unknown>();
-    while (st !== null && typeof st === "object" && st.tag === "CollapsibleNodeStyleDecorator") {
-        if (seen.has(st.e) || refs.tooDeep(seen.size)) {
-            refs.cycles++;
-            st = null;
-            break;
-        }
-        seen.add(st.e);
-        st = refs.deref(prop(st, "wrappedStyle"));
-    }
+    const st = unwrapped(refs, refs.first(data));
     if (st === null || typeof st !== "object") {
         if (data !== null && data !== undefined && data !== "") {
             noteAt(at("fill"), STYLE_ISSUE.UNRESOLVED, "NodeStyle");
@@ -389,17 +382,48 @@ function readNodeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
         put("borderWidth", canonNumber(stroke.width, at("borderWidth")));
         put("borderStyle", canonEnum("borderStyle", stroke.line, "yfiles3", at("borderStyle")));
     }
+    put("shape", nodeShapeOf(style, at));
+}
+
+/**
+ * The style a collapsible group's decorators wrap; a decorator that wraps itself is a cycle.
+ * @param refs - the references
+ * @param first - the node's style
+ * @returns the style that draws the node, or null for a cycle
+ */
+function unwrapped(refs: References, first: Resolved): Resolved {
+    let st = first;
+    const seen = new Set<unknown>();
+    while (st !== null && typeof st === "object" && st.tag === "CollapsibleNodeStyleDecorator") {
+        if (seen.has(st.e) || refs.tooDeep(seen.size)) {
+            refs.cycles++;
+            return null;
+        }
+        seen.add(st.e);
+        st = refs.deref(prop(st, "wrappedStyle"));
+    }
+    return st;
+}
+
+/**
+ * A node style's shape: its `shape`, else what its kind draws.
+ * @param style - the style
+ * @param at - the sites
+ * @returns the shape, or null when it does not parse
+ */
+function nodeShapeOf(style: StyleObject, at: SiteOf): string | null {
     const shape = treeAttr(style.e, "shape");
     if (shape !== undefined) {
-        put("shape", canonEnum("shape", shape, "yfiles3", at("shape")));
-    } else if (style.tag === "RectangleNodeStyle") {
-        put("shape", treeAttr(style.e, "cornerSize") === undefined ? "rectangle" : "round-rectangle");
-    } else if (style.tag === "ShapeNodeStyle") {
-        put("shape", "rectangle");
-    } else {
-        noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, style.tag);
-        put("shape", `other:${style.tag}`);
+        return canonEnum("shape", shape, "yfiles3", at("shape"));
     }
+    if (style.tag === "RectangleNodeStyle") {
+        return treeAttr(style.e, "cornerSize") === undefined ? "rectangle" : "round-rectangle";
+    }
+    if (style.tag === "ShapeNodeStyle") {
+        return "rectangle";
+    }
+    noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, style.tag);
+    return `other:${style.tag}`;
 }
 
 /**
@@ -478,7 +502,7 @@ function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf):
         put("labelSize", canonNumber(treeAttr(f.e, "fontSize"), at("labelSize")));
         const family = treeAttr(f.e, "fontFamily");
         if (family !== undefined) {
-            put("labelFont", canonText(family.replace(/^['"]|['"]$/g, ""), at("labelFont")));
+            put("labelFont", canonText(family.replaceAll(/(^['"])|(['"]$)/g, ""), at("labelFont")));
         }
         const weight = treeAttr(f.e, "fontWeight");
         if (weight !== undefined) {
@@ -511,6 +535,9 @@ export function readYfiles3Styles(snapshot: GraphSnapshot, notes: StyleNotes, bu
         const style = kinds.get(target === "node" ? "NodeStyle" : "EdgeStyle");
         const labels = kinds.get(target === "node" ? "NodeLabels" : "EdgeLabels");
         const geometry = target === "node" ? kinds.get("NodeGeometry") : undefined;
+        const readStyle = target === "node" ? readNodeStyle : readEdgeStyle;
+        const cell = (name: string | undefined, i: number): unknown =>
+            name === undefined ? undefined : plainCell(table.value(name, i));
         for (let i = 0; i < n; i++) {
             budget.spend(target, 1);
             const at: SiteOf = (property) => ({ notes, target, property, element: i, budget });
@@ -518,18 +545,13 @@ export function readYfiles3Styles(snapshot: GraphSnapshot, notes: StyleNotes, bu
                 out.put(i, property, value);
             };
             if (style !== undefined) {
-                const data = plainCell(table.value(style, i));
-                if (target === "node") {
-                    readNodeStyle(refs, data, put, at);
-                } else {
-                    readEdgeStyle(refs, data, put, at);
-                }
+                readStyle(refs, cell(style, i), put, at);
             }
             if (labels !== undefined) {
-                readLabels(refs, plainCell(table.value(labels, i)), put, at);
+                readLabels(refs, cell(labels, i), put, at);
             }
             if (geometry !== undefined) {
-                const rect = treeChild(plainCell(table.value(geometry, i)), "RectD");
+                const rect = treeChild(cell(geometry, i), "RectD");
                 put("width", canonNumber(treeAttr(rect, "Width"), at("width")));
                 put("height", canonNumber(treeAttr(rect, "Height"), at("height")));
             }

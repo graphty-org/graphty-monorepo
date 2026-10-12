@@ -182,7 +182,6 @@ function toGamut(rgb: Vec3): Vec3 {
         return rgb;
     }
     const JND = 0.02;
-    const EPSILON = 0.0001;
     const [l, a, b] = srgbToOklab(rgb);
     if (l >= 1) {
         return [1, 1, 1];
@@ -197,20 +196,34 @@ function toGamut(rgb: Vec3): Vec3 {
         achromatic
             ? [l, 0, 0]
             : [l, chroma * Math.cos((degrees * Math.PI) / 180), chroma * Math.sin((degrees * Math.PI) / 180)];
-    const chroma0 = Math.sqrt(a ** 2 + b ** 2);
+    const chroma0 = Math.sqrt(a ** 2 + b ** 2); // NOSONAR(S7769): colorjs.io's own formula, so chroma matches it bit for bit
     const first = oklabToSrgb(at(chroma0));
     if (inGamut(first)) {
         return first;
     }
-    let clipped = clip(first);
+    const clipped = clip(first);
     if (deltaEOK(srgbToOklab(clipped), at(chroma0)) < JND) {
         // Clipping is close enough: clip the channels as given, without the round trip's rounding noise.
         return clip(rgb);
     }
+    return bisectChroma(at, chroma0, clipped);
+}
+
+/**
+ * CSS Color 4's chroma bisection: the largest chroma whose clipped color is within a just noticeable difference.
+ * A bisection: log2(chroma / EPSILON) rounds, about 30 for the most extreme finite input.
+ * @param at - the OKLab color of a chroma at the color's lightness and hue
+ * @param chroma0 - the color's own chroma
+ * @param first - the clipped color at that chroma
+ * @returns the clipped color found
+ */
+function bisectChroma(at: (chroma: number) => Vec3, chroma0: number, first: Vec3): Vec3 {
+    const JND = 0.02;
+    const EPSILON = 0.0001;
+    let clipped = first;
     let min = 0;
     let max = chroma0;
     let minInGamut = true;
-    // A bisection: log2(chroma / EPSILON) rounds, about 30 for the most extreme finite input.
     while (max - min > EPSILON) {
         const chroma = (min + max) / 2;
         const current = at(chroma);
@@ -221,14 +234,13 @@ function toGamut(rgb: Vec3): Vec3 {
         }
         clipped = clip(rgbNow);
         const e = deltaEOK(srgbToOklab(clipped), current);
-        if (e < JND) {
-            if (JND - e < EPSILON) {
-                break;
-            }
+        if (e >= JND) {
+            max = chroma;
+        } else if (JND - e < EPSILON) {
+            break;
+        } else {
             minInGamut = false;
             min = chroma;
-        } else {
-            max = chroma;
         }
     }
     return clipped;
@@ -246,8 +258,11 @@ function srgbHex(rgb: Vec3): StyleColor {
 
 // ------------------------------------------------------------ CSS functional notation
 
-/** One CSS number, optionally a percentage or an angle unit. */
-const CSS_NUMBER = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)(%|deg|grad|rad|turn)?$/i;
+/** One CSS number, without its unit. */
+const CSS_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+
+/** A CSS number's unit: a percentage or an angle. */
+const CSS_UNIT = /(%|deg|grad|rad|turn)$/i;
 
 /**
  * Splits a functional color's arguments: commas or blanks, with an optional `/` before the alpha.
@@ -273,12 +288,13 @@ function cssArgs(body: string): { parts: string[]; alpha: string | undefined } |
  * @returns the value and its unit (lowercase, "" for none), or null
  */
 function cssNumber(text: string): { value: number; unit: string } | null {
-    const m = CSS_NUMBER.exec(text);
-    if (m === null) {
+    const unit = CSS_UNIT.exec(text)?.[1] ?? "";
+    const number = text.slice(0, text.length - unit.length);
+    if (!CSS_NUMBER.test(number)) {
         return null;
     }
-    const value = Number(m[1]);
-    return Number.isFinite(value) ? { value, unit: (m[2] ?? "").toLowerCase() } : null;
+    const value = Number(number);
+    return Number.isFinite(value) ? { value, unit: unit.toLowerCase() } : null;
 }
 
 /**
@@ -314,7 +330,7 @@ function cssFunction(text: string): { hex: StyleColor; alpha: number } | null {
     }
     const nums = args.parts.map(cssNumber);
     const alpha = cssAlpha(args.alpha);
-    if (nums.some((n) => n === null) || alpha === null) {
+    if (nums.includes(null) || alpha === null) {
         return null;
     }
     const [x, y, z] = nums as { value: number; unit: string }[];
@@ -449,7 +465,9 @@ function channels(raw: object): { hex: StyleColor; alpha: number } | null {
         return null;
     }
     const o = raw as { r: unknown; g: unknown; b: unknown; a?: unknown };
-    const [r, g, b] = [o.r, o.g, o.b].map((v) => (typeof v === "number" || typeof v === "string" ? Number(v) : NaN));
+    const [r, g, b] = [o.r, o.g, o.b].map((v) =>
+        typeof v === "number" || typeof v === "string" ? Number(v) : Number.NaN,
+    );
     if (![r, g, b].every((v) => Number.isFinite(v) && v >= 0 && v <= 255)) {
         return null;
     }
@@ -486,13 +504,7 @@ export function canonColor(
     options: CanonColorOptions = {},
 ): CanonColor | null {
     if (raw !== null && typeof raw === "object") {
-        spendAt(site, 1);
-        const c = dialect === "gexf" || dialect === "gephi" ? channels(raw) : null;
-        if (c === null) {
-            noteAt(site, STYLE_ISSUE.BAD_VALUE, raw);
-            return null;
-        }
-        return { color: c.hex, alpha: c.alpha };
+        return objectColor(raw, dialect, site);
     }
     if (typeof raw === "number" && dialect === "java" && Number.isInteger(raw) && Math.abs(raw) <= 0xffffffff) {
         spendAt(site, 1);
@@ -504,44 +516,82 @@ export function canonColor(
         return null;
     }
     if (dialect === "graphviz" || dialect === "x11") {
-        const g = graphvizColor(text, dialect === "x11" ? null : (options.scheme ?? null), options.use ?? "line");
-        if (g.unknown) {
-            noteAt(site, STYLE_ISSUE.BAD_VALUE, text);
-            // Graphviz draws an unknown color black; a plain X11 name that is unknown is no color at all.
-            if (dialect === "x11") {
-                return null;
-            }
-        }
-        if (g.list !== null) {
-            noteAt(site, g.list === "gradient" ? STYLE_ISSUE.GRADIENT : STYLE_ISSUE.COLOR_LIST, text);
-        }
-        return { color: g.hex as StyleColor, alpha: alpha01(g.alpha) };
+        return graphvizCanon(text, dialect === "x11" ? "x11" : "graphviz", site, options);
     }
-    const trimmed = text.trim();
-    const lower = trimmed.toLowerCase();
-    let c: { hex: StyleColor; alpha: number } | null;
-    switch (dialect) {
-        case "dvips":
-            c = pajekColor(trimmed);
-            break;
-        case "yfiles3":
-            c = hexColor(trimmed, true) ?? cssColor(lower.replace(/_/g, ""));
-            break;
-        case "java":
-        case "gephi":
-        case "cytoscape": {
-            const java = JAVA_COLORS.get(lower);
-            c = java === undefined ? cssColor(trimmed) : { hex: java as StyleColor, alpha: 1 };
-            break;
-        }
-        default:
-            c = cssColor(trimmed);
-    }
+    const c = textColor(text.trim(), dialect);
     if (c === null) {
         noteAt(site, STYLE_ISSUE.BAD_VALUE, text);
         return null;
     }
     return { color: c.hex, alpha: c.alpha };
+}
+
+/**
+ * A color given as an object: only GEXF and Gephi write one, as channels.
+ * @param raw - the object
+ * @param dialect - the file's dialect
+ * @param site - where it was read
+ * @returns the color and its alpha, or null with a note
+ */
+function objectColor(raw: object, dialect: StyleDialect, site: CanonSite): CanonColor | null {
+    spendAt(site, 1);
+    const c = dialect === "gexf" || dialect === "gephi" ? channels(raw) : null;
+    if (c === null) {
+        noteAt(site, STYLE_ISSUE.BAD_VALUE, raw);
+        return null;
+    }
+    return { color: c.hex, alpha: c.alpha };
+}
+
+/**
+ * A Graphviz or X11 color: Graphviz draws an unknown color black; a plain X11 name that is unknown is no color at all.
+ * @param text - the value
+ * @param dialect - `graphviz` or `x11`
+ * @param site - where it was read
+ * @param options - Graphviz's scheme and use
+ * @returns the color and its alpha, or null
+ */
+function graphvizCanon(
+    text: string,
+    dialect: "graphviz" | "x11",
+    site: CanonSite,
+    options: CanonColorOptions,
+): CanonColor | null {
+    const g = graphvizColor(text, dialect === "x11" ? null : (options.scheme ?? null), options.use ?? "line");
+    if (g.unknown) {
+        noteAt(site, STYLE_ISSUE.BAD_VALUE, text);
+        if (dialect === "x11") {
+            return null;
+        }
+    }
+    if (g.list !== null) {
+        noteAt(site, g.list === "gradient" ? STYLE_ISSUE.GRADIENT : STYLE_ISSUE.COLOR_LIST, text);
+    }
+    return { color: g.hex as StyleColor, alpha: alpha01(g.alpha) };
+}
+
+/**
+ * A color written as text in a dialect other than Graphviz's.
+ * @param trimmed - the value, trimmed
+ * @param dialect - the file's dialect
+ * @returns the color and its alpha, or null
+ */
+function textColor(trimmed: string, dialect: StyleDialect): { hex: StyleColor; alpha: number } | null {
+    const lower = trimmed.toLowerCase();
+    switch (dialect) {
+        case "dvips":
+            return pajekColor(trimmed);
+        case "yfiles3":
+            return hexColor(trimmed, true) ?? cssColor(lower.replaceAll("_", ""));
+        case "java":
+        case "gephi":
+        case "cytoscape": {
+            const java = JAVA_COLORS.get(lower);
+            return java === undefined ? cssColor(trimmed) : { hex: java as StyleColor, alpha: 1 };
+        }
+        default:
+            return cssColor(trimmed);
+    }
 }
 
 /**

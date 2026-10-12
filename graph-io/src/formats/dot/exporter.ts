@@ -41,6 +41,9 @@ import {
 } from "./names.js";
 import { DOT_ATTRIBUTE_CLASH_CODE, DOT_STYLE_CAPABILITIES, dotStyledExport, isHtmlString } from "./styles.js";
 
+/** What the writer takes: the format's options, the common ones and the styles. */
+type DotWriteOptions = DotExportOptions & CommonExportOptions & ExporterStyleOptions;
+
 /**
  * The DOT exporter's format-specific options.
  * @category Built-in formats
@@ -241,10 +244,7 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
      * @param options - format-specific and common options
      * @returns the notes, empty when the export is exact
      */
-    check(
-        snapshot: GraphSnapshot,
-        options?: DotExportOptions & CommonExportOptions & ExporterStyleOptions,
-    ): readonly LossNote[] {
+    check(snapshot: GraphSnapshot, options?: DotWriteOptions): readonly LossNote[] {
         const styled = dotStyledExport(snapshot, options?.styles, options?.onMixedDirection);
         if (styled === null) {
             return checkPlain(snapshot, options);
@@ -258,10 +258,7 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
      * @param options - format-specific and common options
      * @returns the encoded chunks
      */
-    export(
-        snapshot: GraphSnapshot,
-        options?: DotExportOptions & CommonExportOptions & ExporterStyleOptions,
-    ): AsyncIterable<Uint8Array> {
+    export(snapshot: GraphSnapshot, options?: DotWriteOptions): AsyncIterable<Uint8Array> {
         return encodeChunks(
             writeDot(
                 dotStyledExport(snapshot, options?.styles, options?.onMixedDirection)?.snapshot ?? snapshot,
@@ -276,10 +273,7 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
      * @param options - format-specific and common options
      * @returns the whole document
      */
-    exportToString(
-        snapshot: GraphSnapshot,
-        options?: DotExportOptions & CommonExportOptions & ExporterStyleOptions,
-    ): Promise<string> {
+    exportToString(snapshot: GraphSnapshot, options?: DotWriteOptions): Promise<string> {
         return joinText(
             writeDot(
                 dotStyledExport(snapshot, options?.styles, options?.onMixedDirection)?.snapshot ?? snapshot,
@@ -384,6 +378,89 @@ function badOption(option: string, found: unknown, expected: string): GraphForma
  * write(): the output direction, the columns written per table, the cluster structure, and the
  * format-specific loss notes.
  */
+
+/** A note-recording callback. */
+type DotNote = (code: string, message: string, column?: string | null, count?: number | null) => void;
+
+/**
+ * The notes of one node, edge or graph column: dropped when empty, read back with the label role, non-finite
+ * numbers and text that reads back typed.
+ * @param label - node, edge or graph
+ * @param column - the column
+ * @param note - the recorder
+ */
+function columnNotes(label: "node" | "edge" | "graph", column: Column, note: DotNote): void {
+    const { name, role } = column.meta;
+    const text = column.dtype === "string" || column.dtype === "dict";
+    if (label !== "graph" && column.nullCount === column.length) {
+        note(
+            DOT_LOSS.EMPTY_COLUMN_DROPPED,
+            `${label} column "${name}" has no set cell and is not written: DOT writes cells, never declarations`,
+            name,
+            0,
+        );
+        return;
+    }
+    if (label !== "graph" && role === null && name === LABEL_ATTRIBUTE && text) {
+        note(
+            DOT_LOSS.ROLE_ASSUMED,
+            `${label} column "${name}" reads back with the label role`,
+            name,
+            column.length - column.nullCount,
+        );
+    }
+    const bad = column.dtype === "f32" || column.dtype === "f64" ? countNonFinite(column) : 0;
+    if (bad > 0) {
+        note(
+            DOT_LOSS.NON_FINITE,
+            `${label} column "${name}" holds ${bad} non-finite value${plural(bad)} with no numeric DOT spelling; they read back as text`,
+            name,
+            bad,
+        );
+    }
+    const typed = text && (role === null || !TEXT_ROLES.has(role)) ? countTypedLookingText(column) : 0;
+    if (typed > 0) {
+        note(
+            DOT_LOSS.TEXT_INFERRED,
+            `${label} column "${name}" holds ${typed} text value${plural(typed)} that look like numbers or booleans; DOT values are untyped and they read back as such`,
+            name,
+            typed,
+        );
+    }
+}
+
+/**
+ * The notes of position columns DOT cannot write: a node position of other than 2 or 3 components, and any edge or
+ * graph position.
+ * @param snapshot - the snapshot
+ * @param position - the node position column, or null
+ * @param note - the recorder
+ */
+function positionNotes(snapshot: GraphSnapshot, position: Column | null, note: DotNote): void {
+    if (position !== null && position.meta.components !== 2 && position.meta.components !== 3) {
+        note(
+            DOT_LOSS.POSITION_SHAPE,
+            `node column "${position.meta.name}" (position) has ${position.meta.components} components and is not written; pos takes 2 or 3`,
+            position.meta.name,
+            position.length - position.nullCount,
+        );
+    }
+    for (const [label, table] of [
+        ["edge", snapshot.edges],
+        ["graph", snapshot.graph],
+    ] as const) {
+        const column = table.byRole("position");
+        if (column !== null) {
+            note(
+                DOT_LOSS.POSITION_SHAPE,
+                `${label} column "${column.meta.name}" (position) is not written; only node positions map to pos`,
+                column.meta.name,
+                column.length - column.nullCount,
+            );
+        }
+    }
+}
+
 class ExportPlan {
     private readonly snapshot: GraphSnapshot;
 
@@ -399,9 +476,9 @@ class ExportPlan {
 
     private readonly directed: boolean;
 
-    private nodeColumns: Column[];
+    private readonly nodeColumns: Column[];
 
-    private edgeColumns: Column[];
+    private readonly edgeColumns: Column[];
 
     private readonly graphColumns: Column[];
 
@@ -610,12 +687,7 @@ class ExportPlan {
      */
     notes(): LossNote[] {
         const notes: LossNote[] = [...this.extraNotes];
-        const note = (
-            code: string,
-            message: string,
-            column: string | null = null,
-            count: number | null = null,
-        ): void => {
+        const note: DotNote = (code, message, column = null, count = null) => {
             notes.push(Object.freeze({ code, message, column, count }));
         };
         const { snapshot } = this;
@@ -637,58 +709,32 @@ class ExportPlan {
                 if (label === "graph") {
                     notes.push(...charsetNotes(column));
                 }
-                if (label !== "graph" && column.nullCount === column.length) {
-                    note(
-                        DOT_LOSS.EMPTY_COLUMN_DROPPED,
-                        `${label} column "${column.meta.name}" has no set cell and is not written: DOT writes cells, never declarations`,
-                        column.meta.name,
-                        0,
-                    );
-                    continue;
-                }
-                if (
-                    label !== "graph" &&
-                    column.meta.role === null &&
-                    column.meta.name === LABEL_ATTRIBUTE &&
-                    (column.dtype === "string" || column.dtype === "dict")
-                ) {
-                    note(
-                        DOT_LOSS.ROLE_ASSUMED,
-                        `${label} column "${column.meta.name}" reads back with the label role`,
-                        column.meta.name,
-                        column.length - column.nullCount,
-                    );
-                }
-                if (column.dtype === "f32" || column.dtype === "f64") {
-                    const bad = countNonFinite(column);
-                    if (bad > 0) {
-                        note(
-                            DOT_LOSS.NON_FINITE,
-                            `${label} column "${column.meta.name}" holds ${bad} non-finite value${plural(bad)} with no numeric DOT spelling; they read back as text`,
-                            column.meta.name,
-                            bad,
-                        );
-                    }
-                }
-                if (
-                    (column.dtype === "string" || column.dtype === "dict") &&
-                    (column.meta.role === null || !TEXT_ROLES.has(column.meta.role))
-                ) {
-                    const typed = countTypedLookingText(column);
-                    if (typed > 0) {
-                        note(
-                            DOT_LOSS.TEXT_INFERRED,
-                            `${label} column "${column.meta.name}" holds ${typed} text value${plural(typed)} that look like numbers or booleans; DOT values are untyped and they read back as such`,
-                            column.meta.name,
-                            typed,
-                        );
-                    }
-                }
+                columnNotes(label, column, note);
             }
         }
+        this.structureNotes(note);
+        positionNotes(snapshot, this.position, note);
+        const textIds = countTextIds(snapshot);
+        if (textIds > 0) {
+            note(
+                DOT_LOSS.ID_TEXT_TYPE,
+                `${textIds} node id${plural(textIds)} ${agree(textIds, "reads", "read")} back as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
+                null,
+                textIds,
+            );
+        }
+        return notes;
+    }
+
+    /**
+     * The notes of the graph's structure DOT changes: parents written as clusters, mutual pairs and parents lists.
+     * @param note - the recorder
+     */
+    private structureNotes(note: DotNote): void {
+        const { snapshot } = this;
         let unmarked = 0;
         for (let i = 0; i < snapshot.nodeCount; i++) {
-            const marked = this.cluster !== null && this.cluster.isSet(i) && this.cluster.value(i) === true;
+            const marked = this.cluster?.isSet(i) === true && this.cluster.value(i) === true;
             if (!marked && this.children.childrenOf(i).length > 0) {
                 unmarked++;
             }
@@ -719,38 +765,6 @@ class ExportPlan {
                 parents.length - parents.nullCount,
             );
         }
-        if (this.position !== null && this.position.meta.components !== 2 && this.position.meta.components !== 3) {
-            note(
-                DOT_LOSS.POSITION_SHAPE,
-                `node column "${this.position.meta.name}" (position) has ${this.position.meta.components} components and is not written; pos takes 2 or 3`,
-                this.position.meta.name,
-                this.position.length - this.position.nullCount,
-            );
-        }
-        for (const [label, table] of [
-            ["edge", snapshot.edges],
-            ["graph", snapshot.graph],
-        ] as const) {
-            const column = table.byRole("position");
-            if (column !== null) {
-                note(
-                    DOT_LOSS.POSITION_SHAPE,
-                    `${label} column "${column.meta.name}" (position) is not written; only node positions map to pos`,
-                    column.meta.name,
-                    column.length - column.nullCount,
-                );
-            }
-        }
-        const textIds = countTextIds(snapshot);
-        if (textIds > 0) {
-            note(
-                DOT_LOSS.ID_TEXT_TYPE,
-                `${textIds} node id${plural(textIds)} ${agree(textIds, "reads", "read")} back as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
-                null,
-                textIds,
-            );
-        }
-        return notes;
     }
 
     /**

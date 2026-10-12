@@ -50,6 +50,9 @@ import {
 } from "./schema.js";
 import { GEXF_STYLE_CAPABILITIES, type GexfStyledExport, gexfStyledExport } from "./styles.js";
 
+/** What the writer takes: the format's options, the common ones and the styles. */
+type GexfWriteOptions = GexfExportOptions & CommonExportOptions & ExporterStyleOptions;
+
 /**
  * The format-specific options of the GEXF exporter.
  * @category Built-in formats
@@ -1558,10 +1561,7 @@ function edgeType(snapshot: GraphSnapshot, e: number, folding: PairFolding): Gex
  * @yields one part per element or line group
  * @returns nothing
  */
-function* writeGexf(
-    given: GraphSnapshot,
-    options: (GexfExportOptions & CommonExportOptions & ExporterStyleOptions) | undefined,
-): Generator<string, void, undefined> {
+function* writeGexf(given: GraphSnapshot, options: GexfWriteOptions | undefined): Generator<string, void, undefined> {
     const styled = gexfStyledExport(given, options?.styles);
     const snapshot = styled?.snapshot ?? given;
     const plan = planExport(snapshot, options);
@@ -1789,10 +1789,7 @@ export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
      * @param options - format-specific and common options
      * @returns the loss notes, empty when the export is exact
      */
-    check(
-        snapshot: GraphSnapshot,
-        options?: GexfExportOptions & CommonExportOptions & ExporterStyleOptions,
-    ): readonly LossNote[] {
+    check(snapshot: GraphSnapshot, options?: GexfWriteOptions): readonly LossNote[] {
         const styled = gexfStyledExport(snapshot, options?.styles);
         return Object.freeze([...planExport(styled?.snapshot ?? snapshot, options).notes, ...(styled?.notes ?? [])]);
     },
@@ -1802,10 +1799,7 @@ export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
      * @param options - format-specific and common options
      * @returns the chunks
      */
-    export(
-        snapshot: GraphSnapshot,
-        options?: GexfExportOptions & CommonExportOptions & ExporterStyleOptions,
-    ): AsyncIterable<Uint8Array> {
+    export(snapshot: GraphSnapshot, options?: GexfWriteOptions): AsyncIterable<Uint8Array> {
         return encodeChunks(writeGexf(snapshot, options));
     },
     /**
@@ -1814,10 +1808,7 @@ export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
      * @param options - format-specific and common options
      * @returns the document
      */
-    async exportToString(
-        snapshot: GraphSnapshot,
-        options?: GexfExportOptions & CommonExportOptions & ExporterStyleOptions,
-    ): Promise<string> {
+    async exportToString(snapshot: GraphSnapshot, options?: GexfWriteOptions): Promise<string> {
         return joinText(writeGexf(snapshot, options));
     },
 });

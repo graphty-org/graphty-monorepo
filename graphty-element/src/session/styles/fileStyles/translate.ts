@@ -633,6 +633,8 @@ class KindTranslation {
     hidden: { key: string; count: number } | null = null;
     /** The `data.` paths the reader put a column of the file at; undefined until first asked. */
     #heldPaths: ReadonlySet<string> | undefined = undefined;
+    /** The `data.` paths whose column any rule of this kind reads from graph-io's copy; undefined until first asked. */
+    #copiedPaths: ReadonlySet<string> | undefined = undefined;
     /** Per node, whether its border is zero wide; undefined until first asked. */
     #zeroBorders: readonly boolean[] | null | undefined = undefined;
     /** What the layers paint, once `run()` has run; null when a rebuilt layer's painting is unknown. */
@@ -1255,7 +1257,7 @@ class KindTranslation {
                     : binding;
         }
 
-        if (missing || !this.#readsHeldData(given, rule)) {
+        if (missing || !this.#readsHeldData(given)) {
             return ignored("PATH");
         }
 
@@ -1275,10 +1277,9 @@ class KindTranslation {
      * reader that nests a column (a graphology attribute arrives under `attributes`) or leaves it
      * out gives the layer nothing at the path it names, so the neutral rule is drawn instead.
      * @param spec - The layer.
-     * @param rule - The rule it stands for.
      * @returns True when each `data.` path it reads is where the reader put a column of the file.
      */
-    #readsHeldData(spec: Partial<LayerSpec>, rule: StyleRule): boolean {
+    #readsHeldData(spec: Partial<LayerSpec>): boolean {
         const paths: string[] = [];
         const { selector } = spec;
         if (selector?.match === "has" || selector?.match === "top") {
@@ -1302,28 +1303,41 @@ class KindTranslation {
             );
         }
 
-        // A column the format could not keep is read by the rule from the copy graph-io writes beside
-        // the block (`input.data.<column>`, `input.<property>.data.<column>`): the layer, which reads
-        // the column itself, would read what the file holds there instead.
-        const copied = new Set<string>();
-        const { ext: _ext, ...neutral } = rule;
-        JSON.stringify(neutral, (_key, value: unknown) => {
-            if (
-                typeof value === "object" &&
-                value !== null &&
-                !Array.isArray(value) &&
-                Object.keys(value).length === 1
-            ) {
-                const { style } = value as { style?: unknown };
-                const column = typeof style === "string" ? CARRIED_INPUT.exec(style)?.[1] : undefined;
-                const path = column === undefined ? null : this.#input.dataPath(this.#kind, column);
-                if (path !== null) {
-                    copied.add(path);
+        // A column the format could not keep is read by the rules from the copy graph-io writes beside
+        // the block (`input.data.<column>`, `input.<property>.data.<column>`): what the file holds in
+        // the column itself is not what was written, so no layer reading it is rebuilt, whichever
+        // rule of the block carries the copy.
+        if (this.#copiedPaths === undefined) {
+            const copied = new Set<string>();
+            for (const each of this.#input.extracted.styles.rules) {
+                if (each.target !== this.#kind) {
+                    continue;
                 }
+
+                const { ext: _ext, ...neutral } = each;
+                JSON.stringify(neutral, (_key, value: unknown) => {
+                    if (
+                        typeof value === "object" &&
+                        value !== null &&
+                        !Array.isArray(value) &&
+                        Object.keys(value).length === 1
+                    ) {
+                        const { style } = value as { style?: unknown };
+                        const column = typeof style === "string" ? CARRIED_INPUT.exec(style)?.[1] : undefined;
+                        const path = column === undefined ? null : this.#input.dataPath(this.#kind, column);
+                        if (path !== null) {
+                            copied.add(path);
+                        }
+                    }
+
+                    return value;
+                });
             }
 
-            return value;
-        });
+            this.#copiedPaths = copied;
+        }
+
+        const copied = this.#copiedPaths;
         const held = this.#heldPaths;
         return paths.filter((path) => path.startsWith("data.")).every((path) => held.has(path) && !copied.has(path));
     }

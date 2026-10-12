@@ -5,6 +5,9 @@
  * reported before writing; and an export without styles exactly as it was.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { assert, describe, it } from "vitest";
 
 import {
@@ -264,6 +267,27 @@ describe("styles written into a file come back as the same layers", () => {
         );
 
         const back = await loadBack(await result.text(), "gexf");
+        assert.deepEqual(picture(back), picture(session));
+        session.dispose();
+        back.dispose();
+    });
+});
+
+describe("a column a format could not keep", () => {
+    it("is not read by a rebuilt layer, even one whose own rule does not carry the column", async () => {
+        // 39 nodes have no `flag`; a Cytoscape session writes them as empty cells, read back as "".
+        // Another rule carries `flag` beside the block, so the layer selecting the nodes with no
+        // `flag` is drawn by its neutral rule, which selects by membership, not by the column.
+        const file = join(__dirname, "..", "..", "..", "graph-io", "test", "corpus", "styles", "cyjs", "adv");
+        const session = createGraphSession();
+        await session.data.import(
+            { type: "json", config: { data: readFileSync(join(file, "cyjs-selector-zoo.cyjs"), "utf8") } },
+            { styles: "file" },
+        );
+        await session.styles.settled();
+        const back = await loadBack(await written(exportSession(session, "cys", { styles: true }), "cys"), "cys");
+        await back.styles.settled();
+        assert.strictEqual(session.styles.explain({ node: "n109" }).merged["node.opacity"], 1);
         assert.deepEqual(picture(back), picture(session));
         session.dispose();
         back.dispose();

@@ -261,12 +261,15 @@ export class NodeEffects {
         // `effect.glow.strength`, so a layer that binds only a strength (to a metric, say) leaves
         // an `effect.glow` with no colour on every node it paints. Treated as "glow on", that drew
         // the white fallback on all of them (#2068). The strength only scales a colour some layer set.
+        // A STRENGTH OF 0 IS NO GLOW (#2067), so it takes the removal branch and never creates or
+        // keeps alive the full-screen glow layer for a glow nobody can see.
         const colorValue = this.extractColorValue(effect?.glow?.color);
-        if (effect?.glow && colorValue !== undefined) {
+        const strength = effect?.glow?.strength ?? 1;
+        if (effect?.glow && colorValue !== undefined && strength > 0) {
             const glowLayer = this.getOrCreateGlowLayer(scene);
             // The fallback only covers an unreadable color string; a missing one never gets here.
             const { rgb: color, alpha } = readColor(colorValue, DEFAULT_GLOW_COLOR);
-            this.glowStrengths(scene).set(renderedMesh, { strength: effect.glow.strength ?? 1, alpha });
+            this.glowStrengths(scene).set(renderedMesh, { strength, alpha });
 
             // Same defence as the outline path: a mesh in an unexpected state must not take down
             // a repaint.

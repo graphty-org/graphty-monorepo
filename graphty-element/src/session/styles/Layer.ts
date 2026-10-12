@@ -201,7 +201,7 @@ export interface ValidationResult {
      * answers to now, by either spelling of an integer id. `params.target` is `"node"` or
      * `"edge"`, `params.ids` those ids as the layer named them.
      *
-     * `W_ALPHA_IGNORED`: a colour with an alpha written to a channel that cannot draw it
+     * `W_ALPHA_IGNORED`: a color with an alpha written to a channel that cannot draw it
      * translucent (`node.outline`), so it is drawn opaque. `params.channel` and `params.path`.
      */
     readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
@@ -417,16 +417,16 @@ function selectorWarnings(
           ]);
 }
 
-/** The colour channels that draw a colour opaque whatever its alpha. See `NodeEffects.applyOutlineEffect`. */
+/** The color channels that draw a color opaque whatever its alpha. See `NodeEffects.applyOutlineEffect`. */
 const OPAQUE_COLOR_CHANNELS: readonly string[] = ["node.outline"];
 
 /**
- * The warnings a layer's literal colours earn: an alpha written to a channel that cannot draw it.
+ * The warnings a layer's literal colors earn: an alpha written to a channel that cannot draw it.
  *
- * Every other colour channel multiplies a colour's alpha into its opacity (issue #2071); an
+ * Every other color channel multiplies a color's alpha into its opacity (issue #2071); an
  * outline cannot be drawn translucent, so its alpha is dropped and this says so.
  * @param spec - The specification.
- * @returns The warnings; none when every literal colour can be drawn as written.
+ * @returns The warnings; none when every literal color can be drawn as written.
  */
 function alphaWarnings(spec: LayerSpec): readonly CodedFact<GraphtyWarningCode>[] {
     return OPAQUE_COLOR_CHANNELS.filter((channel) => {

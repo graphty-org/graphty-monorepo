@@ -977,11 +977,18 @@ export class Edge {
             color: style.line?.color ?? "#FFFFFF",
         };
 
-        this.lineBatch = EdgeMesh.lineBatch(this.context.getMeshCache(), options, style, this.context.getScene());
+        // A WIDTH OF 0 DRAWS NO LINE (#2067). The edge still takes one straight slot, so it has a
+        // line to point at like any other, but the slot is never placed (transformEdgeMesh), and
+        // an unplaced slot is a zero matrix the shader draws no fragments for. Taking the solid
+        // path also keeps a pattern from building elements nobody can see.
+        const drawnStyle =
+            options.width > 0 ? style : { ...style, line: { ...style.line, type: "solid" as const, bezier: false } };
+
+        this.lineBatch = EdgeMesh.lineBatch(this.context.getMeshCache(), options, drawnStyle, this.context.getScene());
 
         if (this.lineBatch) {
             // A curve's run of slots is sized to its length when it is first placed.
-            this.lineIsCurve = style.line?.bezier === true;
+            this.lineIsCurve = drawnStyle.line?.bezier === true;
             this.lineSlots = [this.lineBatch.acquire()];
 
             // No per-edge mesh to make unpickable and nothing to hang `parentEdge` on: the batch
@@ -1291,6 +1298,11 @@ export class Edge {
      * @param dstPoint - The destination point position
      */
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void {
+        // A line of width 0 is never placed, so it stays the zero matrix it was acquired as.
+        if (this.drawnStyle?.line?.width === 0) {
+            return;
+        }
+
         // A batched line is sixteen floats in a shared buffer, and this is the write that moves
         // it. The whole buffer reaches the GPU once a frame, from the batch itself.
         if (this.lineBatch && this.lineIsCurve) {
@@ -1353,14 +1365,27 @@ export class Edge {
      * @returns Edge line positions adjusted for arrow placement
      */
     transformArrowCap(): EdgeLine {
-        if (this.arrowCap) {
-            const { srcPoint, dstPoint, newEndPoint } = this.getInterceptPoints();
+        const { arrowCap } = this;
 
-            // If we can't find intercept points, fall back to approximate positions
-            if (!srcPoint || !dstPoint || !newEndPoint) {
-                return this.placeArrowFromCentres(this.arrowCap);
-            }
+        // A TAIL IS PLACED WITHOUT A HEAD TOO. This used to return here unless the edge had a
+        // head, so a tail drawn with no head (type "none", or size 0, #2067) was never placed.
+        if (!arrowCap && !this.arrowTailCap) {
+            return {
+                srcPoint: null,
+                dstPoint: null,
+            };
+        }
 
+        const { srcPoint, dstPoint, newEndPoint } = this.getInterceptPoints();
+
+        // If we can't find intercept points, fall back to approximate positions
+        if (!srcPoint || !dstPoint || !newEndPoint) {
+            return arrowCap ? this.placeArrowFromCentres(arrowCap) : { srcPoint: null, dstPoint: null };
+        }
+
+        const direction = dstPoint.subtract(srcPoint).normalize();
+
+        if (arrowCap) {
             // Use common arrow geometry functions for positioning
             this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
             const arrowStyle = this.currentStyle;
@@ -1372,29 +1397,22 @@ export class Edge {
             // PHASE 4: Override scaleFactor for 2D arrows
             // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
             // so their scaleFactor should be 1.0, not 0.25
-            if (this.arrowCap.is2D && geometry.scaleFactor !== undefined) {
+            if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
                 geometry.scaleFactor = 1;
             }
-
-            const direction = dstPoint.subtract(srcPoint).normalize();
 
             // Calculate arrow position using common function
             const arrowPosition = EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
             this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
 
-            this.arrowCap.place(arrowPosition, direction);
-
-            const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction);
-
-            return {
-                srcPoint: adjustedSrcPoint,
-                dstPoint: newEndPoint, // Line ends before arrow to create gap for arrow to fill
-            };
+            arrowCap.place(arrowPosition, direction);
         }
 
+        const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction);
+
         return {
-            srcPoint: null,
-            dstPoint: null,
+            srcPoint: adjustedSrcPoint,
+            dstPoint: newEndPoint, // Line ends before arrow to create gap for arrow to fill
         };
     }
 

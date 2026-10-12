@@ -1169,7 +1169,7 @@ export class Node {
             return;
         }
 
-        // The colour's own alpha multiplies the configured opacity (issue #2071).
+        // The color's own alpha multiplies the configured opacity (issue #2071).
         const { rgb, alpha } = readColor(selection.color, DEFAULT_SELECTION_STYLE.color);
 
         material.emissiveColor = rgb;

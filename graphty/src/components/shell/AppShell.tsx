@@ -573,11 +573,11 @@ function focusWhenMounted(selector: string): void {
         frames += 1;
 
         if (frames < FOCUS_FRAMES) {
-            window.requestAnimationFrame(attempt);
+            globalThis.requestAnimationFrame(attempt);
         }
     };
 
-    window.requestAnimationFrame(attempt);
+    globalThis.requestAnimationFrame(attempt);
 }
 
 /*
@@ -1571,7 +1571,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         let attempts = 0;
         let unwatch: (() => void) | null = null;
 
-        const timer = window.setInterval(() => {
+        const timer = globalThis.setInterval(() => {
             const handle = graphtyRef.current;
             const session = handle?.session ?? null;
 
@@ -1584,18 +1584,18 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 });
 
                 setGraphReady(true);
-                window.clearInterval(timer);
+                globalThis.clearInterval(timer);
 
                 return;
             }
 
             if (attempts >= GRAPH_READY_POLL_LIMIT) {
-                window.clearInterval(timer);
+                globalThis.clearInterval(timer);
             }
         }, GRAPH_READY_POLL_MS);
 
         return () => {
-            window.clearInterval(timer);
+            globalThis.clearInterval(timer);
             unwatch?.();
         };
     }, []);
@@ -1628,12 +1628,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setExploreError(error instanceof Error ? error.message : String(error));
             }
         };
-        const timer = window.setTimeout(() => {
+        const timer = globalThis.setTimeout(() => {
             void search();
         }, EXPLORE_SEARCH_DEBOUNCE_MS);
 
         return () => {
-            window.clearTimeout(timer);
+            globalThis.clearTimeout(timer);
         };
     }, [exploreQuery, exploreScope, graphReady, loadCompletions]);
 
@@ -2285,7 +2285,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             return;
         }
 
-        if (!new URLSearchParams(window.location.search).has("test")) {
+        if (!new URLSearchParams(globalThis.location.search).has("test")) {
             return;
         }
 

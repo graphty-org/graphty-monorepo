@@ -266,9 +266,9 @@ describe("what the element can really draw", () => {
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.size"].max);
     });
 
-    it("draws a glow with no strength at 1, and offers no strength the node style refuses", () => {
+    it("draws a glow with no strength at 1, and offers 0, which draws no glow", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].default, 1);
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].min, 0.1);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].min, 0);
     });
 
     it("states the colour a switched-on outline or glow is drawn in when none is named", () => {

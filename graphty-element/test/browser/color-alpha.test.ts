@@ -1,23 +1,23 @@
 /**
- * @file An alpha written inside a colour (`#rrggbbaa`, `rgba()`) follows one rule on every channel.
+ * @file An alpha written inside a color (`#rrggbbaa`, `rgba()`) follows one rule on every channel.
  *
- * THE RULE. Where the channel can draw transparency, the colour's alpha is multiplied with the
+ * THE RULE. Where the channel can draw transparency, the color's alpha is multiplied with the
  * channel's own opacity: a node filled `#ff000080` is drawn exactly as a node filled `#ff0000` at
  * opacity 128/255, and the same holds for an edge, an arrow cap and the selection halo. An arrow
- * with no colour of its own follows its line's colour, alpha included. A glow's alpha fades the
- * glow; a glow is blended around the node rather than added, so no opaque colour draws the same
+ * with no color of its own follows its line's color, alpha included. A glow's alpha fades the
+ * glow; a glow is blended around the node rather than added, so no opaque color draws the same
  * picture, and `glow-around-the-node.test.ts` checks that fade instead of a case here.
  * An outline cannot be drawn translucent at all -- Babylon's highlight layer pins the alpha of
- * every outline to 1 -- so an outline's alpha is ignored, the colour is drawn opaque, and the
+ * every outline to 1 -- so an outline's alpha is ignored, the color is drawn opaque, and the
  * layer check says so with `W_ALPHA_IGNORED`.
  *
- * WHAT IT REPLACES. Every channel but the node fill read its colour with Babylon's
+ * WHAT IT REPLACES. Every channel but the node fill read its color with Babylon's
  * `Color3.FromHexString`, which reads `#rrggbb` and nothing else: handed nine characters it leaves
- * the colour at its starting black. So an edge, an arrow, a glow, an outline or a halo given an
- * alpha was drawn black (and a black glow is no glow at all), and the node fill drew the colour
+ * the color at its starting black. So an edge, an arrow, a glow, an outline or a halo given an
+ * alpha was drawn black (and a black glow is no glow at all), and the node fill drew the color
  * opaque.
  *
- * Each case below draws the colour with an alpha and its opacity-channel equivalent, and requires
+ * Each case below draws the color with an alpha and its opacity-channel equivalent, and requires
  * the two frames to agree pixel for pixel.
  */
 
@@ -41,7 +41,7 @@ const PIXEL_CHANGE = 32;
 interface AlphaCase {
     readonly target: "node" | "edge";
     readonly channel: string;
-    /** The same picture, written without an alpha in any colour. */
+    /** The same picture, written without an alpha in any color. */
     readonly equivalent: Record<string, unknown>;
 }
 
@@ -51,7 +51,7 @@ const CASES: readonly AlphaCase[] = [
     {
         target: "edge",
         channel: "edge.color",
-        // Both caps have no colour of their own here, so they follow the line, alpha included.
+        // Both caps have no color of their own here, so they follow the line, alpha included.
         equivalent: {
             "edge.color": "#ff0000",
             "edge.opacity": HALF,
@@ -87,7 +87,7 @@ function pixelsMoved(one: Uint32Array, other: Uint32Array): number {
     return moved / 2;
 }
 
-describe("a colour with an alpha channel", () => {
+describe("a color with an alpha channel", () => {
     let container: HTMLElement;
     let graph: Graph;
     let session: GraphSession;

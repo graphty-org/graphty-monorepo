@@ -141,8 +141,8 @@ export async function runAttractionScaleBenchmarks(ctx: GpuContext): Promise<Ben
                     },
                     { device: ctx.device, items: rung.nodes, unit: "nodes" },
                 );
-                results.push(wall);
                 results.push(
+                    wall,
                     reportedRow(
                         ATTRACTION_SCALE_GROUP,
                         `scale grid ms/iteration (profiler) n=${rung.nodes} 2D [${rung.label}]`,
@@ -151,8 +151,6 @@ export async function runAttractionScaleBenchmarks(ctx: GpuContext): Promise<Ben
                         rung.nodes,
                         "nodes",
                     ),
-                );
-                results.push(
                     reportedRow(
                         ATTRACTION_SCALE_GROUP,
                         `scale attraction ms/iteration (profiler) n=${rung.nodes} 2D [${rung.label}]`,

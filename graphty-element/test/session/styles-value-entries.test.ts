@@ -63,7 +63,7 @@ function colorOf(harness: Harness, layer: Layer, value: unknown): string | undef
 }
 
 /**
- * A session holding the eleven nodes with a Louvain run coloured by community.
+ * A session holding the eleven nodes with a Louvain run colored by community.
  * @returns The session and the run's colour layer.
  */
 async function louvainSession(): Promise<{ harness: Harness; layer: Layer }> {
@@ -76,41 +76,34 @@ async function louvainSession(): Promise<{ harness: Harness; layer: Layer }> {
     return { harness, layer };
 }
 
-describe("splitting a layer by value", () => {
-    it("gives a Louvain layer one child per community", async () => {
+describe("per-value entries", () => {
+    it("lists a Louvain layer's communities, largest first, each with its size", async () => {
         const { harness, layer } = await louvainSession();
         const { styles } = harness.session;
 
-        const split = await styles.split(layer.id);
-
-        assert.strictEqual(split.split?.by, "results.louvain.group");
-        assert.sameMembers(
-            styles.splitChildren(layer.id).map((child) => child.value),
-            [0, 1, 2, 3],
-        );
         assert.deepStrictEqual(
-            styles.splitChildren(layer.id).map((child) => [child.value, child.count]),
+            styles.categories(layer.id, "node.color").map((each) => [each.value, each.count, each.hidden]),
             [
-                [0, 3],
-                [1, 3],
-                [3, 3],
-                [2, 2],
+                [0, 3, false],
+                [1, 3, false],
+                [3, 3, false],
+                [2, 2, false],
             ],
-            "largest group first, each with its size",
         );
         assert.isTrue(
-            styles.splitChildren(layer.id).every((child) => Object.keys(child.overrides).length === 0),
-            "a new child follows the parent",
+            styles.categories(layer.id, "node.color").every((each) => each.entry === undefined),
+            "a value follows the palette until it is given an entry",
         );
+        assert.deepStrictEqual(styles.categories(layer.id, "node.size"), [], "a channel it does not paint");
         harness.session.dispose();
     });
 
-    it("keeps a child's override when the parent's palette changes, and recolours the rest", async () => {
+    it("keeps an entry when the palette changes, recolors the rest, and clearing it returns to the palette", async () => {
         const { harness, layer } = await louvainSession();
         const { styles } = harness.session;
-        await styles.split(layer.id);
+        const paletteColor = colorOf(harness, layer, 3);
 
-        await styles.setSplitOverride(layer.id, 3, "node.color", "#123456");
+        await styles.setValueEntry(layer.id, "node.color", 3, "#123456");
         const before = colorOf(harness, layer, 0);
         const binding = styles.get(layer.id)?.encode?.["node.color"];
         assert.isDefined(binding);
@@ -118,47 +111,77 @@ describe("splitting a layer by value", () => {
             encode: { "node.color": { ...binding, palette: "tol-vibrant" } as NonNullable<typeof binding> },
         });
 
-        assert.strictEqual(colorOf(harness, layer, 3), "#123456", "community 3 keeps its own colour");
+        assert.strictEqual(colorOf(harness, layer, 3), "#123456", "community 3 keeps its entry");
         assert.notStrictEqual(colorOf(harness, layer, 0), before, "community 0 takes the new palette");
-        assert.deepStrictEqual(styles.splitChildren(layer.id).find((child) => child.value === 3)?.overrides, {
-            "node.color": "#123456",
-        });
+        assert.strictEqual(
+            styles.categories(layer.id, "node.color").find((each) => each.value === 3)?.entry,
+            "#123456",
+        );
 
-        await styles.setSplitOverride(layer.id, 3, "node.color", undefined);
-        assert.notStrictEqual(colorOf(harness, layer, 3), "#123456", "Follow parent drops the override");
+        await styles.setValueEntry(layer.id, "node.color", 3, undefined);
+        assert.notStrictEqual(colorOf(harness, layer, 3), "#123456", "clearing the entry drops it");
+        assert.notStrictEqual(colorOf(harness, layer, 3), paletteColor, "and 3 takes the new palette's color");
+        assert.isUndefined((styles.get(layer.id)?.encode?.["node.color"] as { map?: unknown }).map);
         harness.session.dispose();
     });
 
-    it("keeps an override on the community sharing most members after a re-run renumbers them", async () => {
+    it("moves an entry, a hidden value and a hand layer's rule to the community sharing most members on a re-run", async () => {
         const { harness, layer } = await louvainSession();
         const { styles, runs } = harness.session;
-        await styles.split(layer.id);
-        await styles.setSplitOverride(layer.id, 3, "node.color", "#123456");
+        await styles.setValueEntry(layer.id, "node.color", 3, "#123456");
+        await styles.setValueHidden(layer.id, "node.color", 0, true);
+        const hand = await styles.add({
+            name: "Community 3",
+            target: "node",
+            selector: {
+                match: "rule",
+                where: { kind: "categories", attribute: "results.louvain.group", values: ["3"] },
+            },
+            set: { "node.size": 3 },
+        });
+        const item = await styles.add({
+            name: "Community 2",
+            target: "node",
+            selector: {
+                match: "rule",
+                where: { kind: "item", item: { result: "louvain", key: { field: "group", value: 2 } } },
+            },
+            set: { "node.size": 2 },
+        });
 
         membership = SECOND;
         await runs.start("louvain", {}, { style: false, seed: 7 });
         await styles.settled();
 
         const after = styles.get(layer.id);
-        assert.deepStrictEqual(
-            (after?.encode?.["node.color"] as { map?: unknown }).map,
-            { 1: "#123456" },
-            "old community 3 (i, j, k) is new community 1",
-        );
+        const color = after?.encode?.["node.color"] as { map?: unknown; hidden?: unknown };
+        assert.deepStrictEqual(color.map, { 1: "#123456" }, "old community 3 (i, j, k) is new community 1");
+        assert.deepStrictEqual(color.hidden, [2], "old community 0 (a, b, c) is new community 2");
         assert.strictEqual(colorOf(harness, layer, 1), "#123456");
         assert.deepStrictEqual(
-            after?.split?.unmatched,
-            [{ code: "split.group-new", params: { value: 4 } }],
+            (styles.get(hand.id)?.selector as { where?: unknown }).where,
+            { kind: "categories", attribute: "results.louvain.group", values: ["1"] },
+            "the hand layer's rule follows community 3 too",
+        );
+        assert.deepStrictEqual(
+            (styles.get(item.id)?.selector as { where?: unknown }).where,
+            { kind: "item", item: { result: "louvain", key: { field: "group", value: 3 } } },
+            "an item of the run's current result follows its group",
+        );
+        assert.deepStrictEqual(
+            after?.unmatched,
+            [{ code: "group.new", params: { path: "results.louvain.group", value: 4 } }],
             "the community f moved to is new",
         );
+        assert.isUndefined(styles.get(hand.id)?.unmatched, "a rule naming no lost group reports nothing");
         assert.sameMembers(
-            styles.splitChildren(layer.id).map((child) => child.value),
+            styles.categories(layer.id, "node.color").map((each) => each.value),
             [0, 1, 2, 3, 4],
         );
         harness.session.dispose();
     });
 
-    it("splits a layer bound to a data column's categories the same way", async () => {
+    it("gives a data column's categories entries the same way, saved with the layer", async () => {
         const harness = makeSession();
         harness.add([
             { id: "a", team: "red" },
@@ -173,34 +196,25 @@ describe("splitting a layer by value", () => {
             encode: { "node.color": { by: "data.team", scale: "ordinal" } },
         });
 
-        await styles.split(layer.id);
-        await styles.setSplitOverride(layer.id, "blue", "node.color", "#00ff00");
+        await styles.setValueEntry(layer.id, "node.color", "blue", "#00ff00");
 
-        assert.sameMembers(
-            styles.splitChildren(layer.id).map((child) => child.value),
-            ["red", "blue"],
+        assert.deepStrictEqual(
+            styles.categories(layer.id, "node.color").map((each) => [each.value, each.count, each.entry]),
+            [
+                ["red", 2, undefined],
+                ["blue", 1, "#00ff00"],
+            ],
         );
         assert.strictEqual(colorOf(harness, layer, "blue"), "#00ff00");
-        assert.strictEqual(styles.toDocument().layers[0]?.split?.by, "data.team", "the split is saved");
+        assert.deepStrictEqual(
+            (styles.toDocument().layers[0]?.encode?.["node.color"] as { map?: unknown }).map,
+            { blue: "#00ff00" },
+            "the entry is saved",
+        );
         harness.session.dispose();
     });
 
-    it("turns overrides into value-table entries when unsplit", async () => {
-        const { harness, layer } = await louvainSession();
-        const { styles } = harness.session;
-        await styles.split(layer.id);
-        await styles.setSplitOverride(layer.id, 2, "node.color", "#abcdef");
-
-        const unsplit = await styles.unsplit(layer.id);
-
-        assert.isUndefined(unsplit.split);
-        assert.deepStrictEqual((unsplit.encode?.["node.color"] as { map?: unknown }).map, { 2: "#abcdef" });
-        assert.strictEqual(colorOf(harness, layer, 2), "#abcdef");
-        assert.deepStrictEqual(styles.splitChildren(layer.id), []);
-        harness.session.dispose();
-    });
-
-    it("refuses a layer with nothing to split by, and a channel the split does not paint", async () => {
+    it("refuses an entry on a channel the layer does not paint from a value", async () => {
         const harness = makeSession();
         harness.add([{ id: "a" }]);
         const { styles } = harness.session;
@@ -211,23 +225,13 @@ describe("splitting a layer by value", () => {
             set: { "node.color": "#ff0000" },
         });
 
-        const error = await styles.split(fixed.id).then(
+        const error = await styles.setValueEntry(fixed.id, "node.color", "x", "#00ff00").then(
             () => null,
             (caught: unknown) => caught as { code?: string; details?: { reason?: string } },
         );
 
         assert.strictEqual(error?.code, "E_BAD_COMMAND");
-        assert.strictEqual(error?.details?.reason, "no-categories");
+        assert.strictEqual(error?.details?.reason, "not-bound");
         harness.session.dispose();
-
-        const louvain = await louvainSession();
-        await louvain.harness.session.styles.split(louvain.layer.id);
-        const size = await louvain.harness.session.styles.setSplitOverride(louvain.layer.id, 0, "node.size", 3).then(
-            () => null,
-            (caught: unknown) => caught as { code?: string; details?: { reason?: string } },
-        );
-
-        assert.strictEqual(size?.details?.reason, "channel-not-split", "the layer paints no size by community");
-        louvain.harness.session.dispose();
     });
 });

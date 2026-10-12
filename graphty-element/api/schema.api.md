@@ -689,6 +689,9 @@ export const GREEN_SUCCESS: {
 export const GREENS_COLORS: readonly ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#006d2c", "#00441b"];
 
 // @public
+export type GroupMatchCode = "group.new" | "group.gone";
+
+// @public
 export function hexToRgb(hex: string | null | undefined): RgbColor | null;
 
 // @public (undocumented)
@@ -819,23 +822,21 @@ export interface LayerSpec {
     set?: StaticStyle;
     // (undocumented)
     source?: LayerSource;
-    split?: LayerSplit;
     // (undocumented)
     target?: "node" | "edge";
+    unmatched?: readonly LayerUnmatchedGroup[];
     // (undocumented)
     userData?: Record<string, unknown>;
 }
 
 // @public
-export interface LayerSplit {
-    readonly by: Path;
-    readonly unmatched?: readonly {
-        readonly code: SplitMatchCode;
-        readonly params: {
-            readonly value: string | number | boolean;
-            readonly overridden?: boolean;
-        };
-    }[];
+export interface LayerUnmatchedGroup {
+    readonly code: GroupMatchCode;
+    readonly params: {
+        readonly path: Path;
+        readonly value: string | number | boolean;
+        readonly dropped?: boolean;
+    };
 }
 
 // @public
@@ -1703,9 +1704,6 @@ export function simulateProtanopia(hex: string): string;
 
 // @public
 export function simulateTritanopia(hex: string): string;
-
-// @public
-export type SplitMatchCode = "split.group-new" | "split.group-gone";
 
 // @public
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;

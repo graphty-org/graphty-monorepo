@@ -420,12 +420,13 @@ export type {
     FieldBand,
     FieldDescriptor,
     FieldInterpretation,
+    GroupMatchCode,
     ItemKey,
     LayerId,
     LayerKind,
     LayerSource,
     LayerSpec,
-    LayerSplit,
+    LayerUnmatchedGroup,
     Measurement,
     MeasurementDeclaration,
     MeasurementSource,
@@ -448,7 +449,6 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
-    SplitMatchCode,
     StaticStyle,
     StyleDocument,
     StyleDocumentRow,
@@ -496,7 +496,6 @@ export type {
     RowTarget,
     RowWrite,
     SessionStylesApi,
-    SplitChild,
     StyleAgreement,
     StyleChange,
     StyleContribution,
@@ -513,6 +512,7 @@ export type {
     UnboundLayer,
     UnboundLayerCode,
     ValidationResult,
+    ValueCategory,
 } from "./src/session/styles";
 export { quotePath, rulePath } from "./src/session/styles";
 

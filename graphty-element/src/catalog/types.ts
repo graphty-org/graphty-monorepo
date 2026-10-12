@@ -720,8 +720,6 @@ export type LayerKind = "base" | "encoding" | "highlight" | "custom";
 /** A layer as it is authored, imported or exported: data, never an object with behaviour. */
 export interface LayerSpec {
     name: string;
-    /** Set on a split parent: see {@link LayerSplit}. Absent on every other layer. */
-    split?: LayerSplit;
     target?: "node" | "edge";
     kind?: LayerKind;
     selector: Selector;
@@ -736,37 +734,39 @@ export interface LayerSpec {
      * remove and move act on both. Minted by the element; `add` and `update` refuse it.
      */
     row?: LayerId;
+    /**
+     * What the last re-run of a run this layer reads could not match to its groups, as codes:
+     * see {@link LayerUnmatchedGroup}. Written by the element; absent when everything matched.
+     */
+    unmatched?: readonly LayerUnmatchedGroup[];
 }
 
 /**
- * What a re-run's matching could not carry over to a split layer's groups. `split.group-new`: a
- * group the re-run made that matches no group before it (`value`). `split.group-gone`: a group
- * before it that matches none after (`value`), and whether the reader had changed it
- * (`overridden`), which a re-run then had to drop.
+ * A group a re-run could not match. `group.new`: a group the re-run made that matches no group
+ * before it. `group.gone`: a group before it that matches none after it.
  */
-export type SplitMatchCode = "split.group-new" | "split.group-gone";
+export type GroupMatchCode = "group.new" | "group.gone";
 
 /**
- * A layer split into one generated child per value of a category it paints by.
+ * One group a run's re-run could not match, reported on each layer that reads the run's value.
  *
- * Each child is a group of the parent's elements, those carrying one value of `by`. A child
- * stores only what the reader changed for it, and it stores it as the parent's value table: an
- * entry in the `map` of each binding that reads `by`. So a scheme change on the parent (a new
- * palette) reaches every child the reader did not change, and unsplitting leaves those changes
- * where they are, as value-table entries. The children themselves are read with
- * `styles.splitChildren()`: one per value present.
+ * When a run that publishes a partition (a community run) re-runs, its groups are renumbered, and
+ * each old group is matched to the new group sharing the most members; a value that names
+ * something (a data-like label) is matched by name. A layer's value-table entries, hidden values
+ * and rule conditions naming a matched group move with it. What matched nothing is reported here.
  */
-export interface LayerSplit {
-    /** The value path the layer is split by: the `by` of one of its categorical bindings. */
-    readonly by: Path;
-    /**
-     * What the last re-run of the run `by` reads could not match, as codes; absent when it
-     * matched everything or nothing re-ran.
-     */
-    readonly unmatched?: readonly {
-        readonly code: SplitMatchCode;
-        readonly params: { readonly value: string | number | boolean; readonly overridden?: boolean };
-    }[];
+export interface LayerUnmatchedGroup {
+    /** Whether the group is new after the re-run or gone from it. */
+    readonly code: GroupMatchCode;
+    /** Which group, of which value. */
+    readonly params: {
+        /** The value path the group is a value of, such as `results.louvain.group`. */
+        readonly path: Path;
+        /** The group, as the data spells it. */
+        readonly value: string | number | boolean;
+        /** True when the layer named the group (an entry, a hidden value, a rule) and lost it. */
+        readonly dropped?: boolean;
+    };
 }
 
 /** A portable stack of layers, with any palettes it depends on travelling beside it. */

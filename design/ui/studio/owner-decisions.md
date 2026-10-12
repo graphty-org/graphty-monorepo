@@ -27,6 +27,38 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: per-value entries that follow their groups (`styles.categories`, `styles.setValueEntry`)
+
+**What.** All in graphty-element, replacing the split built earlier the same day (never released).
+
+- `styles.categories(layerId, channel)`: the values one channel of a layer paints by category (a
+  community run's groups, a data column's values), largest group first, each with its count,
+  whether it is hidden and its value-table entry. New exported type `ValueCategory`.
+- `styles.setValueEntry(layerId, channel, value, entry)`: sets one value's entry in the binding's
+  value table (`map`), or clears it with `undefined`, as one undoable step. A palette change reaches
+  every value without an entry. Refused with `E_BAD_COMMAND` (`reason` `"not-bound"` or
+  `"bad-entry"`).
+- When a run re-runs, every layer is realigned, not only a split one: value-table entries, hidden
+  values and rule conditions naming one of a partition's groups (a `categories` leaf over the run's
+  value, an `item` leaf following the run's current result) move to the new group sharing the most
+  members; other values match by name. Groups that match nothing are reported on the layer's
+  optional `unmatched` field, `LayerUnmatchedGroup` `{ code, params: { path, value, dropped? } }`
+  with codes `group.new` and `group.gone` (`GroupMatchCode`); `dropped` says the layer had named
+  the lost group. Written into the re-run's own step, so undoing the re-run undoes it.
+- Removed (never released): `styles.split`, `styles.unsplit`, `styles.setSplitOverride`,
+  `styles.splitChildren`, `LayerSplit`, `SplitChild`, `SplitMatchCode` and the layer's `split`.
+
+**Why.** The panel has two row kinds, layer and folder (design decision 1.7): a community is a
+category row of its layer's binding, not a generated child, so the split command and split row had
+no caller. Matching groups by members is a property of rules and bindings, so a hand layer whose
+rule says "community is 3" keeps meaning the same nodes after a re-run.
+
+**Limits.** A layer the reader locked is not realigned (its entries stay as written). An expression
+selector naming a group is not rewritten; only rule leaves are.
+
+**Not breaking.** New methods, an optional field on a layer and its spec, and new types. What it
+removes was added on this branch and never published.
+
 ## 2026-10-12 -- Decided by the team: one style row that paints nodes and edges (`styles.addRow`)
 
 **What.** For the unified style panel's "Nodes | Edges | Both" layers, all in graphty-element.
@@ -88,7 +120,11 @@ gets the same paint order the panel shows.
 **Not breaking.** New methods, a new error code, new history codes, new types and a new optional
 document field. `list()`, `Layer.target` and `Layer.locked` are unchanged for an existing stack.
 
-## 2026-10-12 -- Decided by the team: split a layer by value (`styles.split`)
+## 2026-10-12 -- Replaced: split a layer by value (`styles.split`)
+
+**Replaced, never released.** The entry "per-value entries that follow their groups" above replaces
+this one: `styles.split`, `styles.unsplit`, `LayerSplit`, `SplitChild`, `SplitMatchCode` and the
+layer's `split` field are gone, and the rest lives on under neutral names. Kept here as the record.
 
 **What.** For the unified style panel's split parents (a Louvain layer shown as one row per
 community), all in graphty-element.

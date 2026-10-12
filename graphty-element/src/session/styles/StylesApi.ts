@@ -189,7 +189,6 @@ import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate
 import { stackChange } from "./repaint";
 import { assertRouted, partPatch, rowOf, type RowParts, rowParts, type RowSpec, type RowWrite } from "./rows";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
-import { childrenOf, overridePatch, type SplitChild, splitPatch, unsplitPatch } from "./split";
 import {
     arrange,
     documentRows,
@@ -215,6 +214,7 @@ import {
     type StyleRowPin,
     type StyleRowPlace,
 } from "./tree";
+import { categoriesOf, type ValueCategory, valueEntryPatch } from "./values";
 
 // ---------------------------------------------------------------------------------------------
 // The surface
@@ -663,60 +663,40 @@ export interface StylesApi {
         options?: RunOptions,
     ): Run<Layer>;
     /**
-     * Split a layer into one generated child per value of a category it paints by -- a community
-     * run's groups, or a data column's categories -- as one undoable step saved with the project.
+     * The values one channel of a layer paints by category -- a community run's groups, a data
+     * column's values -- largest group first, from what the last repaint painted: each value, how
+     * many of the layer's elements carry it, whether it is hidden, and its value-table entry.
      *
-     * Any layer with a categorical derived property can be split. Each child is the layer's
-     * elements carrying one value; read them with {@link StylesApi.splitChildren}. A child stores
-     * only what is changed for it ({@link StylesApi.setSplitOverride}), so a palette change on the
-     * layer recolours every child without an override. When the run the split reads re-runs, a
-     * group the run made up is matched to the new group sharing most of its members and keeps its
-     * overrides; a value that is a name is matched by name; what matched nothing is reported in
-     * the layer's `split.unmatched` as codes.
+     * When a run re-runs, a group the run made up is matched to the new group sharing most of its
+     * members, and every layer's entries, hidden values and rule conditions naming it follow it; a
+     * value that is a name is matched by name; what matched nothing is reported in the layer's
+     * `unmatched` as codes.
      * @param id - The layer.
-     * @param by - The value path to split by; absent, the first one the layer paints by category.
-     * @param options - A signal to cancel with, and a progress handler.
-     * @returns A run that resolves with the layer, now carrying `split`, and rejects with
-     *   `E_BAD_COMMAND` when the layer paints nothing by category (`details.reason`
-     *   `"no-categories"`), `E_UNKNOWN_LAYER` and `E_PROTECTED`.
-     */
-    split(id: LayerId, by?: Path, options?: RunOptions): Run<Layer>;
-    /**
-     * Turn a split layer back into one layer, as one undoable step. What was changed for each child
-     * stays, as entries in the layer's value table (each binding's `map`).
-     * @param id - The split layer.
-     * @param options - A signal to cancel with, and a progress handler.
-     * @returns A run that resolves with the layer, and rejects with `E_BAD_COMMAND` when it is not
-     *   split (`details.reason` `"not-split"`).
-     */
-    unsplit(id: LayerId, options?: RunOptions): Run<Layer>;
-    /**
-     * Change one channel of one child of a split layer, or let it follow the layer again, as one
-     * undoable step.
-     * @param id - The split layer.
-     * @param value - The child's value, as {@link SplitChild.value} spells it.
-     * @param channel - A channel the layer paints by the split's value, such as `"node.color"`.
-     * @param override - What the child paints instead, or undefined to follow the layer.
-     * @param options - A signal to cancel with, and a progress handler.
-     * @returns A run that resolves with the layer, and rejects with `E_BAD_COMMAND` when the layer
-     *   is not split, or does not paint `channel` by the split's value
-     *   (`details.reason` `"channel-not-split"`).
-     */
-    setSplitOverride(
-        id: LayerId,
-        value: string | number | boolean,
-        channel: Channel,
-        override: ChannelValue | undefined,
-        options?: RunOptions,
-    ): Run<Layer>;
-    /**
-     * A split layer's generated children, one per value present among its elements, largest group
-     * first, from what the last repaint painted.
-     * @param id - The layer.
-     * @returns The children; none when the layer is not split.
+     * @param channel - The channel, such as `"node.color"`.
+     * @returns The values; none when the layer does not paint the channel by category.
      * @throws `E_UNKNOWN_LAYER` for an id the stack does not hold.
      */
-    splitChildren(id: LayerId): readonly SplitChild[];
+    categories(id: LayerId, channel: Channel): readonly ValueCategory[];
+    /**
+     * Set what one value of a categorical binding paints, or let it follow the palette again, as
+     * one undoable step: an entry in the binding's value table (its `map`). A palette change
+     * reaches every value without an entry and leaves the entries alone.
+     * @param id - The layer.
+     * @param channel - A channel the layer paints from a value, such as `"node.color"`.
+     * @param value - The value, as {@link ValueCategory.value} spells it.
+     * @param entry - What the value paints, or undefined to clear the entry.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the layer, and rejects with `E_BAD_COMMAND` when the layer
+     *   does not paint `channel` from a value (`details.reason` `"not-bound"`) or the entry is not
+     *   a text or a number (`"bad-entry"`), `E_UNKNOWN_LAYER`, `E_PROTECTED` and `E_LOCKED`.
+     */
+    setValueEntry(
+        id: LayerId,
+        channel: Channel,
+        value: string | number | boolean,
+        entry: ChannelValue | undefined,
+        options?: RunOptions,
+    ): Run<Layer>;
     /**
      * Add a saved stack of layers to this one.
      *
@@ -3351,34 +3331,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
-        split(id: LayerId, by?: Path, options: RunOptions = {}): Run<Layer> {
-            return edit<Layer>(
-                "update",
-                `Split layer ${id}`,
-                (state) => ({
-                    op: "style.patch",
-                    action: "update",
+        categories(id: LayerId, channel: Channel): readonly ValueCategory[] {
+            const entry = byId().get(id);
+            if (entry === undefined) {
+                throw unknownLayer(
                     id,
-                    patch: splitPatch(layerIn(state, id), encodingOf(id), by),
-                }),
-                options,
-            );
+                    listLayers().map((layer) => layer.id),
+                );
+            }
+
+            return categoriesOf(entry.layer, channel, encodingOf(id));
         },
 
-        unsplit(id: LayerId, options: RunOptions = {}): Run<Layer> {
-            return edit<Layer>(
-                "update",
-                `Unsplit layer ${id}`,
-                (state) => ({ op: "style.patch", action: "update", id, patch: unsplitPatch(layerIn(state, id)) }),
-                options,
-            );
-        },
-
-        setSplitOverride(
+        setValueEntry(
             id: LayerId,
-            value: string | number | boolean,
             channel: Channel,
-            override: ChannelValue | undefined,
+            value: string | number | boolean,
+            entry: ChannelValue | undefined,
             options: RunOptions = {},
         ): Run<Layer> {
             return edit<Layer>(
@@ -3388,22 +3357,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     op: "style.patch",
                     action: "update",
                     id,
-                    patch: overridePatch(layerIn(state, id), value, channel, override),
+                    patch: valueEntryPatch(layerIn(state, id), channel, value, entry),
                 }),
                 options,
             );
-        },
-
-        splitChildren(id: LayerId): readonly SplitChild[] {
-            const entry = byId().get(id);
-            if (entry === undefined) {
-                throw unknownLayer(
-                    id,
-                    listLayers().map((layer) => layer.id),
-                );
-            }
-
-            return childrenOf(entry.layer, encodingOf(id));
         },
 
         applyTemplate(document: StyleDocument, options: TemplateOptions = {}): Run<TemplateReport> {

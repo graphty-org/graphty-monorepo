@@ -59,7 +59,7 @@ import {
 } from "../styles/autoApply";
 import type { StyleSuggestion } from "../styles/derive";
 import type { Layer } from "../styles/Layer";
-import { matchGroups, realignPatch } from "../styles/split";
+import { type GroupMatch, matchGroups, realignPatch } from "../styles/values";
 import type { HistoryCode } from "../types";
 import {
     ManagedRun,
@@ -1509,7 +1509,7 @@ class Runs implements SessionRunsApi {
         try {
             draft.runs.set(run.id, entry);
             if (prior !== undefined) {
-                this.realignSplits(draft, prior.result, entry.result);
+                this.realignGroups(draft, prior.result, entry.result);
             }
             const outcomes = this.paint(draft, run.id, decision.paint);
 
@@ -1532,41 +1532,68 @@ class Runs implements SessionRunsApi {
     }
 
     /**
-     * Carry each layer split by this run's values across its re-run: overrides follow the group
-     * that shares most members (or the same name), and what matched nothing is reported on the
-     * split. Written into the run's own step, so undoing the re-run undoes this too.
+     * Carry every layer's value-table entries, hidden values and rule conditions naming this run's
+     * groups across its re-run: a partition's groups follow the group sharing most members, other
+     * values match by name, and what matched nothing is reported on the layer as codes. Written
+     * into the run's own step, so undoing the re-run undoes this too.
      * @param draft - The run's draft.
      * @param before - The result being replaced.
      * @param after - The result replacing it.
      */
-    private realignSplits(draft: Draft, before: RunResult, after: RunResult): void {
+    private realignGroups(draft: Draft, before: RunResult, after: RunResult): void {
         const { styles } = this.dispatcher.services;
+        if (styles === undefined) {
+            return;
+        }
+
         const root = `${RESULT_ROOT}.${after.runId}.`;
         // A run that publishes group sizes made its labels up; any other value is a name.
         const byOverlap = Array.isArray(after.graph.sizes);
+        const matches = new Map<string, GroupMatch>();
 
         for (const { layer } of draft.styles) {
-            const by = layer.split?.by;
-            if (styles === undefined || by?.startsWith(root) !== true) {
+            // An element-owned layer is never written, and reads no run's groups.
+            if (layer.locked) {
                 continue;
             }
-
-            const field = by.slice(root.length);
-            const edges = layer.target === "edge";
-            const half = edges ? "edge" : "node";
-            const read =
-                (result: RunResult) =>
-                (id: NodeId): unknown =>
-                    (edges ? result.edge(String(id)) : result.node(id))?.[field];
-            const match = matchGroups<NodeId>(
-                new Set([...elementIdsOf(before, half), ...elementIdsOf(after, half)]),
-                read(before),
-                read(after),
-                byOverlap,
-            );
-            const patch = realignPatch(layer, match);
-            if (patch !== null) {
+            const half = layer.target === "edge" ? "edge" : "node";
+            const matchOf = (path: string, named: boolean): GroupMatch | undefined => {
+                // By name, a layer that names no value has nothing to carry or to report.
+                if (!byOverlap && !named) {
+                    return undefined;
+                }
+                const key = `${half}|${path}`;
+                const known = matches.get(key);
+                if (known !== undefined) {
+                    return known;
+                }
+                const field = path.slice(root.length);
+                const read =
+                    (result: RunResult) =>
+                    (id: NodeId): unknown =>
+                        (half === "edge" ? result.edge(String(id)) : result.node(id))?.[field];
+                const match = matchGroups<NodeId>(
+                    new Set([...elementIdsOf(before, half), ...elementIdsOf(after, half)]),
+                    read(before),
+                    read(after),
+                    byOverlap,
+                );
+                matches.set(key, match);
+                return match;
+            };
+            const patch = realignPatch(layer, after.runId, root, matchOf);
+            if (patch === null) {
+                continue;
+            }
+            try {
                 styles.execute({ op: "style.patch", action: "update", id: layer.id, patch }, draft);
+            } catch (error) {
+                // ponytail: a layer the reader locked keeps its entries as they were; carrying them
+                // needs a style.patch that bypasses the reader's lock, add it if a locked layer
+                // must follow its groups.
+                if (!isGraphtyError(error) || error.code !== "E_LOCKED") {
+                    throw error;
+                }
             }
         }
     }

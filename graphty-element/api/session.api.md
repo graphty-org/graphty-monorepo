@@ -1339,6 +1339,9 @@ export type GraphtyWarningCode =
 | "W_ALPHA_IGNORED";
 
 // @public
+export type GroupMatchCode = "group.new" | "group.gone";
+
+// @public
 export interface HighlightSpec {
     readonly field?: string;
     readonly name?: string;
@@ -1512,8 +1515,8 @@ export interface Layer {
     readonly selector: Selector_2;
     readonly set?: StaticStyle;
     readonly source: LayerSource;
-    readonly split?: LayerSplit;
     readonly target: SelectorTarget;
+    readonly unmatched?: readonly LayerUnmatchedGroup[];
     readonly userData?: Record<string, unknown>;
 }
 
@@ -1574,23 +1577,21 @@ export interface LayerSpec {
     set?: StaticStyle;
     // (undocumented)
     source?: LayerSource;
-    split?: LayerSplit;
     // (undocumented)
     target?: "node" | "edge";
+    unmatched?: readonly LayerUnmatchedGroup[];
     // (undocumented)
     userData?: Record<string, unknown>;
 }
 
 // @public
-export interface LayerSplit {
-    readonly by: Path;
-    readonly unmatched?: readonly {
-        readonly code: SplitMatchCode;
-        readonly params: {
-            readonly value: string | number | boolean;
-            readonly overridden?: boolean;
-        };
-    }[];
+export interface LayerUnmatchedGroup {
+    readonly code: GroupMatchCode;
+    readonly params: {
+        readonly path: Path;
+        readonly value: string | number | boolean;
+        readonly dropped?: boolean;
+    };
 }
 
 // @public
@@ -3653,17 +3654,6 @@ export interface SetUser {
 }
 
 // @public
-export interface SplitChild {
-    readonly count: number;
-    readonly hidden: boolean;
-    readonly overrides: StaticStyle;
-    readonly value: unknown;
-}
-
-// @public
-export type SplitMatchCode = "split.group-new" | "split.group-gone";
-
-// @public
 export interface StaleNote {
     readonly nowVisible: number;
     readonly ranOn: number;
@@ -3798,6 +3788,7 @@ export interface StylesApi {
         readonly below?: StyleRowId;
     }): StyleAgreement;
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
+    categories(id: LayerId, channel: Channel): readonly ValueCategory[];
     counts(id: LayerId): StyleCounts;
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
@@ -3827,14 +3818,11 @@ export interface StylesApi {
         readonly reapply?: boolean;
     }): void;
     setHighlightColor(color: string | undefined): void;
-    setSplitOverride(id: LayerId, value: string | number | boolean, channel: Channel, override: ChannelValue | undefined, options?: RunOptions): Run<Layer>;
     settled(): Promise<void>;
+    setValueEntry(id: LayerId, channel: Channel, value: string | number | boolean, entry: ChannelValue | undefined, options?: RunOptions): Run<Layer>;
     setValueHidden(id: LayerId, channel: Channel, value: string | number | boolean, hidden: boolean, options?: RunOptions): Run<Layer>;
-    split(id: LayerId, by?: Path, options?: RunOptions): Run<Layer>;
-    splitChildren(id: LayerId): readonly SplitChild[];
     toDocument(): StyleDocument;
     tree(): readonly StyleRow[];
-    unsplit(id: LayerId, options?: RunOptions): Run<Layer>;
     update(id: LayerId, patch: Partial<LayerSpec>, options?: RunOptions): Run<Layer>;
     validate(spec: LayerSpec): ValidationResult;
     writeRow(id: LayerId, write: RowWrite, options?: RunOptions): Run<RowParts>;
@@ -3982,6 +3970,14 @@ export interface ValidationResult {
     readonly shadowedPaths: readonly Path[];
     readonly unresolvedPaths: readonly Path[];
     readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
+}
+
+// @public
+export interface ValueCategory {
+    readonly count: number;
+    readonly entry?: string | number;
+    readonly hidden: boolean;
+    readonly value: unknown;
 }
 
 // @public

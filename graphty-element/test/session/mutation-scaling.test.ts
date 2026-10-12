@@ -159,7 +159,7 @@ async function groupLayer(session: GraphSession): Promise<string> {
 }
 
 /**
- * A layer colouring every node by its group as categories, which is what a split splits.
+ * A layer colouring every node by its group as categories, whose values take entries.
  * @param session - The session.
  * @returns The layer's id.
  */
@@ -398,36 +398,12 @@ const CASES: readonly Case[] = [
         },
     },
     {
-        method: "StylesApi.split",
+        method: "StylesApi.setValueEntry",
         growth: "linear",
         prepare: async (session) => {
             const id = await categoryLayer(session);
             return async () => {
-                await session.styles.split(id);
-                await session.styles.settled();
-            };
-        },
-    },
-    {
-        method: "StylesApi.unsplit",
-        growth: "linear",
-        prepare: async (session) => {
-            const id = await categoryLayer(session);
-            return async () => {
-                await session.styles.split(id);
-                await session.styles.unsplit(id);
-                await session.styles.settled();
-            };
-        },
-    },
-    {
-        method: "StylesApi.setSplitOverride",
-        growth: "linear",
-        prepare: async (session) => {
-            const id = await categoryLayer(session);
-            await session.styles.split(id);
-            return async () => {
-                await session.styles.setSplitOverride(id, 2, "node.color", "#123456");
+                await session.styles.setValueEntry(id, "node.color", 2, "#123456");
                 await session.styles.settled();
             };
         },

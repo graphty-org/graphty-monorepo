@@ -171,6 +171,21 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 
 <!-- generated:end -->
 
+## Styles
+
+Neo4j's import files have no styles: Neo4j Browser and Bloom color nodes by label on their own. An
+import with `styles: true` returns `styles: null`, and a save with styles writes none of them
+(`W_STYLE_NOT_WRITTEN`, `W_STYLE_RULES_NOT_KEPT`). See [Styles](../styles.md).
+
+<!-- generated:begin styles:neo4j -->
+
+|               |                                                                           |
+| ------------- | ------------------------------------------------------------------------- |
+| Reads styles  | no: the format has no styles                                              |
+| Writes styles | no: every style is lost (`W_STYLE_NOT_WRITTEN`, `W_STYLE_RULES_NOT_KEPT`) |
+
+<!-- generated:end -->
+
 <!-- generated:begin reference:neo4j -->
 
 ## Import options

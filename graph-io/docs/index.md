@@ -5,6 +5,9 @@ graph-io reads and writes graph files. It turns a GraphML, GEXF, CSV or other gr
 snapshot back out in any of the same formats. It runs in browsers and in Node, and streams large
 files. Its one dependency, graph-format, is installed with it.
 
+graph-io also reads how a file draws its graph (colors, sizes, shapes, labels, arrows) when you
+ask, and writes that look into any format that can hold it.
+
 When a file holds something graph-io cannot represent, or a format cannot hold part of your graph,
 graph-io tells you: an import returns a report that lists every skipped or changed element, and
 `checkExport()` lists what a save would lose before you write a byte.
@@ -42,6 +45,8 @@ one keeps.
   graphs, cancelling, keeping a browser bundle small.
 - [Reading the graph](./guide/reading.md): nodes, attributes, labels, edges, weights.
 - [Saving graphs](./guide/saving.md): checking a save, streaming, downloads, ids a format cannot hold.
+- [Styles](./guide/styles.md): a file's colors, sizes, shapes and labels, read and written in every
+  format that has them.
 - [The import report and errors](./guide/report.md): what went wrong, and where.
 - [Format detection](./guide/detection.md): how graph-io tells formats apart, and when to name one.
 - [Options reference](./guide/options.md): every option, with its default.

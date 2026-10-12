@@ -1145,8 +1145,13 @@ function cyjsProperties(map: ReadonlyMap<string, { readonly property: string }>,
     return [...out];
 }
 
-/** The neutral properties each style-writing dialect holds natively. */
-const NATIVE: Readonly<Record<"cytoscape" | "graphology" | "vis", Readonly<Record<StyleTarget, readonly string[]>>>> = {
+/**
+ * The neutral properties each style-writing dialect holds natively. Not part of the published entry points: the
+ * documentation's per-dialect tables read it.
+ */
+export const NATIVE: Readonly<
+    Record<"cytoscape" | "graphology" | "vis", Readonly<Record<StyleTarget, readonly string[]>>>
+> = {
     cytoscape: {
         node: cyjsProperties(CYJS_NODE_PROPERTIES, ["labelPosition", "labelItalic", "visible"]),
         edge: cyjsProperties(CYJS_EDGE_PROPERTIES, ["curved", "labelItalic", "visible"]),

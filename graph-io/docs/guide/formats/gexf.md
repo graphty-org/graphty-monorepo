@@ -85,6 +85,12 @@ and alpha, each from 0 to 1), `position` (x, y and z), `size` and `shape` on nod
 `thickness` and `shape` on edges. Each has the role of the same name, so other formats that hold
 colors or positions find it. A save writes these columns back as `viz` elements.
 
+The `color`, `size`, `shape` and `thickness` columns, and the renaming of an attribute titled like
+one of them, are deprecated and leave the import result in the next major version. To read how a
+file looks, import with `styles: true`: the result's `styles` holds the file's colors, sizes,
+shapes and widths, with Gephi's defaults for what the file leaves out, and a save with `styles`
+writes them back as `viz` elements. The `position` column stays.
+
 <!-- generated:begin example:formats/gexf-viz -->
 
 ```ts
@@ -231,7 +237,7 @@ These come on top of the [options every importer takes](../options.md#every-impo
 | -------------------- | --------- | ------- |
 | [`viz`](#import-viz) | `boolean` | `true`  |
 
-- <a id="import-viz"></a>`viz`: Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape, thickness) into node and edge attributes; false skips them, with one `W_GEXF_VIZ_SKIPPED` warning.
+- <a id="import-viz"></a>`viz`: Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape, thickness) into node and edge attributes; false skips them, with one `W_GEXF_VIZ_SKIPPED` warning. The color, size, shape and thickness columns are deprecated and leave the import result in the next major version: read a file's styles with `styles: true` instead. The position column stays.
 
 ## Export options
 

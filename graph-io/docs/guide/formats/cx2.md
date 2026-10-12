@@ -56,8 +56,9 @@ await writeFile("got-copy.cx2", await exportGraphToBytes(snapshot, "cx2", option
 the character names back as the ids. Saving to CX2 again needs the same option.
 
 A CX2 file from Cytoscape or NDEx usually has style rules. graph-io keeps them, and the file's
-other aspects, in the snapshot's metadata and writes them back when you save as CX2, although it
-does not apply them to the graph (`W_STYLES_NOT_IMPORTED`).
+other aspects, in the snapshot's metadata and writes them back when you save as CX2. To read them
+as styles, import with `styles: true` (see [Styles](#styles)); without it the import notes
+`W_STYLES_NOT_IMPORTED`.
 
 ## How graph-io reads it
 
@@ -102,25 +103,51 @@ What does not survive:
 
 What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
 
-| Capability                                      | Value                  |
-| ----------------------------------------------- | ---------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | no                     |
-| [`multiEdges`](./index.md#multiedges)           | yes                    |
-| [`selfLoops`](./index.md#selfloops)             | yes                    |
-| [`edgeIds`](./index.md#edgeids)                 | required               |
-| [`idCharset`](./index.md#idcharset)             | integer                |
-| [`dtypes`](./index.md#dtypes)                   | string, f64, i32, bool |
-| [`components`](./index.md#components)           | no                     |
-| [`lists`](./index.md#lists)                     | yes                    |
-| [`json`](./index.md#json)                       | no                     |
-| [`defaults`](./index.md#defaults)               | yes                    |
-| [`options`](./index.md#options)                 | no                     |
-| [`hierarchy`](./index.md#hierarchy)             | no                     |
-| [`temporal`](./index.md#temporal)               | none                   |
-| [`graphAttributes`](./index.md#graphattributes) | yes                    |
-| [`positions`](./index.md#positions)             | yes                    |
-| [`viz`](./index.md#viz)                         | no                     |
-| [`styles`](./index.md#styles)                   | none                   |
+| Capability                                      | Value                     |
+| ----------------------------------------------- | ------------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | no                        |
+| [`multiEdges`](./index.md#multiedges)           | yes                       |
+| [`selfLoops`](./index.md#selfloops)             | yes                       |
+| [`edgeIds`](./index.md#edgeids)                 | required                  |
+| [`idCharset`](./index.md#idcharset)             | integer                   |
+| [`dtypes`](./index.md#dtypes)                   | string, f64, i32, bool    |
+| [`components`](./index.md#components)           | no                        |
+| [`lists`](./index.md#lists)                     | yes                       |
+| [`json`](./index.md#json)                       | no                        |
+| [`defaults`](./index.md#defaults)               | yes                       |
+| [`options`](./index.md#options)                 | no                        |
+| [`hierarchy`](./index.md#hierarchy)             | no                        |
+| [`temporal`](./index.md#temporal)               | none                      |
+| [`graphAttributes`](./index.md#graphattributes) | yes                       |
+| [`positions`](./index.md#positions)             | yes                       |
+| [`viz`](./index.md#viz)                         | no                        |
+| [`styles`](./index.md#styles)                   | 33 properties, rules kept |
+
+<!-- generated:end -->
+
+## Styles
+
+A CX2 file holds a Cytoscape visual style: defaults, mappings (`passthrough`, `discrete`,
+`continuous`) and per-element bypasses. With `styles: true`, graph-io reads them as Cytoscape
+applies them, a bypass over a mapping over a default, with Cytoscape's default style beneath what
+the file leaves unset. Without the option, the style is kept in the snapshot's metadata and written
+back on a CX2 save, but not read (`W_STYLES_NOT_IMPORTED`).
+
+A save with styles writes the rules as a Cytoscape style (defaults, mappings and bypasses), so
+Cytoscape and NDEx show them as a style that can be edited there, and keeps the rules for graphty
+as the network attribute `graphty.styles`. A rule a Cytoscape mapping cannot express is written as
+bypasses (`W_STYLE_LAYER_FLATTENED`). See [Styles](../styles.md).
+
+<!-- generated:begin styles:cx2 -->
+
+|                                     |                                                                                                                                                                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                           |
+| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelPosition`, `visible`, `labelFont`, `labelWeight`, `labelItalic`          |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `visible`, `labelFont`, `labelWeight`, `labelItalic` |
+| Graph properties written            | `background`                                                                                                                                                                                                       |
+| Rules kept for graphty              | yes, as the `graphty.styles` graph attribute                                                                                                                                                                       |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `tooltip`, `image`; edge: `arrowSize`, `tooltip`, `sourceLabel`, `targetLabel`                                                                                                                    |
 
 <!-- generated:end -->
 

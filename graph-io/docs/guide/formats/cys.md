@@ -88,8 +88,9 @@ graph-io repository under `graph-io/docs/samples/` for working offline.
   to sessions.
 - Groups become a parent column; the members of a collapsed group are listed in
   `snapshot.meta.extra.cytoscape.groups`.
-- Styles are not applied (`W_STYLES_NOT_IMPORTED`). Apps, properties and images in the archive are
-  skipped with `W_CYS_ENTRY_SKIPPED`.
+- Styles are read only with `styles: true` (see [Styles](#styles)); without it the import notes
+  `W_STYLES_NOT_IMPORTED`. Apps, properties and images in the archive are skipped with
+  `W_CYS_ENTRY_SKIPPED`.
 - Text input is refused (`E_CYS_NOT_ZIP`).
 - To protect against zip bombs, an import stops (`E_TOO_LARGE`) once it would inflate more than
   `maxUncompressedBytes` (2 GiB by default) or an entry is compressed more than 1000 to 1.
@@ -117,14 +118,14 @@ What does not survive:
   (`W_CYS_TEXT_AS_EQUATION`).
 - A column named like one of Cytoscape's own (`SUID`, a `name` that is not text, or a name that
   differs from one only in case) is renamed `<name>#2` (`W_COLUMN_NAME_CHANGED`).
-- The per-element visual values of a session that graph-io read (the `graphics` column) are not
-  written back as visual values. They are written as an ordinary table column of JSON text, and
+- Without the `styles` option, the per-element visual values of a session that graph-io read (the
+  `graphics` column) are not written back as visual values. They are written as an ordinary table column of JSON text, and
   read back as `graphics#2`, because the reader makes its own `graphics` column from the view
   (`W_COLUMN_NAME_CHANGED`). The same goes for `cytoscape.nestedNetwork` and the other columns the
   reader makes. So a session read and saved again by graph-io loses its
   per-element colors, shapes and sizes, and Cytoscape draws it with the session's style.
 - Edge ids are generated when the graph has none (`W_EDGE_IDS_GENERATED`).
-- Groups, styles and time columns are not written.
+- Groups and time columns are not written, and styles only with the `styles` option.
 - The archive is stored without compression, so it is larger than the same session saved by
   Cytoscape.
 
@@ -150,7 +151,33 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                                |
 | [`positions`](./index.md#positions)             | yes                                |
 | [`viz`](./index.md#viz)                         | no                                 |
-| [`styles`](./index.md#styles)                   | none                               |
+| [`styles`](./index.md#styles)                   | 35 properties, rules kept          |
+
+<!-- generated:end -->
+
+## Styles
+
+A session holds named visual styles in `session_vizmap.xml`, and each view names the one it uses.
+With `styles: true`, graph-io reads the style of the imported network's view, with its mappings
+and the per-element values locked in the view, and notes any other styles (`W_STYLE_OTHER_STYLES`).
+A session's style starts empty, so what it leaves unset gets the values Cytoscape's renderer falls
+back to (red ellipses, dark gray edges). A session without its styles file gets those values alone
+(`W_STYLE_NO_VIZMAP`). Without the option, the styles are not read (`W_STYLES_NOT_IMPORTED`).
+
+A save with styles writes the rules as a visual style named for the network, which the view uses,
+and keeps the rules for graphty in an archive entry of their own, which Cytoscape ignores. See
+[Styles](../styles.md).
+
+<!-- generated:begin styles:cys -->
+
+|                                     |                                                                                                                                                                                                                               |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                      |
+| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelPosition`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic`          |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic` |
+| Graph properties written            | `background`                                                                                                                                                                                                                  |
+| Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                                                                 |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `image`; edge: `arrowSize`, `sourceLabel`, `targetLabel`                                                                                                                                                     |
 
 <!-- generated:end -->
 

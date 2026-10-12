@@ -105,25 +105,59 @@ does not survive:
 
 What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
 
-| Capability                                      | Value                  |
-| ----------------------------------------------- | ---------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | no                     |
-| [`multiEdges`](./index.md#multiedges)           | yes                    |
-| [`selfLoops`](./index.md#selfloops)             | yes                    |
-| [`edgeIds`](./index.md#edgeids)                 | optional               |
-| [`idCharset`](./index.md#idcharset)             | any                    |
-| [`dtypes`](./index.md#dtypes)                   | bool, i32, f64, string |
-| [`components`](./index.md#components)           | no                     |
-| [`lists`](./index.md#lists)                     | no                     |
-| [`json`](./index.md#json)                       | no                     |
-| [`defaults`](./index.md#defaults)               | no                     |
-| [`options`](./index.md#options)                 | no                     |
-| [`hierarchy`](./index.md#hierarchy)             | yes                    |
-| [`temporal`](./index.md#temporal)               | none                   |
-| [`graphAttributes`](./index.md#graphattributes) | yes                    |
-| [`positions`](./index.md#positions)             | yes                    |
-| [`viz`](./index.md#viz)                         | no                     |
-| [`styles`](./index.md#styles)                   | none                   |
+| Capability                                      | Value                     |
+| ----------------------------------------------- | ------------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | no                        |
+| [`multiEdges`](./index.md#multiedges)           | yes                       |
+| [`selfLoops`](./index.md#selfloops)             | yes                       |
+| [`edgeIds`](./index.md#edgeids)                 | optional                  |
+| [`idCharset`](./index.md#idcharset)             | any                       |
+| [`dtypes`](./index.md#dtypes)                   | bool, i32, f64, string    |
+| [`components`](./index.md#components)           | no                        |
+| [`lists`](./index.md#lists)                     | no                        |
+| [`json`](./index.md#json)                       | no                        |
+| [`defaults`](./index.md#defaults)               | no                        |
+| [`options`](./index.md#options)                 | no                        |
+| [`hierarchy`](./index.md#hierarchy)             | yes                       |
+| [`temporal`](./index.md#temporal)               | none                      |
+| [`graphAttributes`](./index.md#graphattributes) | yes                       |
+| [`positions`](./index.md#positions)             | yes                       |
+| [`viz`](./index.md#viz)                         | no                        |
+| [`styles`](./index.md#styles)                   | 30 properties, rules kept |
+
+<!-- generated:end -->
+
+## Styles
+
+With `styles: true`, graph-io reads node and edge attributes the way Graphviz draws them:
+`color`, `fillcolor` and `style=filled` (colors by X11 and SVG name, color schemes, `#rrggbbaa`
+and HSV), `shape`, `width` and `height` (inches, in pixels at 72 per inch), `penwidth`, the
+`dashed`, `dotted`, `bold` and `invis` styles, `arrowhead`, `arrowtail` and `dir`, `fontcolor`,
+`fontsize`, `fontname`, `label` (with Graphviz's escapes such as `\N`), `tooltip` and the graph's
+`bgcolor`. Defaults set with `node [...]` and `edge [...]` apply as Graphviz applies them, and the
+members of a cluster are a group the rules can use.
+
+Graphviz's defaults are always added: an unfilled black ellipse 54 by 36 pixels labeled with the
+node's name, black edges with an arrow at the target of directed edges. Unless `fixedsize` is set,
+Graphviz grows a node to fit its label, so a stated width or height is a minimum
+(`W_STYLE_SIZE_MINIMUM`). An unknown color is drawn black, as Graphviz draws it, with a
+`W_STYLE_BAD_VALUE` note. An HTML-like label keeps its text and loses its markup
+(`W_STYLE_HTML_LABEL`).
+
+A save with styles writes the same attributes, with `fixedsize` so the sizes are exact, and keeps
+the rules for graphty as the quoted graph attribute `graphty.styles`, which Graphviz ignores. See
+[Styles](../styles.md).
+
+<!-- generated:begin styles:dot -->
+
+|                                     |                                                                                                                                                                                          |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                 |
+| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelFont`, `tooltip`, `visible`                    |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `arrowSize`, `label`, `sourceLabel`, `targetLabel`, `labelColor`, `labelSize`, `labelFont`, `tooltip`, `visible` |
+| Graph properties written            | `background`                                                                                                                                                                             |
+| Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                            |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `labelWeight`, `labelItalic`, `labelPosition`, `image`; edge: `sourceArrowColor`, `targetArrowColor`, `curved`, `labelWeight`, `labelItalic`                            |
 
 <!-- generated:end -->
 

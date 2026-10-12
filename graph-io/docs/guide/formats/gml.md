@@ -125,7 +125,31 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                          |
 | [`positions`](./index.md#positions)             | yes                          |
 | [`viz`](./index.md#viz)                         | no                           |
-| [`styles`](./index.md#styles)                   | none                         |
+| [`styles`](./index.md#styles)                   | 27 properties, rules kept    |
+
+<!-- generated:end -->
+
+## Styles
+
+With `styles: true`, graph-io reads each node's `graphics` and `LabelGraphics` records and each
+edge's `graphics`, with the keys of the program named on the file's `Creator` line: yEd's (fill,
+outline, width and height, shape, label font and color, line style and arrows), Cytoscape's,
+Gephi's and OGDF's. That program's defaults are added. A file from any other writer (NetworkX,
+igraph, a hand-written file) is read with the keys of the GML draft, and gets no defaults.
+
+A save with styles writes yEd's `graphics` and `LabelGraphics` keys, which yEd draws, and keeps the
+rules for graphty as a graph key. See [Styles](../styles.md).
+
+<!-- generated:begin styles:gml -->
+
+|                                     |                                                                                                                                                                                                     |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                            |
+| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelFont`, `labelWeight`, `labelItalic`                       |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `curved`, `label`, `labelColor`, `labelSize`, `labelFont`, `labelWeight`, `labelItalic`                                     |
+| Graph properties written            | none                                                                                                                                                                                                |
+| Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                                       |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `tooltip`, `labelPosition`, `image`, `visible`; edge: `sourceArrowColor`, `targetArrowColor`, `arrowSize`, `tooltip`, `sourceLabel`, `targetLabel`, `visible`; graph: `background` |
 
 <!-- generated:end -->
 

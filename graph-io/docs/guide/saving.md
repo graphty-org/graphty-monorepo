@@ -348,6 +348,15 @@ pass these import options, or the graph differs from the one you saved:
 | JSON with `sourceKey`, `targetKey`, `edgesKey` or `nodeIdKey`                         | the same options                                                                          |
 | a graph read with `weightFrom` naming a column the format does not mark as the weight | the same `weightFrom`                                                                     |
 
+## Saving a file's look
+
+A graph read with `styles: true` carries its file's colors, sizes, shapes and labels in
+`result.styles`. Pass them to any save function, and to `checkExport()`, as the `styles` option:
+the file then holds the look in the format's own style slots, so other programs draw it, and
+where the format allows, the rules for graphty to read back. `checkExport()` returns a `W_STYLE_`
+note for each property the format cannot hold. Without the option, a save writes exactly what it
+always has. [Styles](./styles.md#saving-styles) has the details.
+
 ## Large graphs: stream to a file
 
 `exportGraph()` returns the file as an async iterable of byte chunks. Write the chunks as they come

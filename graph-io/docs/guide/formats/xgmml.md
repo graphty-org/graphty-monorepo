@@ -86,8 +86,9 @@ positions. What does not survive:
 
 - Column types Cytoscape does not have: 32-bit floats, small and unsigned integers and dictionary
   columns are written as the nearest wider Cytoscape type, and JSON values as text.
-- Styles. The `graphics` values an XGMML import kept are written back, but graph-io's color, size
-  and shape columns are not turned into graphics.
+- Styles, unless you save with the `styles` option (see [Styles](#styles)). Without it, the
+  `graphics` values an XGMML import kept are written back, but graph-io's color, size and shape
+  columns are not turned into graphics.
 - A number id reads back as text (`W_ID_TEXT_TYPE`), because XGMML ids are kept as written.
 
 <!-- generated:begin capabilities:xgmml -->
@@ -112,7 +113,31 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                                              |
 | [`positions`](./index.md#positions)             | yes                                              |
 | [`viz`](./index.md#viz)                         | no                                               |
-| [`styles`](./index.md#styles)                   | none                                             |
+| [`styles`](./index.md#styles)                   | 35 properties, rules kept                        |
+
+<!-- generated:end -->
+
+## Styles
+
+Cytoscape writes the resolved look of every node and edge into its `<graphics>` element: fill,
+outline, size, shape, label, arrows and line style, and its own `cy:` properties. With
+`styles: true`, graph-io reads them, finds the rules they follow (a color by an attribute, a size
+by degree) and adds the defaults of Cytoscape's default style.
+
+A save with styles writes `<graphics>` for every node and edge, and keeps the rules for graphty as
+the graph attribute `graphty.styles`. Without the `styles` option, a save writes back the
+`graphics` values an XGMML import kept, and nothing else. See [Styles](../styles.md).
+
+<!-- generated:begin styles:xgmml -->
+
+|                                     |                                                                                                                                                                                                                               |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                      |
+| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelPosition`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic`          |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic` |
+| Graph properties written            | `background`                                                                                                                                                                                                                  |
+| Rules kept for graphty              | yes, as the `graphty.styles` graph attribute                                                                                                                                                                                  |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `image`; edge: `arrowSize`, `sourceLabel`, `targetLabel`                                                                                                                                                     |
 
 <!-- generated:end -->
 

@@ -111,25 +111,51 @@ read from CSV, gets a bare `*Network` line.
 
 What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
 
-| Capability                                      | Value                  |
-| ----------------------------------------------- | ---------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | yes                    |
-| [`multiEdges`](./index.md#multiedges)           | yes                    |
-| [`selfLoops`](./index.md#selfloops)             | yes                    |
-| [`edgeIds`](./index.md#edgeids)                 | none                   |
-| [`idCharset`](./index.md#idcharset)             | dense-1-based          |
-| [`dtypes`](./index.md#dtypes)                   | f64, i32, bool, string |
-| [`components`](./index.md#components)           | no                     |
-| [`lists`](./index.md#lists)                     | no                     |
-| [`json`](./index.md#json)                       | no                     |
-| [`defaults`](./index.md#defaults)               | no                     |
-| [`options`](./index.md#options)                 | no                     |
-| [`hierarchy`](./index.md#hierarchy)             | no                     |
-| [`temporal`](./index.md#temporal)               | spells                 |
-| [`graphAttributes`](./index.md#graphattributes) | no                     |
-| [`positions`](./index.md#positions)             | yes                    |
-| [`viz`](./index.md#viz)                         | no                     |
-| [`styles`](./index.md#styles)                   | none                   |
+| Capability                                      | Value                     |
+| ----------------------------------------------- | ------------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | yes                       |
+| [`multiEdges`](./index.md#multiedges)           | yes                       |
+| [`selfLoops`](./index.md#selfloops)             | yes                       |
+| [`edgeIds`](./index.md#edgeids)                 | none                      |
+| [`idCharset`](./index.md#idcharset)             | dense-1-based             |
+| [`dtypes`](./index.md#dtypes)                   | f64, i32, bool, string    |
+| [`components`](./index.md#components)           | no                        |
+| [`lists`](./index.md#lists)                     | no                        |
+| [`json`](./index.md#json)                       | no                        |
+| [`defaults`](./index.md#defaults)               | no                        |
+| [`options`](./index.md#options)                 | no                        |
+| [`hierarchy`](./index.md#hierarchy)             | no                        |
+| [`temporal`](./index.md#temporal)               | spells                    |
+| [`graphAttributes`](./index.md#graphattributes) | no                        |
+| [`positions`](./index.md#positions)             | yes                       |
+| [`viz`](./index.md#viz)                         | no                        |
+| [`styles`](./index.md#styles)                   | 16 properties, rules kept |
+
+<!-- generated:end -->
+
+## Styles
+
+With `styles: true`, graph-io reads the vertex shape keyword and the `ic` (fill), `bc` (border
+color), `bw` (border width), `x_fact` and `y_fact` (size), `lc` (label color) and `fos` (label
+size) parameters, and on arcs and edges `c` (color), `w` (width) and `p` (`Solid`, `Dots`). Colors
+are Pajek's color names. Sizes are Pajek's relative factors, so `units.length` is `"relative"`.
+Pajek's defaults are added: ellipses, and black solid lines with an arrow on arcs.
+
+A save with styles writes the same parameters. A color is written as the nearest Pajek color name,
+and a line style other than solid or dotted as the nearer of the two (`W_STYLE_APPROXIMATED`). The
+rules for graphty, with their per-element values, go into a `% graphty.styles` comment line, which
+Pajek skips. See [Styles](../styles.md).
+
+<!-- generated:begin styles:pajek -->
+
+|                                     |                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                                                                                                                                             |
+| Node properties written             | `fill`, `fillOpacity`, `opacity`, `borderColor`, `borderWidth`, `shape`, `width`, `height`, `labelColor`, `labelSize`                                                                                                                                                                                                                                |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`                                                                                                                                                                                                                                                                               |
+| Graph properties written            | none                                                                                                                                                                                                                                                                                                                                                 |
+| Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                                                                                                                                                                                        |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `borderStyle`, `label`, `tooltip`, `labelFont`, `labelWeight`, `labelItalic`, `labelPosition`, `image`, `visible`; edge: `sourceArrowColor`, `targetArrowColor`, `labelColor`, `labelSize`, `arrowSize`, `curved`, `label`, `tooltip`, `labelFont`, `labelWeight`, `labelItalic`, `sourceLabel`, `targetLabel`, `visible`; graph: `background` |
 
 <!-- generated:end -->
 

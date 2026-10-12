@@ -11,6 +11,6 @@
             "@graphty/graph-format": ["../graph-format/dist/graph-format.d.ts"]
         }
     },
-    "include": ["test/types/**/*.test-d.ts"],
+    "include": ["test/types/**/*.test-d.ts", "docs/examples/styles/importer.ts", "docs/examples/styles/exporter.ts"],
     "exclude": ["node_modules", "dist", "coverage", "tmp"]
 }

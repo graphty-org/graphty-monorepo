@@ -10,6 +10,10 @@ A refused save throws a `GraphFormatError` whose code names the kind of failure 
 note: `E_INVALID_ID` for ids, `E_DIRECTED` for edge direction, and `E_COLUMN_TYPE` or
 `E_UNSUPPORTED` for values. [Saving graphs](./saving.md#what-a-refused-save-throws) has the details.
 
+The `W_STYLE_` codes and `E_STYLES_MISMATCH` are about a file's [styles](./styles.md): an import
+with `styles: true` records the `W_STYLE_` reading codes as notes on its styles, not in the import
+report, and `checkExport()` returns the saving ones when you pass styles.
+
 Some entries name attribute types: `i32` and `u32` are 32-bit integers (signed and unsigned), `u8`
 a byte, `f32` and `f64` 32- and 64-bit floating-point numbers (`f64` is a JavaScript number),
 `bool` true or false, `string` text, `dict` text stored once per distinct value (for values that
@@ -116,6 +120,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="E_PARSE"></a>`E_PARSE`: No longer recorded; kept so code that switches on older reports still compiles.
 - <a id="E_SELF_LOOP"></a>`E_SELF_LOOP`: An edge from a node to itself under `selfLoops: "error"`; the import stops. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
 - <a id="E_STATUS_FAILED"></a>`E_STATUS_FAILED`: The program that wrote the file marked it as failed (CX `status.success: false`), so it is incomplete. The import stops. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
+- <a id="E_STYLES_MISMATCH"></a>`E_STYLES_MISMATCH`: The styles were read from or built for a different graph; nothing is written. See [Styles](./styles.md).
 - <a id="E_SYNTAX"></a>`E_SYNTAX`: The text breaks the format's syntax; the message says where and how. The import stops. Import: [json](./formats/json.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md).
 - <a id="E_TOO_LARGE"></a>`E_TOO_LARGE`: The input is beyond a size limit (a zip's uncompressed total or ratio, a document longer than one string); the same string as graph-format's `E_TOO_LARGE`, recorded with category "unsupported". Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
 - <a id="E_UNKNOWN_FORMAT"></a>`E_UNKNOWN_FORMAT`: The input is in no format graph-io can read (or none of the formats you registered, for your own FormatRegistry). Pass `format` when you know what the file is.
@@ -393,7 +398,44 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_STATUS_WARNING"></a>`W_STATUS_WARNING`: The producer marked the document as successful but attached an error text. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
 - <a id="W_STORAGE_CLASS_CHANGED"></a>`W_STORAGE_CLASS_CHANGED`: A text attribute reads back as a dictionary attribute, or the reverse, because the importer chooses by how often its values repeat. The values are the same. Save: any format.
 - <a id="W_STRAY_TEXT"></a>`W_STRAY_TEXT`: Text where the format allows only elements was ignored. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- <a id="W_STYLES_NOT_IMPORTED"></a>`W_STYLES_NOT_IMPORTED`: The file's style rules (default styles, mappings, visual properties) are not applied to the graph. Reported once per import; the message names what was not applied. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="W_STYLES_NOT_EXPORTED"></a>`W_STYLES_NOT_EXPORTED`: The graph has styles that were not exported; export them with the `styles` option. See [Styles](./styles.md).
+- <a id="W_STYLES_NOT_IMPORTED"></a>`W_STYLES_NOT_IMPORTED`: The file's style rules (default styles, mappings, visual properties) are not applied to the graph. Reported once per import; the message names what was not applied. See [Styles](./styles.md). Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="W_STYLE_ALPHA_DROPPED"></a>`W_STYLE_ALPHA_DROPPED`: A color's alpha was dropped because the property has no opacity to carry it. See [Styles](./styles.md).
+- <a id="W_STYLE_APPROXIMATED"></a>`W_STYLE_APPROXIMATED`: Written as the nearest value the format allows. See [Styles](./styles.md).
+- <a id="W_STYLE_BAD_MAPPING"></a>`W_STYLE_BAD_MAPPING`: A declared mapping that cannot be read. See [Styles](./styles.md).
+- <a id="W_STYLE_BAD_VALUE"></a>`W_STYLE_BAD_VALUE`: A value does not parse in the file's dialect (an unknown color name, a non-number, a negative length). See [Styles](./styles.md).
+- <a id="W_STYLE_BLOCK_IGNORED"></a>`W_STYLE_BLOCK_IGNORED`: A `graphty.styles` block was ignored, with a reason code; the file is read like any other. See [Styles](./styles.md).
+- <a id="W_STYLE_BUDGET"></a>`W_STYLE_BUDGET`: The counted work budget ran out; the values not yet explained are copied per element. See [Styles](./styles.md).
+- <a id="W_STYLE_COLOR_LIST"></a>`W_STYLE_COLOR_LIST`: A list of colors where one color is expected; the tool draws it its own way and the first is not taken. See [Styles](./styles.md).
+- <a id="W_STYLE_EXTRA_LABELS"></a>`W_STYLE_EXTRA_LABELS`: An element carries more than one label; the first is kept. See [Styles](./styles.md).
+- <a id="W_STYLE_GRADIENT"></a>`W_STYLE_GRADIENT`: A gradient fill; its first color is kept. See [Styles](./styles.md).
+- <a id="W_STYLE_HTML_LABEL"></a>`W_STYLE_HTML_LABEL`: An HTML-like label: its text is kept and its markup dropped. See [Styles](./styles.md).
+- <a id="W_STYLE_INHERIT_COLOR"></a>`W_STYLE_INHERIT_COLOR`: A color that inherits from the edge's ends in a way the vocabulary cannot express. See [Styles](./styles.md).
+- <a id="W_STYLE_LAYER_CAP"></a>`W_STYLE_LAYER_CAP`: Rules were folded into a copy to keep the number of rules per kind bounded. See [Styles](./styles.md).
+- <a id="W_STYLE_LAYER_FLATTENED"></a>`W_STYLE_LAYER_FLATTENED`: A style was written as its per-element values and lost its editable form, with a reason code. See [Styles](./styles.md).
+- <a id="W_STYLE_MAPPING_COLUMN_MISSING"></a>`W_STYLE_MAPPING_COLUMN_MISSING`: A declared mapping reads a column the file does not have. See [Styles](./styles.md).
+- <a id="W_STYLE_NESTING"></a>`W_STYLE_NESTING`: Style structures nested deeper than graph-io reads. See [Styles](./styles.md).
+- <a id="W_STYLE_NOT_CARRIED"></a>`W_STYLE_NOT_CARRIED`: A style property the vocabulary has no counterpart for was not carried. See [Styles](./styles.md).
+- <a id="W_STYLE_NOT_WRITTEN"></a>`W_STYLE_NOT_WRITTEN`: The format has no place for this property; it is not written. See [Styles](./styles.md).
+- <a id="W_STYLE_NO_FILL"></a>`W_STYLE_NO_FILL`: A node fill the file marks as transparent or absent. See [Styles](./styles.md).
+- <a id="W_STYLE_NO_STROKE"></a>`W_STYLE_NO_STROKE`: An edge stroke the file marks as absent. See [Styles](./styles.md).
+- <a id="W_STYLE_NO_VIZMAP"></a>`W_STYLE_NO_VIZMAP`: A Cytoscape session without its visual styles; the tool's fallbacks apply. See [Styles](./styles.md).
+- <a id="W_STYLE_OTHER_STYLES"></a>`W_STYLE_OTHER_STYLES`: The file holds more visual styles than the one its view uses; the others are not read. See [Styles](./styles.md).
+- <a id="W_STYLE_OTHER_VIEWS"></a>`W_STYLE_OTHER_VIEWS`: The file holds more views than one; only the first view's styles are read. See [Styles](./styles.md).
+- <a id="W_STYLE_RAMP_ROUNDED"></a>`W_STYLE_RAMP_ROUNDED`: A continuous mapping matches the file's values only within the tool's rounding. See [Styles](./styles.md).
+- <a id="W_STYLE_RECORD_LABEL"></a>`W_STYLE_RECORD_LABEL`: A record label: its fields are joined with " | ". See [Styles](./styles.md).
+- <a id="W_STYLE_REFERENCE_CYCLE"></a>`W_STYLE_REFERENCE_CYCLE`: References between style records that are circular or too deep; the rest are read. See [Styles](./styles.md).
+- <a id="W_STYLE_RULES_NOT_KEPT"></a>`W_STYLE_RULES_NOT_KEPT`: Per-element values were written but not the rules; importing the file infers them again. See [Styles](./styles.md).
+- <a id="W_STYLE_SELECTOR"></a>`W_STYLE_SELECTOR`: A selector the tool treats as invalid, which matches every element there. See [Styles](./styles.md).
+- <a id="W_STYLE_SELECTOR_AS_COLUMN"></a>`W_STYLE_SELECTOR_AS_COLUMN`: A selector a short predicate cannot express; its members are marked on the elements instead. See [Styles](./styles.md).
+- <a id="W_STYLE_SIZE_MINIMUM"></a>`W_STYLE_SIZE_MINIMUM`: The tool grows a node to fit its label, so the stated size is a minimum. See [Styles](./styles.md).
+- <a id="W_STYLE_STATE_ASSUMED"></a>`W_STYLE_STATE_ASSUMED`: A selector state that changes while the tool runs (selected, hovered), evaluated as at load. See [Styles](./styles.md).
+- <a id="W_STYLE_UNFILLED"></a>`W_STYLE_UNFILLED`: A node the tool draws unfilled although the file gives it a fill color. See [Styles](./styles.md).
+- <a id="W_STYLE_UNKNOWN_VALUE"></a>`W_STYLE_UNKNOWN_VALUE`: An enumeration value the vocabulary has no name for; kept as `other:<value>`. See [Styles](./styles.md).
+- <a id="W_STYLE_UNREADABLE"></a>`W_STYLE_UNREADABLE`: A style section that cannot be read at all. See [Styles](./styles.md).
+- <a id="W_STYLE_UNRESOLVED"></a>`W_STYLE_UNRESOLVED`: A style reference that names nothing in the file. See [Styles](./styles.md).
+- <a id="W_STYLE_VALUE_TOO_LONG"></a>`W_STYLE_VALUE_TOO_LONG`: A value longer than 256 characters was not parsed. See [Styles](./styles.md).
+- <a id="W_STYLE_VIEW_STYLE_MISSING"></a>`W_STYLE_VIEW_STYLE_MISSING`: The view names a visual style the file does not hold. See [Styles](./styles.md).
 - <a id="W_TEMPORAL_DROPPED"></a>`W_TEMPORAL_DROPPED`: A start / end / timestamp column in a format without temporal support. Save: any format.
 - <a id="W_TEMPORAL_TABLE_SHAPE"></a>`W_TEMPORAL_TABLE_SHAPE`: A temporal extension table without the element / start / end / value columns. Save: [gexf](./formats/gexf.md).
 - <a id="W_TEMPORAL_TEXT_DROPPED"></a>`W_TEMPORAL_TEXT_DROPPED`: A `<column>.text` companion the format cannot carry. Save: any format.

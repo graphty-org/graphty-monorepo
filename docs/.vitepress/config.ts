@@ -208,6 +208,7 @@ export default defineConfig({
                         { text: "Loading graphs", link: "/graph-io/guide/loading" },
                         { text: "Reading the graph", link: "/graph-io/guide/reading" },
                         { text: "Saving graphs", link: "/graph-io/guide/saving" },
+                        { text: "Styles", link: "/graph-io/guide/styles" },
                         { text: "The import report and errors", link: "/graph-io/guide/report" },
                         { text: "Format detection", link: "/graph-io/guide/detection" },
                         { text: "Options reference", link: "/graph-io/guide/options" },

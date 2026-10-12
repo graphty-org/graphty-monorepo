@@ -145,6 +145,20 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 
 <!-- generated:end -->
 
+## Styles
+
+OBO has no styles. An import with `styles: true` returns `styles: null`, and a save with styles
+writes none of them (`W_STYLE_NOT_WRITTEN`, `W_STYLE_RULES_NOT_KEPT`). See [Styles](../styles.md).
+
+<!-- generated:begin styles:obo -->
+
+|               |                                                                           |
+| ------------- | ------------------------------------------------------------------------- |
+| Reads styles  | no: the format has no styles                                              |
+| Writes styles | no: every style is lost (`W_STYLE_NOT_WRITTEN`, `W_STYLE_RULES_NOT_KEPT`) |
+
+<!-- generated:end -->
+
 <!-- generated:begin reference:obo -->
 
 ## Import options

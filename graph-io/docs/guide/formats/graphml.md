@@ -122,7 +122,39 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                         |
 | [`positions`](./index.md#positions)             | no                          |
 | [`viz`](./index.md#viz)                         | no                          |
-| [`styles`](./index.md#styles)                   | none                        |
+| [`styles`](./index.md#styles)                   | 28 properties, rules kept   |
+
+<!-- generated:end -->
+
+## Styles
+
+GraphML itself has no styles; the programs that write it add their own. With `styles: true`,
+graph-io reads:
+
+- **yEd** (the `y:` namespace): each node's and edge's graphics, such as fill, border, shape, size,
+  label font and position, line style and arrows, with yEd's defaults. The label is the first
+  visible label with text; further labels are noted (`W_STYLE_EXTRA_LABELS`).
+- **yFiles 3 and yEd Live**: the per-element style objects, shared ones included, with yFiles'
+  defaults.
+- **Gephi**: the `r`, `g`, `b` and `size` keys, with Gephi's defaults.
+- **Cytoscape**: Cytoscape writes no visual values into GraphML; its default style is added, with
+  each node labeled by its `name`.
+
+A file from any other writer has no styles (`styles: null`).
+
+A save with styles writes yEd graphics (`y:ShapeNode` and `y:PolyLineEdge`), which yEd draws, and
+keeps the rules for graphty as the graph `<data>` key `graphty.styles`. See [Styles](../styles.md).
+
+<!-- generated:begin styles:graphml -->
+
+|                                     |                                                                                                                                                                                                |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                       |
+| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelPosition` |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `curved`, `label`, `labelColor`, `labelSize`, `labelFont`, `labelWeight`, `labelItalic`                                |
+| Graph properties written            | none                                                                                                                                                                                           |
+| Rules kept for graphty              | yes, as the `graphty.styles` graph attribute                                                                                                                                                   |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `tooltip`, `image`, `visible`; edge: `sourceArrowColor`, `targetArrowColor`, `arrowSize`, `tooltip`, `sourceLabel`, `targetLabel`, `visible`; graph: `background`             |
 
 <!-- generated:end -->
 

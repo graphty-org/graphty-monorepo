@@ -7,6 +7,7 @@ import { ImportReportBuilder } from "../../../src/common/report.js";
 import { decodeChunks } from "../../../src/common/writer.js";
 import { DOT_LOSS, dotExporter } from "../../../src/formats/dot/exporter.js";
 import { dotImporter } from "../../../src/formats/dot/importer.js";
+import { createRegistry } from "../../../src/registry.js";
 import { CLUSTER_COLUMN, PARENT_COLUMN } from "../../../src/formats/dot/names.js";
 import { corpusFiles, readCorpusText } from "../../helpers/corpus.js";
 import { compareSnapshots, describeDiffs, expectSameSnapshot, roundTrip } from "../../helpers/roundtrip.js";
@@ -372,6 +373,17 @@ describe("dot exporter: mixed direction", () => {
 });
 
 describe("dot exporter: check() loss notes", () => {
+    it("writes a graph charset as UTF-8, the encoding it writes, so the text reads back as written", async () => {
+        const snapshot = await imported('digraph { graph [charset="ISO-8859-1"]; a [label="Z\u00fcrich"]; a -> b }');
+        expect(noteCodes(snapshot)).toContain(DOT_LOSS.CHARSET_REWRITTEN);
+        const text = await dotExporter.exportToString(snapshot);
+        expect(text).toContain(`charset="UTF-8"`);
+        const { snapshot: back } = await createRegistry().importGraph(new TextEncoder().encode(text), {
+            format: "dot",
+        });
+        expect(back.nodes.value("label", back.ids.requireIndex("a"))).toBe("Z\u00fcrich");
+    });
+
     it("reports nothing for a snapshot DOT holds exactly", async () => {
         const snapshot = await imported(readCorpusText("dot", "cluster.gv"));
         expect(dotExporter.check(snapshot)).toEqual([]);

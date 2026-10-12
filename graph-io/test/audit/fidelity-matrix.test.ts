@@ -608,6 +608,7 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["W_PAJEK_NONFINITE_AS_TEXT", { column: DTYPE_CLASS }],
     ["W_NEO4J_ARRAY_DELIMITER", { column: DTYPE_CLASS }],
     ["W_DOT_CLUSTER_MARKED", { column: ["extra", "value"] }],
+    ["W_DOT_CHARSET_REWRITTEN", { column: ["value"] }],
     ["W_XGMML_WIDENED_TYPE", { column: DTYPE_CLASS }],
     ["W_XGMML_JSON_AS_STRING", { column: DTYPE_CLASS }],
     ["W_XGMML_EDGE_ID_TEXT", { column: DTYPE_CLASS }],

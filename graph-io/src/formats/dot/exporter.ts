@@ -102,7 +102,21 @@ export const DOT_LOSS = Object.freeze({
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
     /** A parent that is a plain node is written as a node and a cluster of one name; it reads back marked as a cluster. */
     CLUSTER_MARKED: "W_DOT_CLUSTER_MARKED",
+    /** The file is written in UTF-8, so a graph `charset` naming another encoding is written as `UTF-8`. */
+    CHARSET_REWRITTEN: "W_DOT_CHARSET_REWRITTEN",
 });
+
+/** A graph `charset` that names the encoding the exporter writes (Graphviz accepts both spellings). */
+const UTF8_CHARSET = /^utf-?8$/i;
+
+/**
+ * Whether a graph column is the `charset` attribute, which must name the encoding the file is written in.
+ * @param column - the column
+ * @returns true for the charset column
+ */
+function isCharset(column: Column): boolean {
+    return column.meta.name.toLowerCase() === "charset";
+}
 
 /** The roles DOT has a slot for (the label attribute, key, ports, clusters); every other role is reported. */
 const KEPT_ROLES: ReadonlySet<string> = new Set(["label", "id", "sourcePort", "targetPort", "parent"]);
@@ -543,6 +557,17 @@ class ExportPlan {
             ["graph", this.graphColumns],
         ] as const) {
             for (const column of columns) {
+                if (label === "graph" && isCharset(column) && column.isSet(0)) {
+                    const declared = cellText(column, 0);
+                    if (declared !== null && !UTF8_CHARSET.test(declared)) {
+                        note(
+                            DOT_LOSS.CHARSET_REWRITTEN,
+                            `graph attribute charset ${JSON.stringify(declared)} is written as "UTF-8", the encoding the file is written in`,
+                            column.meta.name,
+                            1,
+                        );
+                    }
+                }
                 if (label !== "graph" && column.nullCount === column.length) {
                     note(
                         DOT_LOSS.EMPTY_COLUMN_DROPPED,
@@ -891,7 +916,10 @@ class ExportPlan {
             if (!column.isSet(row)) {
                 continue;
             }
-            const text = cellText(column, row);
+            let text = cellText(column, row);
+            if (text !== null && columns === this.graphColumns && isCharset(column) && !UTF8_CHARSET.test(text)) {
+                text = "UTF-8";
+            }
             if (text !== null) {
                 out.push(`${quoteDotId(this.attributeName(column))}=${writeId(text)}`);
             }

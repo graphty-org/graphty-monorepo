@@ -235,6 +235,45 @@ describe("what keeps styles across formats", () => {
         };
     }
 
+    it("a 32-bit float column a format does not keep is copied as the values the rules read", async () => {
+        const b = new GraphBuilder({ directed: true });
+        const a = b.declareNodeColumn({ name: "a", dtype: "f32" });
+        [0.021241102, 0.5, 1].forEach((v, i) => {
+            b.addNode(`n${String(i)}`);
+            b.setNodeValue(a, i, v);
+        });
+        const snapshot = b.freeze();
+        const ex: ExtractedStyles = {
+            ...labelled(snapshot),
+            styles: {
+                ...labelled(snapshot).styles,
+                rules: [
+                    {
+                        id: "node.by.a",
+                        target: "node",
+                        role: "mapping",
+                        origin: "declared",
+                        where: { all: true },
+                        map: {
+                            width: {
+                                kind: "continuous",
+                                by: { data: "a" },
+                                points: [
+                                    { at: 0, below: 0, value: 0, above: 0 },
+                                    { at: 1, below: 1, value: 1, above: 1 },
+                                ],
+                            },
+                        },
+                    },
+                ],
+            },
+        };
+        const text = await createRegistry().exportGraphToString(snapshot, "dot", { styles: ex });
+        // the copy holds the shortest decimal of the 32-bit value, as the rule reads it, not its 64-bit widening
+        expect(text).toMatch(/input\.data\.a"?\s*=\s*"?0\.021241102[^0-9]/);
+        expect(text).not.toContain("0.0212411023");
+    });
+
     it("a graph keeps its fingerprint when a format reads its ids back as text", () => {
         expect(styleFingerprint(three(["7", "8", "9"]))).toEqual(styleFingerprint(three([7, 8, 9])));
     });

@@ -19,7 +19,7 @@ import {
 import { cytoscapeBackground, type CytoscapeElements, resolveCytoscape } from "../../styles/cytoscape/resolve.js";
 import { cytoscapeRules } from "../../styles/cytoscape/translate.js";
 import { StyleNotes } from "../../styles/notes.js";
-import { plainCell } from "../../styles/plan/resolve.js";
+import { dataCell } from "../../styles/plan/resolve.js";
 import type { ImporterStyles, ReaderOutput, StyleReadContext, StyleTarget } from "../../styles/types.js";
 import { exactFromBlock, graphicsBypasses, hiddenToVisible, nonEmpty, readXgmmlStyles } from "../xgmml/styles.js";
 import { HIDDEN_COLUMN } from "./constants.js";
@@ -76,7 +76,7 @@ export function readSessionStyles(snapshot: GraphSnapshot, context: StyleReadCon
         }
         const elements: CytoscapeElements = {
             count: n,
-            value: (column, i) => (table.has(column) ? plainCell(table.value(column, i)) : null),
+            value: (column, i) => (table.has(column) ? dataCell(table, column, i) : null),
             bypasses: graphicsBypasses(table, target, n, notes),
         };
         const values = resolveCytoscape(target, style, elements, { notes, budget: context.budget });

@@ -10,7 +10,7 @@ import { agree, plural } from "../../common/plural.js";
 import type { GraphExporter, LossNote } from "../../types.js";
 import { STYLE_ISSUE } from "../codes.js";
 import { styleFingerprint } from "../plan/features.js";
-import { canonicalFor, degreeValues, plainCell, resolveStyles } from "../plan/resolve.js";
+import { canonicalFor, dataCell, degreeValues, plainCell, resolveStyles } from "../plan/resolve.js";
 import type {
     ExtractedStyles,
     Mapping,
@@ -222,7 +222,7 @@ function withLostInputsCarried(
         const isLost = (name: unknown): name is string =>
             typeof name === "string" && lost.has(name) && table.has(name) && carriable(table, n, name);
         const cells = (name: string, read: (raw: unknown) => StyleValue | null): StyleColumn =>
-            Array.from({ length: n }, (_u, i) => read(plainCell(table.value(name, i))));
+            Array.from({ length: n }, (_u, i) => read(dataCell(table, name, i)));
         const { ext, ...given } = rule;
         let touched = false;
         // every other reference to a lost input reads a copy of its values as they are

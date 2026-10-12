@@ -16,6 +16,13 @@ served at `/?next`.
 
 ## Top of mind
 
+0. (2026-10-12) Tier 3 unified styles: the risk is ~20 element additions under several names each.
+   Before any is built: one name per question, and reuse first (proposeEncoding already returns
+   a coded refusal; layer.target already says the kind; find already matches substring/regex --
+   one "find query" selector form beats JMESPath functions plus rule leaves). Hold "never
+   accordions" (owner rule) until delete-titles + paired rows are measured at 900 x 700. A layer
+   painting both kinds is breaking: owner list, no `targets` field, no linked pair; endpoint-
+   reading edge rules are the additive piece. No disabled vary buttons (disabled promise).
 1. (2026-10-11) Round 5 gate: the refusal now lives in `real.mjs --start` (no "Gate evidence" in
    plan.md = exit 1) and the runner takes the machine-wide browser slot. Before round 5 I check
    the self-test refusal on a planted fault and the owed r4-s05b/s20b/s28b myself; never assume.
@@ -172,6 +179,22 @@ served at `/?next`.
   kind), T17 histories stop naming the toolbar, Cancel focus to "+", New project Discard crash
   scripted first. Reason throughout: study fixed first, one change per problem, owning package.
 
+- 2026-10-12 -- Tier 3 decide-phase attack (eight answers to the owner's 12 questions). Code
+  read: StylesApi.ts proposeEncoding (returns { ok, refusal: { code, params } }, 2465-2471),
+  Layer.ts:111 (one target per layer), query.ts:197-207 (find: attribute, exact, regex,
+  substring), predicate.ts (function-not-supported), ControlSection summary prop,
+  digests/decisions.md:94 ("popovers, never accordions"). Positions: reject canEncode/canBind/
+  speaks/kindsOf (duplicates of existing answers -- the round 4 two-tests pattern); one beneath-
+  value option on styles.agreement; one selector form that is a find query instead of eight text-
+  match inventions (reject modulo leaves, JMESPath contains); static shape glyphs as catalog data
+  over a live previewStyle renderer; one gradient-preview call; six core fields with value-only
+  placeholders, measured against the 40-word budget; on/off as a two-word select with empty =
+  not set (reject checkbox, Add strip); measure before collapsing; hide a kind the layer cannot
+  reach (reject "Include edges" button and "not reached" line); "Split into layers" on any
+  categorical layer; Q9 answered by the channel test, not eight counts; badge presets fail
+  contrast so their recolor goes to the owner; no disabled vary buttons. Reason throughout:
+  one name per question, reuse before adding, nothing drawn that is not built.
+
 ## Tried: worked / did not work
 
 - 2026-09-06 to 2026-10-07 (summarized 2026-10-11) -- Worked: routing the existing neighbors
@@ -288,8 +311,17 @@ served at `/?next`.
 - (2026-10-11) Priming has three sources now (briefing file table, persona habits, histories).
   Every "noticed unprompted" claim must say which source it was checked against.
 
+- (2026-10-12) Eight roles each wrote the element additions they needed in their own words, so
+  the union looks like 20 APIs and is really about 8. The consolidation step (one list, one name,
+  each checked against what already exists) must happen before the build plan, or the element
+  grows two answers to several questions and the app picks between them.
+- (2026-10-12) The settled model makes the panel's honesty depend on the beneath-value call:
+  without it every empty field is a guess. Treat it as the first element piece of tier 3.
+
 ## Sources
 
+- `design/ui/studio/tier3/decide/*.md` (eight role answers), the source lines named in the
+  2026-10-12 decision entry (2026-10-12)
 - `design/ui/studio/tier2/rounds/round-4/decisions.md`, `insights.md` (closed, 2026-10-11)
 - `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md`, the eight role critiques;
   source files named in the 2026-10-11 decision entry (2026-10-11)

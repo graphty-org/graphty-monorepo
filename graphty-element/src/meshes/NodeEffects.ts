@@ -253,15 +253,18 @@ export class NodeEffects {
         // `effect.glow.strength`, so a layer that binds only a strength (to a metric, say) leaves
         // an `effect.glow` with no colour on every node it paints. Treated as "glow on", that drew
         // the white fallback on all of them (#2068). The strength only scales a colour some layer set.
+        // A STRENGTH OF 0 IS NO GLOW (#2067), so it takes the removal branch and never creates or
+        // keeps alive the full-screen glow layer for a glow nobody can see.
         const colorValue = this.extractColorValue(effect?.glow?.color);
-        if (effect?.glow && colorValue !== undefined) {
+        const strength = effect?.glow?.strength ?? 1;
+        if (effect?.glow && colorValue !== undefined && strength > 0) {
             const glowLayer = this.getOrCreateGlowLayer(scene);
             const glowColors = scene.metadata?.glowColors as Map<number, Color3> | undefined;
-            // A glow is added light, so its colour's alpha fades it: `#ff000080` glows as
-            // `#800000` does, and the strength scales that as it scales any colour.
+            // A glow is added light, so its color's alpha fades it: `#ff000080` glows as
+            // `#800000` does, and the strength scales that as it scales any color.
             const { rgb, alpha } = readColor(colorValue, DEFAULT_GLOW_COLOR);
             glowColors?.set(renderedMesh.uniqueId, rgb.scale(alpha));
-            this.glowStrengths(scene).set(renderedMesh, effect.glow.strength ?? 1);
+            this.glowStrengths(scene).set(renderedMesh, strength);
 
             // Same defence as the outline path: the inclusion list is keyed by uniqueId and the
             // call is cheap, but a mesh in an unexpected state must not take down a repaint.

@@ -724,13 +724,13 @@ export const AxisAlignedColoredSpheres: Story = {
 };
 
 /**
- * An alpha written inside a colour, beside the same colour written opaque with the opacity channel.
+ * An alpha written inside a color, beside the same color written opaque with the opacity channel.
  *
- * Left column: the colour carries the alpha (`#rrggbbaa`). Right column: the colour is opaque and
+ * Left column: the color carries the alpha (`#rrggbbaa`). Right column: the color is opaque and
  * the channel's opacity says 0.5. Each row must look the same on both sides, except the outline,
- * which cannot be drawn translucent and so draws its colour opaque on both sides.
- * Rows, top to bottom: node fill, glow, outline, edge line (its arrow caps follow its colour),
- * arrow head and tail colours.
+ * which cannot be drawn translucent and so draws its color opaque on both sides.
+ * Rows, top to bottom: node fill, glow, outline, edge line (its arrow caps follow its color),
+ * arrow head and tail colors.
  */
 export const ColorAlpha: Story = {
     play: async ({ canvasElement }) => {
@@ -766,7 +766,7 @@ export const ColorAlpha: Story = {
         setup: storySetup({
             layers: [
                 {
-                    name: "edge ends small and grey",
+                    name: "edge ends small and gray",
                     target: "node",
                     selector: { match: "expression", where: "data.row == 'end'" },
                     set: { "node.color": "#9ca3af", "node.size": 0.4 },

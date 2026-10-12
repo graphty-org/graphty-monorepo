@@ -8,7 +8,7 @@ import type { ImportInput, ImportReport } from "@graphty/graph-io";
 import type { FetchDatasetOptions } from "@graphty/graph-samples";
 import type { Collection, CollectionReturnValue, Core, ElementDefinition } from "cytoscape";
 
-import type { ExportFormat, ExportOptions, ImportFormat, ImportOptions } from "./io.js";
+import type { CytoscapeStylesheetRule, ExportFormat, ExportOptions, ImportFormat, ImportOptions } from "./io.js";
 import { loadPart } from "./lazy.js";
 import type { GeneratorName, GeneratorOptions } from "./samples.js";
 
@@ -26,6 +26,13 @@ export interface ImportedGraph extends AddedGraph {
     readonly format: string;
     /** graph-io's report: counts, warnings, and what could not be represented. */
     readonly report: ImportReport;
+    /**
+     * With `styles: true`, the file's styles as a Cytoscape.js stylesheet whose every rule applies only to this
+     * import's elements (they hold its id in `data.graphty_import`). `applyStyles: true` has already appended it to
+     * the core's stylesheet; otherwise append it yourself:
+     * `cy.style().fromJson([...cy.style().json(), ...stylesheet]).update()`. Absent without `styles`.
+     */
+    readonly stylesheet?: CytoscapeStylesheetRule[];
 }
 
 /** The core methods `cytoscape.use(graphtyCytoscape)` adds for getting graphs in and out. */
@@ -50,6 +57,8 @@ export interface GraphtyGraphData {
      * Cytoscape session (`.cys`, as bytes). Every attribute becomes a data field, and positions in the file become
      * node positions (y negated for the formats whose y grows upward: GEXF, GML, DOT, Pajek). Throws, adding
      * nothing, when the core already holds one of the graph's node ids.
+     * `{ styles: true }` also reads the file's colors, sizes, shapes, ... and returns them as `stylesheet`;
+     * `{ styles: true, applyStyles: true }` draws them too (the core needs `styleEnabled` when headless).
      */
     graphtyImport(
         input: ImportInput | ArrayBuffer,
@@ -59,7 +68,8 @@ export interface GraphtyGraphData {
     /**
      * Writes the graph as a file's text: every data field, each node's position and parent, and each edge's id, as
      * far as the format holds them (`options.onLoss` hears about the rest). Hidden elements are written too. On a
-     * collection: its nodes, and those of its edges whose two ends are among them.
+     * collection: its nodes, and those of its edges whose two ends are among them. `{ styles: true }` also writes
+     * how the core draws each element, so graphtyImport with `styles: true` draws the file the same.
      */
     graphtyExport(format: ExportFormat, options?: ExportOptions): Promise<string>;
 }
@@ -124,6 +134,20 @@ function addTo(cy: Core, elements: ElementDefinition[]): CollectionReturnValue {
 }
 
 /**
+ * An import id no element of the core holds yet.
+ * @param cy - the core
+ * @returns the id
+ */
+function freeImportId(cy: Core): string {
+    const taken = new Set(cy.elements("[graphty_import]").map((e) => String(e.data("graphty_import"))));
+    let k = taken.size + 1;
+    while (taken.has(String(k))) {
+        k++;
+    }
+    return String(k);
+}
+
+/**
  * Registers graphtyGenerate, graphtyDataset, graphtyImport and graphtyExport.
  * @param cytoscape - the cytoscape function
  */
@@ -144,8 +168,32 @@ export function registerGraphData(cytoscape: Register): void {
         "graphtyImport",
         async function (this: Core, input: ImportInput | ArrayBuffer, format?: ImportFormat, options?: ImportOptions) {
             const { importElements } = await loadPart(import("./io.js"), "graphtyImport");
-            const r = await importElements(input, format, options);
-            return { elements: addTo(this, r.elements), directed: r.directed, format: r.format, report: r.report };
+            const styled = options?.styles !== undefined && options.styles !== false;
+            const r = await importElements(input, format, {
+                ...options,
+                ...(styled && options.importId === undefined ? { importId: freeImportId(this) } : {}),
+            });
+            const apply = options?.applyStyles === true && r.stylesheet !== undefined;
+            if (apply) {
+                r.bypass?.forEach((b, i) => {
+                    if (b !== null) {
+                        r.elements[i].style = b;
+                    }
+                });
+            }
+            const elements = addTo(this, r.elements);
+            const style = this.style() as unknown as
+                { json(): unknown[]; fromJson(j: unknown[]): { update(): void } } | undefined;
+            if (apply && r.stylesheet !== undefined && style !== undefined) {
+                style.fromJson([...style.json(), ...r.stylesheet]).update();
+            }
+            return {
+                elements,
+                directed: r.directed,
+                format: r.format,
+                report: r.report,
+                ...(r.stylesheet === undefined ? {} : { stylesheet: r.stylesheet }),
+            };
         },
     );
     const exportFn = async (eles: Collection, format: ExportFormat, options?: ExportOptions): Promise<string> => {

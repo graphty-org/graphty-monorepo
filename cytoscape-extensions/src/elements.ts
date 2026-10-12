@@ -24,29 +24,6 @@ function plain(v: unknown): unknown {
 }
 
 /**
- * RGB(A) channels in 0..1 as a CSS color: `#rrggbb` when opaque, `rgba(r, g, b, a)` otherwise.
- * @param c - the channels
- * @returns the color
- */
-function cssColor(c: ArrayLike<number>): string {
-    const ch = (i: number): number => Math.max(0, Math.min(255, Math.round(c[i] * 255)));
-    const a = c.length > 3 ? Math.round(c[3] * 1000) / 1000 : 1;
-    if (a === 1) {
-        return `#${[0, 1, 2].map((i) => ch(i).toString(16).padStart(2, "0")).join("")}`;
-    }
-    return `rgba(${ch(0)}, ${ch(1)}, ${ch(2)}, ${a})`;
-}
-
-/**
- * Whether a column is a color: the role "color" with 3 or 4 numeric components (GEXF's viz:color).
- * @param c - the column
- * @returns true for a color column
- */
-function isColor(c: Column): boolean {
-    return c.meta.role === "color" && (c.meta.components === 3 || c.meta.components === 4) && c.dtype !== "json";
-}
-
-/**
  * A y coordinate between Cytoscape (y grows downward) and graph-io (y grows upward, so a Cytoscape-family file's
  * screen y is negated on import and negated back on export). Never yields -0.
  * @param y - the coordinate
@@ -55,9 +32,6 @@ function isColor(c: Column): boolean {
 export function flipY(y: number): number {
     return y === 0 ? 0 : -y;
 }
-
-/** Reads a CSS color as RGBA channels in 0..1, or undefined when it cannot. */
-type ColorParser = (text: string) => [number, number, number, number] | undefined;
 
 /** A column that arrives under another data field name, because Cytoscape reserves its own. */
 interface RenamedColumn {
@@ -70,7 +44,6 @@ interface RenamedColumn {
  * Cytoscape element definitions for a snapshot. Node ids are the snapshot's ids as strings. Every node and edge
  * column becomes a data field of the same name, except that one named `id`, `source`, `target` or `parent` (which
  * Cytoscape reserves) becomes `<name>#<the attribute's id in the file>`, or `<name>#2` when it has none, and:
- * - a column with the role "color" (GEXF's viz:color) becomes a CSS color string, `#rrggbb` or `rgba(r, g, b, a)`;
  * - a node column with the role "position" becomes the node's position (x and y; a z is dropped);
  * - a node column with the role "parent" (a compound parent, as Cytoscape JSON, GraphML nested graphs and DOT
  *   clusters carry it) becomes `data.parent`;
@@ -153,8 +126,7 @@ function rowData(cols: readonly Column[], row: number, fieldOf: (c: Column) => s
     const data: Record<string, unknown> = {};
     for (const c of cols) {
         if (c.isSet(row)) {
-            const v = c.value(row);
-            data[fieldOf(c)] = isColor(c) ? cssColor(v as ArrayLike<number>) : plain(v);
+            data[fieldOf(c)] = plain(c.value(row));
         }
     }
     return data;
@@ -288,29 +260,11 @@ function column(values: unknown[], label: boolean): ColumnInput | undefined {
 }
 
 /**
- * A string column of CSS colors as a color column (role "color", RGBA in 0..1), which GEXF writes as viz:color.
- * @param c - the column
- * @param parse - reads one color
- * @returns the color column, or undefined when it is not a string column or a value is not a color `parse` reads
- */
-function colorColumn(c: ColumnInput, parse: ColorParser): ColumnInput | undefined {
-    if (c.decl.dtype !== "string") {
-        return undefined;
-    }
-    const rows = (c.data as (string | null)[]).map((v) => (v === null ? null : parse(v)));
-    if (rows.includes(undefined)) {
-        return undefined;
-    }
-    return { data: rows, decl: { dtype: "f32", components: 4, role: "color" } };
-}
-
-/**
  * The columns of a set of elements' data, one per field, skipping the reserved ones.
  * @param records - each element's data
- * @param colors - when given, a `color` field whose every value it reads is written as the role "color"
  * @returns the columns by name
  */
-function columns(records: readonly Record<string, unknown>[], colors?: ColorParser): Record<string, ColumnInput> {
+function columns(records: readonly Record<string, unknown>[]): Record<string, ColumnInput> {
     const names = new Set<string>();
     for (const r of records) {
         for (const k of Object.keys(r)) {
@@ -326,10 +280,20 @@ function columns(records: readonly Record<string, unknown>[], colors?: ColorPars
             name === "label",
         );
         if (c !== undefined) {
-            out[name] = colors !== undefined && name === "color" ? (colorColumn(c, colors) ?? c) : c;
+            out[name] = c;
         }
     }
     return out;
+}
+
+/**
+ * The edges of a collection that elementsToSnapshot() writes, in its order: those whose two ends are in it.
+ * @param eles - the collection
+ * @returns the edges
+ */
+export function exportedEdges(eles: Collection): Collection {
+    const ids = new Set(eles.nodes().map((n) => n.id()));
+    return eles.edges().filter((e) => ids.has(e.source().id()) && ids.has(e.target().id()));
 }
 
 /**
@@ -342,8 +306,6 @@ function columns(records: readonly Record<string, unknown>[], colors?: ColorPars
  * @param eles - the collection
  * @param options - the direction and the id type
  * @param options.directed - write a directed graph (default false)
- * @param options.colors - reads a CSS color as RGBA in 0..1; when given, a `color` data field whose every value it
- * reads is written as the role "color", for a format with a color slot of its own (GEXF's viz:color)
  * @param options.integerIds - when every node id is a non-negative integer written plainly ("0", "17"), give the
  * snapshot number ids, so a format that holds only integer ids (GML, CX2) writes them as they are (default false)
  * @returns the snapshot
@@ -353,7 +315,6 @@ export function elementsToSnapshot(
     options: {
         readonly directed?: boolean | undefined;
         readonly integerIds?: boolean | undefined;
-        readonly colors?: ColorParser | undefined;
     } = {},
 ): GraphSnapshot {
     const nodes = eles.nodes();
@@ -364,7 +325,7 @@ export function elementsToSnapshot(
     });
     const integers = options.integerIds === true && names.every((id) => /^(?:0|[1-9]\d{0,14})$/.test(id));
     const ids: (string | number)[] = integers ? names.map(Number) : names;
-    const edges = eles.edges().filter((e) => index.has(e.source().id()) && index.has(e.target().id()));
+    const edges = exportedEdges(eles);
     const src = new Uint32Array(edges.length);
     const dst = new Uint32Array(edges.length);
     edges.forEach((e, k) => {
@@ -378,10 +339,7 @@ export function elementsToSnapshot(
         xy[2 * i + 1] = flipY(p.y);
     });
     const parents = nodes.map((n) => index.get(n.parent().first().id()) ?? null);
-    const edgeColumns = columns(
-        edges.map((e) => e.data() as Record<string, unknown>),
-        options.colors,
-    );
+    const edgeColumns = columns(edges.map((e) => e.data() as Record<string, unknown>));
     let weights: Float64Array<ArrayBuffer> | undefined;
     const w = edgeColumns.weight;
     if (w?.decl.dtype === "f64" && (w.data as unknown[]).every((v) => v !== null)) {
@@ -395,10 +353,7 @@ export function elementsToSnapshot(
         dst,
         weights,
         nodeColumns: {
-            ...columns(
-                nodes.map((n) => n.data() as Record<string, unknown>),
-                options.colors,
-            ),
+            ...columns(nodes.map((n) => n.data() as Record<string, unknown>)),
             position: { data: xy, decl: { dtype: "f64", components: 2, role: "position" } },
             ...(parents.some((p) => p !== null)
                 ? { parent: { data: parents, decl: { dtype: "u32", role: "parent", refersTo: "node" } } }

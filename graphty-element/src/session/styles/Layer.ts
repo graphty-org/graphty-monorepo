@@ -56,6 +56,7 @@ import type {
     LayerKind,
     LayerSource,
     LayerSpec,
+    LayerSplit,
     Path,
     Rgba,
     StaticStyle,
@@ -116,6 +117,8 @@ export interface Layer {
     readonly set?: StaticStyle;
     /** The declarative value-to-channel bindings it writes, when it has any. */
     readonly encode?: Encoding;
+    /** Set when the layer is split into one child per value of a category: see {@link LayerSplit}. */
+    readonly split?: LayerSplit;
     /**
      * The consumer's own bag, carried untouched.
      *
@@ -1034,6 +1037,31 @@ function checkChannels(
 }
 
 /**
+ * Check a split names a value the layer paints by: a split over a path no binding reads has no
+ * groups, and a saved document carrying one would paint children of nothing.
+ * @param spec - The specification.
+ * @param log - Where problems are collected.
+ */
+function checkSplit(spec: LayerSpec, log: ProblemLog): void {
+    const { split } = spec;
+    if (split === undefined) {
+        return;
+    }
+
+    const by: unknown = (split as { by?: unknown } | null)?.by;
+    const read = Object.values(spec.encode ?? {}).some(
+        (binding) => binding !== undefined && "by" in binding && binding.by === by,
+    );
+    if (typeof by !== "string" || !read) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `A split layer is split by a value one of its bindings reads, and ${JSON.stringify(by)} is not one.`,
+            path: "split.by",
+        });
+    }
+}
+
+/**
  * Check a layer specification, and compile it when it is sound.
  *
  * SYNCHRONOUS, AND IT WRITES NOTHING. This is what a form calls before a person presses Apply:
@@ -1058,6 +1086,7 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
     const compiled = checkSelector(spec, target, options, log);
 
     checkChannels(spec, target, universal, options, log);
+    checkSplit(spec, log);
 
     const directory = options.paths;
     const unresolvedPaths =
@@ -1129,6 +1158,7 @@ function buildLayer(
         selector: frozen(spec.selector as Selector),
         ...(spec.set === undefined ? {} : { set: frozen(spec.set) }),
         ...(spec.encode === undefined ? {} : { encode: frozen(spec.encode) }),
+        ...(spec.split === undefined ? {} : { split: frozen(spec.split) }),
         // Stored by reference and never copied: "round-trips untouched" is not a figure of speech,
         // and a consumer keeping a live object in here gets the same object back.
         ...(spec.userData === undefined ? {} : { userData: spec.userData }),
@@ -1150,6 +1180,7 @@ export function specOf(layer: Layer): LayerSpec {
         selector: layer.selector,
         source: layer.source,
         enabled: layer.enabled,
+        ...(layer.split === undefined ? {} : { split: layer.split }),
         ...(layer.set === undefined ? {} : { set: layer.set }),
         ...(layer.encode === undefined ? {} : { encode: layer.encode }),
         ...(layer.userData === undefined ? {} : { userData: layer.userData }),

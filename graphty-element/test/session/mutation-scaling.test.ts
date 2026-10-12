@@ -158,6 +158,21 @@ async function groupLayer(session: GraphSession): Promise<string> {
     return layer.id;
 }
 
+/**
+ * A layer colouring every node by its group as categories, which is what a split splits.
+ * @param session - The session.
+ * @returns The layer's id.
+ */
+async function categoryLayer(session: GraphSession): Promise<string> {
+    const layer = await session.styles.add({
+        name: "Categories",
+        selector: { match: "everything" },
+        encode: { "node.color": { by: "data.group", scale: "ordinal" } },
+    });
+    await session.styles.settled();
+    return layer.id;
+}
+
 const CASES: readonly Case[] = [
     // Sets
     {
@@ -348,6 +363,41 @@ const CASES: readonly Case[] = [
             const id = await groupLayer(session);
             return async () => {
                 await session.styles.setValueHidden(id, "node.color", 2, true);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.split",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await categoryLayer(session);
+            return async () => {
+                await session.styles.split(id);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.unsplit",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await categoryLayer(session);
+            return async () => {
+                await session.styles.split(id);
+                await session.styles.unsplit(id);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.setSplitOverride",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await categoryLayer(session);
+            await session.styles.split(id);
+            return async () => {
+                await session.styles.setSplitOverride(id, 2, "node.color", "#123456");
                 await session.styles.settled();
             };
         },

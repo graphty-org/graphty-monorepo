@@ -25,6 +25,7 @@ import {
     type AlgorithmKey,
     isDeprecatedAlgorithm,
     type LayerId,
+    type NodeId,
     type OptionDescriptor,
     type RunId,
     type Scope,
@@ -44,7 +45,8 @@ import {
 } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import type { RunEntry } from "../project/state";
-import type { RunResult } from "../results/types";
+import { elementIdsOf } from "../results/RunResult";
+import { RESULT_ROOT, type RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
 import type { CodedFact } from "../shared";
 import {
@@ -57,6 +59,7 @@ import {
 } from "../styles/autoApply";
 import type { StyleSuggestion } from "../styles/derive";
 import type { Layer } from "../styles/Layer";
+import { matchGroups, realignPatch } from "../styles/split";
 import type { HistoryCode } from "../types";
 import {
     ManagedRun,
@@ -1505,6 +1508,9 @@ class Runs implements SessionRunsApi {
 
         try {
             draft.runs.set(run.id, entry);
+            if (prior !== undefined) {
+                this.realignSplits(draft, prior.result, entry.result);
+            }
             const outcomes = this.paint(draft, run.id, decision.paint);
 
             if (decision.painting !== undefined) {
@@ -1522,6 +1528,46 @@ class Runs implements SessionRunsApi {
         } catch (error) {
             revert();
             throw error;
+        }
+    }
+
+    /**
+     * Carry each layer split by this run's values across its re-run: overrides follow the group
+     * that shares most members (or the same name), and what matched nothing is reported on the
+     * split. Written into the run's own step, so undoing the re-run undoes this too.
+     * @param draft - The run's draft.
+     * @param before - The result being replaced.
+     * @param after - The result replacing it.
+     */
+    private realignSplits(draft: Draft, before: RunResult, after: RunResult): void {
+        const { styles } = this.dispatcher.services;
+        const root = `${RESULT_ROOT}.${after.runId}.`;
+        // A run that publishes group sizes made its labels up; any other value is a name.
+        const byOverlap = Array.isArray(after.graph.sizes);
+
+        for (const { layer } of draft.styles) {
+            const by = layer.split?.by;
+            if (styles === undefined || by?.startsWith(root) !== true) {
+                continue;
+            }
+
+            const field = by.slice(root.length);
+            const edges = layer.target === "edge";
+            const half = edges ? "edge" : "node";
+            const read =
+                (result: RunResult) =>
+                (id: NodeId): unknown =>
+                    (edges ? result.edge(String(id)) : result.node(id))?.[field];
+            const match = matchGroups<NodeId>(
+                new Set([...elementIdsOf(before, half), ...elementIdsOf(after, half)]),
+                read(before),
+                read(after),
+                byOverlap,
+            );
+            const patch = realignPatch(layer, match);
+            if (patch !== null) {
+                styles.execute({ op: "style.patch", action: "update", id: layer.id, patch }, draft);
+            }
         }
     }
 

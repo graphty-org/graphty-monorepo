@@ -573,6 +573,14 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         ["no-such-layer", "node.color", 0, true],
         [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }],
     ),
+    // The split verbs patch the layer they name, and an unknown one patches nothing.
+    split: calls(["no-such-layer"], [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }]),
+    unsplit: calls(["no-such-layer"], [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }]),
+    setSplitOverride: calls(
+        ["no-such-layer", 0, "node.color", "#ff0000"],
+        [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }],
+    ),
+    splitChildren: READ,
     applyTemplate: calls(
         [{ version: 1, layers: [] }],
         [{ op: "style.template", document: { version: 1, layers: [] } }],

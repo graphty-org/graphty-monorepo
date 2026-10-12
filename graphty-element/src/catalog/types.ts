@@ -711,6 +711,8 @@ export type LayerKind = "base" | "encoding" | "highlight" | "custom";
 /** A layer as it is authored, imported or exported: data, never an object with behaviour. */
 export interface LayerSpec {
     name: string;
+    /** Set on a split parent: see {@link LayerSplit}. Absent on every other layer. */
+    split?: LayerSplit;
     target?: "node" | "edge";
     kind?: LayerKind;
     selector: Selector;
@@ -719,6 +721,37 @@ export interface LayerSpec {
     source?: LayerSource;
     enabled?: boolean;
     userData?: Record<string, unknown>;
+}
+
+/**
+ * What a re-run's matching could not carry over to a split layer's groups. `split.group-new`: a
+ * group the re-run made that matches no group before it (`value`). `split.group-gone`: a group
+ * before it that matches none after (`value`), and whether the reader had changed it
+ * (`overridden`), which a re-run then had to drop.
+ */
+export type SplitMatchCode = "split.group-new" | "split.group-gone";
+
+/**
+ * A layer split into one generated child per value of a category it paints by.
+ *
+ * Each child is a group of the parent's elements, those carrying one value of `by`. A child
+ * stores only what the reader changed for it, and it stores it as the parent's value table: an
+ * entry in the `map` of each binding that reads `by`. So a scheme change on the parent (a new
+ * palette) reaches every child the reader did not change, and unsplitting leaves those changes
+ * where they are, as value-table entries. The children themselves are read with
+ * `styles.splitChildren()`: one per value present.
+ */
+export interface LayerSplit {
+    /** The value path the layer is split by: the `by` of one of its categorical bindings. */
+    readonly by: Path;
+    /**
+     * What the last re-run of the run `by` reads could not match, as codes; absent when it
+     * matched everything or nothing re-ran.
+     */
+    readonly unmatched?: readonly {
+        readonly code: SplitMatchCode;
+        readonly params: { readonly value: string | number | boolean; readonly overridden?: boolean };
+    }[];
 }
 
 /** A portable stack of layers, with any palettes it depends on travelling beside it. */

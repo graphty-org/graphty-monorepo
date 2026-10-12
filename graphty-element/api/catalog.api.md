@@ -1032,10 +1032,23 @@ export interface LayerSpec {
     set?: StaticStyle;
     // (undocumented)
     source?: LayerSource;
+    split?: LayerSplit;
     // (undocumented)
     target?: "node" | "edge";
     // (undocumented)
     userData?: Record<string, unknown>;
+}
+
+// @public
+export interface LayerSplit {
+    readonly by: Path;
+    readonly unmatched?: readonly {
+        readonly code: SplitMatchCode;
+        readonly params: {
+            readonly value: string | number | boolean;
+            readonly overridden?: boolean;
+        };
+    }[];
 }
 
 // @public
@@ -1610,6 +1623,9 @@ export type SetOperand = Scope | {
         readonly edges: number;
     };
 };
+
+// @public
+export type SplitMatchCode = "split.group-new" | "split.group-gone";
 
 // @public
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;

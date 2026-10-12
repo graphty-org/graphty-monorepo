@@ -425,6 +425,7 @@ export type {
     LayerKind,
     LayerSource,
     LayerSpec,
+    LayerSplit,
     Measurement,
     MeasurementDeclaration,
     MeasurementSource,
@@ -447,6 +448,7 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
+    SplitMatchCode,
     StaticStyle,
     StyleDocument,
 } from "./src/catalog/types";
@@ -485,6 +487,7 @@ export type {
     RepaintReason,
     RepaintReport,
     SessionStylesApi,
+    SplitChild,
     StyleAgreement,
     StyleChange,
     StyleContribution,

@@ -72,6 +72,7 @@ export type {
 export { quotePath, rulePath } from "./predicate";
 export type { ElementPaint } from "./repaint";
 export type { Selector } from "./selector";
+export type { SplitChild } from "./split";
 export type {
     DefaultPalettes,
     ElementLayerSpec,

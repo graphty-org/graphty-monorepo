@@ -27,6 +27,33 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: split a layer by value (`styles.split`)
+
+**What.** For the unified style panel's split parents (a Louvain layer shown as one row per
+community), all in graphty-element.
+
+- `styles.split(id, by?)`, `styles.unsplit(id)`, `styles.setSplitOverride()` (an undefined
+  override is "Follow parent") and `styles.splitChildren(id)`, which lists one child per value
+  present: its value, size, hidden flag and overrides. Each write is one undo step. Any layer that
+  paints a channel by category can be split, a run's or a data column's.
+- A layer carries the optional `split: LayerSplit` (`by`, and `unmatched` codes); it is saved in the
+  style document with the layer. New exported types `LayerSplit`, `SplitChild`, `SplitMatchCode`.
+- A child's override is an entry in the parent binding's `map`, so a palette change reaches every
+  child without one, and unsplitting leaves the overrides as value-table entries.
+- When the run a split reads re-runs, a run that publishes group sizes (a partition) has its groups
+  matched by shared members, so an override stays with the community holding most of its nodes; any
+  other value is matched by name. Groups that match nothing are reported on the layer as
+  `split.group-new` and `split.group-gone` (with `overridden`). The matching is written into the
+  re-run's own step.
+- A child can override only a channel the parent paints by the split's value; others are refused
+  with `E_BAD_COMMAND` (`reason: "channel-not-split"`) until the panel needs more.
+
+**Why.** The model says a scheme change on the parent reaches every child the reader has not
+changed; a folder of copied layers cannot do that, and a re-run renumbering communities would move
+every override to the wrong group.
+
+**Not breaking.** New methods, a new optional field on a layer and its spec, and new types.
+
 ## 2026-10-12 -- Decided by the team: generic layer rules, a text test, and the node id as a value
 
 **What.** For the unified style panel's "Which elements" editor, all in graphty-element.

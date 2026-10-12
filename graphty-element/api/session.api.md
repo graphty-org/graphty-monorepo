@@ -1481,6 +1481,7 @@ export interface Layer {
     readonly selector: Selector_2;
     readonly set?: StaticStyle;
     readonly source: LayerSource;
+    readonly split?: LayerSplit;
     readonly target: SelectorTarget;
     readonly userData?: Record<string, unknown>;
 }
@@ -1541,10 +1542,23 @@ export interface LayerSpec {
     set?: StaticStyle;
     // (undocumented)
     source?: LayerSource;
+    split?: LayerSplit;
     // (undocumented)
     target?: "node" | "edge";
     // (undocumented)
     userData?: Record<string, unknown>;
+}
+
+// @public
+export interface LayerSplit {
+    readonly by: Path;
+    readonly unmatched?: readonly {
+        readonly code: SplitMatchCode;
+        readonly params: {
+            readonly value: string | number | boolean;
+            readonly overridden?: boolean;
+        };
+    }[];
 }
 
 // @public
@@ -3573,6 +3587,17 @@ export interface SetUser {
 }
 
 // @public
+export interface SplitChild {
+    readonly count: number;
+    readonly hidden: boolean;
+    readonly overrides: StaticStyle;
+    readonly value: unknown;
+}
+
+// @public
+export type SplitMatchCode = "split.group-new" | "split.group-gone";
+
+// @public
 export interface StaleNote {
     readonly nowVisible: number;
     readonly ranOn: number;
@@ -3685,9 +3710,13 @@ export interface StylesApi {
         readonly reapply?: boolean;
     }): void;
     setHighlightColor(color: string | undefined): void;
+    setSplitOverride(id: LayerId, value: string | number | boolean, channel: Channel, override: ChannelValue | undefined, options?: RunOptions): Run<Layer>;
     settled(): Promise<void>;
     setValueHidden(id: LayerId, channel: Channel, value: string | number | boolean, hidden: boolean, options?: RunOptions): Run<Layer>;
+    split(id: LayerId, by?: Path, options?: RunOptions): Run<Layer>;
+    splitChildren(id: LayerId): readonly SplitChild[];
     toDocument(): StyleDocument;
+    unsplit(id: LayerId, options?: RunOptions): Run<Layer>;
     update(id: LayerId, patch: Partial<LayerSpec>, options?: RunOptions): Run<Layer>;
     validate(spec: LayerSpec): ValidationResult;
 }

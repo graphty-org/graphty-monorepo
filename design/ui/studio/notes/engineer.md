@@ -25,6 +25,13 @@ caseSensitive? }` on one matcher `textMatcher` (`session/text.ts`) that selectio
   (`git hash-object -w` + `update-index --cacheinfo`). Then `git archive $(git write-tree)` into
   `tmp/<task>/iso`, symlink the rest of the repo and `node_modules`, `tsc -p tsconfig.build.json`,
   and run `tools/api-report.mjs` by its REAL path (a symlinked path skips its main guard silently).
+- (2026-10-12) **Split by value is built in the element** (`styles.split`, `unsplit`,
+  `setSplitOverride`, `splitChildren`; `session/styles/split.ts`). A child's override is the
+  parent binding's `map` entry, so palettes reach every other child and unsplit is free; a re-run of
+  a partition run matches groups by shared members inside the run's own step (`RunsApi.commit`).
+  Limit: a child overrides only channels the parent paints by the split value; overriding a fixed
+  property needs generated child layers in the stack. The tree must still show split rows from
+  `layer.split` and `splitChildren` (the tree unit was in flight beside this one).
 - (2026-10-12) **Tier 3 (unified styles) started; my answers to the owner's 12 questions are in
   `tier3/decide/engineer.md`.** The studio worktree is now `.worktrees/design-studio-tier3`
   (branch `design/studio-tier3`). The owner approves the built UI before any study.

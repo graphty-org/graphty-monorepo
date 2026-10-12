@@ -371,8 +371,12 @@ function fontOut(
     const bold = weight === "bold";
     const it = italic === true;
     let fam = family === null ? "sans-serif" : String(family);
-    // a Java logical name is read back as the family Cytoscape draws it with (Dialog as sans-serif)
-    const readsAs = (name: string): string => JAVA_FONTS.get(name.toLowerCase()) ?? name;
+    // the reader drops a face suffix (Dialog.plain is Dialog) and reads a Java logical name as the family Cytoscape
+    // draws it with (Dialog as sans-serif)
+    const readsAs = (name: string): string => {
+        const family = name.replace(/\.(?:bold|italic|plain|bolditalic)$/i, "");
+        return JAVA_FONTS.get(family.toLowerCase()) ?? family;
+    };
     if (dialect === "cx2") {
         if (readsAs(fam) !== fam) {
             approx();
@@ -501,7 +505,16 @@ function emitTarget(
         }
     }
 
-    const model = buildModel(target, rules, writers, notes);
+    // a rule written as per-element values is noted with the elements that carry one, once per property
+    const counted = new Set<string>();
+    const carrying = (p: string): number => {
+        if (counted.has(p)) {
+            return 0;
+        }
+        counted.add(p);
+        return Math.max((truth.get(p) ?? []).filter((v) => v !== null).length, 1);
+    };
+    const model = buildModel(target, rules, writers, notes, carrying);
     const s = style[target];
     s.dependencies.set(target === "node" ? "nodeSizeLocked" : "arrowColorMatchesEdge", false);
     const approx =
@@ -531,7 +544,7 @@ function emitTarget(
         }
         const cm = cytoscapeMapping(target, p, m, w, src, snapshot, extracted, options, columns, approx(p));
         if (cm === null) {
-            notes.add(STYLE_ISSUE.LAYER_FLATTENED, target, p, { sample: model.mappedBy.get(p) });
+            notes.add(STYLE_ISSUE.LAYER_FLATTENED, target, p, { sample: model.mappedBy.get(p), count: carrying(p) });
             model.map.delete(p);
         } else {
             s.mappings.set(w.vp, cm);
@@ -581,6 +594,7 @@ function emitTarget(
  * @param rules - the target's rules
  * @param writers - the dialect's writers
  * @param notes - where flattened rules are noted
+ * @param carrying - how many elements carry a value of a property
  * @returns the model
  */
 function buildModel(
@@ -588,10 +602,11 @@ function buildModel(
     rules: readonly StyleRule[],
     writers: ReadonlyMap<string, Writer>,
     notes: StyleNotes,
+    carrying: (p: string) => number,
 ): Model {
     const model: Model = { set: new Map(), map: new Map(), mappedBy: new Map() };
     const flatten = (p: string, id: string): void => {
-        notes.add(STYLE_ISSUE.LAYER_FLATTENED, target, p, { sample: id });
+        notes.add(STYLE_ISSUE.LAYER_FLATTENED, target, p, { sample: id, count: carrying(p) });
     };
     const holds = (p: string): boolean => writers.has(p) || (FONT_PROPS as readonly string[]).includes(p);
     for (const r of rules) {

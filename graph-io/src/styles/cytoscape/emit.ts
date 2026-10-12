@@ -331,7 +331,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
  * @returns the object
  */
 function cx2Position(v: StyleValue): unknown {
-    const [h, vert] = CX2_ANCHORS[String(v)] ?? ["center", "center"];
+    const [h, vert] = Object.hasOwn(CX2_ANCHORS, String(v)) ? CX2_ANCHORS[String(v)] : ["center", "center"];
     return {
         HORIZONTAL_ALIGN: "center",
         VERTICAL_ALIGN: "center",
@@ -383,7 +383,7 @@ function fontOut(
     if (fam.includes(",")) {
         fam = fam.split(",")[0].trim();
     }
-    const java = CSS_TO_JAVA[fam] ?? fam;
+    const java = Object.hasOwn(CSS_TO_JAVA, fam) ? CSS_TO_JAVA[fam] : fam;
     if (readsAs(java) !== whole) {
         approx();
     }

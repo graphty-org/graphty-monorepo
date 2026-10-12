@@ -202,6 +202,30 @@ describe("writing XGMML styles", () => {
         expect(back.styles?.styles.source.tool).toBe("graphty");
         expect(back.styles?.styles.rules.find((r) => r.id === "node.path")?.set?.label).toBe(label);
     });
+    it("writes a font named like a built-in object member as that font", async () => {
+        const { snapshot, styles } = await load(doc('<node id="a" label="x"><graphics fill="#ff0000"/></node>'));
+        const ex = styles as ExtractedStyles;
+        const withFont: ExtractedStyles = {
+            ...ex,
+            styles: {
+                ...ex.styles,
+                rules: [
+                    ...ex.styles.rules,
+                    {
+                        id: "node.font",
+                        target: "node",
+                        role: "defaults",
+                        origin: "declared",
+                        where: { all: true },
+                        set: { labelFont: "hasOwnProperty" },
+                    },
+                ],
+            },
+        };
+        expect(() => registry.checkExport(snapshot, "xgmml", { styles: withFont })).not.toThrow();
+        const text = await registry.exportGraphToString(snapshot, "xgmml", { styles: withFont });
+        expect(text).toContain("hasOwnProperty,plain,12");
+    });
 });
 
 describe("files graphty wrote", () => {

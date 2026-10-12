@@ -5,48 +5,62 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-12 (tier 3 open questions answered).
+Last updated: 2026-10-12 (tier 3 iteration 1 walk).
 
 ## Top of mind
 
-0. (2026-10-12) Tier 3 is unified styles. My answers to the owner's 12 questions:
+0. (2026-10-12) Tier 3 iteration 1 walk: `tier3/iterations/1/figma.md`, build cfa6408d84a4.
+   22 findings (4 sev 3, 14 sev 2, 4 sev 1). Sev 3: run-made rows have no Which elements
+   (`StylePanel.tsx` 149 gates on `source.by === "user"`), a route is two rows, category rows
+   lose their names to a full hex field, the key lists six blocks for the empty Selected layer.
+   Next to bring: Figma's 24 px icon column, popovers beside the panel, chip-only color control,
+   no one-item menus. Verify each in iteration 2 by clicking, not by reading.
+1. (2026-10-12) Owner feedback 1 answered in `tier3/decide/feedback-1-figma.md`. Unset: minus
+   always visible on a set field, inherited value in secondary text, Delete/Backspace on non-text
+   controls, the minus's tooltip names the value and layer that come back (element already has it:
+   `styles.agreement(..., { below })`), one word Clear / Clear all. Split: two row kinds only
+   (layer, folder); a split layer is a layer with children (Figma frame vs group; instance rules
+   for children); a child's unset field shows the parent, so "Follow parent" becomes Clear all.
+   Figma pass: adopt Selection colors on folders, remove eye and lock from the panel header (a
+   second control for the row's state), eye per list entry, empty list title opens "+".
+2. (2026-10-12) Tier 3 is unified styles. My answers to the owner's 12 questions:
    `tier3/decide/figma.md`. Core calls: "+" only where a list grows; a single-value section is
    one unit added by its title (Figma's stroke grammar), placeholders show the value beneath;
    unwritten sections fold into one "+" per Nodes/Edges heading; a data gradient
    (`GradientEditor` over a histogram); split parent drawn as a Figma frame, folder as a group;
    label text styles as presets; one rule editor shared with Data > Filters. Reason: the panel had
    11 empty titles and "+" promised a second value where only one can exist.
-1. (2026-10-11) Round 5 walk: 0 severity 3 left. Six new severity 2s, each with a mechanism or a
+3. (2026-10-11) Round 5 walk: 0 severity 3 left. Six new severity 2s, each with a mechanism or a
    script: Filter to neighbors hidden for Follow Out/In (element rule has no direction), Escape
    after a Follow click clears the selection, the To list painted under Follow at 1280 x 800,
    pickers show ids for a name match, missing-column rule says "Nothing matches" and drops the
    selection, "minutes 10" is "No match" while "10" works.
-2. (2026-10-11) Verified fixed on 8c015b806: New project > Discard, "10" offers "or more", layer
+4. (2026-10-11) Verified fixed on 8c015b806: New project > Discard, "10" offers "or more", layer
    named "minutes >= `10`", table "12 of 41 edges", off step stays off, Delete returns the
    inspector to the graph, note Cancel focuses "+".
-3. (2026-10-11) Bring to round 5's critique: the neighborhood rule gains an optional direction
+5. (2026-10-11) Bring to round 5's critique: the neighborhood rule gains an optional direction
    (element, additive) so the command stays for Out/In; `find` reads "<column> <number>".
-4. (2026-10-11) A suggestion must pass the consumer's own acceptance test, fixed in the element,
+6. (2026-10-11) A suggestion must pass the consumer's own acceptance test, fixed in the element,
    never guarded in the app. Not "has matches": a valid rule that matches nothing is still a rule.
-5. (2026-10-11) Diff before cutting words; scope words that prevent a wrong reading stay.
-6. (2026-10-11) Delete app copies of element logic by adding the element export. Additive exports
+7. (2026-10-11) Diff before cutting words; scope words that prevent a wrong reading stay.
+8. (2026-10-11) Delete app copies of element logic by adding the element export. Additive exports
    are the team's call; record them, do not ask.
-7. (2026-10-11) Label and node overlap stays an element fix on the owner's list. No app font,
+9. (2026-10-11) Label and node overlap stays an element fix on the owner's list. No app font,
    offset, seed or names-off setup.
-8. (2026-10-11) A source-visible mechanism needs no extra script; a single-source claim does.
-   A keyboard-only claim (Color Escape) did not reproduce by pointer: say which input was tried.
-9. (2026-10-11) Still open, carried: Shift toggle, To = From, weight forgotten, Delete key,
-   step-editor Tab/Escape, focus after pick, empty Filters form, N after run row, Follow arrows,
-   Analyze field moves, note edit, popover covers nodes.
-10. (2026-10-10) Walk Figma's selection grammar on every object kind and every command twice then
+10. (2026-10-11) A source-visible mechanism needs no extra script; a single-source claim does.
+    A keyboard-only claim (Color Escape) did not reproduce by pointer: say which input was tried.
+11. (2026-10-11) Still open, carried: Shift toggle, To = From, weight forgotten, Delete key,
+    step-editor Tab/Escape, focus after pick, empty Filters form, N after run row, Follow arrows,
+    Analyze field moves, note edit, popover covers nodes.
+12. (2026-10-10) Walk Figma's selection grammar on every object kind and every command twice then
     Undo; when a crash appears, rerun the minimal state in its own folder at once.
-11. (2026-10-10) Do NOT move: Replace, weight role at load, note subject, names-off default,
+13. (2026-10-10) Do NOT move: Replace, weight role at load, note subject, names-off default,
     Recent in Analyze, Filters door, Analyze ranking, "Settings" rail label.
-12. (2026-10-09) Deferred divergences, only with clean-run evidence: Save form vs live inspector;
+14. (2026-10-09) Deferred divergences, only with clean-run evidence: Save form vs live inspector;
     checkbox vs eye; two row grammars; add-first for "+".
-13. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
+15. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
     graphty's ontology. Every control must visibly change canvas, key or popover.
-14. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
+16. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
 
 ## Priorities and values
 
@@ -112,6 +126,11 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-12 (me, owner feedback 1) Recommended: unsetting is one grammar for every field and for
+  split children; split stays but is not a row kind; Figma pass with 10 adopts, 2 adapts, 3
+  rejects (Effects default entry, detach on a derived binding, components and modes). Reason: the
+  owner judges by consistency of interaction, and every in-between row costs a rule to learn;
+  Figma itself tolerates frame/group and instance only because their gestures are identical.
 - 2026-10-12 (me, tier 3 answers, `tier3/decide/figma.md`) Recommended: section-as-unit for
   single-value sections (changes the owner's 2026-10-01 "+ adds a line" rule there, flagged);
   add-first effect entries with an icon type select; written sections only, the rest behind one
@@ -209,6 +228,19 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-10-12 Tier 3 iteration 1 walk. Worked: one driver (`tmp/figma-i1/walk.mjs`) that loads
+  the sample, builds the owner-review scene through the session, then runs a steps file with a
+  try per section, so one miss cost one section and not the run; two browser runs covered the
+  whole panel. Measuring in the page (row widths, tab sequence, aria names) turned two "looks
+  wrong" into causes. Did not: all four browser slots were held by visual-preview captures for
+  about 20 minutes; a first run with a 400 s timeout died waiting. Lesson: start the walk in the
+  background with a long timeout and read the design meanwhile; read the source gate behind a
+  missing section before calling it unbuilt.
+- 2026-10-12 Owner feedback 1. Worked: the capture (`design/ui/figma/components.md` 22, 28, 31;
+  `right-sidebar-selection/README.md` 4, 5, 15, 22, 24) answered every Figma question without a
+  browser; checking the element first showed `agreement` already returns the deciding layer.
+  Did not: first draft 1,436 words against 1,200. Lesson (again): cap each list item at two lines
+  while drafting.
 - 2026-10-12 Tier 3 answers. Worked: reading the element's types before proposing (RuleTree,
   EdgeReading, AttributeDescriptor, Lighting) turned several "element must add" items into
   "element already has", and found that JMESPath has no arithmetic (odd ids unreachable).

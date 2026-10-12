@@ -4,6 +4,7 @@ import { GEXF_ISSUE, gexfImporter } from "@graphty/graph-io/gexf";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import {
     aggregateErrors,
+    attributeKey,
     attributeTitle,
     cell,
     components,
@@ -215,18 +216,26 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
 
     /**
      * Copy the lifetime, spells and declared attributes shared by nodes and edges.
+     * @param kind - node or edge
      * @param table - the node or edge table
      * @param row - the row
      * @param record - the record being built
      */
-    const common = (table: Iterable<Column>, row: number, record: Record<string, unknown>): void => {
+    const common = (
+        kind: "node" | "edge",
+        table: Iterable<Column>,
+        row: number,
+        record: Record<string, unknown>,
+    ): void => {
         Object.assign(record, interval(table, row));
         for (const column of table) {
             const slices = dynamic.get(column)?.get(row);
             if (slices !== undefined) {
                 // A static value next to timed slices was an untimed attvalue; it leads the list.
-                const title = attributeTitle(column.meta.name, column.meta.origin?.id ?? "");
-                record[title] = column.isSet(row) ? [{ value: cell(column, row) }, ...slices] : slices;
+                const id = column.meta.origin?.id ?? "";
+                record[attributeKey(kind, attributeTitle(column.meta.name, id), id)] = column.isSet(row)
+                    ? [{ value: cell(column, row) }, ...slices]
+                    : slices;
                 continue;
             }
 
@@ -247,7 +256,7 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
                 const { id, type } = column.meta.origin;
                 const value = cell(column, row);
                 // A date attribute is stored as epoch milliseconds; the record keeps it as text.
-                record[attributeTitle(column.meta.name, id)] =
+                record[attributeKey(kind, attributeTitle(column.meta.name, id), id)] =
                     (type === "date" || type === "dateTime") && typeof value === "number"
                         ? timeText(value, null, type)
                         : value;
@@ -269,7 +278,7 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
                 record.label = label.value(row);
             }
 
-            common(nodes, row, record);
+            common("node", nodes, row, record);
             for (const column of nodes) {
                 if (!column.isSet(row)) {
                     continue;
@@ -312,7 +321,45 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
             }
 
             // Last, so an attribute titled `label` or `type` overrides the edge's own.
-            common(edges, row, record);
+            common("edge", edges, row, record);
+        },
+        path(kind, column): string | null {
+            const table = kind === "node" ? nodes : edges;
+            const { name, role, origin } = column.meta;
+            if (column.meta.dynamic) {
+                return null;
+            }
+
+            if (typeof origin?.id === "string" && role === null) {
+                if (origin.type === "date" || origin.type === "dateTime") {
+                    return null;
+                }
+
+                const key = attributeKey(kind, attributeTitle(name, origin.id), origin.id);
+                // On a node, the viz values are written over an attribute titled like them.
+                const viz = kind === "node" && (key === "position" || key === "color" || key === "size");
+                return viz && table.byRole(key) !== null ? null : key;
+            }
+
+            const titled = (key: string): boolean =>
+                [...table].some(
+                    (each) =>
+                        typeof each.meta.origin?.id === "string" &&
+                        each.meta.role === null &&
+                        attributeKey(kind, attributeTitle(each.meta.name, each.meta.origin.id), each.meta.origin.id) ===
+                            key,
+                );
+            switch (role) {
+                case "label":
+                    // An attribute titled `label` is written over the file's label.
+                    return titled("label") ? null : "label";
+                case "size":
+                    return kind === "node" ? "size" : null;
+                case "id":
+                    return kind === "edge" ? "gexfId" : null;
+                default:
+                    return null;
+            }
         },
     };
 }
@@ -400,7 +447,7 @@ export class GEXFDataSource extends DataSource {
         // the builder while it is still empty -- which is the only moment the builder accepts one.
         this.declareDirection(direction.directed, direction.statedBy, direction.conflicts);
 
-        const { nodes, edges } = toRecords(imported, gexfMapping(snapshot, direction.directed));
+        const { nodes, edges } = toRecords(imported, gexfMapping(snapshot, direction.directed), this);
         yield* this.chunkData(nodes, edges);
     }
 

@@ -4,6 +4,7 @@ import { GRAPHML_ISSUE, graphmlImporter } from "@graphty/graph-io/graphml";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import {
     aggregateErrors,
+    attributeKey,
     attributeTitle,
     cell,
     components,
@@ -52,11 +53,12 @@ function writeYFiles(key: string, column: Column, row: number, record: Record<st
  * A key the file declared lands under its `attr.name`. The raw yFiles graphics tree is left out,
  * because its readable parts (position, size, colours, label, shape, arrows) are written from the
  * `yfiles.*` columns instead.
+ * @param kind - node or edge
  * @param table - the node or edge table
  * @param row - the row
  * @param record - the record being built
  */
-function writeRow(table: Iterable<Column>, row: number, record: Record<string, unknown>): void {
+function writeRow(kind: "node" | "edge", table: Iterable<Column>, row: number, record: Record<string, unknown>): void {
     for (const column of table) {
         if (!column.isSet(row)) {
             continue;
@@ -66,7 +68,7 @@ function writeRow(table: Iterable<Column>, row: number, record: Record<string, u
         if (name.startsWith(YFILES)) {
             writeYFiles(name.slice(YFILES.length), column, row, record);
         } else if (typeof origin?.id === "string" && origin.namespace !== "yfiles" && column.meta.role !== "id") {
-            record[attributeTitle(name, origin.id)] = cell(column, row);
+            record[attributeKey(kind, attributeTitle(name, origin.id), origin.id)] = cell(column, row);
         }
     }
 }
@@ -83,14 +85,26 @@ function graphmlMapping(snapshot: GraphSnapshot, graphDirected: boolean | null):
     const directed = snapshot.edges.byRole("directed");
     return {
         node(row, record): void {
-            writeRow(snapshot.nodes, row, record);
+            writeRow("node", snapshot.nodes, row, record);
         },
         edge(row, record): void {
             if (directed?.isSet(row) && directed.value(row) !== graphDirected) {
                 record.directed = directed.value(row);
             }
 
-            writeRow(snapshot.edges, row, record);
+            writeRow("edge", snapshot.edges, row, record);
+        },
+        path(kind, column): string | null {
+            const { name, origin } = column.meta;
+            if (name.startsWith(YFILES)) {
+                const key = name.slice(YFILES.length);
+                // The element rewrites these two into its own shapes.
+                return key === "position" || key === "shape" ? null : key;
+            }
+
+            return typeof origin?.id === "string" && origin.namespace !== "yfiles" && column.meta.role !== "id"
+                ? attributeKey(kind, attributeTitle(name, origin.id), origin.id)
+                : null;
         },
     };
 }
@@ -173,7 +187,11 @@ export class GraphMLDataSource extends DataSource {
             this.declareDirection(direction.directed, direction.statedBy, direction.conflicts);
         }
 
-        const { nodes, edges } = toRecords(imported, graphmlMapping(imported.snapshot, direction?.directed ?? null));
+        const { nodes, edges } = toRecords(
+            imported,
+            graphmlMapping(imported.snapshot, direction?.directed ?? null),
+            this,
+        );
         yield* this.chunkData(nodes, edges);
     }
 }

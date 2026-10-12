@@ -408,6 +408,10 @@ declared type:
   holding XML elements rather than text -- is left off the record and reported as a loading error;
 - a node id declared twice is one node, with the later declaration's values winning.
 
+A declared attribute titled `id` never replaces a node's id (nor one titled `source` or `target`
+an edge's endpoints): it goes on the record as `id#<attribute id>`, such as `id#att1` for a GEXF
+attribute declared `id="att1"` or `id#d1` for a GraphML key declared `id="d1"`.
+
 The GEXF `label=` attribute is overridden by a declared attribute titled `label`, and the
 `viz:` position, colour and size override attributes titled `position`, `color` or `size`.
 Nodes arrive in the order the file declares them. A GraphML document with no `<graph>` element
@@ -428,8 +432,19 @@ These are read by `@graphty/graph-io` too, and each record keeps the keys the fi
   and the later line fills in only what the first left out (`1 0.1 0.2` then `1 "z"` is a node at
   0.1, 0.2 labelled `z`). A DOT node written in several statements has the attributes of all of
   them, the later ones winning, as Graphviz draws it;
-- a DOT cluster subgraph is a node only when an edge names it, and `pos` stays the text the file
-  wrote.
+- a DOT cluster subgraph is a node of its own, carrying the cluster's attributes (its `label`,
+  `fillcolor` and so on), and `pos` stays the text the file wrote.
+
+A Cytoscape.js document (an `elements` object or array, as Cytoscape.js and Cytoscape desktop's
+`.cyjs` export write it), a graphology document and a vis.js document are read in their own shape:
+
+- a Cytoscape.js element's record holds its `data` keys under their own names, its `classes`, its
+  `position` (with y pointing up, as the element draws it) and its `parent` as the parent node's
+  id. A document that also carries a `style` stylesheet loads the same way;
+- a graphology node's record is the record the file wrote, plus `id` (its `key`), so its
+  attributes stay under `attributes`; an edge's record is the record the file wrote. A node no
+  edge names is loaded too;
+- a vis.js record is the record the file wrote.
 
 ### Changes in graphty-element 3.1
 

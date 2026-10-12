@@ -1,7 +1,7 @@
 import { PAJEK_ISSUE, pajekImporter } from "@graphty/graph-io/pajek";
 
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
-import { copyColumns, importWhole, toRecords } from "./graph-io-import.js";
+import { copiedPath, copyColumns, importWhole, toRecords } from "./graph-io-import.js";
 
 // Pajek has no additional config currently, so just use the base config
 type PajekDataSourceConfig = BaseDataSourceConfig;
@@ -82,21 +82,32 @@ export class PajekDataSource extends DataSource {
 
         const threeD = snapshot.nodes.byRole("position")?.meta.extra.sourceDims === 3;
         const directed = snapshot.edges.get(DIRECTED_COLUMN);
-        const { nodes, edges } = toRecords(imported, {
-            node: (row, record) => {
-                copyColumns(snapshot.nodes, row, record);
-                nodeRecord(record, threeD);
+        const { nodes, edges } = toRecords(
+            imported,
+            {
+                node: (row, record) => {
+                    copyColumns(snapshot.nodes, row, record);
+                    nodeRecord(record, threeD);
+                },
+                edge: (row, record) => {
+                    copyColumns(snapshot.edges, row, record);
+                    const { value } = record;
+                    delete record.value;
+                    record.directed = directed?.value(row) ?? snapshot.directed;
+                    if (value !== undefined) {
+                        record.weight = value;
+                    }
+                },
+                path: (kind, column) => {
+                    if (column.meta.role === "position") {
+                        return null;
+                    }
+
+                    return kind === "edge" && column.meta.name === "value" ? "weight" : copiedPath(kind, column);
+                },
             },
-            edge: (row, record) => {
-                copyColumns(snapshot.edges, row, record);
-                const { value } = record;
-                delete record.value;
-                record.directed = directed?.value(row) ?? snapshot.directed;
-                if (value !== undefined) {
-                    record.weight = value;
-                }
-            },
-        });
+            this,
+        );
 
         yield* this.chunkData(nodes, edges);
     }

@@ -1,0 +1,3103 @@
+{
+    "cx/generated/graphty-written-block-other-graph.cx": {
+        "nodes": [
+            "AOPid",
+            "AOPtitle",
+            "AOid",
+            "AOtitle",
+            "CNVassociated",
+            "ChEBIid",
+            "ChEBIrole",
+            "ChEBIrolename",
+            "ChEMBLid",
+            "DisGeNET_source",
+            "EdgeCount",
+            "Ensembl",
+            "HGNCsymbol",
+            "Indegree",
+            "KEid",
+            "KEisMIEin",
+            "KEtitle",
+            "N_nodes",
+            "Outdegree",
+            "PathwayID",
+            "PathwayTitle",
+            "Publication_source",
+            "WikiPathways_CNV",
+            "WikiPathways_noCNV",
+            "WikiPathways_source",
+            "compound_name",
+            "fromDisGeNET",
+            "fromPublication",
+            "fromWikiPathways",
+            "gLayCluster",
+            "id",
+            "label",
+            "name",
+            "position",
+            "snpID",
+            "summary_term",
+            "type"
+        ],
+        "edges": [
+            "CTL.Ext",
+            "CTL.LinkSet",
+            "CTL.datasource",
+            "CTL.interaction",
+            "CTL.pChEMBL",
+            "EdgeBetweenness",
+            "KEid",
+            "KEisMIEin",
+            "id",
+            "interaction",
+            "isMIEedge",
+            "name",
+            "source",
+            "target"
+        ]
+    },
+    "cx/generated/graphty-written-block-truncated.cx": {
+        "nodes": [
+            "AOPid",
+            "AOPtitle",
+            "AOid",
+            "AOtitle",
+            "CNVassociated",
+            "ChEBIid",
+            "ChEBIrole",
+            "ChEBIrolename",
+            "ChEMBLid",
+            "DisGeNET_source",
+            "EdgeCount",
+            "Ensembl",
+            "HGNCsymbol",
+            "Indegree",
+            "KEid",
+            "KEisMIEin",
+            "KEtitle",
+            "N_nodes",
+            "Outdegree",
+            "PathwayID",
+            "PathwayTitle",
+            "Publication_source",
+            "WikiPathways_CNV",
+            "WikiPathways_noCNV",
+            "WikiPathways_source",
+            "compound_name",
+            "fromDisGeNET",
+            "fromPublication",
+            "fromWikiPathways",
+            "gLayCluster",
+            "id",
+            "label",
+            "name",
+            "position",
+            "snpID",
+            "summary_term",
+            "type"
+        ],
+        "edges": [
+            "CTL.Ext",
+            "CTL.LinkSet",
+            "CTL.datasource",
+            "CTL.interaction",
+            "CTL.pChEMBL",
+            "EdgeBetweenness",
+            "KEid",
+            "KEisMIEin",
+            "id",
+            "interaction",
+            "isMIEedge",
+            "name",
+            "source",
+            "target"
+        ]
+    },
+    "cx/generated/graphty-written-native-edit.cx": {
+        "nodes": [
+            "AOPid",
+            "AOPtitle",
+            "AOid",
+            "AOtitle",
+            "CNVassociated",
+            "ChEBIid",
+            "ChEBIrole",
+            "ChEBIrolename",
+            "ChEMBLid",
+            "DisGeNET_source",
+            "EdgeCount",
+            "Ensembl",
+            "HGNCsymbol",
+            "Indegree",
+            "KEid",
+            "KEisMIEin",
+            "KEtitle",
+            "NODE_FILL_COLOR",
+            "N_nodes",
+            "Outdegree",
+            "PathwayID",
+            "PathwayTitle",
+            "Publication_source",
+            "WikiPathways_CNV",
+            "WikiPathways_noCNV",
+            "WikiPathways_source",
+            "compound_name",
+            "fromDisGeNET",
+            "fromPublication",
+            "fromWikiPathways",
+            "gLayCluster",
+            "id",
+            "label",
+            "name",
+            "position",
+            "snpID",
+            "summary_term",
+            "type"
+        ],
+        "edges": [
+            "CTL.Ext",
+            "CTL.LinkSet",
+            "CTL.datasource",
+            "CTL.interaction",
+            "CTL.pChEMBL",
+            "EdgeBetweenness",
+            "KEid",
+            "KEisMIEin",
+            "id",
+            "interaction",
+            "isMIEedge",
+            "name",
+            "source",
+            "target"
+        ]
+    },
+    "cx/generated/graphty-written.cx": {
+        "nodes": [
+            "AOPid",
+            "AOPtitle",
+            "AOid",
+            "AOtitle",
+            "CNVassociated",
+            "ChEBIid",
+            "ChEBIrole",
+            "ChEBIrolename",
+            "ChEMBLid",
+            "DisGeNET_source",
+            "EdgeCount",
+            "Ensembl",
+            "HGNCsymbol",
+            "Indegree",
+            "KEid",
+            "KEisMIEin",
+            "KEtitle",
+            "N_nodes",
+            "Outdegree",
+            "PathwayID",
+            "PathwayTitle",
+            "Publication_source",
+            "WikiPathways_CNV",
+            "WikiPathways_noCNV",
+            "WikiPathways_source",
+            "compound_name",
+            "fromDisGeNET",
+            "fromPublication",
+            "fromWikiPathways",
+            "gLayCluster",
+            "id",
+            "label",
+            "name",
+            "position",
+            "snpID",
+            "summary_term",
+            "type"
+        ],
+        "edges": [
+            "CTL.Ext",
+            "CTL.LinkSet",
+            "CTL.datasource",
+            "CTL.interaction",
+            "CTL.pChEMBL",
+            "EdgeBetweenness",
+            "KEid",
+            "KEisMIEin",
+            "id",
+            "interaction",
+            "isMIEedge",
+            "name",
+            "source",
+            "target"
+        ]
+    },
+    "cx/ndex-821a7310-beb6-11ed-a79c-005056ae23aa.cx.gz": {
+        "nodes": [
+            "@id",
+            "Omics Visualizer::Connected rows",
+            "Omics Visualizer::Viz DonutChart",
+            "Omics Visualizer::Viz DonutChart Values 1",
+            "Omics Visualizer::Viz DonutChart Values 2",
+            "Symbols.x",
+            "Symbols.y",
+            "adj.pvalue_iC3b_1h",
+            "adj.pvalue_iC3b_3h",
+            "both_go_terms",
+            "compartment::cytoskeleton",
+            "compartment::cytosol",
+            "compartment::endoplasmic reticulum",
+            "compartment::endosome",
+            "compartment::extracellular",
+            "compartment::golgi apparatus",
+            "compartment::lysosome",
+            "compartment::mitochondrion",
+            "compartment::nucleus",
+            "compartment::peroxisome",
+            "compartment::plasma membrane",
+            "display name",
+            "id",
+            "log2FC_iC3b_1h",
+            "log2FC_iC3b_3h",
+            "name",
+            "peptide_iC3b_1h",
+            "peptide_iC3b_3h",
+            "position",
+            "query term",
+            "stringdb::STRING style",
+            "stringdb::canonical name",
+            "stringdb::database identifier",
+            "stringdb::description",
+            "stringdb::enhancedLabel Passthrough",
+            "stringdb::namespace",
+            "stringdb::node type",
+            "stringdb::sequence",
+            "stringdb::species",
+            "stringdb::structures",
+            "tissue::adrenal gland",
+            "tissue::blood",
+            "tissue::bone",
+            "tissue::bone marrow",
+            "tissue::eye",
+            "tissue::gall bladder",
+            "tissue::heart",
+            "tissue::intestine",
+            "tissue::kidney",
+            "tissue::liver",
+            "tissue::lung",
+            "tissue::muscle",
+            "tissue::nervous system",
+            "tissue::pancreas",
+            "tissue::saliva",
+            "tissue::skin",
+            "tissue::spleen",
+            "tissue::stomach",
+            "tissue::thyroid gland",
+            "tissue::urine"
+        ],
+        "edges": [
+            "id",
+            "interaction",
+            "name",
+            "source",
+            "stringdb::coexpression",
+            "stringdb::cooccurrence",
+            "stringdb::databases",
+            "stringdb::experiments",
+            "stringdb::score",
+            "stringdb::textmining",
+            "target"
+        ]
+    },
+    "cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx": {
+        "nodes": [
+            "AOPid",
+            "AOPtitle",
+            "AOid",
+            "AOtitle",
+            "CNVassociated",
+            "ChEBIid",
+            "ChEBIrole",
+            "ChEBIrolename",
+            "ChEMBLid",
+            "DisGeNET_source",
+            "EdgeCount",
+            "Ensembl",
+            "HGNCsymbol",
+            "Indegree",
+            "KEid",
+            "KEisMIEin",
+            "KEtitle",
+            "NODE_BORDER_PAINT",
+            "NODE_BORDER_WIDTH",
+            "N_nodes",
+            "Outdegree",
+            "PathwayID",
+            "PathwayTitle",
+            "Publication_source",
+            "WikiPathways_CNV",
+            "WikiPathways_noCNV",
+            "WikiPathways_source",
+            "compound_name",
+            "fromDisGeNET",
+            "fromPublication",
+            "fromWikiPathways",
+            "gLayCluster",
+            "id",
+            "label",
+            "name",
+            "position",
+            "snpID",
+            "summary_term",
+            "type"
+        ],
+        "edges": [
+            "CTL.Ext",
+            "CTL.LinkSet",
+            "CTL.datasource",
+            "CTL.interaction",
+            "CTL.pChEMBL",
+            "EdgeBetweenness",
+            "KEid",
+            "KEisMIEin",
+            "id",
+            "interaction",
+            "isMIEedge",
+            "name",
+            "source",
+            "target"
+        ]
+    },
+    "cx/ndex-da86cc1f-9544-11e5-b435-06603eb7f303.cx.gz": {
+        "nodes": ["Cell", "Disease", "citations", "functionTerm", "id", "reifiedEdge", "supports"],
+        "edges": ["Cell", "Disease", "citations", "id", "interaction", "source", "supports", "target"]
+    },
+    "cx/ndex-f5fd4274-a8c1-11e8-9520-0ac135e8bacf.cx.gz": {
+        "nodes": [
+            "Functional Network area",
+            "GeneCards",
+            "General classification",
+            "LABEL",
+            "Matching.Attribute",
+            "NODE_CUSTOMGRAPHICS_SIZE_1",
+            "NODE_CUSTOMGRAPHICS_SIZE_2",
+            "NODE_CUSTOMGRAPHICS_SIZE_3",
+            "NODE_CUSTOMGRAPHICS_SIZE_4",
+            "NODE_CUSTOMGRAPHICS_SIZE_5",
+            "NODE_CUSTOMGRAPHICS_SIZE_6",
+            "NODE_CUSTOMGRAPHICS_SIZE_7",
+            "NODE_CUSTOMGRAPHICS_SIZE_8",
+            "NODE_CUSTOMGRAPHICS_SIZE_9",
+            "NODE_DEPTH",
+            "NODE_HEIGHT",
+            "NODE_SHAPE",
+            "NODE_SIZE",
+            "NODE_WIDTH",
+            "Synthetic function",
+            "id",
+            "name",
+            "position"
+        ],
+        "edges": ["id", "interaction", "name", "source", "target"]
+    },
+    "cx2/generated/graphty-written-block-other-graph.cx2": {
+        "nodes": [
+            "Functional Network area",
+            "GeneCards",
+            "General classification",
+            "LABEL",
+            "Matching.Attribute",
+            "Synthetic function",
+            "id",
+            "name",
+            "position"
+        ],
+        "edges": ["id", "interaction", "name", "source", "target"]
+    },
+    "cx2/generated/graphty-written-block-truncated.cx2": {
+        "nodes": [
+            "Functional Network area",
+            "GeneCards",
+            "General classification",
+            "LABEL",
+            "Matching.Attribute",
+            "Synthetic function",
+            "id",
+            "name",
+            "position"
+        ],
+        "edges": ["id", "interaction", "name", "source", "target"]
+    },
+    "cx2/generated/graphty-written-native-edit.cx2": {
+        "nodes": [
+            "Functional Network area",
+            "GeneCards",
+            "General classification",
+            "LABEL",
+            "Matching.Attribute",
+            "NODE_BACKGROUND_COLOR",
+            "Synthetic function",
+            "id",
+            "name",
+            "position"
+        ],
+        "edges": ["id", "interaction", "name", "source", "target"]
+    },
+    "cx2/generated/graphty-written.cx2": {
+        "nodes": [
+            "Functional Network area",
+            "GeneCards",
+            "General classification",
+            "LABEL",
+            "Matching.Attribute",
+            "Synthetic function",
+            "id",
+            "name",
+            "position"
+        ],
+        "edges": ["id", "interaction", "name", "source", "target"]
+    },
+    "cx2/generated/mapping-edges.cx2": {
+        "nodes": ["NODE_BACKGROUND_COLOR", "NODE_SHAPE", "NODE_TRANSPARENCY", "id", "k", "name", "tags", "w"],
+        "edges": ["i", "id", "source", "target"]
+    },
+    "cx2/ndex-1014623d-c2e0-11f1-be0a-005056ae3c32.cx2.gz": {
+        "nodes": [
+            "aa_gain",
+            "amino_acid",
+            "betweenness",
+            "color",
+            "degree",
+            "group",
+            "id",
+            "name",
+            "position",
+            "region",
+            "sbml_id",
+            "sbml_name",
+            "sizepx",
+            "tag"
+        ],
+        "edges": [
+            "BEND_MAP_ID",
+            "EDGE_LINE_COLOR",
+            "EDGE_SOURCE_ARROW_COLOR",
+            "EDGE_TARGET_ARROW_COLOR",
+            "bundled",
+            "color",
+            "etype",
+            "id",
+            "id#cx2",
+            "segd",
+            "segw",
+            "source",
+            "target",
+            "width"
+        ]
+    },
+    "cx2/ndex-440c8958-1dd0-11ef-9621-005056ae23aa.cx2.gz": {
+        "nodes": [
+            "AOPid",
+            "AOPtitle",
+            "AOid",
+            "AOtitle",
+            "CNVassociated",
+            "ChEBIid",
+            "ChEBIrole",
+            "ChEBIrolename",
+            "ChEMBLid",
+            "DisGeNET_source",
+            "EdgeCount",
+            "Ensembl",
+            "HGNCsymbol",
+            "Indegree",
+            "KEid",
+            "KEisMIEin",
+            "KEtitle",
+            "NODE_BORDER_COLOR",
+            "NODE_BORDER_WIDTH",
+            "N_nodes",
+            "Outdegree",
+            "PathwayID",
+            "PathwayTitle",
+            "Publication_source",
+            "WikiPathways_CNV",
+            "WikiPathways_noCNV",
+            "WikiPathways_source",
+            "compound_name",
+            "fromDisGeNET",
+            "fromPublication",
+            "fromWikiPathways",
+            "gLayCluster",
+            "id",
+            "label",
+            "name",
+            "position",
+            "snpID",
+            "summary_term",
+            "type"
+        ],
+        "edges": [
+            "CTL.Ext",
+            "CTL.LinkSet",
+            "CTL.datasource",
+            "CTL.interaction",
+            "CTL.pChEMBL",
+            "EdgeBetweenness",
+            "KEid",
+            "KEisMIEin",
+            "id",
+            "interaction",
+            "isMIEedge",
+            "name",
+            "source",
+            "target"
+        ]
+    },
+    "cx2/ndex-821a7310-beb6-11ed-a79c-005056ae23aa.cx2.gz": {
+        "nodes": [
+            "@id",
+            "Omics Visualizer::Connected rows",
+            "Omics Visualizer::Viz DonutChart",
+            "Omics Visualizer::Viz DonutChart Values 1",
+            "Omics Visualizer::Viz DonutChart Values 2",
+            "Symbols.x",
+            "Symbols.y",
+            "adj.pvalue_iC3b_1h",
+            "adj.pvalue_iC3b_3h",
+            "both_go_terms",
+            "compartment::cytoskeleton",
+            "compartment::cytosol",
+            "compartment::endoplasmic reticulum",
+            "compartment::endosome",
+            "compartment::extracellular",
+            "compartment::golgi apparatus",
+            "compartment::lysosome",
+            "compartment::mitochondrion",
+            "compartment::nucleus",
+            "compartment::peroxisome",
+            "compartment::plasma membrane",
+            "display name",
+            "id",
+            "log2FC_iC3b_1h",
+            "log2FC_iC3b_3h",
+            "name",
+            "peptide_iC3b_1h",
+            "peptide_iC3b_3h",
+            "position",
+            "query term",
+            "stringdb::STRING style",
+            "stringdb::canonical name",
+            "stringdb::database identifier",
+            "stringdb::description",
+            "stringdb::enhancedLabel Passthrough",
+            "stringdb::namespace",
+            "stringdb::node type",
+            "stringdb::sequence",
+            "stringdb::species",
+            "stringdb::structures",
+            "tissue::adrenal gland",
+            "tissue::blood",
+            "tissue::bone",
+            "tissue::bone marrow",
+            "tissue::eye",
+            "tissue::gall bladder",
+            "tissue::heart",
+            "tissue::intestine",
+            "tissue::kidney",
+            "tissue::liver",
+            "tissue::lung",
+            "tissue::muscle",
+            "tissue::nervous system",
+            "tissue::pancreas",
+            "tissue::saliva",
+            "tissue::skin",
+            "tissue::spleen",
+            "tissue::stomach",
+            "tissue::thyroid gland",
+            "tissue::urine"
+        ],
+        "edges": [
+            "id",
+            "interaction",
+            "name",
+            "source",
+            "stringdb::coexpression",
+            "stringdb::cooccurrence",
+            "stringdb::databases",
+            "stringdb::experiments",
+            "stringdb::score",
+            "stringdb::textmining",
+            "target"
+        ]
+    },
+    "cx2/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx2": {
+        "nodes": [
+            "AOPid",
+            "AOPtitle",
+            "AOid",
+            "AOtitle",
+            "CNVassociated",
+            "ChEBIid",
+            "ChEBIrole",
+            "ChEBIrolename",
+            "ChEMBLid",
+            "DisGeNET_source",
+            "EdgeCount",
+            "Ensembl",
+            "HGNCsymbol",
+            "Indegree",
+            "KEid",
+            "KEisMIEin",
+            "KEtitle",
+            "NODE_BORDER_COLOR",
+            "NODE_BORDER_WIDTH",
+            "N_nodes",
+            "Outdegree",
+            "PathwayID",
+            "PathwayTitle",
+            "Publication_source",
+            "WikiPathways_CNV",
+            "WikiPathways_noCNV",
+            "WikiPathways_source",
+            "compound_name",
+            "fromDisGeNET",
+            "fromPublication",
+            "fromWikiPathways",
+            "gLayCluster",
+            "id",
+            "label",
+            "name",
+            "position",
+            "snpID",
+            "summary_term",
+            "type"
+        ],
+        "edges": [
+            "CTL.Ext",
+            "CTL.LinkSet",
+            "CTL.datasource",
+            "CTL.interaction",
+            "CTL.pChEMBL",
+            "EdgeBetweenness",
+            "KEid",
+            "KEisMIEin",
+            "id",
+            "interaction",
+            "isMIEedge",
+            "name",
+            "source",
+            "target"
+        ]
+    },
+    "cx2/ndex-a2d9d91b-b1dc-11ec-b3be-0ac135e8bacf.cx2.gz": {
+        "nodes": ["abs_wt_Zscore", "id", "name", "position", "wt_Zscore"],
+        "edges": [
+            "automated_textmining",
+            "combined_score",
+            "database_annotated",
+            "experimentally_determined_interaction",
+            "homology",
+            "id",
+            "interaction",
+            "name",
+            "node1_string_id",
+            "node2_string_id",
+            "source",
+            "target"
+        ]
+    },
+    "cx2/ndex-da86cc1f-9544-11e5-b435-06603eb7f303.cx2.gz": {
+        "nodes": ["Cell", "Disease", "id"],
+        "edges": ["Cell", "Disease", "id", "interaction", "source", "target"]
+    },
+    "cx2/ndex-f5fd4274-a8c1-11e8-9520-0ac135e8bacf.cx2": {
+        "nodes": [
+            "Functional Network area",
+            "GeneCards",
+            "General classification",
+            "LABEL",
+            "Matching.Attribute",
+            "NODE_HEIGHT",
+            "NODE_IMAGE_1_SIZE",
+            "NODE_IMAGE_2_SIZE",
+            "NODE_IMAGE_3_SIZE",
+            "NODE_IMAGE_4_SIZE",
+            "NODE_IMAGE_5_SIZE",
+            "NODE_IMAGE_6_SIZE",
+            "NODE_IMAGE_7_SIZE",
+            "NODE_IMAGE_8_SIZE",
+            "NODE_IMAGE_9_SIZE",
+            "NODE_SHAPE",
+            "NODE_WIDTH",
+            "Synthetic function",
+            "id",
+            "name",
+            "position"
+        ],
+        "edges": ["id", "interaction", "name", "source", "target"]
+    },
+    "cys/BasicDataVizDemo.cys": {
+        "nodes": [
+            "COMMON",
+            "gal1RGexp",
+            "gal1RGsig",
+            "gal4RGexp",
+            "gal4RGsig",
+            "gal80Rexp",
+            "gal80Rsig",
+            "id",
+            "name",
+            "position",
+            "selected",
+            "shared name",
+            "z"
+        ],
+        "edges": ["id", "interaction", "name", "selected", "shared interaction", "shared name", "source", "target"]
+    },
+    "cys/STELZL.cys": {
+        "nodes": ["Official HUGO Symbol", "Suspicious", "id", "name", "position", "selected", "shared name", "z"],
+        "edges": ["id", "interaction", "name", "selected", "shared interaction", "shared name", "source", "target"]
+    },
+    "cys/cytoscape-tutorials-AnnotationExample.cys": {
+        "nodes": [
+            "AverageShortestPathLength",
+            "BetweennessCentrality",
+            "COMMON",
+            "ClosenessCentrality",
+            "ClusteringCoefficient",
+            "Degree",
+            "Eccentricity",
+            "IsSingleNode",
+            "NeighborhoodConnectivity",
+            "NumberOfDirectedEdges",
+            "NumberOfUndirectedEdges",
+            "PartnerOfMultiEdgedNodePairs",
+            "Radiality",
+            "SelfLoops",
+            "Stress",
+            "TopologicalCoefficient",
+            "degree.layout",
+            "gal1RGexp",
+            "gal1RGsig",
+            "gal4RGexp",
+            "gal4RGsig",
+            "gal80Rexp",
+            "gal80Rsig",
+            "id",
+            "isExcludedFromPaths",
+            "name",
+            "position",
+            "selected",
+            "shared name",
+            "z"
+        ],
+        "edges": [
+            "EdgeBetweenness",
+            "id",
+            "interaction",
+            "name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target"
+        ]
+    },
+    "cys/cytoscape-tutorials-layout-v1.cys": {
+        "nodes": [
+            "Additional Links",
+            "Degree",
+            "Ensembl Family ID",
+            "EntrezGene ID",
+            "Family Description",
+            "Gene Type",
+            "GeneRIF",
+            "GeneRIF ID",
+            "Locus Tag",
+            "Official Symbol",
+            "PDB ID",
+            "Pathway",
+            "Pathway Link",
+            "PubMed ID",
+            "SGD ID",
+            "SGD symbol",
+            "Source Database",
+            "Source Database ID",
+            "Speices",
+            "Unified UniProt Accession",
+            "Unified UniProt ID",
+            "annotation.Assigned_by",
+            "annotation.DB",
+            "annotation.DB:Reference",
+            "annotation.DB_Object_ID",
+            "annotation.DB_Object_Name",
+            "annotation.DB_Object_Type",
+            "annotation.Date",
+            "annotation.Evidence",
+            "annotation.GO BIOLOGICAL_PROCESS",
+            "annotation.GO CELLULAR_COMPONENT",
+            "annotation.GO MOLECULAR_FUNCTION",
+            "annotation.Qualifier",
+            "annotation.Taxon",
+            "annotation.With (or) From",
+            "canonicalName",
+            "gal1RGexp",
+            "gal1RGsig",
+            "gal4RGexp",
+            "gal4RGsig",
+            "gal80Rexp",
+            "gal80Rsig",
+            "id",
+            "name",
+            "position",
+            "selected",
+            "shared name",
+            "z"
+        ],
+        "edges": [
+            "canonicalName",
+            "id",
+            "interaction",
+            "name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target"
+        ]
+    },
+    "cys/generated/graphty-written-block-other-graph.cys": {
+        "nodes": [
+            "NODE_TYPE",
+            "canonicalName",
+            "id",
+            "label#2",
+            "name",
+            "node.borderColor",
+            "node.fillColor",
+            "node.label",
+            "node.labelColor",
+            "node.lineWidth",
+            "node.shape",
+            "node.size",
+            "position",
+            "vizmap:NGSCheckMate_graph NODE_BORDER_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_FILL_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_HEIGHT",
+            "vizmap:NGSCheckMate_graph NODE_WIDTH"
+        ],
+        "edges": [
+            "canonicalName",
+            "edge.fontSize",
+            "edge.label",
+            "edge.lineWidth",
+            "id",
+            "interaction",
+            "name",
+            "source",
+            "target"
+        ]
+    },
+    "cys/generated/graphty-written-block-truncated.cys": {
+        "nodes": [
+            "NODE_TYPE",
+            "canonicalName",
+            "id",
+            "label#2",
+            "name",
+            "node.borderColor",
+            "node.fillColor",
+            "node.label",
+            "node.labelColor",
+            "node.lineWidth",
+            "node.shape",
+            "node.size",
+            "position",
+            "vizmap:NGSCheckMate_graph NODE_BORDER_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_FILL_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_HEIGHT",
+            "vizmap:NGSCheckMate_graph NODE_WIDTH"
+        ],
+        "edges": [
+            "canonicalName",
+            "edge.fontSize",
+            "edge.label",
+            "edge.lineWidth",
+            "id",
+            "interaction",
+            "name",
+            "source",
+            "target"
+        ]
+    },
+    "cys/generated/graphty-written-native-edit.cys": {
+        "nodes": [
+            "NODE_TYPE",
+            "canonicalName",
+            "graphics",
+            "id",
+            "label#2",
+            "name",
+            "node.borderColor",
+            "node.fillColor",
+            "node.label",
+            "node.labelColor",
+            "node.lineWidth",
+            "node.shape",
+            "node.size",
+            "position",
+            "vizmap:NGSCheckMate_graph NODE_BORDER_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_FILL_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_HEIGHT",
+            "vizmap:NGSCheckMate_graph NODE_WIDTH"
+        ],
+        "edges": [
+            "canonicalName",
+            "edge.fontSize",
+            "edge.label",
+            "edge.lineWidth",
+            "id",
+            "interaction",
+            "name",
+            "source",
+            "target"
+        ]
+    },
+    "cys/generated/graphty-written.cys": {
+        "nodes": [
+            "NODE_TYPE",
+            "canonicalName",
+            "id",
+            "label#2",
+            "name",
+            "node.borderColor",
+            "node.fillColor",
+            "node.label",
+            "node.labelColor",
+            "node.lineWidth",
+            "node.shape",
+            "node.size",
+            "position",
+            "vizmap:NGSCheckMate_graph NODE_BORDER_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_FILL_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_HEIGHT",
+            "vizmap:NGSCheckMate_graph NODE_WIDTH"
+        ],
+        "edges": [
+            "canonicalName",
+            "edge.fontSize",
+            "edge.label",
+            "edge.lineWidth",
+            "id",
+            "interaction",
+            "name",
+            "source",
+            "target"
+        ]
+    },
+    "dot/ArthurConmy_Automatic-Circuit-Discovery__layout.gv": {
+        "nodes": [
+            "_vis_",
+            "class",
+            "color",
+            "fillcolor",
+            "height",
+            "id",
+            "label.position",
+            "penwidth",
+            "pos",
+            "shape",
+            "style",
+            "width",
+            "xlabel"
+        ],
+        "edges": ["_vis_", "class", "color", "id", "penwidth", "source", "style", "target", "weight"]
+    },
+    "dot/DynamicalSystemsGroup_cats__cats_pkg.gv": {
+        "nodes": ["fillcolor", "id", "label", "margin", "name", "shape", "style"],
+        "edges": ["color", "penwidth", "source", "target"]
+    },
+    "dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot": {
+        "nodes": ["color", "colorscheme", "fillcolor", "id", "label", "margin", "shape", "style"],
+        "edges": ["arrowhead", "color", "headport", "source", "style", "tailport", "target"]
+    },
+    "dot/damoqiongqiu_NiceFish__dependencies.dot": {
+        "nodes": ["colorscheme", "fillcolor", "id", "label", "shape", "style"],
+        "edges": ["lhead", "ltail", "source", "style", "target"]
+    },
+    "dot/decentraland_architecture__architecture.dot": {
+        "nodes": [
+            "URL",
+            "bgcolor",
+            "colorscheme",
+            "fillcolor",
+            "fixedsize",
+            "fontname",
+            "fontsize",
+            "height",
+            "id",
+            "label",
+            "shape",
+            "style",
+            "width"
+        ],
+        "edges": ["arrowhead", "dir", "fontname", "label", "lhead", "ltail", "source", "style", "target"]
+    },
+    "dot/generated/clusters-200.gv": {
+        "nodes": ["fillcolor", "id", "style"],
+        "edges": []
+    },
+    "dot/generated/clusters-40.gv": {
+        "nodes": ["fillcolor", "id", "style"],
+        "edges": ["source", "target"]
+    },
+    "dot/generated/colors-and-scopes.gv": {
+        "nodes": ["color", "fillcolor", "fontcolor", "id", "label", "penwidth", "shape", "style"],
+        "edges": ["arrowhead", "arrowtail", "color", "dir", "source", "style", "target"]
+    },
+    "dot/generated/graphty-written.gv": {
+        "nodes": ["color", "fillcolor", "id", "label", "peripheries", "shape", "style"],
+        "edges": ["dir", "penwidth", "source", "style", "target", "weight"]
+    },
+    "dot/generated/random-100.gv": {
+        "nodes": ["fillcolor", "fixedsize", "fontsize", "id", "shape", "style", "width"],
+        "edges": ["color", "penwidth", "source", "style", "target"]
+    },
+    "dot/generated/random-1000.gv": {
+        "nodes": ["fillcolor", "fixedsize", "fontsize", "id", "shape", "style", "width"],
+        "edges": ["color", "penwidth", "source", "style", "target"]
+    },
+    "dot/generated/random-10000.gv.gz": {
+        "nodes": ["fillcolor", "fixedsize", "fontsize", "id", "shape", "style", "width"],
+        "edges": ["color", "penwidth", "source", "style", "target"]
+    },
+    "dot/generated/tamper-block-truncated.gv": {
+        "nodes": ["color", "fillcolor", "id", "label", "peripheries", "shape", "style"],
+        "edges": ["dir", "penwidth", "source", "style", "target", "weight"]
+    },
+    "dot/generated/tamper-native-edited.gv": {
+        "nodes": ["color", "fillcolor", "id", "label", "peripheries", "shape", "style"],
+        "edges": ["dir", "penwidth", "source", "style", "target", "weight"]
+    },
+    "dot/generated/tamper-node-added.gv": {
+        "nodes": ["color", "fillcolor", "id", "label", "peripheries", "shape", "style"],
+        "edges": ["dir", "penwidth", "source", "style", "target", "weight"]
+    },
+    "dot/graphviz-gallery-directed-bazel.gv": {
+        "nodes": ["fontname", "id", "shape"],
+        "edges": ["fontname", "source", "target"]
+    },
+    "dot/graphviz-gallery-directed-go-package.gv": {
+        "nodes": ["URL", "fontname", "id", "label", "tooltip"],
+        "edges": ["fontname", "source", "target"]
+    },
+    "dot/graphviz-gallery-directed-lion_share.gv": {
+        "nodes": ["fillcolor", "fontname", "height", "id", "label", "regular", "shape", "style", "width"],
+        "edges": ["dir", "fontname", "source", "target", "weight"]
+    },
+    "dot/graphviz-gallery-directed-neural-network.gv": {
+        "nodes": ["fontname", "id", "label", "shape"],
+        "edges": ["fontname", "source", "target"]
+    },
+    "dot/graphviz-gallery-directed-ninja.gv": {
+        "nodes": ["fontname", "fontsize", "height", "id", "label", "shape"],
+        "edges": ["arrowhead", "fontname", "fontsize", "label", "source", "style", "target"]
+    },
+    "dot/graphviz-gallery-directed-profile.gv": {
+        "nodes": ["color", "fontname", "id", "style"],
+        "edges": ["color", "fontname", "source", "target"]
+    },
+    "dot/graphviz-gallery-directed-sdh.gv": {
+        "nodes": ["color", "id", "label", "peripheries", "shape", "style"],
+        "edges": ["dir", "source", "style", "target", "weight"]
+    },
+    "dot/graphviz-gallery-gradient-colors.gv": {
+        "nodes": ["fillcolor", "fontname", "id", "label", "shape", "style"],
+        "edges": ["fontname", "source", "target"]
+    },
+    "dot/graphviz-gallery-gradient-g_c_n.gv": {
+        "nodes": ["fillcolor", "fontcolor", "fontname", "gradientangle", "id", "label", "shape", "style"],
+        "edges": []
+    },
+    "dot/graphviz-gallery-neato-colors.gv": {
+        "nodes": ["color", "fillcolor", "fontcolor", "fontname", "id", "shape", "style", "width"],
+        "edges": ["arrowhead", "color", "len", "penwidth", "source", "target"]
+    },
+    "dot/graphviz-gallery-neato-philo.gv": {
+        "nodes": ["fixedsize", "fontname", "id", "shape", "width"],
+        "edges": ["fontname", "source", "target"]
+    },
+    "dot/graphviz-gallery-neato-traffic_lights.gv": {
+        "nodes": ["fixedsize", "fontname", "id", "shape", "width"],
+        "edges": ["fontname", "source", "target"]
+    },
+    "dot/graphviz-gallery-neato-transparency.gv": {
+        "nodes": ["color", "id", "label", "shape", "style", "width"],
+        "edges": ["source", "target"]
+    },
+    "dot/graphviz-gallery-twopi-networkmap_twopi.gv.gz": {
+        "nodes": [
+            "URL",
+            "color",
+            "fixedsize",
+            "fontsize",
+            "height",
+            "id",
+            "label",
+            "shape",
+            "style",
+            "tooltip",
+            "width"
+        ],
+        "edges": ["color", "edgeURL", "headclip", "source", "tailclip", "target"]
+    },
+    "dot/graphviz-gallery-twopi-twopi2.gv": {
+        "nodes": ["URL", "area", "color", "id", "label", "shape", "style"],
+        "edges": ["arrowhead", "color", "label", "source", "target"]
+    },
+    "dot/graphviz-gallery-undirected-gd_1994_2007.gv": {
+        "nodes": ["fontsize", "group", "height", "id", "label", "margin", "pos", "width"],
+        "edges": ["pos", "source", "target", "weight"]
+    },
+    "dot/graphviz-gallery-undirected-root.gv": {
+        "nodes": ["URL", "area", "color", "fontname", "id", "label", "shape", "style"],
+        "edges": ["arrowhead", "color", "fontname", "label", "source", "target"]
+    },
+    "dot/raphael-group_machina__T_seed9_mut1.dot": {
+        "nodes": ["color", "colorscheme", "id", "label", "penwidth"],
+        "edges": ["color", "colorscheme", "penwidth", "source", "target"]
+    },
+    "dot/vivek3141_super-mario-neat__Digraph.gv": {
+        "nodes": ["fillcolor", "fontsize", "height", "id", "shape", "style", "width"],
+        "edges": ["color", "penwidth", "source", "style", "target"]
+    },
+    "dot/zjunlp_KnowledgeCircuits__graph.gv": {
+        "nodes": ["color", "fillcolor", "fontname", "height", "id", "label", "pos", "shape", "style", "width"],
+        "edges": ["color", "penwidth", "pos", "source", "target"]
+    },
+    "gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz": {
+        "nodes": ["color", "id", "label", "number_of_authored_works", "position", "show_label", "size", "times_cited"],
+        "edges": ["gexfId", "number_of_coauthored_works", "source", "target", "weight"]
+    },
+    "gexf/generated/alpha-text.gexf": {
+        "nodes": ["color", "id"],
+        "edges": []
+    },
+    "gexf/generated/broken-viz.gexf": {
+        "nodes": ["color", "id", "label", "size"],
+        "edges": ["gexfId", "source", "target"]
+    },
+    "gexf/generated/distinct-1000-keyed.gexf.gz": {
+        "nodes": ["cat", "color", "id", "label", "size"],
+        "edges": []
+    },
+    "gexf/generated/distinct-128-keyed.gexf.gz": {
+        "nodes": ["cat", "color", "id", "label", "size"],
+        "edges": []
+    },
+    "gexf/generated/distinct-2-keyed.gexf.gz": {
+        "nodes": ["cat", "color", "id", "label", "size"],
+        "edges": []
+    },
+    "gexf/generated/distinct-32-keyed.gexf.gz": {
+        "nodes": ["cat", "color", "id", "label", "size"],
+        "edges": []
+    },
+    "gexf/generated/distinct-5000-keyed.gexf.gz": {
+        "nodes": ["cat", "color", "id", "label", "size"],
+        "edges": []
+    },
+    "gexf/generated/distinct-64-keyed.gexf.gz": {
+        "nodes": ["cat", "color", "id", "label", "size"],
+        "edges": []
+    },
+    "gexf/generated/distinct-65-keyed.gexf.gz": {
+        "nodes": ["cat", "color", "id", "label", "size"],
+        "edges": []
+    },
+    "gexf/generated/distinct-8-keyed.gexf.gz": {
+        "nodes": ["cat", "color", "id", "label", "size"],
+        "edges": []
+    },
+    "gexf/generated/gexf10-edges-first.gexf": {
+        "nodes": ["color", "disclass", "id", "label"],
+        "edges": ["gexfId", "source", "target"]
+    },
+    "gexf/generated/gexf13-hex-and-labels.gexf": {
+        "nodes": ["color", "id", "label"],
+        "edges": []
+    },
+    "gexf/generated/graphty-written.gexf": {
+        "nodes": [
+            "color",
+            "graphty.style.node.class",
+            "graphty.style.node.copy.height",
+            "graphty.style.node.copy.width",
+            "id",
+            "label",
+            "size"
+        ],
+        "edges": [
+            "gexfId",
+            "graphty.style.edge.copy.color",
+            "graphty.style.edge.copy.width",
+            "graphty.style.edge.directed",
+            "source",
+            "target"
+        ]
+    },
+    "gexf/generated/joint-100-classes.gexf.gz": {
+        "nodes": ["color", "id", "ka", "kb", "label"],
+        "edges": []
+    },
+    "gexf/generated/nonlinear-ramps.gexf": {
+        "nodes": ["color", "id", "label", "size", "weight"],
+        "edges": []
+    },
+    "gexf/generated/random-all-60.gexf": {
+        "nodes": ["color", "id", "label", "size"],
+        "edges": ["gexfId", "source", "target"]
+    },
+    "gexf/generated/random-all-600.gexf": {
+        "nodes": ["color", "id", "label", "size"],
+        "edges": ["gexfId", "source", "target"]
+    },
+    "gexf/generated/random-all-6000.gexf.gz": {
+        "nodes": ["color", "id", "label", "size"],
+        "edges": ["gexfId", "source", "target"]
+    },
+    "gexf/generated/tamper-block-truncated.gexf": {
+        "nodes": [
+            "color",
+            "graphty.style.node.class",
+            "graphty.style.node.copy.height",
+            "graphty.style.node.copy.width",
+            "id",
+            "label",
+            "size"
+        ],
+        "edges": [
+            "gexfId",
+            "graphty.style.edge.copy.color",
+            "graphty.style.edge.copy.width",
+            "graphty.style.edge.directed",
+            "source",
+            "target"
+        ]
+    },
+    "gexf/generated/tamper-native-edited.gexf": {
+        "nodes": [
+            "color",
+            "graphty.style.node.class",
+            "graphty.style.node.copy.height",
+            "graphty.style.node.copy.width",
+            "id",
+            "label",
+            "size"
+        ],
+        "edges": [
+            "gexfId",
+            "graphty.style.edge.copy.color",
+            "graphty.style.edge.copy.width",
+            "graphty.style.edge.directed",
+            "source",
+            "target"
+        ]
+    },
+    "gexf/generated/tamper-node-added.gexf": {
+        "nodes": [
+            "color",
+            "graphty.style.node.class",
+            "graphty.style.node.copy.height",
+            "graphty.style.node.copy.width",
+            "id",
+            "label",
+            "size"
+        ],
+        "edges": [
+            "gexfId",
+            "graphty.style.edge.copy.color",
+            "graphty.style.edge.copy.width",
+            "graphty.style.edge.directed",
+            "source",
+            "target"
+        ]
+    },
+    "gexf/gexfjs-celegans.gexf.gz": {
+        "nodes": ["Degree", "Modularity Class", "color", "id", "label", "position", "size"],
+        "edges": ["gexfId", "source", "target", "weight"]
+    },
+    "gexf/gexfjs-miserables.gexf": {
+        "nodes": ["Modularity Class", "color", "id", "label", "position", "size"],
+        "edges": ["label", "source", "target", "weight"]
+    },
+    "gexf/glxxyz_hskhsk.com__HSK1-3_chars_v09.gexf.gz": {
+        "nodes": ["color", "freq", "freqint", "freqintreverse", "hsklevel", "id", "isword", "label", "size"],
+        "edges": ["gexfId", "source", "target", "weight"]
+    },
+    "gexf/gsa-fpki-certs.gexf": {
+        "nodes": ["color", "id", "label", "position"],
+        "edges": ["gexfId", "label", "source", "target", "weight"]
+    },
+    "gexf/pygraphistry-sample-1.3-viz.gexf": {
+        "nodes": ["color", "group", "id", "label", "position", "size"],
+        "edges": ["gexfId", "label", "source", "target"]
+    },
+    "gexf/pygraphistry-sample.gexf": {
+        "nodes": ["category", "color", "id", "label", "position", "size"],
+        "edges": ["gexfId", "label", "relation", "source", "target", "weight"]
+    },
+    "gexf/qvge-mine-airing.gexf": {
+        "nodes": ["color", "id", "label", "position", "stroke.color"],
+        "edges": ["L", "MODEL", "Q", "R", "S", "gexfId", "label", "source", "target"]
+    },
+    "gexf/rgexf-lesmiserables.gexf": {
+        "nodes": ["Modularity Class", "color", "id", "label", "position", "size"],
+        "edges": ["gexfId", "source", "target", "weight"]
+    },
+    "gexf/sigma-arctic.gexf.gz": {
+        "nodes": ["color", "id", "label", "nodedef", "occurrences", "position", "size"],
+        "edges": ["gexfId", "source", "target"]
+    },
+    "gexf/sigma-moroccan-ediaspora.gexf.gz": {
+        "nodes": [
+            "Addressee User",
+            "Category",
+            "Count of Languages",
+            "Country Localisation of Users",
+            "Interaction",
+            "Languages",
+            "Localisation of Users",
+            "Location (by Whois)",
+            "Main language",
+            "Sub-category",
+            "Top Level Domain",
+            "Website Location",
+            "archiving_frequence",
+            "blabla",
+            "color",
+            "db_id",
+            "desc_01",
+            "id",
+            "label",
+            "position",
+            "size",
+            "type",
+            "url"
+        ],
+        "edges": ["source", "target"]
+    },
+    "gexf/sigma-standard_graph.gexf": {
+        "nodes": ["color", "id", "label", "latitude", "longitude", "position", "size"],
+        "edges": ["gexfId", "source", "target"]
+    },
+    "gexf/sigma-website-diseasome.gexf.gz": {
+        "nodes": ["color", "disclass", "id", "label", "position", "rawSize", "size", "type"],
+        "edges": ["gexfId", "rawWeight", "source", "target", "weight"]
+    },
+    "gml/TwelveYC_network-vi__metabolicpos.gml": {
+        "nodes": ["graphics", "id", "label"],
+        "edges": ["id", "source", "target", "value"]
+    },
+    "gml/di-unipi-socc_dgLBF__germany50.gml": {
+        "nodes": ["LabelGraphics", "graphics", "id", "label"],
+        "edges": ["graphics", "id", "source", "target"]
+    },
+    "gml/generated/cytoscape-interactions.gml": {
+        "nodes": ["canonicalName", "graphics", "id", "label", "root_index"],
+        "edges": ["graphics", "label", "root_index", "source", "target"]
+    },
+    "gml/generated/gephi-unquoted-creator.gml": {
+        "nodes": ["graphics", "id", "kind", "label"],
+        "edges": ["graphics", "id", "source", "target", "value"]
+    },
+    "gml/generated/graphics-mix.gml": {
+        "nodes": ["graphics", "id", "label"],
+        "edges": ["graphics", "source", "target"]
+    },
+    "gml/generated/graphty-written.gml": {
+        "nodes": ["LabelGraphics", "graphics", "graphty_style_node_class", "id", "label"],
+        "edges": [
+            "LabelGraphics",
+            "graphics",
+            "graphty_style_edge_class",
+            "graphty_style_edge_copy_label",
+            "graphty_style_edge_copy_labelFont",
+            "graphty_style_edge_copy_width",
+            "source",
+            "target"
+        ]
+    },
+    "gml/generated/igraph-flat-attributes.gml": {
+        "nodes": ["color", "id", "name"],
+        "edges": ["source", "target"]
+    },
+    "gml/generated/networkx-graphics.gml": {
+        "nodes": ["LabelGraphics", "graphics", "id", "kind", "label"],
+        "edges": ["graphics", "source", "target"]
+    },
+    "gml/generated/ogdf-escaped-labels.gml": {
+        "nodes": ["graphics", "id", "label"],
+        "edges": ["graphics", "source", "target"]
+    },
+    "gml/generated/tamper-block-truncated.gml": {
+        "nodes": ["LabelGraphics", "graphics", "graphty_style_node_class", "id", "label"],
+        "edges": [
+            "LabelGraphics",
+            "graphics",
+            "graphty_style_edge_class",
+            "graphty_style_edge_copy_label",
+            "graphty_style_edge_copy_labelFont",
+            "graphty_style_edge_copy_width",
+            "source",
+            "target"
+        ]
+    },
+    "gml/generated/tamper-native-edited.gml": {
+        "nodes": ["LabelGraphics", "graphics", "graphty_style_node_class", "id", "label"],
+        "edges": [
+            "LabelGraphics",
+            "graphics",
+            "graphty_style_edge_class",
+            "graphty_style_edge_copy_label",
+            "graphty_style_edge_copy_labelFont",
+            "graphty_style_edge_copy_width",
+            "source",
+            "target"
+        ]
+    },
+    "gml/generated/tamper-node-added.gml": {
+        "nodes": ["LabelGraphics", "graphics", "graphty_style_node_class", "id", "label"],
+        "edges": [
+            "LabelGraphics",
+            "graphics",
+            "graphty_style_edge_class",
+            "graphty_style_edge_copy_label",
+            "graphty_style_edge_copy_labelFont",
+            "graphty_style_edge_copy_width",
+            "source",
+            "target"
+        ]
+    },
+    "gml/generated/yed-labels-and-arrows.gml": {
+        "nodes": ["LabelGraphics", "graphics", "id", "label"],
+        "edges": ["LabelGraphics", "graphics", "source", "target"]
+    },
+    "gml/spupyrev_bob__need4stacks261.gml": {
+        "nodes": ["LabelGraphics", "graphics", "id", "label"],
+        "edges": ["graphics", "source", "target"]
+    },
+    "graphml/LTVA1_STM32CrapSynth__func.graphml.gz": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "description",
+            "height",
+            "id",
+            "label",
+            "position",
+            "shape",
+            "width"
+        ],
+        "edges": ["color", "directed", "source", "sourceArrow", "target", "targetArrow", "width"]
+    },
+    "graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "description",
+            "height",
+            "id",
+            "label",
+            "position",
+            "shape",
+            "url",
+            "width"
+        ],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/StateSmith_StateSmith__Spec1Sm.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "description",
+            "height",
+            "id",
+            "label",
+            "position",
+            "shape",
+            "url",
+            "width"
+        ],
+        "edges": ["source", "target"]
+    },
+    "graphml/a-little-srdjan_grapher__bleve.graphml.gz": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "description",
+            "height",
+            "id",
+            "label",
+            "position",
+            "shape",
+            "width"
+        ],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "weight", "width"]
+    },
+    "graphml/architolk_mimtools__fbm-mim2.graphml.gz": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "url", "width"],
+        "edges": ["color", "directed", "source", "statement-url", "target", "targetArrow", "url", "width"]
+    },
+    "graphml/color-key/iVis-at-Bilkent__chilay__circle.graphml": {
+        "nodes": ["clusterID", "color", "color1", "height", "id", "shape", "text", "width", "x", "y"],
+        "edges": ["arrow", "color", "source", "style", "target", "text"]
+    },
+    "graphml/cytoscape/Multiomics-Analytics-Group__MicW2Graph__Wastewater_assembly_nosinglt_cclasso_10.graphml": {
+        "nodes": ["SUID", "cluster", "degree", "id", "id#id", "name", "selected", "shared name"],
+        "edges": [
+            "SUID",
+            "adja",
+            "asso",
+            "data.key.column",
+            "diss",
+            "interaction",
+            "name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "sign",
+            "source",
+            "source#source",
+            "target",
+            "target#target"
+        ]
+    },
+    "graphml/cytoscape/Thakar-Lab__WikiNetworks__WP3935_cytoscape.graphml": {
+        "nodes": [
+            "Border Width",
+            "Color",
+            "Ensembl",
+            "GraphID",
+            "Node Size",
+            "SUID",
+            "Type",
+            "XrefDatasource",
+            "XrefId",
+            "id",
+            "name",
+            "selected",
+            "shared name"
+        ],
+        "edges": [
+            "Color",
+            "LineStyle",
+            "SUID",
+            "Source Arrow Shape",
+            "Target Arrow Shape",
+            "WP.type",
+            "Width",
+            "selected",
+            "source",
+            "target"
+        ]
+    },
+    "graphml/cytoscape/chatox__networks-science-course__karate.graphml": {
+        "nodes": ["SUID", "id", "label", "name", "selected", "shared name"],
+        "edges": ["SUID", "interaction", "name", "selected", "shared interaction", "shared name", "source", "target"]
+    },
+    "graphml/cytoscape/coinslab__pgdcm__AH_DCM.graphml": {
+        "nodes": [
+            "NumChildren",
+            "NumDescendents",
+            "SUID",
+            "compute",
+            "id",
+            "id#v_id",
+            "name",
+            "selected",
+            "shared name",
+            "type",
+            "type_id"
+        ],
+        "edges": [
+            "SUID",
+            "interaction",
+            "name",
+            "node::Source_shared name",
+            "node::Target_shared name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target"
+        ]
+    },
+    "graphml/cytoscape/karchern__network_connectivity_queries__eco03258.graphml": {
+        "nodes": [
+            "KEGG_ID",
+            "KEGG_LINK",
+            "KEGG_NODE_FILL_COLOR",
+            "KEGG_NODE_HEIGHT",
+            "KEGG_NODE_LABEL",
+            "KEGG_NODE_LABEL_COLOR",
+            "KEGG_NODE_LABEL_LIST",
+            "KEGG_NODE_LABEL_LIST_FIRST",
+            "KEGG_NODE_SHAPE",
+            "KEGG_NODE_TYPE",
+            "KEGG_NODE_WIDTH",
+            "KEGG_NODE_X",
+            "KEGG_NODE_Y",
+            "SUID",
+            "id",
+            "name",
+            "selected",
+            "shared name"
+        ],
+        "edges": []
+    },
+    "graphml/generated/fill-oddities.graphml": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "position", "shape", "width"],
+        "edges": ["color", "directed", "source", "sourceArrow", "target", "targetArrow", "width"]
+    },
+    "graphml/generated/graphty-written.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "graphty.style.node.copy.height",
+            "graphty.style.node.copy.label",
+            "graphty.style.node.copy.labelColor",
+            "graphty.style.node.copy.labelSize",
+            "graphty.style.node.copy.shape",
+            "graphty.style.node.copy.width",
+            "height",
+            "id",
+            "kind",
+            "label",
+            "position",
+            "shape",
+            "width"
+        ],
+        "edges": [
+            "color",
+            "directed",
+            "graphty.style.edge.copy.color",
+            "graphty.style.edge.copy.lineStyle",
+            "graphty.style.edge.copy.targetArrow",
+            "graphty.style.edge.copy.width",
+            "source",
+            "target",
+            "targetArrow",
+            "width"
+        ]
+    },
+    "graphml/generated/labels-multi.graphml": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "width"],
+        "edges": []
+    },
+    "graphml/generated/ramp-with-exceptions.graphml.gz": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "position", "shape", "w", "width"],
+        "edges": []
+    },
+    "graphml/generated/scale-50.graphml": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "kind", "label", "position", "shape", "width"],
+        "edges": ["color", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/generated/scale-500.graphml.gz": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "kind", "label", "position", "shape", "width"],
+        "edges": ["color", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/generated/scale-5000.graphml.gz": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "kind", "label", "position", "shape", "width"],
+        "edges": ["color", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/generated/tamper-block-truncated.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "graphty.style.node.copy.height",
+            "graphty.style.node.copy.label",
+            "graphty.style.node.copy.labelColor",
+            "graphty.style.node.copy.labelSize",
+            "graphty.style.node.copy.shape",
+            "graphty.style.node.copy.width",
+            "height",
+            "id",
+            "kind",
+            "label",
+            "position",
+            "shape",
+            "width"
+        ],
+        "edges": [
+            "color",
+            "directed",
+            "graphty.style.edge.copy.color",
+            "graphty.style.edge.copy.lineStyle",
+            "graphty.style.edge.copy.targetArrow",
+            "graphty.style.edge.copy.width",
+            "source",
+            "target",
+            "targetArrow",
+            "width"
+        ]
+    },
+    "graphml/generated/tamper-native-edited.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "graphty.style.node.copy.height",
+            "graphty.style.node.copy.label",
+            "graphty.style.node.copy.labelColor",
+            "graphty.style.node.copy.labelSize",
+            "graphty.style.node.copy.shape",
+            "graphty.style.node.copy.width",
+            "height",
+            "id",
+            "kind",
+            "label",
+            "position",
+            "shape",
+            "width"
+        ],
+        "edges": [
+            "color",
+            "directed",
+            "graphty.style.edge.copy.color",
+            "graphty.style.edge.copy.lineStyle",
+            "graphty.style.edge.copy.targetArrow",
+            "graphty.style.edge.copy.width",
+            "source",
+            "target",
+            "targetArrow",
+            "width"
+        ]
+    },
+    "graphml/generated/tamper-node-added.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "graphty.style.node.copy.height",
+            "graphty.style.node.copy.label",
+            "graphty.style.node.copy.labelColor",
+            "graphty.style.node.copy.labelSize",
+            "graphty.style.node.copy.shape",
+            "graphty.style.node.copy.width",
+            "height",
+            "id",
+            "kind",
+            "label",
+            "position",
+            "shape",
+            "width"
+        ],
+        "edges": [
+            "color",
+            "directed",
+            "graphty.style.edge.copy.color",
+            "graphty.style.edge.copy.lineStyle",
+            "graphty.style.edge.copy.targetArrow",
+            "graphty.style.edge.copy.width",
+            "source",
+            "target",
+            "targetArrow",
+            "width"
+        ]
+    },
+    "graphml/generated/yfiles3-shared-cycle.graphml": {
+        "nodes": ["id"],
+        "edges": []
+    },
+    "graphml/gephi-large/othercriteria__StochasticBlockmodel__celegans-modified.graphml.gz": {
+        "nodes": ["Modularity Class", "PageRank", "b", "g", "id", "label", "r", "size", "x", "y"],
+        "edges": ["Edge Id", "source", "target", "weight"]
+    },
+    "graphml/gephi-large/saraiva3__Shape-of-War__ONLY_RED.graphml": {
+        "nodes": ["b", "continent", "g", "id", "label", "r", "size", "x", "y"],
+        "edges": ["color", "networkx_key", "relation", "source", "target", "weight", "year_end", "year_start"]
+    },
+    "graphml/gephi-rgb/NetworkGraphs__graphysics__LesMiserables.graphml": {
+        "nodes": ["Modularity Class", "b", "g", "id", "label", "r", "size", "x", "y"],
+        "edges": ["source", "target", "weight"]
+    },
+    "graphml/gephi-rgb/nielmclaren__constellation.js__data.graphml": {
+        "nodes": [
+            "Degree",
+            "In-Degree",
+            "Modularity Class",
+            "Out-Degree",
+            "b",
+            "g",
+            "id",
+            "label",
+            "r",
+            "size",
+            "x",
+            "y"
+        ],
+        "edges": ["source", "target", "weight"]
+    },
+    "graphml/inbloom_secure-data-service__index.graphml": {
+        "nodes": ["borderWidth", "description", "height", "id", "label", "position", "shape", "url", "width"],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "url", "width"]
+    },
+    "graphml/java-graphml-lib/ZUGFeRD__mustangproject__mustangArchitecture.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "description",
+            "height",
+            "id",
+            "label",
+            "position",
+            "shape",
+            "url",
+            "width"
+        ],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/java-graphml-lib/boschglobal__dse.clib__arch__fmi_library.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "description",
+            "height",
+            "id",
+            "label",
+            "position",
+            "shape",
+            "url",
+            "width"
+        ],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/java-graphml-lib/domondi1__KEVGraph__guin-D__Library-Management-System.graphml": {
+        "nodes": ["dev", "id", "name", "version", "vulns"],
+        "edges": ["source", "target"]
+    },
+    "graphml/yed-genericnode/Accenture__reactive-interaction-gateway__overview.graphml": {
+        "nodes": ["description", "id"],
+        "edges": ["description", "source", "target"]
+    },
+    "graphml/yed-genericnode/CERT-Polska__ursadb__dataset.graphml": {
+        "nodes": ["description", "id"],
+        "edges": []
+    },
+    "graphml/yed-genericnode/TimothyJones__github-cognito-openid-wrapper__overview.graphml": {
+        "nodes": ["description", "id"],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/yed-genericnode/awslabs__aws-c-io__slots.graphml": {
+        "nodes": ["id"],
+        "edges": []
+    },
+    "graphml/yed-genericnode/brucou__kingly__hero_graph.graphml": {
+        "nodes": ["description", "id"],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/yed-genericnode/buaazp__zimg__arch.graphml": {
+        "nodes": ["id", "url"],
+        "edges": ["color", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/yed-genericnode/diennea__herddb__herddb.graphml": {
+        "nodes": ["id"],
+        "edges": []
+    },
+    "graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "width"],
+        "edges": ["description", "source", "target"]
+    },
+    "graphml/yed-large/crocs-muni__scrutiny__SCRUTINYWholeProcess.graphml.gz": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "width"],
+        "edges": []
+    },
+    "graphml/yed-large/cuba-platform__documentation__DeploymentStructure.graphml.gz": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "width"],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz": {
+        "nodes": [
+            "body",
+            "borderColor",
+            "borderWidth",
+            "color",
+            "context:test",
+            "context:xml",
+            "data_safety",
+            "description",
+            "heading",
+            "height",
+            "help",
+            "id",
+            "label",
+            "order",
+            "outcome",
+            "permanent_id",
+            "position",
+            "shape",
+            "title",
+            "url",
+            "width"
+        ],
+        "edges": ["color", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/yed-shapenode/Animatron__player__flow.graphml": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "width"],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/yed-shapenode/awslabs__ml-io__architecture.graphml": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "width"],
+        "edges": ["color", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/yed-shapenode/getopt-php__getopt-php__getopt.graphml": {
+        "nodes": ["borderColor", "borderWidth", "height", "id", "label", "position", "shape", "url", "width"],
+        "edges": ["color", "directed", "source", "target", "targetArrow", "url", "width"]
+    },
+    "graphml/yed-shapenode/kwk__docker-registry-setup__setup.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "description",
+            "height",
+            "id",
+            "label",
+            "position",
+            "shape",
+            "width"
+        ],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/yed-shapenode/linux4sam__egt__v4l2.graphml": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "width"],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/yed-shapenode/svanoort__pyresttest__contexts.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "description",
+            "height",
+            "id",
+            "label",
+            "position",
+            "shape",
+            "width"
+        ],
+        "edges": ["color", "description", "directed", "source", "sourceArrow", "target", "targetArrow", "url", "width"]
+    },
+    "graphml/yed-shapenode/voc__voctomix__schema.graphml": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "url", "width"],
+        "edges": ["color", "description", "directed", "source", "sourceArrow", "target", "targetArrow", "width"]
+    },
+    "graphml/yed-svgnode/JustDerb__yed-aws-palettes__AWS_-_Blockchain.graphml": {
+        "nodes": ["Palette ToolTip", "description", "id", "yed.palette.node.name"],
+        "edges": []
+    },
+    "graphml/yed-svgnode/ZUGFeRD__quba-viewer__XSLGenesis.graphml": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "url", "width"],
+        "edges": ["color", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/yed-svgnode/japila-books__apache-spark-internals__spark-rdd-partitioned-distributed.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "description",
+            "height",
+            "id",
+            "label",
+            "position",
+            "shape",
+            "width"
+        ],
+        "edges": []
+    },
+    "graphml/yed-svgnode/kyriosdata__rnds__xds.b.graphml": {
+        "nodes": ["description", "id", "url"],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "url", "width"]
+    },
+    "graphml/yed-svgnode/mitogen-hq__mitogen__persistent.graphml": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "width"],
+        "edges": ["color", "directed", "source", "sourceArrow", "target", "targetArrow", "width"]
+    },
+    "graphml/yed-svgnode/sk2__autonetkit-py__small_internet.graphml": {
+        "nodes": ["asn", "device_type", "id"],
+        "edges": ["color", "directed", "source", "speed", "target", "targetArrow", "width"]
+    },
+    "graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml": {
+        "nodes": ["id", "zOrder"],
+        "edges": ["source", "target"]
+    },
+    "graphml/yfiles-html/aleph-im__pyaleph__PyAleph_architecture.graphml": {
+        "nodes": ["id"],
+        "edges": ["source", "target"]
+    },
+    "graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding.graphml": {
+        "nodes": ["id", "zOrder"],
+        "edges": ["source", "target"]
+    },
+    "graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml": {
+        "nodes": ["id"],
+        "edges": ["source", "target"]
+    },
+    "graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml": {
+        "nodes": ["id", "zOrder"],
+        "edges": ["source", "target"]
+    },
+    "graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml": {
+        "nodes": ["id", "zOrder"],
+        "edges": ["description", "source", "target"]
+    },
+    "graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz": {
+        "nodes": ["id", "url", "zOrder"],
+        "edges": ["source", "target"]
+    },
+    "json/cyjs-colajs-data.json": {
+        "nodes": [
+            "classes",
+            "gene",
+            "grabbable",
+            "grabbed#element",
+            "id",
+            "idInt",
+            "locked",
+            "name",
+            "position",
+            "query",
+            "removed",
+            "score",
+            "selectable",
+            "selected"
+        ],
+        "edges": [
+            "classes",
+            "grabbable",
+            "grabbed#element",
+            "group",
+            "id",
+            "intn",
+            "locked",
+            "networkGroupId",
+            "networkId",
+            "rIntnId",
+            "removed",
+            "selectable",
+            "selected",
+            "source",
+            "target",
+            "weight"
+        ]
+    },
+    "json/cyjs-cose-bilkent-compound.json": {
+        "nodes": [
+            "classes",
+            "grabbable",
+            "grabbed#element",
+            "id",
+            "locked",
+            "parent",
+            "position",
+            "removed",
+            "selectable",
+            "selected"
+        ],
+        "edges": [
+            "classes",
+            "grabbable",
+            "grabbed#element",
+            "id",
+            "locked",
+            "removed",
+            "selectable",
+            "selected",
+            "source",
+            "target"
+        ]
+    },
+    "json/cyjs-edge-arrows-data.json": {
+        "nodes": ["id", "type"],
+        "edges": ["arrow", "id", "source", "target"]
+    },
+    "json/cyjs-enrichment-map.networks.json.gz": {
+        "nodes": ["NES", "description", "gs_size", "id", "mcode_cluster_id", "name", "padj", "pvalue"],
+        "edges": ["id", "overlap_size", "similarity_coefficient", "source", "target"]
+    },
+    "json/cyjs-genemania-export.json": {
+        "nodes": [
+            "Ensembl_Gene_ID",
+            "Ensembl_Protein_ID",
+            "Entrez_Gene_ID",
+            "RefSeq_Protein_ID",
+            "RefSeq_mRNA_ID",
+            "SUID",
+            "Synonym",
+            "Uniprot_ID",
+            "annotation_name",
+            "annotations",
+            "gene_name",
+            "id",
+            "log_score",
+            "name",
+            "node_type",
+            "position",
+            "score",
+            "selected",
+            "shared_name"
+        ],
+        "edges": [
+            "SUID",
+            "data_type",
+            "highlight",
+            "id",
+            "name",
+            "networks",
+            "normalized_max_weight",
+            "raw_weights",
+            "selected",
+            "shared_name",
+            "source",
+            "target"
+        ]
+    },
+    "json/cyjs-node-types-data.json": {
+        "nodes": ["id", "points", "type"],
+        "edges": []
+    },
+    "json/cyjs-tokyo-railways.json.gz": {
+        "nodes": [
+            "SUID",
+            "add",
+            "close_ymd",
+            "e_status",
+            "id",
+            "lat",
+            "line_cd",
+            "lon",
+            "name",
+            "open_ymd",
+            "position",
+            "post",
+            "pref_name",
+            "selected",
+            "shared_name",
+            "station_g_cd",
+            "station_name",
+            "x",
+            "y"
+        ],
+        "edges": [
+            "SUID",
+            "company_cd",
+            "company_name",
+            "company_name_h",
+            "company_name_k",
+            "company_name_r",
+            "company_type",
+            "company_url",
+            "e_status_x",
+            "e_status_y",
+            "id",
+            "interaction",
+            "is_bullet",
+            "lat",
+            "line_name",
+            "line_name_h",
+            "line_name_k",
+            "lon",
+            "name",
+            "rr_cd",
+            "selected",
+            "shared_interaction",
+            "shared_name",
+            "source",
+            "target",
+            "zoom"
+        ]
+    },
+    "json/generated/cytoscape-graphty-written.json": {
+        "nodes": [
+            "color",
+            "graphty_style_emit_value_4_display",
+            "graphty_style_emit_value_4_label",
+            "graphty_style_group_0",
+            "graphty_style_group_1",
+            "group",
+            "hidden",
+            "id",
+            "label",
+            "shape",
+            "size",
+            "style#element"
+        ],
+        "edges": [
+            "arrows",
+            "color",
+            "dashes",
+            "graphty_style_emit_value_7_line_color",
+            "graphty_style_emit_value_8_line_style",
+            "graphty_style_emit_value_8_source_arrow_shape",
+            "graphty_style_emit_value_8_target_arrow_shape",
+            "graphty_style_emit_value_8_width",
+            "graphty_style_source_color",
+            "id",
+            "source",
+            "style#element",
+            "target",
+            "width"
+        ]
+    },
+    "json/generated/cytoscape-tamper-block-truncated.json": {
+        "nodes": [
+            "color",
+            "graphty_style_emit_value_4_display",
+            "graphty_style_emit_value_4_label",
+            "graphty_style_group_0",
+            "graphty_style_group_1",
+            "group",
+            "hidden",
+            "id",
+            "label",
+            "shape",
+            "size",
+            "style#element"
+        ],
+        "edges": [
+            "arrows",
+            "color",
+            "dashes",
+            "graphty_style_emit_value_7_line_color",
+            "graphty_style_emit_value_8_line_style",
+            "graphty_style_emit_value_8_source_arrow_shape",
+            "graphty_style_emit_value_8_target_arrow_shape",
+            "graphty_style_emit_value_8_width",
+            "graphty_style_source_color",
+            "id",
+            "source",
+            "style#element",
+            "target",
+            "width"
+        ]
+    },
+    "json/generated/cytoscape-tamper-native-edited.json": {
+        "nodes": [
+            "color",
+            "graphty_style_emit_value_4_display",
+            "graphty_style_emit_value_4_label",
+            "graphty_style_group_0",
+            "graphty_style_group_1",
+            "group",
+            "hidden",
+            "id",
+            "label",
+            "shape",
+            "size",
+            "style#element"
+        ],
+        "edges": [
+            "arrows",
+            "color",
+            "dashes",
+            "graphty_style_emit_value_7_line_color",
+            "graphty_style_emit_value_8_line_style",
+            "graphty_style_emit_value_8_source_arrow_shape",
+            "graphty_style_emit_value_8_target_arrow_shape",
+            "graphty_style_emit_value_8_width",
+            "graphty_style_source_color",
+            "id",
+            "source",
+            "style#element",
+            "target",
+            "width"
+        ]
+    },
+    "json/generated/cytoscape-tamper-node-added.json": {
+        "nodes": [
+            "color",
+            "graphty_style_emit_value_4_display",
+            "graphty_style_emit_value_4_label",
+            "graphty_style_group_0",
+            "graphty_style_group_1",
+            "group",
+            "hidden",
+            "id",
+            "label",
+            "shape",
+            "size",
+            "style#element"
+        ],
+        "edges": [
+            "arrows",
+            "color",
+            "dashes",
+            "graphty_style_emit_value_7_line_color",
+            "graphty_style_emit_value_8_line_style",
+            "graphty_style_emit_value_8_source_arrow_shape",
+            "graphty_style_emit_value_8_target_arrow_shape",
+            "graphty_style_emit_value_8_width",
+            "graphty_style_source_color",
+            "id",
+            "source",
+            "style#element",
+            "target",
+            "width"
+        ]
+    },
+    "json/generated/graphology-graphty-written.json": {
+        "nodes": ["attributes", "id", "key"],
+        "edges": ["attributes", "source", "target"]
+    },
+    "json/generated/graphology-tamper-block-truncated.json": {
+        "nodes": ["attributes", "id", "key"],
+        "edges": ["attributes", "source", "target"]
+    },
+    "json/generated/graphology-tamper-native-edited.json": {
+        "nodes": ["attributes", "id", "key"],
+        "edges": ["attributes", "source", "target"]
+    },
+    "json/generated/graphology-tamper-node-added.json": {
+        "nodes": ["attributes", "id", "key"],
+        "edges": ["attributes", "source", "target"]
+    },
+    "json/graphology-arctic.json.gz": {
+        "nodes": ["id", "key"],
+        "edges": ["source", "target", "undirected"]
+    },
+    "json/graphology-eurosis.json.gz": {
+        "nodes": ["attributes", "id", "key"],
+        "edges": ["source", "target"]
+    },
+    "json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json": {
+        "nodes": [
+            "auxunitlayouts",
+            "background-color",
+            "background-fit",
+            "background-height",
+            "background-image",
+            "background-image-opacity",
+            "background-opacity",
+            "background-position-x",
+            "background-position-y",
+            "background-width",
+            "bbox",
+            "border-color",
+            "border-width",
+            "class",
+            "classes",
+            "clonemarker",
+            "color",
+            "expanding",
+            "font-family",
+            "font-size",
+            "font-style",
+            "font-weight",
+            "grabbable",
+            "id",
+            "infoboxCalculated",
+            "label",
+            "language",
+            "locked",
+            "ports",
+            "position",
+            "removed",
+            "selectable",
+            "selected",
+            "statesandinfos",
+            "text-wrap"
+        ],
+        "edges": [
+            "background-color",
+            "background-fit",
+            "background-height",
+            "background-image",
+            "background-opacity",
+            "background-position-x",
+            "background-position-y",
+            "background-width",
+            "bendPointPositions",
+            "cardinality",
+            "class",
+            "classes",
+            "grabbable",
+            "id",
+            "language",
+            "line-color",
+            "locked",
+            "portsource",
+            "porttarget",
+            "removed",
+            "selectable",
+            "selected",
+            "source",
+            "target",
+            "width"
+        ]
+    },
+    "json/sciluna_cytoscape.js-sbgn-layout__9613829.json": {
+        "nodes": [
+            "acc",
+            "classes",
+            "displayName",
+            "grabbable",
+            "graph",
+            "height",
+            "html",
+            "id",
+            "inputs",
+            "isBackground",
+            "locked",
+            "nodeId",
+            "nodeReactomeId",
+            "output",
+            "pannable",
+            "position",
+            "radius",
+            "reactionId",
+            "reactomeId",
+            "removed",
+            "selectable",
+            "selected",
+            "textX",
+            "textY",
+            "width"
+        ],
+        "edges": [
+            "classes",
+            "curveStyle",
+            "distances",
+            "grabbable",
+            "graph",
+            "id",
+            "locked",
+            "pannable",
+            "reactionId",
+            "reactomeId",
+            "removed",
+            "selectable",
+            "selected",
+            "source",
+            "sourceEndpoint",
+            "stoichiometry",
+            "target",
+            "targetEndpoint",
+            "weights"
+        ]
+    },
+    "json/scsweb2020_graph-maker__aggregate-cy-graph.json.gz": {
+        "nodes": [
+            "avg_distance_from_root",
+            "classes",
+            "grabbable",
+            "group",
+            "id",
+            "locked",
+            "name",
+            "paperID",
+            "position",
+            "removed",
+            "selectable",
+            "selected",
+            "type"
+        ],
+        "edges": ["classes", "grabbable", "id", "locked", "removed", "selectable", "selected", "source", "target"]
+    },
+    "json/sigma-website-airports.json.gz": {
+        "nodes": ["attributes", "id", "key"],
+        "edges": ["attributes", "key", "source", "target"]
+    },
+    "json/sigma-website-euroSIS.json.gz": {
+        "nodes": ["attributes", "id", "key"],
+        "edges": ["attributes", "key", "source", "target", "undirected"]
+    },
+    "json/sigma-website-wikipedia.json.gz": {
+        "nodes": ["URL", "cluster", "id", "key", "label", "score", "tag", "x", "y"],
+        "edges": []
+    },
+    "json/vis-WorldCup2014.json.gz": {
+        "nodes": ["attributes", "color", "id", "label", "size", "x", "y"],
+        "edges": ["attributes", "color", "id", "size", "source", "target"]
+    },
+    "json/vis-dot-to-graph-softmaint.json": {
+        "nodes": ["font", "height", "id", "label", "shape", "width"],
+        "edges": ["arrows", "from", "to"]
+    },
+    "pajek/SamTseng_CATAR__Pajek_format.net": {
+        "nodes": ["bc", "ic", "id", "label", "x", "x_fact", "y", "y_fact", "z"],
+        "edges": ["c", "directed", "source", "target", "weight"]
+    },
+    "pajek/generated/b98-trailing-zero.net": {
+        "nodes": ["bc", "ic", "id", "label", "lc", "shape", "x", "x_fact", "y", "y_fact", "z"],
+        "edges": ["c", "directed", "source", "target", "weight"]
+    },
+    "pajek/generated/color-forms.net": {
+        "nodes": ["bc", "ic", "id", "label"],
+        "edges": ["c", "directed", "source", "target", "weight"]
+    },
+    "pajek/generated/colors-mix.net": {
+        "nodes": ["bc", "ic", "id", "label", "shape", "x", "x_fact", "y", "z"],
+        "edges": ["c", "directed", "p", "source", "target", "w", "weight"]
+    },
+    "pajek/generated/graphty-written.net": {
+        "nodes": ["bw", "fos", "ic", "id", "label", "lc", "lphi", "lr", "shape", "x", "x_fact", "y", "y_fact", "z"],
+        "edges": [
+            "a1",
+            "a2",
+            "c",
+            "directed",
+            "fos",
+            "h2",
+            "k1",
+            "k2",
+            "l",
+            "lc",
+            "p",
+            "s",
+            "source",
+            "target",
+            "w",
+            "weight"
+        ]
+    },
+    "pajek/generated/nan-values.net": {
+        "nodes": ["ic", "id", "label", "x_fact", "y_fact"],
+        "edges": ["directed", "source", "target", "weight"]
+    },
+    "pajek/generated/proto-color-names.net": {
+        "nodes": ["bc", "ic", "id", "label", "shape", "x", "y", "z"],
+        "edges": ["c", "directed", "p", "source", "target", "weight"]
+    },
+    "pajek/generated/shapes-and-lines.net": {
+        "nodes": ["bw", "fos", "ic", "id", "label", "lc", "lphi", "lr", "shape", "x", "x_fact", "y", "y_fact", "z"],
+        "edges": [
+            "a1",
+            "a2",
+            "c",
+            "directed",
+            "fos",
+            "h2",
+            "k1",
+            "k2",
+            "l",
+            "lc",
+            "p",
+            "s",
+            "source",
+            "target",
+            "w",
+            "weight"
+        ]
+    },
+    "pajek/generated/tamper-block-truncated.net": {
+        "nodes": ["bw", "fos", "ic", "id", "label", "lc", "lphi", "lr", "shape", "x", "x_fact", "y", "y_fact", "z"],
+        "edges": [
+            "a1",
+            "a2",
+            "c",
+            "directed",
+            "fos",
+            "h2",
+            "k1",
+            "k2",
+            "l",
+            "lc",
+            "p",
+            "s",
+            "source",
+            "target",
+            "w",
+            "weight"
+        ]
+    },
+    "pajek/generated/tamper-native-edited.net": {
+        "nodes": ["bw", "fos", "ic", "id", "label", "lc", "lphi", "lr", "shape", "x", "x_fact", "y", "y_fact", "z"],
+        "edges": [
+            "a1",
+            "a2",
+            "c",
+            "directed",
+            "fos",
+            "h2",
+            "k1",
+            "k2",
+            "l",
+            "lc",
+            "p",
+            "s",
+            "source",
+            "target",
+            "w",
+            "weight"
+        ]
+    },
+    "pajek/generated/tamper-node-added.net": {
+        "nodes": ["bw", "fos", "ic", "id", "label", "lc", "lphi", "lr", "shape", "x", "x_fact", "y", "y_fact", "z"],
+        "edges": [
+            "a1",
+            "a2",
+            "c",
+            "directed",
+            "fos",
+            "h2",
+            "k1",
+            "k2",
+            "l",
+            "lc",
+            "p",
+            "s",
+            "source",
+            "target",
+            "w",
+            "weight"
+        ]
+    },
+    "xgmml/BasicDataVizDemo.xgmml.gz": {
+        "nodes": [
+            "COMMON",
+            "gal1RGexp",
+            "gal1RGsig",
+            "gal4RGexp",
+            "gal4RGsig",
+            "gal80Rexp",
+            "gal80Rsig",
+            "graphics",
+            "id",
+            "label",
+            "name",
+            "position",
+            "selected",
+            "shared name",
+            "z"
+        ],
+        "edges": [
+            "graphics",
+            "id",
+            "interaction",
+            "label",
+            "name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target"
+        ]
+    },
+    "xgmml/STRING-BreastCancer_expr.xgmml.gz": {
+        "nodes": [
+            "@id",
+            "STRING style",
+            "canonical",
+            "canonical name",
+            "compartment chloroplast",
+            "compartment cytoskeleton",
+            "compartment cytosol",
+            "compartment endoplasmic reticulum",
+            "compartment endosome",
+            "compartment extracellular",
+            "compartment golgi apparatus",
+            "compartment lysosome",
+            "compartment mitochondrion",
+            "compartment nucleus",
+            "compartment peroxisome",
+            "compartment plasma membrane",
+            "compartment vacuole",
+            "database identifier",
+            "description",
+            "disease score",
+            "display name",
+            "enhancedLabel Passthrough",
+            "expr.mean",
+            "full name",
+            "graphics",
+            "id",
+            "image",
+            "label",
+            "missense_mut_count",
+            "mut_count",
+            "name",
+            "namespace",
+            "node type",
+            "position",
+            "query term",
+            "selected",
+            "sequence",
+            "shared name",
+            "species",
+            "target development level",
+            "target family",
+            "tissue adrenal gland",
+            "tissue blood",
+            "tissue bone",
+            "tissue bone marrow",
+            "tissue eye",
+            "tissue gall bladder",
+            "tissue heart",
+            "tissue intestine",
+            "tissue kidney",
+            "tissue liver",
+            "tissue lung",
+            "tissue lymph node",
+            "tissue muscle",
+            "tissue nervous system",
+            "tissue pancreas",
+            "tissue saliva",
+            "tissue skin",
+            "tissue spleen",
+            "tissue stomach",
+            "tissue thyroid gland",
+            "tissue urine",
+            "z"
+        ],
+        "edges": [
+            "coexpression",
+            "cooccurrence",
+            "databases",
+            "experiments",
+            "graphics",
+            "id",
+            "interaction",
+            "interspecies",
+            "label",
+            "name",
+            "neighborhood",
+            "score",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target",
+            "textmining"
+        ]
+    },
+    "xgmml/String_Network-breast_cancer.xgmml.gz": {
+        "nodes": [
+            "@id",
+            "STRING style",
+            "canonical",
+            "canonical name",
+            "compartment chloroplast",
+            "compartment cytoskeleton",
+            "compartment cytosol",
+            "compartment endoplasmic reticulum",
+            "compartment endosome",
+            "compartment extracellular",
+            "compartment golgi apparatus",
+            "compartment lysosome",
+            "compartment mitochondrion",
+            "compartment nucleus",
+            "compartment peroxisome",
+            "compartment plasma membrane",
+            "compartment vacuole",
+            "database identifier",
+            "description",
+            "disease score",
+            "display name",
+            "enhancedLabel Passthrough",
+            "full name",
+            "graphics",
+            "id",
+            "image",
+            "label",
+            "name",
+            "namespace",
+            "node type",
+            "position",
+            "query term",
+            "selected",
+            "sequence",
+            "shared name",
+            "species",
+            "target development level",
+            "target family",
+            "tissue adrenal gland",
+            "tissue blood",
+            "tissue bone",
+            "tissue bone marrow",
+            "tissue eye",
+            "tissue gall bladder",
+            "tissue heart",
+            "tissue intestine",
+            "tissue kidney",
+            "tissue liver",
+            "tissue lung",
+            "tissue lymph node",
+            "tissue muscle",
+            "tissue nervous system",
+            "tissue pancreas",
+            "tissue saliva",
+            "tissue skin",
+            "tissue spleen",
+            "tissue stomach",
+            "tissue thyroid gland",
+            "tissue urine",
+            "z"
+        ],
+        "edges": [
+            "coexpression",
+            "cooccurrence",
+            "databases",
+            "experiments",
+            "graphics",
+            "id",
+            "interaction",
+            "interspecies",
+            "label",
+            "name",
+            "neighborhood",
+            "score",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target",
+            "textmining"
+        ]
+    },
+    "xgmml/generated/graphics-mix.xgmml": {
+        "nodes": ["graphics", "id", "k", "label"],
+        "edges": ["graphics", "label", "source", "target"]
+    },
+    "xgmml/generated/graphty-written-block-other-graph.xgmml.gz": {
+        "nodes": [
+            "NODE_TYPE",
+            "canonicalName",
+            "graphics",
+            "id",
+            "label",
+            "label#2",
+            "node.borderColor",
+            "node.fillColor",
+            "node.label",
+            "node.labelColor",
+            "node.lineWidth",
+            "node.shape",
+            "node.size",
+            "position",
+            "vizmap:NGSCheckMate_graph NODE_BORDER_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_FILL_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_HEIGHT",
+            "vizmap:NGSCheckMate_graph NODE_WIDTH"
+        ],
+        "edges": [
+            "canonicalName",
+            "edge.fontSize",
+            "edge.label",
+            "edge.lineWidth",
+            "graphics",
+            "interaction",
+            "label",
+            "source",
+            "target"
+        ]
+    },
+    "xgmml/generated/graphty-written-block-truncated.xgmml.gz": {
+        "nodes": [
+            "NODE_TYPE",
+            "canonicalName",
+            "graphics",
+            "id",
+            "label",
+            "label#2",
+            "node.borderColor",
+            "node.fillColor",
+            "node.label",
+            "node.labelColor",
+            "node.lineWidth",
+            "node.shape",
+            "node.size",
+            "position",
+            "vizmap:NGSCheckMate_graph NODE_BORDER_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_FILL_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_HEIGHT",
+            "vizmap:NGSCheckMate_graph NODE_WIDTH"
+        ],
+        "edges": [
+            "canonicalName",
+            "edge.fontSize",
+            "edge.label",
+            "edge.lineWidth",
+            "graphics",
+            "interaction",
+            "label",
+            "source",
+            "target"
+        ]
+    },
+    "xgmml/generated/graphty-written-native-edit.xgmml.gz": {
+        "nodes": [
+            "NODE_TYPE",
+            "canonicalName",
+            "graphics",
+            "id",
+            "label",
+            "label#2",
+            "node.borderColor",
+            "node.fillColor",
+            "node.label",
+            "node.labelColor",
+            "node.lineWidth",
+            "node.shape",
+            "node.size",
+            "position",
+            "vizmap:NGSCheckMate_graph NODE_BORDER_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_FILL_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_HEIGHT",
+            "vizmap:NGSCheckMate_graph NODE_WIDTH"
+        ],
+        "edges": [
+            "canonicalName",
+            "edge.fontSize",
+            "edge.label",
+            "edge.lineWidth",
+            "graphics",
+            "interaction",
+            "label",
+            "source",
+            "target"
+        ]
+    },
+    "xgmml/generated/graphty-written.xgmml.gz": {
+        "nodes": [
+            "NODE_TYPE",
+            "canonicalName",
+            "graphics",
+            "id",
+            "label",
+            "label#2",
+            "node.borderColor",
+            "node.fillColor",
+            "node.label",
+            "node.labelColor",
+            "node.lineWidth",
+            "node.shape",
+            "node.size",
+            "position",
+            "vizmap:NGSCheckMate_graph NODE_BORDER_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_FILL_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_HEIGHT",
+            "vizmap:NGSCheckMate_graph NODE_WIDTH"
+        ],
+        "edges": [
+            "canonicalName",
+            "edge.fontSize",
+            "edge.label",
+            "edge.lineWidth",
+            "graphics",
+            "interaction",
+            "label",
+            "source",
+            "target"
+        ]
+    },
+    "xgmml/parklab_NGSCheckMate__luad.out.xgmml": {
+        "nodes": [
+            "NODE_TYPE",
+            "canonicalName",
+            "graphics",
+            "id",
+            "label",
+            "label#2",
+            "node.borderColor",
+            "node.fillColor",
+            "node.label",
+            "node.labelColor",
+            "node.lineWidth",
+            "node.shape",
+            "node.size",
+            "position",
+            "vizmap:NGSCheckMate_graph NODE_BORDER_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_FILL_COLOR",
+            "vizmap:NGSCheckMate_graph NODE_HEIGHT",
+            "vizmap:NGSCheckMate_graph NODE_WIDTH"
+        ],
+        "edges": [
+            "canonicalName",
+            "edge.fontSize",
+            "edge.label",
+            "edge.lineWidth",
+            "graphics",
+            "interaction",
+            "label",
+            "source",
+            "target"
+        ]
+    },
+    "xgmml/sample_yeast_network.xgmml.gz": {
+        "nodes": [
+            "Annotations",
+            "Features",
+            "Human Readable Label",
+            "Interactor Type",
+            "Interactor Type ID",
+            "Taxonomy ID",
+            "Taxonomy Name",
+            "Xref",
+            "Xref ID",
+            "chebi_id",
+            "graphics",
+            "id",
+            "intact",
+            "label",
+            "name",
+            "obo.chebi",
+            "position",
+            "psi-mi",
+            "selected",
+            "shared name",
+            "uniprot",
+            "uniprotkb_accession",
+            "z"
+        ],
+        "edges": [
+            "Annotation",
+            "Author",
+            "Complex Expansion",
+            "Complex Expansion ID",
+            "Confidence-Score-author score",
+            "Confidence-Score-intact-miscore",
+            "Creation Date",
+            "Detection Method",
+            "Detection Method ID",
+            "Host Organism Taxonomy",
+            "Host Organism Taxonomy ID",
+            "Interaction Type",
+            "Negative",
+            "Primary Interaction Type",
+            "Publication DB",
+            "Publication ID",
+            "Source Biological Role",
+            "Source Biological Role ID",
+            "Source Database",
+            "Source Experimental Role",
+            "Source Experimental Role ID",
+            "Source Participant Detection Method",
+            "Source Participant Detection Method ID",
+            "Target Biological Role",
+            "Target Biological Role ID",
+            "Target Experimental Role",
+            "Target Experimental Role ID",
+            "Target Participant Detection Method",
+            "Target Participant Detection Method ID",
+            "Update Date",
+            "Xref",
+            "Xref ID",
+            "graphics",
+            "id",
+            "interaction",
+            "label",
+            "name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target"
+        ]
+    }
+}

@@ -448,21 +448,20 @@ describe("GML, DOT and Pajek read through graph-io", () => {
             new DOTDataSource({ data: 'digraph { subgraph cluster_x { a; b [parent="mine"] } }' }),
         );
 
-        assert.deepStrictEqual(nodes, [{ id: "a" }, { id: "b", parent: "mine" }]);
+        assert.sameDeepMembers(nodes, [{ id: "cluster_x" }, { id: "a" }, { id: "b", parent: "mine" }]);
     });
 
-    test("DOT draws a cluster as a node only when an edge names it", async () => {
+    test("DOT keeps every cluster as a node, with its attributes, whether an edge names it or not", async () => {
         const named = await collect(new DOTDataSource({ data: "digraph { subgraph cluster_x { a } b -> cluster_x }" }));
-        const unnamed = await collect(new DOTDataSource({ data: "digraph { subgraph cluster_x { a } b -> a }" }));
-
-        assert.includeMembers(
-            named.nodes.map((node) => node.id),
-            ["cluster_x"],
+        const unnamed = await collect(
+            new DOTDataSource({ data: 'digraph { subgraph cluster_x { label="X"; a } b -> a }' }),
         );
-        assert.notInclude(
-            unnamed.nodes.map((node) => node.id),
+
+        assert.include(
+            named.nodes.map((node) => node.id),
             "cluster_x",
         );
+        assert.deepInclude(unnamed.nodes, { id: "cluster_x", label: "X" });
     });
 
     test("DOT keeps pos as the text the file wrote", async () => {

@@ -1,3 +1,20 @@
+## 3.25.1 (2026-10-12)
+
+### 🩹 Fixes
+
+- **graphty-element:** one rule for an alpha inside a colour on every style channel ([#2071](https://github.com/graphty-org/graphty-monorepo/issues/2071))
+- **graphty-element:** resolve either spelling of an integer id in style ids selectors ([#2061](https://github.com/graphty-org/graphty-monorepo/issues/2061))
+- **graphty-element:** a glow strength alone no longer switches glow on ([#2068](https://github.com/graphty-org/graphty-monorepo/issues/2068))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.47
+- Updated layout to 2.4.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.25.0 (2026-10-12)
 
 ### 🚀 Features

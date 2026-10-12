@@ -17,7 +17,7 @@ import {
     type AiVoiceReadiness,
     type AiVoiceRoute,
 } from "../catalog/ai";
-import type { AiApprovalRequest, AiQuestionRequest } from "../events";
+import type { AiApprovalRequest, AiQuestionRequest, NodeHoverEvent } from "../events";
 import type { Graph } from "../Graph";
 import type { AiAgentsSetting, AiToolOptions } from "./agents";
 import {
@@ -433,6 +433,15 @@ export class AiManager {
                                 : { readiness: "ready", engine };
                         },
                         immersive: () => (graph.getXRSessionManager()?.getActiveMode() ?? null) !== null,
+                        selected: () => graph.getSession().selection.nodes,
+                        onPointed: (listener) => {
+                            const id = graph.eventManager.addListener("node-hover", (event) => {
+                                listener((event as NodeHoverEvent).node.id);
+                            });
+                            return () => {
+                                graph.eventManager.removeListener(id);
+                            };
+                        },
                     }),
             );
         }

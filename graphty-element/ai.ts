@@ -41,6 +41,7 @@ export type {
     AiControllerOptions,
     AiEventEmitter,
     AiHistoryOptions,
+    AiPointing,
     AiToolCallFacts,
     ExecutionResult,
 } from "./src/ai/index";

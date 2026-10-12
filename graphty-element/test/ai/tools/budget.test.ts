@@ -20,10 +20,12 @@ import { ASK_READER_TOOL } from "../../../src/ai/questions";
 import { turnTools } from "../../../src/ai/runConversation";
 import { researchRole } from "../../../src/ai/tools/hosted";
 import { installAssistantTools } from "../../../src/ai/tools/install";
+import { factsBlock } from "../../../src/ai/tools/prompt";
 import { RUN_CODE_TOOL } from "../../../src/ai/tools/runCode";
 import { isAssistantTool } from "../../../src/ai/tools/toolset";
 import { clearRegisteredLayoutsForTesting } from "../../../src/catalog/layoutRegistry";
 import { clearRegisteredAlgorithmsForTesting } from "../../../src/catalog/registry";
+import { assistantSession } from "../../helpers/assistant";
 
 /** Characters to tokens, for JSON Schema. */
 const CHARS_PER_TOKEN = 3;
@@ -188,5 +190,16 @@ describe("the always-loaded tools fit a model's budget", () => {
         assert.isFalse(enumNames, "past forty names, a string the catalog validates");
         assert.isAtMost(tokens, 5000);
         assert.isAtMost(declared("small").tokens, 1500);
+    });
+});
+
+describe("the facts block fits beside the tools", () => {
+    it("the small profile's, with a full pointing record of the longest ids, adds at most 400 tokens and stays within 600", async () => {
+        const session = await assistantSession();
+        const longest = Array.from({ length: 100 }, (_, index) => String(index).padEnd(60, "x"));
+        const typed = factsBlock(session, "small");
+        const spoken = factsBlock(session, "small", { pointed: longest, selected: longest });
+        assert.isAtMost(Math.ceil((spoken.length - typed.length) / CHARS_PER_TOKEN), 400);
+        assert.isAtMost(Math.ceil(spoken.length / CHARS_PER_TOKEN), 600);
     });
 });

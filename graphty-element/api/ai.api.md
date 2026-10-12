@@ -174,6 +174,7 @@ export interface AiCapabilityUnavailableEvent {
 // @public
 export interface AiCommandOptions {
     readonly conversation?: string;
+    readonly pointing?: AiPointing;
     readonly via?: "text" | "voice";
 }
 
@@ -387,6 +388,12 @@ export interface AiPlan {
         readonly agents: readonly string[];
         readonly order?: "parallel" | "sequence";
     }[];
+}
+
+// @public
+export interface AiPointing {
+    readonly pointed: readonly NodeId[];
+    readonly selected: readonly NodeId[];
 }
 
 // @public

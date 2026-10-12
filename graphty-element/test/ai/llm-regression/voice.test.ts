@@ -198,3 +198,81 @@ describe.skipIf(skipIfNoApiKey())("a spoken command on a real model", () => {
         },
     );
 });
+
+describe.skipIf(skipIfNoApiKey())("pointing while talking on a real model", () => {
+    it('"make this one red", said while pointing at n3, changes the color of n3 and of no other node', async () => {
+        // The page's recognizer hears the sentence; only the chat turn goes to the provider.
+        const fake = installFakeSpeech({ language: "en-US" });
+        const graph = {
+            nodes: SMALL_GRAPH.nodes.map((node, index) => ({ ...node, id: `n${String(index + 1)}` })),
+            edges: SMALL_GRAPH.edges.map((edge) => ({
+                ...edge,
+                source: `n${String("abcde".indexOf(edge.source as string) + 1)}`,
+                target: `n${String("abcde".indexOf(edge.target as string) + 1)}`,
+            })),
+        };
+        const ids = graph.nodes.map((node) => node.id);
+        const session = await assistantSession(graph);
+        const colors = (): string[] =>
+            ids.map((id) => JSON.stringify(session.styles.explain({ node: id }).merged["node.color" as never]));
+        const before = colors();
+        const real = engine();
+        const counting: AiEngine = Object.assign(Object.create(real) as AiEngine, {
+            turn: (request: Parameters<AiEngine["turn"]>[0], signal: AbortSignal): AsyncIterable<TurnEvent> => {
+                counted();
+                return real.turn(request, signal);
+            },
+        });
+        const registry = new CommandRegistry();
+        installAssistantTools(registry, session);
+        let finished: (event: AiEvent) => void = () => undefined;
+        const done = new Promise<AiEvent>((resolve) => {
+            finished = resolve;
+        });
+        const controller = new AiController({
+            provider: { name: getLlmRegressionProvider() } as never,
+            commandRegistry: registry,
+            graph: { getSession: () => session } as unknown as CommandContext["graph"],
+            model: getLlmRegressionModel(),
+            history: "memory",
+            emitEvent: (event: AiEvent) => {
+                if (event.type === "ai-command-complete" || event.type === "ai-command-error") {
+                    finished(event);
+                }
+            },
+            [ENGINE_OVERRIDE]: counting,
+        } as never);
+        let pointer: ((id: string) => void) | undefined;
+        const voice = new VoiceSession({
+            options: { input: "browser", language: "en-US" },
+            controller,
+            emit: () => undefined,
+            transcriber: () => ({ readiness: "unsupported" }),
+            speaker: () => ({ readiness: "unsupported" }),
+            immersive: () => false,
+            selected: () => [],
+            onPointed: (listener) => {
+                pointer = listener;
+                return () => {
+                    pointer = undefined;
+                };
+            },
+        });
+
+        voice.talk(true);
+        await vi.waitFor(() => {
+            assert.lengthOf(fake.recognizers, 1, "the recognizer is listening");
+        });
+        pointer?.("n3");
+        fake.recognizers[0].hear("make this one red", true);
+        voice.talk(false);
+        const outcome = await done;
+
+        assert.strictEqual(outcome.type, "ai-command-complete", JSON.stringify(outcome));
+        const after = colors();
+        const changed = ids.filter((_, index) => after[index] !== before[index]);
+        assert.deepStrictEqual(changed, ["n3"], "only n3 changed color");
+        assert.deepStrictEqual(redNodes(session, graph.nodes), ["n3"], "n3 is red");
+        controller.dispose();
+    });
+});

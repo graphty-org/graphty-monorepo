@@ -7,6 +7,7 @@
  * graph.
  */
 
+import type { NodeId } from "../../catalog/types";
 import type { GraphSession } from "../../session/types";
 import type { GraphCommand } from "../commands/types";
 
@@ -64,13 +65,28 @@ export function assistantInstructions(
     return lines.join("\n");
 }
 
+/** The most ids a facts-block line lists, per profile: what was pointed at, what was selected. */
+export const FACT_IDS_CAP: Readonly<Record<ToolProfile, number>> = { standard: 20, small: 10 };
+
+/**
+ * What the reader pointed at while talking (`AiCommandOptions.pointing`): nodes, in order, and
+ * the selection when talk started.
+ */
+export interface AiPointing {
+    /** The nodes pointed at, oldest first. */
+    readonly pointed: readonly NodeId[];
+    /** The selected nodes when talk started. */
+    readonly selected: readonly NodeId[];
+}
+
 /**
  * The facts block: what the model would otherwise spend a turn asking.
  * @param session - The session.
  * @param profile - The tool profile: the small one gets a shorter block.
+ * @param pointing - What the reader pointed at while talking; absent for a typed message.
  * @returns The facts, as text.
  */
-export function factsBlock(session: GraphSession, profile: ToolProfile): string {
+export function factsBlock(session: GraphSession, profile: ToolProfile, pointing?: AiPointing): string {
     const { counts, directed } = session.status;
     const attributes = session.data.attributes().filter((attribute) => attribute.origin !== "result");
     const shown = attributes.slice(0, profile === "small" ? 8 : 15);
@@ -94,12 +110,35 @@ export function factsBlock(session: GraphSession, profile: ToolProfile): string 
             );
         }
 
-        if (session.selection.size > 0) {
+        if (pointing === undefined && session.selection.size > 0) {
             lines.push(`Selected: ${String(session.selection.size)}.`);
         }
     }
 
+    if (pointing !== undefined) {
+        const cap = FACT_IDS_CAP[profile];
+        if (pointing.pointed.length > 0) {
+            // The most recent, since "this" is what the reader pointed at last.
+            lines.push(`Pointed at, in order: ${listIds(pointing.pointed.slice(-cap), pointing.pointed.length)}.`);
+        }
+
+        if (pointing.selected.length > 0) {
+            lines.push(`Selected: ${listIds(pointing.selected.slice(0, cap), pointing.selected.length)}.`);
+        }
+    }
+
     return lines.join("\n");
+}
+
+/**
+ * Ids as a facts line writes them: quoted when text, cut to 40 characters.
+ * @param ids - The ids listed.
+ * @param total - How many there were, so a cut list says so.
+ * @returns The list's text.
+ */
+function listIds(ids: readonly NodeId[], total: number): string {
+    const shown = ids.map((id) => JSON.stringify(typeof id === "string" ? id.slice(0, 40) : id));
+    return `${shown.join(", ")}${total > ids.length ? ` (${String(total - ids.length)} more)` : ""}`;
 }
 
 /** The most ids the facts block names, or reads to find a range. */

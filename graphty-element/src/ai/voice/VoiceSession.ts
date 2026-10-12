@@ -6,11 +6,13 @@
  */
 
 import type { AiResultCode, AiResultParams } from "../../catalog/ai";
+import type { NodeId } from "../../catalog/types";
 import type { AiApprovalRequest, AiQuestionRequest } from "../../events";
 import type { AiApprovalAnswer, AiCommandOptions, ExecutionResult } from "../AiController";
 import type { AiVoiceOptions, AiVoiceSupport } from "../AiManager";
 import type { AiEngine } from "../engine/types";
 import { chooseInput, chooseOutput, chooseVoice, type ProviderVoiceReadiness, type VoiceFacts } from "./choose";
+import { PointingRecord } from "./pointing";
 import { type SpeechInput, type SpeechInputEnd, startSpeechInput } from "./SpeechInput";
 import { createSpeechOutput, type SpeechOutput } from "./SpeechOutput";
 import { readVoiceEnvironment, voiceLanguage } from "./support";
@@ -46,6 +48,13 @@ export interface VoiceHost {
     speaker(): ProviderSpeech<"speak">;
     /** Whether an immersive (XR) session runs. */
     immersive(): boolean;
+    /** The selected nodes now; absent, none. */
+    selected?(): readonly NodeId[];
+    /**
+     * Listen for the pointer entering a node, while talk is held.
+     * @returns A function that stops listening.
+     */
+    onPointed?(listener: (id: NodeId) => void): () => void;
 }
 
 /**
@@ -69,6 +78,8 @@ export class VoiceSession {
     /** Counts presses, so a press that ended before it started does nothing. */
     private press = 0;
     private input: SpeechInput | undefined;
+    /** Stops recording what the pointer enters, while talk is held. */
+    private stopPointing: (() => void) | undefined;
     private readonly speakers = new Map<"browser" | "provider", SpeechOutput>();
     private disposed = false;
 
@@ -101,9 +112,15 @@ export class VoiceSession {
             this.listening = true;
             // Barge-in: talking cuts off the answer being spoken.
             this.stopSpeech();
-            void this.listen(++this.press);
+            // What the reader points at while talking, from a fresh record each press.
+            const pointing = new PointingRecord(this.host.selected?.() ?? []);
+            this.stopPointing = this.host.onPointed?.((id) => {
+                pointing.enter(id);
+            });
+            void this.listen(++this.press, pointing);
         } else if (!down && this.listening) {
             this.listening = false;
+            this.endPointing();
             this.input?.stop();
         }
     }
@@ -127,9 +144,16 @@ export class VoiceSession {
     dispose(): void {
         this.disposed = true;
         this.listening = false;
+        this.endPointing();
         this.input?.dispose();
         this.input = undefined;
         this.stopSpeech();
+    }
+
+    /** Stop recording what the pointer enters. */
+    private endPointing(): void {
+        this.stopPointing?.();
+        this.stopPointing = undefined;
     }
 
     /**
@@ -148,8 +172,9 @@ export class VoiceSession {
     /**
      * One press: choose the path, listen until released, then route what was heard.
      * @param press - The press's number.
+     * @param pointing - What the reader points at during it.
      */
-    private async listen(press: number): Promise<void> {
+    private async listen(press: number, pointing: PointingRecord): Promise<void> {
         const facts = await this.facts();
         if (this.disposed || press !== this.press) {
             return;
@@ -158,6 +183,7 @@ export class VoiceSession {
         const path = chooseInput(this.host.options.input ?? "auto", facts);
         if (path.path !== "browser" && path.path !== "provider") {
             this.listening = false;
+            this.endPointing();
             this.host.emit("ai-voice-end", { reason: "error", code: path.code, params: path.params ?? {} });
             return;
         }
@@ -180,7 +206,7 @@ export class VoiceSession {
                     this.host.emit("ai-voice-level", { level });
                 },
                 onEnd: (end) => {
-                    void this.heard(press, end);
+                    void this.heard(press, end, pointing);
                 },
             },
         );
@@ -194,11 +220,13 @@ export class VoiceSession {
      * A press ended: report it, then send or answer with what was heard and speak the outcome.
      * @param press - The press's number.
      * @param end - How it ended.
+     * @param pointing - What the reader pointed at during it.
      */
-    private async heard(press: number, end: SpeechInputEnd): Promise<void> {
+    private async heard(press: number, end: SpeechInputEnd, pointing: PointingRecord): Promise<void> {
         if (press === this.press) {
             this.listening = false;
             this.input = undefined;
+            this.endPointing();
         }
 
         const failed = end.code !== "AI_COMPLETED" && end.code !== "AI_CANCELLED";
@@ -207,7 +235,7 @@ export class VoiceSession {
             return;
         }
 
-        const result = await this.route(end.text);
+        const result = await this.route(end.text, pointing);
         if (!this.disposed) {
             await this.speak(result);
         }
@@ -217,9 +245,10 @@ export class VoiceSession {
      * An utterance answers the pending approval or question it matches; anything else is a new
      * message, which ends what is pending, as a typed one does.
      * @param text - What was heard.
+     * @param pointing - What the reader pointed at while saying it.
      * @returns The outcome.
      */
-    private route(text: string): Promise<ExecutionResult> {
+    private route(text: string, pointing: PointingRecord): Promise<ExecutionResult> {
         const said = comparable(text);
         const { controller, options } = this.host;
         const approval = controller.getPendingApprovals().at(-1);
@@ -240,7 +269,7 @@ export class VoiceSession {
             return controller.answerQuestion(question.id, choice);
         }
 
-        return controller.execute(text, { via: "voice" });
+        return controller.execute(text, { via: "voice", pointing: pointing.facts() });
     }
 
     /**

@@ -20,6 +20,7 @@ export type {
     ExecutionResult,
 } from "./AiController";
 export { AiController } from "./AiController";
+export type { AiPointing } from "./tools/prompt";
 
 // Saved conversations, as an application reads them
 export type {

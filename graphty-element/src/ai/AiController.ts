@@ -79,7 +79,7 @@ import {
     type UnavailableTool,
 } from "./tools/hosted";
 import { hasAssistantTools, installAssistantTools } from "./tools/install";
-import { assistantInstructions, factsBlock } from "./tools/prompt";
+import { type AiPointing, assistantInstructions, factsBlock } from "./tools/prompt";
 import { isAssistantTool } from "./tools/toolset";
 import {
     type AiApprovalVerdict,
@@ -408,6 +408,11 @@ export interface AiCommandOptions {
     readonly conversation?: string;
     /** How the reader gave the message: typed (`"text"`, the default) or spoken (`"voice"`). */
     readonly via?: "text" | "voice";
+    /**
+     * What the reader pointed at while saying it, which the message's facts give the model so "this"
+     * names a node. `aiTalk` fills it from the nodes the pointer entered while talk was held.
+     */
+    readonly pointing?: AiPointing;
 }
 
 /**
@@ -733,7 +738,7 @@ export class AiController {
                 return { success: false, message: "", code: "AI_FAILED", params: {} };
             }
 
-            return this.executeNow(input, abortController, options.via, planned);
+            return this.executeNow(input, abortController, options, planned);
         });
     }
 
@@ -876,14 +881,14 @@ export class AiController {
      * that made it ends there, without another model turn.
      * @param input - The reader's request.
      * @param abortController - The message's controller, which `cancel()` aborts.
-     * @param via - How the reader gave it.
+     * @param options - How the reader gave it, and what they pointed at.
      * @param planned - A function router's plan for it.
      * @returns The message's result.
      */
     private async executeNow(
         input: string,
         abortController: AbortController,
-        via: AiCommandOptions["via"],
+        options: AiCommandOptions,
         planned: AiPlan | undefined,
     ): Promise<ExecutionResult> {
         await this.supersedePending(true);
@@ -893,7 +898,7 @@ export class AiController {
             input,
             message: uniqueId("msg_"),
             abortController,
-            conversation: (session) => this.startConversation(input, session, via),
+            conversation: (session) => this.startConversation(input, session, options.via, options.pointing),
             conversationId: this.current?.id,
             ...(this.router === "model" || this.roles.length === 0
                 ? {}
@@ -1795,9 +1800,15 @@ export class AiController {
      * @param input - User input
      * @param session - The session, for the facts.
      * @param via - How the reader gave it; recorded only when the host said.
+     * @param pointing - What the reader pointed at while saying it.
      * @returns The conversation
      */
-    private startConversation(input: string, session: GraphSession, via?: "text" | "voice"): Conversation {
+    private startConversation(
+        input: string,
+        session: GraphSession,
+        via?: "text" | "voice",
+        pointing?: AiPointing,
+    ): Conversation {
         const system = this.systemPrompt();
         const said = { type: "text", origin: "reader", text: input, ...(via === undefined ? {} : { via }) } as const;
         if (hasAssistantTools(this.commandRegistry)) {
@@ -1809,7 +1820,10 @@ export class AiController {
                     {
                         id: this.firstMessageId(),
                         role: "user",
-                        parts: [{ type: "text", origin: "graph-data", text: factsBlock(session, this.profile) }, said],
+                        parts: [
+                            { type: "text", origin: "graph-data", text: factsBlock(session, this.profile, pointing) },
+                            said,
+                        ],
                     },
                 ],
             };

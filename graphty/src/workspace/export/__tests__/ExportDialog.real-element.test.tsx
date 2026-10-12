@@ -111,4 +111,50 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         assert.include(lines[0], header, "the result column is headed by its result path");
         assert.lengthOf(lines, NODES.length + 1, "one row per node, under one header");
     });
+
+    it("saves a graph with text ids as GML, and a Cytoscape session as its zip file", async () => {
+        const saved = catchDownloads();
+        render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
+        let session: GraphSession | undefined;
+        await waitFor(
+            () => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.addNodes(NODES);
+        await session.data.addEdges(EDGES);
+
+        for (const [label, file, sniff] of [
+            ["GML (keeps style layers)", "untitled_graph.gml", /^\s*(Creator|graph)/],
+            ["Cytoscape Session (keeps style layers)", "untitled_graph.cys", /^PK/],
+        ] as const) {
+            await userEvent.keyboard("{Control>}e{/Control}");
+            const dialog = await screen.findByRole("dialog", { name: "Export" });
+            await userEvent.click(within(dialog).getByText("Data"));
+            await userEvent.click(within(dialog).getByRole("combobox", { name: "Format" }));
+            await userEvent.click(await screen.findByRole("option", { name: label }));
+            await waitFor(() => {
+                assert.notInclude(
+                    within(dialog).getByLabelText("Preview of the exported data").textContent,
+                    "Writing the preview",
+                );
+            });
+            assert.isNull(within(dialog).queryByRole("alert"), "the file can be written");
+            await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+            const warning = within(dialog).queryByRole("alertdialog");
+            if (warning !== null) {
+                await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
+            }
+            await screen.findByText(`Exported ${file}`, {}, { timeout: TIMEOUT_MS });
+            const blob = saved.find(({ name }) => name === file)?.blob;
+            assert.isDefined(blob, `${file} was saved`);
+            const head = new TextDecoder("latin1").decode(new Uint8Array(await blob.arrayBuffer()).slice(0, 16));
+            assert.match(head, sniff);
+        }
+    });
 });

@@ -34,12 +34,15 @@ export interface DataChoices {
 
 /**
  * The options for one data export, for the preview and the save alike: always with the graph's
- * styles, so every format that can hold them gets them and the losses name what it cannot.
+ * styles, so every format that can hold them gets them and the losses name what it cannot, and
+ * with node ids a format cannot hold (text ids in GML) rewritten, each original kept in the file
+ * for reading it back, so every graph can be saved in every format.
  * @param choices - the data choices.
  * @returns the `exportGraph` options.
  */
 export function dataExportOptions(choices: DataChoices): Readonly<Record<string, unknown>> {
-    return choices.format === "csv" ? { styles: true, table: choices.table } : { styles: true };
+    const options = { styles: true, sanitizeIds: "mangle" };
+    return choices.format === "csv" ? { ...options, table: choices.table } : options;
 }
 
 /** One image preset (tier1-design.md section T13). */

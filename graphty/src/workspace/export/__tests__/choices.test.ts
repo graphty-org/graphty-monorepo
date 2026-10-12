@@ -54,7 +54,14 @@ describe("the Export dialog's choices", () => {
     });
 
     it("asks every data export for the graph's styles", () => {
-        assert.deepEqual(dataExportOptions({ format: "csv", table: "edges" }), { styles: true, table: "edges" });
-        assert.deepEqual(dataExportOptions({ format: "graphml", table: "nodes" }), { styles: true });
+        assert.deepEqual(dataExportOptions({ format: "csv", table: "edges" }), {
+            styles: true,
+            sanitizeIds: "mangle",
+            table: "edges",
+        });
+        assert.deepEqual(dataExportOptions({ format: "graphml", table: "nodes" }), {
+            styles: true,
+            sanitizeIds: "mangle",
+        });
     });
 });

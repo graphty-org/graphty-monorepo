@@ -10,6 +10,23 @@ import { isStyleLoss, layersBackWords, listedStyleLosses, lossWords } from "./lo
 /** How many lines of the file the preview shows. */
 const PREVIEW_LINES = 6;
 
+/**
+ * Why a file was not written, from the export's error code (graphty-element's messages are for developers).
+ * @param error - what the export threw.
+ * @param losses - the export's losses, when it got that far; its refusals (E_ codes) say why.
+ * @returns a sentence.
+ */
+function failureWords(error: unknown, losses: readonly ExportLoss[] = []): string {
+    const refused = [...new Set(losses.filter((loss) => loss.code.startsWith("E_")).map(lossWords))];
+    if (refused.length > 0) {
+        return refused.join(". ");
+    }
+    const code = (error as { code?: unknown } | null)?.code;
+    return code === "E_UNSUPPORTED"
+        ? "This format cannot hold this graph"
+        : "Something went wrong while writing the file";
+}
+
 /** Props for DataOutput. */
 interface DataOutputProps {
     choices: DataChoices;
@@ -37,15 +54,19 @@ async function firstLines(result: ExportResult): Promise<string> {
 }
 
 /**
- * Hands the reader a file.
- * @param text - the file's text.
+ * Hands the reader a file, from the export's bytes (a Cytoscape session is a zip file, not text).
+ * @param result - the export.
  * @param name - its name.
  * @param type - its media type.
  */
-function download(text: string, name: string, type: string): void {
-    // graphty-element's exportGraph returns text only; it has no download destination as
-    // captureScreenshot does (gap recorded with the Export dialog package).
-    const url = URL.createObjectURL(new Blob([text], { type }));
+async function download(result: ExportResult, name: string, type: string): Promise<void> {
+    // graphty-element's exportGraph has no download destination as captureScreenshot does (gap
+    // recorded with the Export dialog package).
+    const parts: Uint8Array<ArrayBuffer>[] = [];
+    for await (const chunk of result.bytes) {
+        parts.push(new Uint8Array(chunk));
+    }
+    const url = URL.createObjectURL(new Blob(parts, { type }));
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = name;
@@ -82,6 +103,8 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
     const csv = choices.format === "csv";
     const extension = format?.extensions[0]?.replace(/^\./, "") ?? choices.format;
     const name = fileName(project, csv ? choices.table : "graph", extension);
+    const binary = format?.binary === true;
+    const formatName = format?.plainName ?? choices.format;
 
     useEffect(() => {
         if (element === null) {
@@ -90,10 +113,14 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         let live = true;
         setPreview(null);
         setStyleLosses(null);
+        let losses: readonly ExportLoss[] = [];
         element
             .exportGraph(choices.format, dataExportOptions(choices))
             .then(async (result) => {
-                const lines = await firstLines(result);
+                ({ losses } = result);
+                const lines = binary
+                    ? `${formatName} files are not text, so there is no preview.`
+                    : await firstLines(result);
                 if (live) {
                     setPreview({ lines, notes: [...new Set(result.losses.map(lossWords))] });
                     setFailure(null);
@@ -101,13 +128,13 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
             })
             .catch((error: unknown) => {
                 if (live) {
-                    setFailure(error instanceof Error ? error.message : String(error));
+                    setFailure(failureWords(error, losses));
                 }
             });
         return () => {
             live = false;
         };
-    }, [element, choices]);
+    }, [element, choices, binary, formatName]);
 
     /**
      * Writes the file and hands it over; first, unless the reader already said to save anyway,
@@ -119,18 +146,20 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
             return;
         }
         setBusy(true);
+        let losses: readonly ExportLoss[] = [];
         try {
             const result = await element.exportGraph(choices.format, dataExportOptions(choices));
+            ({ losses } = result);
             const lost = result.losses.filter(isStyleLoss);
             if (!anyway && lost.length > 0) {
                 setStyleLosses(lost);
                 return;
             }
             setStyleLosses(null);
-            download(await result.text(), name, format?.mimeTypes[0] ?? "text/plain");
+            await download(result, name, format?.mimeTypes[0] ?? "text/plain");
             onDone(`Exported ${name}`);
         } catch (error) {
-            setFailure(error instanceof Error ? error.message : String(error));
+            setFailure(failureWords(error, losses));
         } finally {
             setBusy(false);
         }

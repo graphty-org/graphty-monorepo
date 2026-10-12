@@ -94,7 +94,11 @@ describe("the exact tier sums every node at any n (issue #87)", () => {
                 requireGpu(t);
                 const s = snapshotOf([], { nodeCount: N, arena: false });
                 try {
+                    // A line before each K3: this file runs alone (node-gpu-alone), where one K3 pass can outlast
+                    // the node shard wrapper's 90 s silence limit on a software adapter (scripts/run-node-shard.js).
+                    console.warn(`[exact-large] ${model}: K3 run 1 of 2`);
                     const first = await runK3(ctx, model, s);
+                    console.warn(`[exact-large] ${model}: K3 run 2 of 2`);
                     const { force, pos } = await runK3(ctx, model, s);
                     expectBitwiseEqual(first.pos, pos, `${model}: positions, run 1 vs run 2`);
                     expectBitwiseEqual(first.force, force, `${model}: K3 force, run 1 vs run 2`);

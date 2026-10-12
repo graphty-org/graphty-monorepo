@@ -313,6 +313,51 @@ describe("pushes found in Claude Code transcripts", () => {
     });
 });
 
+describe("issues filed in Claude Code transcripts", () => {
+    /** @type {string[]} */
+    const dirs = [];
+    afterEach(() => {
+        for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+    });
+    const CREATE =
+        'for i in 1 2 3; do gh issue create --title "t" --label bug --body-file b.md && break; sleep 60; done';
+    const call = (/** @type {string} */ id, /** @type {string} */ command) =>
+        JSON.stringify({
+            type: "assistant",
+            timestamp: "2026-10-12T17:11:27Z",
+            message: { content: [{ type: "tool_use", id, name: "Bash", input: { command } }] },
+        }) + "\n";
+    const result = (/** @type {string} */ id, /** @type {string} */ content) =>
+        JSON.stringify({
+            type: "user",
+            timestamp: "2026-10-12T17:11:30Z",
+            message: { content: [{ tool_use_id: id, type: "tool_result", content, is_error: false }] },
+        }) + "\n";
+
+    it("records the issue a session's gh issue create made, also when its result is read a poll later", async () => {
+        const projects = mkdtempSync(join(tmpdir(), "githerd-filed-"));
+        dirs.push(projects);
+        mkdirSync(join(projects, "-r"), { recursive: true });
+        const file = join(projects, "-r", "sa.jsonl");
+        // A comment's URL also names an issue, but no gh issue create made it.
+        writeFileSync(
+            file,
+            call("toolu_c", "gh issue comment 2100 --body x") +
+                result("toolu_c", "https://github.com/o/r/issues/2100#issuecomment-1") +
+                call("toolu_a", CREATE),
+        );
+        const scans = /** @type {Record<string, any>} */ ({});
+        const live = [{ ...ALICE, cwd: ROOT }];
+        await scanTranscripts(scans, live, { root: ROOT, projectsDir: projects });
+        expect(scans.sa).toMatchObject({ name: "graphty-a", creates: { toolu_a: "2026-10-12T17:11:27Z" } });
+        expect(scans.sa.filed).toBeUndefined();
+        appendFileSync(file, result("toolu_a", "https://github.com/o/r/issues/2181"));
+        await scanTranscripts(scans, live, { root: ROOT, projectsDir: projects });
+        expect(scans.sa.filed).toEqual({ 2181: "2026-10-12T17:11:30Z" });
+        expect(scans.sa.creates).toEqual({});
+    });
+});
+
 describe("an inferred owner in the queue", () => {
     /**
      * A state with a queued pr job on #710 and its inferred owners.

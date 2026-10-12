@@ -79,6 +79,7 @@ import { readText, throwIfAborted } from "../../common/input.js";
 import {
     findDuplicateKeys,
     flipY,
+    keysInTextOrder,
     MAYBE_INEXACT_EXPONENT,
     MAYBE_UNSAFE_INTEGER,
     rewriteNumbers,
@@ -387,6 +388,9 @@ const JGF_EDGE_KEYS: ReadonlySet<string> = new Set([
 
 /** The JGF hyperedge keys that are not metadata. */
 const JGF_HYPEREDGE_KEYS: ReadonlySet<string> = new Set([...JGF_EDGE_KEYS, "nodes"]);
+
+/** A key JavaScript orders as an array index: digits with no leading zero, below 2^32 - 1. */
+const ARRAY_INDEX = /^(?:0|[1-9]\d{0,9})$/;
 
 /** The JGF node keys that are not metadata. */
 const JGF_NODE_KEYS: ReadonlySet<string> = new Set(["label", "metadata"]);
@@ -904,6 +908,9 @@ export class ImportContext {
 
     /** Whether the caller passed `defaultDirected` explicitly (then it beats the dialect's convention). */
     readonly explicitDefaultDirected: boolean;
+
+    /** The document's text, for an order JSON.parse does not keep (a JGF nodes object's integer-like keys). */
+    text = "";
 
     /** Nodes and edges pushed since the signal was last checked. */
     private elementsSinceCheck = 0;
@@ -2911,7 +2918,12 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
         anyHas(nodeRecords, "label"),
     );
     if (isJsonObject(nodesRaw)) {
-        for (const key of Object.keys(nodesRaw)) {
+        // JSON.parse puts integer-like keys first; the file's order is the nodes' order
+        const graphs = root.graphs as unknown[];
+        const path = isJsonObject(root.graph) ? ["graph", "nodes"] : ["graphs", graphs.indexOf(graph), "nodes"];
+        const keys = Object.keys(nodesRaw);
+        const inText = keys.some((k) => ARRAY_INDEX.test(k)) ? keysInTextOrder(ctx.text, path) : null;
+        for (const key of inText ?? keys) {
             const element = `nodes[${JSON.stringify(key)}]`;
             const record = nodesRaw[key];
             if (record !== null && !isJsonObject(record)) {
@@ -3916,7 +3928,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const report = new ImportReportBuilder("json", resolved.errorLimit);
         const text = await readText(input, report, { ...resolved, bomlessUtf16: true });
         const { root, dialect } = documentOf(parseDocument(text, report), json, report);
-        readGraph(root, dialect, sink, report, resolved, json, options);
+        readGraph(root, dialect, sink, report, resolved, json, options, text);
         return report.finish();
     },
 
@@ -3962,7 +3974,16 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const reports: ImportReport[] = [];
         for (let i = 0; i < Math.max(graphs, 1); i++) {
             const report = i === 0 ? first : new ImportReportBuilder("json", resolved.errorLimit);
-            readGraph(root, dialect, sinkFor(i), report, resolved, { ...json, graphIndex: i, all: true }, options);
+            readGraph(
+                root,
+                dialect,
+                sinkFor(i),
+                report,
+                resolved,
+                { ...json, graphIndex: i, all: true },
+                options,
+                text,
+            );
             reports.push(report.finish());
         }
         return reports;
@@ -3987,6 +4008,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
  * @param resolved - the resolved common options
  * @param json - the resolved JSON options (graphIndex picks the JGF graph)
  * @param options - the caller's options, for the sink and unused-option checks
+ * @param text - the document's text
  */
 function readGraph(
     root: unknown,
@@ -3996,8 +4018,10 @@ function readGraph(
     resolved: ResolvedImportOptions,
     json: ResolvedJsonOptions,
     options: (JsonImportOptions & CommonImportOptions) | undefined,
+    text: string,
 ): void {
     const ctx = new ImportContext(sink, report, resolved, json, options?.defaultDirected !== undefined);
+    ctx.text = text;
     // the obographs reader refuses missing endpoints itself, so addMissingNodes false holds on any sink
     reportSinkOptions(sink, options, report, dialect === "obographs");
     reportUnusedOptions(options, report, USED_OPTIONS);

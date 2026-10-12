@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { DirectionResolver } from "../../../src/common/direction.js";
 import { LOSS } from "../../../src/common/export.js";
+import { keysInTextOrder } from "../../../src/common/json-elements.js";
 import { ImportReportBuilder } from "../../../src/common/report.js";
 import {
     JSON_DIALECTS,
@@ -276,6 +277,26 @@ describe("synthetic round trips", () => {
         expect(j.edges.names()).toContain("relation#data");
         expect(j.edges.names()).toContain("weight#element");
         await exact(j);
+    });
+
+    it("keeps the order of JGF nodes keyed by integer-like ids, which JSON.parse would sort", async () => {
+        const b = new GraphBuilder({ directed: true, weightDtype: "f64" });
+        for (const id of ["1249", "1246", "x", "1243", "0"]) {
+            b.addNode(id);
+        }
+        b.addEdge("1249", "0");
+        const s = b.freeze();
+        const text = await jsonExporter.exportToString(s, { dialect: "jgf" });
+        const back = await imported(text);
+        expect(back.ids.toArray()).toEqual(["1249", "1246", "x", "1243", "0"]);
+        // a graph of a graphs array, and a key repeated in the text, which keeps its first place
+        const many =
+            '{"graphs": [{"nodes": {"1": {}}}, {"nodes": {"9": {}, "x": [], "3": {"label": "{\\"}"}, "9": {}}}]}';
+        const second = new GraphBuilder({ directed: true });
+        await jsonImporter.import(many, second, { graphIndex: 1 });
+        expect(second.freeze().ids.toArray()).toEqual(["9", "3"]);
+        expect(keysInTextOrder(many, ["graphs", 1, "nodes"])).toEqual(["9", "x", "3"]);
+        expect(keysInTextOrder(many, ["graphs", 2, "nodes"])).toBeNull();
     });
 
     it("keeps a snapshot from another source through node-link with its column set", async () => {

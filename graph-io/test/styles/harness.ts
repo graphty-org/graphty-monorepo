@@ -823,7 +823,12 @@ export async function roundTrip(writer: StyleWriter, loaded: LoadedGraph, ex: Ex
             (l.code === "W_STYLE_NOT_WRITTEN" && !keepsRules);
         if (covers && l.style !== undefined) {
             const key = `${l.style.target}.${l.style.property}`;
-            excused.set(key, (excused.get(key) ?? 0) + (l.count ?? Infinity));
+            // a note without a count would excuse any number of wrong values
+            if (l.count === null) {
+                failures.push(`${l.code} on ${key} has no count`);
+            } else {
+                excused.set(key, (excused.get(key) ?? 0) + l.count);
+            }
         }
     }
     if (keepsRules) {

@@ -78,6 +78,18 @@ function writerFor(format: string, snapshot: GraphSnapshot): StyleWriter | null 
 const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map();
 
 /**
+ * Corpus graphs a format cannot hold even with its ids and keys rewritten, by `<input> > <format>`: not a question
+ * of styles. Every other pair must be writable.
+ */
+const REFUSED: ReadonlySet<string> = new Set([
+    // a Pajek file with both *Arcs and *Edges: these formats hold one direction per graph (E_MIXED_DIRECTION)
+    "pajek/SamTseng_CATAR__Pajek_format.net > json",
+    "pajek/SamTseng_CATAR__Pajek_format.net > gml",
+    "pajek/SamTseng_CATAR__Pajek_format.net > cx2",
+    "pajek/SamTseng_CATAR__Pajek_format.net > cx",
+]);
+
+/**
  * One styled input per corpus format: its smallest committed file whose styles have rules beyond the defaults.
  * @returns the inputs, by corpus format
  */
@@ -111,7 +123,86 @@ describe("the built-in formats", () => {
     });
 });
 
+/**
+ * Every W_STYLE_ note each styled format gives the hand-made stack, as `code target.property count`: none where the
+ * format keeps everything, so a writer that warns about what it keeps fails as surely as one that loses silently.
+ */
+const HAND_MADE_NOTES: Readonly<Record<string, readonly string[]>> = {
+    json: [
+        "W_STYLE_NOT_WRITTEN node.fill 24",
+        "W_STYLE_NOT_WRITTEN node.width 24",
+        "W_STYLE_NOT_WRITTEN node.height 24",
+        "W_STYLE_NOT_WRITTEN node.shape 24",
+        "W_STYLE_NOT_WRITTEN node.borderColor 24",
+        "W_STYLE_NOT_WRITTEN node.borderWidth 24",
+        "W_STYLE_NOT_WRITTEN node.label 24",
+        "W_STYLE_NOT_WRITTEN node.visible 1",
+        "W_STYLE_NOT_WRITTEN edge.color 24",
+        "W_STYLE_NOT_WRITTEN edge.width 24",
+        "W_STYLE_NOT_WRITTEN edge.targetArrow 24",
+        "W_STYLE_NOT_WRITTEN edge.visible 1",
+        "W_STYLE_NOT_WRITTEN graph.background 1",
+    ],
+    graphml: [
+        "W_STYLE_NOT_WRITTEN node.visible 1",
+        "W_STYLE_NOT_WRITTEN edge.visible 1",
+        "W_STYLE_NOT_WRITTEN graph.background 1",
+    ],
+    gexf: [
+        "W_STYLE_APPROXIMATED node.width 6",
+        "W_STYLE_APPROXIMATED node.height 18",
+        "W_STYLE_NOT_WRITTEN node.borderColor 24",
+        "W_STYLE_NOT_WRITTEN node.borderWidth 24",
+        "W_STYLE_NOT_WRITTEN node.label 24",
+        "W_STYLE_NOT_WRITTEN node.visible 1",
+        "W_STYLE_NOT_WRITTEN edge.targetArrow 24",
+        "W_STYLE_NOT_WRITTEN edge.visible 1",
+        "W_STYLE_NOT_WRITTEN graph.background 1",
+    ],
+    gml: [
+        "W_STYLE_NOT_WRITTEN node.visible 1",
+        "W_STYLE_NOT_WRITTEN edge.visible 1",
+        "W_STYLE_NOT_WRITTEN graph.background 1",
+    ],
+    dot: [],
+    pajek: [
+        "W_STYLE_NOT_WRITTEN node.label 24",
+        "W_STYLE_NOT_WRITTEN node.visible 1",
+        "W_STYLE_NOT_WRITTEN edge.visible 1",
+        "W_STYLE_NOT_WRITTEN graph.background 1",
+    ],
+    xgmml: [],
+    cx2: [
+        "W_STYLE_LAYER_FLATTENED node.shape 24",
+        "W_STYLE_LAYER_FLATTENED node.visible 1",
+        "W_STYLE_LAYER_FLATTENED edge.visible 1",
+    ],
+    cx: [
+        "W_STYLE_LAYER_FLATTENED node.shape 24",
+        "W_STYLE_LAYER_FLATTENED node.visible 1",
+        "W_STYLE_LAYER_FLATTENED edge.visible 1",
+    ],
+    cys: [
+        "W_STYLE_LAYER_FLATTENED node.shape 24",
+        "W_STYLE_LAYER_FLATTENED node.visible 1",
+        "W_STYLE_LAYER_FLATTENED edge.visible 1",
+    ],
+};
+
 describe.each(styled.map((f) => [f] as const))("hand-made styles written as %s", (format) => {
+    it("are reported lost exactly where the format cannot keep them", () => {
+        const { loaded, ex } = handMade();
+        const writer = writerFor(format, loaded.snapshot);
+        const notes = createRegistry()
+            .checkExport(loaded.snapshot, format, { ...writer?.options, styles: ex })
+            .filter((n) => n.code.startsWith("W_STYLE"))
+            .map(
+                (n) =>
+                    `${n.code} ${n.style === undefined ? "-" : `${n.style.target}.${n.style.property}`} ${String(n.count)}`,
+            );
+        expect(notes).toEqual(HAND_MADE_NOTES[format]);
+    });
+
     it("read back as the same rules and values, written again as the same bytes", async () => {
         const { loaded, ex } = handMade();
         const writer = writerFor(format, loaded.snapshot);
@@ -154,17 +245,20 @@ describe("a styled file of each corpus format", async () => {
         expect(samples.length).toBeGreaterThanOrEqual(styled.length);
     });
 
-    it("lists no known failure that is not a pair this test runs", () => {
+    it("lists no known failure or refusal that is not a pair this test runs", () => {
         const pairs = new Set(samples.flatMap(([name]) => styled.map((f) => `${name} > ${f}`)));
-        expect([...KNOWN_FAILURES.keys()].filter((k) => !pairs.has(k))).toEqual([]);
+        expect([...KNOWN_FAILURES.keys(), ...REFUSED].filter((k) => !pairs.has(k))).toEqual([]);
     });
 
     describe.each(samples.map(([name, loaded, ex]) => [name, loaded, ex] as const))("%s", (name, loaded, ex) => {
         for (const format of styled) {
             const known = KNOWN_FAILURES.has(`${name} > ${format}`);
+            const refused = REFUSED.has(`${name} > ${format}`);
             (known ? it.fails : it)(`written as ${format} reads back as the same rules and values`, async () => {
                 const writer = writerFor(format, loaded.snapshot);
-                // a graph the format cannot hold even with its ids and keys rewritten is not a style question
+                // a graph the format cannot hold even with its ids and keys rewritten is not a style question, and
+                // is listed in REFUSED; any other refusal fails
+                expect(writer === null).toBe(refused);
                 if (writer !== null) {
                     expect(await roundTrip(writer, loaded, ex)).toEqual([]);
                 }

@@ -602,7 +602,8 @@ digraph ComprehensiveTest {
         setup: storySetup({ preSteps: 8000 }), // Extra preSteps for DOT with ngraph
     },
     play: async ({ canvasElement }) => {
-        await imported(canvasElement, "DOT", 9, 12);
+        // 9 nodes and the 2 cluster subgraphs, each drawn as a node of its own as Graphviz draws it
+        await imported(canvasElement, "DOT", 11, 12);
     },
 };
 

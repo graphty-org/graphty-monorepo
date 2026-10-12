@@ -288,7 +288,7 @@ export class GmlTokens {
  */
 export function tokenizeGml(text: string): GmlTokens {
     const tokens = new GmlTokens(text, Math.max(1024, text.length >>> 3));
-    tokens.backslashEscapes = OGDF_CREATOR.test(text.slice(0, 512));
+    tokens.backslashEscapes = writtenByOgdf(text);
     const n = text.length;
     let i = 0;
     let line = 1;
@@ -352,8 +352,30 @@ export function tokenizeGml(text: string): GmlTokens {
     return tokens;
 }
 
-/** A file OGDF wrote: its first key is `Creator "ogdf::..."`, after any comment lines. */
-const OGDF_CREATOR = /^(?:\s|#[^\n\r]*)*Creator\s+"ogdf::/;
+/**
+ * Whether OGDF wrote the file: its first key is `Creator "ogdf::..."`, after any whitespace and
+ * comment lines. A plain scan, so a banner of `#` characters costs time linear in its length.
+ * @param text - the GML text
+ * @returns true when the file opens with an OGDF creator line
+ */
+function writtenByOgdf(text: string): boolean {
+    const end = Math.min(text.length, 512);
+    let i = 0;
+    while (i < end) {
+        const c = text.charCodeAt(i);
+        if (c === 35) {
+            // '#': a comment runs to the next line break
+            while (i < end && text.charCodeAt(i) !== 10 && text.charCodeAt(i) !== 13) {
+                i++;
+            }
+        } else if (c === 32 || c === 9 || c === 10 || c === 13 || c === 12 || c === 11) {
+            i++;
+        } else {
+            break;
+        }
+    }
+    return /^Creator\s+"ogdf::/.test(text.slice(i, i + 64));
+}
 
 /**
  * The offset of the quote closing a string whose backslashes escape the next character, or -1.

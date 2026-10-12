@@ -9,9 +9,9 @@
 import "@graphty/graphty-element";
 
 import { fileStyleOf, type GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../test/test-utils";
 import { openDataPage } from "../../workspace/data-page/request";
@@ -93,13 +93,17 @@ async function elementSession(): Promise<GraphSession> {
 }
 
 /**
- * Waits until the element has finished importing the styled GEXF's twelve nodes.
+ * Waits until the element has finished the import of the styled GEXF's twelve nodes: its step is
+ * in the history, which the element records only once the import, its styles included, is done.
+ * Every case waits on this, with the preference on or off, so an off case cannot pass by looking
+ * before the file's layers would have arrived.
  * @param session - the element's session.
  */
 async function loadedTwelve(session: GraphSession): Promise<void> {
     await waitFor(
         () => {
             assert.equal(session.data.lastImport()?.counts.nodes, 12);
+            assert.isTrue(session.history.steps.some((step) => step.ops.includes("data.import")));
         },
         { timeout: TIMEOUT_MS },
     );
@@ -124,7 +128,9 @@ async function dataPageWith(file: File): Promise<GraphSession> {
 }
 
 /**
- * Drops a file as the browser does, on a target.
+ * Drops a file as the browser does, on a target. A synthetic DragEvent, the one exception to real
+ * input here: a page cannot start a drag of a file from the operating system, and Playwright's
+ * drag-and-drop moves page elements, never files.
  * @param target - where it is dropped.
  * @param file - the file.
  */
@@ -162,6 +168,12 @@ describe("import styles from files, on the real element", () => {
         assert.equal(colorOf(session, "n0"), "#0000ff");
         // The paint tree words each of the file's layers from its facts.
         assert.isNotEmpty(await screen.findAllByText(/from the file/i, {}, { timeout: TIMEOUT_MS }));
+        // Gephi's disc has no 3D counterpart: the load tells the reader the shape is drawn as the nearest one.
+        await screen.findByText(
+            /The file's styles are drawn, with these differences: A style is drawn as the nearest one graphty has \(node shape\)/,
+            {},
+            { timeout: TIMEOUT_MS },
+        );
     });
 
     it("the Data page loads none of the file's layers with the box unchecked, and keeps that choice", async () => {
@@ -225,8 +237,14 @@ describe("import styles from files, on the real element", () => {
                     { timeout: TIMEOUT_MS },
                 );
                 assert.isNotEmpty(fileLayers(session));
+                await screen.findByText(
+                    /The file's styles are drawn, with these differences/,
+                    {},
+                    { timeout: TIMEOUT_MS },
+                );
             } else {
                 assert.deepEqual(fileLayers(session), []);
+                assert.isNull(screen.queryByText(/The file's styles are drawn/));
             }
         });
     }

@@ -9,8 +9,8 @@
 import "@graphty/graphty-element";
 
 import { createGraphSession, type GraphSession, type LayerSpec } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { afterEach, assert, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
@@ -171,6 +171,50 @@ describe("Export warns before the graph's styles are lost", () => {
         for (const [, options] of exports.mock.calls) {
             assert.strictEqual(options?.styles, true);
         }
+    });
+
+    it("warns that GEXF loses a label color, says the layers come back, and saves anyway", async () => {
+        const saved = catchDownloads();
+        render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
+        let session: GraphSession | undefined;
+        await waitFor(
+            () => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.addNodes(NODES);
+        await session.data.addEdges(EDGES);
+        await session.styles.add(STACK[0]);
+        await session.styles.add({
+            name: "green labels",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labelColor": "#00ff00" },
+        });
+
+        const dialog = await openData();
+        await userEvent.click(within(dialog).getByLabelText("Format"));
+        await userEvent.click(await screen.findByRole("option", { name: /^GEXF/ }));
+        await waitFor(() => {
+            assert.include(within(dialog).getByLabelText("Preview of the exported data").textContent, "<gexf");
+        });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        const warning = await within(dialog).findByRole("alertdialog", {}, { timeout: TIMEOUT_MS });
+        assert.match(warning.textContent, /Node label color on 8 nodes is not written/);
+        assert.match(warning.textContent, /rebuilds the style layers as layers/);
+        assert.lengthOf(saved, 0, "no file before the reader chooses");
+
+        await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
+        await screen.findByText("Exported untitled_graph.gexf", {}, { timeout: TIMEOUT_MS });
+        assert.deepEqual(
+            saved.map(({ name }) => name),
+            ["untitled_graph.gexf"],
+        );
     });
 
     it("saves CSV and GEXF of a graph with no layers of its own at once, with no warning", async () => {

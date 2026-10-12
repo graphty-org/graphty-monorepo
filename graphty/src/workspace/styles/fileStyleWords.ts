@@ -9,7 +9,10 @@ import type {
     FileStyleCode,
     FileStyleNote,
     FileStyleOrigin,
+    FileStyleReason,
 } from "@graphty/graphty-element/session";
+
+import { property } from "../export/lossWords";
 
 /** A style code a load reports: every style code but the ones only an export reports. */
 type ImportStyleCode = Exclude<FileStyleCode, ExportStyleLossCode>;
@@ -65,7 +68,7 @@ export const STYLE_NOTE_WORDS: Readonly<Record<ImportStyleCode, string>> = {
  * Why a layer copies the file's values, or how it was built, by reason code. Every code in the
  * element's `FILE_STYLE_REASONS` has an entry (a test enumerates them).
  */
-export const STYLE_REASON_WORDS: Readonly<Record<string, string>> = {
+export const STYLE_REASON_WORDS: Readonly<Record<FileStyleReason, string>> = {
     NO_EXPLANATION: "no column explains them",
     STYLE_CLASS: "grouped by the styles elements share",
     LAYER_CAP: "combined to keep the number of layers small",
@@ -98,11 +101,19 @@ function count(n: number, noun: string): string {
  */
 export function fileStyleNoteWords(note: FileStyleNote): string {
     const said: string | undefined = (STYLE_NOTE_WORDS as Readonly<Record<string, string>>)[note.code];
-    const { property, target, count: times } = note.params;
-    const what =
-        typeof property === "string" ? ` (${property}${typeof target === "string" ? ` on ${target}s` : ""})` : "";
+    const { count: times } = note.params;
+    const what = typeof note.params.property === "string" ? ` (${property(note.params)})` : "";
     const often = typeof times === "number" && times > 1 ? `, ${count(times, "time")}` : "";
     return `${said ?? "Something in the file's styles was not drawn as the file says"}${what}${often}.`;
+}
+
+/**
+ * Every note of a load in words, each sentence once.
+ * @param notes - `LoadReport.styles.notes`.
+ * @returns the sentences, in the order the notes came.
+ */
+export function fileStyleNotesWords(notes: readonly FileStyleNote[]): string[] {
+    return [...new Set(notes.map(fileStyleNoteWords))];
 }
 
 /**

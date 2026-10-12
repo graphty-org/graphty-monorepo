@@ -146,11 +146,9 @@ describe("Export: save a picture and the numbers (task T13)", () => {
             });
             assert.isNull(within(dialog).queryByRole("alert"), "the file can be written");
             await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-            const warning = within(dialog).queryByRole("alertdialog");
-            if (warning !== null) {
-                await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
-            }
             await screen.findByText(`Exported ${file}`, {}, { timeout: TIMEOUT_MS });
+            // The graph has no layers of its own, so nothing about its styles is lost: no warning.
+            assert.isNull(screen.queryByRole("alertdialog"));
             const blob = saved.find(({ name }) => name === file)?.blob;
             assert.isDefined(blob, `${file} was saved`);
             const head = new TextDecoder("latin1").decode(new Uint8Array(await blob.arrayBuffer()).slice(0, 16));

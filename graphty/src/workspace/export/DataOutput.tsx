@@ -150,6 +150,12 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         try {
             const result = await element.exportGraph(choices.format, dataExportOptions(choices));
             ({ losses } = result);
+            // A refusal (an E_ code) means the file cannot be written: say why, never offer "Save anyway".
+            if (losses.some((loss) => loss.code.startsWith("E_"))) {
+                setStyleLosses(null);
+                setFailure(failureWords(undefined, losses));
+                return;
+            }
             const lost = result.losses.filter(isStyleLoss);
             if (!anyway && lost.length > 0) {
                 setStyleLosses(lost);

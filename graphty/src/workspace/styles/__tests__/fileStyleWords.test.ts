@@ -12,7 +12,13 @@ import {
 } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { fileStyleLayerWords, fileStyleNoteWords, STYLE_NOTE_WORDS, STYLE_REASON_WORDS } from "../fileStyleWords";
+import {
+    fileStyleLayerWords,
+    fileStyleNotesWords,
+    fileStyleNoteWords,
+    STYLE_NOTE_WORDS,
+    STYLE_REASON_WORDS,
+} from "../fileStyleWords";
 
 const EXPORT_ONLY: readonly string[] = EXPORT_STYLE_LOSS_CODES;
 const IMPORT_CODES = FILE_STYLE_CODES.filter((code) => !EXPORT_ONLY.includes(code));
@@ -28,7 +34,7 @@ describe("the app's words for a file's styles", () => {
                 params: { property: "fill", target: "node", count: 3 },
             });
             assert.isFalse(said.startsWith(GENERIC), code);
-            assert.include(said, "(fill on nodes), 3 times.");
+            assert.include(said, "(node fill color), 3 times.");
         }
     });
 
@@ -48,6 +54,15 @@ describe("the app's words for a file's styles", () => {
             };
             assert.include(fileStyleLayerWords(origin), words);
         }
+    });
+
+    it("names a property in words, and says each sentence of a load once", () => {
+        const note: FileStyleNote = {
+            code: "W_STYLE_GRADIENT",
+            params: { property: "borderColor", target: "node", count: 1 },
+        };
+        assert.equal(fileStyleNoteWords(note), "A gradient fill is drawn as its first color (node border color).");
+        assert.deepEqual(fileStyleNotesWords([note, note]), [fileStyleNoteWords(note)]);
     });
 
     it("words an unknown code generically", () => {

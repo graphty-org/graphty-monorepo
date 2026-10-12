@@ -68,7 +68,13 @@ describe("lossWords", () => {
             "Node fill color on 8 nodes is not written",
         );
         assert.strictEqual(
-            lossWords(loss("W_STYLE_APPROXIMATED", [], 1, { target: "edge", property: "graphty:arrowHead" })),
+            lossWords(
+                loss("W_STYLE_APPROXIMATED", [], 1, {
+                    target: "edge",
+                    property: "graphty:arrowHead",
+                    channel: "arrowHead",
+                }),
+            ),
             "Edge arrow head on 1 edge is written as the nearest value this format allows",
         );
         assert.strictEqual(
@@ -83,11 +89,23 @@ describe("lossWords", () => {
             'The layer "ramp" is written as the node fill color it paints on 8 nodes, not as a layer: this format cannot hold its palette or scale',
         );
         assert.strictEqual(
-            lossWords(loss("W_STYLE_NOT_WRITTEN", [], 8, { target: "node", property: "graphty:node.shape" })),
+            lossWords(
+                loss("W_STYLE_NOT_WRITTEN", [], 8, {
+                    target: "node",
+                    property: "graphty:node.shape",
+                    channel: "node.shape",
+                }),
+            ),
             "Node shape on 8 nodes is not written",
         );
         assert.strictEqual(
-            lossWords(loss("W_STYLE_NOT_WRITTEN", [], 7, { target: "edge", property: "graphty:edge.arrowHeadSize" })),
+            lossWords(
+                loss("W_STYLE_NOT_WRITTEN", [], 7, {
+                    target: "edge",
+                    property: "graphty:edge.arrowHeadSize",
+                    channel: "edge.arrowHeadSize",
+                }),
+            ),
             "Arrow head size on 7 edges is not written",
         );
         assert.strictEqual(lossWords(loss("W_STYLES_NOT_EXPORTED", [], 2)), "2 style layers are not written");

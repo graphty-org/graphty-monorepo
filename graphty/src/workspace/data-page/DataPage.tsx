@@ -28,6 +28,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { writeFileStylesChoice } from "../settings/preferences";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { noticeFileStyles } from "../styles/noticeFileStyles";
 import {
     elementRole,
     kindChanged,
@@ -134,6 +135,9 @@ export function DataPage(): React.JSX.Element {
                     ? { ...state.project, name: baseName(source.files[0].name) }
                     : state.project,
         }));
+        if (session !== null) {
+            noticeFileStyles(store, session);
+        }
     };
 
     /** Whether the next chosen files join the table on the page (Tables "+") or replace the source. */

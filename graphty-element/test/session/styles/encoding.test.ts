@@ -820,7 +820,7 @@ describe("encode()", () => {
     });
 
     it("names the layer after the run and the channel, and takes a name when given one", () => {
-        assert.strictEqual(plan({ run: "betweenness", channel: "node.color" }).name, "Betweenness - Node Colour");
+        assert.strictEqual(plan({ run: "betweenness", channel: "node.color" }).name, "Betweenness - Node Color");
         assert.strictEqual(plan({ run: "betweenness", channel: "node.color", name: "Hot spots" }).name, "Hot spots");
     });
 

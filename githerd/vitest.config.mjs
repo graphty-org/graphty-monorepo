@@ -1,5 +1,7 @@
 import { defineConfig } from "vitest/config";
 
+import { workerShare } from "../tools/test-slots.mjs";
+
 export default defineConfig({
     test: {
         environment: "node",
@@ -7,6 +9,9 @@ export default defineConfig({
         // A machine-wide test slot for the whole run (tools/test-slots.mjs), like every package, and a
         // check that no test wrote to the real ~/.githerd (test/temp-home.setup.mjs prevents it).
         globalSetup: ["../tools/test-slots.mjs", "test/real-home.global.mjs"],
+        // At most this run's share of the cores (tools/test-slots.mjs): a Node run would otherwise fork
+        // one worker per core, and CPU-bound tests ran past their time limits beside other slots' runs.
+        maxWorkers: workerShare(),
         // No test runs git with the developer's own config, including a GIT_CONFIG_COUNT signing override.
         // No test sees the developer's real HOME.
         setupFiles: ["test/isolate-git.setup.mjs", "test/temp-home.setup.mjs"],

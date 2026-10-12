@@ -7,39 +7,67 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-1. (2026-10-11) Round 4 closed: 53 of 53 valid succeeded, 3 owed re-runs (r4-s05b, s20b, s28b).
+0. (2026-10-12, iteration 1 review, `tier3/iterations/1/ia.md`) Generic picking works on both
+   datasets (name contains, odd ids, by find and conditions, no favored run). Three structural
+   gaps to hold the build to: (a) the rule editor reads only data columns while the vary picker
+   reads runs -- two lists of "what can be read" composed in the app; ask the element for one;
+   (b) the draft cannot hold a rule, so the first value paints everything; (c) vary is offered on
+   11 properties, not the 30-odd the element binds (`bindsAtRest`). Lesson: "New layer for
+   <value>", my replacement for the split parent, is only as generic as the rule editor that must
+   read it back -- check a proposal's round trip (made, then read and edited), not only that it
+   can be made.
+1. (2026-10-12, owner feedback 1) I reversed my own "split parent stays a layer": the owner's
+   test is consistency of interaction, and split added two row kinds with private rules. Proposed
+   instead: per-value entries in the ordinary binding, "New layer for <value>", and multi-row
+   editing with Mixed. Answer: `tier3/decide/feedback-1-ia.md`. Lesson: judge a new row type by how
+   many rules a reader learns for it, not only by whether the model can express it.
+   0a. (2026-10-12) Unset is the minus, always drawn on set fields and only there; "off" is a value
+   ("None", "Hidden", "No label"), never the same control. The minus's tooltip and name say what
+   comes back from beneath.
+2. (2026-10-12) Tier 3 is unified styles; my answers to the owner's 12 questions are in
+   `tier3/decide/ia.md`. Core rule I am holding: "+" only adds to a list (labels, effects,
+   conditions); single-valued properties are always-drawn rows showing the inherited value, rare
+   ones behind the section's settings button. Reason: tier 1 round 2, Size behind "+" was found
+   only by guessing (18 of 18).
+   0b. (2026-10-12) Which elements is ONE home at the top (Nodes / Edges / Both, then the rule); the
+   rule language is the same RuleTree Data > Filters builds, with selection, find and JMESPath as
+   doors into it. A missing kind's group is hidden, not disabled (no promise without a place).
+   0c. (2026-10-12) Watch when the build lands: does the route layer fit 900 px with both kind groups
+   open? Does anyone look for edge color under a node-only layer, and do they find the kind
+   choice?
+3. (2026-10-11) Round 4 closed: 53 of 53 valid succeeded, 3 owed re-runs (r4-s05b, s20b, s28b).
    Bars 9 (b) and 10 fail. Round 5 does not start until the gate refuses in `real.mjs --start` and
    briefings name files by kind only.
-2. (2026-10-11) Decided for round 5 from my proposals: the element never suggests a rule its
+4. (2026-10-11) Decided for round 5 from my proposals: the element never suggests a rule its
    selector refuses (`suggestBackticks`, element-side, not an app guard -- my app-side check was
    overruled, rightly); `FindResult.atLeast` rows for a number inside a column's range; the table
    scoped "visible" with "12 of 41 edges". All three are IA doors or words for existing homes.
-3. (2026-10-11) New: element `rulePath(path)` names a column the way a typed rule does; the app's
+5. (2026-10-11) New: element `rulePath(path)` names a column the way a typed rule does; the app's
    `columnText` copy is deleted. Lesson: an app helper that "knows how a name resolves" is element
    logic copied -- look for these in FindBox.
-4. (2026-10-11) Watch in round 5: does "10" on bus stops reach the right selection without a
+6. (2026-10-11) Watch in round 5: does "10" on bus stops reach the right selection without a
    refusal? Credit by reaching the selection, not by the "or more" word matching the prompt.
-5. (2026-10-11) Watch in round 5: T17 with the table open under a step -- do the table's count and
+7. (2026-10-11) Watch in round 5: T17 with the table open under a step -- do the table's count and
    the top bar's now read as one fact? Is the table stale after toggling a step?
-6. (2026-10-11) Off filter step turning itself on when its editor closes (`Filters.tsx`) is fixed:
+8. (2026-10-11) Off filter step turning itself on when its editor closes (`Filters.tsx`) is fixed:
    the step's checkbox stays the one home for on/off; a leave without an edit changes nothing.
-7. (2026-10-11) Bar 9 (b): scope words (", full graph", "of nodes") stay if the diff names them;
+9. (2026-10-11) Bar 9 (b): scope words (", full graph", "of nodes") stay if the diff names them;
    a true fact is not cut to pass a count. Propose no word cuts before the diff exists.
-8. (2026-10-11) Do NOT change: toolbar Filters door, Shift-click, Replace in "...", Analyze search,
-   Neighborhood in "...", second path replacing the first, key scope words, "Settings" rail label.
-9. (2026-10-11) Overlapping labels, dots and ties are graphty-element's (owner's list). No app
-   fonts, offsets, seeds or setups that hide names.
-10. (2026-10-11) Study evidence is weaker than it looks: briefings leaked Mo, Nia, `s11`, "6 - w";
+10. (2026-10-11) Do NOT change: toolbar Filters door, Shift-click, Replace in "...", Analyze search,
+    Neighborhood in "...", second path replacing the first, key scope words, "Settings" rail label.
+11. (2026-10-11) Overlapping labels, dots and ties are graphty-element's (owner's list). No app
+    fonts, offsets, seeds or setups that hide names.
+12. (2026-10-11) Study evidence is weaker than it looks: briefings leaked Mo, Nia, `s11`, "6 - w";
     histories pointed at the toolbar; personas script count-checking. Discount "unprompted".
-11. (2026-10-11) Ask the element first, show second: every "same number, two answers" so far was
+13. (2026-10-11) Ask the element first, show second: every "same number, two answers" so far was
     the app showing something the element was never asked about.
-12. (2026-10-10) Readers type the prompt's most prominent data word first: a column name OR a bare
+14. (2026-10-10) Readers type the prompt's most prominent data word first: a column name OR a bare
     number, including a number no row holds.
-13. (2026-10-10) Rule of the round: no feature moves, no second door where one is measured, words
+15. (2026-10-10) Rule of the round: no feature moves, no second door where one is measured, words
     at rest go down; words shown only while typing are not "at rest".
-14. (2026-10-09) The column is a door to existing homes, never a home; a count names its unit and
+16. (2026-10-09) The column is a door to existing homes, never a home; a count names its unit and
     whole; under a filter it names whose numbers.
-15. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
+17. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
     in the Summary; a Style-tab pointer to Label; Size pre-bound to the row's result.
 
 ## Priorities and values
@@ -165,6 +193,28 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   everything" line over the table (a notice where a fix exists). Known gap: table export still
   writes every record; the fix is a scope on the element's export.
 
+- 2026-10-12 (IA answers for tier 3, proposals, not yet decided): "+" only for lists; core
+  properties always drawn with the inherited value (Figma instance-override pattern), rare ones
+  behind `AdvancedButton`; icon-grid pickers for shape, arrow and pattern (a compact-mantine
+  `StyleSelect` option); kind groups collapse with the existing `ControlSection` `summary`, property
+  sections never; hide a kind the rule cannot reach; field picker grouped (In use, Data, runs,
+  Facts) with non-fitting columns folded into one row; a ramp drawn over the histogram in data
+  units for the gradient; split parent stays a layer and folders never get a rule; one Which
+  elements section; coverage of the element's channels as a test; label settings as one tabbed
+  popout with the element's badges as presets. Element asks (all additive): inherited-value fact
+  per layer, inline ramp stops on a binding, RuleTree selector, text and parity rule leaves, the
+  id as a value, per-field label channels, a `targets` field. Reason throughout: one home per job,
+  and every fact the panel needs comes from the element.
+
+- 2026-10-12 (IA answer to owner feedback 1, proposal): unset = the minus (plus emptying a
+  field, "Not set" first in a select); three at-rest states (not set, set, set to nothing); no eye
+  per field. Split parent replaced by per-value binding entries, "New layer for <value>" and
+  multi-row edits; the element keeps only label remapping across re-runs as a rule capability.
+  Figma pass: adopt list "+"/"-", empty-title add, effect-row settings, Mixed, absent sections;
+  adapt apply-variable picker, Detach as "Fix at", override reset, text styles, selection colors;
+  reject frame-like rows, add-default "+", switches, non-sticky kind headings, gradient paint type.
+  Reason: every row behaves as a layer or a folder; one home per job.
+
 ## Tried: worked / did not work
 
 - 2026-09-28 to 10-02 (mock rounds, summarized 2026-10-09) -- tree tests rank where people look
@@ -248,6 +298,15 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 - 2026-10-11 -- Counting "noticed unprompted" without reading the briefings: did not work; the
   file table primed T4 and T21. Read the briefing before crediting a door.
 
+- 2026-10-12 (tier 3 iteration 1, served build, College football and Les Miserables) -- Which
+  elements by find and by conditions: worked ("label contains State" 24 of 115 both ways; "Id
+  matches pattern [13579]$" 57 of 115, the true count). Find with no match: silent. Coverage by a
+  test that allows "not offered": honest but drifted from the design's table (captions, tooltip
+  look, typed label words promised, not built). "New layer for 3": paints right, reads back blank.
+- 2026-10-12 -- Driving the panel through a harness that opens a sample with no session setup
+  (`tmp/ia-i1/walk.mjs`): found what story-driven walks missed (no starting rows, the draft's
+  missing rule). Walk the reader's app, not only the review scene.
+
 ## Thinking
 
 - **Tier 1 IA questions (2026-10-06)** were answered by rounds 1-3: the intake, names and
@@ -275,6 +334,19 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   picture, export the numbers, save and reopen.
 
 ## Sources
+
+- (2026-10-12) `tier3/owner-feedback-1.md`; `tier3/design.md` 1.1, 1.7, 2.1-2.2, 7; main
+  checkout `design/ui/figma/right-sidebar-selection/README.md` (gitignored capture) sections 5,
+  15, 17, 22, follow-up 5 and 8; `design/ui/framework/figma-crosswalk.md`; compact-mantine
+  `tree/Tree.tsx` (`multiselect`), `inputs/VariablePill.tsx`.
+
+- (2026-10-12) `.worktrees/mock-style-panel/design/ui/style-panel-organization.md`, the mock
+  stories; `design/ui/unified-style-layers.md` (branch `docs/unified-style-layers-design`);
+  `tmp/style-catalog/catalog.md` sections 5, 8.3, 9, 12; graphty-element `catalog/types.ts`
+  (Selector, Scope, RuleTree, SetDefinition, AttributeDescriptor), `session/styles/StylesApi.ts`
+  (`proposeEncoding`, `explain`), `session/results/types.ts` (HistogramOptions); compact-mantine
+  `ControlSection.tsx` (`summary`), `GradientEditor.tsx`; app `data-place/Filters.tsx`; Figma help
+  articles on effects, strokes, variables, text properties.
 
 - `tier2/rounds/round-4/insights.md`, `decisions.md` (changes 3, 4, 5, 8, 9, 12) (2026-10-11)
 

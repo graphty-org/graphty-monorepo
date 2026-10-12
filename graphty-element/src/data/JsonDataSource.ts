@@ -66,6 +66,29 @@ export const JsonDataSourceConfig = z.object({
 type JsonDataSourceConfigType = z.infer<typeof JsonDataSourceConfig>;
 
 /**
+ * The dialect of a document whose elements the default `nodes` and `edges` paths do not find: a
+ * JGF document of one `graph`, or a node-link document whose edges are `links` (NetworkX's
+ * `node_link_data`, which says `directed`, `multigraph` or `graph`, and d3, which says none).
+ * @param document - the parsed document
+ * @returns the dialect, or null for a document the default paths read
+ */
+function wholeDialectOf(document: unknown): "jgf" | "d3" | "node-link" | null {
+    if (!isObject(document)) {
+        return null;
+    }
+
+    if (isObject(document.graph) && ("nodes" in document.graph || "edges" in document.graph)) {
+        return "jgf";
+    }
+
+    if (!Array.isArray(document.links) || "edges" in document) {
+        return null;
+    }
+
+    return "directed" in document || "multigraph" in document || "graph" in document ? "node-link" : "d3";
+}
+
+/**
  * The direction a JSON document declares at its root, or null when it declares none.
  *
  * There is no JSON graph format, only conventions, and this reads the one that is nearly
@@ -366,6 +389,14 @@ export class JsonDataSource extends DataSource {
             return;
         }
 
+        // A JGF document of one `graph`, and a node-link document whose edges are `links` (NetworkX,
+        // d3), keep their elements where the default paths do not look: graph-io reads them whole.
+        const whole = this.usesDefaultPaths() ? wholeDialectOf(data) : null;
+        if (whole !== null) {
+            yield* this.readWhole(jsonString, data, whole);
+            return;
+        }
+
         const rawNodes = this.locate(data, this.opts.node.path, "nodes");
         const rawEdges = this.locate(data, this.opts.edge.path, "edges");
 
@@ -500,6 +531,40 @@ export class JsonDataSource extends DataSource {
         }
 
         const { nodes, edges } = toRecords(imported, columnsMapping(snapshot), this);
+        yield* this.chunkData(nodes, edges);
+    }
+
+    /**
+     * Read a JGF document of one `graph`, or a node-link document with `links`, through graph-io's
+     * reader for its dialect; every column becomes a key of the record.
+     * @param text - the document
+     * @param data - the parsed document
+     * @param dialect - the dialect it was recognised as
+     * @yields DataSourceChunk objects containing the graph's nodes and edges
+     */
+    private async *readWhole(
+        text: string,
+        data: unknown,
+        dialect: "jgf" | "d3" | "node-link",
+    ): AsyncGenerator<DataSourceChunk, void, unknown> {
+        const graph = isObject(data) && isObject(data.graph) ? data.graph : null;
+        if (dialect === "jgf" && graph !== null && typeof graph.directed === "boolean") {
+            this.declareDirection(graph.directed, `"directed": ${String(graph.directed)}`);
+        }
+
+        const imported = await importWhole(
+            jsonImporter,
+            text,
+            {
+                dialect,
+                ids: "keep",
+                weightFrom: null,
+                ...(this.opts.errorLimit === undefined ? {} : { errorLimit: this.opts.errorLimit }),
+            },
+            this.errorAggregator,
+            { firstDeclarationWins: true },
+        );
+        const { nodes, edges } = toRecords(imported, columnsMapping(imported.snapshot), this);
         yield* this.chunkData(nodes, edges);
     }
 

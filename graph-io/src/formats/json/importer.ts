@@ -2918,12 +2918,7 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
         anyHas(nodeRecords, "label"),
     );
     if (isJsonObject(nodesRaw)) {
-        // JSON.parse puts integer-like keys first; the file's order is the nodes' order
-        const graphs = root.graphs as unknown[];
-        const path = isJsonObject(root.graph) ? ["graph", "nodes"] : ["graphs", graphs.indexOf(graph), "nodes"];
-        const keys = Object.keys(nodesRaw);
-        const inText = keys.some((k) => ARRAY_INDEX.test(k)) ? keysInTextOrder(ctx.text, path) : null;
-        for (const key of inText ?? keys) {
+        for (const key of jgfNodeKeys(ctx, root, graph, nodesRaw)) {
             const element = `nodes[${JSON.stringify(key)}]`;
             const record = nodesRaw[key];
             if (record !== null && !isJsonObject(record)) {
@@ -3022,6 +3017,26 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
 
     importHyperedges(ctx, hyperedges, directed, writeJgfEdge);
     ctx.setMeta(shape, { name: label, ...ctx.weightOriginPatch() });
+}
+
+/**
+ * The keys of a JGF nodes object in the file's order, which is the nodes' order: JSON.parse puts integer-like keys
+ * first, so then they are read from the text.
+ * @param ctx - the context, holding the text
+ * @param root - the document
+ * @param graph - the graph object read
+ * @param nodes - its nodes object
+ * @returns the keys
+ */
+function jgfNodeKeys(ctx: ImportContext, root: JsonRecord, graph: JsonRecord, nodes: JsonRecord): string[] {
+    const keys = Object.keys(nodes);
+    if (!keys.some((k) => ARRAY_INDEX.test(k))) {
+        return keys;
+    }
+    const path = isJsonObject(root.graph)
+        ? ["graph", "nodes"]
+        : ["graphs", (root.graphs as unknown[]).indexOf(graph), "nodes"];
+    return keysInTextOrder(ctx.text, path) ?? keys;
 }
 
 /**

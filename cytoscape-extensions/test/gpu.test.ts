@@ -245,6 +245,8 @@ interface Fake {
     onStep?: () => void;
     /** Simulations disposed. */
     simsDisposed: number;
+    /** Called on every pageRank call, as it starts on the device. */
+    onPageRank?: () => void;
 }
 
 /**
@@ -290,6 +292,7 @@ function fakeProvider(decline?: string): Fake {
                 kind: "fake",
                 pageRank: async (s, o) => {
                     fake.pageRankCalls++;
+                    fake.onPageRank?.();
                     if (fake.failNext) {
                         fake.failNext = false;
                         throw new Error("E_DEVICE_LOST: the device was lost mid-run");
@@ -305,6 +308,9 @@ function fakeProvider(decline?: string): Fake {
                     try {
                         await before;
                         await new Promise((resolve) => setTimeout(resolve, 0));
+                        if (gone) {
+                            throw new Error('GpuContext "fake" is disposed');
+                        }
                         assertResident(fake, s);
                         return pageRank(s, o);
                     } finally {
@@ -433,13 +439,23 @@ describe("the device lifecycle (a fake provider)", () => {
         await expect(cy.graphtyPageRankAsync()).rejects.toThrow(/destroyed/);
     });
 
-    it("disposes a device acquired after the core was destroyed", async () => {
+    it("disposes a device acquired after the core was destroyed, and rejects with E_CORE_DESTROYED", async () => {
         const fake = fakeProvider();
         const cy = mainGraph();
         const pending = cy.graphtyPageRankAsync();
         cy.destroy();
-        const r = await pending;
-        expect(r.backend.ran).toBe("cpu");
+        await expect(pending).rejects.toMatchObject({ code: "E_CORE_DESTROYED" });
+        expect(fake.disposed).toBe(1);
+    });
+
+    it("an Async run whose core is destroyed on the device rejects with E_CORE_DESTROYED, not the device's error", async () => {
+        const fake = fakeProvider();
+        const cy = mainGraph();
+        await cy.graphtyPageRankAsync();
+        // the run is on the device; the destroy disposes the device under it
+        fake.onPageRank = () => cy.destroy();
+        const pending = cy.graphtyPageRankAsync();
+        await expect(pending).rejects.toMatchObject({ code: "E_CORE_DESTROYED" });
         expect(fake.disposed).toBe(1);
     });
 

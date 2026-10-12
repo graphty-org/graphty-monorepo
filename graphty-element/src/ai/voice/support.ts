@@ -133,3 +133,23 @@ export async function readVoiceEnvironment(language: string): Promise<VoiceEnvir
         synthesisLocal: synth?.getVoices().find((voice) => voice.default)?.localService === true,
     };
 }
+
+/** What the page offers a live conversation's transport, as `chooseLive` reads it. */
+export interface LiveTransport {
+    readonly rtcPeerConnection: boolean;
+    readonly webSocket: boolean;
+    readonly audioWorklet: boolean;
+}
+
+/**
+ * Read the transports a live conversation can use now.
+ * @returns Whether `RTCPeerConnection`, `WebSocket` and `AudioWorkletNode` exist.
+ */
+export function readLiveTransport(): LiveTransport {
+    const page = globalThis as Partial<Record<"RTCPeerConnection" | "WebSocket" | "AudioWorkletNode", unknown>>;
+    return {
+        rtcPeerConnection: typeof page.RTCPeerConnection === "function",
+        webSocket: typeof page.WebSocket === "function",
+        audioWorklet: typeof page.AudioWorkletNode === "function",
+    };
+}

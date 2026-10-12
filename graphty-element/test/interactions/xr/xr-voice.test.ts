@@ -16,6 +16,8 @@ import { userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../../index.js";
 import type { AiVoiceOptions } from "../../../src/ai/AiManager";
+import { FakeEngine, FakeLiveConnection } from "../../../src/ai/engine/FakeEngine";
+import { registerProviderApiEngine } from "../../../src/ai/engine/load";
 import type { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
 import { XR_ASSISTANT_ORB } from "../../../src/cameras/XRInputHandler";
 import type { XRPivotCameraController } from "../../../src/cameras/XRPivotCameraController";
@@ -352,6 +354,66 @@ describe("the microphone", () => {
             assert.deepEqual(voiceEnds, ["AI_CANCELLED"]);
         }, WAIT);
         assert.strictEqual(finished, 0, "leaving XR sent the utterance");
+    });
+});
+
+describe("talking live in VR", () => {
+    /**
+     * Give the assistant's provider a scripted live API whose connections hold the microphone open,
+     * as a real one does, until closed.
+     * @returns The connections it opens.
+     */
+    function scriptLive(): FakeLiveConnection[] {
+        const provider = element.getAiManager()?.getProvider();
+        assert.exists(provider);
+        const engine = new FakeEngine();
+        const connections: FakeLiveConnection[] = [];
+        engine.openLive = async (options) => {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const connection = new FakeLiveConnection(options);
+            const close = connection.close.bind(connection);
+            connection.close = () => {
+                for (const track of stream.getTracks()) {
+                    track.stop();
+                }
+
+                close();
+            };
+            connections.push(connection);
+            return { code: "AI_COMPLETED", params: {}, connection };
+        };
+        registerProviderApiEngine(provider, () => engine);
+        return connections;
+    }
+
+    test("B talks on the live connection, the trigger starts nothing, and leaving XR closes it", async () => {
+        await mount({ mode: "live", output: "on" });
+        const connections = scriptLive();
+        await enterVR();
+        await nodeOnRightRay("p");
+
+        await button("right", "b-button", true);
+        await vi.waitFor(() => {
+            assert.deepEqual(connections[0]?.captures, [true], "B did not talk on the live connection");
+        }, WAIT);
+        await button("right", "trigger", true);
+        await button("right", "trigger", false);
+        assert.strictEqual(voiceStarts, 1, "the trigger started talking");
+        assert.lengthOf(connections, 1);
+        assert.notInclude([...element.graph.getSession().selection.nodes], "p", "the trigger picked the node");
+        await button("right", "b-button", false);
+        await vi.waitFor(() => {
+            assert.deepEqual(connections[0].captures, [true, false], "releasing B did not stop sending");
+        }, WAIT);
+        assert.deepEqual(voiceEnds, ["AI_COMPLETED"]);
+        assert.strictEqual(finished, 0, "the press ran turn by turn");
+        assert.strictEqual(liveTracks(), 1, "the connection keeps its microphone between presses");
+
+        await element.setViewMode("3d");
+        await vi.waitFor(() => {
+            assert.isTrue(connections[0].closed, "leaving XR left the connection open");
+            assert.strictEqual(liveTracks(), 0, "leaving XR left the microphone open");
+        }, WAIT);
     });
 });
 

@@ -316,6 +316,15 @@ export class ProviderApiEngine implements AiEngine {
         }
     }
 
+    /**
+     * Whether a live conversation can open now.
+     * @returns Whether a key is set, and whether a `baseUrl` is.
+     */
+    liveReadiness(): { readonly keyed: boolean; readonly customBaseUrl: boolean } {
+        const { apiKey, baseUrl } = this.settings();
+        return { keyed: apiKey !== undefined && apiKey !== "", customBaseUrl: baseUrl !== undefined };
+    }
+
     /** The configuration is the provider's, and nothing outlives a turn's signal. */
     dispose(): void {
         // Nothing of its own to release.

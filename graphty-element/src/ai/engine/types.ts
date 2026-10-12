@@ -431,6 +431,11 @@ export interface AiEngine {
     speak?(text: string, options: SpeakOptions, signal: AbortSignal): Promise<SpokenAudio>;
     /** A live conversation with the provider; absent, like `transcribe`, where it has none. */
     openLive?(options: LiveOptions, signal: AbortSignal): Promise<LiveOpened>;
+    /**
+     * Whether `openLive` can open now: a key is set, and a custom `baseUrl` (which live cannot
+     * reach) is not. Absent, it can whenever `openLive` exists.
+     */
+    liveReadiness?(): { readonly keyed: boolean; readonly customBaseUrl: boolean };
     dispose(): void;
 }
 

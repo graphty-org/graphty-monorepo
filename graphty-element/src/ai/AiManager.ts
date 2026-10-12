@@ -48,7 +48,7 @@ import { SchemaManager } from "./schema";
 import { installAssistantTools } from "./tools/install";
 import type { AssistantGateLimits } from "./tools/types";
 import type * as VoicePrime from "./voice/prime";
-import type { ProviderSpeech, VoiceSession } from "./voice/VoiceSession";
+import type { ProviderLiveSpeech, ProviderSpeech, VoiceSession } from "./voice/VoiceSession";
 
 /** Default debounce delay for schema updates in milliseconds */
 const SCHEMA_UPDATE_DEBOUNCE_MS = 300;
@@ -653,6 +653,7 @@ export class AiManager {
                             ? { readiness: "unsupported" }
                             : { readiness: "ready", engine };
                     },
+                    liveEngine: () => this.liveEngine(),
                     immersive: () => (graph.getXRSessionManager()?.getActiveMode() ?? null) !== null,
                     selected: () => graph.getSession().selection.nodes,
                     onPointed: (listener) => {
@@ -680,6 +681,30 @@ export class AiManager {
         }
 
         return this.voiceSession ?? Promise.reject(new Error("AI Manager not initialized"));
+    }
+
+    /**
+     * The chat provider's live conversations (`voice.mode: "live"`).
+     * @returns Whether it can open one, and the engine that does.
+     */
+    private liveEngine(): ProviderLiveSpeech {
+        const engine = this.provider === null ? undefined : engineFor(this.provider);
+        const provider = (this.provider?.name ?? "mock") as AiProviderId;
+        const openLive = engine?.openLive?.bind(engine);
+        const ready = engine?.liveReadiness?.() ?? { keyed: true, customBaseUrl: false };
+        let readiness: ProviderLiveSpeech["readiness"] = ready.keyed ? "ready" : "no-key";
+        if (openLive === undefined) {
+            readiness = "unsupported";
+        }
+
+        return {
+            provider,
+            readiness,
+            customBaseUrl: ready.customBaseUrl,
+            ...(openLive === undefined ? {} : { engine: { openLive } }),
+            // ponytail: no instructions or tools yet; they come with live messages through the loop.
+            session: () => ({ instructions: "", tools: [] }),
+        };
     }
 
     /**

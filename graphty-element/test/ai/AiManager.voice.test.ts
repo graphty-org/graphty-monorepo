@@ -38,11 +38,13 @@ type Emitted = [string, Record<string, unknown>][];
  * A manager over a stand-in graph whose chat runs on a scripted engine.
  * @param config - The configuration, besides the provider.
  * @param provider - The chat provider.
+ * @param scripted - Run the provider on the scripted engine (default); false, on its own.
  * @returns The manager, its chat engine and what it emitted.
  */
 async function manager(
     config: Omit<AiManagerConfig, "provider">,
     provider: "anthropic" | "mock" = "mock",
+    scripted = true,
 ): Promise<{ ai: ReturnType<typeof createAiManager>; chat: FakeEngine; emitted: Emitted }> {
     const session = await assistantSession();
     const emitted: Emitted = [];
@@ -60,7 +62,10 @@ async function manager(
     } as unknown as Graph;
     const chat = new FakeEngine();
     const instance = createProvider(provider);
-    registerProviderApiEngine(instance, () => chat);
+    if (scripted) {
+        registerProviderApiEngine(instance, () => chat);
+    }
+
     const ai = createAiManager();
     ai.init(graph, { ...config, provider, providerInstance: instance });
     return { ai, chat, emitted };
@@ -190,5 +195,36 @@ describe("transcription through another provider", () => {
         });
         assert.strictEqual(fake.microphoneOpens, 0);
         assert.lengthOf(of(emitted, "ai-voice-start"), 0);
+    });
+});
+
+describe("live voice", () => {
+    it("Anthropic has no live API: a live press runs turn by turn and says why", async () => {
+        const fake = installFakeSpeech();
+        const { ai, emitted } = await manager({ voice: { mode: "live" } }, "anthropic", false);
+        ai.talk(true);
+        await vi.waitFor(() => {
+            assert.strictEqual(fake.recognizers.length, 1, "the browser's recognizer listens");
+        });
+        ai.talk(false);
+        assert.deepStrictEqual(of(emitted, "ai-voice-start"), [
+            { mode: "turns", code: "AI_VOICE_UNAVAILABLE", params: { path: "input", reason: "no-provider-live" } },
+        ]);
+        assert.strictEqual((await ai.getVoiceSupport()).live?.params?.reason, "no-provider-live");
+    });
+
+    it("dispose (disableAiControl) closes the live connection held open", async () => {
+        installFakeSpeech();
+        vi.stubGlobal("AudioWorkletNode", function AudioWorkletNode() {});
+        const { ai, chat } = await manager({ voice: { mode: "live" } });
+        chat.scriptLive();
+        ai.talk(true);
+        await vi.waitFor(() => {
+            assert.deepStrictEqual(chat.liveConnections[0]?.captures, [true], "the press is live");
+        });
+        ai.dispose();
+        await vi.waitFor(() => {
+            assert.isTrue(chat.liveConnections[0].closed);
+        });
     });
 });

@@ -5,17 +5,25 @@
  * @module ai/voice/VoiceSession
  */
 
-import { AI_VOICE_APPROVABLE_GATES, type AiResultCode, type AiResultParams } from "../../catalog/ai";
+import { AI_VOICE_APPROVABLE_GATES, type AiProviderId, type AiResultCode, type AiResultParams } from "../../catalog/ai";
 import type { NodeId } from "../../catalog/types";
 import type { AiApprovalRequest, AiQuestionRequest } from "../../events";
 import type { AiApprovalAnswer, AiCommandOptions, ExecutionResult } from "../AiController";
-import type { AiVoiceOptions, AiVoiceSupport } from "../AiManager";
-import type { AiEngine } from "../engine/types";
-import { chooseInput, chooseOutput, chooseVoice, type ProviderVoiceReadiness, type VoiceFacts } from "./choose";
+import type { AiVoiceOptions, AiVoicePath, AiVoiceSupport } from "../AiManager";
+import type { AiEngine, LiveOpened, LiveOptions } from "../engine/types";
+import {
+    chooseInput,
+    chooseLive,
+    chooseOutput,
+    chooseVoice,
+    type ProviderVoiceReadiness,
+    type VoiceFacts,
+} from "./choose";
+import type { LiveSession } from "./LiveSession";
 import { PointingRecord } from "./pointing";
 import { type SpeechInput, type SpeechInputEnd, startSpeechInput } from "./SpeechInput";
 import { createSpeechOutput, type SpeechOutput } from "./SpeechOutput";
-import { readVoiceEnvironment, voiceLanguage } from "./support";
+import { readLiveTransport, readVoiceEnvironment, voiceLanguage } from "./support";
 
 /** The voice events a session emits. */
 export type VoiceEventType =
@@ -49,6 +57,19 @@ export interface ProviderSpeech<K extends "transcribe" | "speak"> {
     readonly model?: string;
 }
 
+/** The chat provider's live conversations. */
+export interface ProviderLiveSpeech {
+    /** The chat provider. */
+    readonly provider: AiProviderId;
+    /** Whether it has a live API (`openLive`), and whether its key is set. */
+    readonly readiness: ProviderVoiceReadiness;
+    /** A `baseUrl` is configured: live reaches only the provider's own host. */
+    readonly customBaseUrl: boolean;
+    readonly engine?: Required<Pick<AiEngine, "openLive">>;
+    /** The instructions and tools a connection opens with. */
+    session(): Pick<LiveOptions, "instructions" | "tools">;
+}
+
 /** What the assistant gives a session. */
 export interface VoiceHost {
     readonly options: AiVoiceOptions;
@@ -58,6 +79,8 @@ export interface VoiceHost {
     transcriber(): ProviderSpeech<"transcribe">;
     /** Provider speech: the chat provider's. */
     speaker(): ProviderSpeech<"speak">;
+    /** Live conversations (`mode: "live"`): the chat provider's; absent, none. */
+    liveEngine?(): ProviderLiveSpeech;
     /** Whether an immersive (XR) session runs. */
     immersive(): boolean;
     /** The selected nodes now; absent, none. */
@@ -104,6 +127,11 @@ export class VoiceSession {
     /** Stops recording what the pointer enters, while talk is held. */
     private stopPointing: (() => void) | undefined;
     private readonly speakers = new Map<"browser" | "provider", SpeechOutput>();
+    /** The live conversation, loaded on the first live press. */
+    private live: Promise<LiveSession> | undefined;
+    private liveNow: LiveSession | undefined;
+    /** The press held now is on the live connection. */
+    private livePress = false;
     private disposed = false;
 
     /**
@@ -165,7 +193,12 @@ export class VoiceSession {
         this.listening = false;
         this.clearPressTimer();
         this.endPointing();
-        this.input?.stop();
+        if (this.livePress) {
+            this.liveNow?.release();
+            this.endLive("AI_COMPLETED", {});
+        } else {
+            this.input?.stop();
+        }
     }
 
     /** Stop the press's time limit. */
@@ -174,8 +207,9 @@ export class VoiceSession {
         this.pressTimer = undefined;
     }
 
-    /** Stop speaking an answer: it ends with `AI_CANCELLED`. */
+    /** Stop speaking an answer: it ends with `AI_CANCELLED`. A live answer is interrupted. */
     stopSpeech(): void {
+        this.liveNow?.interrupt();
         for (const speaker of this.speakers.values()) {
             speaker.cancel();
         }
@@ -186,7 +220,8 @@ export class VoiceSession {
      * @returns Both directions.
      */
     async support(): Promise<AiVoiceSupport> {
-        const support = chooseVoice(this.host.options, await this.facts());
+        const facts = await this.facts();
+        const support = { ...chooseVoice(this.host.options, facts), live: this.livePath(facts) };
         this.lastSupport = JSON.stringify(support);
         return support;
     }
@@ -209,8 +244,8 @@ export class VoiceSession {
     }
 
     /**
-     * End a held talk without sending it: the press ends with `AI_CANCELLED` and the microphone
-     * closes. Leaving XR does this.
+     * End a held talk without sending it: the press ends with `AI_CANCELLED`, the microphone
+     * closes, and so does a live connection. Leaving XR does this.
      */
     cancel(): void {
         // A press still choosing its path ends there, and an earlier one still being transcribed
@@ -223,6 +258,8 @@ export class VoiceSession {
         for (const input of [...this.inputs]) {
             input.cancel();
         }
+
+        this.liveNow?.close();
     }
 
     /** Close the microphone and stop speaking; later presses do nothing. */
@@ -238,6 +275,7 @@ export class VoiceSession {
         this.inputs.clear();
         this.input = undefined;
         this.stopSpeech();
+        this.liveNow?.close();
     }
 
     /** Stop recording what the pointer enters. */
@@ -260,7 +298,25 @@ export class VoiceSession {
     }
 
     /**
-     * One press: choose the path, listen until released, then route what was heard.
+     * A live conversation now: the chat provider's live API and what the page offers it.
+     * @param facts - What the page offers for speech.
+     * @returns The live path.
+     */
+    private livePath(facts: VoiceFacts): AiVoicePath {
+        const live = this.host.liveEngine?.();
+        return chooseLive(this.host.options.output ?? "auto", {
+            secureContext: facts.secureContext,
+            microphone: facts.microphone,
+            permission: facts.permission,
+            provider: live?.provider ?? "mock",
+            live: live?.readiness ?? "unsupported",
+            customBaseUrl: live?.customBaseUrl ?? false,
+            ...readLiveTransport(),
+        });
+    }
+
+    /**
+     * One press: live when asked for and it can run with nothing pending, else turn by turn.
      * @param press - The press's number.
      * @param pointing - What the reader points at during it.
      */
@@ -270,6 +326,137 @@ export class VoiceSession {
             return;
         }
 
+        const { mode } = this.host.options;
+        let start: Record<string, unknown> = mode === undefined ? {} : { mode: "turns" };
+        if (mode === "live") {
+            const { controller } = this.host;
+            const live = this.livePath(facts);
+            if (controller.getPendingApprovals().length > 0 || controller.getPendingQuestions().length > 0) {
+                // A pending approval or question is answered turn by turn: the connection hands off.
+                this.liveNow?.close();
+            } else if (live.path === "provider") {
+                await this.listenLive(press, pointing, facts);
+                return;
+            } else {
+                start = { mode: "turns", code: live.code, params: live.params ?? {} };
+            }
+        }
+
+        this.listenTurns(press, pointing, facts, start);
+    }
+
+    /**
+     * A live press: open the connection (or reuse it) and send the microphone while talk is held.
+     * When it cannot open, the press runs turn by turn and `ai-voice-start` says why.
+     * @param press - The press's number.
+     * @param pointing - What the reader points at during it.
+     * @param facts - What the page offers for speech.
+     */
+    private async listenLive(press: number, pointing: PointingRecord, facts: VoiceFacts): Promise<void> {
+        const live = await this.liveSession();
+        if (this.disposed || press !== this.press) {
+            return;
+        }
+
+        const opened = await live.connect();
+        if (this.disposed || press !== this.press) {
+            return;
+        }
+
+        if (opened.code !== "AI_COMPLETED") {
+            this.listenTurns(press, pointing, facts, { mode: "turns", code: opened.code, params: opened.params });
+            return;
+        }
+
+        this.livePress = true;
+        this.host.emit("ai-voice-start", { mode: "live" });
+        if (this.listening) {
+            live.hold();
+        } else {
+            // Released before the connection opened: nothing was sent.
+            this.endLive("AI_CANCELLED", {});
+        }
+    }
+
+    /**
+     * The live press ended: released, or the connection closed under it.
+     * @param code - `AI_COMPLETED` on release, else why.
+     * @param params - The facts behind `code`.
+     */
+    private endLive(code: AiResultCode, params: AiResultParams): void {
+        if (!this.livePress) {
+            return;
+        }
+
+        this.livePress = false;
+        this.listening = false;
+        this.clearPressTimer();
+        this.endPointing();
+        const failed = code !== "AI_COMPLETED" && code !== "AI_CANCELLED";
+        this.host.emit("ai-voice-end", { reason: failed ? "error" : "user", code, params });
+        void this.checkSupport();
+    }
+
+    /**
+     * The live conversation, loaded on first use.
+     * @returns It.
+     */
+    private liveSession(): Promise<LiveSession> {
+        this.live ??= import("./LiveSession").then(({ LiveSession: Live }) => {
+            const live = new Live({
+                open: (signal) => this.openLive(signal),
+                emit: (type, detail) => {
+                    this.host.emit(type, detail);
+                },
+                ended: (code, params) => {
+                    this.endLive(code, params);
+                },
+            });
+            this.liveNow = live;
+            return live;
+        });
+        return this.live;
+    }
+
+    /**
+     * Open a connection with the chat provider.
+     * @param signal - Cancels the opening.
+     * @returns The connection, or the code it failed with.
+     */
+    private openLive(signal: AbortSignal): Promise<LiveOpened> {
+        const live = this.host.liveEngine?.();
+        if (live?.engine === undefined) {
+            return Promise.resolve({
+                code: "AI_VOICE_UNAVAILABLE",
+                params: { path: "input", reason: "no-provider-live" },
+            });
+        }
+
+        const { liveModel, voiceName } = this.host.options;
+        return live.engine.openLive(
+            {
+                ...(liveModel === undefined ? {} : { model: liveModel }),
+                ...(voiceName === undefined ? {} : { voice: voiceName }),
+                language: this.language,
+                ...live.session(),
+            },
+            signal,
+        );
+    }
+
+    /**
+     * A press turn by turn: listen until released, then route what was heard.
+     * @param press - The press's number.
+     * @param pointing - What the reader points at during it.
+     * @param facts - What the page offers for speech.
+     * @param start - What `ai-voice-start` reports.
+     */
+    private listenTurns(
+        press: number,
+        pointing: PointingRecord,
+        facts: VoiceFacts,
+        start: Record<string, unknown>,
+    ): void {
         const path = chooseInput(this.host.options.input ?? "auto", facts);
         if (path.path !== "browser" && path.path !== "provider") {
             this.listening = false;
@@ -280,7 +467,7 @@ export class VoiceSession {
         }
 
         const transcriber = this.host.transcriber();
-        this.host.emit("ai-voice-start", {});
+        this.host.emit("ai-voice-start", start);
         const input = startSpeechInput(
             path.path,
             {

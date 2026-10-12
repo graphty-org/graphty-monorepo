@@ -1055,9 +1055,9 @@ succeeds there, and a failing batch is split in halves to find the culprit. The 
 batch only when every capture equals an image the owner approved on one of its pull requests, so
 the queue never asks for a new approval. Nobody turns on auto-merge by hand. Mergify posts no
 comments on pull requests (`status_comments: none`, `queue_controls_comment: false`, `post_comment:
-false`): every comment notified the owner. Its state is in its check runs. Releases never enter the queue: release.yml pushes its version
-merge straight to master, and `reset_on_external_merge: never` keeps that push from resetting the
-batches being checked.
+false`): every comment notified the owner. Its state is in its check runs. Releases never enter the
+queue: release.yml pushes its version merge straight to master, and `reset_on_external_merge: never`
+keeps that push from resetting the batches being checked.
 
 - To keep a pull request from merging, add the `hold` label; removing it releases the pull request.
   Adding `hold` also takes an already-queued pull request out of the queue.

@@ -292,14 +292,14 @@ none.
 
 ### `gephi`
 
-|           |                                                                                                                        |
-| --------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Read from | gephi 0.11.4-SNAPSHOT                                                                                                  |
-| Lengths   | the program's relative size factor                                                                                     |
-| Nodes     | `fill` `#000000`, `width` `10`, `height` `10`, `shape` `ellipse`                                                       |
-| Edges     | `sourceArrow` `none`, `targetArrow` `none`                                                                             |
-| Graph     | `background` `#ffffff`                                                                                                 |
-| Rules     | an edge with no color of its own takes its source node's fill; ; directed edges get a `triangle` arrow at their target |
+|           |                                                                                                                                                                                                  |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Read from | gephi 0.11.4-SNAPSHOT                                                                                                                                                                            |
+| Lengths   | the program's relative size factor                                                                                                                                                               |
+| Nodes     | `fill` `#000000`, `width` `10`, `height` `10`, `shape` `ellipse`                                                                                                                                 |
+| Edges     | `sourceArrow` `none`, `targetArrow` `none`                                                                                                                                                       |
+| Graph     | `background` `#ffffff`                                                                                                                                                                           |
+| Rules     | an edge with no color of its own takes its source node's fill; an edge with no width of its own is as thick as its weight (1 without one); directed edges get a `triangle` arrow at their target |
 
 ### `vis-network`
 

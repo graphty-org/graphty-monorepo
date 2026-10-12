@@ -1331,6 +1331,8 @@ function toolDefaultsBlock(ctx: Context): string[] {
                 return "nodes are labeled with their id";
             case "colorFromSourceNode":
                 return "an edge with no color of its own takes its source node's fill";
+            case "widthFromWeight":
+                return "an edge with no width of its own is as thick as its weight (1 without one)";
             case "targetArrowOnDirected":
                 return `directed edges get a ${code(d.arrow)} arrow at their target`;
             default:

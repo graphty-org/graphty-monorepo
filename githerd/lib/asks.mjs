@@ -1189,9 +1189,10 @@ async function tellBlockedMergeWaits(state, { now, acting, transport, owners }, 
         const fix = Object.values(state.jobs ?? {}).find(
             (j) => j.kind !== "review" && String(prOf(j)) === String(w.merge) && !TERMINAL.includes(j.state),
         );
+        const named = fix ? " (job " + fix.id + ")" : "";
         const news =
             `${what} cannot merge as it stands: ${blocked.why}. Waiting alone will not end this wait: ` +
-            `fix ${what}${fix ? ` (job ${fix.id})` : ""}, or wait on something else.`;
+            `fix ${what}${named}, or wait on something else.`;
         lines.push({ kind: "merge-wait-blocked", waiter: who, merge: w.merge, why: blocked.why });
         job?.news.push({ at: now.toISOString(), text: news, acked: false });
         live ??= tell ? owners() : null;

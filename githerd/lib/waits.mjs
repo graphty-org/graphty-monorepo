@@ -152,10 +152,7 @@ export function mergeBlocked(state, target) {
     const t = String(target);
     const rec = /^\d+$/.test(t) ? state.prs?.[t] : Object.values(state.prs ?? {}).find((p) => p.headRef === t);
     if (!rec) return null;
-    const why = failingRequired(rec).length
-        ? failingWords(rec)
-        : (rec.conflictSightings ?? 0) >= 2
-          ? `conflicting with ${rec.baseRef ?? "its base"}`
-          : null;
-    return why ? { head: String(rec.headSha), why } : null;
+    const head = String(rec.headSha);
+    if (failingRequired(rec).length) return { head, why: failingWords(rec) };
+    return (rec.conflictSightings ?? 0) >= 2 ? { head, why: `conflicting with ${rec.baseRef ?? "its base"}` } : null;
 }

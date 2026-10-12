@@ -137,7 +137,7 @@ export function PopoutProvider({
     defaultOpened,
     onOpenChange,
     exclusive = true,
-}: PopoutProviderProps): JSX.Element {
+}: Readonly<PopoutProviderProps>): JSX.Element {
     const id = useId();
     const triggerRef = useRef<HTMLElement | null>(null);
     // The region this pop-out was OPENED in, which is where its trigger sits and
@@ -229,7 +229,7 @@ interface PopoutManagerProviderProps {
  * @param props.children - Child components wrapped by the provider
  * @returns The PopoutManagerProvider component
  */
-export function PopoutManagerProvider({ children }: PopoutManagerProviderProps): JSX.Element {
+export function PopoutManagerProvider({ children }: Readonly<PopoutManagerProviderProps>): JSX.Element {
     const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
     // Track z-index stack order. Array index represents stack order (last = top).

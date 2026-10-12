@@ -105,7 +105,7 @@ function UnitField({
     min,
     max,
     testId,
-}: UnitFieldProps): React.JSX.Element {
+}: Readonly<UnitFieldProps>): React.JSX.Element {
     const parse = useNumberParser();
     const [draft, setDraft] = useState(format(value));
 
@@ -189,7 +189,7 @@ interface StopHexFieldProps {
  * @param props.ariaLabel - the accessible name
  * @returns the field
  */
-function StopHexField({ color, onCommit, ariaLabel }: StopHexFieldProps): React.JSX.Element {
+function StopHexField({ color, onCommit, ariaLabel }: Readonly<StopHexFieldProps>): React.JSX.Element {
     const shown = color.replace("#", "").toUpperCase();
     const [draft, setDraft] = useState(shown);
 

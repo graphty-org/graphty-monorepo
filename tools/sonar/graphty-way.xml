@@ -31,11 +31,20 @@
         <!-- Unnecessary spread (21). Decided in stage 3: every site is `for (const x of [...collection])`,
              a copy taken on purpose because the loop adds to or deletes from the collection it walks. -->
         <deactivate rule="typescript:S7747" />
+        <!-- The void operator (14). Decided in stage 3: every site is `void promise`, the mark ESLint's
+             no-floating-promises (an error here) asks for on a call deliberately not awaited. -->
+        <deactivate rule="typescript:S3735" />
+        <!-- Test file with no test case (17). Decided in stage 3: the files register their cases through a
+             shared harness or ESLint's RuleTester, which the rule does not follow; Vitest already fails a
+             file that registers no test. -->
+        <deactivate rule="typescript:S2187" />
     </language>
     <language key="js">
         <!-- Negated condition with an else. Off, as for TypeScript above. -->
         <deactivate rule="javascript:S7735" />
         <!-- Unnecessary spread. Off, as for TypeScript above. -->
         <deactivate rule="javascript:S7747" />
+        <!-- Test file with no test case. Off, as for TypeScript above. -->
+        <deactivate rule="javascript:S2187" />
     </language>
 </graphty-way>

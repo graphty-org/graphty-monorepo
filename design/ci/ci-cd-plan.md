@@ -477,6 +477,26 @@ rule forbids.
 
 ## 10. Releases
 
+**Changed 2026-10-11: no release pull request.** The owner replaced steps 2 to 5 below: "when the
+release starts it should run the testing itself (without a PR) and then directly publish if the
+testing passes. putting things into the PR queue will be slow and put our releases behind anything
+else in the queue, which isn't desireable." The release pull request waited in the merge queue
+behind every batch, and a queue run that failed on an unrelated flake dropped a release that had
+already passed every lane. Now one release.yml run does it all: step 1 (pick, full suite, T4,
+Hosts, audit, LLM regression, holds and restarts) is unchanged; then the version job versions the
+tested commit, the land job merges that version commit into master's current tip and pushes the
+merge and the `{projectName}@{version}` tags in one atomic push with the release deploy key (step 5
+below said it would be removed; it never was, and is used again), and the publish job publishes
+from that run's builds. The tags point at the version commit -- the shipped source -- and the merge
+makes them reachable from master, so the next `nx release` bumps from every commit that reached
+master after the candidate. A conflict with master holds the release before anything is pushed; a
+failed publish after the push is the publish hold, cleared by re-running that run's failed jobs.
+The cost this section listed for direct pushes (a queue reset per release) is avoided with
+Mergify's `reset_on_external_merge: never`; the standing bypass of master's protection is back,
+limited to that one deploy key, used only by the land job, which runs no third-party code. What
+follows is kept as the record of the design it replaced; release.yml's header comment and
+CLAUDE.md "Release versioning" describe the flow in force.
+
 **Today:**
 
 - release.yml publishes after every merge, from the newest master commit green on CI, GPU and
@@ -575,12 +595,15 @@ had; record `design/decisions/2026-10-10-nightly-next-channel.md`). It is off un
 repository variable `NIGHTLY_ENABLED` is `true`; until then everything above is unchanged. With
 it on:
 
-- A scheduled attempt, or a restart of a held train, runs the same lanes, and when they all pass
-  it opens no release pull request. Instead it publishes each changed package as
-  `X.Y.Z-next.<run number>` under the npm dist-tag `next`, from the builds that run tested, with
-  the same trusted publishing from release.yml. `X.Y.Z` is the version the next stable release
-  would give the package. Nothing is committed, tagged or given a GitHub release, `latest` never
-  moves, and a package not yet on npm gets no nightly.
+- A scheduled attempt, or a restart of a held train, runs the same lanes, and the version job
+  versions the commit as always. When they all pass, the land and publish jobs are skipped and
+  the nightly job publishes each changed package as `X.Y.Z-next.<run number>` under the npm
+  dist-tag `next`, from the builds that run tested, with the same trusted publishing from
+  release.yml. `X.Y.Z` is the version the next stable release would give the package. The version
+  commit is read for its numbers only: nothing reaches master, no tag or GitHub release is made,
+  `latest` never moves, and a package not yet on npm gets no nightly.
+- A nightly job that fails before publishing anything holds the release like a red lane, named
+  "nightly publish"; one that fails after publishing holds nothing.
 - Each nightly leaves a marker (an artifact `nightly-<commit>`, kept 90 days). An attempt skips a
   commit that already has one, and a graduation must name a commit that has one.
 - Each nightly is announced on the "Release status" issue without mentioning anyone, with the
@@ -603,6 +626,10 @@ Vue).
 - **Release cadence** is not a contract. It is reversible.
 
 ## 11. Ad hoc release
+
+**Changed 2026-10-11:** an ad hoc release is the same direct-publish run as the train (section 10's
+note): no release pull request, no queue, no `priority:critical` label. Steps 2 to 4 below are the
+record of the replaced design.
 
 The scheduled train is the default. When something must reach npm sooner -- a fix a consumer is
 waiting for, a broken release to supersede -- the owner cuts a release at once with the same
@@ -632,8 +659,13 @@ still apply, so a dispatch cannot release a package the owner has held.
 **Graduating a nightly.** A `graduate` input (a full commit id) cuts the release from the commit a
 published nightly was built from, instead of master's newest, so a stable version never ships code
 that was not in a nightly first: `gh workflow run release.yml --ref master -f graduate=<commit>`.
-The run tests that commit on every lane again and opens the release pull request from it; its
-version commit merges into master like any other. The pick job refuses (and the run fails) a
+The run tests that commit on every lane again and versions it, and the land job merges that
+version commit into master's current tip like any other release: the merge brings the older
+commit's version fields and changelogs onto master, the tags sit on the version commit, and the
+next release bumps from exactly the commits that reached master after the graduated one. Because
+the commit must contain the last stable version commit, nothing on master since then wrote a
+version field or changelog line, so the merge conflicts only if someone hand-edited a line next to
+one the release writes, which holds the release with nothing pushed. The pick job refuses (and the run fails) a
 commit that is not on master, has no unexpired nightly marker, is older than the last stable
 release, or a `graduate` on a scheduled attempt. With the nightly channel on, this dispatch is the
 only way a stable release is made. The stable publish uses the graduation run's own builds of that
@@ -815,7 +847,7 @@ Each step is independently reversible unless marked. Each step is one pull reque
 | Windows / macOS                            | post-merge, nightly, release gate; short scope on PRs                                                                                                                                                    | per PR full                                                                                 | wgpu, Bevy, PyTorch periodic                                   | reversible                                                    |
 | Flakes                                     | no retries, issue per non-reproduced failure, owner-approved expiring quarantine                                                                                                                         | retry N times; auto-quarantine                                                              | Chromium without-patch, PyTorch DISABLED, Datadog expiry       | reversible                                                    |
 | Red master                                 | freeze + automatic revert                                                                                                                                                                                | sheriff by hand                                                                             | Chromium tree closer, LLVM revert-to-green, PyTorch autorevert | reversible                                                    |
-| Release cadence                            | an attempt every 6 h via release PR, skipped while the previous release is pending, plus ad hoc dispatch (owner, 2026-10-06; was daily)                                                                  | every merge; daily; weekly; tags only                                                       | Vite/Vitest, Changesets users, release-please                  | reversible                                                    |
+| Release cadence                            | an attempt every 6 h that tests and publishes in one run, no release PR (owner, 2026-10-11; release PR from 2026-10-06), skipped while a hold is open, plus ad hoc dispatch                              | every merge; daily; weekly; tags only                                                       | Vite/Vitest, Changesets users, release-please                  | reversible                                                    |
 | Master runs no tests                       | a push to master only builds for the deploy (the Build job, with its lint and source checks); the queue's full run is the merge-time test, the train's full run the release-time one (owner, 2026-10-06) | full CI again on every master commit (about 163 job-minutes a merge)                        | Rust bors (the tested merge commit is what lands)              | reversible                                                    |
 | Release testing                            | full un-selected CI + T4 + Hosts + production audit on the exact candidate, release builds from that run; any failure holds the whole release and opens one issue (owner, 2026-10-06)                    | reuse master's CI run and artifacts; T4 only                                                | Chromium release qualification, Rust's release channels        | reversible                                                    |
 | Dist-tags, tag pattern, changelog location | `latest` unchanged; nightlies as `X.Y.Z-next.<run number>` under `next`, behind `NIGHTLY_ENABLED`, graduated by hand (owner, 2026-10-07); tag pattern and changelog location unchanged                   | no channel (the earlier choice); `beta`/`nightly` tags; date versions                       | Nx, Next.js, React canaries                                    | ONE-WAY: decided by the owner                                 |

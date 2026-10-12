@@ -92,6 +92,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params) => string>> = {
     "style.lock-row": (p) => `${p.locked === true ? "Locked" : "Unlocked"} "${text(p.row)}"`,
     "style.hide-row": (p) => `${p.hidden === true ? "Hid" : "Showed"} "${text(p.row)}"`,
     "style.delete-row": (p) => `Deleted "${text(p.row)}"`,
+    "style.restore-starting-rows": () => "Restored the starting rows",
     "visibility.filter": (p) => `Filtered (${text(p.kind)})`,
     "visibility.clear-filter": () => "Cleared the filter",
     "visibility.window": () => "Set the time window",

@@ -136,6 +136,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "style.lock-row": (p) => `${p.locked === true ? "locking" : "unlocking"} ${text(p, "row", "a layer")}`,
     "style.hide-row": (p) => `${p.hidden === true ? "hiding" : "showing"} ${text(p, "row", "a layer")}`,
     "style.delete-row": (p) => `deleting ${text(p, "row", "a layer")}`,
+    "style.restore-starting-rows": () => "restoring the starting rows",
     "visibility.filter": () => "filtering",
     "visibility.clear-filter": () => "clearing the filter",
     "visibility.window": () => "setting the time window",

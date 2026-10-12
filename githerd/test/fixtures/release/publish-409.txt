@@ -1,0 +1,17 @@
+Cache hit for: node-cache-Linux-x64-pnpm-655fd0e9e3a29e6c3b4032ae9681904eaa0ddd29d860160b18008b22a7d36628
+Cache restored from key: node-cache-Linux-x64-pnpm-655fd0e9e3a29e6c3b4032ae9681904eaa0ddd29d860160b18008b22a7d36628
+Redirecting to blob download url: https://productionresultssa1.blob.core.windows.net/actions-results/54950776-29e7-4ba0-b6f1-2fd770a0330d/workflow-job-run-40dd31fe-4a3d-5a38-bf65-6355c8a571af/artifacts/331530fcbe403f40ed38ad78515de617a47399fae5e4c5260524a91b07b1d43d.zip
+- build-algorithms (ID: 10483410508, Size: 558374, Expected Digest: sha256:e17144a1409c73406c44fbce44fa65f0058af994a9e0f8a930cbe6dcaaefd8a9)
+SHA256 digest of downloaded artifact is e17144a1409c73406c44fbce44fa65f0058af994a9e0f8a930cbe6dcaaefd8a9
+  key: nx-Linux-655fd0e9e3a29e6c3b4032ae9681904eaa0ddd29d860160b18008b22a7d36628-6b4777df28e91c2cceede79535e5ddfb797ce92a
+  restore-keys: nx-Linux-655fd0e9e3a29e6c3b4032ae9681904eaa0ddd29d860160b18008b22a7d36628-
+> nx run graph-format:nx-release-publish
+pnpm publish error:
+409 Conflict - PUT https://registry.npmjs.org/@graphty%2fgraph-format - Cannot publish over previously staged version "0.2.0".
+ NX   Running target nx-release-publish for 7 projects failed
+- graphty-element:nx-release-publish
+- graph-io:nx-release-publish
+- @graphty/remote-logger:nx-release-publish
+- compact-mantine:nx-release-publish
+- graph-format:nx-release-publish
+##[error]Process completed with exit code 1.

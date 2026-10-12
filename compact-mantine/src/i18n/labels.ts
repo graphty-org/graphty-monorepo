@@ -86,8 +86,10 @@ export interface CompactMantineLabels {
      */
     details: string;
     /**
-     * Accessible name and tooltip of the warning glyph beside a line that
-     * states how a reading departs from being exact and complete.
+     * The severity word a screen reader says before a ProseBlock departure
+     * line (the warning line stating how a reading departs from being exact
+     * and complete). The line is a note named by this word followed by its own
+     * text, such as "Warning Approximate (sample of 8)."
      */
     departure: string;
 
@@ -375,7 +377,7 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     scaleLog: "Logarithmic scale",
 
     details: "Details",
-    departure: "Departure",
+    departure: "Warning",
 
     percentile: (ordinal: string): string => `${ordinal} percentile`,
 

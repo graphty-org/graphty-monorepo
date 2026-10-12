@@ -20,9 +20,11 @@ import {
     isNetworkError,
     lineHash,
     mapOldLine,
+    mapOldLineExact,
     nosonarComment,
     parseHunks,
     scannerFailure,
+    spanText,
 } from "../sonar-gate.mjs";
 
 const GATE = join(dirname(fileURLToPath(import.meta.url)), "..", "sonar-gate.mjs");
@@ -494,5 +496,185 @@ describe("sonar-gate: helpers", () => {
         assert.ok(nosonarComment("f(); // NOSONAR(S1234): a good reason here"));
         assert.equal(nosonarComment('const s = "// NOSONAR";'), null);
         assert.equal(nosonarComment(" * `// NOSONAR(<rule>)` is the form"), null);
+    });
+});
+// Issue #2166: an edit to a line that already carries a finding on master must not make that
+// finding look new, and must not let a new one through either.
+describe("sonar-gate: findings on a line edited in place", () => {
+    const S1234 = "typescript:S1234";
+    const S5852 = "typescript:S5852";
+    const BASE_LINES = ["const a = 1;", 's = s.replace(/(a+)+$/g, "");', "const c = 3;"];
+    const EDITED = ["const a = 1;", 's = s.replaceAll(/(a+)+$/g, "");', "const c = 3;"];
+    const REGEX = "/(a+)+$/g";
+    const ONE_LINE_EDIT = [{ oldStart: 2, oldCount: 1, newStart: 2, newCount: 1 }];
+    const file = (lines = EDITED, hunks = ONE_LINE_EDIT, baseLines = BASE_LINES) =>
+        new Map([["f.ts", { oldPath: "f.ts", hunks, lines, baseLines }]]);
+    // The range of `code` on `line` of `lines`, as the APIs report it.
+    const range = (lines, line, code = REGEX) => {
+        const startOffset = lines[line - 1].indexOf(code);
+        assert.ok(startOffset >= 0, `${code} on line ${line}`);
+        return { startLine: line, endLine: line, startOffset, endOffset: startOffset + code.length };
+    };
+    const finding = (lines, line, rule, more = {}) => ({
+        line,
+        rule,
+        message: "Do not do that.",
+        hash: lineHash(lines[line - 1]),
+        textRange: range(lines, line),
+        type: "CODE_SMELL",
+        ...more,
+    });
+    const local = (line, rule = S1234, more = {}, lines = EDITED) => ({
+        path: "f.ts",
+        ...finding(lines, line, rule, more),
+    });
+    const prior = (line, rule = S1234, more = {}) => finding(BASE_LINES, line, rule, more);
+    const hotspot = (lines, line, more = {}) => ({
+        ruleKey: S5852,
+        line,
+        message: "Make sure the regex used here cannot lead to denial of service.",
+        textRange: range(lines, line),
+        status: "TO_REVIEW",
+        ...more,
+    });
+    const localHotspot = (line, lines = EDITED) => ({ path: "f.ts", ...hotspot(lines, line) });
+    const run = ({ issues = [], hotspots = [], masterIssues = [], masterHotspots = [] }, files = file()) =>
+        decide({
+            local: { issues, hotspots },
+            master: {
+                issuesByFile: () => masterIssues,
+                hotspotsByFile: () => masterHotspots,
+                lineAt: (_p, line) => BASE_LINES[line - 1] ?? null,
+            },
+            files,
+        });
+
+    it("maps an old line through an edit in place, and not through a hunk that changed the line count", () => {
+        const hunks = [
+            { oldStart: 2, oldCount: 2, newStart: 2, newCount: 2 },
+            { oldStart: 6, oldCount: 1, newStart: 6, newCount: 3 },
+        ];
+        assert.equal(mapOldLineExact(hunks, 1), 1);
+        assert.equal(mapOldLineExact(hunks, 3), 3);
+        assert.equal(mapOldLineExact(hunks, 6), null);
+        assert.equal(mapOldLineExact(hunks, 7), 9);
+    });
+
+    it("cuts the code a finding points at out of the file", () => {
+        assert.equal(spanText(BASE_LINES, range(BASE_LINES, 2)), REGEX);
+        const multi = { startLine: 1, endLine: 2, startOffset: 6, endOffset: 5 };
+        assert.equal(spanText(BASE_LINES, multi), "a = 1;\ns = s");
+        assert.equal(spanText(BASE_LINES, { startLine: 2, endLine: 2, startOffset: 3, endOffset: 3 }), null);
+        assert.equal(spanText(BASE_LINES, { startLine: 3, endLine: 4, startOffset: 0, endOffset: 1 }), null);
+        assert.equal(spanText(BASE_LINES, undefined), null);
+    });
+
+    it("lets through master's hotspot, to review or reviewed SAFE, on a line edited for another reason", () => {
+        for (const more of [{}, { status: "REVIEWED", resolution: "SAFE" }]) {
+            const v = run({ hotspots: [localHotspot(2)], masterHotspots: [hotspot(BASE_LINES, 2, more)] });
+            assert.equal(v.blocking.length, 0, JSON.stringify(v.blocking));
+            assert.equal(v.existing.length, 1);
+        }
+    });
+
+    it("lets through master's issue, open or marked a false positive, on a line edited for another reason", () => {
+        for (const more of [{}, { issueStatus: "FALSE_POSITIVE" }]) {
+            const v = run({ issues: [local(2)], masterIssues: [prior(2, S1234, more)] });
+            assert.equal(v.blocking.length, 0);
+            assert.equal(v.existing.length, 1);
+        }
+    });
+
+    it("blocks a new finding of a different rule on that edited line", () => {
+        const v = run({
+            issues: [local(2, "typescript:S7781")],
+            hotspots: [localHotspot(2)],
+            masterHotspots: [hotspot(BASE_LINES, 2)],
+        });
+        assert.deepEqual(
+            v.blocking.map((b) => b.rule),
+            ["typescript:S7781"],
+        );
+        // An issue never borrows a hotspot of the same rule key, nor the other way round.
+        const swapped = run({ issues: [local(2, S5852)], masterHotspots: [hotspot(BASE_LINES, 2)] });
+        assert.equal(swapped.blocking.length, 1);
+    });
+
+    it("blocks an extra occurrence of the same rule on the edited line", () => {
+        const v = run({ issues: [local(2), local(2)], masterIssues: [prior(2)] });
+        assert.equal(v.blocking.length, 1);
+        assert.equal(v.existing.length, 1);
+        const h = run({ hotspots: [localHotspot(2), localHotspot(2)], masterHotspots: [hotspot(BASE_LINES, 2)] });
+        assert.equal(h.blocking.length, 1);
+    });
+
+    it("blocks the same rule on the edited line when it points at different code", () => {
+        // The edit replaced the regex: the old hotspot was about code that is gone.
+        const lines = [EDITED[0], 's = s.replaceAll(/(b+)+c/g, "");', EDITED[2]];
+        const at = { ...localHotspot(2), textRange: range(lines, 2, "/(b+)+c/g") };
+        for (const more of [{}, { status: "REVIEWED", resolution: "SAFE" }]) {
+            const v = run({ hotspots: [at], masterHotspots: [hotspot(BASE_LINES, 2, more)] }, file(lines));
+            assert.equal(v.blocking.length, 1);
+        }
+    });
+
+    it("blocks a copy of a line with master's issue while the original still has it", () => {
+        // Line 2 kept; a copy of it added as line 3. The copy's issue has master's hash, but master's
+        // one issue already belongs to the unchanged original.
+        const lines = [BASE_LINES[0], BASE_LINES[1], BASE_LINES[1], BASE_LINES[2]];
+        const files = file(lines, [{ oldStart: 2, oldCount: 0, newStart: 3, newCount: 1 }]);
+        const v = run(
+            { issues: [local(2, S1234, {}, lines), local(3, S1234, {}, lines)], masterIssues: [prior(2)] },
+            files,
+        );
+        assert.deepEqual(
+            v.blocking.map((b) => b.line),
+            [3],
+        );
+    });
+
+    it("keeps a vulnerability to the line hash", () => {
+        const vuln = { type: "VULNERABILITY", impacts: [{ softwareQuality: "SECURITY" }] };
+        const v = run({
+            issues: [local(2, "typescript:S2076", vuln)],
+            masterIssues: [prior(2, "typescript:S2076", vuln)],
+        });
+        assert.equal(v.blocking.length, 1);
+    });
+
+    it("does not match in place when the edit changed the line count", () => {
+        const lines = [EDITED[0], EDITED[1], "// added", EDITED[2]];
+        const files = file(lines, [{ oldStart: 2, oldCount: 1, newStart: 2, newCount: 2 }]);
+        const v = run({ hotspots: [localHotspot(2, lines)], masterHotspots: [hotspot(BASE_LINES, 2)] }, files);
+        assert.equal(v.blocking.length, 1);
+    });
+
+    it("does not match in place when master's analysis numbers the lines differently from the merge base", () => {
+        const base = ["// a line master's analysis does not have", ...BASE_LINES];
+        const v = run(
+            { hotspots: [localHotspot(2)], masterHotspots: [hotspot(BASE_LINES, 2)] },
+            file(EDITED, ONE_LINE_EDIT, base),
+        );
+        assert.equal(v.blocking.length, 1);
+    });
+
+    it("still lets through a moved but unchanged line by its hash", () => {
+        // Old line 2 moved below line 3: the hunks remove it and add it back a line lower.
+        const lines = [BASE_LINES[0], BASE_LINES[2], BASE_LINES[1]];
+        const hunks = [
+            { oldStart: 2, oldCount: 1, newStart: 1, newCount: 0 },
+            { oldStart: 3, oldCount: 0, newStart: 3, newCount: 1 },
+        ];
+        const v = run(
+            {
+                issues: [local(3, S1234, {}, lines)],
+                hotspots: [localHotspot(3, lines)],
+                masterIssues: [prior(2)],
+                masterHotspots: [hotspot(BASE_LINES, 2)],
+            },
+            file(lines, hunks),
+        );
+        assert.equal(v.blocking.length, 0, JSON.stringify(v.blocking));
+        assert.equal(v.existing.length, 2);
     });
 });

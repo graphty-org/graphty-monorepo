@@ -15,7 +15,7 @@
  * lets a screenshot catch it from every side. One element per story, because several elements on
  * one page do not yet draw every shape (see the note on `fixedView`).
  */
-import type { Meta, StoryObj } from "@storybook/web-components-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/web-components-vite";
 
 import type { LayerSpec } from "../src/catalog/types";
 import { type Lighting, LIGHTING_VALUES } from "../src/config/Lighting";
@@ -124,17 +124,52 @@ function gridLayers(): LayerSpec[] {
 /** The story's args: the usual ones, plus the lighting to draw with. */
 type LightingArgs = StoryArgs & { lighting: Lighting };
 
+/**
+ * Hand the story's lighting to the element, and for a fixed-angle story set its camera and name
+ * the angle under it.
+ *
+ * A decorator rather than a render function, so the element is still built by `renderFn` -- the
+ * only thing that reads a story's `setup` -- and these two element properties are set on what it
+ * built.
+ *
+ * ONE ELEMENT PER STORY. Six elements side by side on one page was the first shape of this, and
+ * every one of them drew only the cylinders and the rings: the spheres and boxes were loaded,
+ * placed and reported visible, and never reached the screen. One element draws all four rows.
+ * Until that is understood, each angle is its own story.
+ */
+const lightingDecorator: Decorator<LightingArgs> = (story, context) => {
+    const element = story() as Graphty;
+    element.lighting = context.args.lighting ?? "studio";
+
+    const view = (context.parameters as { lightingView?: View }).lightingView;
+
+    if (view === undefined) {
+        return element;
+    }
+
+    // The camera is the story's: no reframing after the data loads, no animation.
+    element.autoFrame = false;
+    element.style.cssText = "display:block;width:100%;height:820px;";
+    void element.setCameraState(
+        { position: cameraAt(VIEWS[view].from), target: { x: 0, y: 0, z: 0 } },
+        { animate: false },
+    );
+
+    const caption = document.createElement("div");
+    caption.textContent = `${element.lighting} lighting, seen from ${VIEWS[view].name}`;
+    caption.style.cssText = "font:16px Verdana,sans-serif;text-align:center;padding:6px 0;";
+
+    const figure = document.createElement("div");
+    figure.append(element, caption);
+
+    return figure;
+};
+
 const meta: Meta<LightingArgs> = {
     title: "Styles/Lighting",
     component: "graphty-element",
-    render: (args, context) => {
-        const element = renderFn(args, context) as Graphty;
-
-        element.lighting = args.lighting;
-
-        return element;
-    },
-    decorators: [eventWaitingDecorator],
+    render: renderFn,
+    decorators: [eventWaitingDecorator, lightingDecorator],
     argTypes: {
         lighting: { control: "select", options: LIGHTING_VALUES, name: "lighting" },
     },
@@ -206,39 +241,6 @@ export const Default: Story = {
 };
 
 /**
- * Draw the grid from one fixed camera position, with the angle named under it.
- *
- * ONE ELEMENT PER STORY. Six elements side by side on one page was the first shape of this, and
- * every one of them drew only the cylinders and the rings: the spheres and boxes were loaded,
- * placed and reported visible, and never reached the screen. One element draws all four rows.
- * Until that is understood, each angle is its own story.
- * @param view - Which camera position.
- * @returns The story's render function.
- */
-function fixedView(view: View): (args: LightingArgs, context: Parameters<typeof renderFn>[1]) => HTMLElement {
-    return (args, context) => {
-        const element = renderFn(args, context) as Graphty;
-        element.lighting = args.lighting;
-        // The camera is the story's: no reframing after the data loads, no animation.
-        element.autoFrame = false;
-        element.style.cssText = "display:block;width:100%;height:820px;";
-        void element.setCameraState(
-            { position: cameraAt(VIEWS[view].from), target: { x: 0, y: 0, z: 0 } },
-            { animate: false },
-        );
-
-        const caption = document.createElement("div");
-        caption.textContent = `${args.lighting} lighting, seen from ${VIEWS[view].name}`;
-        caption.style.cssText = "font:16px Verdana,sans-serif;text-align:center;padding:6px 0;";
-
-        const figure = document.createElement("div");
-        figure.append(element, caption);
-
-        return figure;
-    };
-}
-
-/**
  * Check a fixed view: the grid is drawn, under the story's lighting, from the story's camera.
  * @param canvasElement - Where the story rendered.
  * @param story - The story's name, for the failure message.
@@ -294,9 +296,9 @@ function modeFrom(mode: Lighting, view: View): Story {
 
     return {
         name: `${MODE_LABEL[mode]}, from ${VIEWS[view].name}`,
-        render: fixedView(view),
         args: { lighting: mode },
         parameters: {
+            lightingView: view,
             docs: { description: { story: `${MODE_TEXT[mode]} Seen from ${VIEWS[view].name}.` } },
         },
         play: async ({ canvasElement }) => {

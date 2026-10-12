@@ -100,6 +100,33 @@ element.selectionStyle = {
 Merged over what is already set, so naming one field leaves the others alone, and it takes effect
 on a selection that is already on screen.
 
+### How 3D nodes are lit
+
+`lighting` picks one of four looks for every node in 3D view. It changes how a node's style color
+is shaded, never the color itself, and 2D view is always drawn flat.
+
+| Value              | What it is for                                                                         |
+| ------------------ | -------------------------------------------------------------------------------------- |
+| `studio` (default) | The 3D look: shapes read with depth, and no color is washed out to white               |
+| `headlight`        | A light beside the camera; a face is never brighter than its style color               |
+| `matte`            | Even shading with no highlight                                                         |
+| `flat`             | Exactly the style color with a thin outline, for color-coded analysis against a legend |
+
+```html
+<graphty-element lighting="flat"></graphty-element>
+```
+
+```javascript
+element.lighting = "matte";
+```
+
+See each one in Storybook:
+[the lighting control](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--default),
+[Studio](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--studio),
+[Headlight](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--headlight),
+[Matte](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--matte),
+[Flat](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--unlit).
+
 ### Expanding a node's neighborhood on demand
 
 Double-clicking a node asks you for that node's neighbors and adds what comes back, so a graph

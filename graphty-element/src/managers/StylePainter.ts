@@ -360,9 +360,9 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
         writeChannel(bag, channel, value, plainText(channel));
     }
 
-    // AN ALPHA IN THE COLOUR IS OPACITY, multiplied with `node.opacity` (issue #2071). The instance
+    // AN ALPHA IN THE COLOR IS OPACITY, multiplied with `node.opacity` (issue #2071). The instance
     // buffer cannot carry it (see Node.applyInstanceColor), so it goes where opacity goes. An
-    // opaque colour leaves the opacity, and so the mesh key, exactly as it was.
+    // opaque color leaves the opacity, and so the mesh key, exactly as it was.
     if (color !== null && color.a < 1) {
         opacity = (opacity ?? 1) * color.a;
     }
@@ -413,16 +413,16 @@ function edgePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
 }
 
 /**
- * Move the alpha out of an edge's colours and into the opacity beside each one.
+ * Move the alpha out of an edge's colors and into the opacity beside each one.
  *
- * ONE RULE FOR AN ALPHA IN A COLOUR: it multiplies the opacity of the thing the colour paints
- * (issue #2071). The edge renderers read a colour as `#rrggbb` and nothing else -- handed
+ * ONE RULE FOR AN ALPHA IN A COLOR: it multiplies the opacity of the thing the color paints
+ * (issue #2071). The edge renderers read a color as `#rrggbb` and nothing else -- handed
  * `#rrggbbaa` they drew black -- so the alpha is folded into `line.opacity`, `arrowHead.opacity`
- * and `arrowTail.opacity` here, once, and every renderer gets an opaque colour and an opacity.
+ * and `arrowTail.opacity` here, once, and every renderer gets an opaque color and an opacity.
  *
- * A cap with no colour of its own is drawn in its line's colour, so it takes the line colour's
+ * A cap with no color of its own is drawn in its line's color, so it takes the line color's
  * alpha too. A cap that is not in the style is left out of it.
- * @param style - The filled-out style, its colours spelled as lowercase hex; edited in place.
+ * @param style - The filled-out style, its colors spelled as lowercase hex; edited in place.
  * @returns The same style.
  */
 function foldEdgeAlpha(style: EdgeStyleConfig): EdgeStyleConfig {

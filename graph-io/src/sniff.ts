@@ -472,7 +472,7 @@ function scanKeys(text: string): Map<KeyPath, Set<string>> {
         if (ch === "{" || ch === "[") {
             let label = "";
             if (kinds.length > 0) {
-                label = kinds[kinds.length - 1] === "object" ? (pendingKey ?? "") : String(counts[counts.length - 1]);
+                label = kinds.at(-1) === "object" ? (pendingKey ?? "") : String(counts.at(-1));
             }
             kinds.push(ch === "{" ? "object" : "array");
             labels.push(label);

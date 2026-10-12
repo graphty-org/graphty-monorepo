@@ -1,3 +1,59 @@
+## 3.25.2 (2026-10-12)
+
+### 🩹 Fixes
+
+- **graphty-element:** let 0 draw nothing for glow strength, edge width and arrow size ([#2067](https://github.com/graphty-org/graphty-monorepo/issues/2067))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.48
+- Updated layout to 2.4.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.25.1 (2026-10-12)
+
+### 🩹 Fixes
+
+- **graphty-element:** one rule for an alpha inside a colour on every style channel ([#2071](https://github.com/graphty-org/graphty-monorepo/issues/2071))
+- **graphty-element:** resolve either spelling of an integer id in style ids selectors ([#2061](https://github.com/graphty-org/graphty-monorepo/issues/2061))
+- **graphty-element:** a glow strength alone no longer switches glow on ([#2068](https://github.com/graphty-org/graphty-monorepo/issues/2068))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.47
+- Updated layout to 2.4.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.25.0 (2026-10-12)
+
+### 🚀 Features
+
+- **graphty-element:** keep nodes and labels off each other, opt-in ([#1727](https://github.com/graphty-org/graphty-monorepo/issues/1727))
+
+### 🩹 Fixes
+
+- **graphty-element:** charge large-graph estimates for loaded memory ([#2032](https://github.com/graphty-org/graphty-monorepo/issues/2032))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.46
+- Updated @graphty/remote-logger to 2.0.15
+- Updated graph-samples to 0.1.28
+- Updated graph-format to 1.3.13
+- Updated algorithms to 3.4.3
+- Updated graph-io to 0.3.36
+- Updated layout to 2.4.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.24.2 (2026-10-11)
 
 ### 🩹 Fixes

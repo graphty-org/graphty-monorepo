@@ -319,6 +319,18 @@ describe("Node glow effect", () => {
         );
     });
 
+    it("draws no glow for a style that sets only a glow strength", () => {
+        // `node.glowStrength` writes `effect.glow.strength`, so a layer binding only a strength
+        // leaves an `effect.glow` with no colour. That must not switch glow on (#2068).
+        harness = createHarness();
+        addNode(harness, "src", nodeStyle({ effect: { glow: { strength: 2 } } }));
+
+        assert.isUndefined(
+            findGlowLayer(harness.scene),
+            "a glow strength with no glow colour drew a glow (the white fallback)",
+        );
+    });
+
     it("takes a node out of the glow layer when glow is turned off", () => {
         harness = createHarness();
         // Two DIFFERENT glow styles, so the inclusion list is never empty while we assert. An

@@ -15,6 +15,12 @@ save and reopen.
 
 ## Top of mind
 
+- 2026-10-12 **Tier 3 (unified styles) answers proposed** in `tier3/decide/interaction.md`. Mine to
+  watch once built: the six core fields always shown with a computed "beneath" placeholder ("+" only
+  on lists) -- does an empty field read as unset or as broken? Which-elements as a find-style text
+  box offering a live rule or a fixed list; the ramp-over-histogram editor's handles by keyboard.
+  Reason: "+" before every common edit and eleven dimmed titles were the length and cardinality
+  complaints; one find pattern already worked in tier 2.
 - 2026-10-11 **Round 5 watches (round 4 closed):** "10" typed on bus stops in T22 A (the element
   must offer only a rule it accepts, plus an "is 10 or more" row for a number inside the range);
   T17 with the table open under a filter step (table lists what the step keeps; an off step stays
@@ -179,6 +185,23 @@ Each with its reason. A screen that breaks one is a defect.
   Three single-source claims scripted first (missing-column rule, Escape on a selection Color
   swatch, a label taking a tie's click). Held: replaced-path notice, Degree arrow change, one
   warning look for load problems. Reason: one path per problem, owning package, no words added.
+
+- 2026-10-12 Tier 3 proposals, mine (owner approves the built UI before any study). "+" only on
+  repeatable lists; 0-or-1 properties as always-shown core fields or one "Add style" menu with
+  glyphs; switches added flipped with a minus (a switch cannot say "not written"). One scroll, no
+  accordions (owner ruled popovers, never accordions) and no Nodes/Edges tabs (hide half a route);
+  sticky group headings, a scroll-to SegmentedControl only on overflow. Hide a kind the rule cannot
+  reach; keep it live with "0 edges now" when it can (no dead controls). Field picker: In use, then
+  by origin, fitting first, the rest disabled with the element's reason. Gradient: a shared
+  compact-mantine ramp-over-histogram editor (domain, clamp, midpoint, step handles as APG
+  sliders). Split parent is a layer with its own glyph, never a folder; folders never scope. One
+  rule per layer with a Nodes/Edges/Both first control. Labels: source, named look, size, position
+  inline; looks are named and reusable (element). Manual picking: find-style text first, the
+  Filters rule editor behind it, selection as a fixed set; no algorithm favored. Element asks
+  (additive): `agreement` below a layer, reachable kinds from `validate`, a fit check, a
+  distribution with paint steps, named label looks, a RuleTree text leaf, `FindResult.rule`,
+  bindable label size, color and background. Reason: one pattern per job, words at rest down,
+  every element fact from the element.
 
 ## Tried: worked / did not work
 

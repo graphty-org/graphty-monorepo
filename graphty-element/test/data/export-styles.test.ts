@@ -45,9 +45,17 @@ async function chain(): Promise<GraphSession> {
     return session;
 }
 
-/** A stack covering every kind of layer a file keeps as a layer. */
+/** A stack covering every kind of layer a file keeps as a layer, edge and node layers interleaved. */
 const STACK: readonly LayerSpec[] = [
     { name: "fixed", target: "node", selector: { match: "everything" }, set: { "node.color": "#ff8800" } },
+    // an edge layer between node layers stays where it is
+    {
+        name: "edge kind",
+        target: "edge",
+        kind: "encoding",
+        selector: { match: "everything" },
+        encode: { "edge.color": { by: "data.kind", scale: "passthrough", map: { a: "#0000ff", b: "#00ff00" } } },
+    },
     {
         name: "by group",
         target: "node",
@@ -97,13 +105,6 @@ const STACK: readonly LayerSpec[] = [
                 ],
             },
         },
-    },
-    {
-        name: "edge kind",
-        target: "edge",
-        kind: "encoding",
-        selector: { match: "everything" },
-        encode: { "edge.color": { by: "data.kind", scale: "passthrough", map: { a: "#0000ff", b: "#00ff00" } } },
     },
 ];
 

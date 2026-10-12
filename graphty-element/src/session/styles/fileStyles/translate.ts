@@ -125,7 +125,7 @@ export interface TranslatedLayer {
 
 /** What a translation made. */
 export interface Translation {
-    /** The layers, bottom first, nodes then edges. */
+    /** The layers, bottom first, in the order of the rules they stand for. */
     readonly layers: readonly TranslatedLayer[];
     /** The values the layers read, per kind and key, by the import's element index. */
     readonly columns: Readonly<Record<StyleTarget, ReadonlyMap<string, readonly (FileStyleScalar | null)[]>>>;
@@ -514,15 +514,17 @@ export function translateFileStyles(input: TranslateInput): Translation {
 
     const columns: Record<StyleTarget, Map<string, (FileStyleScalar | null)[]>> = { node: new Map(), edge: new Map() };
     const hidden: Record<StyleTarget, { key: string; count: number } | null> = { node: null, edge: null };
-    const layers: TranslatedLayer[] = [];
+    const byKind: Record<StyleTarget, TranslatedLayer[]> = { node: [], edge: [] };
     const predicted: Record<StyleTarget, ReadonlyMap<Channel, readonly unknown[]> | null> = { node: null, edge: null };
     const factors = lengthFactors(input);
     for (const kind of ["node", "edge"] as const) {
         const translation = new KindTranslation(input, kind, factors[kind], notes, columns[kind]);
-        layers.push(...translation.run());
+        byKind[kind].push(...translation.run());
         hidden[kind] = translation.hidden;
         predicted[kind] = translation.predicted;
     }
+
+    const layers = inRuleOrder(byKind, extracted.styles.rules);
 
     const { background } = extracted.styles.graph;
     return {
@@ -533,6 +535,43 @@ export function translateFileStyles(input: TranslateInput): Translation {
         notes: notes.list(),
         predicted,
     };
+}
+
+/**
+ * The layers of both kinds in the order of the rules they stand for, across both kinds: an edge rule
+ * below a node rule stays below it. Each kind keeps its own order.
+ * @param byKind - The layers of each kind, in their order.
+ * @param rules - The file's rules, bottom first.
+ * @returns The layers, bottom first.
+ */
+function inRuleOrder(
+    byKind: Record<StyleTarget, readonly TranslatedLayer[]>,
+    rules: readonly StyleRule[],
+): TranslatedLayer[] {
+    const at = new Map(rules.map((rule, index) => [`${rule.target}\u0000${rule.id}`, index]));
+    // A layer made from no one rule sits where the layer before it does.
+    const ranks = (kind: StyleTarget): number[] => {
+        let last = -1;
+        return byKind[kind].map((layer) => {
+            const key = layer.spec.userData?.ruleKey;
+            last = (typeof key === "string" ? at.get(`${kind}\u0000${key}`) : undefined) ?? last;
+            return last;
+        });
+    };
+    const node = ranks("node");
+    const edge = ranks("edge");
+    const out: TranslatedLayer[] = [];
+    let i = 0;
+    let j = 0;
+    while (i < node.length || j < edge.length) {
+        if (j >= edge.length || (i < node.length && node[i] <= edge[j])) {
+            out.push(byKind.node[i++]);
+        } else {
+            out.push(byKind.edge[j++]);
+        }
+    }
+
+    return out;
 }
 
 /**

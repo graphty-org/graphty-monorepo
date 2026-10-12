@@ -90,6 +90,11 @@ export interface LayersToStyles {
     readonly flattened: readonly FlattenedLayer[];
     /** Channels no rule could carry and no rebuilt layer will restore: `graphty:<channel>` per target. */
     readonly unwritten: readonly { readonly target: StyleTarget; readonly property: string; readonly count: number }[];
+    /**
+     * The rules the element's own base layers became, by target and id: loading the file into graphty draws them
+     * again, so what only they draw is not lost.
+     */
+    readonly base: readonly { readonly target: StyleTarget; readonly id: string }[];
 }
 
 /** How a channel's value becomes a neutral property's value, and back. */
@@ -268,6 +273,8 @@ class KindExport {
     readonly #ruleIds = new Set<string>();
     readonly flattened: FlattenedLayer[] = [];
     readonly unwritten: { target: StyleTarget; property: string; count: number }[] = [];
+    /** The id of the rule the element's own base layers became, once run. */
+    base: string | null = null;
 
     /**
      * Read what every element of the kind is painted.
@@ -305,23 +312,34 @@ class KindExport {
      * The rules, bottom first, and the style columns they read.
      * @returns Them.
      */
-    run(): { rules: StyleRule[]; columns: Map<string, StyleColumn> } {
-        const own = this.#input.stack.filter((entry) => entry.layer.target === this.#kind);
+    run(): { rules: StyleRule[]; ranks: number[]; columns: Map<string, StyleColumn> } {
+        const { stack } = this.#input;
+        const own = stack.filter((entry) => entry.layer.target === this.#kind);
         const base = own.filter(
             (entry) => entry.layer.source.by === "element" && entry.layer.source.reason === "default",
         );
+        // Each rule's place in the whole stack, so the two kinds' rules interleave as their layers do.
+        const ranks: number[] = [];
+        const ranked = (rank: number): void => {
+            while (ranks.length < this.#rules.length) {
+                ranks.push(rank);
+            }
+        };
         if (base.length > 0) {
             this.#defaults(base);
         }
 
+        ranked(-1);
         own.forEach((entry, at) => {
             const { layer } = entry;
             if (layer.source.by !== "element" && layer.enabled) {
                 this.#layer(entry, at);
+                ranked(stack.indexOf(entry));
             }
         });
         this.#hidden();
-        return { rules: this.#rules, columns: this.#columns };
+        ranked(stack.length);
+        return { rules: this.#rules, ranks, columns: this.#columns };
     }
 
     /**
@@ -469,8 +487,9 @@ class KindExport {
             }
         }
 
+        this.base = this.#ruleId(`${this.#kind}.defaults`);
         this.#rules.push({
-            id: this.#ruleId(`${this.#kind}.defaults`),
+            id: this.base,
             target: this.#kind,
             role: "defaults",
             origin: "tool",
@@ -895,6 +914,34 @@ function roleOf(kind: string, mapped: boolean): StyleRuleRole {
 }
 
 /**
+ * The node and edge rules in the order of the layers they come from across both kinds.
+ * @param nodes - The node rules and their places in the stack.
+ * @param nodes.rules - The rules.
+ * @param nodes.ranks - Each rule's place in the stack.
+ * @param edges - The edge rules and their places in the stack.
+ * @param edges.rules - The rules.
+ * @param edges.ranks - Each rule's place in the stack.
+ * @returns The rules, bottom first.
+ */
+function interleaved(
+    nodes: { readonly rules: readonly StyleRule[]; readonly ranks: readonly number[] },
+    edges: { readonly rules: readonly StyleRule[]; readonly ranks: readonly number[] },
+): StyleRule[] {
+    const out: StyleRule[] = [];
+    let i = 0;
+    let j = 0;
+    while (i < nodes.rules.length || j < edges.rules.length) {
+        if (j >= edges.rules.length || (i < nodes.rules.length && nodes.ranks[i] <= edges.ranks[j])) {
+            out.push(nodes.rules[i++]);
+        } else {
+            out.push(edges.rules[j++]);
+        }
+    }
+
+    return out;
+}
+
+/**
  * The layer stack as neutral styles, for graph-io to write.
  * @param input - The stack, the graph and what the element draws.
  * @returns The styles, and what lost its editable form.
@@ -912,7 +959,7 @@ export function layersToStyles(input: LayersToStylesInput): LayersToStyles {
                 source: { format: input.format, dialect: "graphty", tool: "graphty" },
                 units: { length: "px" },
                 graph: {},
-                rules: [...nodes.rules, ...edges.rules],
+                rules: interleaved(nodes, edges),
                 notes: [],
             },
             columns: { node: nodes.columns, edge: edges.columns },
@@ -921,5 +968,8 @@ export function layersToStyles(input: LayersToStylesInput): LayersToStyles {
         },
         flattened: [...node.flattened, ...edge.flattened],
         unwritten: [...node.unwritten, ...edge.unwritten],
+        base: [node, edge].flatMap((kind, at) =>
+            kind.base === null ? [] : [{ target: at === 0 ? ("node" as const) : ("edge" as const), id: kind.base }],
+        ),
     };
 }

@@ -734,7 +734,7 @@ export function exportSession(
 ): ExportResult {
     const writer = writerFor(format, options);
     let built: { snapshot: GraphSnapshot; notes: LossNote[] };
-    let styles: { extracted: ExtractedStyles; notes: ElementLossNote[] } | null = null;
+    let styles: StylesToWrite | null = null;
     try {
         // With styles, the style writer is the only path: the drawn colour, size and width columns are left out.
         built = buildExportSnapshot(session, writer.build.styles === true ? {} : view, writer.build);
@@ -750,7 +750,7 @@ export function exportSession(
     }
 
     if (styles !== null) {
-        return writeWith(writer, built.snapshot, format, [...built.notes, ...styles.notes], styles.extracted);
+        return writeWith(writer, built.snapshot, format, [...built.notes, ...styles.notes], styles);
     }
 
     const layers = ownLayers(session);
@@ -777,6 +777,16 @@ function ownLayers(session: GraphSession): number {
     return session.styles.list().filter((layer) => layer.source.by !== "element").length;
 }
 
+/** The session's styles as an export writes them. */
+interface StylesToWrite {
+    /** The styles. */
+    readonly extracted: ExtractedStyles;
+    /** The element's own notes about them. */
+    readonly notes: ElementLossNote[];
+    /** The rules the element's base layers became. */
+    readonly base: readonly { readonly target: string; readonly id: string }[];
+}
+
 /**
  * The session's layers as the styles graph-io writes, and what they lose on the way.
  * @param session - The session.
@@ -784,11 +794,7 @@ function ownLayers(session: GraphSession): number {
  * @param format - The format written.
  * @returns The styles and the element's own notes about them.
  */
-function sessionStyles(
-    session: GraphSession,
-    snapshot: GraphSnapshot,
-    format: string,
-): { extracted: ExtractedStyles; notes: ElementLossNote[] } {
+function sessionStyles(session: GraphSession, snapshot: GraphSnapshot, format: string): StylesToWrite {
     const { state } = dispatcherOf(session);
     const nodes = session.data.nodes();
     const edges = session.data.edges();
@@ -829,7 +835,7 @@ function sessionStyles(
             style: { target: lost.target, property: lost.property as never },
         })),
     ];
-    return { extracted: result.extracted, notes };
+    return { extracted: result.extracted, notes, base: result.base };
 }
 
 /**
@@ -856,11 +862,15 @@ function lossOf(note: ElementLossNote): ExportLoss {
  * rules are not rules a reader made.
  * @param checked - The notes graph-io gave.
  * @param styles - The styles written.
+ * @param base - The rules the element's base layers became.
  * @returns The notes that name something lost.
  */
-function withoutBaseLosses(checked: readonly LossNote[], styles: ExtractedStyles): LossNote[] {
-    const isBase = (rule: StyleRule): boolean =>
-        styles.styles.source.tool === "graphty" && rule.role === "defaults" && rule.origin === "tool";
+function withoutBaseLosses(
+    checked: readonly LossNote[],
+    styles: ExtractedStyles,
+    base: readonly { readonly target: string; readonly id: string }[],
+): LossNote[] {
+    const isBase = (rule: StyleRule): boolean => base.some((one) => one.target === rule.target && one.id === rule.id);
     const writes = (rule: StyleRule, property: string): boolean =>
         Object.hasOwn(rule.set ?? {}, property) || Object.hasOwn(rule.map ?? {}, property);
     const baseOnly = (target: string, property: string): boolean => {
@@ -889,7 +899,7 @@ function withoutBaseLosses(checked: readonly LossNote[], styles: ExtractedStyles
  * @param snapshot - What to write.
  * @param format - The format id.
  * @param notes - Notes the element raised while building the snapshot.
- * @param styles - The styles to write, when the export asked for them.
+ * @param written - The styles to write, when the export asked for them.
  * @returns The result.
  * @throws A `GraphtyError` with the writer's refusal from its `check()`.
  */
@@ -898,9 +908,10 @@ function writeWith(
     snapshot: GraphSnapshot,
     format: FormatId,
     notes: readonly ElementLossNote[],
-    styles?: ExtractedStyles,
+    written?: StylesToWrite,
 ): ExportResult {
     const { exporter } = writer;
+    const styles = written?.extracted;
     // With styles, graph-io works out what the format's style writer receives and loses.
     const registry = styles === undefined ? null : new FormatRegistry().registerExporter(exporter);
     const options = styles === undefined ? writer.options : { ...writer.options, styles };
@@ -916,7 +927,7 @@ function writeWith(
 
     const lossNotes = Object.freeze([
         ...notes,
-        ...(styles === undefined ? checked : withoutBaseLosses(checked, styles)),
+        ...(written === undefined ? checked : withoutBaseLosses(checked, written.extracted, written.base)),
     ]);
     return {
         format,

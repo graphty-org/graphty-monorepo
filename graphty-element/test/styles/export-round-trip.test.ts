@@ -21,6 +21,7 @@ import { createGraphSession, FILE_STYLE_ISSUE, fileStyleOf, type GraphSession, t
 import { type ExportResult, exportSession } from "../../src/data/export";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
+import type { ExplainTarget } from "../../src/session/styles/explain";
 
 const CORPUS = join(__dirname, "..", "..", "..", "graph-io", "test", "corpus", "styles");
 
@@ -439,7 +440,10 @@ function names(note: AnyNote, kind: "node" | "edge", channel: string): boolean {
     }
 
     const property = String(note.params.property);
-    const properties = channel.endsWith(".labelStyle") ? LABEL_PROPERTIES : (PROPERTIES[channel] ?? []);
+    // a label's style is one channel merged and several in a layer's contribution
+    const properties = /\.label(?:Style|Color|Size|Font|Weight|Italic)$/.test(channel)
+        ? LABEL_PROPERTIES
+        : (PROPERTIES[channel] ?? []);
     return (
         properties.includes(property) ||
         property === `graphty:${channel}` ||
@@ -549,10 +553,25 @@ async function roundTrip(source: GraphSession, writer: (typeof WRITERS)[number],
     );
 
     if (!writer.rules) {
-        // A format with no style slots and no block: every channel drawn is named as not written.
-        const drawn = picture(source);
+        // A format with no style slots and no block: every channel a layer draws is named as not
+        // written. The element's own base layers are not: loading the file draws them again.
+        const base = new Set(
+            source.styles
+                .list()
+                .filter((layer) => layer.source.by === "element" && layer.source.reason === "default")
+                .map((layer) => layer.id),
+        );
+        const drawnBy = (target: ExplainTarget): string[] =>
+            source.styles
+                .explain(target)
+                .contributions.filter((contribution) => !base.has(contribution.layerId))
+                .flatMap((contribution) => Object.keys(contribution.values));
         for (const kind of ["node", "edge"] as const) {
-            const channels = new Set(drawn[kind].flatMap((style) => Object.keys(style)));
+            const targets: ExplainTarget[] =
+                kind === "node"
+                    ? source.data.nodes().map((record) => ({ node: record.id }))
+                    : source.data.edges().map((record) => ({ edge: record.id }));
+            const channels = new Set(targets.flatMap(drawnBy));
             for (const channel of channels) {
                 assert.isTrue(
                     result.losses.some((loss) => names(loss, kind, channel)),

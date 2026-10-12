@@ -630,7 +630,9 @@ restarts the release. A passing train closes the train hold; a restart that fail
 and comments on it. A failed publish opens a publish hold, a `Release held: publish failed on
 <sha>` issue that names the run: no train retitles, closes or is restarted for it, and it lasts
 until that run is re-run (`gh run rerun <run id> --failed`), which publishes what is missing and
-closes it. The scheduled attempts skip while either hold is open. Every release outcome (a held
+closes it. A publish hold whose only missing versions are ones npm accepted but had not listed yet
+needs nobody: the next train attempt or master push closes it once npm lists them
+(`tools/publish-hold.mjs`). The scheduled attempts skip while either hold is open. Every release outcome (a held
 attempt, a release pull request opened, a publish that succeeded or failed, again after a restart or a
 re-run) is announced as a comment on the one open `Release status` issue (label `release-status`) by
 `tools/release-status.mjs`, mentioning the people in the repository variable `RELEASE_NOTIFY`; attempts

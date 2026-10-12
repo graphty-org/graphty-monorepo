@@ -38,6 +38,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   reuse the one preparation so a preview cannot disagree with the paint. Limit: a continuous bin's
   `paints` is its middle's color, so only a value at the middle matches it exactly; the ramp
   editor should draw the ramp, not one color per bar, if that ever reads wrong.
+  (2026-10-12, re-checked) Kept as is: Clear's tooltip needs only `agreement(..., { below })`,
+  which already names the value beneath and its `layerId` (or a per-layer breakdown when mixed),
+  so no `from` field was added. 9 preview tests pass.
 - (2026-10-12) **The style tree is built in graphty-element** (`src/session/styles/tree.ts`):
   `styles.tree()` plus addFolder, renameRow, moveRow, pinRow, lockRow, hideRow, deleteRow; error
   `E_LOCKED`; saved as `StyleDocument.tree`. The app's panel reads rows from it and never orders

@@ -163,8 +163,20 @@ const SETUPS: Record<string, { label: string; params: Partial<Params> }> = {
     strongFill: { label: "h. matte + stronger ground fill", params: { hemiGround: gray(0.6) } },
 };
 
+/**
+ * The two candidates offered as stories of their own. Kept out of {@link SETUPS} so the All setups
+ * story does not grow two more elements.
+ */
+const OPTIONS: Record<string, { label: string; params: Partial<Params> }> = {
+    studioFollowFill: {
+        label: "Option 1: studio with a camera-following fill",
+        params: { ...SETUPS.threePoint.params, hemiFollowsCamera: true },
+    },
+    headRim: { label: "Option 2: headlight + fill + rim", params: SETUPS.headRim.params },
+};
+
 function presetOf(name: string): Params {
-    return { ...BASE, ...SETUPS[name].params };
+    return { ...BASE, ...(SETUPS[name] ?? OPTIONS[name]).params };
 }
 
 const PARAM_KEYS = Object.keys(BASE) as (keyof Params)[];
@@ -766,7 +778,8 @@ interface OneView {
     remeasure: () => void;
     json: HTMLTextAreaElement;
 }
-let oneView: OneView | undefined;
+/** One view per story, so a story opened right after another never picks up the other's element. */
+const oneViews = new Map<string, OneView>();
 
 /** The readout panel: a table of measurements, the settings JSON and a copy button. */
 function buildPanel(
@@ -864,7 +877,7 @@ function buildPanel(
     return { panel, remeasure, json };
 }
 
-function mountOne(args: Args): OneView {
+function mountOne(key: string, setup: string, spinning: boolean, label: (name: string) => string): OneView {
     const host = document.createElement("div");
     host.style.cssText = "display: flex; gap: 8px; align-items: flex-start;";
     const left = document.createElement("div");
@@ -877,12 +890,12 @@ function mountOne(args: Args): OneView {
     const view: OneView = {
         host,
         placeholder: persistent(host, () => {
-            oneView = undefined;
+            oneViews.delete(key);
         }),
         caption,
         lighting,
-        loaded: args.setup,
-        spinning: args.spin,
+        loaded: setup,
+        spinning,
         remeasure: () => undefined,
         json: document.createElement("textarea"),
     };
@@ -908,7 +921,7 @@ function mountOne(args: Args): OneView {
             void lighting.then((l) => {
                 apply(typeof setup === "string" ? presetOf(setup) : { ...l.params, ...setup });
                 if (typeof setup === "string") {
-                    caption.textContent = `${SETUPS[setup].label} -- rows: ${COLOR_NAMES.join(", ")}`;
+                    caption.textContent = `${label(setup)} -- rows: ${COLOR_NAMES.join(", ")}`;
                 }
             });
         },
@@ -953,10 +966,8 @@ export const OneSetup: StoryObj<Args> = {
     render: (args) => {
         const [, updateArgs] = useArgs<Args>();
         // Reused across control changes: rebuilding the element on every slider step would take seconds.
-        if (!oneView) {
-            oneView = mountOne(args);
-        }
-        const view = oneView;
+        const view = oneViews.get("one") ?? mountOne("one", args.setup, args.spin, (n) => SETUPS[n].label);
+        oneViews.set("one", view);
         view.spinning = args.spin;
         const params = paramsOf(args);
 
@@ -990,6 +1001,62 @@ export const OneSetup: StoryObj<Args> = {
         return view.placeholder;
     },
 };
+
+/**
+ * A story for one fixed setup: the One setup grid, controls and readout, starting from that setup's
+ * values. Moving a control tunes it from there; the caption says when it no longer matches.
+ * @param name - The key of the setup in {@link OPTIONS}.
+ * @param description - What the setup is, for the Storybook docs.
+ * @returns The story.
+ */
+function optionStory(name: string, description: string): StoryObj<Omit<Args, "setup">> {
+    const { label } = OPTIONS[name];
+    return {
+        name: label,
+        parameters: { docs: { description: { story: description } } },
+        args: { spin: false, ...presetOf(name) },
+        argTypes: { spin: { control: "boolean", description: "Rotate the nodes slowly" }, ...PARAM_ARG_TYPES },
+        render: (args) => {
+            const view = oneViews.get(name) ?? mountOne(name, name, args.spin, () => label);
+            oneViews.set(name, view);
+            view.spinning = args.spin;
+            const params = paramsOf(args as Args);
+            const edited = !sameParams(params, presetOf(name));
+            view.caption.textContent = `${label}${edited ? " (tuned from the controls)" : ""} -- rows: ${COLOR_NAMES.join(", ")}`;
+            view.json.value = JSON.stringify(params, null, 1);
+            // Applied and measured only when a control changes; the readout debounces its measurement.
+            void view.lighting.then(async (l) => {
+                applyParams(l, params);
+                await applyColors(l, colorsOf(params));
+                view.remeasure();
+            });
+
+            return view.placeholder;
+        },
+    };
+}
+
+export const Option1StudioFollowFill = optionStory(
+    "studioFollowFill",
+    "The studio setup -- a key light fixed to the camera (intensity 0.55, from the upper left), a " +
+        "hemispheric fill (intensity 0.45, sky white, ground gray 0.35) and a rim that lifts the node's own " +
+        "color toward its silhouette (boost 1.8, power 2.5) -- with one change: the hemispheric fill turns " +
+        "with the camera (hemiFollowsCamera on, sky toward the upper right of the view). In the studio setup " +
+        "the fill is fixed in the world, so orbiting to the back or underneath turns the fill's dark ground " +
+        "side toward the viewer; here the viewer always sees the same mix of sky and ground, from any side. " +
+        "The fill's direction (1, 1, 0) is the studio's, now read in the camera's frame (sky up and to the " +
+        "right of the view), so even from the front the shading differs a little from the studio setup. " +
+        "The ground color is the studio's: with the fill turning with the camera, no raise was needed.",
+);
+
+export const Option2HeadlightFillRim = optionStory(
+    "headRim",
+    "A camera headlight (a directional light from just above and left of the viewer, intensity 0.45), " +
+        "a softer hemispheric fill (intensity 0.4, ground gray 0.65, fixed in the world) and the same rim as " +
+        "the studio setup (boost 1.8, power 2.5). Unlike the studio setup it has no key light from the side: " +
+        "the main light comes from the viewer, so whatever face is toward the camera is lit, and the " +
+        "lighter ground color keeps the fill's dark side from going dark when seen from below.",
+);
 
 interface AllView {
     host: HTMLElement;

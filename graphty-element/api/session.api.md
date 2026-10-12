@@ -729,6 +729,9 @@ export const FILE_STYLE_ISSUE: Readonly<{
 }>;
 
 // @public
+export const FILE_STYLE_REASONS: readonly FileStyleReason[];
+
+// @public
 export const FILE_STYLE_SHAPES: FileStyleShapeTable;
 
 // @public

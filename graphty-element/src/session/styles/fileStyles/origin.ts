@@ -33,6 +33,31 @@ export type FileStyleRuleOrigin = StyleRuleOrigin;
  */
 export type FileStyleReason = StyleRuleReason;
 
+/** The named members of an open string union (its `(string & {})` member left out). */
+type Named<T> = T extends unknown ? (string extends T ? never : T) : never;
+
+/** One entry per reason graph-io names: a reason it adds and this table lacks fails to compile. */
+const REASONS: Readonly<Record<Named<FileStyleReason>, true>> = {
+    NO_EXPLANATION: true,
+    STYLE_CLASS: true,
+    LAYER_CAP: true,
+    SOURCE_NODE_COLOR: true,
+    NODE_NAME: true,
+    FUNCTION: true,
+    BUDGET: true,
+    SELECTOR: true,
+    TABLE_SIZE: true,
+    SCALE: true,
+    CALCULATED: true,
+    RESULT_PATH: true,
+};
+
+/**
+ * Every {@link FileStyleReason} this version gives, for an application that words each one. The
+ * union is open: a later release may add a reason, which an application words generically.
+ */
+export const FILE_STYLE_REASONS: readonly FileStyleReason[] = Object.freeze(Object.keys(REASONS));
+
 /** What one generated value of a style column means in the file's own words. */
 export interface FileStyleMeaning {
     /** The generated value or class number, as the column holds it (`3` for `member.3`). */

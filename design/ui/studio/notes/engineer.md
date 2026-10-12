@@ -11,6 +11,22 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Every style has a home** (`style/coverage.ts`, test `style/__tests__/coverage.test.ts`).
+  Three maps: every `Channel`, every `LabelStyle` field and every graph setting to the control that
+  sets it (`{ place }`) or why it is not offered (`{ notOffered }`). The test walks the element's
+  `CHANNELS`, `LABEL_STYLE_FIELDS` and the graph settings it publishes as lists
+  (`GraphSelectionStyleOpts.shape` keys, `GraphBackground` kinds), checks a stubbed extra channel is
+  named, and checks the map places exactly the channels the Style tab draws (`CORE_ROWS`, `LISTS`,
+  the label entry's three channels) -- so the map cannot claim a control that is not built. The
+  label's `enabled` is the entry's eye. Honest gaps, marked not offered: tooltip look channels (4),
+  label color and background CHANNELS (the Label settings write `labelStyle.color` / `background`
+  as one color; varying them has no control), end captions (10 `arrowHead/TailText*`), and the
+  label fields `gradientColors`, `icon`, `overflowSuffix`. The rest of the graph's settings
+  (`viewMode`, `lighting`, `layoutBehavior`, ...) have no published list, so they are mapped by hand
+  and not walked; an additive `GRAPH_SETTINGS` list in the catalog would let the test walk them.
+  Seen failing, not mine: the app's tsc on `historyWords.ts` (both), `inspector/words.ts` and
+  `utils/channelControls.ts` (new channels missing from their records).
+
 - (2026-10-12) **The Values tab is built for every row** (`inspector/LayerValues.tsx`, mounted by
   `Inspector.tsx` for `layer-row` and `folder-row`, whose kinds now take tabs Style | Values in
   `graph-place/commands.ts`; test `inspector/__tests__/LayerValues.real-element.test.tsx`, on Les

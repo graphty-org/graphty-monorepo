@@ -40,7 +40,7 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { nonEmpty } from "../xgmml/styles.js";
+import { exactFromBlock, nonEmpty } from "../xgmml/styles.js";
 
 type Table = GraphSnapshot["nodes"];
 
@@ -128,6 +128,7 @@ function bypassesOf(table: Table, n: number, namespace: string): { maps: Cytosca
  * @param style - the file's style
  * @param namespace - the importer's bypass namespace
  * @param notes - where problems are noted
+ * @param dialect - the Cytoscape dialect the file is written in
  * @returns the styles
  */
 export function readDeclaredStyles(
@@ -136,6 +137,7 @@ export function readDeclaredStyles(
     style: CytoscapeStyle,
     namespace: string,
     notes: StyleNotes,
+    dialect: CytoscapeDialect = "desktop",
 ): ImporterStyles {
     const out: Record<StyleTarget, ReaderOutput> = { node: { values: {} }, edge: { values: {} } };
     const readFrom: Record<StyleTarget, string[]> = { node: [], edge: [] };
@@ -156,6 +158,8 @@ export function readDeclaredStyles(
             bypasses: maps,
         };
         const values = resolveCytoscape(target, style, elements, { notes, budget: context.budget });
+        // a file graphty wrote: a value its style writes as the nearest Cytoscape value is the block's
+        exactFromBlock(snapshot, target, values, dialect);
         const { rules, columns } = cytoscapeRules(target, style, elements, { notes, budget: context.budget });
         out[target] = { values: nonEmpty(values), rules, columns };
     }

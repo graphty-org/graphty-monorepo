@@ -8,7 +8,11 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { STYLE_ISSUE } from "../../styles/codes.js";
-import { cytoscapeElementProperties, cytoscapeWritableProperties } from "../../styles/cytoscape/emit.js";
+import {
+    cytoscapeElementProperties,
+    type CytoscapeDialect,
+    cytoscapeWritableProperties,
+} from "../../styles/cytoscape/emit.js";
 import { normalizeVisualProperties } from "../../styles/cytoscape/lexicon.js";
 import { emptyCytoscapeStyle } from "../../styles/cytoscape/mappings.js";
 import { cytoscapeBackground, type CytoscapeBypass, resolveCytoscapeBypasses } from "../../styles/cytoscape/resolve.js";
@@ -150,11 +154,13 @@ export function readXgmmlFileStyles(snapshot: GraphSnapshot, context: StyleReadC
  * @param snapshot - the graph
  * @param target - nodes or edges
  * @param values - the values per property, changed in place
+ * @param dialect - the Cytoscape dialect the file's values are written in
  */
 export function exactFromBlock(
     snapshot: GraphSnapshot,
     target: StyleTarget,
     values: Partial<Record<string, StyleColumn>>,
+    dialect: CytoscapeDialect = "desktop",
 ): void {
     const text = snapshot.graph.has(STYLE_BLOCK_NAME) ? plainCell(snapshot.graph.value(STYLE_BLOCK_NAME, 0)) : null;
     if (typeof text !== "string") {
@@ -180,7 +186,7 @@ export function exactFromBlock(
         cytoscapeElementProperties(
             target,
             (property) => exact(property)[i] ?? null,
-            "desktop",
+            dialect,
             () => undefined,
         ),
     );

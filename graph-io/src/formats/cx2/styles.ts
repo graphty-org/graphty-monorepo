@@ -25,5 +25,5 @@ export function readCx2Styles(snapshot: GraphSnapshot, context: StyleReadContext
     const notes = new StyleNotes();
     const kept = context.kept as Cx2StyleSource | undefined;
     const style = cytoscapeStyleFromCx2(kept?.visualProperties, kept?.visualEditorProperties, notes);
-    return readDeclaredStyles(snapshot, context, style, "cx2.bypass", notes);
+    return readDeclaredStyles(snapshot, context, style, "cx2.bypass", notes, "cx2");
 }

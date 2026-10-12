@@ -1640,3 +1640,50 @@ describe("a head githerd's own update made", () => {
         expect(askFor(other, 710)).toBeNull();
     });
 });
+
+describe("an issue filed by a live session", () => {
+    // Issue #2181 (2026-10-12): graphty-monorepo-fc filed it at 17:11 with its fix already waiting in
+    // the push queue under a commit that named only #2158; githerd queued issue-2181 at 17:14 and
+    // invited four sessions at 17:24, and graphty-monorepo-13 claimed it 3 s later and wrote a second fix.
+    const QUEUED = new Date("2026-10-12T17:14:11Z");
+    const later = (/** @type {number} */ minutes) => new Date(QUEUED.getTime() + minutes * 60_000);
+    const state = () => ({
+        jobs: { "issue-2181": newJob({ kind: "issue", target: "#2181", id: "issue-2181" }, QUEUED) },
+        transcripts: {
+            s2: { files: {}, pushes: {}, name: "graphty-14", filed: { 2181: "2026-10-12T17:11:30Z" } },
+        },
+    });
+    const allIdle = () => SESSIONS.map((s) => ({ ...s, status: "idle" }));
+    const offered = [{ job: "issue-2181", reason: "high bug" }];
+
+    it("is offered to its filer first, and to every session once a status cadence passed unclaimed", async () => {
+        const s = state();
+        const job = s.jobs["issue-2181"];
+        expect(jobInUse(s, job, { now: later(10), session: "s1" })).toBe(
+            "offered first to session graphty-14, which filed #2181, until 17:29 UTC",
+        );
+        // githerd's own workers ask with no session: they wait too.
+        expect(jobInUse(s, job, { now: later(10) })).toMatch(/^offered first/);
+        expect(jobInUse(s, job, { now: later(10), session: "s2" })).toBeNull();
+        const f = fake();
+        await inviteStep(s, { ...f.opts({ sessions: allIdle, now: later(10) }), offered });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock"]);
+        expect(f.sent[0][1]).toContain(
+            "This session filed #2181, so it is offered here first: if you already have its fix (committed, in the " +
+                "push queue or in a pull request), claim issue-2181 so no other session starts a second one.",
+        );
+        // Unclaimed after the cadence (workers.statusMinutes, 15 by default), it is anyone's.
+        expect(jobInUse(s, job, { now: later(15), session: "s1" })).toBeNull();
+        await inviteStep(s, { ...f.opts({ sessions: allIdle, now: later(15) }), offered });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock", "/s1.sock"]);
+        expect(f.sent[1][1]).not.toContain("This session filed");
+    });
+
+    it("is anyone's once a session claimed it, or when its filer is no live session", () => {
+        const s = state();
+        s.jobs["issue-2181"].sessions = ["s2"];
+        expect(jobInUse(s, s.jobs["issue-2181"], { now: later(1), session: "s1" })).toBeNull();
+        const gone = { ...state(), transcripts: {} };
+        expect(jobInUse(gone, gone.jobs["issue-2181"], { now: later(1), session: "s1" })).toBeNull();
+    });
+});

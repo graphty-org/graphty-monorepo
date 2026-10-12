@@ -28,7 +28,17 @@
  * session the owner made a worker what that means (`onboardStep`).
  */
 
-import { askFor, askProblems, failingRequired, headIsGitherds, jobInUse, jobOnPr, prOf, prWork } from "./queue.mjs";
+import {
+    askFor,
+    askProblems,
+    failingRequired,
+    headIsGitherds,
+    issueFiler,
+    jobInUse,
+    jobOnPr,
+    prOf,
+    prWork,
+} from "./queue.mjs";
 import { ownerHeld, TERMINAL } from "./board.mjs";
 import { failingWords } from "./prs.mjs";
 import { releaseOwnerJob } from "./jobs.mjs";
@@ -282,13 +292,19 @@ export async function askStep(state, { now, acting, sessions, transport, session
  * @param {any} job the job record
  * @param {string} reason its one-line reason from the queue order
  * @param {string} cli the githerd command line a session without githerd's tools runs
+ * @param {boolean} [filed] the one session invited filed the job's issue
  * @returns {string} the message
  */
-function inviteText(job, reason, cli) {
+function inviteText(job, reason, cli, filed = false) {
     // A verdict job names the exact failure key githerd_verdict takes.
     const key = job.facts?.scope === "verdict" ? ` githerd_verdict takes its key exactly: ${job.target}.` : "";
+    // The filer of an issue hears it first (queue.mjs filerFirst): its fix may already exist.
+    const mine = filed
+        ? ` This session filed ${job.target}, so it is offered here first: if you already have its fix (committed, ` +
+          `in the push queue or in a pull request), claim ${job.id} so no other session starts a second one.`
+        : "";
     return (
-        `githerd has work queued (${job.id}, ${reason}). If you're free, call githerd_next and claim a job; ` +
+        `githerd has work queued (${job.id}, ${reason}).${mine} If you're free, call githerd_next and claim a job; ` +
         `otherwise ignore this.${key} Without githerd's tools, or when they fail: \`${cli} next\` and ` +
         `\`${cli} claim <job> ...\` from your shell.\n` +
         "New to githerd? Its onboarding message explains it, as does githerd/README.md; githerd_offers with pause " +
@@ -568,7 +584,10 @@ export async function inviteStep(state, { now, acting, sessions, transport, offe
             const op = `invite ${names.length} idle session(s) to take ${id}`;
             lines.push({ kind: "would-do", group: "workers", op, job: id });
         }
-        const out = acting ? await tellSessions(to, inviteText(job, reason, cli), transport) : { sent: [], failed: [] };
+        const filer = job.kind === "issue" ? issueFiler(state, Number(String(job.target).replace("#", ""))) : null;
+        const filed = to.length === 1 && to[0].sessionId === filer?.session;
+        const text = inviteText(job, reason, cli, filed);
+        const out = acting ? await tellSessions(to, text, transport) : { sent: [], failed: [] };
         state.invited = { at, count: acting ? out.sent.length : names.length, acting };
         lines.push({ kind: "sessions-invited", job: id, sessions: names, ...out });
     }

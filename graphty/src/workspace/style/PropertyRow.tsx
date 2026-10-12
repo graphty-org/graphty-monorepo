@@ -10,7 +10,7 @@ import {
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, CombineMode, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, ColorSwatch, Input, Stack, Text, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Input, Stack, Text, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -40,10 +40,10 @@ import {
     channelWord,
     clearWords,
     COMBINE_WORDS,
-    type CompoundLine,
     enumWords,
     fieldName,
     fieldStateName,
+    followsWords,
     GLYPH_TABLES,
     hexOf,
     paletteWord,
@@ -224,6 +224,15 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
                     width="100%"
                     color={hex ?? undefined}
                     defaultColor={hexOf(beneath.value) ?? hexOf(descriptor.default) ?? "#000000"}
+                    // Nothing beneath sets it, so the element draws it in the color it follows.
+                    emptyText={
+                        descriptor.follows !== undefined &&
+                        beneath.words !== undefined &&
+                        "from" in beneath.words &&
+                        beneath.words.from === undefined
+                            ? followsWords(descriptor.follows)
+                            : undefined
+                    }
                     showOpacity={false}
                     showReset={false}
                     swatches={ctx.documentColors}
@@ -676,128 +685,5 @@ function RowSettings({
                 </Popout.Content>
             </Popout.Panel>
         </Popout>
-    );
-}
-
-/** Props for CompoundField. */
-interface CompoundFieldProps {
-    /** The row. */
-    readonly ctx: RowContext;
-    /** The compound entry. */
-    readonly compound: CompoundLine;
-    /** The element's descriptors of its parts. */
-    readonly descriptors: readonly ChannelDescriptor[];
-}
-
-/**
- * A list entry that covers several channels (Glow, Halo, Band): at rest a summary; its parts, each
- * a field with its own state, in a titled pop-out. Its minus clears every part in one undo step.
- * @param props - Component props
- * @param props.ctx - the row
- * @param props.compound - the entry
- * @param props.descriptors - the descriptors of its parts
- * @returns The entry, or nothing when the row sets none of its parts
- */
-export function CompoundField({ ctx, compound, descriptors }: Readonly<CompoundFieldProps>): React.JSX.Element | null {
-    const { store } = useWorkspace();
-    const tipId = useId();
-    const parts = compound.parts.flatMap((part) => {
-        const descriptor = descriptors.find((d) => d.channel === part.channel);
-        return descriptor === undefined ? [] : [{ part, descriptor, line: lineOf(ctx.layers, part.channel) }];
-    });
-    // The reader's layers that set a part; a part on the element's own locked layer stays.
-    const holders = [
-        ...new Set(parts.flatMap((p) => (p.line === undefined || p.line.layer.locked ? [] : [p.line.layer]))),
-    ];
-    if (holders.length === 0) {
-        return null;
-    }
-    const { name } = compound;
-    const clear = (): void => {
-        Promise.all(
-            holders.map((layer) =>
-                removeLine(
-                    ctx.session,
-                    layer,
-                    ...parts.filter((p) => p.line?.layer === layer).map((p) => p.descriptor.channel),
-                ),
-            ),
-        ).catch(() => {
-            store.set({ notice: { message: `${name} could not be changed` } });
-        });
-    };
-    const swatches: string[] = [];
-    const words: string[] = [];
-    for (const { descriptor, line } of parts.filter((p) => p.part.atRest === true)) {
-        const value = line?.binding === undefined ? (line?.value ?? descriptor.default) : undefined;
-        const hex = descriptor.accepts === "color" ? hexOf(value) : null;
-        if (hex !== null) {
-            swatches.push(hex);
-        } else if (line?.binding !== undefined) {
-            words.push(sourceName(ctx.session, line.binding) ?? line.binding.by);
-        } else if (value !== undefined) {
-            words.push(valueWords(descriptor, value));
-        }
-    }
-    const summary = words.join(", ");
-    const tip = `Clear ${name}`;
-    return (
-        <div className="ws-property-row" data-line={compound.adds} data-set="">
-            <span className="ws-property-row-gap" />
-            <div className="ws-field">
-                <div className="ws-field-line">
-                    <Text size="xs" w={56} truncate>
-                        {name}
-                    </Text>
-                    <div className="ws-field-control">
-                        <Popout>
-                            <Popout.Trigger>
-                                {/* A boxed field, as the other values are. */}
-                                <Button
-                                    size="compact-xs"
-                                    variant="default"
-                                    fullWidth
-                                    justify="flex-start"
-                                    aria-label={`${name}: ${summary}`}
-                                    leftSection={
-                                        swatches.length === 0
-                                            ? undefined
-                                            : swatches.map((hex) => <ColorSwatch key={hex} color={hex} size={12} />)
-                                    }
-                                >
-                                    {summary}
-                                </Button>
-                            </Popout.Trigger>
-                            <Popout.Panel
-                                width={POPOUT_WIDTH}
-                                placement="left"
-                                alignment="start"
-                                header={{ variant: "title", title: name }}
-                            >
-                                <Popout.Content>
-                                    <Stack gap={6}>
-                                        {parts.map((p) => (
-                                            <Field key={p.descriptor.channel} ctx={ctx} descriptor={p.descriptor} />
-                                        ))}
-                                    </Stack>
-                                </Popout.Content>
-                            </Popout.Panel>
-                        </Popout>
-                    </div>
-                    <Tooltip label={tip}>
-                        <ActionIcon
-                            variant="subtle"
-                            size="sm"
-                            aria-label={tip}
-                            aria-describedby={tipId}
-                            onClick={clear}
-                        >
-                            <GLYPHS.remove size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                    <VisuallyHidden id={tipId}>{tip}</VisuallyHidden>
-                </div>
-            </div>
-        </div>
     );
 }

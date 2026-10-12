@@ -11,8 +11,9 @@ import { GLYPHS } from "../glyphs";
 import { findTreeRow, isHidden, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { edgeName } from "../inspector/words";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { Effects } from "./Effects";
 import { LabelSection } from "./LabelSection";
-import { type BeneathValue, CompoundField, Field, PropertyRow, type RowContext } from "./PropertyRow";
+import { type BeneathValue, Field, PropertyRow, type RowContext } from "./PropertyRow";
 import {
     colorBlockOf,
     EVERYTHING_LAYER,
@@ -31,7 +32,7 @@ import {
 import { focusLineNext, openListNext, useFocusLine } from "./useFocusLine";
 import { useStyleVersion } from "./useStyleVersion";
 import { WhichElements } from "./WhichElements";
-import { type Beneath, channelWord, compoundOf, CORE_ROWS, LISTS, type ListSpec, valueWords } from "./words";
+import { type Beneath, channelWord, CORE_ROWS, LISTS, type ListSpec, valueWords } from "./words";
 
 /**
  * The row the Style tab edits when the caller names none, read from `inspected` as the inspector
@@ -288,9 +289,13 @@ function RowStyle({
                                     <PropertyRow key={spec.id} ctx={ctx} spec={spec} descriptors={descriptors} />
                                 ))}
                                 <LabelSection target={side} row={row} layers={ctx.layers} fresh={fresh} />
-                                {LISTS[side].map((list) => (
-                                    <ListSection key={list.id} ctx={ctx} list={list} descriptors={descriptors} />
-                                ))}
+                                {LISTS[side].map((list) =>
+                                    list.id === "effects" ? (
+                                        <Effects key={list.id} ctx={ctx} />
+                                    ) : (
+                                        <ListSection key={list.id} ctx={ctx} list={list} descriptors={descriptors} />
+                                    ),
+                                )}
                             </Stack>
                         </ControlSection>
                     </div>
@@ -300,19 +305,17 @@ function RowStyle({
     );
 }
 
-/** One entry of a list: a channel of its own, or a compound entry covering several. */
+/** One entry of a list: a channel of its own. */
 interface Entry {
     readonly name: string;
-    readonly descriptors: readonly ChannelDescriptor[];
     /** The channel adding it writes. */
     readonly adds: ChannelDescriptor;
-    readonly compound?: ReturnType<typeof compoundOf>;
 }
 
 /**
- * A list (Tooltip, Effects): its title with "+", and an entry for each one the row writes. "+"
- * adds the one entry left, or opens a menu of the rest; clicking the title of an empty list opens
- * the same menu, as Figma's empty Fill title does.
+ * A list (Tooltip; Effects has its own component): its title with "+", and an entry for each one
+ * the row writes. "+" adds the one entry left, or opens a menu of the rest; clicking the title of
+ * an empty list opens the same menu, as Figma's empty Fill title does.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.list - the list
@@ -327,22 +330,11 @@ function ListSection({
     const { store } = useWorkspace();
     const [menuOpen, setMenuOpen] = useState(false);
     const channels = list.channels.flatMap((c) => descriptors.filter((d) => d.channel === c));
-    const entries: Entry[] = [];
-    for (const d of channels) {
-        const compound = compoundOf(d.channel);
-        if (compound === undefined) {
-            entries.push({ name: channelWord(d.channel), descriptors: [d], adds: d });
-        } else if (!entries.some((e) => e.compound === compound)) {
-            const parts = channels.filter((c) => compoundOf(c.channel) === compound);
-            const adds = parts.find((c) => c.channel === compound.adds) ?? d;
-            entries.push({ name: compound.name, descriptors: parts, adds, compound });
-        }
-    }
-    const isSet = (e: Entry): boolean =>
-        e.descriptors.some((d) => {
-            const line = lineOf(ctx.layers, d.channel);
-            return line !== undefined && !line.layer.locked;
-        });
+    const entries: Entry[] = channels.map((d) => ({ name: channelWord(d.channel), adds: d }));
+    const isSet = (e: Entry): boolean => {
+        const line = lineOf(ctx.layers, e.adds.channel);
+        return line !== undefined && !line.layer.locked;
+    };
     const set = entries.filter(isSet);
     const unset = entries.filter((e) => !isSet(e));
     const add = (entry: Entry): void => {
@@ -445,16 +437,12 @@ function ListSection({
                 )}
                 {plus}
             </Group>
-            {set.map((e) =>
-                e.compound === undefined ? (
-                    <div key={e.adds.channel} className="ws-property-row">
-                        <span className="ws-property-row-gap" />
-                        <Field ctx={ctx} descriptor={e.adds} />
-                    </div>
-                ) : (
-                    <CompoundField key={e.adds.channel} ctx={ctx} compound={e.compound} descriptors={e.descriptors} />
-                ),
-            )}
+            {set.map((e) => (
+                <div key={e.adds.channel} className="ws-property-row">
+                    <span className="ws-property-row-gap" />
+                    <Field ctx={ctx} descriptor={e.adds} />
+                </div>
+            ))}
         </Stack>
     );
 }

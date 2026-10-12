@@ -192,3 +192,11 @@ describe("an effect written off", () => {
         );
     });
 });
+
+describe("a color that follows another", () => {
+    it("names the edge color as what an arrowhead's color takes while no layer sets it", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHeadColor"].follows, "edge.color");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowTailColor"].follows, "edge.color");
+        assert.isUndefined(CHANNEL_DESCRIPTORS["edge.color"].follows);
+    });
+});

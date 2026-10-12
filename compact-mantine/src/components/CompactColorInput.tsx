@@ -53,6 +53,13 @@ export interface CompactColorInputProps {
     /** The color shown, in italics, while the reader has chosen none of their own. */
     defaultColor: string;
     /**
+     * Words shown in the hex box in place of `defaultColor` while the reader has chosen nothing,
+     * for a color whose default is another color rather than a value of its own -- "Line color"
+     * for an arrowhead that takes its edge's color. The hex box is then empty, with these words
+     * as its placeholder; the chit still shows `defaultColor`. As `StyleNumberInput`'s `emptyText`.
+     */
+    emptyText?: string;
+    /**
      * The opacity as a percentage from 0 to 100, when you drive the control
      * from your own state. `undefined` means the reader has set none and the
      * control is showing `defaultOpacity`.
@@ -220,6 +227,7 @@ export interface CompactColorInputProps {
  * @param props - Component props
  * @param props.color - The color, when you drive the control from your own state
  * @param props.defaultColor - The color shown while the reader has chosen none of their own
+ * @param props.emptyText - Words shown in the hex box in place of `defaultColor` while nothing is chosen
  * @param props.opacity - The opacity as a percentage, when you drive the control from your own state
  * @param props.defaultOpacity - The opacity shown while the reader has set none of their own
  * @param props.onColorChange - Called with the new color, or with `undefined` when the control is reset
@@ -249,6 +257,7 @@ export interface CompactColorInputProps {
 export function CompactColorInput({
     color,
     defaultColor,
+    emptyText,
     opacity,
     defaultOpacity = MAX_OPACITY,
     onColorChange,
@@ -306,12 +315,13 @@ export function CompactColorInput({
     const displayColor = chosenColor ?? defaultColor;
     const displayOpacity = chosenOpacity ?? defaultOpacity;
 
-    const hexText = (c: string): string => c.replace("#", "").toUpperCase();
-    const [hexDraft, setHexDraft] = useState(hexText(displayColor));
+    // While nothing is chosen and there are words for that, the hex box is empty under them.
+    const shownHex = isColorDefault && emptyText !== undefined ? "" : displayColor.replace("#", "").toUpperCase();
+    const [hexDraft, setHexDraft] = useState(shownHex);
 
     useEffect(() => {
-        setHexDraft(hexText(displayColor));
-    }, [displayColor]);
+        setHexDraft(shownHex);
+    }, [shownHex]);
 
     /**
      * Split a picker color into the field's two halves.
@@ -358,12 +368,14 @@ export function CompactColorInput({
         const hexa = digits.length === 3 || digits.length === 6 ? normalizeHexa(digits) : undefined;
         const candidate = hexa?.slice(0, HEXA_ALPHA_START);
 
-        if (candidate !== undefined && candidate !== displayColor.toUpperCase()) {
+        // Under empty words, typing the default color is a choice of its own, not "no change".
+        const changed = candidate !== displayColor.toUpperCase() || shownHex === "";
+        if (candidate !== undefined && changed) {
             setChosenColor(candidate, event);
             onChange?.(candidate, chosenOpacity, event);
             onChangeEnd?.(candidate, chosenOpacity, event);
         } else {
-            setHexDraft(hexText(displayColor));
+            setHexDraft(shownHex);
         }
     };
 
@@ -441,6 +453,7 @@ export function CompactColorInput({
                     aria-describedby={annotation.describedBy}
                     disabled={disabled}
                     value={hexDraft}
+                    placeholder={emptyText}
                     onChange={(event) => {
                         setHexDraft(event.currentTarget.value.toUpperCase());
                     }}
@@ -459,7 +472,7 @@ export function CompactColorInput({
                             commitHex(event);
                         } else if (event.key === "Escape") {
                             leaveWithoutCommit(event, () => {
-                                setHexDraft(hexText(displayColor));
+                                setHexDraft(shownHex);
                             });
                         }
                     }}

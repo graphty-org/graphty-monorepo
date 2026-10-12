@@ -11,6 +11,24 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Effects lists are built; the arrow ends are the core "ends" row** (`style/Effects.tsx`,
+  test `Effects.real-element.test.tsx`, mounted by `StylePanel` for the list with id `effects`).
+  "+" or the empty title opens a menu with a glyph per effect (new `GLYPHS` outline, glow, halo,
+  band, motion); picking keeps a pending entry in component state only, focuses its hex box (or
+  Motion's number), writes on the first chosen value, and an Escape caught in the CAPTURE phase
+  drops it (the hex box stops its own Escape, so a bubbling handler never saw it). The eye writes
+  the descriptor's `off` and, turned back on, the descriptor's default (ponytail: it forgets the
+  color it hid). Gray lines read `sharesBeneath` (moved to `row.ts`, the label's agreement-below
+  read with values). Settings behind an entry are `Field`s, so their Clear is the panel's minus.
+  Deleted the compound-entry path (`CompoundField`, `compoundOf`): Effects was its only user, and
+  it wrote the default glow on pick, which the design forbids. NOT built: `Ends.tsx`. The edges'
+  `Head | Tail` row and Ends settings already exist as a `CORE_ROWS` spec drawn by `PropertyRow`;
+  a second component would have given the arrows a different Clear. The one missing piece, an empty
+  end color reading "Line color", came from the element: new `ChannelDescriptor.follows`
+  (`edge.arrowHeadColor` / `edge.arrowTailColor` follow `edge.color`, as Edge.ts draws them) and
+  compact-mantine `CompactColorInput.emptyText`. Seen failing, not mine: `row.test.ts` (no starting
+  value for `node.labelBackground`) and the app's tsc on history words and channel controls.
+
 - (2026-10-12) **The Style tab is built** (`style/StylePanel.tsx`, `style/PropertyRow.tsx`,
   `style/style.css`; `StyleTab.tsx` and `SetLine.tsx` are gone, and every caller -- tree rows,
   the Everything, run and selection rows -- renders `StylePanel`). Nodes and Edges are

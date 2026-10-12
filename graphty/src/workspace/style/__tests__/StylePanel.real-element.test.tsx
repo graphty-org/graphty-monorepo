@@ -10,7 +10,6 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { channelsFor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
@@ -547,34 +546,6 @@ describe("the Style tab's rows on the real element", () => {
         });
         await session.styles.settled();
         assert.equal(session.history.steps.length, before + 1, "the drag wrote once, on release");
-    });
-
-    it("Glow from the Effects +: the element's default color, its parts in a titled pop-out, cleared in one step", async () => {
-        await page.viewport(1366, 768);
-        const { session } = await openEverything();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        const effects = within(styleTab()).getByRole("group", { name: "Node effects" });
-        await userEvent.click(within(effects).getByRole("button", { name: "Add to node effects" }));
-        const items = (await screen.findAllByRole("menuitem")).map((i) => i.textContent);
-        assert.include(items, "Glow");
-        assert.notInclude(items, "Glow strength");
-        await userEvent.click(screen.getByRole("menuitem", { name: "Glow" }));
-        const glowColor = String(channelsFor("node").find((d) => d.channel === "node.glow")?.default);
-        await waitFor(() => {
-            assert.equal(readerLayers(session)[0]?.set?.["node.glow"], glowColor);
-        });
-        await userEvent.click(within(styleTab()).getByRole("button", { name: /^Glow: / }));
-        const popover = await screen.findByRole("dialog", { name: "Glow" });
-        assert.isNotNull(within(popover).getByRole("group", { name: /^Node glow, set here/ }));
-        assert.isNotNull(within(popover).getByRole("combobox", { name: /^Node glow strength, not set/ }));
-        await userEvent.keyboard("{Escape}");
-
-        const steps = session.history.steps.length;
-        await userEvent.click(within(styleTab()).getByRole("button", { name: "Clear Glow" }));
-        await waitFor(() => {
-            assert.lengthOf(readerLayers(session), 0, "the glow went, and the emptied layer with it");
-        });
-        assert.equal(session.history.steps.length, steps + 1, "one step");
     });
 
     it("Everything's edge color goes to the Everything layer, and an edge's to its own row", async () => {

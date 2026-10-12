@@ -407,6 +407,13 @@ export interface ChannelDescriptor {
      * @since 3.26.0
      */
     readonly off?: string | number;
+    /**
+     * The channel whose value this one takes while no layer sets it: an arrowhead's colour is its
+     * edge's colour until a layer gives it one of its own. Absent on a channel that takes only its
+     * own `default`.
+     * @since 3.26.0
+     */
+    readonly follows?: Channel;
 }
 
 /**
@@ -582,6 +589,8 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             group: "arrows",
             default: EDGE_LINE_DEFAULT_COLOR,
             accepts: "color",
+            // Edge.ts draws an arrow in `arrow<End>.color ?? line.color`.
+            follows: "edge.color",
             stylePath: `arrow${end}.color`,
             renderable: true,
         },

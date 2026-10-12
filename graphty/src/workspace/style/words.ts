@@ -174,6 +174,16 @@ export function fieldStateName(channel: Channel, set: string | undefined, beneat
 }
 
 /**
+ * What an unset field shows when nothing beneath sets it and the element draws it in another
+ * channel's value (`ChannelDescriptor.follows`): an arrowhead's color reads "Line color".
+ * @param follows - the channel it takes its value from.
+ * @returns the words.
+ */
+export function followsWords(follows: Channel): string {
+    return follows === "edge.color" ? "Line color" : fieldName(follows);
+}
+
+/**
  * Joins names as a reader lists them: "A", "A and B", "A, B and C".
  * @param names - the names.
  * @returns the words.
@@ -306,83 +316,6 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
  */
 export function channelWord(channel: Channel): string {
     return CHANNEL_WORDS[channel];
-}
-
-/** One part of a compound line: a channel the line covers, as its popover names it. */
-export interface CompoundPart {
-    readonly channel: Channel;
-    /** Its name inside the popover, where the line's name is already said. */
-    readonly word: string;
-    /** Whether the line shows it at rest. */
-    readonly atRest?: true;
-    /** Whether it sits behind the popover's "More" disclosure. */
-    readonly more?: true;
-    /** Whether the popover shows the element's caveat for it as help text. */
-    readonly caveat?: true;
-}
-
-/**
- * One line of the Style tab that covers several of the element's channels: one effect, its
- * settings in a popover. Grouping channels is presentation, so it is the app's, not the element's.
- */
-export interface CompoundLine {
-    /** The line's name, in the "+" menu, on the line and as the popover's title. */
-    readonly name: string;
-    /** Its parts, key options first. */
-    readonly parts: readonly CompoundPart[];
-    /** The one part adding the line writes: the one that needs a value to draw. */
-    readonly adds: Channel;
-    /**
-     * Another channel whose default the added part starts from, when its own default draws
-     * nothing (a tail is added drawn as a head is).
-     */
-    readonly startsFrom?: Channel;
-}
-
-/** The compound lines: one effect each, its settings in a popover. A channel in none of them is a line of its own. */
-const COMPOUND_LINES: readonly CompoundLine[] = [
-    {
-        name: "Glow",
-        parts: [
-            { channel: "node.glow", word: "Color", atRest: true },
-            { channel: "node.glowStrength", word: "Strength", atRest: true },
-        ],
-        // A glow is switched on by its color (a strength alone draws nothing), so "+" writes the
-        // element's default glow color and leaves the strength at the element's default.
-        adds: "node.glow",
-    },
-    {
-        name: "Halo",
-        parts: [
-            { channel: "node.haloColor", word: "Color", atRest: true },
-            { channel: "node.haloSize", word: "Size" },
-            { channel: "node.haloOpacity", word: "Opacity" },
-        ],
-        adds: "node.haloColor",
-    },
-    {
-        name: "Band",
-        parts: [
-            { channel: "edge.bandColor", word: "Color", atRest: true },
-            { channel: "edge.bandWidth", word: "Width" },
-            { channel: "edge.bandOpacity", word: "Opacity" },
-        ],
-        adds: "edge.bandColor",
-    },
-];
-
-/** Each compound line, by every channel it covers. */
-const COMPOUND_BY_CHANNEL: ReadonlyMap<Channel, CompoundLine> = new Map(
-    COMPOUND_LINES.flatMap((line) => line.parts.map((p) => [p.channel, line] as const)),
-);
-
-/**
- * The compound line a channel is part of.
- * @param channel - the element's channel id.
- * @returns the line, or undefined when the channel is a line of its own.
- */
-export function compoundOf(channel: Channel): CompoundLine | undefined {
-    return COMPOUND_BY_CHANNEL.get(channel);
 }
 
 /** A palette's name, by the id the element publishes. Typed over the element's known ids. */

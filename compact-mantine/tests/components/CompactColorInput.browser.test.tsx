@@ -78,6 +78,31 @@ describe("CompactColorInput accessible names", () => {
     });
 });
 
+describe("CompactColorInput empty words", () => {
+    it("shows the words in an empty hex box until a color is typed, and typing the default chooses it", async () => {
+        const chosen: (string | undefined)[] = [];
+        renderField(
+            <CompactColorInput
+                label="Head"
+                defaultColor="#808080"
+                emptyText="Line color"
+                showOpacity={false}
+                onChangeEnd={(color) => {
+                    chosen.push(color);
+                }}
+            />,
+        );
+
+        const hex = page.getByRole("textbox", { name: "Head color", exact: true });
+        await expect.element(hex).toHaveValue("");
+        await expect.element(hex).toHaveAttribute("placeholder", "Line color");
+        await userEvent.click(hex);
+        await userEvent.keyboard("808080{Enter}");
+        expect(chosen).toEqual(["#808080"]);
+        await expect.element(hex).toHaveValue("808080");
+    });
+});
+
 describe("GradientEditor stop names", () => {
     it("names each stop's swatch and hex box by the stop's position", async () => {
         renderField(

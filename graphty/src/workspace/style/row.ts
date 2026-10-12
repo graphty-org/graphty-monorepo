@@ -601,3 +601,42 @@ export async function writeGroupColor(
         },
     });
 }
+
+/** What one layer beneath a row writes for a channel. */
+export interface BeneathShare {
+    readonly value: unknown;
+    readonly name: string;
+}
+
+/**
+ * What the layers beneath a row write for one channel, each with its layer's name: graphty-element's
+ * own answer (`styles.agreement` with `below`), over the whole graph.
+ * ponytail: read over the whole graph, not the row's own elements (no scope names a layer's
+ * matches), as the label's gray line does; scope it when the element offers one.
+ * @param session - the element's session.
+ * @param layers - the row's layers on this side, bottom first.
+ * @param channel - the channel.
+ * @returns the shares, empty when nothing beneath writes it or the row has no layer yet.
+ */
+export function sharesBeneath(session: GraphSession, layers: readonly Layer[], channel: Channel): BeneathShare[] {
+    const own = layers.find((layer) => !layer.locked);
+    if (own === undefined) {
+        return [];
+    }
+    let channels: ReturnType<GraphSession["styles"]["agreement"]>["channels"];
+    try {
+        ({ channels } = session.styles.agreement("graph", channel, { below: own.row ?? own.id }));
+    } catch {
+        // A row the element's tree does not hold (a run's own layers) has no "beneath" to read.
+        return [];
+    }
+    const nameOf = (id: string): string => session.styles.get(id)?.name ?? id;
+    return channels.flatMap((found) => {
+        if (found.state === "agree") {
+            return found.value === undefined ? [] : [{ value: found.value, name: nameOf(found.layerId) }];
+        }
+        return found.breakdown
+            .filter((share) => share.value !== undefined)
+            .map((share) => ({ value: share.value, name: nameOf(share.layerId) }));
+    });
+}

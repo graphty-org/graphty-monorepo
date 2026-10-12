@@ -27,6 +27,22 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: a color that follows another (`ChannelDescriptor.follows`), and words in an empty color field
+
+**What.** Two optional additions. In graphty-element, `ChannelDescriptor.follows`: the channel whose
+value this one takes while no layer sets it. The arrowhead and arrow tail colors name
+`edge.color`, because the element draws an arrow in its edge's color until a layer gives it one.
+In compact-mantine, `CompactColorInput` gains `emptyText`: while nothing is chosen, the hex box is
+empty with these words as its placeholder (as `StyleNumberInput`'s `emptyText`), and typing the
+default color then chooses it.
+
+**Why.** The Style tab's arrow end color, left empty, must read "Line color" (tier 3 design,
+section 2.2), not the hex of a default the element never draws. Which channel an arrow follows is
+a fact about the element's drawing, so it is published by the element rather than kept in the app.
+
+**Alternatives.** Hard-coding in the app that an arrow follows its line (the element's behavior
+copied into the app); showing the element's default hex in italics (a color that is not drawn).
+
 ## 2026-10-12 -- Decided by the team: an empty select with words beneath, and a color field named without a drawn label
 
 **What.** Three optional props in compact-mantine, all additive. `StyleSelect` gains `placeholder`:

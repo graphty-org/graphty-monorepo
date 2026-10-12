@@ -77,7 +77,7 @@ export class XRUIManager {
     private createButton(label: string, mode: XRSessionMode): HTMLButtonElement {
         const button = document.createElement("button");
         button.className = "webxr-button webxr-available";
-        button.setAttribute("data-xr-mode", mode);
+        button.dataset.xrMode = mode;
         button.setAttribute("part", `xr-button xr-${mode === "immersive-vr" ? "vr" : "ar"}-button`);
         button.textContent = label;
 

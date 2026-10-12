@@ -124,5 +124,10 @@ export const PillFromTheKeyboard: Story = {
         const canvas = within(canvasElement);
         await userEvent.tab();
         await expect(canvas.getByRole("button", { name: "1 to 3, variable PageRank" })).toHaveFocus();
+        // Focus opens the tooltip after its delay; the story ends once it shows, so the picture
+        // never depends on whether the delay ran out first.
+        await expect(
+            await within(canvasElement.ownerDocument.body).findByRole("tooltip", {}, { timeout: 2000 }),
+        ).toBeVisible();
     },
 };

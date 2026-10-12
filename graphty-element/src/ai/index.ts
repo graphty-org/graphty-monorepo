@@ -45,7 +45,14 @@ export { MAX_AGENT_NAME_LENGTH, MAX_AGENT_PURPOSE_LENGTH, MAX_AGENTS, MAX_HELPER
 export { AiConfigError } from "./agents";
 
 // Manager (Phase 3)
-export type { AiManagerConfig, KeyPersistenceConfig } from "./AiManager";
+export type {
+    AiManagerConfig,
+    AiVoiceMode,
+    AiVoiceOptions,
+    AiVoicePath,
+    AiVoiceSupport,
+    KeyPersistenceConfig,
+} from "./AiManager";
 export { AiManager, createAiManager } from "./AiManager";
 
 /* eslint-disable @typescript-eslint/no-deprecated -- still published until the next major release for consumers that register the hand-written commands themselves */

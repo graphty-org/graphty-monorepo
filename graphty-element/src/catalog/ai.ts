@@ -253,6 +253,104 @@ export function aiHostedToolStatus(provider: AiProviderId, model: string, tool: 
         : status;
 }
 
+/**
+ * One provider's voice: whether it transcribes speech and speaks text, and with which model.
+ * `viaChatModel` marks transcription done by the configured chat model itself (Google), so no
+ * `model` is named. A provider with neither can still be spoken to through browser recognition,
+ * or through another provider's transcription (`AiVoiceOptions.transcription`).
+ */
+export interface AiProviderVoice {
+    /** Speech to text through the provider. */
+    readonly transcription: {
+        readonly status: AiCapabilityStatus;
+        /** The default transcription model; absent when the chat model transcribes or there is none. */
+        readonly model?: string;
+        /** True when the configured chat model transcribes, in one chat turn with the audio. */
+        readonly viaChatModel?: boolean;
+    };
+    /** Text to speech through the provider. */
+    readonly speech: {
+        readonly status: AiCapabilityStatus;
+        /** The default speech model; absent when there is none. */
+        readonly model?: string;
+    };
+}
+
+const NO_PROVIDER_VOICE: AiProviderVoice = {
+    transcription: { status: "unsupported" },
+    speech: { status: "unsupported" },
+};
+
+/**
+ * What each provider does with speech. Google's speech model is marked experimental upstream.
+ * Anthropic transcribes nothing itself; set `AiVoiceOptions.transcription` to send its readers'
+ * speech to another provider.
+ */
+export const AI_VOICE_CAPABILITIES: Readonly<Record<AiProviderId, AiProviderVoice>> = Object.freeze({
+    openai: {
+        transcription: { status: "available", model: "gpt-4o-mini-transcribe" },
+        speech: { status: "available", model: "tts-1" },
+    },
+    google: {
+        transcription: { status: "available", viaChatModel: true },
+        speech: { status: "available", model: "gemini-3.1-flash-tts-preview" },
+    },
+    anthropic: NO_PROVIDER_VOICE,
+    webllm: NO_PROVIDER_VOICE,
+    mock: NO_PROVIDER_VOICE,
+});
+
+/** Which way speech goes: `"input"` (speech to text) or `"output"` (text to speech). */
+export type AiVoiceDirection = "input" | "output";
+
+/**
+ * Whether a provider can carry one direction of speech itself: transcription for `"input"`,
+ * speech for `"output"`, as {@link AI_VOICE_CAPABILITIES} lists it.
+ * @param provider - The provider.
+ * @param direction - Which way.
+ * @returns Its status.
+ */
+export function aiVoiceStatus(provider: AiProviderId, direction: AiVoiceDirection): AiCapabilityStatus {
+    const voice = AI_VOICE_CAPABILITIES[provider];
+    return direction === "input" ? voice.transcription.status : voice.speech.status;
+}
+
+/**
+ * How one direction of speech is carried (`AiVoicePath.path`): browser recognition or synthesis,
+ * the provider, a model on the device, or nothing. OPEN UNION.
+ */
+export type AiVoiceRoute = "browser" | "provider" | "on-device" | "none";
+
+/**
+ * Whether one direction of speech can be used now (`AiVoicePath.status`): `"needs-permission"`
+ * until the reader allows the microphone. OPEN UNION.
+ */
+export type AiVoiceReadiness = "ready" | "needs-permission" | "unavailable";
+
+/**
+ * Where the reader's audio, or the text to speak, goes (`AiVoicePath.destination`): stays on the
+ * device, goes to the browser's vendor (Chrome's default recognition), or to the provider. OPEN
+ * UNION.
+ */
+export type AiVoiceDestination = "on-device" | "browser-vendor" | "provider" | "none";
+
+/**
+ * Why speech cannot be used, the `reason` of `AI_VOICE_UNAVAILABLE`. OPEN UNION: reasons may be
+ * added in a minor release.
+ */
+export const AI_VOICE_UNAVAILABLE_REASONS = Object.freeze([
+    "no-recognition",
+    "no-microphone",
+    "permission-denied",
+    "insecure-context",
+    "no-provider-transcription",
+    "no-provider-speech",
+    "no-key",
+] as const);
+
+/** One reason speech cannot be used; see {@link AI_VOICE_UNAVAILABLE_REASONS}. OPEN UNION. */
+export type AiVoiceUnavailableReason = (typeof AI_VOICE_UNAVAILABLE_REASONS)[number];
+
 /** Why a key does not have the shape of its provider's keys. */
 export type AiKeyShapeCode = "E_KEY_EMPTY" | "E_KEY_PREFIX" | "E_KEY_TOO_SHORT";
 
@@ -358,6 +456,10 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *   continue. `{ provider }`. What it found is not kept: asking again searches afresh.
  * - `AI_FAILED` -- anything else went wrong while the command ran.
  *
+ * Carried by the voice events (`ai-voice-end`, `ai-speech-end`) rather than ending a command:
+ * - `AI_VOICE_UNAVAILABLE` -- speech cannot be used. `{ path, reason }`: `path` is `"input"` or
+ *   `"output"` ({@link AiVoiceDirection}), `reason` one of {@link AI_VOICE_UNAVAILABLE_REASONS}.
+ *
  * Carried by saved conversations and the conversation events rather than ending a command:
  * - `AI_TOOL_NOT_RUN` -- a saved tool result: the call did not run, because an earlier call in its
  *   batch failed or the batch was taken back. `{ tool }`, and `reason`: `"held"` when a held batch
@@ -407,6 +509,7 @@ export const AI_RESULT_CODES = Object.freeze([
     "AI_CONFIG_INVALID",
     "AI_HOSTED_TOOL_UNSUPPORTED",
     "AI_PROVIDER_PAUSED",
+    "AI_VOICE_UNAVAILABLE",
 ] as const);
 
 /**

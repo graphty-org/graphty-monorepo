@@ -6,7 +6,16 @@
 
 import debounce from "lodash/debounce.js";
 
-import { AI_PROVIDER_IDS, type AiCapabilities, type AiProviderId } from "../catalog/ai";
+import {
+    AI_PROVIDER_IDS,
+    type AiCapabilities,
+    type AiProviderId,
+    type AiResultCode,
+    type AiResultParams,
+    type AiVoiceDestination,
+    type AiVoiceReadiness,
+    type AiVoiceRoute,
+} from "../catalog/ai";
 import type { AiApprovalRequest, AiQuestionRequest } from "../events";
 import type { Graph } from "../Graph";
 import type { AiAgentsSetting, AiToolOptions } from "./agents";
@@ -48,6 +57,84 @@ export interface KeyPersistenceConfig {
     /** Storage key prefix (default: "@graphty-ai-keys") */
     prefix?: string;
 }
+
+/**
+ * How one direction of speech is carried: `"auto"` (the element chooses; see
+ * `AiVoiceOptions.input` and `.output`), `"browser"` (the browser's own recognition or speech),
+ * `"provider"` (the AI provider transcribes or speaks), `"off"`.
+ */
+export type AiVoiceMode = "auto" | "browser" | "provider" | "off";
+
+/**
+ * Speaking to the assistant and hearing it answer (`AiManagerConfig.voice`), driven by
+ * `aiTalk(true)` and `aiTalk(false)`. Voice is never the only way to a command: every utterance
+ * becomes the same `aiCommand` a typed message sends.
+ */
+export interface AiVoiceOptions {
+    /**
+     * Speech to text. `"auto"` (the default): the browser's recognition where it works, else the
+     * provider's transcription, else `AI_VOICE_UNAVAILABLE`.
+     */
+    input?: AiVoiceMode;
+    /** Text to speech. `"auto"` (the default): off on a flat page, on in an immersive session. */
+    output?: AiVoiceMode;
+    /** The language spoken and heard, a BCP 47 tag (`"fr-FR"`). Default: the page's language. */
+    language?: string;
+    /** The voice the provider speaks with, by the provider's own name for it. */
+    voiceName?: string;
+    /** `"hold"` (the default): talk while `aiTalk(true)` holds. `"toggle"`: each `aiTalk(true)` starts or ends. */
+    push?: "hold" | "toggle";
+    /**
+     * Transcribe through another provider than the chat's, with its key from `apiKeys`: an
+     * Anthropic reader's speech through OpenAI.
+     */
+    transcription?: { provider: AiProviderId; model?: string };
+    /**
+     * Utterances that answer a pending approval instead of sending a message, compared with case
+     * and punctuation ignored. Default `{ approve: ["yes"], deny: ["no"] }`.
+     */
+    replies?: { approve?: readonly string[]; deny?: readonly string[] };
+    /**
+     * The words to speak for an outcome the model wrote no text for (an error, a held approval).
+     * Return undefined to say nothing. Absent, such an outcome is not spoken: the element speaks
+     * only text the model wrote, never words of its own.
+     */
+    say?: (fact: { code: AiResultCode; params: AiResultParams }) => string | undefined;
+}
+
+/** How one direction of speech would be carried now (`getAiVoiceSupport()`). */
+export interface AiVoicePath {
+    /** How it is carried, or `"none"`. */
+    path: AiVoiceRoute;
+    /** Whether it can be used now. */
+    status: AiVoiceReadiness;
+    /** Why not, when it cannot: `AI_VOICE_UNAVAILABLE`, or `AI_NOT_ENABLED` without `voice`. */
+    code?: AiResultCode;
+    /** The facts behind `code` (`{ path, reason }` for `AI_VOICE_UNAVAILABLE`). */
+    params?: AiResultParams;
+    /** Where the audio or the text goes. */
+    destination: AiVoiceDestination;
+}
+
+/** Each direction of speech, as `getAiVoiceSupport()` finds it. */
+export interface AiVoiceSupport {
+    /** Speech to text. */
+    input: AiVoicePath;
+    /** Text to speech. */
+    output: AiVoicePath;
+}
+
+/** Speech that cannot be used because the assistant has no `voice`. */
+const NO_VOICE_PATH: AiVoicePath = Object.freeze({
+    path: "none",
+    status: "unavailable",
+    code: "AI_NOT_ENABLED",
+    params: {},
+    destination: "none",
+});
+
+/** Both directions, unavailable: the assistant has no `voice`, or is not enabled. */
+export const NO_VOICE_SUPPORT: AiVoiceSupport = Object.freeze({ input: NO_VOICE_PATH, output: NO_VOICE_PATH });
 
 /**
  * Configuration options for initializing the AiManager.
@@ -135,6 +222,11 @@ export interface AiManagerConfig {
      * resolves `AI_HOSTED_TOOL_UNSUPPORTED`; `getCapabilities()` says which can be used.
      */
     tools?: AiToolOptions;
+    /**
+     * Speech in and out, pressed with `aiTalk`. Default absent: no voice, and `aiTalk(true)` ends
+     * at once with `ai-voice-end` `{ code: "AI_NOT_ENABLED" }`.
+     */
+    voice?: AiVoiceOptions;
 }
 
 /**
@@ -441,6 +533,30 @@ export class AiManager {
      */
     getCapabilities(): AiCapabilities | null {
         return this.controller?.getCapabilities() ?? null;
+    }
+
+    /**
+     * Press or release talk. Without `voice` a press ends at once with `ai-voice-end`
+     * `{ reason: "error", code: "AI_NOT_ENABLED" }`, and a release does nothing.
+     * @param down - True to press, false to release.
+     */
+    talk(down: boolean): void {
+        if (down) {
+            this.graph?.eventManager.emit("ai-voice-end", { reason: "error", code: "AI_NOT_ENABLED", params: {} });
+        }
+    }
+
+    /** Stop speaking an answer; nothing is spoken without `voice`. */
+    stopSpeech(): void {
+        // Nothing speaks without `voice`.
+    }
+
+    /**
+     * How speech would be carried in each direction.
+     * @returns Both directions; unavailable with `AI_NOT_ENABLED` without `voice`.
+     */
+    getVoiceSupport(): Promise<AiVoiceSupport> {
+        return Promise.resolve(NO_VOICE_SUPPORT);
     }
 
     /**

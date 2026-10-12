@@ -39,6 +39,8 @@ const NOT_COMMAND_RESULTS = [
     // both once those land, with a test here reaching each.
     "AI_HOSTED_TOOL_UNSUPPORTED",
     "AI_PROVIDER_PAUSED",
+    // A voice event's code (ai-voice-end, ai-speech-end), never a command's result.
+    "AI_VOICE_UNAVAILABLE",
 ];
 
 /**

@@ -115,6 +115,9 @@ const ASSISTANT_VERBS = [
     "retryLastAiCommand",
     "startVoiceInput",
     "stopVoiceInput",
+    "aiTalk",
+    "stopAiSpeech",
+    "getAiVoiceSupport",
 ] as const;
 
 /** The data writes of the graph and the element, by the `edit_data` action that does the same. */
@@ -730,6 +733,9 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "retry",
             "resolveAiApproval",
             "answerQuestion",
+            "talk",
+            "stopSpeech",
+            "getVoiceSupport",
             "openConversation",
             "newConversation",
             "deleteConversation",

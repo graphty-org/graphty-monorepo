@@ -1524,6 +1524,7 @@ export class Graph implements GraphContext {
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     aiCommand(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
+    aiTalk(down: boolean): void;
     answerAiQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult>;
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
@@ -1574,6 +1575,7 @@ export class Graph implements GraphContext {
     getAiConversation(): AiConversationSnapshot | null;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
+    getAiVoiceSupport(): Promise<AiVoiceSupport>;
     getApiKeyManager(): ApiKeyManager | null;
     getAutoFrame(): boolean;
     getCameraController(): CameraController | null;
@@ -1746,6 +1748,7 @@ export class Graph implements GraphContext {
         onTranscript?: (text: string, isFinal: boolean) => void;
         onStart?: (started: boolean, error?: string) => void;
     }): boolean;
+    stopAiSpeech(): void;
     stopInputRecording(): RecordedInputEvent[];
     stopVoiceInput(): void;
     get styles(): Styles;
@@ -1946,6 +1949,7 @@ export class Graphty extends LitElement {
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: AdHocData[], idPath?: string, options?: QueueableOptions): Promise<void>;
     aiCommand(message: string, options?: AiCommandOptions): Promise<ExecutionResult>;
+    aiTalk(down: boolean): void;
     get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined;
     set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined);
     answerAiQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult>;
@@ -2009,6 +2013,7 @@ export class Graphty extends LitElement {
     getAiConversation(): AiConversationSnapshot | null;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
+    getAiVoiceSupport(): Promise<AiVoiceSupport>;
     getApiKeyManager(): ApiKeyManager | null;
     getCameraController(): CameraController | null;
     getCameraPresets(): Record<string, CameraState | {
@@ -2190,6 +2195,7 @@ export class Graphty extends LitElement {
         onTranscript?: (text: string, isFinal: boolean) => void;
         onStart?: (started: boolean, error?: string) => void;
     }): boolean;
+    stopAiSpeech(): void;
     stopVoiceInput(): void;
     static styles: CSSResult;
     unpin(ids: (string | number) | readonly (string | number)[]): void;
@@ -4554,6 +4560,21 @@ export interface WorkerCapability {
 }
 
 // @public
+export interface XRAiConfig {
+    labels?: Readonly<Record<string, string>>;
+    panel?: boolean;
+    pendingButtons?: {
+        approve?: readonly XRControllerButton[];
+        deny?: readonly XRControllerButton[];
+    };
+    pendingControl?: boolean;
+    pushToTalk?: {
+        buttons?: readonly XRControllerButton[];
+        wristOrb?: boolean;
+    };
+}
+
+// @public
 export interface XrCapability {
     readonly ar: boolean;
     readonly vr: boolean;
@@ -4561,6 +4582,7 @@ export interface XrCapability {
 
 // @public
 export interface XRConfig {
+    ai?: XRAiConfig;
     ar: XRModeConfig;
     enabled: boolean;
     input: XRInputConfig;
@@ -4568,6 +4590,9 @@ export interface XRConfig {
     ui: XRUIConfig;
     vr: XRModeConfig;
 }
+
+// @public
+export type XRControllerButton = "a" | "b" | "x" | "y";
 
 // @public
 export interface XRInputConfig {

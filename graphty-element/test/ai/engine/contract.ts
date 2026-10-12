@@ -66,6 +66,12 @@ export interface EngineFixture {
      * provider's messages for an `LlmProvider`, what the model was shown for the fake.
      */
     wire(): unknown[];
+    /**
+     * What the engine hears and says when it can transcribe and speak: `transcribe` resolves to
+     * `transcript` and `speak` to `audio`. Absent for an engine whose provider can do neither,
+     * which must then leave both members absent.
+     */
+    readonly voice?: { readonly transcript: string; readonly audio: Blob };
 }
 
 /** A promise that settles when the signal fires. */
@@ -118,6 +124,17 @@ export function fakeFixture(): EngineFixture {
         // The fake model sees the request itself; what a provider would be sent is its projection.
         wire: () => seenRequests(engine.requests),
     };
+}
+
+/** A `FakeEngine` that transcribes and speaks, as a provider with voice does. */
+export function fakeVoiceFixture(): EngineFixture {
+    const fixture = fakeFixture();
+    const voice = {
+        transcript: "color the hubs red",
+        audio: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/mpeg" }),
+    };
+    (fixture.engine as FakeEngine).scriptVoice({ transcribe: voice.transcript, speak: voice.audio });
+    return { ...fixture, voice };
 }
 
 /** Requests as the model saw them. */
@@ -531,6 +548,22 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
             assert.include(["available", "unsupported"], engine.capabilities("not-a-listed-model").toolCalls);
             const out = await events(engine, request({ model: "not-a-listed-model" }));
             assert.strictEqual(out.at(-1)?.type, "finish");
+        });
+
+        it("transcribes and speaks where its provider can, and leaves both absent where it cannot", async () => {
+            const { engine, voice } = make();
+            if (voice === undefined) {
+                assert.isFalse("transcribe" in engine, "no transcribe member, not even a stub");
+                assert.isFalse("speak" in engine, "no speak member, not even a stub");
+                return;
+            }
+
+            const { signal } = new AbortController();
+            const heard = await engine.transcribe?.(new Blob([new Uint8Array(8)], { type: "audio/webm" }), {}, signal);
+            assert.deepStrictEqual(heard, { code: "AI_COMPLETED", params: {}, text: voice.transcript });
+            const said = await engine.speak?.("Two hubs.", {}, signal);
+            assert.strictEqual(said?.code, "AI_COMPLETED");
+            assert.strictEqual(said?.code === "AI_COMPLETED" ? said.audio : undefined, voice.audio);
         });
 
         it("answers a key check with a code, and disposes", async () => {

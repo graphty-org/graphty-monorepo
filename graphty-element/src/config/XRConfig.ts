@@ -120,6 +120,40 @@ export interface XRTeleportationConfig {
     easeTime: number;
 }
 
+/** A face button of a Quest Touch controller: A and B on the right, X and Y on the left. */
+export type XRControllerButton = "a" | "b" | "x" | "y";
+
+/**
+ * The assistant in an immersive session (with `AiManagerConfig.voice`). Every part is on by
+ * default; an empty button list switches that binding off. Never the trigger or the thumbsticks.
+ */
+export interface XRAiConfig {
+    /** Holding talk. */
+    pushToTalk?: {
+        /** The buttons held to talk. @default ["b", "y"] */
+        buttons?: readonly XRControllerButton[];
+        /** With hands, pinch and hold a microphone orb on the wrist to talk. @default true */
+        wristOrb?: boolean;
+    };
+    /** The buttons that answer a pending approval. */
+    pendingButtons?: {
+        /** @default ["a"] */
+        approve?: readonly XRControllerButton[];
+        /** @default ["x"] */
+        deny?: readonly XRControllerButton[];
+    };
+    /** Draw approve and deny, or one control per question choice, in the scene. @default true */
+    pendingControl?: boolean;
+    /** Draw the transcript and the answer in the scene. @default true */
+    panel?: boolean;
+    /**
+     * The words drawn in the scene, keyed by code (a result code, or a control's own code). A code
+     * with no label is drawn as its icon only: the element draws no words of its own.
+     * @default {}
+     */
+    labels?: Readonly<Record<string, string>>;
+}
+
 /**
  * Complete XR configuration
  */
@@ -154,6 +188,9 @@ export interface XRConfig {
      * Teleportation configuration
      */
     teleportation: XRTeleportationConfig;
+
+    /** The assistant in an immersive session; absent, every default. */
+    ai?: XRAiConfig;
 }
 
 /**

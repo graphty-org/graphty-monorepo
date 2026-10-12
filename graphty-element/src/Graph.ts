@@ -6371,6 +6371,51 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Press (`true`) or release (`false`) talk: while it is held the assistant listens, then sends
+     * what was said as a command (`AiManagerConfig.voice`). Without `voice`, or before AI is
+     * enabled, a press ends at once with `ai-voice-end` `{ code: "AI_NOT_ENABLED" }`.
+     * @param down - True to press, false to release.
+     * @since 4.0.0
+     */
+    aiTalk(down: boolean): void {
+        if (this.aiManager) {
+            this.aiManager.talk(down);
+        } else if (down) {
+            this.eventManager.emit("ai-voice-end", { reason: "error", code: "AI_NOT_ENABLED", params: {} });
+        }
+    }
+
+    /**
+     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELLED" }`).
+     * @since 4.0.0
+     */
+    stopAiSpeech(): void {
+        this.aiManager?.stopSpeech();
+    }
+
+    /**
+     * How speech would be carried in each direction now: the path, whether it is ready, why not,
+     * and where the audio goes. May start the browser's recognition once to find out.
+     * @returns Both directions; unavailable with `AI_NOT_ENABLED` without `voice`.
+     * @since 4.0.0
+     */
+    async getAiVoiceSupport(): Promise<import("./ai/AiManager").AiVoiceSupport> {
+        if (this.aiManager) {
+            return this.aiManager.getVoiceSupport();
+        }
+
+        // Built here rather than imported, so the assistant's chunk stays unloaded until enabled.
+        const none = {
+            path: "none",
+            status: "unavailable",
+            code: "AI_NOT_ENABLED",
+            params: {},
+            destination: "none",
+        } as const;
+        return { input: none, output: none };
+    }
+
+    /**
      * The assistant's saved conversations, newest first: this element's scope, or every scope.
      * @param options - Which.
      * @param options.allKeys - True for every scope's.

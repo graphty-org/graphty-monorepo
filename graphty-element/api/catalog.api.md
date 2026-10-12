@@ -26,7 +26,7 @@ export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[];
 export const AI_PROVIDER_IDS: readonly ["openai", "anthropic", "google", "webllm", "mock"];
 
 // @public
-export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED", "AI_CONFIRMATION_NEEDED", "AI_ROLLBACK_PARTIAL", "AI_APPROVAL_STALE", "AI_APPROVAL_DENIED", "AI_TOOL_DENIED_BY_POLICY", "AI_TOOL_NOT_RUN", "AI_HISTORY_UNAVAILABLE", "AI_HISTORY_NEWER_FORMAT", "AI_STORAGE_FAILED", "AI_QUESTION_ASKED", "AI_ANSWER_INVALID", "AI_CONFIG_INVALID", "AI_HOSTED_TOOL_UNSUPPORTED", "AI_PROVIDER_PAUSED"];
+export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED", "AI_CONFIRMATION_NEEDED", "AI_ROLLBACK_PARTIAL", "AI_APPROVAL_STALE", "AI_APPROVAL_DENIED", "AI_TOOL_DENIED_BY_POLICY", "AI_TOOL_NOT_RUN", "AI_HISTORY_UNAVAILABLE", "AI_HISTORY_NEWER_FORMAT", "AI_STORAGE_FAILED", "AI_QUESTION_ASKED", "AI_ANSWER_INVALID", "AI_CONFIG_INVALID", "AI_HOSTED_TOOL_UNSUPPORTED", "AI_PROVIDER_PAUSED", "AI_VOICE_UNAVAILABLE"];
 
 // @public
 export const AI_STAGES: readonly ["processing", "generating", "executing"];
@@ -39,6 +39,12 @@ export const AI_TOOL_CALL_STATUSES: readonly ["pending", "executing", "complete"
 
 // @public
 export const AI_TOOL_CAUSE_CODES: readonly ["AI_OK", "AI_UNKNOWN_ACTION", "AI_ARG_INVALID", "AI_ARG_OUT_OF_RANGE", "AI_UNKNOWN_ENTRY", "AI_UNKNOWN_NODE", "AI_UNKNOWN_EDGE", "AI_UNKNOWN_COLUMN", "AI_UNKNOWN_RUN", "AI_BAD_SELECTOR", "AI_EMPTY_MATCH", "AI_NOT_AVAILABLE", "AI_CONFIRM_REQUIRED", "AI_IMPORT_URL_REFUSED", "AI_UNDO_NOTHING", "AI_UNDO_NOT_ALONE", "AI_UNDO_NOT_MINE", "AI_UNDO_IN_MESSAGE", "AI_CURSOR_STALE", "AI_TOOL_NOT_RUN", "AI_UNKNOWN_TOOL", "AI_PAINTED_NOTHING"];
+
+// @public
+export const AI_VOICE_CAPABILITIES: Readonly<Record<AiProviderId, AiProviderVoice>>;
+
+// @public
+export const AI_VOICE_UNAVAILABLE_REASONS: readonly ["no-recognition", "no-microphone", "permission-denied", "insecure-context", "no-provider-transcription", "no-provider-speech", "no-key"];
 
 // @public
 export interface AiCapabilities {
@@ -113,6 +119,19 @@ export function aiProviderDescriptor(id: AiProviderId): AiProviderDescriptor;
 export type AiProviderId = (typeof AI_PROVIDER_IDS)[number];
 
 // @public
+export interface AiProviderVoice {
+    readonly speech: {
+        readonly status: AiCapabilityStatus;
+        readonly model?: string;
+    };
+    readonly transcription: {
+        readonly status: AiCapabilityStatus;
+        readonly model?: string;
+        readonly viaChatModel?: boolean;
+    };
+}
+
+// @public
 export type AiResultCode = (typeof AI_RESULT_CODES)[number];
 
 // @public
@@ -123,6 +142,24 @@ export type AiToolCapabilities = Readonly<Record<AiHostedToolId, AiCapabilitySta
 
 // @public
 export type AiToolCauseCode = (typeof AI_TOOL_CAUSE_CODES)[number] | (string & {});
+
+// @public
+export type AiVoiceDestination = "on-device" | "browser-vendor" | "provider" | "none";
+
+// @public
+export type AiVoiceDirection = "input" | "output";
+
+// @public
+export type AiVoiceReadiness = "ready" | "needs-permission" | "unavailable";
+
+// @public
+export type AiVoiceRoute = "browser" | "provider" | "on-device" | "none";
+
+// @public
+export function aiVoiceStatus(provider: AiProviderId, direction: AiVoiceDirection): AiCapabilityStatus;
+
+// @public
+export type AiVoiceUnavailableReason = (typeof AI_VOICE_UNAVAILABLE_REASONS)[number];
 
 // @public
 export function algorithmByKey(key: string): BuiltInAlgorithmDescriptor | undefined;

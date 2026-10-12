@@ -737,6 +737,9 @@ export type AiEvent =
     | AiVoiceStartEvent
     | AiVoiceTranscriptEvent
     | AiVoiceEndEvent
+    | AiVoiceLevelEvent
+    | AiSpeechStartEvent
+    | AiSpeechEndEvent
     | AiApprovalRequestedEvent
     | AiExportReadyEvent
     | AiConversationChangedEvent
@@ -1053,4 +1056,38 @@ export interface AiConversationChangedEvent {
 interface AiVoiceEndEvent {
     type: "ai-voice-end";
     reason: "user" | "timeout" | "error";
+    /**
+     * How a press of `aiTalk` ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE` or
+     * `AI_NOT_ENABLED`. Absent for `startVoiceInput`.
+     */
+    code?: AiResultCode;
+    /** The facts behind `code` (`{ path, reason }` for `AI_VOICE_UNAVAILABLE`). */
+    params?: AiResultParams;
+}
+
+/** How loud the microphone is while talk is held, at most once per animation frame. */
+export interface AiVoiceLevelEvent {
+    /** The event's name. */
+    type: "ai-voice-level";
+    /** From 0 (silence) to 1. */
+    level: number;
+}
+
+/** The assistant started speaking an answer. */
+export interface AiSpeechStartEvent {
+    /** The event's name. */
+    type: "ai-speech-start";
+}
+
+/** The assistant stopped speaking. */
+export interface AiSpeechEndEvent {
+    /** The event's name. */
+    type: "ai-speech-end";
+    /**
+     * Why: `AI_COMPLETED` (it finished), `AI_CANCELLED` (talk or `stopAiSpeech()` cut it off),
+     * `AI_VOICE_UNAVAILABLE` or a provider's failure code.
+     */
+    code: AiResultCode;
+    /** The facts behind `code`. */
+    params: AiResultParams;
 }

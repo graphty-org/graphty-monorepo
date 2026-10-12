@@ -280,6 +280,39 @@ export type ProviderApiTurn = (
     signal: AbortSignal,
 ) => AsyncIterable<TurnEvent>;
 
+/** How to transcribe one clip. */
+export interface TranscribeOptions {
+    /** The language spoken, a BCP 47 tag; absent, the provider guesses. */
+    readonly language?: string;
+    /** The transcription model; absent, the provider's default (`AI_VOICE_CAPABILITIES`). */
+    readonly model?: string;
+}
+
+/** How to speak one text. */
+export interface SpeakOptions {
+    /** The provider's name for the voice; absent, its default. */
+    readonly voiceName?: string;
+    /** The speech model; absent, the provider's default (`AI_VOICE_CAPABILITIES`). */
+    readonly model?: string;
+}
+
+/**
+ * What a transcription heard: `AI_COMPLETED` with the text, or the code it failed with
+ * (`AI_KEY_REJECTED`, `AI_PROVIDER_ERROR`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`) and no text.
+ * Never thrown.
+ */
+export type TurnText =
+    | { readonly code: "AI_COMPLETED"; readonly params: AiResultParams; readonly text: string }
+    | { readonly code: Exclude<AiResultCode, "AI_COMPLETED">; readonly params: AiResultParams };
+
+/**
+ * What speaking produced: `AI_COMPLETED` with the audio (a `Blob` of the provider's content
+ * type), or the code it failed with and no audio. Never thrown.
+ */
+export type SpokenAudio =
+    | { readonly code: "AI_COMPLETED"; readonly params: AiResultParams; readonly audio: Blob }
+    | { readonly code: Exclude<AiResultCode, "AI_COMPLETED">; readonly params: AiResultParams };
+
 /** Talks to a model, one turn per call. */
 export interface AiEngine {
     readonly kind: "provider-api" | "llm-provider" | "fake";
@@ -290,6 +323,13 @@ export interface AiEngine {
     turn(request: TurnRequest, signal: AbortSignal): AsyncIterable<TurnEvent>;
     /** Whether the configured key is accepted: `AI_COMPLETED` when it is. */
     checkKey(signal: AbortSignal): Promise<EngineOutcome>;
+    /**
+     * Speech to text through the provider. Absent (never a throwing stub) on an engine whose
+     * provider cannot, so `"transcribe" in engine` is the capability.
+     */
+    transcribe?(audio: Blob, options: TranscribeOptions, signal: AbortSignal): Promise<TurnText>;
+    /** Text to speech through the provider; absent, like `transcribe`, where it cannot. */
+    speak?(text: string, options: SpeakOptions, signal: AbortSignal): Promise<SpokenAudio>;
     dispose(): void;
 }
 

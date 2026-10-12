@@ -86,11 +86,14 @@ export interface GraphtyElementJSXProps {
     "onai-hosted-tool-result"?: (event: CustomEvent<EventOfType<"ai-hosted-tool-result">>) => void;
     "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
     "onai-question-asked"?: (event: CustomEvent<EventOfType<"ai-question-asked">>) => void;
+    "onai-speech-end"?: (event: CustomEvent<EventOfType<"ai-speech-end">>) => void;
+    "onai-speech-start"?: (event: CustomEvent<EventOfType<"ai-speech-start">>) => void;
     "onai-status-change"?: (event: CustomEvent<EventOfType<"ai-status-change">>) => void;
     "onai-stream-chunk"?: (event: CustomEvent<EventOfType<"ai-stream-chunk">>) => void;
     "onai-stream-tool-call"?: (event: CustomEvent<EventOfType<"ai-stream-tool-call">>) => void;
     "onai-stream-tool-result"?: (event: CustomEvent<EventOfType<"ai-stream-tool-result">>) => void;
     "onai-voice-end"?: (event: CustomEvent<EventOfType<"ai-voice-end">>) => void;
+    "onai-voice-level"?: (event: CustomEvent<EventOfType<"ai-voice-level">>) => void;
     "onai-voice-start"?: (event: CustomEvent<EventOfType<"ai-voice-start">>) => void;
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;
     // (undocumented)

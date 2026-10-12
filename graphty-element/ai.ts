@@ -70,7 +70,14 @@ export { MAX_AGENT_NAME_LENGTH, MAX_AGENT_PURPOSE_LENGTH, MAX_AGENTS, MAX_HELPER
 export { AiConfigError } from "./src/ai/index";
 
 // AI Manager
-export type { AiManagerConfig, KeyPersistenceConfig } from "./src/ai/index";
+export type {
+    AiManagerConfig,
+    AiVoiceMode,
+    AiVoiceOptions,
+    AiVoicePath,
+    AiVoiceSupport,
+    KeyPersistenceConfig,
+} from "./src/ai/index";
 export { AiManager, createAiManager } from "./src/ai/index";
 
 // The assistant's approval gate: the limits past which a change waits for the reader, and what
@@ -90,6 +97,9 @@ export type {
     AiPendingResolvedEvent,
     AiQuestionAskedEvent,
     AiQuestionRequest,
+    AiSpeechEndEvent,
+    AiSpeechStartEvent,
+    AiVoiceLevelEvent,
 } from "./src/events";
 
 // AI Commands

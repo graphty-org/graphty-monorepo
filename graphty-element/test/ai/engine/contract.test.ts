@@ -9,7 +9,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
 import type { TurnEvent } from "../../../src/ai/engine/types";
-import { fakeFixture, mockProviderFixture, runEngineContract } from "./contract";
+import { fakeFixture, fakeVoiceFixture, mockProviderFixture, runEngineContract } from "./contract";
 import { providerApiFixture } from "./providerApiFixtures";
 
 afterEach(() => {
@@ -17,6 +17,7 @@ afterEach(() => {
 });
 
 runEngineContract("FakeEngine", fakeFixture);
+runEngineContract("FakeEngine (voice scripted)", fakeVoiceFixture);
 runEngineContract("LlmProviderEngine(MockLlmProvider)", mockProviderFixture);
 for (const provider of ["openai", "anthropic", "google"] as const) {
     runEngineContract(`ProviderApiEngine(${provider})`, () => providerApiFixture(provider));

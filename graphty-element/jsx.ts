@@ -355,6 +355,14 @@ export interface GraphtyElementJSXProps {
      */
     "onai-question-asked"?: (event: CustomEvent<EventOfType<"ai-question-asked">>) => void;
     /**
+     * The assistant stopped speaking.
+     */
+    "onai-speech-end"?: (event: CustomEvent<EventOfType<"ai-speech-end">>) => void;
+    /**
+     * The assistant started speaking an answer.
+     */
+    "onai-speech-start"?: (event: CustomEvent<EventOfType<"ai-speech-start">>) => void;
+    /**
      * Main event for UI binding - single source of truth for AI status
      */
     "onai-status-change"?: (event: CustomEvent<EventOfType<"ai-status-change">>) => void;
@@ -374,6 +382,10 @@ export interface GraphtyElementJSXProps {
      * Emitted when voice input ends
      */
     "onai-voice-end"?: (event: CustomEvent<EventOfType<"ai-voice-end">>) => void;
+    /**
+     * How loud the microphone is while talk is held, at most once per animation frame.
+     */
+    "onai-voice-level"?: (event: CustomEvent<EventOfType<"ai-voice-level">>) => void;
     /**
      * Emitted when voice input starts
      */

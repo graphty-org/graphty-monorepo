@@ -335,6 +335,7 @@ export class AiManager {
     getRegisteredCommands(): string[];
     getSchemaManager(): SchemaManager | null;
     getStatus(): AiStatus;
+    getVoiceSupport(): Promise<AiVoiceSupport>;
     init(graph: Graph, config: AiManagerConfig): void;
     listConversations(options?: {
         readonly allKeys?: boolean;
@@ -347,6 +348,8 @@ export class AiManager {
     resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;
     retry(): Promise<ExecutionResult>;
     setApiKey(provider: ProviderType, key: string): void;
+    stopSpeech(): void;
+    talk(down: boolean): void;
 }
 
 // @public
@@ -366,6 +369,7 @@ export interface AiManagerConfig {
     registerBuiltinCommands?: boolean;
     toolProfile?: "standard" | "small" | "auto";
     tools?: AiToolOptions;
+    voice?: AiVoiceOptions;
 }
 
 // @public
@@ -411,6 +415,18 @@ export interface AiSource {
     readonly title?: string;
     readonly tool: AiHostedToolId;
     readonly url: string;
+}
+
+// @public
+export interface AiSpeechEndEvent {
+    code: AiResultCode;
+    params: AiResultParams;
+    type: "ai-speech-end";
+}
+
+// @public
+export interface AiSpeechStartEvent {
+    type: "ai-speech-start";
 }
 
 // @public
@@ -479,6 +495,51 @@ export interface AiToolOptions {
     readonly webContentWrites?: "refuse" | "ask" | "allow";
     readonly webFetch?: boolean | AiHostedToolOptions;
     readonly webSearch?: boolean | AiHostedToolOptions;
+}
+
+// @public
+export interface AiVoiceLevelEvent {
+    level: number;
+    type: "ai-voice-level";
+}
+
+// @public
+export type AiVoiceMode = "auto" | "browser" | "provider" | "off";
+
+// @public
+export interface AiVoiceOptions {
+    input?: AiVoiceMode;
+    language?: string;
+    output?: AiVoiceMode;
+    push?: "hold" | "toggle";
+    replies?: {
+        approve?: readonly string[];
+        deny?: readonly string[];
+    };
+    say?: (fact: {
+        code: AiResultCode;
+        params: AiResultParams;
+    }) => string | undefined;
+    transcription?: {
+        provider: AiProviderId;
+        model?: string;
+    };
+    voiceName?: string;
+}
+
+// @public
+export interface AiVoicePath {
+    code?: AiResultCode;
+    destination: AiVoiceDestination;
+    params?: AiResultParams;
+    path: AiVoiceRoute;
+    status: AiVoiceReadiness;
+}
+
+// @public
+export interface AiVoiceSupport {
+    input: AiVoicePath;
+    output: AiVoicePath;
 }
 
 // @public

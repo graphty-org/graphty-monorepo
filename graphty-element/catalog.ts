@@ -44,9 +44,15 @@ export type {
     AiModelDescriptor,
     AiProviderDescriptor,
     AiProviderId,
+    AiProviderVoice,
     AiResultCode,
     AiResultParams,
     AiToolCapabilities,
+    AiVoiceDestination,
+    AiVoiceDirection,
+    AiVoiceReadiness,
+    AiVoiceRoute,
+    AiVoiceUnavailableReason,
 } from "./src/catalog/ai";
 export {
     AI_CONVERSATION_FORMAT,
@@ -59,8 +65,11 @@ export {
     AI_STAGES,
     AI_STATES,
     AI_TOOL_CALL_STATUSES,
+    AI_VOICE_CAPABILITIES,
+    AI_VOICE_UNAVAILABLE_REASONS,
     aiHostedToolStatus,
     aiProviderDescriptor,
+    aiVoiceStatus,
     checkApiKeyShape,
 } from "./src/catalog/ai";
 export type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey, LegacyAlgorithmMapping } from "./src/catalog/algorithms";

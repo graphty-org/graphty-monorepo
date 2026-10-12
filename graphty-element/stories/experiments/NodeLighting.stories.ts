@@ -1045,7 +1045,8 @@ export const Option1StudioFollowFill = optionStory(
         "the fill is fixed in the world, so orbiting to the back or underneath turns the fill's dark ground " +
         "side toward the viewer; here the viewer always sees the same mix of sky and ground, from any side. " +
         "The fill's direction (1, 1, 0) is the studio's, now read in the camera's frame (sky up and to the " +
-        "right of the view), so even from the front the shading differs a little from the studio setup. " +
+        "right of the view); from the starting camera the two frames agree, so the front view matches the " +
+        "studio setup exactly, and the two part only once the camera orbits. " +
         "The ground color is the studio's: with the fill turning with the camera, no raise was needed.",
 );
 

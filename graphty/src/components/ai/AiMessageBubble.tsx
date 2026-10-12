@@ -10,6 +10,8 @@ export interface ChatMessage {
     /** When it was sent; the time is drawn only when known. */
     timestamp?: number;
     isError?: boolean;
+    /** The helper that said it, when a helper did; drawn as a label above the message. */
+    agent?: string;
 }
 
 interface AiMessageBubbleProps {
@@ -57,6 +59,11 @@ export function AiMessageBubble({ message, onRetry }: AiMessageBubbleProps): Rea
                 maxWidth: "85%",
             }}
         >
+            {message.agent !== undefined && (
+                <Text size="xs" c="dimmed" mb={2} data-testid="ai-message-agent">
+                    {`Helper: ${message.agent}`}
+                </Text>
+            )}
             <Paper
                 p="xs"
                 radius="md"

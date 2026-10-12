@@ -27,6 +27,9 @@ const WORDS: Partial<Record<AiResultCode, string>> = {
     AI_HISTORY_UNAVAILABLE: "Saved conversations cannot be used here.",
     AI_HISTORY_NEWER_FORMAT: "A conversation saved by a newer version of Graphty was left as it is.",
     AI_STORAGE_FAILED: "The conversation could not be saved. It is kept until you close this page.",
+    AI_QUESTION_ASKED: "The assistant asked you a question.",
+    AI_ANSWER_INVALID: "That answer is not one of the choices.",
+    AI_CONFIG_INVALID: "The assistant's settings name something it cannot use, so nothing was sent.",
 };
 
 /** Words for a code whose `reason` param says more, keyed by code and then reason. */
@@ -111,6 +114,13 @@ function callRecordText(call: AiCallRecord, waiting: boolean): string {
 export function approvalLines(request: AiApprovalRequest): string[] {
     const { preview } = request;
     const lines = request.calls.map((call) => callText(call.tool, call.arguments));
+    if (request.gate === "plan") {
+        lines.unshift("The assistant wants to hand this work to a helper.");
+    }
+
+    if (request.agent !== undefined) {
+        lines.unshift(`Asked by the helper ${request.agent}.`);
+    }
     const plural = (count: number, one: string): string => `${String(count)} ${one}${count === 1 ? "" : "s"}`;
 
     if (preview.removeNodes) {
@@ -184,6 +194,7 @@ export function aiTranscript(source: AiTranscriptSource): ChatMessage[] {
                 id: message.id,
                 role: "assistant",
                 content: lines.filter((line) => line !== "").join("\n"),
+                ...(message.agent === undefined ? {} : { agent: message.agent }),
                 ...(message.outcome === undefined ? {} : { isError: true }),
             },
         ];

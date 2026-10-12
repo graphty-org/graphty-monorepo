@@ -1,5 +1,10 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { AiApprovalRequest, AiConversationSnapshot, AiStatus } from "@graphty/graphty-element/ai";
+import type {
+    AiApprovalRequest,
+    AiConversationSnapshot,
+    AiQuestionRequest,
+    AiStatus,
+} from "@graphty/graphty-element/ai";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +17,8 @@ const mockDoors = {
     removeEventListener: events.removeEventListener.bind(events),
     getAiConversation: vi.fn((): AiConversationSnapshot | null => null),
     getPendingAiApprovals: vi.fn((): readonly AiApprovalRequest[] => []),
+    getPendingAiQuestions: vi.fn((): readonly AiQuestionRequest[] => []),
+    answerAiQuestion: vi.fn().mockResolvedValue({ success: true, message: "", code: "AI_COMPLETED", params: {} }),
     resolveAiApproval: vi.fn().mockResolvedValue({ success: true, message: "", code: "AI_COMPLETED", params: {} }),
     newAiConversation: vi.fn().mockResolvedValue(null),
     clearAiHistory: vi.fn().mockResolvedValue(undefined),
@@ -31,6 +38,7 @@ describe("useAiManager", () => {
         vi.clearAllMocks();
         mockDoors.getAiConversation.mockReturnValue(null);
         mockDoors.getPendingAiApprovals.mockReturnValue([]);
+        mockDoors.getPendingAiQuestions.mockReturnValue([]);
     });
 
     afterEach(() => {
@@ -83,6 +91,7 @@ describe("useAiManager", () => {
             provider: "openai",
             apiKey: undefined,
             history: "browser",
+            questions: true,
         });
     });
 
@@ -103,6 +112,7 @@ describe("useAiManager", () => {
                 provider: "anthropic",
                 apiKey: "test-api-key",
                 history: "browser",
+                questions: true,
             });
         });
 
@@ -120,6 +130,7 @@ describe("useAiManager", () => {
                     provider: "webllm",
                     apiKey: undefined,
                     history: "browser",
+                    questions: true,
                 });
             });
         });
@@ -404,6 +415,46 @@ describe("useAiManager", () => {
                 );
             });
             expect(result.current.approvals).toEqual([]);
+        });
+
+        it("reads the questions again on ai-question-asked and ai-pending-resolved, and answers them", async () => {
+            const question: AiQuestionRequest = {
+                id: "q-1",
+                question: "Which department?",
+                choices: ["Sales", "Ops"],
+                multiple: false,
+            };
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            expect(result.current.questions).toEqual([]);
+
+            mockDoors.getPendingAiQuestions.mockReturnValue([question]);
+            act(() => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-question-asked", { detail: { request: question, replayed: false } }),
+                );
+            });
+            expect(result.current.questions).toEqual([question]);
+
+            let answered: { code?: string } = {};
+            await act(async () => {
+                answered = await result.current.answerQuestion("q-1", "Sales");
+            });
+            expect(answered.code).toBe("AI_COMPLETED");
+            expect(mockDoors.answerAiQuestion).toHaveBeenCalledWith("q-1", "Sales");
+
+            mockDoors.getPendingAiQuestions.mockReturnValue([]);
+            act(() => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-pending-resolved", {
+                        detail: { id: "q-1", kind: "question", code: "AI_COMPLETED", params: {} },
+                    }),
+                );
+            });
+            expect(result.current.questions).toEqual([]);
         });
 
         it("keeps a store failure the element reported", async () => {

@@ -3902,6 +3902,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         onDeny={(id) => {
                             void aiManager.resolveApproval(id, false);
                         }}
+                        questions={aiManager.questions}
+                        onAnswer={(id, answer) => {
+                            void aiManager.answerQuestion(id, answer);
+                        }}
                         // Offered once the assistant is on: before that there is no conversation to act on.
                         onNewConversation={
                             aiManager.isReady

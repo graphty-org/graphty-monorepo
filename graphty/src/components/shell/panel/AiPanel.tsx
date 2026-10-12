@@ -1,5 +1,5 @@
 import { ActionRow, PANEL_GRID, PANEL_INK, ProseBlock } from "@graphty/compact-mantine";
-import type { AiApprovalRequest } from "@graphty/graphty-element/ai";
+import type { AiApprovalRequest, AiQuestionRequest } from "@graphty/graphty-element/ai";
 import { ActionIcon, Box, Button, Group, Paper, Text, Textarea } from "@mantine/core";
 import React, { useState } from "react";
 
@@ -42,6 +42,9 @@ const SETUP_PROMPT = "No provider is configured. Open Settings to connect one.";
 
 /** The approval card's heading. */
 const APPROVAL_TITLE = "Approve this change?";
+
+/** The question card's name; the model's question is its text. */
+const QUESTION_TITLE = "The assistant asks";
 
 /** The conversation row's name. */
 const CONVERSATION_LABEL = "Conversation";
@@ -124,6 +127,10 @@ export interface AiPanelProps {
     readonly onApprove?: (id: string) => void;
     /** Declines a held change, by its request's id. */
     readonly onDeny?: (id: string) => void;
+    /** The questions the model waits on the reader for; one card each. */
+    readonly questions?: readonly AiQuestionRequest[];
+    /** Answers a question, by its request's id and the choice the reader clicked. */
+    readonly onAnswer?: (id: string, answer: string) => void;
     /** Starts a new conversation. The row with it draws only when this or `onClearHistory` is set. */
     readonly onNewConversation?: () => void;
     /** Deletes every saved conversation. */
@@ -160,6 +167,8 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
         approvals = [],
         onApprove,
         onDeny,
+        questions = [],
+        onAnswer,
         onNewConversation,
         onClearHistory,
     } = props;
@@ -243,6 +252,42 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
                                 >
                                     Approve
                                 </Button>
+                            </Group>
+                        </Paper>
+                    ))}
+                </PanelRows>
+            )}
+
+            {questions.length > 0 && (
+                <PanelRows>
+                    {questions.map((request) => (
+                        <Paper
+                            key={request.id}
+                            withBorder
+                            p="xs"
+                            my={PANEL_GRID.TRIPLE_GAP}
+                            role="group"
+                            aria-label={QUESTION_TITLE}
+                            data-testid="ai-question"
+                        >
+                            <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
+                                {request.question}
+                            </Text>
+                            {/* ponytail: one click answers with one choice, also when several may be picked;
+                                add checkboxes and an Answer button when a reader needs to pick several. */}
+                            <Group gap={PANEL_GRID.TRIPLE_GAP} mt={PANEL_GRID.TRIPLE_GAP}>
+                                {request.choices.map((choice) => (
+                                    <Button
+                                        key={choice}
+                                        variant="default"
+                                        size="xs"
+                                        onClick={() => {
+                                            onAnswer?.(request.id, choice);
+                                        }}
+                                    >
+                                        {choice}
+                                    </Button>
+                                ))}
                             </Group>
                         </Paper>
                     ))}

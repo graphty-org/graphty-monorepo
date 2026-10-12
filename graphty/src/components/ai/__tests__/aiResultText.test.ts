@@ -18,6 +18,20 @@ describe("aiResultText", () => {
         );
     });
 
+    it("has words for questions and the assistant's settings", () => {
+        expect(aiResultText({ success: false, message: "", code: "AI_ANSWER_INVALID", params: {} })).toBe(
+            "That answer is not one of the choices.",
+        );
+        expect(
+            aiResultText({
+                success: false,
+                message: "",
+                code: "AI_CONFIG_INVALID",
+                params: { agent: "x", field: "router", reason: "unknown-agent" },
+            }),
+        ).toBe("The assistant's settings name something it cannot use, so nothing was sent.");
+    });
+
     it("falls back to the general text for a result with no code", () => {
         expect(aiResultText({ success: false, message: "x" })).toBe("The assistant could not answer.");
         expect(aiResultText({ success: true, message: "Laid out." })).toBe("Laid out.");
@@ -60,6 +74,36 @@ describe("aiTranscript", () => {
                 isError: true,
             },
             { id: "m3", role: "user", content: "try again" },
+        ]);
+    });
+
+    it("labels a helper's message with its name and words a question and its answer", () => {
+        const asked: AiConversationSnapshot = {
+            ...conversation,
+            messages: [
+                { id: "m1", role: "assistant", text: "3 nodes", calls: [], agent: "counter" },
+                {
+                    id: "m2",
+                    role: "assistant",
+                    text: "",
+                    calls: [
+                        {
+                            command: "ask_reader",
+                            arguments: { question: "Which?" },
+                            code: "AI_QUESTION_ASKED",
+                            params: { request: "q-1" },
+                        },
+                    ],
+                },
+            ],
+        };
+        expect(aiTranscript({ conversation: asked, historyNotice: null })).toEqual([
+            { id: "m1", role: "assistant", content: "3 nodes", agent: "counter" },
+            {
+                id: "m2",
+                role: "assistant",
+                content: 'ask_reader {"question":"Which?"}: The assistant asked you a question.',
+            },
         ]);
     });
 

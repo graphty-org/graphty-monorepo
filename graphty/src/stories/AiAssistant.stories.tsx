@@ -56,6 +56,10 @@ function Assistant({ element }: { readonly element: ElementUnderTest }): React.J
             onDeny={(id) => {
                 void ai.resolveApproval(id, false);
             }}
+            questions={ai.questions}
+            onAnswer={(id, answer) => {
+                void ai.answerQuestion(id, answer);
+            }}
             // Offered once the assistant is on: before that there is no conversation to act on.
             onNewConversation={
                 ai.isReady

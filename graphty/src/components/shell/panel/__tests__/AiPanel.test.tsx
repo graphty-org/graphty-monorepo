@@ -1,8 +1,8 @@
-import type { AiApprovalRequest } from "@graphty/graphty-element/ai";
+import type { AiApprovalRequest, AiQuestionRequest } from "@graphty/graphty-element/ai";
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { fireEvent, render, screen, within } from "../../../../test/test-utils";
 import type { ChatMessage } from "../../../ai/AiMessageBubble";
 import { keyChipFor } from "../../bindings";
 import { ShellProvider } from "../../ShellContext";
@@ -254,6 +254,67 @@ describe("AiPanel", () => {
 
             await userEvent.click(screen.getByRole("button", { name: "Approve" }));
             expect(onApprove).toHaveBeenCalledWith("req-1");
+        });
+    });
+
+    describe("the question card", () => {
+        const question: AiQuestionRequest = {
+            id: "q-1",
+            question: "Which department is your favorite?",
+            choices: ["Sales", "Ops", "R&D"],
+            multiple: false,
+        };
+
+        it("shows the model's question and one button per choice", () => {
+            renderPanel({ questions: [question] });
+
+            const card = screen.getByRole("group", { name: "The assistant asks" });
+            expect(card).toHaveTextContent("Which department is your favorite?");
+            for (const choice of question.choices) {
+                expect(within(card).getByRole("button", { name: choice })).toBeInTheDocument();
+            }
+        });
+
+        it("answers by the request's id and the clicked choice", async () => {
+            const onAnswer = vi.fn();
+            renderPanel({ questions: [question], onAnswer });
+
+            await userEvent.click(screen.getByRole("button", { name: "R&D" }));
+            expect(onAnswer).toHaveBeenCalledExactlyOnceWith("q-1", "R&D");
+        });
+
+        it("draws no card when nothing is asked", () => {
+            renderPanel();
+
+            expect(screen.queryByTestId("ai-question")).not.toBeInTheDocument();
+        });
+    });
+
+    describe("a plan held for approval", () => {
+        it("says the assistant hands work to a helper, and which helper asks", () => {
+            renderPanel({
+                approvals: [
+                    {
+                        id: "req-2",
+                        gate: "plan",
+                        calls: [{ tool: "delegate", arguments: { agent: "stylist", task: "color them red" } }],
+                        preview: {},
+                        agent: "planner",
+                    },
+                ],
+            });
+
+            const card = screen.getByRole("group", { name: "Approve this change?" });
+            expect(card).toHaveTextContent("The assistant wants to hand this work to a helper.");
+            expect(card).toHaveTextContent("Asked by the helper planner.");
+        });
+    });
+
+    describe("a helper's message", () => {
+        it("is labeled with the helper's name", () => {
+            renderPanel({ messages: [{ id: "m1", role: "assistant", content: "3 nodes", agent: "counter" }] });
+
+            expect(screen.getByTestId("ai-message-agent")).toHaveTextContent("Helper: counter");
         });
     });
 

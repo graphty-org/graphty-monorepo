@@ -1,5 +1,11 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { AiApprovalRequest, AiConversationSnapshot, AiStatus, ExecutionResult } from "@graphty/graphty-element/ai";
+import type {
+    AiApprovalRequest,
+    AiConversationSnapshot,
+    AiQuestionRequest,
+    AiStatus,
+    ExecutionResult,
+} from "@graphty/graphty-element/ai";
 import type { AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
 import { useCallback, useEffect, useState } from "react";
 
@@ -46,10 +52,14 @@ interface UseAiManagerResult {
     conversation: AiConversationSnapshot | null;
     /** The changes waiting on the reader's approval, oldest first. */
     approvals: readonly AiApprovalRequest[];
+    /** The questions the model asked the reader and still waits on, oldest first. */
+    questions: readonly AiQuestionRequest[];
     /** The last store failure the element reported, if any. */
     historyNotice: AiHistoryNotice | null;
     /** Approve or deny a held change; resolves with the message's final result. */
     resolveApproval: (id: string, approve: boolean) => Promise<AiCommandOutcome>;
+    /** Answer a question by one of its choices; resolves with the message's final result. */
+    answerQuestion: (id: string, answer: string) => Promise<AiCommandOutcome>;
     /** Start a new conversation; the old one stays saved. */
     newConversation: () => Promise<void>;
     /** Delete every saved conversation of this assistant. */
@@ -60,7 +70,8 @@ interface UseAiManagerResult {
  * React hook for the element's AI assistant. The element builds, owns and disposes the assistant
  * (`enableAiControl`, `disableAiControl`) and keeps its conversations in the browser; this hook
  * switches it on for the chosen provider and mirrors its status, its open conversation and the
- * changes waiting on approval into React state.
+ * changes and questions waiting on the reader into React state. Questions are on (`questions: true`)
+ * because the AI panel draws them.
  * @param options - Configuration options for the AI manager
  * @returns Methods and state for managing AI operations
  */
@@ -74,6 +85,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
     const [error, setError] = useState<Error | null>(null);
     const [conversation, setConversation] = useState<AiConversationSnapshot | null>(null);
     const [approvals, setApprovals] = useState<readonly AiApprovalRequest[]>([]);
+    const [questions, setQuestions] = useState<readonly AiQuestionRequest[]>([]);
     const [historyNotice, setHistoryNotice] = useState<AiHistoryNotice | null>(null);
 
     // Sync currentProvider with defaultProvider when it changes
@@ -90,6 +102,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             setEnabled(null);
             setConversation(null);
             setApprovals([]);
+            setQuestions([]);
 
             return undefined;
         }
@@ -101,6 +114,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             if (!cancelled && element) {
                 setConversation(element.getAiConversation());
                 setApprovals(element.getPendingAiApprovals());
+                setQuestions(element.getPendingAiQuestions());
             }
         };
         const onConversationChanged = (event: { detail: { code?: AiResultCode; params?: AiResultParams } }): void => {
@@ -114,7 +128,12 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
 
         async function enable(target: GraphtyElement, provider: ProviderType): Promise<void> {
             try {
-                await target.enableAiControl({ provider, apiKey: getKey?.(provider), history: "browser" });
+                await target.enableAiControl({
+                    provider,
+                    apiKey: getKey?.(provider),
+                    history: "browser",
+                    questions: true,
+                });
             } catch (err) {
                 console.error("[useAiManager] Failed to enable the assistant:", err);
                 return;
@@ -139,6 +158,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             });
             target.addEventListener("ai-conversation-changed", onConversationChanged);
             target.addEventListener("ai-approval-requested", read);
+            target.addEventListener("ai-question-asked", read);
             target.addEventListener("ai-pending-resolved", read);
             read();
             setEnabled(target);
@@ -151,6 +171,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             unsubscribe?.();
             element.removeEventListener("ai-conversation-changed", onConversationChanged);
             element.removeEventListener("ai-approval-requested", read);
+            element.removeEventListener("ai-question-asked", read);
             element.removeEventListener("ai-pending-resolved", read);
             element.disableAiControl();
             setEnabled(null);
@@ -187,6 +208,17 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
         [enabled],
     );
 
+    const answerQuestion = useCallback(
+        async (id: string, answer: string): Promise<AiCommandOutcome> => {
+            if (!enabled) {
+                return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
+            }
+
+            return settle(() => enabled.answerAiQuestion(id, answer));
+        },
+        [enabled],
+    );
+
     const newConversation = useCallback(async (): Promise<void> => {
         await enabled?.newAiConversation();
     }, [enabled]);
@@ -216,8 +248,10 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
         clearError,
         conversation,
         approvals,
+        questions,
         historyNotice,
         resolveApproval,
+        answerQuestion,
         newConversation,
         clearHistory,
     };

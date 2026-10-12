@@ -2,7 +2,9 @@
  * The AI panel on the REAL graphty-element, its assistant on the scripted mock provider: the
  * transcript is the element's saved conversation, a change the element holds shows as a card,
  * Approve runs it and Deny leaves the graph alone, and an element mounted again on the same
- * browser database brings the transcript and a still-pending approval back.
+ * browser database brings the transcript and a still-pending approval back. A question the model
+ * asks shows as a card with one button per choice; clicking one continues the message, and the
+ * question, too, comes back on an element mounted again.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -31,6 +33,12 @@ const ASK = "clear the graph";
 /** The held call, as the card and the transcript write it. */
 const CALL_TEXT = 'edit_data {"action":"delete_all"}';
 
+/** What the reader asks; the mock provider answers it with a question. */
+const ASK_QUESTION = "color my favorite department";
+
+/** The model's question. */
+const QUESTION = "Which department is your favorite?";
+
 const mounted: ElementUnderTest[] = [];
 
 /**
@@ -56,6 +64,10 @@ function Assistant({ element }: { readonly element: ElementUnderTest }): React.J
             }}
             onDeny={(id) => {
                 void ai.resolveApproval(id, false);
+            }}
+            questions={ai.questions}
+            onAnswer={(id, answer) => {
+                void ai.answerQuestion(id, answer);
             }}
             // Offered once the assistant is on: before that there is no conversation to act on.
             onNewConversation={
@@ -117,6 +129,10 @@ async function renderAssistant(element: ElementUnderTest): Promise<() => void> {
         text: "",
         toolCalls: [{ id: "0", name: "edit_data", arguments: { action: "delete_all" } }],
     });
+    provider?.setResponse(ASK_QUESTION, {
+        text: "",
+        toolCalls: [{ id: "q", name: "ask_reader", arguments: { question: QUESTION, choices: ["Sales", "Ops"] } }],
+    });
     // The panel offers its conversation actions once the assistant is on.
     await screen.findByRole("button", { name: "Clear history" }, { timeout: TIMEOUT_MS });
     return unmount;
@@ -130,6 +146,52 @@ async function askAndWaitForCard(): Promise<HTMLElement> {
     await userEvent.fill(screen.getByRole("textbox", { name: "Ask the assistant" }), ASK);
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     return screen.findByRole("group", { name: "Approve this change?" }, { timeout: TIMEOUT_MS });
+}
+
+/**
+ * Types the request the model answers with a question, sends it, and waits for the question card.
+ * @returns The card.
+ */
+async function askAndWaitForQuestion(): Promise<HTMLElement> {
+    await userEvent.fill(screen.getByRole("textbox", { name: "Ask the assistant" }), ASK_QUESTION);
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    return screen.findByRole("group", { name: "The assistant asks" }, { timeout: TIMEOUT_MS });
+}
+
+/**
+ * The calls the element's mock provider has answered.
+ * @param element - The element.
+ * @returns How many.
+ */
+function providerCalls(element: ElementUnderTest): number {
+    return (element.getAiManager()?.getProvider() as MockLlmProvider).getCallHistory().length;
+}
+
+/**
+ * Clicks a choice on the question card and waits until the message has gone on with the answer.
+ * @param element - The element.
+ * @param card - The card.
+ */
+async function answerOps(element: ElementUnderTest, card: HTMLElement): Promise<void> {
+    const asked = providerCalls(element);
+    await userEvent.click(within(card).getByRole("button", { name: "Ops" }));
+
+    // The reader's answer is the reader's message in the transcript, and the card is gone.
+    const transcript = screen.getByTestId("ai-transcript");
+    await within(transcript).findByText("Ops", {}, { timeout: TIMEOUT_MS });
+    await waitFor(
+        () => {
+            assert.isNull(screen.queryByRole("group", { name: "The assistant asks" }));
+        },
+        { timeout: TIMEOUT_MS },
+    );
+    await waitFor(
+        () => {
+            assert.isAbove(providerCalls(element), asked, "the model was asked again with the answer");
+        },
+        { timeout: TIMEOUT_MS },
+    );
+    assert.deepStrictEqual(element.getPendingAiQuestions(), []);
 }
 
 afterEach(async () => {
@@ -197,5 +259,38 @@ describe("the AI panel on the real element", () => {
         await userEvent.click(within(card).getByRole("button", { name: "Approve" }));
         await screen.findByText(`${CALL_TEXT}: Done.`, {}, { timeout: TIMEOUT_MS });
         assert.strictEqual(second.session.status.counts.nodes, 0);
+    });
+
+    it("draws the model's question with one button per choice, and a click continues the message", async () => {
+        const element = await placeElement(`ai-question-${crypto.randomUUID()}`);
+        await renderAssistant(element);
+
+        const card = await askAndWaitForQuestion();
+        assert.include(card.textContent, QUESTION);
+        assert.deepStrictEqual(
+            within(card)
+                .getAllByRole("button")
+                .map((button) => button.textContent),
+            ["Sales", "Ops"],
+        );
+
+        await answerOps(element, card);
+    });
+
+    it("brings a still-open question back when the element mounts again", async () => {
+        const id = `ai-question-remount-${crypto.randomUUID()}`;
+        const first = await placeElement(id);
+        const unmount = await renderAssistant(first);
+        await askAndWaitForQuestion();
+        unmount();
+        first.disableAiControl();
+        first.remove();
+
+        const second = await placeElement(id);
+        await renderAssistant(second);
+
+        const card = await screen.findByRole("group", { name: "The assistant asks" }, { timeout: TIMEOUT_MS });
+        assert.include(card.textContent, QUESTION);
+        await answerOps(second, card);
     });
 });

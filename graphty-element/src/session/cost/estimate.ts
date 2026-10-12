@@ -163,6 +163,18 @@ export interface MachineCalibration {
     readonly machine: string;
     /** Whether the numbers were measured here or are the built-in defaults. */
     readonly basis: "probe" | "defaults";
+    /**
+     * How fast random reads that miss every cache complete here, against the machine the default
+     * rates were fitted on: 1 there, 0.25 where such a read takes four times as long. Absent when
+     * memory was not measured, and then nothing is charged for it.
+     *
+     * Ordinary machines, desktops and cloud runners alike, read 0.6 or more, and on them a run over
+     * a large graph keeps pace with the cores the rates already measure. Memory loaded by another
+     * process can read far lower, and then a run over a graph too large for the cache takes longer
+     * than its rates say, by up to `0.5 / memorySpeed`; the estimate charges that.
+     * @since 3.24.2
+     */
+    readonly memorySpeed?: number;
 }
 
 /**
@@ -223,6 +235,57 @@ const BYTES_PER_VALUE = 8;
 
 /** Bytes a graph-level field is charged, which is a nominal figure for a scalar or a small table. */
 const BYTES_PER_GRAPH_FIELD = 1024;
+
+/**
+ * The memory speed (see {@link MachineCalibration.memorySpeed}) under which memory counts as
+ * loaded. At or above it, large-graph runs kept pace with the cores on every machine measured: CI
+ * runners whose cores read 0.47x to 1.07x the reference, with memory at 0.63x to 0.85x, held the
+ * same estimate / measured ratios. A runner whose memory another tenant was loading (issue #2025)
+ * ran those rows 3 to 6x slower than the cores said.
+ */
+const LOADED_MEMORY_SPEED = 0.5;
+
+/**
+ * Working sets at or under this many bytes stay in a core's own cache (256 KB to 2 MB per core),
+ * so memory speed does not reach them: on the loaded runner, eigenvector centrality on a
+ * 10,000-node grid (about 240 KB) and betweenness and closeness on a few thousand nodes ran as
+ * fast as ever.
+ */
+const CACHE_RESIDENT_BYTES = 256 * 1024;
+
+/**
+ * Working sets at or over this many bytes are charged the whole memory factor. A shared
+ * last-level cache is 32 MB or more, but loaded memory is loaded cache too: on the loaded runner,
+ * Louvain on 50,000 nodes and 250,000 edges (about 2.4 MB) already ran 3x slower.
+ */
+const CACHE_MISSING_BYTES = 4 * 1024 * 1024;
+
+/**
+ * How much longer than its rates say a run over this graph takes on this machine's memory.
+ *
+ * 1 unless memory reads as loaded. Then the factor is `LOADED_MEMORY_SPEED / memorySpeed`, applied
+ * to the share of the work that misses the cache. That share is read from the working set, one
+ * 8-byte value per node and per edge, from none at {@link CACHE_RESIDENT_BYTES} to all of it at
+ * {@link CACHE_MISSING_BYTES}, by the logarithm of the size. How local a graph's edges are (a
+ * path's neighbours sit side by side in memory, a random graph's do not) decides how much of that
+ * work misses too, but the statistics do not say, so every shape is charged as a random one: the
+ * cautious side.
+ * @param nodes - Nodes in scope.
+ * @param edges - Edges in scope.
+ * @param calibration - This machine's calibration, when it has one.
+ * @returns The factor, 1 or more.
+ */
+function memoryStretch(nodes: number, edges: number, calibration: MachineCalibration | undefined): number {
+    const speed = calibration?.memorySpeed;
+    if (speed === undefined || !Number.isFinite(speed) || speed <= 0 || speed >= LOADED_MEMORY_SPEED) {
+        return 1;
+    }
+
+    const bytes = BYTES_PER_VALUE * (nodes + edges);
+    const missing = Math.log2(bytes / CACHE_RESIDENT_BYTES) / Math.log2(CACHE_MISSING_BYTES / CACHE_RESIDENT_BYTES);
+
+    return 1 + Math.min(1, Math.max(0, missing)) * (LOADED_MEMORY_SPEED / speed - 1);
+}
 
 // ---------------------------------------------------------------------------------------------
 // What is being estimated
@@ -865,7 +928,7 @@ export function estimateCost(input: CostInput): CostEstimate {
         notes.push(`sampled at ${group(sample)} of ${group(nodes)} nodes`);
     }
 
-    if (scope !== undefined && scope.exact === false) {
+    if (scope?.exact === false) {
         notes.push("sizes scaled from the whole graph rather than counted");
     }
 
@@ -943,7 +1006,7 @@ function modelFromRates(
         }
     }
 
-    const probed = calibration !== undefined && calibration.basis === "probe";
+    const probed = calibration?.basis === "probe";
     const rates = calibration?.rates ?? DEFAULT_COST_RATES;
     const rate = rateFor(costClass, rates);
 
@@ -955,17 +1018,25 @@ function modelFromRates(
         };
     }
 
+    // The own models are the walks over a snapshot's arcs with a read of a node-indexed array at
+    // each -- the work that slows when memory does. The class rates were fitted to the object-graph
+    // route and run 50x to 600x over the snapshot, and a plugin's units say nothing about how its
+    // work touches memory, so neither is stretched.
     const own = OWN_COST_MODELS[descriptor.key];
+    const stretch = own === undefined || ownUnits ? 1 : memoryStretch(nodes, edges, calibration);
     const seconds =
         own === undefined || ownUnits
             ? units / rate
-            : own.seconds(nodes, edges, rates, iterations, statistics) * sampleFactor;
+            : own.seconds(nodes, edges, rates, iterations, statistics) * sampleFactor * stretch;
 
     if (probed) {
         return {
             seconds,
             confidence: "calibrated",
-            provenance: `calibrated ${calibration.at} on this device`,
+            provenance:
+                stretch > 1
+                    ? `calibrated ${calibration.at} on this device, whose memory reads ${calibration.memorySpeed?.toFixed(2) ?? ""}x the reference, so the work is charged ${stretch.toFixed(2)}x`
+                    : `calibrated ${calibration.at} on this device`,
         };
     }
 

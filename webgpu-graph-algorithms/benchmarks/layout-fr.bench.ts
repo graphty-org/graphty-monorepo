@@ -83,7 +83,7 @@ const MODELS: readonly Model[] = [
  */
 export async function runLayoutFrBenchmarks(ctx: GpuContext): Promise<BenchResult[]> {
     const results: BenchResult[] = [];
-    const source = ctx.profiler !== null && ctx.profiler.enabled ? "profiler" : "wall";
+    const source = ctx.profiler?.enabled ? "profiler" : "wall";
     for (const rung of FR_RUNGS) {
         const m = rung.nodes * LADDER_EDGE_FACTOR;
         const snapshot = snapshotOf(randomEdges(rung.nodes, m, SEED), { label: `layout-fr/${rung.label}` });

@@ -1,3 +1,31 @@
+## 0.8.68 (2026-10-12)
+
+### 🩹 Fixes
+
+- **compact-mantine:** name the color input's controls from its label ([#2100](https://github.com/graphty-org/graphty-monorepo/issues/2100))
+- **graphty:** drop the stale note that selectById("1") misses integer ids ([#2061](https://github.com/graphty-org/graphty-monorepo/issues/2061))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.47
+- Updated compact-mantine to 0.9.19
+- Updated graphty-element to 3.25.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.67 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.46
+- Updated compact-mantine to 0.9.18
+- Updated graphty-element to 3.25.0
+- Updated graph-samples to 0.1.28
+- Updated graph-format to 1.3.13
+- Updated graph-io to 0.3.36
+
 ## 0.8.66 (2026-10-11)
 
 ### 🧱 Updated Dependencies

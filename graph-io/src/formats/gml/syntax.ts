@@ -615,7 +615,7 @@ export function parseRecord(tokens: GmlTokens, open: number): Record<string, unk
  */
 function storeValue(frame: RecordFrame, key: string, value: unknown): void {
     const { record } = frame;
-    if (frame.listKeys !== null && frame.listKeys.has(key)) {
+    if (frame.listKeys?.has(key)) {
         (record[key] as unknown[]).push(value);
     } else if (key in record) {
         record[key] = [record[key], value];

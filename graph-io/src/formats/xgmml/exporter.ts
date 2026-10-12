@@ -971,7 +971,7 @@ function slot(writes: readonly ColumnWrite[], kind: ColumnWrite["kind"]): Column
  * @returns the value
  */
 function cellOf(column: Column | null, row: number): unknown {
-    return column !== null && column.isSet(row) ? column.value(row) : null;
+    return column?.isSet(row) ? column.value(row) : null;
 }
 
 /**

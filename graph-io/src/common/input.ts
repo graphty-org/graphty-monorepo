@@ -40,7 +40,7 @@ import {
 } from "./codes.js";
 import { type ImportReportBuilder } from "./report.js";
 
-export { INVALID_UTF8_CODE };
+export { INVALID_UTF8_CODE } from "./codes.js";
 
 /**
  * Cancellation and progress hooks of the reader; the resolved importer options satisfy this shape.
@@ -999,7 +999,7 @@ function utf8Length(text: string): number {
  * @category Writing a format
  */
 export function throwIfAborted(signal: AbortSignal | null | undefined): void {
-    if (signal === null || signal === undefined || !signal.aborted) {
+    if (!signal?.aborted) {
         return;
     }
     const { reason }: { reason: unknown } = signal;

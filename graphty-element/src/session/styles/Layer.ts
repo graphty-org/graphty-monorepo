@@ -957,12 +957,7 @@ function checkSelector(
  */
 function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: ProblemLog): LayerSpec {
     const selector = spec.selector as { match?: unknown; of?: unknown } | undefined;
-    if (
-        options.admitScope === undefined ||
-        typeof selector !== "object" ||
-        selector === null ||
-        selector.match !== "member"
-    ) {
+    if (options.admitScope === undefined || typeof selector !== "object" || selector?.match !== "member") {
         return spec;
     }
 

@@ -11,7 +11,7 @@ import type { GraphCommand } from "./types";
  * Follows the same pattern as LayoutEngine.register() and Algorithm.register().
  */
 export class CommandRegistry {
-    private commands = new Map<string, GraphCommand>();
+    private readonly commands = new Map<string, GraphCommand>();
 
     /**
      * Register a new command.

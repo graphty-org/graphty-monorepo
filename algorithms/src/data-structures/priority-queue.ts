@@ -6,7 +6,7 @@
  */
 export class PriorityQueue<T> {
     private heap: { item: T; priority: number }[];
-    private compareFn: (a: number, b: number) => number;
+    private readonly compareFn: (a: number, b: number) => number;
 
     /**
      * Creates a new PriorityQueue instance.

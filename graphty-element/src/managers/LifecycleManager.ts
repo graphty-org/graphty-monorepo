@@ -24,7 +24,7 @@ export class LifecycleManager implements Manager {
      * engine and WebGL context (issue #1977).
      */
     private disposed = false;
-    private logger: Logger = GraphtyLogger.getLogger(["graphty", "lifecycle"]);
+    private readonly logger: Logger = GraphtyLogger.getLogger(["graphty", "lifecycle"]);
 
     /**
      * Creates a new lifecycle manager for coordinating manager initialization and disposal
@@ -33,9 +33,9 @@ export class LifecycleManager implements Manager {
      * @param initOrder - Array of manager names defining initialization order
      */
     constructor(
-        private managers: Map<string, Manager>,
-        private eventManager: EventManager,
-        private initOrder: string[],
+        private readonly managers: Map<string, Manager>,
+        private readonly eventManager: EventManager,
+        private readonly initOrder: string[],
     ) {}
 
     /**

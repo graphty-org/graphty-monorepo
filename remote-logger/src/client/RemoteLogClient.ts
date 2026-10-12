@@ -95,7 +95,7 @@ export class RemoteLogClient {
     private flushPromise: Promise<void> | null = null;
 
     /** Tracks when each throttle pattern was last allowed through */
-    private throttleLastTimes = new Map<string, number>();
+    private readonly throttleLastTimes = new Map<string, number>();
 
     /**
      * Creates a new RemoteLogClient.

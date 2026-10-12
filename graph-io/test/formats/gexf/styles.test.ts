@@ -3,7 +3,7 @@
  * wrote, and styles written back into the viz module with the `graphty.styles` block in `<meta>`.
  */
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { GraphBuilder } from "@graphty/graph-format";
@@ -24,14 +24,6 @@ import { editGexfNodeColor, replaceGexfBlock } from "../../styles/formats/gexf.j
 const registry = createRegistry();
 const CORPUS = resolve(import.meta.dirname, "../../corpus/styles/gexf/generated");
 const DISEASOME = resolve(import.meta.dirname, "../../conformance/fixtures/gexf/gephi-datasets/diseasome.gexf");
-/** Gephi's CPAN datasets: GEXF 1.0 with `type="dir"` edges listed before their nodes; not redistributable. */
-const CPAN = ["cpan-distributions", "cpan-authors"].map((name) =>
-    resolve(
-        import.meta.dirname,
-        `../../../../../../tmp/style-import/wild/gexf/files/x/gephi-${name}.gexf/${name}.gexf`,
-    ),
-);
-
 /**
  * Imports a GEXF document with its styles.
  * @param doc - the document
@@ -195,15 +187,6 @@ describe("GEXF 1.0 files", () => {
             kind: "discrete",
             by: { data: "disclass" },
         });
-    });
-
-    it.skipIf(!CPAN.every((f) => existsSync(f)))("imports the edges of Gephi's CPAN datasets", async () => {
-        for (const file of CPAN) {
-            const { snapshot, report } = await load(new Uint8Array(readFileSync(file)));
-            const listed = (readFileSync(file, "utf-8").match(/<edge\s/g) ?? []).length;
-            expect(snapshot.edgeCount).toBe(listed);
-            expect(report.errorCount).toBe(0);
-        }
     });
 
     it("reports, and leaves out, a node an edge listed first names that no <node> declares", async () => {

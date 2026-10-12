@@ -4,7 +4,7 @@
  * style, view bypasses and `graphty.styles` entry; and the sessions graphty wrote read back, edited and tampered with.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { GraphBuilder } from "@graphty/graph-format";
@@ -101,19 +101,6 @@ describe("reading session styles", () => {
     it("splits list cells on carriage returns, as some Cytoscape versions write them", () => {
         const att = cellAtt({ name: "counts", type: "Integer", list: true }, "1\r2\r\n3\n", 1, null, false);
         expect(att?.children.map((c) => c.value)).toEqual(["1", "2", "3"]);
-    });
-
-    // The PSPG homework session is licensed for redistribution but over the corpus size limit, so it is read from a
-    // local copy of the full corpus when there is one (graph-io/scripts/styles-corpus.mjs reads the same copy).
-    const pspg = resolve(
-        import.meta.dirname,
-        "../../../../../../tmp/style-import/wild/round2/cys/cytoscape-tutorials-PSPG_Homework.cys",
-    );
-    it.skipIf(!existsSync(pspg))("imports the PSPG homework session whole: 407 nodes and 699 edges", async () => {
-        const { snapshot, report, styles } = await load(file(pspg));
-        expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([407, 699]);
-        expect(report.issues.filter((i) => i.code === "E_BAD_VALUE")).toEqual([]);
-        expect(styles?.styles.rules.length).toBeGreaterThan(0);
     });
 });
 

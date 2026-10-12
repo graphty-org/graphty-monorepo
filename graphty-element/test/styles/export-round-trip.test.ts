@@ -27,8 +27,9 @@ const CORPUS = join(__dirname, "..", "..", "..", "graph-io", "test", "corpus", "
 
 /**
  * Every format the element writes, with the options that pick it and whether it keeps rules. The
- * d3 and JGF shapes of JSON are left out: the element's JSON reader reads neither back (no `links`,
- * no single `graph`), with styles or without.
+ * JGF shape of JSON is left out: it reads integer-like node ids back first, so the graph read back
+ * holds its nodes in another order than this test compares them in (graph-io's own round trip
+ * checks JGF by id).
  */
 const WRITERS: readonly {
     readonly name: string;
@@ -48,6 +49,7 @@ const WRITERS: readonly {
     { name: "XGMML", format: "xgmml", options: {}, rules: true },
     { name: "CX2", format: "cx2", options: {}, rules: true },
     { name: "JSON node-link", format: "json", options: { dialect: "node-link" }, rules: true },
+    { name: "d3 JSON", format: "json", options: { dialect: "d3" }, rules: true },
     { name: "Cytoscape.js JSON", format: "json", options: { dialect: "cytoscape" }, rules: true },
     { name: "graphology JSON", format: "json", options: { dialect: "graphology" }, rules: true, dataStable: false },
     { name: "vis.js JSON", format: "json", options: { dialect: "vis" }, rules: true },

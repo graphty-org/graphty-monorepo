@@ -48,6 +48,9 @@ import type { FileStyleScalar } from "./store";
 
 /** The most terms a selector made from a file holds; a wider group is written onto the elements. */
 const MAX_TERMS = 8;
+
+/** The key of the copy graph-io writes of a data column a format cannot keep, and the column it copies. */
+const CARRIED_INPUT = /^input\.(?:[^.]+\.)?data\.(.+)$/;
 /** A mapping table with more keys present than this is kept as values per element. */
 const MAX_TABLE_KEYS = 256;
 /** The label budget when the load does not set one, and the most it may be. */
@@ -1252,7 +1255,7 @@ class KindTranslation {
                     : binding;
         }
 
-        if (missing || !this.#readsHeldData(given)) {
+        if (missing || !this.#readsHeldData(given, rule)) {
             return ignored("PATH");
         }
 
@@ -1272,9 +1275,10 @@ class KindTranslation {
      * reader that nests a column (a graphology attribute arrives under `attributes`) or leaves it
      * out gives the layer nothing at the path it names, so the neutral rule is drawn instead.
      * @param spec - The layer.
+     * @param rule - The rule it stands for.
      * @returns True when each `data.` path it reads is where the reader put a column of the file.
      */
-    #readsHeldData(spec: Partial<LayerSpec>): boolean {
+    #readsHeldData(spec: Partial<LayerSpec>, rule: StyleRule): boolean {
         const paths: string[] = [];
         const { selector } = spec;
         if (selector?.match === "has" || selector?.match === "top") {
@@ -1298,8 +1302,30 @@ class KindTranslation {
             );
         }
 
+        // A column the format could not keep is read by the rule from the copy graph-io writes beside
+        // the block (`input.data.<column>`, `input.<property>.data.<column>`): the layer, which reads
+        // the column itself, would read what the file holds there instead.
+        const copied = new Set<string>();
+        const { ext: _ext, ...neutral } = rule;
+        JSON.stringify(neutral, (_key, value: unknown) => {
+            if (
+                typeof value === "object" &&
+                value !== null &&
+                !Array.isArray(value) &&
+                Object.keys(value).length === 1
+            ) {
+                const { style } = value as { style?: unknown };
+                const column = typeof style === "string" ? CARRIED_INPUT.exec(style)?.[1] : undefined;
+                const path = column === undefined ? null : this.#input.dataPath(this.#kind, column);
+                if (path !== null) {
+                    copied.add(path);
+                }
+            }
+
+            return value;
+        });
         const held = this.#heldPaths;
-        return paths.filter((path) => path.startsWith("data.")).every((path) => held.has(path));
+        return paths.filter((path) => path.startsWith("data.")).every((path) => held.has(path) && !copied.has(path));
     }
 
     /**

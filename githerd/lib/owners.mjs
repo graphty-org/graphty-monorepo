@@ -42,9 +42,11 @@ import { join, relative, sep } from "node:path";
 /** @typedef {Record<string, {session: string, at: string}>} Disowned the disowning session, by pull request */
 /**
  * What the transcripts of one session have shown so far: the bytes read of each file (by path
- * relative to the session's transcript, `""` for the transcript itself) and the latest push time of
- * each branch.
- * @typedef {{files: Record<string, number>, pushes: Record<string, string>}} TranscriptScan
+ * relative to the session's transcript, `""` for the transcript itself), the latest push time of
+ * each branch, the session's name, the issues it filed (`gh issue create`, by number, with the
+ * time) and its `gh issue create` calls whose result was not read yet (by tool use id).
+ * @typedef {{files: Record<string, number>, pushes: Record<string, string>, name?: string,
+ *   filed?: Record<string, string>, creates?: Record<string, string>}} TranscriptScan
  */
 
 /** Bytes of transcript read per poll, across every session. */
@@ -76,21 +78,72 @@ export function pushedBranches(cmd) {
 }
 
 /**
- * Records the pushes in complete transcript lines: Bash tool calls of assistant messages. Only
- * lines that mention a push are parsed.
+ * Records the pushes and the filed issues in complete transcript lines: Bash tool calls of
+ * assistant messages, and the results of `gh issue create` calls. Only lines that mention one are
+ * parsed.
  * @param {Buffer} buf whole lines
- * @param {Record<string, string>} pushes the latest push time by branch, updated
+ * @param {TranscriptScan} scan the session's scan, updated
  */
-function pushesIn(buf, pushes) {
-    const seen = new Set();
-    for (const needle of ["git push", "gh pr create"]) {
-        for (let i = buf.indexOf(needle); i !== -1; i = buf.indexOf(needle, i + 1)) {
-            const start = buf.lastIndexOf(10, i) + 1;
-            if (seen.has(start)) continue;
-            seen.add(start);
-            recordPushes(parseLine(buf, start, i), pushes);
+function pushesIn(buf, scan) {
+    /**
+     * Hands each line holding one of `needles` to `record`, once per line.
+     * @param {string[]} needles what a line must contain
+     * @param {(e: any) => void} record what to do with its entry
+     */
+    const each = (needles, record) => {
+        const seen = new Set();
+        for (const needle of needles) {
+            for (let i = buf.indexOf(needle); i !== -1; i = buf.indexOf(needle, i + 1)) {
+                const start = buf.lastIndexOf(10, i) + 1;
+                if (seen.has(start)) continue;
+                seen.add(start);
+                record(parseLine(buf, start, i));
+            }
         }
+    };
+    each(["git push", "gh pr create"], (e) => recordPushes(e, scan.pushes));
+    each(["gh issue create"], (e) => recordCreates(e, scan));
+    for (const id of Object.keys(scan.creates ?? {})) each([`"tool_use_id":"${id}"`], (e) => recordFiled(e, id, scan));
+}
+
+/** Unanswered `gh issue create` calls kept per session; an older one is dropped. */
+const MAX_CREATES = 20;
+
+/**
+ * Records the `gh issue create` calls of one transcript entry's Bash tool calls, by tool use id,
+ * so their result names the issue (`recordFiled`).
+ * @param {any} e the transcript entry
+ * @param {TranscriptScan} scan the session's scan, updated
+ */
+function recordCreates(e, scan) {
+    if (e?.type !== "assistant") return;
+    for (const c of Array.isArray(e.message?.content) ? e.message.content : []) {
+        if (c?.type !== "tool_use" || c.name !== "Bash" || typeof c.id !== "string") continue;
+        if (!/\bgh\s+issue\s+create\b/.test(String(c.input?.command ?? ""))) continue;
+        scan.creates ??= {};
+        scan.creates[c.id] = String(e.timestamp ?? "");
     }
+    const ids = Object.keys(scan.creates ?? {});
+    for (const id of ids.slice(0, Math.max(ids.length - MAX_CREATES, 0))) delete scan.creates?.[id];
+}
+
+/**
+ * Records the issue a `gh issue create` call filed, from its result: gh prints the new issue's URL.
+ * @param {any} e the transcript entry holding the result
+ * @param {string} id the call's tool use id
+ * @param {TranscriptScan} scan the session's scan, updated
+ */
+function recordFiled(e, id, scan) {
+    const result = (Array.isArray(e?.message?.content) ? e.message.content : []).find(
+        (/** @type {any} */ c) => c?.type === "tool_result" && c.tool_use_id === id,
+    );
+    if (!result) return;
+    delete scan.creates?.[id];
+    const text = typeof result.content === "string" ? result.content : JSON.stringify(result.content ?? "");
+    const n = /\/issues\/(\d+)\b/.exec(text)?.[1];
+    if (!n || result.is_error) return;
+    scan.filed ??= {};
+    scan.filed[n] = String(e.timestamp ?? "");
 }
 
 /**
@@ -183,6 +236,7 @@ async function grownTranscripts(scans, live, projectsDir) {
     for (const s of live) {
         scans[s.sessionId] ??= { files: {}, pushes: {} };
         const scan = scans[s.sessionId];
+        scan.name = s.name;
         const base = join(projectsDir, /** @type {string} */ (s.cwd).replaceAll(/[^A-Za-z0-9]/g, "-"), s.sessionId);
         for (const rel of await transcriptFiles(base)) {
             const path = rel ? join(base, rel) : `${base}.jsonl`;
@@ -216,7 +270,7 @@ async function readTranscript({ scan, rel, path, size }, budget) {
             budget -= bytesRead;
             const buf = Buffer.concat([carry, chunk.subarray(0, bytesRead)]);
             const cut = buf.lastIndexOf(10) + 1;
-            pushesIn(buf.subarray(0, cut), scan.pushes);
+            pushesIn(buf.subarray(0, cut), scan);
             offset += cut;
             carry = buf.subarray(cut);
             if (carry.length > MAX_LINE) {

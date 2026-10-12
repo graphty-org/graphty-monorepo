@@ -646,6 +646,47 @@ function jobOnIssue(state, job, caller) {
     return null;
 }
 
+/**
+ * The live session that filed issue `n` with `gh issue create`, read from its transcript
+ * (owners.mjs scanTranscripts), or null when no live session in this repository did.
+ * @param {any} state the daemon state
+ * @param {number} n the issue
+ * @returns {{session: string, name: string, at: string} | null} the filer
+ */
+export function issueFiler(state, n) {
+    for (const [session, scan] of Object.entries(state.transcripts ?? {})) {
+        const at = /** @type {any} */ (scan).filed?.[n];
+        if (at) return { session, name: /** @type {any} */ (scan).name ?? session, at };
+    }
+    return null;
+}
+
+/**
+ * Why an issue job is not yet another session's to take, or null: the session that filed the issue
+ * is live and nobody has claimed the job, so it is offered to the filer first for one status cadence
+ * (`workers.statusMinutes`) from when it was queued. A session often files an issue for a bug it
+ * has already fixed, or is fixing, before its pull request names the issue (issue #2181, filed with
+ * its fix waiting in the push queue, was claimed by a second session within minutes). Unclaimed
+ * after that, it goes to every session, as a stuck pull request's job does (asks.mjs jobQuestion).
+ * @param {any} state the daemon state
+ * @param {any} job the issue job
+ * @param {{config?: any, now: Date, session?: string | null}} opts the config, the clock and the
+ *   session asking
+ * @returns {string | null} the reason
+ */
+function filerFirst(state, job, { config, now, session }) {
+    if (job.sessions?.length) return null;
+    const n = issueOf(job);
+    const filer = Number.isNaN(n) ? null : issueFiler(state, n);
+    if (!filer || filer.session === session) return null;
+    const minutes = config?.workers?.statusMinutes ?? DEFAULTS.workers.statusMinutes;
+    // A probe with no queue time (a bundle candidate) is in its window.
+    const until = Date.parse(job.stateSince ?? now.toISOString()) + minutes * MINUTE;
+    if (now.getTime() >= until) return null;
+    const at = new Date(until).toISOString().slice(11, 16);
+    return `offered first to session ${filer.name}, which filed #${n}, until ${at} UTC`;
+}
+
 /** Why a session may not review its own pull request. */
 const SELF_REVIEW = "you wrote this pull request";
 
@@ -660,7 +701,8 @@ const SELF_REVIEW = "you wrote this pull request";
  * @returns {string | null} the reason
  */
 export function jobInUse(state, job, opts) {
-    const covered = job.kind === "issue" ? jobOnIssue(state, job, opts.session) : null;
+    const covered =
+        job.kind === "issue" ? (jobOnIssue(state, job, opts.session) ?? filerFirst(state, job, opts)) : null;
     if (covered) return covered;
     const n = prOf(job);
     if (n === null) return null;

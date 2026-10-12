@@ -272,6 +272,15 @@ export function cyjsGraph(elements: unknown): CyjsGraph {
     }
     const parent = new Int32Array(nodes.length).fill(-1);
     const children: number[][] = nodes.map(() => []);
+    // root[x] leads to the root of x's parent chain; paths are halved as they are walked
+    const root = Int32Array.from(nodes, (_n, i) => i);
+    const rootOf = (x: number): number => {
+        while (root[x] !== x) {
+            root[x] = root[root[x]];
+            x = root[x];
+        }
+        return x;
+    };
     for (let i = 0; i < nodes.length; i++) {
         const raw = nodes[i].data.parent;
         if (raw === undefined || raw === null) {
@@ -286,21 +295,14 @@ export function cyjsGraph(elements: unknown): CyjsGraph {
         if (typeof raw === "number") {
             (nodes[i].overrides as Map<string, unknown>).set("parent", text);
         }
-        // a node never becomes its own ancestor
-        let a = p;
-        let cycle = false;
-        while (a >= 0) {
-            if (a === i) {
-                cycle = true;
-                break;
-            }
-            a = parent[a];
-        }
-        if (cycle) {
+        // a node never becomes its own ancestor: node i has no parent yet, so it is an ancestor of p exactly when it
+        // is the root of p's chain, found in near-constant time through the union-find roots
+        if (rootOf(p) === i) {
             (nodes[i].overrides as Map<string, unknown>).set("parent", undefined);
             continue;
         }
         parent[i] = p;
+        root[i] = p;
         children[p].push(i);
     }
     const incident: number[][] = nodes.map(() => []);
@@ -546,12 +548,26 @@ const RUNTIME_STATES: ReadonlySet<string> = new Set([
     "nonbackgrounding",
 ]);
 
+/** Thrown inside a selector match when the counted budget runs out partway through it. */
+class BudgetStop extends Error {}
+
+/** How many units of work a match does between checks of the budget and the signal. */
+const CHECK_EVERY = 4096;
+
 /** Evaluates selectors over one graph. */
 class Matcher {
     readonly degree: Int32Array;
     readonly indegree: Int32Array;
     readonly outdegree: Int32Array;
     work = 0;
+    /** Where the work is charged while a match runs; null between matches. */
+    #charge: { kind: StyleTarget; budget: StyleWorkBudget; signal?: AbortSignal } | null = null;
+    #charged = 0;
+    /**
+     * The answers of nested sub-queries for one match, per element: 0 unknown, 1 true, 2 false. Each sub-query is
+     * then evaluated at most once per element, so a nested compound selector costs polynomial, not exponential, time.
+     */
+    readonly #memo = { node: new Map<CyjsQuery, Uint8Array>(), edge: new Map<CyjsQuery, Uint8Array>() };
 
     constructor(
         readonly g: CyjsGraph,
@@ -583,11 +599,76 @@ class Matcher {
     query(q: CyjsQuery, kind: StyleTarget, i: number): boolean {
         for (const c of q.checks) {
             this.work++;
+            if (this.#charge !== null && this.work - this.#charged >= CHECK_EVERY) {
+                this.settle();
+            }
             if (!this.check(c, kind, i)) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * Starts one selector match: its work is charged to the budget as it runs, and the sub-query answers are fresh.
+     * @param kind - the target the work is charged to
+     * @param budget - the counted budget
+     * @param signal - cancels the match
+     */
+    begin(kind: StyleTarget, budget: StyleWorkBudget, signal?: AbortSignal): void {
+        this.#charge = { kind, budget, signal };
+        this.#charged = this.work;
+        this.#memo.node.clear();
+        this.#memo.edge.clear();
+    }
+
+    /** Ends a match: its remaining work is charged (never throwing) and its sub-query answers are dropped. */
+    end(): void {
+        const charge = this.#charge;
+        this.#charge = null;
+        charge?.budget.spend(charge.kind, this.work - this.#charged);
+        this.#charged = this.work;
+        this.#memo.node.clear();
+        this.#memo.edge.clear();
+    }
+
+    /**
+     * Charges the work done since the last charge; throws BudgetStop once the budget is exhausted.
+     * @throws BudgetStop - when the target's budget is exhausted
+     */
+    settle(): void {
+        const charge = this.#charge;
+        if (charge === null) {
+            return;
+        }
+        charge.budget.spend(charge.kind, this.work - this.#charged);
+        this.#charged = this.work;
+        charge.signal?.throwIfAborted();
+        if (charge.budget.exhausted(charge.kind)) {
+            throw new BudgetStop();
+        }
+    }
+
+    /**
+     * Whether an element matches a nested sub-query, remembered for the rest of the match.
+     * @param q - the sub-query
+     * @param kind - the element's kind
+     * @param i - the element
+     * @returns true when every check matches
+     */
+    sub(q: CyjsQuery, kind: StyleTarget, i: number): boolean {
+        const memo = this.#memo[kind];
+        let seen = memo.get(q);
+        if (seen === undefined) {
+            seen = new Uint8Array(kind === "node" ? this.g.nodes.length : this.g.edges.length);
+            memo.set(q, seen);
+        }
+        if (seen[i] !== 0) {
+            return seen[i] === 1;
+        }
+        const m = this.query(q, kind, i);
+        seen[i] = m ? 1 : 2;
+        return m;
     }
 
     /**
@@ -628,28 +709,28 @@ class Matcher {
                 return true;
             case "child":
                 return (
-                    this.query(c.child, kind, i) &&
+                    this.sub(c.child, kind, i) &&
                     kind === "node" &&
                     g.parent[i] >= 0 &&
-                    this.query(c.parent, "node", g.parent[i])
+                    this.sub(c.parent, "node", g.parent[i])
                 );
             case "parent":
                 return (
-                    this.query(c.parent, kind, i) &&
+                    this.sub(c.parent, kind, i) &&
                     kind === "node" &&
-                    g.children[i].some((k) => this.query(c.child, "node", k))
+                    g.children[i].some((k) => this.sub(c.child, "node", k))
                 );
             case "descendant":
-                return this.query(c.descendant, kind, i) && kind === "node" && this.someAncestor(i, c.ancestor);
+                return this.sub(c.descendant, kind, i) && kind === "node" && this.someAncestor(i, c.ancestor);
             case "ancestor":
-                return this.query(c.ancestor, kind, i) && kind === "node" && this.someDescendant(i, c.descendant);
+                return this.sub(c.ancestor, kind, i) && kind === "node" && this.someDescendant(i, c.descendant);
             case "split":
-                return this.query(c.subject, kind, i) && this.query(c.left, kind, i) && this.query(c.right, kind, i);
+                return this.sub(c.subject, kind, i) && this.sub(c.left, kind, i) && this.sub(c.right, kind, i);
             case "directedEdge":
                 return (
                     kind === "edge" &&
-                    this.query(c.source, "node", g.source[i]) &&
-                    this.query(c.target, "node", g.target[i])
+                    this.sub(c.source, "node", g.source[i]) &&
+                    this.sub(c.target, "node", g.target[i])
                 );
             case "undirectedEdge": {
                 if (kind !== "edge") {
@@ -659,29 +740,29 @@ class Matcher {
                 const s = g.source[i];
                 const t = g.target[i];
                 return (
-                    (this.query(a, "node", s) && this.query(b, "node", t)) ||
-                    (this.query(b, "node", s) && this.query(a, "node", t))
+                    (this.sub(a, "node", s) && this.sub(b, "node", t)) ||
+                    (this.sub(b, "node", s) && this.sub(a, "node", t))
                 );
             }
             case "nodeSource":
                 return (
                     kind === "node" &&
-                    this.query(c.source, kind, i) &&
-                    g.incident[i].some((ed) => g.source[ed] === i && this.query(c.target, "node", g.target[ed]))
+                    this.sub(c.source, kind, i) &&
+                    g.incident[i].some((ed) => g.source[ed] === i && this.sub(c.target, "node", g.target[ed]))
                 );
             case "nodeTarget":
                 return (
                     kind === "node" &&
-                    this.query(c.target, kind, i) &&
-                    g.incident[i].some((ed) => g.target[ed] === i && this.query(c.source, "node", g.source[ed]))
+                    this.sub(c.target, kind, i) &&
+                    g.incident[i].some((ed) => g.target[ed] === i && this.sub(c.source, "node", g.source[ed]))
                 );
             case "nodeNeighbor":
                 return (
                     kind === "node" &&
-                    this.query(c.node, kind, i) &&
+                    this.sub(c.node, kind, i) &&
                     g.incident[i].some((ed) => {
                         const other = g.source[ed] === i ? g.target[ed] : g.source[ed];
-                        return this.query(c.neighbor, "node", other);
+                        return this.sub(c.neighbor, "node", other);
                     })
                 );
             default:
@@ -697,7 +778,7 @@ class Matcher {
      */
     someAncestor(i: number, q: CyjsQuery): boolean {
         for (let a = this.g.parent[i]; a >= 0; a = this.g.parent[a]) {
-            if (this.query(q, "node", a)) {
+            if (this.sub(q, "node", a)) {
                 return true;
             }
         }
@@ -714,7 +795,7 @@ class Matcher {
         const stack = [...this.g.children[i]];
         while (stack.length > 0) {
             const k = stack.pop() as number;
-            if (this.query(q, "node", k)) {
+            if (this.sub(q, "node", k)) {
                 return true;
             }
             for (const c of this.g.children[k]) {
@@ -1190,9 +1271,20 @@ function cascade(
             stopped = true;
             break;
         }
-        const before = matcher.work;
-        const list = matchList(entry.selector, kind, n, matcher, ix);
-        spend(matcher.work - before + list.length);
+        let list: readonly number[];
+        matcher.begin(kind, budget, input.signal);
+        try {
+            list = matchList(entry.selector, kind, n, matcher, ix);
+            matcher.end();
+        } catch (error) {
+            matcher.end();
+            if (!(error instanceof BudgetStop)) {
+                throw error;
+            }
+            stopped = true;
+            break;
+        }
+        spend(list.length);
         applied.push({ entry, list, props });
         for (const p of props) {
             const col = cellsOf(cells, p.name, n);

@@ -22,6 +22,7 @@ import {
     resolveStyles,
     STYLE_PROPERTIES,
     StyleBudget,
+    STYLE_ISSUE,
     styleFingerprint,
     StyleNotes,
     type StyleProperty,
@@ -455,6 +456,56 @@ describe("linear work", () => {
         const rules = "canonical" in st ? (st.node?.rules ?? []) : [];
         expect(rules).toHaveLength(1);
         expect(rules[0].map?.fill).toMatchObject({ kind: "discrete", by: { data: "v" } });
+    });
+});
+
+describe("compound selectors and deep hierarchies", () => {
+    /** A chain of n nodes, each the parent of the next, listed parent first. */
+    const chain = (n: number): { data: { id: string; parent?: string } }[] =>
+        Array.from({ length: n }, (_, i) => ({
+            data: i === 0 ? { id: "c0" } : { id: `c${String(i)}`, parent: `c${String(i - 1)}` },
+        }));
+
+    it("matches a selector nested 20 deep over a 60-node chain in polynomial work", () => {
+        const budget = new StyleBudget();
+        const r = evaluateCytoscapeJs({
+            elements: chain(60),
+            style: [{ selector: `.x ${"node ".repeat(20)}`, style: { width: 7 } }],
+            budget,
+            toolDefaults: false,
+        });
+        // no node has class x, so nothing matches; the work stays far below the budget
+        expect((r.node.values.width ?? []).some((w) => w === 7)).toBe(false);
+        expect(budget.used("node")).toBeLessThan(5_000_000);
+    });
+
+    it("stops a match partway when the budget runs out and says so", () => {
+        const budget = new StyleBudget(1000);
+        const notes = new StyleNotes();
+        evaluateCytoscapeJs({
+            elements: chain(400),
+            style: [{ selector: `.x ${"node ".repeat(10)}`, style: { width: 7 } }],
+            budget,
+            notes,
+            toolDefaults: false,
+        });
+        expect(notes.list().some((n) => n.code === STYLE_ISSUE.BUDGET)).toBe(true);
+        // the match is checked every few thousand units of work, not only after it returns
+        expect(budget.used("node")).toBeLessThan(1000 + 5000);
+    });
+
+    it("builds a deep parent chain in near-linear work and still breaks a parent cycle", () => {
+        const r = evaluateCytoscapeJs({ elements: chain(80_000), style: [{ selector: "node", style: { width: 3 } }] });
+        expect(r.graph.parent[79_999]).toBe(79_998);
+        const cyc = evaluateCytoscapeJs({
+            elements: [
+                { data: { id: "a", parent: "c" } },
+                { data: { id: "b", parent: "a" } },
+                { data: { id: "c", parent: "b" } },
+            ],
+            style: [],
+        });
+        expect(Array.from(cyc.graph.parent)).toEqual([2, 0, -1]);
     });
 });
 

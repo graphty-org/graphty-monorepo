@@ -741,6 +741,47 @@ function hostileBlocks(good: string): readonly (readonly [string, string, string
 }
 
 /**
+ * The rules read back are the rules written, beside an exceptions rule that holds only properties a loss note names
+ * (design 10.7 items 1 and 2): the native values of a property written as the nearest value the format allows are
+ * the truth, and they come back as exceptions. A rule may read its data column under the name the format gives it
+ * (a format writes the label column as its own `label`); the values read are compared element by element elsewhere.
+ * @param written - the styles written
+ * @param read - the styles read back
+ * @param excused - the properties a loss note names, as `target.property`
+ * @returns the failures
+ */
+function compareRules(written: ExtractedStyles, read: ExtractedStyles, excused: ReadonlyMap<string, number>): string[] {
+    const plain = (rules: readonly StyleRule[]): string =>
+        stableJson(
+            rules
+                .filter((r) => r.role !== "exceptions")
+                .map(({ ext, ...r }) => ({
+                    ...(JSON.parse(
+                        JSON.stringify(r, (_k, v: unknown) =>
+                            v !== null && typeof v === "object" && Object.keys(v).length === 1 && "data" in v
+                                ? { data: "" }
+                                : v,
+                        ),
+                    ) as object),
+                    ext: ext === undefined ? undefined : (JSON.parse(JSON.stringify(ext)) as unknown),
+                })),
+        );
+    if (plain(read.styles.rules) !== plain(written.styles.rules)) {
+        return ["the rules read back differ from the rules written"];
+    }
+    const before = new Set(
+        written.styles.rules
+            .filter((r) => r.role === "exceptions")
+            .flatMap((r) => Object.keys(r.map ?? {}).map((p) => `${r.target}.${p}`)),
+    );
+    return read.styles.rules
+        .filter((r) => r.role === "exceptions")
+        .flatMap((r) => Object.keys(r.map ?? {}).map((p) => `${r.target}.${p}`))
+        .filter((key) => !before.has(key) && !excused.has(key))
+        .map((key) => `${key} comes back as exceptions, and no loss note says so`);
+}
+
+/**
  * The round trip of design 10.7 for one input: export with styles, import the file back with styles, and compare
  * the rules and every element's values; export again (byte-identical); edit one native value outside (one exception
  * comes back); replace the block with a hostile one (ignored with a note, never thrown).
@@ -769,14 +810,27 @@ export async function roundTrip(writer: StyleWriter, loaded: LoadedGraph, ex: Ex
     if (backStyles === null) {
         return ["the written file has no styles when it is read back"];
     }
-    if (keepsRules && stableJson(backStyles.styles.rules) !== stableJson(JSON.parse(JSON.stringify(ex.styles.rules)))) {
-        failures.push("the rules read back differ from the rules written");
+    // what the export says comes back otherwise, with how many elements: a property it cannot write (when the rules
+    // are not kept either), one written as the nearest value the format allows, one written as per-element values
+    const excused = new Map<string, number>();
+    for (const l of losses) {
+        const covers =
+            l.code === "W_STYLE_APPROXIMATED" ||
+            l.code === "W_STYLE_LAYER_FLATTENED" ||
+            (l.code === "W_STYLE_NOT_WRITTEN" && !keepsRules);
+        if (covers && l.style !== undefined) {
+            const key = `${l.style.target}.${l.style.property}`;
+            excused.set(key, (excused.get(key) ?? 0) + (l.count ?? Infinity));
+        }
     }
-    const lost = new Set(
-        losses
-            .filter((l) => l.code === "W_STYLE_NOT_WRITTEN")
-            .map((l) => `${l.style?.target ?? ""}.${l.style?.property ?? ""}`),
-    );
+    if (keepsRules) {
+        failures.push(...compareRules(ex, backStyles, excused));
+    }
+    // a node is the same node when its id has the same text: a format may read the id 7 back as "7"
+    const backIndex = new Map<string, number>();
+    for (let j = 0; j < back.snapshot.nodeCount; j++) {
+        backIndex.set(String(back.snapshot.ids.idOf(j)), j);
+    }
     for (const target of TARGETS) {
         const properties = new Set<string>();
         for (const r of ex.styles.rules.filter((x) => x.target === target)) {
@@ -787,14 +841,21 @@ export async function roundTrip(writer: StyleWriter, loaded: LoadedGraph, ex: Ex
         for (const p of properties) {
             const before = resolveStyles(ex, target, p as StyleProperty, loaded.snapshot);
             const after = resolveStyles(backStyles, target, p as StyleProperty, back.snapshot);
+            const allowed = excused.get(`${target}.${p}`) ?? 0;
+            let differ = 0;
+            let first = "";
             for (let i = 0; i < before.length; i++) {
-                const j = target === "node" ? back.snapshot.ids.indexOf(loaded.snapshot.ids.idOf(i)) : i;
-                if (after[j] !== before[i] && (keepsRules || !lost.has(`${target}.${p}`))) {
-                    failures.push(
-                        `${elementName(loaded.snapshot, target, i)} ${p}: written ${JSON.stringify(before[i])}, read back ${JSON.stringify(after[j] ?? null)}, and no loss note says so`,
-                    );
-                    break;
+                const j = target === "node" ? (backIndex.get(String(loaded.snapshot.ids.idOf(i))) ?? -1) : i;
+                if (after[j] !== before[i] && differ++ === 0) {
+                    first = `${elementName(loaded.snapshot, target, i)} ${p}: written ${JSON.stringify(before[i])}, read back ${JSON.stringify(after[j] ?? null)}`;
                 }
+            }
+            if (differ > allowed) {
+                failures.push(
+                    allowed === 0
+                        ? `${first}, and no loss note says so`
+                        : `${target} ${p}: ${String(differ)} values read back otherwise, the loss notes count ${String(allowed)}`,
+                );
             }
         }
     }

@@ -129,6 +129,18 @@ describe("dot exporter: capabilities and shape", () => {
         ]);
     });
 
+    it("quotes a value that starts with U+FEFF, which the reader skips between tokens", async () => {
+        const builder = new GraphBuilder({ directed: true });
+        builder.addNode("a");
+        builder.declareNodeColumn({ name: "name", dtype: "string" });
+        builder.setNodeValue("name", 0, "\uFEFFKRAS");
+        const snapshot = builder.freeze();
+        const text = await dotExporter.exportToString(snapshot);
+        expect(lines(text)[1]).toBe('a [name="\uFEFFKRAS"];');
+        const back = (await roundTrip(snapshot, dotExporter, dotImporter)).snapshot;
+        expect(back.nodes.get("name")?.value(0)).toBe("\uFEFFKRAS");
+    });
+
     it("formats bool, i32 and f64 cells so their dtype survives re-import", async () => {
         const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
         builder.addNode("a");

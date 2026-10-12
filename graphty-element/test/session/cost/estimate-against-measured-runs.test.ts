@@ -15,9 +15,8 @@
  * ## Why a live stopwatch is steady enough for CI
  *
  * - Each algorithm is run once untimed on its smaller graph first, so the JIT is warm.
- * - Each size keeps the fastest of at least three runs, spread over at least a second of running
- *   time (see `fastestRun`). Load from other processes (other vitest workers, other jobs) only
- *   ever adds time, so the minimum is the steadiest reading of the work itself.
+ * - Each size keeps its fastest run. Load from other processes (other vitest workers, other jobs)
+ *   only ever adds time, so the minimum is the steadiest reading of the work itself.
  *   Sizes are chosen so one run takes roughly 0.05 to 1 s here: long enough that timer noise is
  *   small, short enough that the whole file stays near 40 s on the reference machine.
  * - Time is read on a clock that stops while this thread waits for a CPU (`runningMs`), and the
@@ -31,8 +30,9 @@
  *   divided by what that workload does on the machine the defaults were fitted on, scales every
  *   rate by this machine's speed. On the fitting machine the calibration is the defaults (the
  *   test prints the factor when `COST_GUARD_VERBOSE` is set); on a machine twice as slow every
- *   estimate doubles. The probe is re-run on both sides of each size's runs and its fastest
- *   reading kept, for the same reason the runs keep their fastest (see `machineSpeed`).
+ *   estimate doubles. The probe keeps its fastest reading for the same reason the runs keep
+ *   theirs, and the two are taken turn about over the same few seconds, a probe then a run (see
+ *   `machineSpeed`), so a quiet moment that gives the probe its best reading gives a run one too.
  * - The probe stays in cache, so it cannot see a cloud runner's memory loaded by another tenant,
  *   which slows the rows that walk large graphs 3 to 6x and leaves the rest alone. Each size's
  *   memory is checked on both sides of its runs, and a size timed while it was loaded is skipped
@@ -541,41 +541,6 @@ function seconds(work: () => unknown): number {
     return (runningMs() - started) / 1000;
 }
 
-/** The fewest runs a size keeps the fastest of. */
-const MIN_RUNS = 3;
-
-/**
- * The least running time, in seconds, a size's runs are spread over before the fastest is kept.
- *
- * {@link runningMs} hides the time this thread waits for a CPU, but not contention while it holds
- * one: a busy SMT sibling on the same core, a shared last-level cache, a lower turbo clock under
- * load. Those come in bursts of a few hundred milliseconds, and the fastest run is the steady
- * reading only if at least one run lands outside a burst. Three runs of a 30 to 50 ms row span
- * about 0.1 s, which one burst covers whole: on 2026-10-12 (issue #2218) betweenness at 600 nodes
- * read 35 ms on a CI runner where a runner of the same kind read 27 ms, while the probes either
- * side, the fastest of eighteen over about 4.5 s, found a quiet moment -- an estimate 0.94 of the
- * stopwatch. A row of 0.35 s or more is still timed three times.
- */
-const MIN_SAMPLED_SECONDS = 1;
-
-/**
- * The fastest of at least {@link MIN_RUNS} runs, run until they add up to
- * {@link MIN_SAMPLED_SECONDS}.
- * @param work - One run.
- * @returns Running seconds of the fastest run.
- */
-function fastestRun(work: () => unknown): number {
-    let fastest = Infinity;
-    let total = 0;
-    for (let runs = 0; runs < MIN_RUNS || total < MIN_SAMPLED_SECONDS; runs++) {
-        const one = seconds(work);
-        fastest = Math.min(fastest, one);
-        total += one;
-    }
-
-    return fastest;
-}
-
 /**
  * The logical CPUs of the machine's fastest core type, as a `taskset` list, or undefined when
  * every CPU is of one type (or the machine does not say).
@@ -604,29 +569,43 @@ function fastestCoreCpus(): string | undefined {
     return fast.length === 0 ? undefined : fast.join(",");
 }
 
-/** Probes per calibration. Each is a few milliseconds, so many are cheap. */
+/** Probes per size, each followed by a run. A probe is a quarter of a second, a run 0.01 to 1 s. */
 const PROBES = 9;
 
 /**
  * How fast this machine is right now against the one the defaults were fitted on, as the
- * element's calibration probe measures it.
+ * element's calibration probe measures it, with a run of the work being judged after each probe.
  *
  * The FASTEST of several probes, as the runs keep their fastest time: contention from other
  * processes only ever adds time, so the minimum is the steadiest reading of the work itself.
  * The three classes' factors are collapsed to their median, because under load one class's probe
  * can swing by 2x on its own and the median discards it.
- * @returns The speed factor; 1 on the reference machine, 0.5 on one twice as slow.
+ *
+ * The runs are taken between the probes, not after them, because {@link runningMs} hides the time
+ * this thread waits for a CPU but not contention while it holds one: a busy SMT sibling on the same
+ * core, a shared cache, a lower clock under load. That comes and goes over seconds, and slows a
+ * run's code by a third. When the probes were taken on both sides of three back-to-back runs, the
+ * fastest of eighteen probes over about 4.5 s found a quiet moment that the three runs, about 0.1 s
+ * at 600 nodes, had missed: on 2026-10-12 (issue #2218) betweenness read 35 ms on a CI runner where
+ * one of the same kind read 27 ms, with the same probe reading, an estimate 0.94 of the stopwatch.
+ * Turn about, a quiet moment long enough for a probe is long enough for a run beside it.
+ * @param run - One run of the work being judged, timed after each probe.
+ * @returns The speed factor (1 on the reference machine, 0.5 on one twice as slow) and the
+ * fastest run, in running seconds.
  */
-async function machineSpeed(): Promise<number> {
+async function machineSpeed(run: () => unknown): Promise<{ speed: number; fastest: number }> {
     const probes: MachineCalibration[] = [];
-    // The probe reads `performance.now`; it is timed on the runs' clock so the two compare.
-    const clock = vi.spyOn(performance, "now").mockImplementation(runningMs);
-    try {
-        for (let probe = 0; probe < PROBES; probe++) {
+    let fastest = Infinity;
+    for (let probe = 0; probe < PROBES; probe++) {
+        // The probe reads `performance.now`; it is timed on the runs' clock so the two compare.
+        const clock = vi.spyOn(performance, "now").mockImplementation(runningMs);
+        try {
             probes.push(await calibrateCost({ budgetMs: 250 }));
+        } finally {
+            clock.mockRestore();
         }
-    } finally {
-        clock.mockRestore();
+
+        fastest = Math.min(fastest, seconds(run));
     }
 
     assert.isTrue(
@@ -637,7 +616,7 @@ async function machineSpeed(): Promise<number> {
         (key) => Math.max(...probes.map((probe) => probe.rates[key])) / DEFAULT_COST_RATES[key],
     );
 
-    return speeds.sort((a, b) => a - b)[1];
+    return { speed: speeds.sort((a, b) => a - b)[1], fastest };
 }
 
 /** A table larger than any machine's last-level cache: 64 MB, against 32 to 36 MB. */
@@ -715,7 +694,7 @@ beforeAll(async () => {
         execFileSync("taskset", ["-a", "-p", "-c", cpus, String(process.pid)]);
     }
 
-    await machineSpeed(); // warm the probe's JIT; its first answers are low
+    await machineSpeed(() => undefined); // warm the probe's JIT; its first answers are low
 });
 
 afterAll(() => {
@@ -745,14 +724,10 @@ describe.runIf(process.env.COST_GUARD === "1")(
 
                 for (const [index, nodes] of row.sizes.entries()) {
                     const { edges, maxDegree, transitivity } = graphs[index];
-                    // Probed on both sides of the runs, keeping the faster reading, so a burst of load
-                    // during one probe window does not read as a slow machine.
-                    const before = await machineSpeed();
                     const memoryBefore = memorySpeed();
-                    const measured = fastestRun(() => once(index));
+                    const { speed, fastest: measured } = await machineSpeed(() => once(index));
                     // Either side loaded means the runs between them may have been.
                     const memory = Math.min(memoryBefore, memorySpeed());
-                    const speed = Math.max(before, await machineSpeed());
                     const calibration = calibrationAt(speed, memory);
                     const estimate = estimateCost({
                         algorithm: row.key,

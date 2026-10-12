@@ -195,8 +195,12 @@ export function prWork(number, rec, state) {
     if (!byOwner(state, rec.author) || rec.draft) return null;
     const wait = ownerWait(number, rec, state);
     // A merge hold is not a work hold: a held PR that is broken still gets fixed (mergeHeld). Nor is
-    // the visual review while a fixable check fails beside it (`failingRequired`).
-    const fixBeside = rec.ownerGate && !rec.ownerRejected && failingRequired(rec).length > 0;
+    // the visual review while a fixable check fails beside it (`failingRequired`), or while it
+    // conflicts with its base: GitHub cannot merge it, its images are stale, and only a merge of
+    // the base fixes that. Without it a conflicting pull request under review had no job at all
+    // (#1535, issue #2081: its job cancelled as "no longer needs a worker" while it conflicted).
+    const fixBeside =
+        rec.ownerGate && !rec.ownerRejected && (failingRequired(rec).length > 0 || (rec.conflictSightings ?? 0) >= 2);
     if (wait && wait !== HELD_FOR_MAJOR && !fixBeside) return null;
     if (staleRevert(rec.title, state.master?.verdict))
         return "stale revert: master is green again; verify the failure it reverts for is gone and close it";

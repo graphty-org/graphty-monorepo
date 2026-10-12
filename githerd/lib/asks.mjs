@@ -29,11 +29,11 @@
  */
 
 import { askFor, askProblems, failingRequired, headIsGitherds, jobInUse, jobOnPr, prOf, prWork } from "./queue.mjs";
-import { ownerHeld } from "./board.mjs";
+import { ownerHeld, TERMINAL } from "./board.mjs";
 import { failingWords } from "./prs.mjs";
 import { releaseOwnerJob } from "./jobs.mjs";
 import { tellSessions } from "./peers.mjs";
-import { jobWaits, mergeNews, mergeWhat } from "./waits.mjs";
+import { jobWaits, mergeBlocked, mergeNews, mergeWhat } from "./waits.mjs";
 
 const MINUTE = 60 * 1000;
 
@@ -677,8 +677,20 @@ function broken(state, n, rec) {
 }
 
 /**
+ * The queued job that would fix stuck pull request `n` (its `pr` or `title` job), or undefined.
+ * @param {any} state the daemon state
+ * @param {string} n the pull request
+ * @returns {any} the job
+ */
+const queuedFix = (state, n) =>
+    Object.values(state.jobs ?? {}).find((j) => j.state === "queued" && String(prOf(j)) === n);
+
+/**
  * Whether the owner answered the question about pull request `n`: `githerd_mine` for it, or
- * `githerd_expect` on a job on it, by the asked session since the question.
+ * `githerd_expect` on a job on it, by the asked session since the question. While its fixing job
+ * is queued, `githerd_mine` is no answer: owning it is not fixing it, and a claim that only says
+ * so held #1535 still for 16 hours (issue #2081). Claiming that job is the answer (the job is in
+ * flight then, and `broken` stops asking), or a push of the branch (`activity`).
  * @param {any} state the daemon state
  * @param {string} n the pull request
  * @param {{session: string, at: string}} ask the question
@@ -686,7 +698,7 @@ function broken(state, n, rec) {
  */
 function brokenAnswered(state, n, ask) {
     const mine = state.prOwners?.[n];
-    if (mine?.session === ask.session && mine.at >= ask.at) return true;
+    if (mine?.session === ask.session && mine.at >= ask.at && !queuedFix(state, n)) return true;
     return Object.values(state.jobs ?? {}).some(
         (j) => String(prOf(j)) === n && j.holder?.session === ask.session && j.status?.at >= ask.at,
     );
@@ -710,12 +722,14 @@ function brokenAnswered(state, n, ask) {
  * @param {{now: Date, minutes: number, owners: () => import("./peers.mjs").PeerSession[]}} opts the
  *   clock, the cadence and every live session in this repository
  * @param {({kind: string} & Record<string, unknown>)[]} lines the ledger lines, appended to
- * @returns {Map<string, {n: string, why: string, noTools?: boolean, claimed?: boolean}[]>} the pull requests to ask
- *   about, by session
+ * @returns {Map<string, {n: string, why: string, noTools?: boolean, claimed?: boolean, job?: string}[]>} the pull
+ *   requests to ask about, by session
  */
 function brokenOwned(state, { now, minutes, owners }, lines) {
     state.brokenAsks ??= {};
     state.prReleased ??= {};
+    // A question about a pull request that closed is over: a reopened one starts afresh.
+    for (const n of Object.keys(state.brokenAsks)) if (state.prs && !state.prs[n]) delete state.brokenAsks[n];
     for (const [n, head] of Object.entries(state.prReleased)) {
         const rec = state.prs?.[n];
         if (rec?.headSha === head) continue;
@@ -723,7 +737,7 @@ function brokenOwned(state, { now, minutes, owners }, lines) {
         if (rec?.headSha && headIsGitherds(state, rec)) state.prReleased[n] = rec.headSha;
         else delete state.prReleased[n];
     }
-    /** @type {Map<string, {n: string, why: string, noTools?: boolean, claimed?: boolean}[]>} */
+    /** @type {Map<string, {n: string, why: string, noTools?: boolean, claimed?: boolean, job?: string}[]>} */
     const due = new Map();
     /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a question is due */
     let live = null;
@@ -736,7 +750,7 @@ function brokenOwned(state, { now, minutes, owners }, lines) {
         if (ask)
             due.set(ask.session, [
                 ...(due.get(ask.session) ?? []),
-                { n, why: ask.why, noTools: ask.noTools, claimed: ask.claimed },
+                { n, why: ask.why, noTools: ask.noTools, claimed: ask.claimed, job: queuedFix(state, n)?.id },
             ]);
     }
     return due;
@@ -916,14 +930,17 @@ function activity(state, n, rec, owner, ask) {
 
 /**
  * The question to the owner of a broken pull request: the status question once it claimed it, naming
- * both spellings of the answer (`mineAnswer`).
- * @param {{n: string, why: string, noTools?: boolean, claimed?: boolean}} pr the pull request, why it
- *   is broken, whether its owner has no githerd tools, and whether it claimed it
+ * both spellings of the answer (`mineAnswer`). While the job that fixes it is queued the question
+ * asks for that job's claim instead (`jobQuestion`).
+ * @param {{n: string, why: string, noTools?: boolean, claimed?: boolean, job?: string}} pr the pull
+ *   request, why it is broken, whether its owner has no githerd tools, whether it claimed it, and its
+ *   queued job
  * @param {string} cli the githerd command line
  * @param {number} minutes how often githerd asks
  * @returns {string} the message line
  */
-function brokenText({ n, why, noTools, claimed }, cli, minutes) {
+function brokenText({ n, why, noTools, claimed, job }, cli, minutes) {
+    if (job) return jobQuestion({ n, why, noTools, job }, cli, minutes);
     if (!claimed) return brokenQuestion({ n, why, noTools }, cli);
     return (
         `githerd: status check on #${n} (stuck: ${why}), which this session claimed. Still working on it? ` +
@@ -933,7 +950,8 @@ function brokenText({ n, why, noTools, claimed }, cli, minutes) {
 }
 
 /**
- * The first question about a stuck pull request, once per head and reason.
+ * The first question about a stuck pull request with no job queued to fix it, once per head and
+ * reason.
  * @param {{n: string, why: string, noTools?: boolean}} pr the pull request, why it is stuck, and
  *   whether its owner has no githerd tools
  * @param {string} cli the githerd command line
@@ -944,8 +962,27 @@ const brokenQuestion = ({ n, why, noTools }, cli) =>
     (noTools
         ? `This session has no githerd tools, so answer from your shell: run \`${cli} mine ${n}\` to keep it, ` +
           `or \`${cli} disown ${n}\` to release it to other sessions now. No answer releases it too.`
-        : `To keep it, ${mineAnswer(n, cli)} (or githerd_claim pr-${n}); any other answer, or none, ` +
+        : `To keep it, ${mineAnswer(n, cli)}; any other answer, or none, ` +
           `releases it to other sessions (\`${cli} disown ${n}\` releases it now).`);
+
+/**
+ * The question about a stuck pull request whose fixing job is queued: it is offered to its owner
+ * first, which keeps it only by claiming that job (or pushing the branch); at the next question
+ * it goes to every session (issue #2081). The window is the question's own cadence: not taking an
+ * offer is no event, so time is the only thing that can end it.
+ * @param {{n: string, why: string, noTools?: boolean, job: string}} pr the pull request, why it is
+ *   stuck, whether its owner has no githerd tools, and the queued job
+ * @param {string} cli the githerd command line
+ * @param {number} minutes how often githerd asks
+ * @returns {string} the message line
+ */
+const jobQuestion = ({ n, why, noTools, job }, cli, minutes) =>
+    `githerd: #${n} is stuck: ${why}, and job ${job} to fix it is queued, offered to this session first. ` +
+    (noTools
+        ? `To take it, run \`${cli} next\` from your shell and claim ${job} with \`${cli} claim\` as it says; `
+        : `To take it, claim ${job} with githerd_claim and fix it; `) +
+    `saying it is yours (githerd_mine) does not keep a stuck pull request. Unclaimed and unpushed when ` +
+    `githerd asks again in ${minutes} minutes, it goes to other sessions (\`${cli} disown ${n}\` releases it now).`;
 
 /** The states in which a holder works on its job; a `verifying` job is githerd's to settle. */
 const ASKED = new Set(["starting", "working", "waiting"]);
@@ -993,6 +1030,7 @@ export async function statusStep(
 ) {
     const lines = [];
     await tellSettledPrWaits(state, { acting, transport, owners }, lines);
+    await tellBlockedMergeWaits(state, { now, acting, transport, owners }, lines);
     const due = dueJobs(state, now, minutes, lines);
     const prsDue = brokenOwned(state, { now, minutes, owners }, lines);
     await askCapacity(state, { now, acting, sessions, transport, minutes, cli, config, due }, lines);
@@ -1102,6 +1140,72 @@ async function tellSettledPrWaits(state, { acting, transport, owners }, lines) {
         lines.push({
             kind: "pr-wait-told",
             pr: Number(n),
+            session: target[0].name,
+            ...(await tellSessions(target, text, transport)),
+        });
+    }
+}
+
+/**
+ * Tells each session that waits for a pull request to merge (a job's `waitingFor.merge`, or a pull
+ * request owner's `state.prWaits`) when that pull request cannot merge as it stands
+ * (`mergeBlocked`: conflicting, or a required check failing): the wait would otherwise last until
+ * someone else noticed (issue #2081, #1575 and #1941 waiting on a conflicting #1535). Once per head
+ * and reason (`w.blocked`), forgotten once it can merge again. The wait stays: the pull request
+ * merges once fixed, and its own `pr` job, when it has one, is named. A job gets a news line; an owner
+ * session is messaged too, a githerd worker reads its news.
+ * @param {any} state the daemon state, changed in place
+ * @param {{now: Date, acting: boolean, transport: import("./peers.mjs").Transport,
+ *   owners: () => import("./peers.mjs").PeerSession[]}} opts the clock, whether the `workers` write
+ *   group acts, the transport and every live session in this repository
+ * @param {({kind: string} & Record<string, unknown>)[]} lines the ledger lines, appended to
+ */
+async function tellBlockedMergeWaits(state, { now, acting, transport, owners }, lines) {
+    const waits = [
+        ...Object.values(state.jobs ?? {})
+            .filter((j) => j.state === "waiting" && j.waitingFor?.merge && !j.waitingFor.result)
+            .map((j) => ({
+                w: j.waitingFor,
+                job: j,
+                session: j.holder?.session,
+                who: j.id,
+                tell: j.holder?.startedBy === "owner",
+            })),
+        ...Object.entries(state.prWaits ?? {})
+            .filter(([, w]) => !w.result)
+            .map(([n, w]) => ({ w, job: null, session: w.session, who: `#${n}`, tell: true })),
+    ];
+    /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a session is told */
+    let live = null;
+    for (const { w, job, session, who, tell } of waits) {
+        const blocked = mergeBlocked(state, w.merge);
+        const key = blocked && `${blocked.head} ${blocked.why}`;
+        if (!blocked || w.blocked === key) {
+            if (!blocked) delete w.blocked;
+            continue;
+        }
+        w.blocked = key;
+        const what = mergeWhat(w.merge);
+        const fix = Object.values(state.jobs ?? {}).find(
+            (j) => j.kind !== "review" && String(prOf(j)) === String(w.merge) && !TERMINAL.includes(j.state),
+        );
+        const named = fix ? " (job " + fix.id + ")" : "";
+        const news =
+            `${what} cannot merge as it stands: ${blocked.why}. Waiting alone will not end this wait: ` +
+            `fix ${what}${named}, or wait on something else.`;
+        lines.push({ kind: "merge-wait-blocked", waiter: who, merge: w.merge, why: blocked.why });
+        job?.news.push({ at: now.toISOString(), text: news, acked: false });
+        live ??= tell ? owners() : null;
+        const target = (live ?? []).filter((s) => s.sessionId === session);
+        if (!tell || !target.length) continue;
+        if (!acting) {
+            lines.push({ kind: "would-do", group: "workers", op: `tell ${target[0].name} that ${what} cannot merge` });
+            continue;
+        }
+        const text = `githerd: ${who} waits for ${what} to merge, but ${news}`;
+        lines.push({
+            kind: "merge-wait-told",
+            waiter: who,
             session: target[0].name,
             ...(await tellSessions(target, text, transport)),
         });

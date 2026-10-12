@@ -136,7 +136,14 @@ doorbell; `githerd_done` is checked against GitHub before the job counts as done
 githerd also infers whose a pull request is, from the push log, the sessions' transcripts and who
 works in its worktree, and asks the owner of a broken one "are you fixing it?" every
 `workers.statusMinutes`. An owner that neither answers nor shows activity (a process in the
-branch's worktree, a push) loses it to the queue until its next push. A session without githerd's
+branch's worktree, a push) loses it to the queue until its next push. While the job that fixes it
+(`pr-<n>`) is queued, the question offers that job to the owner first, and only claiming it or
+pushing the branch keeps the pull request: `githerd_mine` alone does not, so at the next question
+the job goes to every session. A conflict counts as work even while the owner's visual review is
+the only failing check: the images of a conflicting head are stale, and only a merge of the base
+fixes that. A session whose job or pull request waits for another pull request to merge
+(`githerd_wait` with `merge`, or `githerd wait pr`) is told, once per head and reason, when that
+pull request conflicts or fails a required check, since waiting alone will not end the wait. A session without githerd's
 MCP tools (one started before githerd was set up) is asked the same way and answers from its own
 shell, with the command line the question prints:
 

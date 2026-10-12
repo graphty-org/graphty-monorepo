@@ -21,6 +21,7 @@
 
 import { closingRefs } from "./merged.mjs";
 import { pushedBranches } from "./owners.mjs";
+import { failingWords } from "./prs.mjs";
 import { failingRequired, prOf } from "./queue.mjs";
 
 /** @typedef {{branch: string | null, cwd: string, session: string | null, closes?: number[]}} PushTicket */
@@ -150,4 +151,22 @@ export const mergeWhat = (target) => (/^\d+$/.test(target) ? `#${target}` : targ
 export function mergeNews(w) {
     if (w.result === "MERGED") return `${mergeWhat(w.merge)} merged`;
     return w.result === "CLOSED" ? `${mergeWhat(w.merge)} closed without merging` : null;
+}
+
+/**
+ * Why the open pull request a merge wait names cannot merge as it stands, or null: a conflict with
+ * its base seen twice, or a failing required check (the owner's visual review aside). A closed one
+ * is `mergeNews`'s; one not open or not polled says nothing here. The pull request does not move
+ * by itself in either case, so a wait on it would last until someone fixes it (issue #2081).
+ * @param {any} state the daemon state
+ * @param {string} target the wait's target: a pull request's number, or a branch
+ * @returns {{head: string, why: string} | null} its head and why it cannot merge
+ */
+export function mergeBlocked(state, target) {
+    const t = String(target);
+    const rec = /^\d+$/.test(t) ? state.prs?.[t] : Object.values(state.prs ?? {}).find((p) => p.headRef === t);
+    if (!rec) return null;
+    const head = String(rec.headSha);
+    if (failingRequired(rec).length) return { head, why: failingWords(rec) };
+    return (rec.conflictSightings ?? 0) >= 2 ? { head, why: `conflicting with ${rec.baseRef ?? "its base"}` } : null;
 }

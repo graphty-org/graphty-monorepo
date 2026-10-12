@@ -291,6 +291,24 @@ describe("syncJobs: pull requests", () => {
         expect(state.jobs["pr-10"].reason).toBe("conflicting with its base (GitHub: CONFLICTING)");
     });
 
+    it("keeps the pr job of a conflicting pull request when its only failing check becomes the visual review", () => {
+        // #1535 (issue #2081): claimed, then CI ended with only the owner's review failing, and its
+        // job was cancelled as "no longer needs a worker" while it still conflicted with master.
+        const state = base();
+        failingPr(state, 1535, { required: {}, conflictSightings: 2, mergeable: "CONFLICTING" });
+        expect(sync(state).created).toEqual(["pr-1535"]);
+        state.prs[1535].required = { "All Checks Pass": "FAILURE" };
+        state.prs[1535].ownerGate = true;
+        expect(sync(state).cancelled).toEqual([]);
+        expect(state.jobs["pr-1535"]).toMatchObject({
+            state: "queued",
+            reason: "conflicting with its base (GitHub: CONFLICTING)",
+        });
+        // Once it merges cleanly, the review is the owner's again: no job.
+        state.prs[1535].conflictSightings = 0;
+        expect(sync(state).cancelled).toEqual([{ job: "pr-1535", reason: "#1535 no longer needs a worker" }]);
+    });
+
     it("makes a pr job, never an owner item, for a stacked pull request that conflicts with its base", () => {
         const state = base();
         failingPr(state, 617, { stackedOn: 490, required: {}, conflictSightings: 2, mergeable: "CONFLICTING" });

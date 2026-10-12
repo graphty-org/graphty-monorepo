@@ -175,6 +175,33 @@ describe("writing XGMML styles", () => {
         ]);
         expect(losses.some((l) => l.code === "W_STYLE_RULES_NOT_KEPT")).toBe(false);
     });
+    it("writes a block that reads back whole where backslashes are Cytoscape escapes", async () => {
+        const { snapshot, styles } = await load(doc('<node id="a" label="x"><graphics fill="#ff0000"/></node>'));
+        const ex = styles as ExtractedStyles;
+        const label = String.raw`C:\new\top\N`;
+        const withLabel: ExtractedStyles = {
+            ...ex,
+            styles: {
+                ...ex.styles,
+                rules: [
+                    ...ex.styles.rules,
+                    {
+                        id: "node.path",
+                        target: "node",
+                        role: "defaults",
+                        origin: "declared",
+                        where: { all: true },
+                        set: { label },
+                    },
+                ],
+            },
+        };
+        const written = await registry.exportGraphToBytes(snapshot, "xgmml", { styles: withLabel });
+        const back = await registry.importGraph(written, { format: "xgmml", styles: true, cytoscapeEscapes: true });
+        expect(back.styles?.styles.notes.filter((n) => n.code === "W_STYLE_BLOCK_IGNORED")).toEqual([]);
+        expect(back.styles?.styles.source.tool).toBe("graphty");
+        expect(back.styles?.styles.rules.find((r) => r.id === "node.path")?.set?.label).toBe(label);
+    });
 });
 
 describe("files graphty wrote", () => {

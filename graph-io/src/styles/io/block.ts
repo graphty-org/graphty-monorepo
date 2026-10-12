@@ -122,9 +122,13 @@ export interface WriteStyleBlockOptions {
     readonly snapshot?: GraphSnapshot;
 }
 
+/** The JSON escapes a reader of Cytoscape's convention would change, as `\u` escapes that mean the same. */
+const SAFE_ESCAPES: Readonly<Record<string, string>> = { "\\": "\\u005c", n: "\\u000a", t: "\\u0009" };
+
 /**
  * Writes a graph's styles as a `graphty.styles` block. Notes are not written. The output is deterministic: the same
- * styles always give the same text.
+ * styles always give the same text. A backslash, newline or tab inside a string is written as a `\u` escape, so a
+ * format that decodes `\n` and `\t` in attribute values (Cytoscape's convention) reads the block back unchanged.
  * @param extracted - the styles
  * @param options - whether to write the style columns inside the block
  * @returns the block's JSON text
@@ -157,7 +161,7 @@ export function writeStyleBlock(extracted: ExtractedStyles, options: WriteStyleB
         out.data = { node: hashes("node"), edge: hashes("edge") };
     }
     out.fingerprint = { nodes: fingerprint.nodes, edges: fingerprint.edges, ids: fingerprint.ids };
-    return JSON.stringify(out);
+    return JSON.stringify(out).replace(/\\(.)/g, (escape, c: string) => SAFE_ESCAPES[c] ?? escape);
 }
 
 /**

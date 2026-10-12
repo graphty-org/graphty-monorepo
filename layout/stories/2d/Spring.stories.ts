@@ -82,8 +82,10 @@ function createSpringStory(args: SpringArgs): HTMLElement {
         isApplied = true;
 
         // Animate to final positions
-        updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250);
-        updateStatus(statusPanel, "Spring layout applied! Nodes positioned using force-directed algorithm.");
+        // The status says "applied" once the last frame is drawn; the play function waits on it
+        void updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250).then(() =>
+            updateStatus(statusPanel, "Spring layout applied! Nodes positioned using force-directed algorithm."),
+        );
     }
 
     /**

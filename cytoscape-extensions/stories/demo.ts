@@ -23,7 +23,7 @@ import { type Network, NETWORKS } from "./catalog.js";
 cytoscape.use(graphtyCytoscape);
 
 /**
- * True inside a visual-review capture (its URL carries chromatic=true, as Chromatic's does). Captures leave out run
+ * True inside a visual-review capture (its URL carries chromatic=true). Captures leave out run
  * times, which differ on every run.
  */
 const CAPTURE = /[?&]chromatic=true/.test(globalThis.location?.search ?? "");
@@ -169,6 +169,11 @@ export function markDone(root: HTMLElement, done: () => Promise<void>): void {
  * In a capture, covers every live core with a picture of it drawn by cy.png(). Cytoscape's own canvas is not the same
  * from one run to the next: it draws from textures it builds in idle frames, and it redraws when the window resizes,
  * which a full-page screenshot does. cy.png() draws every element directly, the same way every time.
+ *
+ * The picture is copied into a canvas of its own pixel size rather than shown as an <img>: Chromium draws an <img>
+ * through its image decode cache, and with several browsers capturing at once it now and then drew a row of these
+ * pictures blurred (issue #2051). A canvas holds the pixels themselves, so it is composited as they are.
+ * willReadFrequently keeps the canvas in memory rather than on the GPU, so its pixels are the picture's exactly.
  * @returns when the pictures are in place
  */
 async function freeze(): Promise<void> {
@@ -179,9 +184,13 @@ async function freeze(): Promise<void> {
         live.map(async (cy) => {
             const img = new Image();
             img.src = cy.png({ full: false, scale: window.devicePixelRatio, bg: "#ffffff" });
-            img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:10;";
             await img.decode();
-            cy.container()?.append(img);
+            const pic = document.createElement("canvas");
+            pic.width = img.naturalWidth;
+            pic.height = img.naturalHeight;
+            pic.getContext("2d", { willReadFrequently: true })?.drawImage(img, 0, 0);
+            pic.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:10;";
+            cy.container()?.append(pic);
         }),
     );
 }

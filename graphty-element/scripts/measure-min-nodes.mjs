@@ -12,7 +12,7 @@
  *   `test/helpers/story-graph.ts`, which draws the 150-node picture the stories and the real-GPU
  *   test share: that one's arithmetic loses precision above 2^53 and its stream repeats after
  *   15,824 draws, so asking it for the 10,000 distinct edges of a 2000-node graph never returns.
- *   Repairing it would move every Chromatic baseline and the quantile comparison that is pinned
+ *   Repairing it would move every visual baseline and the quantile comparison that is pinned
  *   against it, so the benchmark carries its own seeded generator and the repair is a follow-up.
  * - For each size the element is mounted twice: once with `acceleration="off"`, which runs the CPU
  *   simulation, and once with `acceleration="required"`, which refuses to run at all unless a

@@ -8,8 +8,11 @@
  * random. Every vitest run therefore takes one of GRAPHTY_TEST_SLOTS slots before its tests start
  * (default: one per 8 cores, at least 2 -- 4 on a 32-thread machine) and gives it back
  * when it ends. A browser run and a Node run count the same: a Node run forks one worker per core,
- * so it can fill the machine on its own while it runs; a browser run uses fewer cores at a time
- * (Chromium, its GPU process and SwiftShader) but for longer.
+ * so it can fill the machine on its own while it runs. A browser run is not lighter: Vitest opens
+ * min(12, cores - 1) pages at once unless the project sets maxWorkers, and one page drawing a real
+ * graphty-element through SwiftShader keeps about 1.75 cores busy, so an uncapped run on this
+ * 32-thread machine asked for about 21 cores. Every browser project that runs files in parallel
+ * therefore sets maxWorkers: 3 (what a 4-core CI runner gets), about 5 cores per run.
  *
  * How it is taken:
  *  - As a vitest globalSetup: every package's vitest config lists this file, so every `vitest run`

@@ -203,7 +203,7 @@ export class AttributeTable implements AttributeTableContract {
      */
     typed<D extends Dtype>(name: string, dtype: D): ColumnOf<D> | null {
         const column = this.columns.get(name);
-        if (column === undefined || column.dtype !== dtype) {
+        if (column?.dtype !== dtype) {
             return null;
         }
         return column as ColumnOf<D>;

@@ -91,8 +91,10 @@ function createPlanarStory(args: PlanarArgs): HTMLElement {
         isApplied = true;
 
         // Animate to final positions
-        updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250);
-        updateStatus(statusPanel, "Planar layout applied! No edge crossings in this arrangement.");
+        // The status says "applied" once the last frame is drawn; the play function waits on it
+        void updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250).then(() =>
+            updateStatus(statusPanel, "Planar layout applied! No edge crossings in this arrangement."),
+        );
     }
 
     /**

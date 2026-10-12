@@ -1,3 +1,17 @@
+## 0.9.18 (2026-10-12)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.17 (2026-10-11)
+
+### 🩹 Fixes
+
+- **compact-mantine:** end the Toolbar Keyboard story after Move's tooltip opens ([#1997](https://github.com/graphty-org/graphty-monorepo/issues/1997))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.16 (2026-10-11)
 
 ### 🚀 Features

@@ -1,3 +1,25 @@
+## 0.0.11 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.46
+- Updated graph-samples to 0.1.28
+- Updated graph-format to 1.3.13
+- Updated algorithms to 3.4.3
+- Updated graph-io to 0.3.36
+- Updated layout to 2.4.1
+
+## 0.0.10 (2026-10-11)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** load the GEXF color parser with the file formats ([b277792a0](https://github.com/graphty-org/graphty-monorepo/commit/b277792a0))
+- **cytoscape-extensions:** keep node and edge colors through a GEXF export and import ([#1983](https://github.com/graphty-org/graphty-monorepo/issues/1983))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.9 (2026-10-11)
 
 ### 🚀 Features

@@ -1,3 +1,37 @@
+## 3.25.0 (2026-10-12)
+
+### 🚀 Features
+
+- **graphty-element:** keep nodes and labels off each other, opt-in ([#1727](https://github.com/graphty-org/graphty-monorepo/issues/1727))
+
+### 🩹 Fixes
+
+- **graphty-element:** charge large-graph estimates for loaded memory ([#2032](https://github.com/graphty-org/graphty-monorepo/issues/2032))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.46
+- Updated @graphty/remote-logger to 2.0.15
+- Updated graph-samples to 0.1.28
+- Updated graph-format to 1.3.13
+- Updated algorithms to 3.4.3
+- Updated graph-io to 0.3.36
+- Updated layout to 2.4.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.24.2 (2026-10-11)
+
+### 🩹 Fixes
+
+- **graphty-element:** open no engine for an element that is never used ([#1977](https://github.com/graphty-org/graphty-monorepo/issues/1977))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.24.1 (2026-10-11)
 
 ### 🚀 Features

@@ -38,7 +38,7 @@ interface Scene3D {
 
 /**
  * Create a Three.js scene with camera, renderer, and controls.
- * Fixed camera angle for deterministic Chromatic snapshots.
+ * Fixed camera angle for deterministic visual snapshots.
  */
 export function create3DScene(width: number = 500, height: number = 500, enableControls: boolean = true): Scene3D {
     // Create container

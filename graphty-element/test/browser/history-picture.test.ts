@@ -6,7 +6,7 @@
  * frame. A derivation that forgot to repaint on undo -- a layer's colour left on the meshes, a
  * skybox dome left in the scene, a node left where the drag dropped it -- keeps every state digest
  * equal and changes the frame, which is what is measured here. The act-then-undo stories in
- * `stories/Undo.stories.ts` are the same cases as Chromatic snapshots; Chromatic compares a story
+ * `stories/Undo.stories.ts` are the same cases as visual-review snapshots; visual review compares a story
  * only with its own last snapshot, so equality with the untouched picture is asserted here.
  *
  * Two things on screen are the reader's rather than the project's, and are put back by hand before

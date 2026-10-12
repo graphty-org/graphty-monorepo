@@ -111,6 +111,15 @@ describe("GEXF styles: reading", () => {
         expect(styles.styles.rules.find((r) => r.facts?.reason === "EDGE_WEIGHT")).toMatchObject({ origin: "tool" });
     });
 
+    it("draws the weight as the width when every edge has a weight, and 1 for a weight of 0 or below", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3"><graph><nodes><node id="a"/><node id="b"/></nodes>
+            <edges><edge source="a" target="b" weight="2.5"/><edge source="b" target="a" weight="0.1"/>
+            <edge source="a" target="a" weight="0"/><edge source="b" target="b" weight="-2.25"/></edges></graph></gexf>`,
+        );
+        expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([2.5, 0.1, 1, 1]);
+    });
+
     it("leaves out every Gephi default, the derived ones too, with toolDefaults: false", async () => {
         const { styles } = await load(
             `<gexf version="1.3"><graph defaultedgetype="directed"><nodes><node id="a"/><node id="b"/></nodes>

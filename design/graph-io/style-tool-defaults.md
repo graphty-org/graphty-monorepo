@@ -237,6 +237,10 @@ GEXF specification defines it and the other programs that draw GEXF files (sigma
 it, and it is the only place a file states a thickness on purpose; drawing the weight there instead
 would throw that statement away.
 
+A weight of 0 or below is drawn 1 wide. Gephi scales the width by the weight, so such an edge
+would be drawn with no width or not at all; graph-io keeps it visible instead, because an edge the
+file holds and the reader cannot see looks like a lost edge.
+
 ## 7. vis-network (vis JSON)
 
 Version 10.1.2 (npm; local `src/vis-network.esm.js`, the `peer/esm` build). Node defaults at

@@ -7,6 +7,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { explicitWeights } from "../../common/weights.js";
 import { canonColor } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
@@ -275,13 +276,15 @@ export function gephiRules(
     }
     budget.spend("edge", snapshot.edgeCount);
     // Gephi draws an edge as thick as its weight (1 for an edge with none); a width of its own is the file's
-    const weight = snapshot.edges.byRole("weight");
+    // The weights come from the snapshot's own weights (the role column exists only when some edge has none), read
+    // as the shortest decimal of their dtype. A weight of 0 or below is drawn 1 wide, so the edge stays visible.
+    const weights = explicitWeights(snapshot);
     const weightWidth: (StyleValue | null)[] = new Array<StyleValue | null>(snapshot.edgeCount).fill(null);
     let unsized = 0;
     for (let e = 0; e < snapshot.edgeCount; e++) {
         if (edgeWidth?.[e] === null || edgeWidth === undefined) {
             const first = pair?.isSet(e) === true ? Math.min(e, pair.value(e) as number) : e;
-            const w = weight?.isSet(first) === true ? Number(weight.value(first)) : 1;
+            const w = Number(weights.text(first) ?? 1);
             weightWidth[e] = Number.isFinite(w) && w > 0 ? w : 1;
             unsized++;
         }

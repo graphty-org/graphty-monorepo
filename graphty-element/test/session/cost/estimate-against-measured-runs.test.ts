@@ -15,8 +15,9 @@
  * ## Why a live stopwatch is steady enough for CI
  *
  * - Each algorithm is run once untimed on its smaller graph first, so the JIT is warm.
- * - Each size keeps the fastest of three runs. Load from other processes (other vitest workers,
- *   other jobs) only ever adds time, so the minimum is the steadiest reading of the work itself.
+ * - Each size keeps the fastest of at least three runs, spread over at least a second of running
+ *   time (see `fastestRun`). Load from other processes (other vitest workers, other jobs) only
+ *   ever adds time, so the minimum is the steadiest reading of the work itself.
  *   Sizes are chosen so one run takes roughly 0.05 to 1 s here: long enough that timer noise is
  *   small, short enough that the whole file stays near 40 s on the reference machine.
  * - Time is read on a clock that stops while this thread waits for a CPU (`runningMs`), and the
@@ -540,6 +541,41 @@ function seconds(work: () => unknown): number {
     return (runningMs() - started) / 1000;
 }
 
+/** The fewest runs a size keeps the fastest of. */
+const MIN_RUNS = 3;
+
+/**
+ * The least running time, in seconds, a size's runs are spread over before the fastest is kept.
+ *
+ * {@link runningMs} hides the time this thread waits for a CPU, but not contention while it holds
+ * one: a busy SMT sibling on the same core, a shared last-level cache, a lower turbo clock under
+ * load. Those come in bursts of a few hundred milliseconds, and the fastest run is the steady
+ * reading only if at least one run lands outside a burst. Three runs of a 30 to 50 ms row span
+ * about 0.1 s, which one burst covers whole: on 2026-10-12 (issue #2218) betweenness at 600 nodes
+ * read 35 ms on a CI runner where a runner of the same kind read 27 ms, while the probes either
+ * side, the fastest of eighteen over about 4.5 s, found a quiet moment -- an estimate 0.94 of the
+ * stopwatch. A row of 0.35 s or more is still timed three times.
+ */
+const MIN_SAMPLED_SECONDS = 1;
+
+/**
+ * The fastest of at least {@link MIN_RUNS} runs, run until they add up to
+ * {@link MIN_SAMPLED_SECONDS}.
+ * @param work - One run.
+ * @returns Running seconds of the fastest run.
+ */
+function fastestRun(work: () => unknown): number {
+    let fastest = Infinity;
+    let total = 0;
+    for (let runs = 0; runs < MIN_RUNS || total < MIN_SAMPLED_SECONDS; runs++) {
+        const one = seconds(work);
+        fastest = Math.min(fastest, one);
+        total += one;
+    }
+
+    return fastest;
+}
+
 /**
  * The logical CPUs of the machine's fastest core type, as a `taskset` list, or undefined when
  * every CPU is of one type (or the machine does not say).
@@ -713,7 +749,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
                     // during one probe window does not read as a slow machine.
                     const before = await machineSpeed();
                     const memoryBefore = memorySpeed();
-                    const measured = Math.min(...[0, 1, 2].map(() => seconds(() => once(index))));
+                    const measured = fastestRun(() => once(index));
                     // Either side loaded means the runs between them may have been.
                     const memory = Math.min(memoryBefore, memorySpeed());
                     const speed = Math.max(before, await machineSpeed());

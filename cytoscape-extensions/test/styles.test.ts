@@ -49,6 +49,26 @@ describe("graphtyImport with styles", () => {
         cy.destroy();
     });
 
+    it("leaves the viz values out of data with styles, and keeps them, deprecated, without", async () => {
+        const viz = `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes><node id="a">
+            <viz:color r="228" g="26" b="28"/><viz:size value="7"/><viz:shape value="image" uri="a.png"/></node>
+            <node id="b"/></nodes><edges><edge source="a" target="b"><viz:thickness value="3"/></edge></edges></graph></gexf>`;
+        const styled = core();
+        await styled.graphtyImport(viz, "gexf", { styles: true, applyStyles: true });
+        for (const key of ["color", "size", "shape", "shape.uri"]) {
+            expect(styled.$id("a").data(key)).toBeUndefined();
+        }
+        expect(styled.edges()[0].data("thickness")).toBeUndefined();
+        expect(styled.$id("a").style("background-color")).toBe("rgb(228,26,28)");
+        styled.destroy();
+        const plain = core();
+        await plain.graphtyImport(viz, "gexf");
+        expect(plain.$id("a").data("size")).toBe(7);
+        expect(plain.$id("a").data("color")).toHaveLength(4);
+        expect(plain.edges()[0].data("thickness")).toBe(3);
+        plain.destroy();
+    });
+
     it("returns the stylesheet without drawing it unless applyStyles is set", async () => {
         const cy = core();
         const r = await cy.graphtyImport(gephi("n", COLORS), "gexf", { styles: true });

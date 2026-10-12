@@ -150,6 +150,10 @@ function styleIssue(n: StyleNote): ImportIssue {
 
 /**
  * Reads a graph file into Cytoscape element definitions.
+ * Without `styles`, a GEXF `viz:color`, `viz:size`, `viz:shape` and `viz:thickness` also become data fields
+ * (`data.color` as four numbers from 0 to 1, `data.size`, `data.shape`, `data.thickness`); these fields are
+ * deprecated and are removed in the next major release: import with `styles: true`, whose stylesheet draws them.
+ * With `styles: true` they are left out of data.
  * @param input - the file as text, bytes, a stream or chunks
  * @param format - the format, or "auto" to sniff it
  * @param options - graph-io's import options
@@ -197,6 +201,7 @@ export async function importElements(
                 line: null,
                 element: id,
             }),
+        r.styles !== undefined && r.styles !== null,
     );
     // graph-io stores positions with y growing upward; Cytoscape's y grows downward
     for (const el of elements) {

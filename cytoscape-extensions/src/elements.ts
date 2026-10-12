@@ -54,18 +54,26 @@ interface RenamedColumn {
  * @param snapshot - the snapshot
  * @param onRename - told about each column renamed because its name is reserved
  * @param onIdDropped - told about each edge id dropped, and whether a node or an earlier edge has it
+ * @param styled - whether the file's styles are read as a stylesheet: then the columns that hold styles (a GEXF
+ *     `viz:color`, `viz:size`, `viz:shape`, its image and `viz:thickness`) are left out of data, because the
+ *     stylesheet carries them
  * @returns the nodes, then the edges
  */
 export function snapshotToElements(
     snapshot: GraphSnapshot,
     onRename?: (renamed: RenamedColumn) => void,
     onIdDropped?: (id: string, takenBy: "node" | "edge") => void,
+    styled = false,
 ): ElementDefinition[] {
     const ids: string[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
         ids.push(String(snapshot.ids.idOf(i)));
     }
-    return [...nodeElements(snapshot, ids, onRename), ...edgeElements(snapshot, ids, onRename, onIdDropped)];
+    const keep = styled ? (c: Column): boolean => kept(c) && !holdsStyle(c) : kept;
+    return [
+        ...nodeElements(snapshot, ids, onRename, keep),
+        ...edgeElements(snapshot, ids, onRename, onIdDropped, keep),
+    ];
 }
 
 /**
@@ -75,6 +83,19 @@ export function snapshotToElements(
  */
 function kept(c: Column): boolean {
     return c.meta.role !== "id" && c.meta.role !== "parent";
+}
+
+/** The roles of the columns that hold styles, which graph-io reads as a file's styles. */
+const STYLE_ROLES: ReadonlySet<string> = new Set(["color", "size", "shape", "thickness"]);
+
+/**
+ * Whether a column holds styles: one with a style role, or GEXF's image of an `image` shape.
+ * @param c - the column
+ * @returns true for a style column
+ */
+function holdsStyle(c: Column): boolean {
+    const { role, name, origin } = c.meta;
+    return (role !== null && STYLE_ROLES.has(role)) || (name === "shape.uri" && origin?.namespace === "viz");
 }
 
 /**
@@ -137,14 +158,16 @@ function rowData(cols: readonly Column[], row: number, fieldOf: (c: Column) => s
  * @param snapshot - the snapshot
  * @param ids - the node ids as strings, by node index
  * @param onRename - told about each renamed column
+ * @param keep - whether a column becomes a data field
  * @returns one element per node
  */
 function nodeElements(
     snapshot: GraphSnapshot,
     ids: readonly string[],
     onRename: ((renamed: RenamedColumn) => void) | undefined,
+    keep: (c: Column) => boolean,
 ): ElementDefinition[] {
-    const nodeCols = [...snapshot.nodes].filter(kept);
+    const nodeCols = [...snapshot.nodes].filter(keep);
     const position = nodeCols.find((c) => c.meta.role === "position" && c.meta.components >= 2);
     const nodeData = nodeCols.filter((c) => c !== position);
     const names = fieldNames(nodeData, "node", onRename);
@@ -173,6 +196,7 @@ function nodeElements(
  * @param ids - the node ids as strings, by node index
  * @param onRename - told about each renamed column
  * @param onIdDropped - told about each dropped edge id
+ * @param keep - whether a column becomes a data field
  * @returns one element per edge
  */
 function edgeElements(
@@ -180,8 +204,9 @@ function edgeElements(
     ids: readonly string[],
     onRename: ((renamed: RenamedColumn) => void) | undefined,
     onIdDropped: ((id: string, takenBy: "node" | "edge") => void) | undefined,
+    keep: (c: Column) => boolean,
 ): ElementDefinition[] {
-    const edgeCols = [...snapshot.edges].filter(kept);
+    const edgeCols = [...snapshot.edges].filter(keep);
     const named = edgeCols.some((c) => c.meta.name === "weight");
     const weightColumn = edgeCols.find((c) => c.meta.role === "weight");
     const names = fieldNames(edgeCols, "edge", onRename);

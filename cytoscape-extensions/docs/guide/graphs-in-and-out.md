@@ -139,9 +139,11 @@ two.
   and the report has a `W_EDGE_ID_DROPPED` warning. An edge id that is also a node id gets the same
   warning and a new id in every format.
 - A compound parent (GraphML nested graph, DOT cluster) becomes `data.parent`.
-- Style attributes stay data: a GEXF `viz:color` is `data.color` as four numbers from 0 to 1
-  (red, green, blue, alpha) and `viz:size` is `data.size`. Import with `styles: true` to draw them
-  (see [Styles in and out](#styles-in-and-out)).
+- Import with `styles: true` to draw a file's styles (see [Styles in and out](#styles-in-and-out)):
+  the stylesheet carries them, and a GEXF `viz:color`, `viz:size`, `viz:shape` and `viz:thickness`
+  are not data fields. Without `styles`, they are: `data.color` as four numbers from 0 to 1 (red,
+  green, blue, alpha), `data.size`, `data.shape` and `data.thickness`. These fields are deprecated
+  and are removed in the next major release; use `styles: true` instead.
 - Positions become node positions; nodes without one sit at the origin. CX, CX2 and XGMML put a
   z coordinate in `data.z`. CX, CX2, XGMML and Cytoscape JSON keep Cytoscape's own coordinates, so
   a node sits where Cytoscape drew it. GEXF, GML, DOT and Pajek are y-up, so y is negated on import

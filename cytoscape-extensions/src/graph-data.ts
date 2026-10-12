@@ -59,6 +59,9 @@ export interface GraphtyGraphData {
      * nothing, when the core already holds one of the graph's node ids.
      * `{ styles: true }` also reads the file's colors, sizes, shapes, ... and returns them as `stylesheet`;
      * `{ styles: true, applyStyles: true }` draws them too (the core needs `styleEnabled` when headless).
+     * Without `styles`, a GEXF `viz:color`, `viz:size`, `viz:shape` and `viz:thickness` also become data fields;
+     * these fields are deprecated and are removed in the next major release: use `styles: true`, which leaves
+     * them out of data and draws them through the stylesheet.
      */
     graphtyImport(
         input: ImportInput | ArrayBuffer,

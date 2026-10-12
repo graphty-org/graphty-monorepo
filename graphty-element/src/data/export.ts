@@ -101,7 +101,8 @@ type CodesOf<Table> = Extract<Table[keyof Table], string>;
  * - `W_RESULT_FIELD_DROPPED`: an algorithm result field no column could hold.
  * - The style codes of {@link ExportStyleLossCode}: each names its `target` (`node`, `edge` or
  *   `graph`) and `property` (a neutral property such as `fill`, or `graphty:<channel>` for a
- *   channel only graphty draws) where it is about one; `W_STYLE_NOT_WRITTEN` counts the elements
+ *   channel only graphty draws, which then also names that `channel`, such as `node.labelColor`)
+ *   where it is about one; `W_STYLE_NOT_WRITTEN` counts the elements
  *   that carry a value, `W_STYLE_RULES_NOT_KEPT` the rules, `W_STYLES_NOT_EXPORTED` the layers an
  *   export without `styles: true` left out, and `W_STYLE_LAYER_FLATTENED` adds `layer` (its name)
  *   and `reason` (`SCALE`: a palette or a scale the format cannot express; `RESULT_PATH`: it reads
@@ -140,7 +141,8 @@ export type ExportLossCode =
  *   graph's self-loops); every graph attribute a format has no place for, for instance.
  * - `count`: how many nodes, edges, values or columns are affected, or null when not counted.
  *
- * A style code adds `target` and `property` where it is about one property, and
+ * A style code adds `target` and `property` where it is about one property (and `channel` where
+ * that property is a channel only graphty draws), and
  * `W_STYLE_LAYER_FLATTENED` adds `layer` and `reason` (see {@link ExportStyleLossCode}).
  *
  * `code` is an {@link ExportLossCode} for a built-in writer; a writer registered with
@@ -847,6 +849,16 @@ function sessionStyles(session: GraphSession, snapshot: GraphSnapshot, format: s
 }
 
 /**
+ * `{ channel }` for a property only graphty draws (`graphty:node.labelColor`), so an application
+ * reads the channel without taking the property apart; nothing for any other.
+ * @param property - The loss's style property.
+ * @returns The param, or none.
+ */
+function channelOf(property: string | undefined): { channel?: string } {
+    return property?.startsWith("graphty:") === true ? { channel: property.slice("graphty:".length) } : {};
+}
+
+/**
  * A loss note as a fact: its code, the columns it names and its count.
  * @param note - The note.
  * @returns The fact, frozen.
@@ -859,6 +871,7 @@ function lossOf(note: ElementLossNote): ExportLoss {
             columns: Object.freeze([...columns]),
             count: note.count,
             ...(note.style === undefined ? {} : { target: note.style.target, property: note.style.property }),
+            ...channelOf(note.style?.property),
             ...note.params,
         }),
     });

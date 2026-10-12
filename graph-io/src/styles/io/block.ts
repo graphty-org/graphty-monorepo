@@ -9,6 +9,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { toolDefaults } from "../defaults.js";
+import { STYLE_PROPERTIES } from "../vocabulary.js";
 import { featuresOf, heldEdgeRows, styleFingerprint } from "../plan/features.js";
 import { plainCell, refSource, resolveRules, within } from "../plan/resolve.js";
 import type {
@@ -746,6 +747,27 @@ function blockColumns(
 }
 
 /**
+ * The style columns a boolean property is passed through from, as booleans: a format with no booleans (GML) holds
+ * them as 0 and 1.
+ * @param rules - the block's rules
+ * @param columns - the style columns per target, changed in place
+ */
+function asBooleans(rules: readonly StyleRule[], columns: Record<StyleTarget, Map<string, StyleColumn>>): void {
+    for (const rule of rules) {
+        for (const [property, mapping] of Object.entries(rule.map ?? {})) {
+            const key = mapping?.kind === "passthrough" && "style" in mapping.by ? mapping.by.style : null;
+            const col = key === null ? undefined : columns[rule.target].get(key);
+            if (key !== null && col !== undefined && STYLE_PROPERTIES[rule.target].get(property) === "boolean") {
+                columns[rule.target].set(
+                    key,
+                    col.map((v) => (v === 0 || v === 1 ? v === 1 : v)),
+                );
+            }
+        }
+    }
+}
+
+/**
  * Inline node values in the order of the graph read back: by each node's id, when the block lists the order it wrote
  * them in and the file read its nodes back in another.
  * @param block - the block
@@ -839,6 +861,7 @@ export function blockStyles(
         return null;
     }
     const columns = { node, edge };
+    asBooleans(block.rules, columns);
     const features = { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") };
     // a data column the file holds under another name is read there
     const moved = { node: movedColumns(block, snapshot, "node"), edge: movedColumns(block, snapshot, "edge") };

@@ -229,6 +229,31 @@ describe("GML styles: writing", () => {
     });
 });
 
+describe("GML styles: booleans", () => {
+    it("reads a boolean style value back as a boolean, though GML writes it as 0 or 1", async () => {
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 1; i <= 5; i++) {
+            b.addNode(i);
+        }
+        const g = b.freeze();
+        const italic = [false, true, false, true, true];
+        const styles = planStyles(
+            {
+                format: "test",
+                node: { values: { label: ["a", "b", "c", "d", "e"], labelItalic: italic } },
+                fingerprint: styleFingerprint(g),
+            },
+            { node: featuresOf(g, "node"), edge: [] },
+        );
+        const written = await registry.exportGraphToString(g, "gml", { styles });
+        const back = await load(written);
+        expect(resolveStyles(back.styles, "node", "labelItalic", back.snapshot)).toEqual(italic);
+        const second = await registry.exportGraphToString(back.snapshot, "gml", { styles: back.styles });
+        const again = await load(second);
+        expect(await registry.exportGraphToString(again.snapshot, "gml", { styles: again.styles })).toBe(second);
+    });
+});
+
 /** The block-tamper fixtures: a file graphty wrote, then edited outside as design 10.7 items 4 and 5 describe. */
 async function tamperFixtures(): Promise<Record<string, Uint8Array>> {
     const base = await load(file("yed-labels-and-arrows.gml"));

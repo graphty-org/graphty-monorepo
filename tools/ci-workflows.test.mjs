@@ -2476,8 +2476,9 @@ describe("release.yml", () => {
         // stubs for gh (no release pull request, or one still pending), git (no release yet) and
         // tools/release-held.sh (the held train issue, or none; `publishHold` an open publish hold, which only a
         // plain `find` returns). `trigger` is the workflow's TRIGGER: "schedule" for a scheduler dispatch
-        // (scheduled=true), "workflow_dispatch" for one by hand.
-        const pending = (trigger, heldIssue, trainPr = false, publishHold = "") => {
+        // (scheduled=true), "workflow_dispatch" for one by hand. `settle` stubs tools/publish-hold.mjs settle:
+        // "closes" (npm lists what the publish hold awaited, so the hold is gone), "keeps" or "throws".
+        const pending = (trigger, heldIssue, trainPr = false, publishHold = "", settle = "keeps") => {
             const script = /- name: Skip while the previous release is pending[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
                 pick,
             )[1];
@@ -2492,8 +2493,16 @@ describe("release.yml", () => {
                 writeFileSync(join(dir, "bin", "git"), "#!/bin/sh\n", { mode: 0o755 });
                 writeFileSync(
                     join(dir, "tools", "release-held.sh"),
-                    `#!/bin/sh\nif [ "$2" = --train ]; then echo ${heldIssue}; else echo ${heldIssue || publishHold}; fi\n`,
+                    `#!/bin/sh\nif [ "$2" = --train ] || [ -f settled ]; then echo ${heldIssue}; else echo ${heldIssue || publishHold}; fi\n`,
                     { mode: 0o755 },
+                );
+                writeFileSync(
+                    join(dir, "tools", "publish-hold.mjs"),
+                    {
+                        closes: `import { writeFileSync } from "node:fs";\nif (process.argv[2] === "settle" && process.argv[4] === "${publishHold}") writeFileSync("settled", "");\n`,
+                        keeps: "",
+                        throws: 'throw new Error("GitHub said 502");\n',
+                    }[settle],
                 );
                 const output = join(dir, "output");
                 writeFileSync(output, "");
@@ -2552,6 +2561,23 @@ describe("release.yml", () => {
             assert.equal(pending("workflow_run", "1234", false, "1440"), "pending=false\nsha=abc123\n");
             assert.match(pick, /\[ -z "\$\(tools\/release-held.sh find --train\)" \]/);
             assert.match(pick, /held=\$\(tools\/release-held.sh find\)\n/);
+        });
+
+        it("ends a publish hold npm only had to list, before any hold decides, and never fails the pick over it", () => {
+            // npm now lists every version it accepted: the hold closes and the schedule runs the train
+            assert.equal(pending("schedule", "", false, "2189", "closes"), "pending=false\nsha=abc123\n");
+            // npm refused one, or has not listed it yet: still held
+            assert.equal(pending("schedule", "", false, "2189", "keeps"), "pending=true\n");
+            // GitHub or npm failing to answer leaves the hold for the next attempt, never a red pick
+            assert.equal(pending("schedule", "", false, "2189", "throws"), "pending=true\n");
+            assert.match(pick, /issues: write/);
+            const settle = pick.indexOf("node tools/publish-hold.mjs settle");
+            assert.ok(settle > 0 && settle < pick.indexOf("held=$(tools/release-held.sh find)\n"));
+            assert.match(pick, /publish_hold=\$\(tools\/release-held.sh find "Release held: publish failed"\)/);
+            assert.match(
+                pick,
+                /GITHUB_TOKEN: \$\{\{ github.token \}\}\n\s+RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/,
+            );
         });
 
         it("skips a scheduler dispatch while a train pull request or a held issue is open; runs one by hand", () => {
@@ -2651,7 +2677,7 @@ describe("release.yml", () => {
         );
     });
 
-    it("hands the Pushover secrets only to the steps that run tools/release-status.mjs", () => {
+    it("hands the Pushover secrets only to the steps that announce (tools/release-status.mjs, publish-hold.mjs settle)", () => {
         for (const name of [
             "release.yml",
             "release-watch.yml",
@@ -2659,7 +2685,9 @@ describe("release.yml", () => {
             "gpu-rerun-on-runner-loss.yml",
         ]) {
             const steps = workflow(name).split(/\n(?=\s+- (?:name|uses): )/);
-            const announcing = steps.filter((st) => /node tools\/release-status.mjs /.test(st));
+            const announcing = steps.filter((st) =>
+                /node tools\/(?:release-status\.mjs |publish-hold\.mjs settle )/.test(st),
+            );
             assert.ok(announcing.length > 0, name);
             for (const st of steps) {
                 const secrets = st.match(/secrets\.PUSHOVER_\w+/g) ?? [];
@@ -2725,7 +2753,7 @@ describe("release.yml", () => {
     // The failed-publish report, run in a scratch directory with stubs: the publish step's output (run
     // 37691314850's shape, colors and all), `pnpm exec nx show project` answering each project's root, and
     // tools/release-held.sh recording the issue it would open.
-    const publishReport = (log) => {
+    const publishReport = (log, absent) => {
         const script = /- name: Report a failed publish\n\s+id: report\n\s+if: [^\n]*\n\s+run: \|\n([\s\S]*?)\n\n/.exec(
             publish,
         )[1];
@@ -2738,6 +2766,10 @@ describe("release.yml", () => {
                 writeFileSync(join(dir, project, "package.json"), JSON.stringify({ name: `@graphty/${project}` }));
             }
             writeFileSync(join(dir, "bin", "pnpm"), '#!/bin/sh\necho "{\\"root\\": \\"$5\\"}"\n', { mode: 0o755 });
+            for (const f of ["publish-hold.mjs", "release-status.mjs"]) {
+                copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
+            }
+            if (absent !== undefined) writeFileSync(join(dir, "absent.txt"), absent);
             writeFileSync(
                 join(dir, "tools", "release-held.sh"),
                 `#!/bin/sh\necho "$2" > "${join(dir, "title")}"\ncp "$3" "${join(dir, "body")}"\necho 42\n`,
@@ -2818,12 +2850,44 @@ describe("release.yml", () => {
         assert.doesNotMatch(body, /graph-io/);
     });
 
+    it("marks a hold npm only has to list as ending by itself, and the check step says what was missing", () => {
+        assert.match(publish, /printf '%s\\n' "\$absent" > "\$RUNNER_TEMP\/absent.txt"\n\s+exit 1\n/);
+        const tarball = (name, v) => `name:          @graphty/${name}\nversion:       ${v}\n`;
+        const { title, body } = publishReport(
+            task(
+                true,
+                "compact-mantine",
+                `${tarball("compact-mantine", "0.9.20")}Published to https://registry.npmjs.org/ with tag "latest"`,
+            ),
+            "@graphty/compact-mantine@0.9.20\n",
+        );
+        assert.equal(
+            title.trim(),
+            "Release held: publish failed on e140ea5: npm has not listed @graphty/compact-mantine@0.9.20 yet",
+        );
+        assert.match(body, /^## Nothing to do: npm accepted @graphty\/compact-mantine@0\.9\.20/);
+        assert.match(body, /\n<!-- publish-hold: awaiting-registry @graphty\/compact-mantine@0\.9\.20 -->\n$/);
+        // one npm refused beside it: a person must act
+        const refused = publishReport(
+            task(
+                true,
+                "compact-mantine",
+                `${tarball("compact-mantine", "0.9.20")}Published to https://registry.npmjs.org/ with tag "latest"`,
+            ) + task(false, "layout", `${tarball("layout", "2.4.3")}npm error code E403`),
+            "@graphty/compact-mantine@0.9.20\n@graphty/layout@2.4.3\n",
+        );
+        assert.equal(refused.title.trim(), "Release held: publish failed on e140ea5");
+        assert.doesNotMatch(refused.body, /Nothing to do/);
+        assert.match(refused.body, /\n<!-- publish-hold: rejected -->\n$/);
+    });
+
     it("reports any other failed publish as before, with no owner item", () => {
         for (const log of [task(false, "graph-io", "npm error code E403\nnpm error 403 Forbidden"), undefined]) {
             const { title, body } = publishReport(log);
             assert.equal(title.trim(), "Release held: publish failed on e140ea5");
             assert.doesNotMatch(body, /OWNER ITEM/);
             assert.match(body, /^The publish job failed on master /);
+            assert.match(body, /<!-- publish-hold: rejected -->/);
         }
     });
 

@@ -847,6 +847,30 @@ describe("DOT styles: writing", () => {
         }
     });
 
+    it("reports a missing label a rule reads from the label column, which reads back as the empty label", async () => {
+        const gml = readFileSync(resolve(CORPUS, "../gml/generated/tamper-node-added.gml"));
+        // node 9999 was added outside graphty and has no label; the block is set aside, the yEd labels are a rule
+        const first = await registry.importGraph(new Uint8Array(gml), { format: "gml", styles: true });
+        const styles = first.styles ?? undefined;
+        const approximated = registry
+            .checkExport(first.snapshot, "dot", { styles })
+            .filter((l) => l.code === "W_STYLE_APPROXIMATED" && l.style?.property === "label");
+        expect(approximated.map((l) => [l.style?.target, l.count])).toEqual([["node", 1]]);
+        const text = await registry.exportGraphToString(first.snapshot, "dot", { styles });
+        expect(text).toContain('9999 [label=""]');
+        // a graph whose rules read no label column writes label="" for every node and reads back no label: no note
+        const plain = new GraphBuilder({ directed: true });
+        plain.addNode("a");
+        const g = plain.freeze();
+        const none = planStyles(
+            { format: "test", node: { values: { fill: ["#ff0000"] } }, fingerprint: styleFingerprint(g) },
+            { node: featuresOf(g, "node"), edge: featuresOf(g, "edge") },
+        );
+        expect(registry.checkExport(g, "dot", { styles: none }).filter((l) => l.style?.property === "label")).toEqual(
+            [],
+        );
+    });
+
     it("reports values Graphviz can only approximate, and keeps their exact values in the block", async () => {
         const b = new GraphBuilder({ directed: true });
         b.addNode("a");

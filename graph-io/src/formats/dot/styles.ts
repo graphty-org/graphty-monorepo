@@ -1403,11 +1403,17 @@ export function dotStyledExport(
         };
         const get = getter(picture, target);
         const columns = new Map<string, (Written | null)[]>();
+        const read = dataRead(input.rules.styles.rules, target);
         for (let i = 0; i < n; i++) {
             const attrs =
                 target === "node"
                     ? nodeAttributes(get(i), cx.node(i), approximate, notes)
                     : edgeAttributes(get(i), cx.edge(i).directed, approximate);
+            // no label is written label="" (Graphviz would show the name), which a rule reading the label column
+            // reads back as the empty label
+            if (read.has(LABEL_ATTRIBUTE) && attrs.get(LABEL_ATTRIBUTE) === "" && get(i)("label") === null) {
+                approximate("label", "");
+            }
             for (const [name, value] of attrs) {
                 let col = columns.get(name);
                 if (col === undefined) {
@@ -1421,7 +1427,6 @@ export function dotStyledExport(
         // Graphviz reads these names as how to draw: the picture writes them, so a data column of the same name
         // (a `label` attribute graphty does not draw) would draw something graphty does not. One a rule reads, whose
         // values the picture does not write, is lost to the rule, and said so.
-        const read = dataRead(input.rules.styles.rules, target);
         for (const name of [...table.names()]) {
             if (attributes.includes(name) || name === LABEL_ATTRIBUTE || name.startsWith("graphty.style.")) {
                 const differs = read.has(name) ? replacedRows(table, name, columns.get(name)) : 0;

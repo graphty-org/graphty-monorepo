@@ -119,7 +119,7 @@ async function runLayout(
 }
 
 describe("spring-electrical distributional parity: the admission rule (the f64 oracle alone, no GPU)", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 98 s on the T4 lane, 74 s on the dev box's RTX 4070 SUPER under load, 37 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         `every candidate's oracle spread under ${PERTURBATIONS} one-ulp start perturbations is printed; the admitted ones are under a third of the cap`,
         async () => {
@@ -172,65 +172,55 @@ describe("spring-electrical distributional parity: 100 iterations, metrics withi
     for (const c of ADMITTED) {
         const label = labelOf(c);
         const informational = INFORMATIONAL.some((a) => a.graph === c.graph && a.dim === c.dim);
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            `${label}: layoutMetrics of the GPU layout vs the f64 oracle's, coordinates never compared, twice bitwise${informational ? " (the difference printed, not asserted)" : ""}`,
-            async (t) => {
-                requireGpu(t);
-                const s = paritySnapshot(c.graph, gpuScale(), false);
-                try {
-                    const options = optionsOf(c.dim);
-                    const start = startPositions(s, options, false);
-                    const a = await runLayout(ctx, s, start, options);
-                    const b = await runLayout(ctx, s, start, options);
-                    expectBitwiseEqual(a, b, `${label}: run 1 vs run 2`);
-                    const gpuMetrics = layoutMetrics(s, a, c.dim);
-                    const oracleMetrics = layoutMetrics(s, oracleLayout(s, start, options), c.dim);
-                    expect(Object.keys(gpuMetrics).sort()).toEqual(Object.keys(oracleMetrics).sort());
-                    expect("separation" in gpuMetrics, `${label}: separation present`).toBe(
-                        Number.isFinite(componentSeparation(s, start, c.dim)),
-                    );
-                    const err = distributionalError(gpuMetrics, oracleMetrics);
-                    console.warn(
-                        `[se-distributional] ${label}: worst metric difference ${err.toExponential(3)} (spread gpu ${gpuMetrics.spread.toFixed(4)} oracle ${oracleMetrics.spread.toFixed(4)})${informational ? " informational" : ""}`,
-                    );
-                    expect(Number.isFinite(err), `${label}: a finite difference`).toBe(true);
-                    if (!informational) {
-                        assertCheckPasses({
-                            worst: ratioOf(err, seTolerance("se-distributional").value),
-                            worstLabel: label,
-                            samples: Object.keys(oracleMetrics).length,
-                        });
-                    }
-                    // the layout expanded from the unit square toward the rest length 10 (spec 7.18: no normalisation)
-                    expect(gpuMetrics.spread).toBeGreaterThan(2);
-                } finally {
-                    ctx.release(s);
-                }
-            },
-            CASE_TIMEOUT,
-        );
-    }
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        `writes the ${labelOf(MEMBER)} metrics after 100 iterations and the f64 reference's as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
-        async (t) => {
+        it(`${label}: layoutMetrics of the GPU layout vs the f64 oracle's, coordinates never compared, twice bitwise${informational ? " (the difference printed, not asserted)" : ""}`, async (t) => {
             requireGpu(t);
-            const s = paritySnapshot(MEMBER.graph, 1, false);
+            const s = paritySnapshot(c.graph, gpuScale(), false);
             try {
-                const options = optionsOf(MEMBER.dim);
+                const options = optionsOf(c.dim);
                 const start = startPositions(s, options, false);
-                const gpu = metricsValues(layoutMetrics(s, await runLayout(ctx, s, start, options), MEMBER.dim));
-                const oracle = metricsValues(layoutMetrics(s, oracleLayout(s, start, options), MEMBER.dim));
-                expect(gpu.keys).toEqual(oracle.keys);
-                const { kernel, fixture } = SE_NOISE_FIXTURES.metrics100;
-                writeNoiseFixture(kernel, fixture, adapterClass(ctx.caps), gpu.values, "f32");
-                writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, oracle.values, "f32");
+                const a = await runLayout(ctx, s, start, options);
+                const b = await runLayout(ctx, s, start, options);
+                expectBitwiseEqual(a, b, `${label}: run 1 vs run 2`);
+                const gpuMetrics = layoutMetrics(s, a, c.dim);
+                const oracleMetrics = layoutMetrics(s, oracleLayout(s, start, options), c.dim);
+                expect(Object.keys(gpuMetrics).sort()).toEqual(Object.keys(oracleMetrics).sort());
+                expect("separation" in gpuMetrics, `${label}: separation present`).toBe(
+                    Number.isFinite(componentSeparation(s, start, c.dim)),
+                );
+                const err = distributionalError(gpuMetrics, oracleMetrics);
+                console.warn(
+                    `[se-distributional] ${label}: worst metric difference ${err.toExponential(3)} (spread gpu ${gpuMetrics.spread.toFixed(4)} oracle ${oracleMetrics.spread.toFixed(4)})${informational ? " informational" : ""}`,
+                );
+                expect(Number.isFinite(err), `${label}: a finite difference`).toBe(true);
+                if (!informational) {
+                    assertCheckPasses({
+                        worst: ratioOf(err, seTolerance("se-distributional").value),
+                        worstLabel: label,
+                        samples: Object.keys(oracleMetrics).length,
+                    });
+                }
+                // the layout expanded from the unit square toward the rest length 10 (spec 7.18: no normalisation)
+                expect(gpuMetrics.spread).toBeGreaterThan(2);
             } finally {
                 ctx.release(s);
             }
-        },
-        CASE_TIMEOUT,
-    );
+        });
+    }
+
+    it(`writes the ${labelOf(MEMBER)} metrics after 100 iterations and the f64 reference's as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`, async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot(MEMBER.graph, 1, false);
+        try {
+            const options = optionsOf(MEMBER.dim);
+            const start = startPositions(s, options, false);
+            const gpu = metricsValues(layoutMetrics(s, await runLayout(ctx, s, start, options), MEMBER.dim));
+            const oracle = metricsValues(layoutMetrics(s, oracleLayout(s, start, options), MEMBER.dim));
+            expect(gpu.keys).toEqual(oracle.keys);
+            const { kernel, fixture } = SE_NOISE_FIXTURES.metrics100;
+            writeNoiseFixture(kernel, fixture, adapterClass(ctx.caps), gpu.values, "f32");
+            writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, oracle.values, "f32");
+        } finally {
+            ctx.release(s);
+        }
+    });
 });

@@ -1,3 +1,58 @@
+## 3.4.3 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.28
+- Updated graph-format to 1.3.13
+
+## 3.4.2 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.27
+- Updated graph-format to 1.3.12
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.1 (2026-10-11)
+
+### 🩹 Fixes
+
+- **algorithms:** stop SynC blurring connected communities together ([#1698](https://github.com/graphty-org/graphty-monorepo/issues/1698))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.0 (2026-10-10)
+
+### 🚀 Features
+
+- **algorithms:** list each undirected link-prediction pair once on request ([#723](https://github.com/graphty-org/graphty-monorepo/issues/723))
+
+### 🩹 Fixes
+
+- **algorithms:** state the maxNodes guard without a negated comparison ([e381c1e43](https://github.com/graphty-org/graphty-monorepo/commit/e381c1e43))
+- **algorithms:** refuse n x n allocations in teraHAC and hierarchicalClustering with E_TOO_LARGE ([39649b740](https://github.com/graphty-org/graphty-monorepo/commit/39649b740))
+- **algorithms:** scale each SynC step by the node's degree so unconnected cliques split ([#1600](https://github.com/graphty-org/graphty-monorepo/issues/1600))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.3.13 (2026-10-09)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.26
+- Updated graph-format to 1.3.11
+
 ## 3.3.12 (2026-10-09)
 
 ### 🧱 Updated Dependencies

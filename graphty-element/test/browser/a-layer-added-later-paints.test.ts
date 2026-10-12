@@ -66,7 +66,6 @@ describe("a layer written to a graph that is already drawn", () => {
     let graph: Graph;
     let session: GraphSession;
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         container = document.createElement("div");
         container.style.width = `${String(WIDTH)}px`;
@@ -100,7 +99,7 @@ describe("a layer written to a graph that is already drawn", () => {
             },
         });
         await operationQueueOf(graph).waitForCompletion();
-    }, 60000);
+    });
 
     afterAll(() => {
         graph.dispose();
@@ -202,6 +201,28 @@ describe("a layer written to a graph that is already drawn", () => {
             );
         });
     }
+
+    it("does not change the frame: a glow's strength with no glow under it", async () => {
+        // A strength only scales a glow colour some layer set. On its own it used to switch glow
+        // on with the renderer's white fallback, on every node the layer painted (#2068).
+        const before = await frame();
+        const strengthOnly = await session.styles.add({
+            name: "strength only",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.glowStrength": 8 },
+        });
+        const after = await frame();
+
+        await session.styles.remove(strengthOnly.id);
+        await operationQueueOf(graph).waitForCompletion();
+
+        assert.isAtMost(
+            moved(before, after),
+            PIXEL_CHANGE,
+            `A glow strength with no glow colour moved ${String(moved(before, after))} pixels: it drew a glow.`,
+        );
+    });
 
     it("changes the frame: a glow's strength, over a graph that is already glowing", async () => {
         // THE GLOW IS ALREADY ON SCREEN BEFORE THE STRENGTH IS WRITTEN, and that is the whole of

@@ -132,80 +132,70 @@ describe("FR adaptive cooling (Yifan Hu's step control on the GPU)", () => {
         ctx = await acquire({ label: "fr-adaptive" });
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "karate: the traced temperature follows the f32 oracle through the first 12 iterations, and every later step is x0.9, x1/0.9 or unchanged",
-        async (t) => {
-            requireGpu(t);
-            const s = paritySnapshot("karate", 1, false);
-            try {
-                const options: FruchtermanReingoldOptions = { ...BASE, iterations: 50 };
-                const gpu = await twice(async () => {
-                    const positions = startPositions(s, options, false);
-                    return withSim(ctx, options, async (sim) => {
-                        sim.load(s, positions);
-                        const result = await traceTemperatures(sim, 200);
-                        return { positions, result };
-                    });
+    it("karate: the traced temperature follows the f32 oracle through the first 12 iterations, and every later step is x0.9, x1/0.9 or unchanged", async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot("karate", 1, false);
+        try {
+            const options: FruchtermanReingoldOptions = { ...BASE, iterations: 50 };
+            const gpu = await twice(async () => {
+                const positions = startPositions(s, options, false);
+                return withSim(ctx, options, async (sim) => {
+                    sim.load(s, positions);
+                    const result = await traceTemperatures(sim, 200);
+                    return { positions, result };
                 });
-                const start = startPositions(s, options, false);
-                const oracle = new FruchtermanReingoldOracle(
-                    s,
-                    layoutStart(start, s.nodeCount, 2),
-                    frOracleOptions(options, null, "f32"),
-                );
-                for (let i = 0; i < 12; i++) {
-                    const record = oracle.step();
-                    expect(gpu[i], `iteration ${i}`).toBeCloseTo(record.temperature, 7);
-                }
-                expect(gpu[0]).toBe(Math.fround(FR_START_TEMPERATURE));
-                const grow = 1 / FR_COOLING_STEP;
-                let grew = 0;
-                let shrank = 0;
-                for (let i = 1; i < gpu.length; i++) {
-                    const ratio = gpu[i] / gpu[i - 1];
-                    const kind = stepKind(ratio, grow);
-                    expect(kind, `iteration ${i}: ${gpu[i - 1]} -> ${gpu[i]}`).not.toBe("other");
-                    if (kind === "grow") {
-                        grew++;
-                    }
-                    if (kind === "shrink") {
-                        shrank++;
-                    }
-                }
-                expect(grew, "the temperature grew at least once").toBeGreaterThan(0);
-                expect(shrank, "the temperature shrank at least once").toBeGreaterThan(0);
-            } finally {
-                ctx.release(s);
+            });
+            const start = startPositions(s, options, false);
+            const oracle = new FruchtermanReingoldOracle(
+                s,
+                layoutStart(start, s.nodeCount, 2),
+                frOracleOptions(options, null, "f32"),
+            );
+            for (let i = 0; i < 12; i++) {
+                const record = oracle.step();
+                expect(gpu[i], `iteration ${i}`).toBeCloseTo(record.temperature, 7);
             }
-        },
-        CASE_TIMEOUT,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "reheat() restarts the temperature at 0.1 and the controller from scratch",
-        async (t) => {
-            requireGpu(t);
-            const s = paritySnapshot("karate", 1, false);
-            try {
-                await withSim(ctx, BASE, async (sim) => {
-                    sim.load(s, startPositions(s, BASE, false));
-                    const before = await traceTemperatures(sim, 60);
-                    expect(before[before.length - 1]).not.toBe(Math.fround(FR_START_TEMPERATURE));
-                    sim.reheat();
-                    const after = await traceTemperatures(sim, 2);
-                    expect(after[0]).toBe(Math.fround(FR_START_TEMPERATURE));
-                    expect(sim.stats.temperature).toBe(after[1]);
-                });
-            } finally {
-                ctx.release(s);
+            expect(gpu[0]).toBe(Math.fround(FR_START_TEMPERATURE));
+            const grow = 1 / FR_COOLING_STEP;
+            let grew = 0;
+            let shrank = 0;
+            for (let i = 1; i < gpu.length; i++) {
+                const ratio = gpu[i] / gpu[i - 1];
+                const kind = stepKind(ratio, grow);
+                expect(kind, `iteration ${i}: ${gpu[i - 1]} -> ${gpu[i]}`).not.toBe("other");
+                if (kind === "grow") {
+                    grew++;
+                }
+                if (kind === "shrink") {
+                    shrank++;
+                }
             }
-        },
-        CASE_TIMEOUT,
-    );
+            expect(grew, "the temperature grew at least once").toBeGreaterThan(0);
+            expect(shrank, "the temperature shrank at least once").toBeGreaterThan(0);
+        } finally {
+            ctx.release(s);
+        }
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it("reheat() restarts the temperature at 0.1 and the controller from scratch", async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot("karate", 1, false);
+        try {
+            await withSim(ctx, BASE, async (sim) => {
+                sim.load(s, startPositions(s, BASE, false));
+                const before = await traceTemperatures(sim, 60);
+                expect(before[before.length - 1]).not.toBe(Math.fround(FR_START_TEMPERATURE));
+                sim.reheat();
+                const after = await traceTemperatures(sim, 2);
+                expect(after[0]).toBe(Math.fround(FR_START_TEMPERATURE));
+                expect(sim.stats.temperature).toBe(after[1]);
+            });
+        } finally {
+            ctx.release(s);
+        }
+    });
+
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 15 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "random1k settles on its own under the shared rule, well inside the budget, with the layout expanded past 50 linear iterations",
         async (t) => {

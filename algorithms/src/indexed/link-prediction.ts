@@ -36,10 +36,15 @@ export interface LinkPredictionOptions extends CommonNeighborsOptions {
      * end, so 0 keeps none and -2 drops the last two.
      */
     readonly topK?: number | undefined;
+    /**
+     * Each pair is always listed once, so this changes nothing. It is accepted so that 3.x calls,
+     * where it was needed to list an undirected pair once, still compile.
+     */
+    readonly uniquePairs?: boolean | undefined;
 }
 
 /** Options of the per-node candidate functions. @public */
-export interface CandidateOptions extends LinkPredictionOptions {
+export interface CandidateOptions extends Omit<LinkPredictionOptions, "uniquePairs"> {
     /** The nodes to consider (indices, `{ mask }` or `{ ids }`), in this order; default every node in index order. */
     readonly candidates?: NodeSet | undefined;
 }

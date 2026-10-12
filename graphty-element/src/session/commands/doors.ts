@@ -656,6 +656,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 { op: "config.set", values: { layoutBehavior: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } } },
             ]),
             labelDeclutter: VIEW_SETTING,
+            renderOnDemand: VIEW_SETTING,
             selectionStyle: assigns({ color: "#ff0000" }, [
                 { op: "config.set", values: { selectionStyle: { color: "#ff0000" } } },
             ]),
@@ -1039,6 +1040,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             size: RENDER,
             shapeType: RENDER,
             update: RENDER,
+            setMeshPosition: RENDER,
             updateStyle: RENDER,
             applySessionPaint: RENDER,
             dispose: RENDER,
@@ -1056,6 +1058,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getPosition: READ,
             isPinned: READ,
             roundRadius: READ,
+            drawnRadius: READ,
         },
     },
     {
@@ -2140,6 +2143,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             startRenderLoop: RENDER,
             stopRenderLoop: RENDER,
             holdFrames: RENDER,
+            requestFrame: RENDER,
             applyBackground: RENDER,
             getRenderStats: READ,
         },

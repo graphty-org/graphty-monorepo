@@ -119,22 +119,6 @@ describe("types/ai", () => {
             createProvider("google");
             createProvider("mock");
         });
-
-        it("exports AiStage type values", async () => {
-            // Import to ensure types are accessible
-            await import("../ai");
-
-            // These are type-level checks - if they compile, the types exist
-            const stages: Array<"idle" | "processing" | "executingTool" | "streaming" | "complete" | "error"> = [
-                "idle",
-                "processing",
-                "executingTool",
-                "streaming",
-                "complete",
-                "error",
-            ];
-            expect(stages).toHaveLength(6);
-        });
     });
 });
 

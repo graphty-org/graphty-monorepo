@@ -193,7 +193,28 @@ jobs:
                       echo "release=false" >> "$GITHUB_OUTPUT"
                   else
                       echo "release=true" >> "$GITHUB_OUTPUT"
+                      tags=$(git log -1 --format=%b "$commit" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1@\2/p' | paste -sd, -)
+                      echo "tags=${tags}" >> "$GITHUB_OUTPUT"
                   fi
+
+            # The owner's phone hears that a train began testing a releasable candidate (tools/release-status.mjs
+            # started; attempts that do nothing stay silent): "Release RETRYING" for a restart after a fix (the
+            # pushed commit's subject names the fix) or a re-run of the whole run. A failure here holds nothing.
+            - name: Announce the train attempt
+              if: ${{ steps.releasable.outputs.release == 'true' }}
+              continue-on-error: true
+              env:
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+                  SHA: ${{ steps.pending.outputs.sha }}
+                  TAGS: ${{ steps.releasable.outputs.tags }}
+              run: |
+                  restart=()
+                  if [ "$TRIGGER" = workflow_run ]; then
+                      restart=(--restart --issue "$(tools/release-held.sh find --train)" --fix "$(git log -1 --format=%s "$SHA")")
+                  fi
+                  node tools/release-status.mjs started --sha "$SHA" --tags "$TAGS" "${restart[@]}" \
+                      --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
     # The full CI suite on exactly the candidate: every shard of every package, the links, the cost estimates,
     # the screenshots, and the per-package builds this release ships (no artifact of any other run is used).
@@ -342,11 +363,13 @@ jobs:
     # failure or cancelled. On 2026-10-07 (run 37635516841) a GitHub Actions outage left CI's "All Checks Pass"
     # queued for good, its result "abandoned", the CI call ended neither failure nor cancelled, and a list of
     # those two skipped this job: the attempt ended red with no pull request and no issue. always(), so a
-    # cancelled run still reports; a pick that failed (not one that skipped by design) is held too.
+    # cancelled run still reports; a pick that failed (not one that skipped by design) is held too. A train that
+    # opened its pull request and then failed a later step (closing the held issue, an announcement) did not hold
+    # anything: the release is going ahead, so this job does not run and the train reports that failure itself.
     held:
         name: Hold the release
         needs: [pick, ci, t4, hosts, audit, llm, train]
-        if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.train.result != 'success')) }}
+        if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.train.result != 'success' && needs.train.outputs.pr == '')) }}
         runs-on: ubuntu-24.04
         permissions:
             actions: read
@@ -458,6 +481,8 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
                   WHAT: ${{ steps.hold.outputs.what }}
                   ISSUE: ${{ steps.hold.outputs.issue }}
               run: |
@@ -479,6 +504,10 @@ jobs:
             issues: write
             pull-requests: write
             statuses: write
+        # Set as soon as the release pull request exists, so the held job knows this run opened one even when a
+        # later step of this job fails.
+        outputs:
+            pr: ${{ steps.open.outputs.pr }}
         env:
             GH_TOKEN: ${{ github.token }}
         steps:
@@ -600,6 +629,8 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
                   SHA: ${{ needs.pick.outputs.sha }}
                   PR: ${{ steps.open.outputs.pr }}
                   TAGS: ${{ steps.open.outputs.tags }}
@@ -608,6 +639,17 @@ jobs:
                   [ "$TRIGGER" != workflow_run ] || restart=(--restart)
                   node tools/release-status.mjs opened --sha "$SHA" --pr "$PR" --tags "$TAGS" "${restart[@]}" \
                       --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+            # A step after the pull request opened failed: the release is not held (the held job skips), but the
+            # failure must not pass unseen. The run ends red, and this says what it means.
+            - name: Report a failure after the release pull request opened
+              if: ${{ failure() && steps.open.outputs.pr != '' }}
+              env:
+                  PR: ${{ steps.open.outputs.pr }}
+              run: |
+                  msg="the release pull request ${PR} is open and the release is going ahead, but a later step of this job failed (see the failed step above); the release is not held"
+                  echo "::error::${msg}"
+                  echo "Release pull request opened, then a bookkeeping step failed: ${msg}" >> "$GITHUB_STEP_SUMMARY"
 
     # Runs on the push that merges a release pull request: Mergify's merge commit names the release branch. The
     # release queue rule merges with merge_method: merge for this reason; a merge-batch commit names only numbers.
@@ -628,6 +670,17 @@ jobs:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
+
+            # A re-run of a failed publish (gh run rerun <id> --failed) tells the owner's phone it is retrying.
+            - name: Announce a re-run of the publish
+              if: ${{ github.run_attempt > 1 }}
+              continue-on-error: true
+              env:
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+              run: |
+                  node tools/release-status.mjs started --sha "$GITHUB_SHA" --attempt "$GITHUB_RUN_ATTEMPT" \
+                      --what "Re-run ${GITHUB_RUN_ATTEMPT} of the failed publish" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
             # The version commit this push brought onto master, and the green commit below it. Its builds must be
             # the ones a train run on master kept: that ties the publish to a commit the train found green.
@@ -821,6 +874,8 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
                   OUTCOME: ${{ job.status == 'success' && 'published' || 'publish-failed' }}
                   TAGS: ${{ steps.tags.outputs.tags }}
                   ISSUE: ${{ steps.report.outputs.issue }}

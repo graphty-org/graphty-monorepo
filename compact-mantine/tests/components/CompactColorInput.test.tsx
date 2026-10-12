@@ -73,7 +73,7 @@ describe("CompactColorInput", () => {
                 <CompactColorInput defaultColor="#FF0000" />
             </TestWrapper>,
         );
-        expect(screen.getByRole("button", { name: /swatch/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /^pick/i })).toBeInTheDocument();
     });
 
     it("shows reset button when explicit color is set", () => {
@@ -238,8 +238,9 @@ describe("CompactColorInput", () => {
 
             const group = screen.getByRole("group", { name: "Fill Color" });
             expect(group).toBeInTheDocument();
-            expect(group).toContainElement(screen.getByRole("textbox", { name: /hex/i }));
-            expect(group).toContainElement(screen.getByRole("button", { name: /swatch/i }));
+            expect(group).toContainElement(screen.getByRole("textbox", { name: "Fill Color" }));
+            expect(group).toContainElement(screen.getByRole("button", { name: "Pick Fill Color" }));
+            expect(group).toContainElement(screen.getByRole("textbox", { name: "Fill Color opacity" }));
         });
 
         it("renders no group when there is no label to name it with", () => {
@@ -257,7 +258,7 @@ describe("CompactColorInput", () => {
                     <CompactColorInput defaultColor="#FF0000" />
                 </TestWrapper>,
             );
-            const swatch = screen.getByRole("button", { name: /swatch/i });
+            const swatch = screen.getByRole("button", { name: /^pick/i });
             expect(swatch).toHaveAttribute("aria-haspopup", "dialog");
             expect(swatch).toHaveAttribute("aria-expanded", "false");
         });
@@ -314,6 +315,26 @@ describe("CompactColorInput", () => {
             expect(screen.getByRole("textbox", { name: "Opacite" })).toBeInTheDocument();
         });
 
+        it("builds a labeled field's names from the label through the labels", () => {
+            render(
+                <TestWrapper>
+                    <LabelsProvider
+                        labels={{
+                            pickColor: (label) => `Choisir ${label}`,
+                            colorValue: (label) => `${label} (couleur)`,
+                            colorOpacity: (label) => `${label} (opacite)`,
+                        }}
+                    >
+                        <CompactColorInput label="Fond" defaultColor="#FF0000" />
+                    </LabelsProvider>
+                </TestWrapper>,
+            );
+
+            expect(screen.getByRole("button", { name: "Choisir Fond" })).toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: "Fond (couleur)" })).toHaveValue("FF0000");
+            expect(screen.getByRole("textbox", { name: "Fond (opacite)" })).toBeInTheDocument();
+        });
+
         it("reads a comma decimal separator in the opacity box when the locale uses one", async () => {
             const user = userEvent.setup();
             const onOpacityChange = vi.fn();
@@ -352,7 +373,7 @@ describe("CompactColorInput", () => {
 
             const field = screen.getByTestId("compact-color-input-field");
             const parts = [
-                screen.getByRole("button", { name: /swatch/i }),
+                screen.getByRole("button", { name: /^pick/i }),
                 screen.getByRole("textbox", { name: /hex/i }),
                 screen.getByRole("textbox", { name: /opacity/i }),
             ];
@@ -390,7 +411,7 @@ describe("CompactColorInput", () => {
                 </TestWrapper>,
             );
             expect(screen.getByRole("group", { name: "Fill Color" })).toBeInTheDocument();
-            expect(screen.getByRole("textbox", { name: /hex/i })).toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: "Fill Color" })).toBeInTheDocument();
         });
     });
 
@@ -571,7 +592,7 @@ describe("CompactColorInput", () => {
          * @param user - The user-event session driving the test
          */
         async function pickTranslucentBlue(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-            await user.click(screen.getByRole("button", { name: /swatch/i }));
+            await user.click(screen.getByRole("button", { name: /^pick/i }));
             // The picker's own swatches are named by their hexa value, so the
             // half-transparent blue is reachable by name rather than by index.
             await user.click(screen.getByLabelText("#5B8FF980"));
@@ -626,7 +647,7 @@ describe("CompactColorInput", () => {
                 </TestWrapper>,
             );
 
-            await user.click(screen.getByRole("button", { name: /swatch/i }));
+            await user.click(screen.getByRole("button", { name: /^pick/i }));
             await user.click(screen.getByLabelText("#5B8FF980"));
             expect(onChange).toHaveBeenCalledTimes(1);
 
@@ -644,7 +665,7 @@ describe("CompactColorInput", () => {
                 </TestWrapper>,
             );
 
-            const hex = screen.getByRole("textbox", { name: /hex/i });
+            const hex = screen.getByRole("textbox", { name: "Fill color" });
             await user.clear(hex);
             await user.type(hex, "00FF00");
             await user.tab();
@@ -725,7 +746,7 @@ describe("CompactColorInput", () => {
                     </TestWrapper>,
                 );
 
-                await user.click(screen.getByRole("button", { name: /swatch/i }));
+                await user.click(screen.getByRole("button", { name: /^pick/i }));
                 await user.click(screen.getByLabelText("#5B8FF980"));
 
                 expect(onChange).toHaveBeenCalledTimes(1);
@@ -756,7 +777,7 @@ describe("CompactColorInput", () => {
                     </TestWrapper>,
                 );
 
-                const hex = screen.getByRole("textbox", { name: /hex/i });
+                const hex = screen.getByRole("textbox", { name: "Fill color" });
                 await user.clear(hex);
                 await user.type(hex, "00FF00");
                 await user.tab();
@@ -784,7 +805,7 @@ describe("CompactColorInput", () => {
 
             expect(screen.queryByRole("textbox", { name: /opacity/i })).not.toBeInTheDocument();
 
-            await user.click(screen.getByRole("button", { name: /swatch/i }));
+            await user.click(screen.getByRole("button", { name: /^pick/i }));
             await user.click(screen.getByLabelText("#5B8FF980"));
 
             expect(writes).toHaveBeenCalledTimes(1);

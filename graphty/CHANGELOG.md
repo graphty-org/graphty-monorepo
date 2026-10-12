@@ -1,3 +1,127 @@
+## 0.8.68 (2026-10-12)
+
+### 🩹 Fixes
+
+- **compact-mantine:** name the color input's controls from its label ([#2100](https://github.com/graphty-org/graphty-monorepo/issues/2100))
+- **graphty:** drop the stale note that selectById("1") misses integer ids ([#2061](https://github.com/graphty-org/graphty-monorepo/issues/2061))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.47
+- Updated compact-mantine to 0.9.19
+- Updated graphty-element to 3.25.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.67 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.46
+- Updated compact-mantine to 0.9.18
+- Updated graphty-element to 3.25.0
+- Updated graph-samples to 0.1.28
+- Updated graph-format to 1.3.13
+- Updated graph-io to 0.3.36
+
+## 0.8.66 (2026-10-11)
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.17
+- Updated graphty-element to 3.24.2
+
+## 0.8.65 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🩹 Fixes
+
+- **graphty:** the workspace's element draws a still graph on demand ([#1943](https://github.com/graphty-org/graphty-monorepo/issues/1943))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.45
+- Updated compact-mantine to 0.9.16
+- Updated graphty-element to 3.24.1
+- Updated graph-samples to 0.1.27
+- Updated graph-format to 1.3.12
+- Updated graph-io to 0.3.35
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.64 (2026-10-11)
+
+### 🚀 Features
+
+- **graphty:** draw the graph only when it changes ([#1824](https://github.com/graphty-org/graphty-monorepo/issues/1824))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.44
+- Updated graphty-element to 3.24.0
+- Updated graph-io to 0.3.34
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.63 (2026-10-10)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.23.0
+
+## 0.8.62 (2026-10-10)
+
+### 🚀 Features
+
+- **graphty:** show the app's own words for each AI result code ([#1792](https://github.com/graphty-org/graphty-monorepo/issues/1792))
+- **algorithms:** list each undirected link-prediction pair once on request ([#723](https://github.com/graphty-org/graphty-monorepo/issues/723))
+
+### 🩹 Fixes
+
+- **graphty-element:** make ExecutionResult code and params optional ([#1792](https://github.com/graphty-org/graphty-monorepo/issues/1792))
+- **graphty:** send error reports through an allowlist ([445f7988a](https://github.com/graphty-org/graphty-monorepo/commit/445f7988a))
+- **graphty-element:** run each assistant tool batch in its own short transaction ([#1721](https://github.com/graphty-org/graphty-monorepo/issues/1721))
+- **graphty:** pre-bundle react-dom/client for the story tests ([a0e224688](https://github.com/graphty-org/graphty-monorepo/commit/a0e224688))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.43
+- Updated compact-mantine to 0.9.15
+- Updated graphty-element to 3.22.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.61 (2026-10-09)
+
+### 🩹 Fixes
+
+- **graphty:** ship WebLLM so the in-browser AI provider can load a model ([#1694](https://github.com/graphty-org/graphty-monorepo/issues/1694))
+- **graphty:** say remembered ai keys are obscured, not encrypted ([#691](https://github.com/graphty-org/graphty-monorepo/issues/691))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.42
+- Updated compact-mantine to 0.9.14
+- Updated graphty-element to 3.21.0
+- Updated graph-samples to 0.1.26
+- Updated graph-format to 1.3.11
+- Updated graph-io to 0.3.33
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.60 (2026-10-09)
 
 ### 🧱 Updated Dependencies

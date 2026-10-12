@@ -1,7 +1,7 @@
 import type { Engine } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
-import type { EventManager } from "../../src/managers/EventManager";
+import { EventManager } from "../../src/managers/EventManager";
 import { RenderManager } from "../../src/managers/RenderManager";
 
 /**
@@ -42,7 +42,7 @@ describe("render loop pacing", () => {
     it("draws no frame while the last one is unfinished, and resumes with the time it skipped", async () => {
         const canvas = document.createElement("canvas");
         document.body.appendChild(canvas);
-        manager = new RenderManager(canvas, {} as EventManager);
+        manager = new RenderManager(canvas, new EventManager());
         const gl = (manager.engine as Engine)._gl;
         assert.isFunction(gl.fenceSync, "the browser project's Chromium has WebGL 2");
 

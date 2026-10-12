@@ -58,6 +58,7 @@ export type {
     ToolDefinition,
     VercelProviderType,
     WebLlmModelInfo,
+    WebLlmProviderOptions,
 } from "./providers";
 export {
     createProvider,

@@ -1876,7 +1876,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -2094,6 +2094,8 @@ export class Graphty extends LitElement {
     get renderer(): RendererRequest;
     set renderer(value: RendererRequest);
     get rendererStatus(): RendererStatus | null;
+    get renderOnDemand(): boolean;
+    set renderOnDemand(value: boolean);
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
@@ -2524,6 +2526,13 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
+* A feature the caller asked for needs an optional peer package that is not installed.
+* `details.package` names the package to install and `details.feature` the feature that
+* needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
+* picks a feature that does not need it.
+*/
+| "E_MISSING_PACKAGE"
+/**
 * The operation is well formed but this build or this host cannot perform it: a
 * worker-hosted session asked for `snapshot()`, a mutating command asked to jump the queue,
 * an export format the platform has no encoder for. `details.reason` says which. The caller
@@ -2646,7 +2655,19 @@ export type GraphtyWarningCode =
 /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
 | "W_DATA_DIFFERS"
 /** A run was still computing when the project was saved, so the file does not hold it. */
-| "W_RUN_PENDING";
+| "W_RUN_PENDING"
+/**
+* A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
+* to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
+* `"edge"`, and `params.ids` the ids as the layer named them.
+*/
+| "W_UNKNOWN_ID"
+/**
+* A style layer writes a color with an alpha (`#rrggbbaa`, `rgba()`) to a channel that cannot
+* draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
+* `params.path` where in the layer the color sits. Today only `node.outline` cannot.
+*/
+| "W_ALPHA_IGNORED";
 
 // @public
 export const GREEN_SUCCESS: {
@@ -2997,6 +3018,7 @@ class Node_2 {
     dragging: boolean;
     // (undocumented)
     dragHandler?: NodeDragHandler;
+    get drawnRadius(): number;
     getPosition(): {
         x: number;
         y: number;
@@ -3023,6 +3045,8 @@ class Node_2 {
     pinOnDrag: boolean;
     refreshSelectionOverlay(): void;
     get roundRadius(): number | null;
+    // @internal
+    setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
@@ -3983,6 +4007,7 @@ export class RenderManager implements Manager {
     graphRoot: TransformNode;
     holdFrames(): () => void;
     init(): Promise<void>;
+    requestFrame(): void;
     // (undocumented)
     scene: Scene;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;
@@ -4237,6 +4262,7 @@ export interface ScreenshotOptions {
     timing?: {
         waitForSettle?: boolean;
         waitForOperations?: boolean;
+        settleTimeoutMs?: number;
     };
     // (undocumented)
     transparentBackground?: boolean;
@@ -4436,6 +4462,7 @@ export interface StyleChangedEvent {
     // (undocumented)
     type: "style-changed";
     unresolvedPaths: string[];
+    warnings: StyleChange["warnings"];
 }
 
 // @public
@@ -4546,6 +4573,23 @@ export interface XRModeConfig {
     enabled: boolean;
     optionalFeatures?: string[];
     referenceSpaceType: XRReferenceSpaceType_2;
+}
+
+// @public
+export interface XRSessionEndedEvent {
+    cause: "exit" | "device";
+    mode: "vr" | "ar";
+    // (undocumented)
+    type: "xr-session-ended";
+}
+
+// @public
+export interface XRSessionStartedEvent {
+    mode: "vr" | "ar";
+    referenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded" | "viewer";
+    requestedReferenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded";
+    // (undocumented)
+    type: "xr-session-started";
 }
 
 // @public

@@ -75,6 +75,7 @@ export type {
     ToolDefinition,
     VercelProviderType,
     WebLlmModelInfo,
+    WebLlmProviderOptions,
 } from "./src/ai/index";
 export {
     createProvider,

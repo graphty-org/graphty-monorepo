@@ -44,7 +44,7 @@ import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore, type Renumbering } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
-import { otherIdSpelling } from "../data/nodeIdSpelling";
+import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
@@ -1634,7 +1634,7 @@ function encodingSourceOf(runs: RunsApi): EncodingSource {
  */
 function nodeIndexOf(readSnapshot: () => GraphSnapshot): (id: NodeId) => number | undefined {
     return (id: NodeId): number | undefined => {
-        const index = readSnapshot().ids.indexOf(id);
+        const index = rowOfEitherSpelling(readSnapshot().ids, id);
 
         return index === INVALID_INDEX ? undefined : index;
     };
@@ -2493,9 +2493,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         layerScopes.dispose();
         notifier.dispose();
     });
+    const nodeIndex = nodeIndexOf(snapshot);
+    const edgeIndex = edgeIndexOf(snapshot);
     const styles = createStylesApi({
         dispatcher,
-        elements: { ...elements, scope: (spec: Scope) => layerScopes.live(spec) },
+        elements: { ...elements, nodeIndex, edgeIndex, scope: (spec: Scope) => layerScopes.live(spec) },
         admitScope: (spec: unknown) => scope.admit(spec),
         base: elementBaseLayers(),
         paths,
@@ -2505,8 +2507,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             attributes: () => data.attributes(),
             declaration: (column) => dispatcher.state.attributes.get(declarationKey(column)),
         },
-        nodeIndex: nodeIndexOf(snapshot),
-        edgeIndex: edgeIndexOf(snapshot),
+        nodeIndex,
+        edgeIndex,
         field: fieldWordsOf(data, runs),
         groupRanks: groupRanksOf(runs),
         repaint: painter.repaint,

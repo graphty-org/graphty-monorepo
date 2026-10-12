@@ -1,6 +1,6 @@
 import {
     AbstractMesh,
-    Color3,
+    type Color3,
     type Color4,
     type EffectLayer,
     GlowLayer,
@@ -13,6 +13,7 @@ import {
 } from "@babylonjs/core";
 
 import type { NodeStyleConfig } from "../config";
+import { readColor } from "./readColor";
 
 /**
  * Default outline configuration for selection highlight.
@@ -20,8 +21,8 @@ import type { NodeStyleConfig } from "../config";
 const DEFAULT_OUTLINE_COLOR = "#FFFF00";
 
 /**
- * Default glow colour, used when a style asks for `effect.glow` without naming a colour.
- * White reads as a neutral bloom over any node colour.
+ * Glow colour for a glowing mesh whose colour entry is missing from the selector's map. A style
+ * with no glow colour does not glow at all, so this is a defensive default only.
  */
 const DEFAULT_GLOW_COLOR = "#FFFFFF";
 
@@ -109,10 +110,12 @@ export class NodeEffects {
         const renderedMesh = this.resolveRenderedMesh(mesh);
 
         if (effect?.outline) {
-            const colorValue = this.extractColorValue(effect.outline.color);
-            const color = Color3.FromHexString(colorValue ?? DEFAULT_OUTLINE_COLOR);
+            // THE ALPHA IS DROPPED, because the highlight layer draws every outline with alpha 1
+            // (ThinHighlightLayer pins it) -- there is no translucent outline to draw. The layer
+            // check reports it as W_ALPHA_IGNORED, so the drop is said rather than silent.
+            const { rgb } = readColor(this.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
 
-            this.getOrCreateHighlightLayer(scene).addMesh(renderedMesh, color);
+            this.getOrCreateHighlightLayer(scene).addMesh(renderedMesh, rgb);
 
             return;
         }
@@ -194,7 +197,7 @@ export class NodeEffects {
             _material: Material,
             result: Color4,
         ): void => {
-            const color = glowColors.get(mesh.uniqueId) ?? Color3.FromHexString(DEFAULT_GLOW_COLOR);
+            const color = glowColors.get(mesh.uniqueId) ?? readColor(DEFAULT_GLOW_COLOR, DEFAULT_GLOW_COLOR).rgb;
             result.set(color.r, color.g, color.b, 1);
         };
 
@@ -227,7 +230,8 @@ export class NodeEffects {
      * accepted, paid for, and dropped on the floor. That is the product owner's report "glow
      * doesn't work" exactly. This method is the missing renderer, and it is
      * deliberately shaped like `applyOutlineEffect` -- same call site in `Node.updateStyle`, same
-     * presence-means-enabled model, same try/catch -- so the two effects cannot drift apart.
+     * try/catch -- so the two effects cannot drift apart. Unlike the outline, glow is on only
+     * when the merged style names a glow colour: a strength on its own draws nothing.
      *
      * ORDERING TRAP, do not "fix" this by touching the material: `NodeMesh.createMaterial` calls
      * `mat.freeze()` immediately after building it. `customEmissiveColorSelector` is the right
@@ -245,11 +249,18 @@ export class NodeEffects {
         const scene = mesh.getScene();
         const renderedMesh = this.resolveRenderedMesh(mesh);
 
-        if (effect?.glow) {
+        // A COLOUR SWITCHES GLOW ON; a strength alone does not. `node.glowStrength` writes
+        // `effect.glow.strength`, so a layer that binds only a strength (to a metric, say) leaves
+        // an `effect.glow` with no colour on every node it paints. Treated as "glow on", that drew
+        // the white fallback on all of them (#2068). The strength only scales a colour some layer set.
+        const colorValue = this.extractColorValue(effect?.glow?.color);
+        if (effect?.glow && colorValue !== undefined) {
             const glowLayer = this.getOrCreateGlowLayer(scene);
-            const colorValue = this.extractColorValue(effect.glow.color);
             const glowColors = scene.metadata?.glowColors as Map<number, Color3> | undefined;
-            glowColors?.set(renderedMesh.uniqueId, Color3.FromHexString(colorValue ?? DEFAULT_GLOW_COLOR));
+            // A glow is added light, so its color's alpha fades it: `#ff000080` glows as
+            // `#800000` does, and the strength scales that as it scales any color.
+            const { rgb, alpha } = readColor(colorValue, DEFAULT_GLOW_COLOR);
+            glowColors?.set(renderedMesh.uniqueId, rgb.scale(alpha));
             this.glowStrengths(scene).set(renderedMesh, effect.glow.strength ?? 1);
 
             // Same defence as the outline path: the inclusion list is keyed by uniqueId and the

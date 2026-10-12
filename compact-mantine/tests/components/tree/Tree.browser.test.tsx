@@ -179,17 +179,22 @@ describe("Tree: keyboard", () => {
     it("jumps by type-ahead, and a quick run of keys matches a longer prefix", async () => {
         await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} />);
         await tabIn();
-        await userEvent.keyboard("l");
-        expect(focused()).toBe("leaf");
-        // A new run starts once the 500ms type-ahead window has passed.
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        await userEvent.keyboard("g");
-        expect(focused()).toBe("group");
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        await userEvent.keyboard("{Home}ot");
-        expect(focused()).toBe("other");
+        // The type-ahead window is read from Date.now(): hold the clock still and move it by hand.
+        let now = Date.now();
+        vi.setSystemTime(now);
+        try {
+            await userEvent.keyboard("l");
+            expect(focused()).toBe("leaf");
+            // A new run starts once the 500ms type-ahead window has passed.
+            vi.setSystemTime((now += 600));
+            await userEvent.keyboard("g");
+            expect(focused()).toBe("group");
+            vi.setSystemTime((now += 600));
+            await userEvent.keyboard("{Home}ot");
+            expect(focused()).toBe("other");
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("opens every sibling with *", async () => {

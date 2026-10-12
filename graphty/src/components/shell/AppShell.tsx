@@ -116,6 +116,7 @@ import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
 import type { ChatMessage } from "../ai/AiMessageBubble";
+import { aiResultText } from "../ai/aiResultText";
 import { FeedbackModal } from "../FeedbackModal";
 import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
 import type { LoadDataRequest } from "../LoadDataModal";
@@ -3111,13 +3112,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    same route the inspector's own neighbour rows take. The aggregate tie
                    row carries no node id and stays inert text (RT-6).
 
-                   `row.nodeId` is the ELEMENT's own id and `row.name` is the printed one,
-                   and the two are different types on two of the three shipped samples:
-                   karate.gml and football.gml declare integer ids, GMLDataSource parses
-                   them with parseInt, and the element's node Map is keyed on the number.
-                   The ranking used to carry `String(node.id)`, so `selectById("1")` missed
-                   the key `1`, returned false, emitted nothing, and every ranked row on
-                   those two samples was inert. Print the label, select the id. */
+                   `row.nodeId` is the element's own id and `row.name` is the printed one.
+                   Print the label, select the id. */
                 const body: ResultBodyRow[] = nodeMetricResultBody(ranking).map((row) => {
                     const { nodeId } = row;
 
@@ -3425,7 +3421,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const openResult = useCallback(
         (id: string) => {
-            if (activeResult === null || activeResult.id !== id) {
+            if (activeResult?.id !== id) {
                 return;
             }
 
@@ -3897,9 +3893,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                     {
                                         id: `${id}-reply`,
                                         role: "assistant",
-                                        content: result.success
-                                            ? (result.message ?? result.text ?? result.llmText ?? "Done.")
-                                            : (result.error?.message ?? "The assistant could not answer."),
+                                        content: aiResultText(result),
                                         timestamp: Date.now(),
                                         isError: !result.success,
                                     },
@@ -4685,7 +4679,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
-        if (acceleration === null || acceleration.state !== "error") {
+        if (acceleration?.state !== "error") {
             return undefined;
         }
 

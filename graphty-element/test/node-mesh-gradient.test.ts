@@ -154,7 +154,7 @@ describe("NodeMesh gradient colour without a canvas", () => {
  * `document`. Node.js defines neither, so without a stand-in every gradient in this project takes
  * the flat first-stop fallback and the branch that actually assigns a texture is never executed.
  * The real ramp -- the pixels -- is verified in test/browser/node-mesh-gradient.test.ts against a
- * real canvas, and ultimately by a Chromatic screenshot, because "it renders" is the whole claim.
+ * real canvas, and ultimately by a visual-review screenshot, because "it renders" is the whole claim.
  * What THESE tests pin is the wiring that the memory bound depends on: that a gradient reaches
  * `diffuseTexture` at all, that equal gradients share ONE texture, and that the per-scene ceiling
  * engages instead of allocating without limit.

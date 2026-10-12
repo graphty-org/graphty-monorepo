@@ -184,6 +184,23 @@ const byCommunity = shell(groups, { nlist: "community" });
 console.log(hubFirst.n, byCommunity.n); // 8 30
 ```
 
+By default every shell starts on the positive x axis, so the first node of each shell lines up there. `rotate` turns
+each shell further than the one inside it, as NetworkX's `shell_layout` does: shell k starts at `(k + 1) * rotate`
+radians. `rotate: "networkx"` is NetworkX 2.8.8's default, `Math.PI` divided by the number of shells:
+
+<!-- doc-check -->
+
+```typescript
+import { fromEdgeArrays } from "@graphty/graph-format";
+import { starGraph } from "@graphty/graph-samples/generators";
+import { shell } from "@graphty/layout";
+
+const star = fromEdgeArrays(starGraph({ n: 8 }));
+const turned = shell(star, { nlist: [[0], [1, 2, 3, 4, 5, 6, 7]], rotate: "networkx" }); // as nx.shell_layout
+const quarter = shell(star, { nlist: [[0], [1, 2, 3, 4, 5, 6, 7]], rotate: Math.PI / 4 });
+console.log(turned.n, quarter.n); // 8 8
+```
+
 ### Fruchterman-Reingold (spring)
 
 <!-- doc-check -->
@@ -305,6 +322,25 @@ const s = fromEdgeArrays(balancedTreeGraph({ branching: 2, height: 3 }));
 const lattice = grid(s, { columns: 5 }); // node order, five per row
 const rings = radial(s, { root: 0 }); // rings by hop distance from node index 0; default the busiest node
 console.log(lattice.n, rings.n); // 15 15
+```
+
+`radial` spaces each ring's nodes evenly, in breadth-first order, which is NetworkX's `shell_layout` over the
+breadth-first rings; `rotate` turns the rings as it does for `shell` (`"networkx"` is `Math.PI` over the number of
+rings, so you do not need to count them). `arrangement: "sectors"` instead keeps each node inside its parent's sector,
+so the edges of the breadth-first tree never cross, at the price of crowded rings: on a large tree many nodes end up
+almost on top of one another.
+
+<!-- doc-check -->
+
+```typescript
+import { fromEdgeArrays } from "@graphty/graph-format";
+import { randomTreeGraph } from "@graphty/graph-samples/generators";
+import { radial } from "@graphty/layout";
+
+const tree = fromEdgeArrays(randomTreeGraph({ n: 200, seed: 42 }));
+const turned = radial(tree, { rotate: "networkx" }); // even rings, each turned past the one inside it
+const sectors = radial(tree, { arrangement: "sectors" }); // no tree edge crosses another
+console.log(turned.n, sectors.n); // 200 200
 ```
 
 ### Bipartite

@@ -18,8 +18,6 @@ import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { componentSeparation, spread } from "../helpers/metrics.js";
 import { acquire, acquireRaw, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
-
 /**
  * The bounding-box extent of one axis of a stride-3 array.
  */
@@ -175,37 +173,32 @@ describe("FA2 behaviour pins (spec 11.4; the CPU layout test's pins on the GPU)"
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "the same seed gives the same layout bitwise on the same device; a different seed gives a different layout",
-        async (t) => {
-            requireGpu(t);
-            const s = paritySnapshot("karate", 1, false);
-            try {
-                const layoutWith = async (seed: number): Promise<F32> => {
-                    const options: ForceAtlas2Options = { ...BASE_OPTIONS, seed, maxIter: 20 };
-                    return await withSim(ctx, options, PAPER, async (sim) => {
-                        const positions = new Float32Array(3 * s.nodeCount);
-                        positions.fill(Number.NaN);
-                        sim.load(s, positions);
-                        await sim.run({ batch: 5 });
-                        return positions;
-                    });
-                };
-                const a = await layoutWith(42);
-                const b = await layoutWith(42);
-                const c = await layoutWith(43);
-                expectBitwiseEqual(a, b, "seed 42 twice");
-                expect(
-                    a.some((v, i) => v !== c[i]),
-                    "seed 43 differs",
-                ).toBe(true);
-            } finally {
-                ctx.release(s);
-            }
-        },
-        CASE_TIMEOUT,
-    );
+    it("the same seed gives the same layout bitwise on the same device; a different seed gives a different layout", async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot("karate", 1, false);
+        try {
+            const layoutWith = async (seed: number): Promise<F32> => {
+                const options: ForceAtlas2Options = { ...BASE_OPTIONS, seed, maxIter: 20 };
+                return await withSim(ctx, options, PAPER, async (sim) => {
+                    const positions = new Float32Array(3 * s.nodeCount);
+                    positions.fill(Number.NaN);
+                    sim.load(s, positions);
+                    await sim.run({ batch: 5 });
+                    return positions;
+                });
+            };
+            const a = await layoutWith(42);
+            const b = await layoutWith(42);
+            const c = await layoutWith(43);
+            expectBitwiseEqual(a, b, "seed 42 twice");
+            expect(
+                a.some((v, i) => v !== c[i]),
+                "seed 43 differs",
+            ).toBe(true);
+        } finally {
+            ctx.release(s);
+        }
+    });
 
     it("2D writes z === center.z on every readback whatever z was uploaded (spec 7.13)", async (t) => {
         requireGpu(t);

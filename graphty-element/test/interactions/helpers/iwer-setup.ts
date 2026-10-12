@@ -46,10 +46,14 @@ export interface IWERHandle {
  * Chromium exposes its own `navigator.xr`, and IWER 2.5 declines to replace a native runtime unless
  * forced, so the install is forced. `uninstall` hands back everything IWER replaced: `navigator.xr`,
  * `navigator.userAgent`, the WebXR globals and `makeXRCompatible`.
+ * @param refuse - Features, such as reference space types, the emulated headset does not support
  * @returns the device, the session record and the uninstall function
  */
-export function installIWER(): IWERHandle {
-    const device = new XRDevice(metaQuest3);
+export function installIWER(refuse: readonly string[] = []): IWERHandle {
+    const device = new XRDevice({
+        ...metaQuest3,
+        supportedFeatures: metaQuest3.supportedFeatures.filter((feature) => !refuse.includes(feature)),
+    });
 
     device.installRuntime({ forceInstall: true });
 

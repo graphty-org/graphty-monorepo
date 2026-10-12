@@ -117,7 +117,7 @@ const LINE_GRID = ["solid", "dot", "star", "box", "dash", "diamond", "dash-dot",
  * How much of the canvas the edge's own colour covers.
  *
  * Bucketed to the nearest thousand so that it separates one picture from another without being a
- * pixel-exact baseline, which is Chromatic's job and not this one's.
+ * pixel-exact baseline, which is visual review's job and not this one's.
  * @param scene - What the story drew.
  * @returns The reading, as a short string for a picture digest.
  */
@@ -2085,13 +2085,13 @@ export const AnimationSpeed: Story = {
         }
 
         // THE FREEZE, AND THE PROOF THAT IT FREEZES. A moving picture cannot have a visual
-        // baseline, so this story parks its gradient at the start before it ends and Chromatic
-        // photographs it parked. That baseline is only worth having if the parking is reliable,
+        // baseline, so this story parks its gradient at the start before it ends and the visual
+        // capture photographs it parked. That baseline is only worth having if the parking is reliable,
         // which is what the rest of this block checks: turn the scene's animations off, let
         // frames pass, and both textures must sit at exactly zero and stay there. If they creep,
-        // every Chromatic build after this one differs from the last for no reason anybody can
+        // every visual capture after this one differs from the last for no reason anybody can
         // act on -- so the check belongs here, in the run that happens on every pull request,
-        // rather than in the Chromatic build that would merely suffer from it.
+        // rather than in the visual capture that would merely suffer from it.
         scene.graph.scene.animationsEnabled = false;
 
         await framesOf(scene, 5);
@@ -2168,7 +2168,7 @@ export const AnimationSpeed: Story = {
         chromatic: {
             // The picture IS snapshotted, because the play function parks the gradient before it
             // ends and a parked gradient is the same picture every time. Setting the speed to
-            // zero under Chromatic would have been the easier freeze and the wrong one: zero
+            // zero under capture would have been the easier freeze and the wrong one: zero
             // routes the edge to the static line renderer, so the baseline would photograph a
             // code path this story is not about and the eight-unit-thick slab that shipped here
             // would have passed it.

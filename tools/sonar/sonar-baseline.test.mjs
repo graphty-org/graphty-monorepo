@@ -4,13 +4,14 @@
 //
 //   node --test tools/sonar/sonar-baseline.test.mjs
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { after, describe, it } from "node:test";
 
-import { needsScan, pickCommit, scanLock } from "../sonar-baseline.mjs";
+import { BUILD_NODE_OPTIONS, buildChild, needsScan, pickCommit, prepareAlert, scanLock } from "../sonar-baseline.mjs";
 
 const run = (headSha, status, conclusion = "", event = "schedule", databaseId = headSha) => ({
     headSha,
@@ -112,5 +113,59 @@ describe("scanLock", () => {
         assert.equal(release, null);
         assert.equal(said.length, 1);
         assert.match(said[0], /held by a push for 1 s; retrying at the next poll/);
+    });
+});
+
+describe("buildChild", () => {
+    it("gives the child CI's heap from ci.yml's full build step", () => {
+        const ci = readFileSync(
+            join(dirname(fileURLToPath(import.meta.url)), "../../.github/workflows/ci.yml"),
+            "utf8",
+        );
+        const step = ci.split("- name: Build all (master")[1]?.split("- name:")[0] ?? "";
+        assert.match(step, /pnpm exec nx run-many -t build/);
+        assert.equal(step.match(/NODE_OPTIONS: "([^"]*)"/)?.[1], BUILD_NODE_OPTIONS);
+    });
+
+    it("runs the command with core files off and that heap", () => {
+        const c = buildChild("sh", ["-c", 'echo "$(ulimit -c) $NODE_OPTIONS"']);
+        const out = spawnSync(c.cmd, c.args, { env: { ...process.env, ...c.env }, encoding: "utf8" });
+        assert.equal(out.stdout.trim(), `0 ${BUILD_NODE_OPTIONS}`);
+    });
+});
+
+describe("prepareAlert", () => {
+    const dir = mkdtempSync(join(tmpdir(), "sonar-baseline-alert-"));
+    after(() => rmSync(dir, { recursive: true, force: true }));
+    const stamp = join(dir, "prepare-alert");
+    const calls = [];
+    let ghWorks = true;
+    const issues = {
+        open: (why) => (calls.push(`open ${why}`), ghWorks ? 42 : null),
+        close: (n) => (calls.push(`close ${n}`), ghWorks),
+    };
+
+    it("opens one issue per failure streak and closes it at the next success", () => {
+        prepareAlert("build failed at c1", stamp, issues);
+        prepareAlert("build failed at c2", stamp, issues);
+        assert.deepEqual(calls, ["open build failed at c1"]);
+        prepareAlert("", stamp, issues);
+        prepareAlert("", stamp, issues);
+        assert.deepEqual(calls, ["open build failed at c1", "close 42"]);
+        assert.equal(existsSync(stamp), false);
+    });
+
+    it("tries again at the next poll when gh failed", () => {
+        calls.length = 0;
+        ghWorks = false;
+        prepareAlert("build failed at c3", stamp, issues);
+        assert.equal(existsSync(stamp), false);
+        ghWorks = true;
+        prepareAlert("build failed at c3", stamp, issues);
+        assert.equal(readFileSync(stamp, "utf8"), "42\n");
+        ghWorks = false;
+        prepareAlert("", stamp, issues);
+        assert.equal(existsSync(stamp), true, "the alert stays open until gh closes it");
+        assert.equal(calls.length, 3);
     });
 });

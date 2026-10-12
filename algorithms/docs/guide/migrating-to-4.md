@@ -75,6 +75,7 @@ console.log(closenessCentrality(graph, { normalization: "wasserman-faust" }).sco
 `commonNeighborsPrediction` and `adamicAdarPrediction` list each pair once, so `topK` counts distinct pairs. In 3.x
 an undirected pair appeared twice, as (u, v) and (v, u), and `topK` counted both. Under `directed: true` on a directed
 graph every ordered pair is now scored; 3.x scored only the pairs whose first node had the lower index.
+`uniquePairs: true`, which late 3.x releases needed to list a pair once, is still accepted and changes nothing.
 
 ## The accelerator seam
 

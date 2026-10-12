@@ -145,15 +145,15 @@ test("supports cancellation", async () => {
     const graph = new Graph(canvas);
 
     // Start a long capture
+    const recording = graph.eventManager.waitFor("animation-progress");
     const capturePromise = graph.captureAnimation({
         duration: 5000,
         fps: 30,
         cameraMode: "stationary",
     });
 
-    // Wait a bit then cancel
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Cancel once it is recording
+    await recording;
 
     // Should be capturing
     assert.ok(graph.isAnimationCapturing(), "Should be capturing before cancel");

@@ -15,6 +15,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { nextFrame } from "../helpers/real-input";
 
 /**
  * Enough nodes that a force layout is still visibly moving them after a handful of frames.
@@ -29,9 +30,6 @@ const EDGES = NODES.slice(1).map((node, index) => ({ src: NODES[index].id, dst: 
 
 /** How many frames to render before asking whether the layout is still going. */
 const FRAMES = 4;
-
-/** How long to leave between frames. */
-const FRAME_MS = 10;
 
 describe("the layout settle threshold", () => {
     let container: HTMLElement;
@@ -61,10 +59,7 @@ describe("the layout settle threshold", () => {
     async function render(): Promise<void> {
         for (let frame = 0; frame < FRAMES; frame++) {
             graph.scene.render();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
+            await nextFrame();
         }
     }
 

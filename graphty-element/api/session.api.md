@@ -1121,6 +1121,13 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
+* A feature the caller asked for needs an optional peer package that is not installed.
+* `details.package` names the package to install and `details.feature` the feature that
+* needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
+* picks a feature that does not need it.
+*/
+| "E_MISSING_PACKAGE"
+/**
 * The operation is well formed but this build or this host cannot perform it: a
 * worker-hosted session asked for `snapshot()`, a mutating command asked to jump the queue,
 * an export format the platform has no encoder for. `details.reason` says which. The caller
@@ -1222,7 +1229,19 @@ export type GraphtyWarningCode =
 /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
 | "W_DATA_DIFFERS"
 /** A run was still computing when the project was saved, so the file does not hold it. */
-| "W_RUN_PENDING";
+| "W_RUN_PENDING"
+/**
+* A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
+* to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
+* `"edge"`, and `params.ids` the ids as the layer named them.
+*/
+| "W_UNKNOWN_ID"
+/**
+* A style layer writes a color with an alpha (`#rrggbbaa`, `rgba()`) to a channel that cannot
+* draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
+* `params.path` where in the layer the color sits. Today only `node.outline` cannot.
+*/
+| "W_ALPHA_IGNORED";
 
 // @public
 export interface HighlightSpec {
@@ -1632,6 +1651,7 @@ export interface MachineCalibration {
     readonly at: string;
     readonly basis: "probe" | "defaults";
     readonly machine: string;
+    readonly memorySpeed?: number;
     readonly rates: Readonly<CostRates>;
 }
 
@@ -3427,6 +3447,7 @@ export interface StyleChange {
     readonly painted: RepaintReport | null;
     readonly reason: RepaintReason;
     readonly unresolvedPaths: readonly Path[];
+    readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
 }
 
 // @public
@@ -3609,6 +3630,7 @@ export interface TopRanking {
 
 // @public
 export interface TransactionOptions {
+    readonly after?: HistoryStepId;
     readonly provenance?: Readonly<Record<string, string>>;
 }
 
@@ -3633,6 +3655,7 @@ export interface ValidationResult {
     readonly ok: boolean;
     readonly shadowedPaths: readonly Path[];
     readonly unresolvedPaths: readonly Path[];
+    readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
 }
 
 // @public

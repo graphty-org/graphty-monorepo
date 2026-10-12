@@ -120,6 +120,20 @@ function foreignCodeOf(value: unknown): string | undefined {
 }
 
 /**
+ * Reads the `params` object a sibling package's coded error carries.
+ * @param value - The thrown value.
+ * @returns Its params, or an empty object.
+ */
+function paramsOf(value: unknown): Record<string, unknown> {
+    if (typeof value !== "object" || value === null || !("params" in value)) {
+        return {};
+    }
+
+    const { params } = value;
+    return typeof params === "object" && params !== null ? { ...(params as Record<string, unknown>) } : {};
+}
+
+/**
  * The error every graphty-element failure arrives as.
  *
  * It is an ordinary `Error`, so `instanceof Error`, `try`/`catch`, `await`, `.stack` and a
@@ -206,7 +220,10 @@ export class GraphtyError extends Error {
         const inherited = codeOf(cause);
         const foreign = foreignCodeOf(cause);
         const message = init.message ?? (cause instanceof Error ? cause.message : String(cause));
-        const details = foreign === undefined ? init.details : { ...init.details, sourceCode: foreign };
+        // A sibling's coded error carries its facts as `params` (an algorithm's E_TOO_LARGE: the
+        // node count, the bound, the bytes); they become details, under the caller's own.
+        const facts = { ...paramsOf(cause), ...init.details };
+        const details = foreign === undefined ? facts : { ...facts, sourceCode: foreign };
 
         return new GraphtyError({
             ...init,

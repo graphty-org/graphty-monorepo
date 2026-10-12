@@ -71,12 +71,6 @@ async function waitForRender(graph: Graph): Promise<void> {
     for (const edge of testGraph.dataManager.edges.values()) {
         edge.update();
     }
-
-    // Small wait to ensure updates are processed
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => {
-        setTimeout(resolve, 50);
-    });
 }
 
 describe("Arrowhead Position Tests - 2D Mode", () => {

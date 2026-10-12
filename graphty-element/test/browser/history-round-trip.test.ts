@@ -22,11 +22,9 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Edge } from "../../src/Edge";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { nextFrame } from "../helpers/real-input";
 import { FIXTURES } from "../session/history/fixtures";
 import { roundTrip } from "../session/history/round-trip-harness";
-
-/** Per-test budget: each builds a real Babylon scene. */
-const TEST_TIMEOUT_MS = 30_000;
 
 const cleanups: (() => void)[] = [];
 
@@ -43,9 +41,8 @@ afterEach(() => {
  */
 async function atRest(graph: Graph): Promise<void> {
     await graph.waitForSettled();
-    for (let wait = 0; wait < 1000 && graph.getLayoutManager().running; wait++) {
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 10));
+    for (let wait = 0; wait < 600 && graph.getLayoutManager().running; wait++) {
+        await nextFrame();
     }
 
     assert.isFalse(graph.getLayoutManager().running, "the layout came to rest");
@@ -140,32 +137,22 @@ function sceneDigest(graph: Graph): string {
 
 describe("round trip per command, on a renderer", () => {
     for (const fixture of FIXTURES.filter((each) => each.tags.includes("renderer"))) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            fixture.name,
-            async () => {
-                const graph = await loadedGraph();
-                await roundTrip(
-                    graph.getSession(),
-                    fixture,
-                    () => sceneDigest(graph),
-                    () => atRest(graph),
-                );
-            },
-            TEST_TIMEOUT_MS,
-        );
+        it(fixture.name, async () => {
+            const graph = await loadedGraph();
+            await roundTrip(
+                graph.getSession(),
+                fixture,
+                () => sceneDigest(graph),
+                () => atRest(graph),
+            );
+        });
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "digests a scene the same way twice when nothing changed",
-        async () => {
-            const graph = await loadedGraph();
-            const first = sceneDigest(graph);
+    it("digests a scene the same way twice when nothing changed", async () => {
+        const graph = await loadedGraph();
+        const first = sceneDigest(graph);
 
-            assert.include(first, "n1");
-            assert.strictEqual(sceneDigest(graph), first);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.include(first, "n1");
+        assert.strictEqual(sceneDigest(graph), first);
+    });
 });

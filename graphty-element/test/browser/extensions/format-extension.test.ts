@@ -56,7 +56,7 @@
  * a `catch` binding, which is `unknown` by language rule. None of them is the element's to fix.
  */
 
-import { afterAll, afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterAll, afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { z } from "zod/v4";
 
 import { formatDescriptor, formatsForExtension } from "../../../catalog";
@@ -660,15 +660,6 @@ const ELEMENT_READY_TIMEOUT_MS = 10000;
 /** How long a test waits for an event the element should already be emitting. */
 const EVENT_TIMEOUT_MS = 10000;
 
-/** Tests that mount an element and load a graph need more than the five-second default. */
-const TEST_TIMEOUT_MS = 20000;
-
-/**
- * A failed fetch is retried three times with a second and then two seconds between attempts, so a
- * test that watches one fail needs room for those three seconds on top of everything else.
- */
-const FETCH_FAILURE_TIMEOUT_MS = 30000;
-
 let element: Graphty;
 let container: HTMLDivElement;
 
@@ -691,16 +682,12 @@ async function mountElement(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    const deadline = Date.now() + ELEMENT_READY_TIMEOUT_MS;
-
-    while (!mounted.graph.initialized) {
-        if (Date.now() > deadline) {
-            throw new Error("the element never finished initialising");
-        }
-
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+    await vi.waitFor(
+        () => {
+            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+        },
+        { timeout: ELEMENT_READY_TIMEOUT_MS },
+    );
 
     return mounted;
 }
@@ -810,363 +797,279 @@ afterAll(() => {
 });
 
 describe("a third party's file format", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "loads a graph the element then holds, chosen by the format name a host sets",
-        async () => {
-            const loaded = nextEvent<DataLoadingCompleteEvent>("data-loading-complete");
+    it("loads a graph the element then holds, chosen by the format name a host sets", async () => {
+        const loaded = nextEvent<DataLoadingCompleteEvent>("data-loading-complete");
 
-            element.dataSource = ROSTER_FORMAT;
-            element.dataSourceConfig = { data: ROSTER };
+        element.dataSource = ROSTER_FORMAT;
+        element.dataSourceConfig = { data: ROSTER };
 
-            await loaded;
-            await operationQueueOf(element.graph).waitForCompletion();
+        await loaded;
+        await operationQueueOf(element.graph).waitForCompletion();
 
-            assert.deepStrictEqual(heldNodeIds(), PEOPLE, "every person in the file is a node in the graph");
-            assert.strictEqual(element.getDataManager().edges.size, LINKS, "and every link is an edge");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.deepStrictEqual(heldNodeIds(), PEOPLE, "every person in the file is a node in the graph");
+        assert.strictEqual(element.getDataManager().edges.size, LINKS, "and every link is an edge");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "loads the same graph through the direct call a host makes for a second dataset",
-        async () => {
-            await loadRoster({ data: ROSTER });
+    it("loads the same graph through the direct call a host makes for a second dataset", async () => {
+        await loadRoster({ data: ROSTER });
 
-            assert.deepStrictEqual(heldNodeIds(), PEOPLE);
-            assert.strictEqual(element.getDataManager().edges.size, LINKS);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.deepStrictEqual(heldNodeIds(), PEOPLE);
+        assert.strictEqual(element.getDataManager().edges.size, LINKS);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "does not displace the formats that ship with the element",
-        async () => {
-            await loadRoster({ data: ROSTER });
-            assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the third party's format loaded its graph");
+    it("does not displace the formats that ship with the element", async () => {
+        await loadRoster({ data: ROSTER });
+        assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the third party's format loaded its graph");
 
-            element.clearData();
-            await element.addDataFromSource("json", { data: BUILT_IN_JSON });
-            await operationQueueOf(element.graph).waitForCompletion();
+        element.clearData();
+        await element.addDataFromSource("json", { data: BUILT_IN_JSON });
+        await operationQueueOf(element.graph).waitForCompletion();
 
-            assert.deepStrictEqual(
-                heldNodeIds(),
-                ["ceres", "pallas"],
-                "and the built-in JSON format still loads its own",
+        assert.deepStrictEqual(heldNodeIds(), ["ceres", "pallas"], "and the built-in JSON format still loads its own");
+    });
+
+    it("puts the attributes it parsed onto the nodes and edges the element holds", async () => {
+        await loadRoster({ data: ROSTER });
+
+        const ada = element.getDataManager().nodes.get("ada");
+        const link = [...element.getDataManager().edges.values()].find(
+            (edge) => edge.srcId === "ada" && edge.dstId === "brian",
+        );
+
+        assert.isDefined(ada, "the node the file named");
+        assert.strictEqual(ada.data.team, "Engineering");
+        assert.strictEqual(ada.data.score, 9, "a number the format parsed, still a number");
+
+        assert.isDefined(link, "the edge the file named, with both endpoints resolved");
+        assert.strictEqual(link.data.bond, "strong");
+    });
+
+    it("passes options only the format knows about from the host straight to the source", async () => {
+        await loadRoster({ data: ROSTER, scoreScale: 10 });
+
+        assert.strictEqual(element.getDataManager().nodes.get("ada")?.data.score, 90);
+    });
+
+    it("reads its bytes from a string, a File and a URL without implementing any of the three", async () => {
+        await loadRoster({ data: ROSTER });
+        assert.strictEqual(heldNodeCount(), PEOPLE.length, "from a string the host already has");
+
+        element.clearData();
+        await loadRoster({ file: new File([ROSTER], "team.roster", { type: "text/plain" }) });
+        assert.strictEqual(heldNodeCount(), PEOPLE.length, "from a File a user dropped on the page");
+
+        element.clearData();
+
+        const url = URL.createObjectURL(new Blob([ROSTER], { type: "text/plain" }));
+
+        try {
+            await loadRoster({ url });
+            assert.strictEqual(heldNodeCount(), PEOPLE.length, "and from a URL the element fetches itself");
+        } finally {
+            URL.revokeObjectURL(url);
+        }
+    });
+
+    it("is accepted by loadFromFile when the host names the format", async () => {
+        await element.loadFromFile(new File([ROSTER], "team.roster", { type: "text/plain" }), {
+            format: ROSTER_FORMAT,
+        });
+        await operationQueueOf(element.graph).waitForCompletion();
+
+        assert.deepStrictEqual(heldNodeIds(), PEOPLE);
+    });
+
+    it("streams: each chunk is in the graph before the next one is asked for", async () => {
+        // Two people per chunk over six people is three chunks, so the graph should hold none,
+        // then two, then four at the three moments the source is about to hand one over.
+        const heldBeforeEachChunk: number[] = [];
+
+        beforeChunk = () => {
+            heldBeforeEachChunk.push(heldNodeCount());
+        };
+
+        await loadRoster({ data: ROSTER, chunkSize: 2 });
+
+        assert.deepStrictEqual(heldBeforeEachChunk, [0, 2, 4], "the graph grew as the chunks arrived");
+        assert.strictEqual(heldNodeCount(), PEOPLE.length, "and held everything once the last one landed");
+        assert.strictEqual(
+            element.getDataManager().edges.size,
+            LINKS,
+            "including links whose second endpoint arrived in a later chunk",
+        );
+    });
+
+    it("reports progress after every chunk, with the running node and edge counts", async () => {
+        const readProgress = recordEvents<DataLoadingProgressEvent>("data-loading-progress");
+
+        await loadRoster({ data: ROSTER, chunkSize: 2 });
+
+        const progress = readProgress();
+
+        assert.strictEqual(progress.length, 3, "one report per chunk");
+        assert.deepStrictEqual(
+            progress.map((event) => event.format),
+            [ROSTER_FORMAT, ROSTER_FORMAT, ROSTER_FORMAT],
+            "reported under the format's own name, not a built-in's",
+        );
+        assert.deepStrictEqual(
+            progress.map((event) => event.nodeRecordsLoaded),
+            [2, 4, 6],
+            "a running total a host can put in a progress bar",
+        );
+        assert.deepStrictEqual(
+            progress.map((event) => event.chunksProcessed),
+            [1, 2, 3],
+        );
+        assert.strictEqual(progress[0].edgeRecordsLoaded, LINKS, "the links arrive with the first chunk");
+    });
+
+    it("announces completion under its own format name, with what it loaded", async () => {
+        const finished = nextEvent<DataLoadingCompleteEvent>("data-loading-complete");
+
+        await loadRoster({ data: ROSTER });
+
+        const event = await finished;
+
+        assert.strictEqual(event.format, ROSTER_FORMAT);
+        assert.strictEqual(event.nodesLoaded, PEOPLE.length);
+        assert.strictEqual(event.edgesLoaded, LINKS);
+        assert.strictEqual(event.errors, 0);
+        assert.isTrue(event.success);
+    });
+
+    it("skips the records its own schema rejects and keeps the rest", async () => {
+        const summary = nextEvent<DataLoadingErrorSummaryEvent>("data-loading-error-summary");
+
+        await loadRoster({ data: ROSTER_WITH_ONE_BAD_RECORD });
+
+        assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the six good people loaded");
+        assert.isFalse(element.getDataManager().nodes.has("gil"), "and the one with no team did not");
+
+        const event = await summary;
+
+        assert.strictEqual(event.format, ROSTER_FORMAT);
+        assert.strictEqual(event.totalErrors, 1, "the host is told how many records were dropped");
+        assert.isNotEmpty(event.message, "in a sentence the host can show a user");
+    });
+
+    it("stops the load when the host's error limit is reached", async () => {
+        const finished = nextEvent<DataLoadingCompleteEvent>("data-loading-complete");
+
+        // Two records per chunk and a ceiling of one: the bad record is the second half of the
+        // first chunk, so the load must end there and never reach brian or cleo.
+        await loadRoster({ data: ROSTER_THAT_GOES_BAD_EARLY, chunkSize: 2, errorLimit: 1 });
+
+        assert.deepStrictEqual(heldNodeIds(), ["ada"], "only what had already arrived");
+        assert.isFalse(element.getDataManager().nodes.has("brian"), "reading stopped rather than continuing");
+
+        const event = await finished;
+
+        assert.strictEqual(event.nodesLoaded, 1);
+        assert.strictEqual(event.errors, 1);
+    });
+
+    it("still says why every row was rejected when no row survived, and fails with E_EMPTY_LOAD", async () => {
+        const summary = nextEvent<DataLoadingErrorSummaryEvent>("data-loading-error-summary");
+
+        const failure: unknown = await element
+            .addDataFromSource(ROSTER_FORMAT, { data: "person gil\nperson hal\n" })
+            .then(
+                () => null,
+                (error: unknown) => error,
             );
-        },
-        TEST_TIMEOUT_MS,
-    );
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "puts the attributes it parsed onto the nodes and edges the element holds",
-        async () => {
-            await loadRoster({ data: ROSTER });
+        assert.isTrue(isGraphtyError(failure) && failure.code === "E_EMPTY_LOAD");
+        assert.strictEqual((await summary).totalErrors, 2, "both rejected rows are reported");
+    });
 
-            const ada = element.getDataManager().nodes.get("ada");
-            const link = [...element.getDataManager().edges.values()].find(
-                (edge) => edge.srcId === "ada" && edge.dstId === "brian",
+    it("keeps the current graph when a replacing load stops at the error limit", async () => {
+        await loadRoster({ data: ROSTER });
+
+        const failure: unknown = await element
+            .addDataFromSource(
+                ROSTER_FORMAT,
+                { data: ROSTER_THAT_GOES_BAD_EARLY, chunkSize: 2, errorLimit: 1 },
+                { replace: true },
+            )
+            .then(
+                () => null,
+                (error: unknown) => error,
             );
 
-            assert.isDefined(ada, "the node the file named");
-            assert.strictEqual(ada.data.team, "Engineering");
-            assert.strictEqual(ada.data.score, 9, "a number the format parsed, still a number");
+        assert.isTrue(isGraphtyError(failure) && failure.code === "E_PARSE_FAILED");
+        assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the partial read did not replace the roster");
+    });
 
-            assert.isDefined(link, "the edge the file named, with both endpoints resolved");
-            assert.strictEqual(link.data.bond, "strong");
-        },
-        TEST_TIMEOUT_MS,
-    );
+    it("surfaces a parse failure as an error the host can catch and see", async () => {
+        const reported = nextEvent<DataLoadingErrorEvent>("data-loading-error");
+        const onGraph = nextEvent<GraphErrorEvent>("error");
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "passes options only the format knows about from the host straight to the source",
-        async () => {
-            await loadRoster({ data: ROSTER, scoreScale: 10 });
+        let refusal: Error | null = null;
 
-            assert.strictEqual(element.getDataManager().nodes.get("ada")?.data.score, 90);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        try {
+            await loadRoster({ data: ROSTER_THE_PARSER_REFUSES });
+        } catch (error) {
+            refusal = error as Error;
+        }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "reads its bytes from a string, a File and a URL without implementing any of the three",
-        async () => {
-            await loadRoster({ data: ROSTER });
-            assert.strictEqual(heldNodeCount(), PEOPLE.length, "from a string the host already has");
+        assert.isNotNull(refusal, "the call a host awaited rejects rather than resolving quietly");
+        assert.include(refusal.message, ROSTER_FORMAT, "naming the format that failed");
 
-            element.clearData();
-            await loadRoster({ file: new File([ROSTER], "team.roster", { type: "text/plain" }) });
-            assert.strictEqual(heldNodeCount(), PEOPLE.length, "from a File a user dropped on the page");
+        const event = await reported;
 
-            element.clearData();
+        assert.strictEqual(event.format, ROSTER_FORMAT);
+        assert.strictEqual(event.context, "parsing");
+        assert.include(event.error.message, "standup", "carrying what the parser actually objected to");
+        assert.isFalse(event.canContinue);
 
-            const url = URL.createObjectURL(new Blob([ROSTER], { type: "text/plain" }));
+        const graphError = await onGraph;
 
-            try {
-                await loadRoster({ url });
-                assert.strictEqual(heldNodeCount(), PEOPLE.length, "and from a URL the element fetches itself");
-            } finally {
-                URL.revokeObjectURL(url);
-            }
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.strictEqual(graphError.context, "data-loading", "and the general error channel hears about it too");
+        assert.strictEqual(heldNodeCount(), 0, "nothing half-loaded was left behind");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "is accepted by loadFromFile when the host names the format",
-        async () => {
-            await element.loadFromFile(new File([ROSTER], "team.roster", { type: "text/plain" }), {
-                format: ROSTER_FORMAT,
-            });
-            await operationQueueOf(element.graph).waitForCompletion();
+    it("lets a style layer select on the attributes it loaded, exactly like a built-in format", async () => {
+        await loadRoster({ data: ROSTER });
 
-            assert.deepStrictEqual(heldNodeIds(), PEOPLE);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        const changes: StyleChange[] = [];
+        const stopWatching = element.session.on("style:changed", (change) => {
+            changes.push(change);
+        });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "streams: each chunk is in the graph before the next one is asked for",
-        async () => {
-            // Two people per chunk over six people is three chunks, so the graph should hold none,
-            // then two, then four at the three moments the source is about to hand one over.
-            const heldBeforeEachChunk: number[] = [];
+        /**
+         * A layer that paints whatever its expression matches.
+         * @param name - What to call it, so two layers in one stack are distinguishable.
+         * @param where - The expression, over the columns the roster format loaded.
+         * @returns The layer.
+         */
+        const layerOver = (name: string, where: string): LayerSpec => ({
+            name,
+            target: "node",
+            selector: { match: "expression", where },
+            set: { "node.color": "#ff9900" },
+        });
 
-            beforeChunk = () => {
-                heldBeforeEachChunk.push(heldNodeCount());
-            };
+        try {
+            // `painted` is the repaint reporting the dirty set it actually walked, so a layer
+            // that silently matched the whole graph and one that silently matched nothing are
+            // both visible in this one number.
+            await element.session.styles.add(layerOver("Engineering", 'data.team == `"Engineering"`'));
+            assert.strictEqual(changes.at(-1)?.painted?.nodes, ENGINEERS, "a string column the format loaded");
 
-            await loadRoster({ data: ROSTER, chunkSize: 2 });
+            await element.session.styles.add(layerOver("Design", 'data.team == `"Design"`'));
+            assert.strictEqual(changes.at(-1)?.painted?.nodes, DESIGNERS, "and not the other team");
 
-            assert.deepStrictEqual(heldBeforeEachChunk, [0, 2, 4], "the graph grew as the chunks arrived");
-            assert.strictEqual(heldNodeCount(), PEOPLE.length, "and held everything once the last one landed");
+            await element.session.styles.add(layerOver("Above two", "data.score > `2`"));
             assert.strictEqual(
-                element.getDataManager().edges.size,
-                LINKS,
-                "including links whose second endpoint arrived in a later chunk",
+                changes.at(-1)?.painted?.nodes,
+                SCORING_ABOVE_TWO,
+                "a numeric comparison, so the score arrived as a number and not as text",
             );
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "reports progress after every chunk, with the running node and edge counts",
-        async () => {
-            const readProgress = recordEvents<DataLoadingProgressEvent>("data-loading-progress");
-
-            await loadRoster({ data: ROSTER, chunkSize: 2 });
-
-            const progress = readProgress();
-
-            assert.strictEqual(progress.length, 3, "one report per chunk");
-            assert.deepStrictEqual(
-                progress.map((event) => event.format),
-                [ROSTER_FORMAT, ROSTER_FORMAT, ROSTER_FORMAT],
-                "reported under the format's own name, not a built-in's",
-            );
-            assert.deepStrictEqual(
-                progress.map((event) => event.nodeRecordsLoaded),
-                [2, 4, 6],
-                "a running total a host can put in a progress bar",
-            );
-            assert.deepStrictEqual(
-                progress.map((event) => event.chunksProcessed),
-                [1, 2, 3],
-            );
-            assert.strictEqual(progress[0].edgeRecordsLoaded, LINKS, "the links arrive with the first chunk");
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "announces completion under its own format name, with what it loaded",
-        async () => {
-            const finished = nextEvent<DataLoadingCompleteEvent>("data-loading-complete");
-
-            await loadRoster({ data: ROSTER });
-
-            const event = await finished;
-
-            assert.strictEqual(event.format, ROSTER_FORMAT);
-            assert.strictEqual(event.nodesLoaded, PEOPLE.length);
-            assert.strictEqual(event.edgesLoaded, LINKS);
-            assert.strictEqual(event.errors, 0);
-            assert.isTrue(event.success);
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "skips the records its own schema rejects and keeps the rest",
-        async () => {
-            const summary = nextEvent<DataLoadingErrorSummaryEvent>("data-loading-error-summary");
-
-            await loadRoster({ data: ROSTER_WITH_ONE_BAD_RECORD });
-
-            assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the six good people loaded");
-            assert.isFalse(element.getDataManager().nodes.has("gil"), "and the one with no team did not");
-
-            const event = await summary;
-
-            assert.strictEqual(event.format, ROSTER_FORMAT);
-            assert.strictEqual(event.totalErrors, 1, "the host is told how many records were dropped");
-            assert.isNotEmpty(event.message, "in a sentence the host can show a user");
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "stops the load when the host's error limit is reached",
-        async () => {
-            const finished = nextEvent<DataLoadingCompleteEvent>("data-loading-complete");
-
-            // Two records per chunk and a ceiling of one: the bad record is the second half of the
-            // first chunk, so the load must end there and never reach brian or cleo.
-            await loadRoster({ data: ROSTER_THAT_GOES_BAD_EARLY, chunkSize: 2, errorLimit: 1 });
-
-            assert.deepStrictEqual(heldNodeIds(), ["ada"], "only what had already arrived");
-            assert.isFalse(element.getDataManager().nodes.has("brian"), "reading stopped rather than continuing");
-
-            const event = await finished;
-
-            assert.strictEqual(event.nodesLoaded, 1);
-            assert.strictEqual(event.errors, 1);
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "still says why every row was rejected when no row survived, and fails with E_EMPTY_LOAD",
-        async () => {
-            const summary = nextEvent<DataLoadingErrorSummaryEvent>("data-loading-error-summary");
-
-            const failure: unknown = await element
-                .addDataFromSource(ROSTER_FORMAT, { data: "person gil\nperson hal\n" })
-                .then(
-                    () => null,
-                    (error: unknown) => error,
-                );
-
-            assert.isTrue(isGraphtyError(failure) && failure.code === "E_EMPTY_LOAD");
-            assert.strictEqual((await summary).totalErrors, 2, "both rejected rows are reported");
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "keeps the current graph when a replacing load stops at the error limit",
-        async () => {
-            await loadRoster({ data: ROSTER });
-
-            const failure: unknown = await element
-                .addDataFromSource(
-                    ROSTER_FORMAT,
-                    { data: ROSTER_THAT_GOES_BAD_EARLY, chunkSize: 2, errorLimit: 1 },
-                    { replace: true },
-                )
-                .then(
-                    () => null,
-                    (error: unknown) => error,
-                );
-
-            assert.isTrue(isGraphtyError(failure) && failure.code === "E_PARSE_FAILED");
-            assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the partial read did not replace the roster");
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "surfaces a parse failure as an error the host can catch and see",
-        async () => {
-            const reported = nextEvent<DataLoadingErrorEvent>("data-loading-error");
-            const onGraph = nextEvent<GraphErrorEvent>("error");
-
-            let refusal: Error | null = null;
-
-            try {
-                await loadRoster({ data: ROSTER_THE_PARSER_REFUSES });
-            } catch (error) {
-                refusal = error as Error;
-            }
-
-            assert.isNotNull(refusal, "the call a host awaited rejects rather than resolving quietly");
-            assert.include(refusal.message, ROSTER_FORMAT, "naming the format that failed");
-
-            const event = await reported;
-
-            assert.strictEqual(event.format, ROSTER_FORMAT);
-            assert.strictEqual(event.context, "parsing");
-            assert.include(event.error.message, "standup", "carrying what the parser actually objected to");
-            assert.isFalse(event.canContinue);
-
-            const graphError = await onGraph;
-
-            assert.strictEqual(graphError.context, "data-loading", "and the general error channel hears about it too");
-            assert.strictEqual(heldNodeCount(), 0, "nothing half-loaded was left behind");
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "lets a style layer select on the attributes it loaded, exactly like a built-in format",
-        async () => {
-            await loadRoster({ data: ROSTER });
-
-            const changes: StyleChange[] = [];
-            const stopWatching = element.session.on("style:changed", (change) => {
-                changes.push(change);
-            });
-
-            /**
-             * A layer that paints whatever its expression matches.
-             * @param name - What to call it, so two layers in one stack are distinguishable.
-             * @param where - The expression, over the columns the roster format loaded.
-             * @returns The layer.
-             */
-            const layerOver = (name: string, where: string): LayerSpec => ({
-                name,
-                target: "node",
-                selector: { match: "expression", where },
-                set: { "node.color": "#ff9900" },
-            });
-
-            try {
-                // `painted` is the repaint reporting the dirty set it actually walked, so a layer
-                // that silently matched the whole graph and one that silently matched nothing are
-                // both visible in this one number.
-                await element.session.styles.add(layerOver("Engineering", 'data.team == `"Engineering"`'));
-                assert.strictEqual(changes.at(-1)?.painted?.nodes, ENGINEERS, "a string column the format loaded");
-
-                await element.session.styles.add(layerOver("Design", 'data.team == `"Design"`'));
-                assert.strictEqual(changes.at(-1)?.painted?.nodes, DESIGNERS, "and not the other team");
-
-                await element.session.styles.add(layerOver("Above two", "data.score > `2`"));
-                assert.strictEqual(
-                    changes.at(-1)?.painted?.nodes,
-                    SCORING_ABOVE_TWO,
-                    "a numeric comparison, so the score arrived as a number and not as text",
-                );
-            } finally {
-                stopWatching();
-            }
-        },
-        TEST_TIMEOUT_MS,
-    );
+        } finally {
+            stopWatching();
+        }
+    });
 });
 
 describe("a third party's format in the catalogue a picker is built from", () => {
@@ -1227,81 +1130,59 @@ describe("a third party's format in the catalogue a picker is built from", () =>
 });
 
 describe("a third party's format being recognised from a file", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "is recognised from a dropped file's name, with no format argument at all",
-        async () => {
-            const finished = nextEvent<DataLoadingCompleteEvent>("data-loading-complete");
+    it("is recognised from a dropped file's name, with no format argument at all", async () => {
+        const finished = nextEvent<DataLoadingCompleteEvent>("data-loading-complete");
 
-            // Indented, so the format's own content sniffer does not match it and the file name is
-            // genuinely the only thing identifying it.
-            await element.loadFromFile(
-                new File([ROSTER_ONLY_ITS_NAME_IDENTIFIES], "team.roster", { type: "text/plain" }),
-            );
+        // Indented, so the format's own content sniffer does not match it and the file name is
+        // genuinely the only thing identifying it.
+        await element.loadFromFile(new File([ROSTER_ONLY_ITS_NAME_IDENTIFIES], "team.roster", { type: "text/plain" }));
+        await operationQueueOf(element.graph).waitForCompletion();
+
+        assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the element worked out which format it had been handed");
+        assert.strictEqual(
+            (await finished).format,
+            ROSTER_FORMAT,
+            "and it was the format whose descriptor claims that extension that read the file",
+        );
+    });
+
+    it("is recognised from a file's first bytes when its name says nothing", async () => {
+        const finished = nextEvent<DataLoadingCompleteEvent>("data-loading-complete");
+
+        await element.loadFromFile(new File([ROSTER], "notes.txt", { type: "text/plain" }));
+        await operationQueueOf(element.graph).waitForCompletion();
+
+        assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the sniffer the format declared was asked and answered");
+        assert.strictEqual((await finished).format, ROSTER_FORMAT, "and it was that format that read the file");
+    });
+
+    it("is recognised from the content of a URL whose address says nothing about the format", async () => {
+        // An object URL carries no extension at all, so the only thing left to go on is what
+        // comes back from fetching it -- which is the path a host takes for an API endpoint.
+        const url = URL.createObjectURL(new Blob([ROSTER], { type: "text/plain" }));
+
+        try {
+            await element.loadFromUrl(url);
             await operationQueueOf(element.graph).waitForCompletion();
 
-            assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the element worked out which format it had been handed");
-            assert.strictEqual(
-                (await finished).format,
-                ROSTER_FORMAT,
-                "and it was the format whose descriptor claims that extension that read the file",
-            );
-        },
-        TEST_TIMEOUT_MS,
-    );
+            assert.deepStrictEqual(heldNodeIds(), PEOPLE);
+        } finally {
+            URL.revokeObjectURL(url);
+        }
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "is recognised from a file's first bytes when its name says nothing",
-        async () => {
-            const finished = nextEvent<DataLoadingCompleteEvent>("data-loading-complete");
+    it("is accepted by loadFromUrl when the host names the format", async () => {
+        const url = URL.createObjectURL(new Blob([ROSTER], { type: "text/plain" }));
 
-            await element.loadFromFile(new File([ROSTER], "notes.txt", { type: "text/plain" }));
+        try {
+            await element.loadFromUrl(url, { format: ROSTER_FORMAT });
             await operationQueueOf(element.graph).waitForCompletion();
 
-            assert.deepStrictEqual(heldNodeIds(), PEOPLE, "the sniffer the format declared was asked and answered");
-            assert.strictEqual((await finished).format, ROSTER_FORMAT, "and it was that format that read the file");
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "is recognised from the content of a URL whose address says nothing about the format",
-        async () => {
-            // An object URL carries no extension at all, so the only thing left to go on is what
-            // comes back from fetching it -- which is the path a host takes for an API endpoint.
-            const url = URL.createObjectURL(new Blob([ROSTER], { type: "text/plain" }));
-
-            try {
-                await element.loadFromUrl(url);
-                await operationQueueOf(element.graph).waitForCompletion();
-
-                assert.deepStrictEqual(heldNodeIds(), PEOPLE);
-            } finally {
-                URL.revokeObjectURL(url);
-            }
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "is accepted by loadFromUrl when the host names the format",
-        async () => {
-            const url = URL.createObjectURL(new Blob([ROSTER], { type: "text/plain" }));
-
-            try {
-                await element.loadFromUrl(url, { format: ROSTER_FORMAT });
-                await operationQueueOf(element.graph).waitForCompletion();
-
-                assert.deepStrictEqual(heldNodeIds(), PEOPLE);
-            } finally {
-                URL.revokeObjectURL(url);
-            }
-        },
-        TEST_TIMEOUT_MS,
-    );
+            assert.deepStrictEqual(heldNodeIds(), PEOPLE);
+        } finally {
+            URL.revokeObjectURL(url);
+        }
+    });
 
     it("is offered to a host that wants to know what it is holding before it loads it", () => {
         assert.strictEqual(
@@ -1323,27 +1204,18 @@ describe("a third party's format being recognised from a file", () => {
         );
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "is told apart from another format claiming the same extension by looking at the content",
-        async () => {
-            assert.deepStrictEqual(
-                detectFormats({ filename: "team.xml", sample: ACME_XML }),
-                [ACME_XML_FORMAT, "graphml", "gexf", "xgmml"],
-                "the claimant whose own sniffer says yes is ranked first, and the others are still offered",
-            );
+    it("is told apart from another format claiming the same extension by looking at the content", async () => {
+        assert.deepStrictEqual(
+            detectFormats({ filename: "team.xml", sample: ACME_XML }),
+            [ACME_XML_FORMAT, "graphml", "gexf", "xgmml"],
+            "the claimant whose own sniffer says yes is ranked first, and the others are still offered",
+        );
 
-            await element.loadFromFile(new File([ACME_XML], "team.xml", { type: "text/xml" }));
-            await operationQueueOf(element.graph).waitForCompletion();
+        await element.loadFromFile(new File([ACME_XML], "team.xml", { type: "text/xml" }));
+        await operationQueueOf(element.graph).waitForCompletion();
 
-            assert.deepStrictEqual(
-                heldNodeIds(),
-                ACME_PEOPLE,
-                "and the file loaded through the format that claimed it",
-            );
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.deepStrictEqual(heldNodeIds(), ACME_PEOPLE, "and the file loaded through the format that claimed it");
+    });
 
     it("never takes a file one of the element's own formats claims, however greedy its sniffer", () => {
         assert.strictEqual(
@@ -1374,20 +1246,15 @@ describe("a third party's format being recognised from a file", () => {
 });
 
 describe("a third party's format being configured", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "takes the default it declared when the host sets nothing",
-        async () => {
-            await loadRoster({ data: ROSTER });
+    it("takes the default it declared when the host sets nothing", async () => {
+        await loadRoster({ data: ROSTER });
 
-            assert.strictEqual(
-                element.getDataManager().nodes.get("ada")?.data.score,
-                9,
-                "the declared default of 1 was filled in and multiplied nothing away",
-            );
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.strictEqual(
+            element.getDataManager().nodes.get("ada")?.data.score,
+            9,
+            "the declared default of 1 was filled in and multiplied nothing away",
+        );
+    });
 
     it("refuses a value its published declaration would not accept", () => {
         const refusal = refusalFrom(() => DataSource.get(ROSTER_FORMAT, { data: ROSTER, scoreScale: -5 }));
@@ -1406,183 +1273,138 @@ describe("a third party's format being configured", () => {
         assert.deepStrictEqual(refusal.details.candidates, ["scoreScale"], "and what the host probably meant");
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "reports a bad option to a host that went through the element rather than the registry",
-        async () => {
-            let refusal: Error | null = null;
+    it("reports a bad option to a host that went through the element rather than the registry", async () => {
+        let refusal: Error | null = null;
 
-            try {
-                await element.addDataFromSource(ROSTER_FORMAT, { data: ROSTER, scoreScale: 5000 });
-            } catch (error) {
-                refusal = error as Error;
-            }
+        try {
+            await element.addDataFromSource(ROSTER_FORMAT, { data: ROSTER, scoreScale: 5000 });
+        } catch (error) {
+            refusal = error as Error;
+        }
 
-            assert.isNotNull(refusal, "the load a host awaited rejects rather than reading the file anyway");
-            assert.include(refusal.message, "scoreScale", "naming the option that was wrong");
-            assert.strictEqual(heldNodeCount(), 0, "and nothing was loaded on the way to finding out");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.isNotNull(refusal, "the load a host awaited rejects rather than reading the file anyway");
+        assert.include(refusal.message, "scoreScale", "naming the option that was wrong");
+        assert.strictEqual(heldNodeCount(), 0, "and nothing was loaded on the way to finding out");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "still receives the facts the element itself adds to an options object",
-        async () => {
-            // `loadFromFile` adds the file's name and size, and `loadFromUrl` adds the configured
-            // identity paths. None of those is an option this format declared, and a format that
-            // was refused for them could not be reached through either call.
-            await element.loadFromFile(new File([ROSTER], "team.roster", { type: "text/plain" }));
-            await operationQueueOf(element.graph).waitForCompletion();
+    it("still receives the facts the element itself adds to an options object", async () => {
+        // `loadFromFile` adds the file's name and size, and `loadFromUrl` adds the configured
+        // identity paths. None of those is an option this format declared, and a format that
+        // was refused for them could not be reached through either call.
+        await element.loadFromFile(new File([ROSTER], "team.roster", { type: "text/plain" }));
+        await operationQueueOf(element.graph).waitForCompletion();
 
-            assert.deepStrictEqual(heldNodeIds(), PEOPLE);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.deepStrictEqual(heldNodeIds(), PEOPLE);
+    });
 });
 
 describe("a third party's format failing", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "reports a file it cannot parse as a coded error carrying the format and the line",
-        async () => {
-            const reported = nextEvent<DataLoadingErrorEvent>("data-loading-error");
+    it("reports a file it cannot parse as a coded error carrying the format and the line", async () => {
+        const reported = nextEvent<DataLoadingErrorEvent>("data-loading-error");
 
-            await loadRoster({ data: ROSTER_THE_PARSER_REFUSES }).catch(() => {
-                // The rejection itself is asserted by the parse-failure test above; what is under
-                // test here is the coded error the host is handed.
-            });
+        await loadRoster({ data: ROSTER_THE_PARSER_REFUSES }).catch(() => {
+            // The rejection itself is asserted by the parse-failure test above; what is under
+            // test here is the coded error the host is handed.
+        });
 
-            const event = await reported;
+        const event = await reported;
 
-            assert.isTrue(isGraphtyError(event.error), "a consumer switches on a code, never on a message");
+        assert.isTrue(isGraphtyError(event.error), "a consumer switches on a code, never on a message");
 
-            if (!isGraphtyError(event.error)) {
-                return;
-            }
+        if (!isGraphtyError(event.error)) {
+            return;
+        }
 
-            assert.strictEqual(event.error.code, "E_PARSE_FAILED");
-            assert.strictEqual(event.error.details.format, ROSTER_FORMAT);
-            assert.strictEqual(event.error.details.line, 1, "the line of the file that could not be read");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.strictEqual(event.error.code, "E_PARSE_FAILED");
+        assert.strictEqual(event.error.details.format, ROSTER_FORMAT);
+        assert.strictEqual(event.error.details.line, 1, "the line of the file that could not be read");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "reports a source it cannot fetch as a coded error carrying the address",
-        async () => {
-            const url = URL.createObjectURL(new Blob([ROSTER], { type: "text/plain" }));
+    it("reports a source it cannot fetch as a coded error carrying the address", async () => {
+        const url = URL.createObjectURL(new Blob([ROSTER], { type: "text/plain" }));
 
-            // Revoked before the load starts, so fetching it fails the way an address that is
-            // simply not there fails -- the retries are the element's, and the format wrote none
-            // of them.
-            URL.revokeObjectURL(url);
+        // Revoked before the load starts, so fetching it fails the way an address that is
+        // simply not there fails -- the retries are the element's, and the format wrote none
+        // of them.
+        URL.revokeObjectURL(url);
 
-            const reported = nextEvent<DataLoadingErrorEvent>("data-loading-error");
+        const reported = nextEvent<DataLoadingErrorEvent>("data-loading-error");
 
-            await loadRoster({ url }).catch(() => {
-                // The rejection is expected; the coded error is what is under test.
-            });
+        await loadRoster({ url }).catch(() => {
+            // The rejection is expected; the coded error is what is under test.
+        });
 
-            const event = await reported;
+        const event = await reported;
 
-            assert.isTrue(isGraphtyError(event.error));
+        assert.isTrue(isGraphtyError(event.error));
 
-            if (!isGraphtyError(event.error)) {
-                return;
-            }
+        if (!isGraphtyError(event.error)) {
+            return;
+        }
 
-            assert.strictEqual(event.error.code, "E_FETCH_FAILED");
-            assert.strictEqual(event.error.details.url, url, "so a host can say which address failed");
-            assert.strictEqual(event.error.details.attempts, 3, "after the three attempts the element makes");
-            assert.isTrue(event.error.recoverable, "a network that dropped could work on the next try");
-        },
-        FETCH_FAILURE_TIMEOUT_MS,
-    );
+        assert.strictEqual(event.error.code, "E_FETCH_FAILED");
+        assert.strictEqual(event.error.details.url, url, "so a host can say which address failed");
+        assert.strictEqual(event.error.details.attempts, 3, "after the three attempts the element makes");
+        assert.isTrue(event.error.recoverable, "a network that dropped could work on the next try");
+    });
 });
 
 describe("a third party's format declaring what its file says", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "declares the direction its file states, and the graph is counted as that kind",
-        async () => {
-            await loadRoster({ data: ROSTER_DECLARING_UNDIRECTED });
+    it("declares the direction its file states, and the graph is counted as that kind", async () => {
+        await loadRoster({ data: ROSTER_DECLARING_UNDIRECTED });
 
-            assert.strictEqual(
-                element.session.data.statistics().directedness,
-                "undirected",
-                "the file said its links run both ways, and the element counted the graph that way",
-            );
-            assert.isFalse(element.session.status.directed);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.strictEqual(
+            element.session.data.statistics().directedness,
+            "undirected",
+            "the file said its links run both ways, and the element counted the graph that way",
+        );
+        assert.isFalse(element.session.status.directed);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "is believed when its file states the opposite direction",
-        async () => {
-            await loadRoster({ data: ROSTER_DECLARING_DIRECTED });
+    it("is believed when its file states the opposite direction", async () => {
+        await loadRoster({ data: ROSTER_DECLARING_DIRECTED });
 
-            assert.strictEqual(element.session.data.statistics().directedness, "directed");
-            assert.isTrue(element.session.status.directed);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.strictEqual(element.session.data.statistics().directedness, "directed");
+        assert.isTrue(element.session.status.directed);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "leaves the direction alone when its file states none",
-        async () => {
-            await loadRoster({ data: ROSTER });
+    it("leaves the direction alone when its file states none", async () => {
+        await loadRoster({ data: ROSTER });
 
-            assert.strictEqual(
-                element.session.data.statistics().directedness,
-                "directed",
-                "a file that says nothing leaves the element's own setting standing, rather than guessing",
-            );
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.strictEqual(
+            element.session.data.statistics().directedness,
+            "directed",
+            "a file that says nothing leaves the element's own setting standing, rather than guessing",
+        );
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "places the nodes its file placed, so the element knows the graph arrived arranged",
-        async () => {
-            await loadRoster({ data: ROSTER });
-            assert.strictEqual(
-                element.session.seededNodeCount,
-                0,
-                "a roster with no coordinates in it seeds none, whatever a layout goes on to do",
-            );
+    it("places the nodes its file placed, so the element knows the graph arrived arranged", async () => {
+        await loadRoster({ data: ROSTER });
+        assert.strictEqual(
+            element.session.seededNodeCount,
+            0,
+            "a roster with no coordinates in it seeds none, whatever a layout goes on to do",
+        );
 
-            element.clearData();
-            await loadRoster({ data: ROSTER_WITH_PLACED_PEOPLE });
+        element.clearData();
+        await loadRoster({ data: ROSTER_WITH_PLACED_PEOPLE });
 
-            assert.strictEqual(
-                element.session.seededNodeCount,
-                PEOPLE.length,
-                "and every person the file placed reached the element's own seed column, which is " +
-                    "what a layout recommendation reads to decide whether to arrange the graph at all",
-            );
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.strictEqual(
+            element.session.seededNodeCount,
+            PEOPLE.length,
+            "and every person the file placed reached the element's own seed column, which is " +
+                "what a layout recommendation reads to decide whether to arrange the graph at all",
+        );
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "carries an edge weight the element reads as a weight rather than as another attribute",
-        async () => {
-            await loadRoster({ data: ROSTER_WITH_A_WEIGHTED_LINK });
+    it("carries an edge weight the element reads as a weight rather than as another attribute", async () => {
+        await loadRoster({ data: ROSTER_WITH_A_WEIGHTED_LINK });
 
-            assert.isTrue(
-                element.session.data.statistics().weighted,
-                "the number on the link reached the element's weight column, not just the record",
-            );
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.isTrue(
+            element.session.data.statistics().weighted,
+            "the number on the link reached the element's weight column, not just the record",
+        );
+    });
 });
 
 /**

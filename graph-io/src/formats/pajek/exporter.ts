@@ -335,7 +335,7 @@ function labelNotes(snapshot: GraphSnapshot, nodePlan: readonly PlannedColumn[],
     }
     let gained = 0;
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        if (labels === null || !labels.isSet(i)) {
+        if (!labels?.isSet(i)) {
             gained++;
         }
     }
@@ -542,7 +542,7 @@ function firstModeOf(snapshot: GraphSnapshot): number | null {
  * @returns the label text, or null
  */
 function labelOf(labels: Column | null, ids: SanitizedIds, i: number, needed: boolean): string | null {
-    if (labels !== null && labels.isSet(i)) {
+    if (labels?.isSet(i)) {
         return cellText(labels, i);
     }
     if (needed || ids.isChanged(i)) {
@@ -778,7 +778,7 @@ function* writeVertices(
                 parts.push(coordinates);
             }
         }
-        if (shape !== null && shape.isSet(i)) {
+        if (shape?.isSet(i)) {
             const keyword = cellText(shape, i);
             if (SHAPES.has(keyword)) {
                 parts.push(keyword);
@@ -861,7 +861,7 @@ function* writeLines(snapshot: GraphSnapshot, edgePlan: readonly PlannedColumn[]
         // a mutual pair (design section 3.6): both directions, written once as an undirected edge
         const directed = snapshot.directed && folding.sourceDirected(e) && !folding.isMutual(e);
         const kind = directed ? "arcs" : "edges";
-        const relationName = relation !== null && relation.isSet(e) ? cellText(relation, e) : null;
+        const relationName = relation?.isSet(e) ? cellText(relation, e) : null;
         if (!sectionOpen || kind !== currentKind || relationName !== currentRelation) {
             currentKind = kind;
             currentRelation = relationName;
@@ -996,16 +996,14 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
         for (const n of checkCapabilities(snapshot, CAPABILITIES, resolved, {
             roles: SLOT_ROLES,
             roleNames: ROLE_NAMES,
+            // the label slot is a vertex slot; an edge label is a parameter under its own name
+            edgeRoleNames: {},
         })) {
             if (n.column !== null && (n.code === LOSS.LIST || n.code === LOSS.DTYPE)) {
                 const domain = n.message.startsWith("node column") ? "node" : "edge";
                 if (owned.has(`${domain}:${n.column}`)) {
                     continue;
                 }
-            }
-            if (n.code === LOSS.COLUMN_NAME_CHANGED && n.message.startsWith("edge column")) {
-                // the label slot is a vertex slot; an edge label is a parameter under its own name
-                continue;
             }
             notes.push(n);
         }

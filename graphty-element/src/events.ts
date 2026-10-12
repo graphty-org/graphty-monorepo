@@ -82,6 +82,8 @@ export type GraphEvent =
     | OperationCancelledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
+    | XRSessionStartedEvent
+    | XRSessionEndedEvent
     | InputPointerEvent
     | InputWheelEvent
     | InputTouchEvent
@@ -293,6 +295,8 @@ export interface StyleChangedEvent {
     painted: StyleChange["painted"];
     /** The paths the changed layers read that nothing in the session answers yet. */
     unresolvedPaths: string[];
+    /** What the changed layers will paint nothing for, as codes (`W_UNKNOWN_ID`), or draw without the alpha their color asked for (`W_ALPHA_IGNORED`). */
+    warnings: StyleChange["warnings"];
 }
 
 // Data loading events
@@ -461,6 +465,32 @@ export interface InputEnabledChangedEvent {
     type: "input-enabled-changed";
     /** Whether the canvas now takes user input. */
     enabled: boolean;
+}
+
+/** Emitted when a VR or AR session has started and the graph is drawing into it. */
+export interface XRSessionStartedEvent {
+    type: "xr-session-started";
+    /** Which kind of session: `"vr"` or `"ar"`, as `setViewMode` names them. */
+    mode: "vr" | "ar";
+    /** The reference space the configuration asked for (`xr.vr` or `xr.ar` `referenceSpaceType`). */
+    requestedReferenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded";
+    /**
+     * The reference space the device granted: the requested one, or the first fallback it accepted
+     * (`local-floor`, then `local`), or `"viewer"` when it refused all of them.
+     */
+    referenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded" | "viewer";
+}
+
+/** Emitted when a VR or AR session has ended and the graph is back in its 3D view. */
+export interface XRSessionEndedEvent {
+    type: "xr-session-ended";
+    /** Which kind of session ended: `"vr"` or `"ar"`. */
+    mode: "vr" | "ar";
+    /**
+     * `"exit"` when the element left the session (`setViewMode("3d")`, `exitXR()`), `"device"`
+     * when the headset or browser ended it (the system button, taking the headset off).
+     */
+    cause: "exit" | "device";
 }
 
 // Selection events

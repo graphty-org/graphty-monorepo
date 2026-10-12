@@ -1,5 +1,7 @@
 import { Color3, Mesh, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
 
+import { animatesEveryFrame } from "../managers/everyFrameAnimations";
+
 export type AnimationType = "none" | "pulse" | "bounce" | "shake" | "glow" | "fill";
 
 export interface AnimationOptions {
@@ -15,6 +17,8 @@ export class RichTextAnimator {
     private originalPosition: Vector3 | null = null;
     private originalScale: Vector3 | null = null;
     private sceneCallback: (() => void) | null = null;
+    /** Ends this animation's claim on every frame of a graph drawn on demand. */
+    private releaseFrames: (() => void) | null = null;
     private lastFillUpdate = 0;
 
     /**
@@ -47,6 +51,7 @@ export class RichTextAnimator {
         };
 
         this.scene.registerBeforeRender(this.sceneCallback);
+        this.releaseFrames = animatesEveryFrame(this.scene);
     }
 
     private updateAnimation(
@@ -140,5 +145,8 @@ export class RichTextAnimator {
             this.scene.unregisterBeforeRender(this.sceneCallback);
             this.sceneCallback = null;
         }
+
+        this.releaseFrames?.();
+        this.releaseFrames = null;
     }
 }

@@ -1,5 +1,5 @@
 /**
- * @file Every story Chromatic snapshots draws the same picture every run.
+ * @file Every story the visual capture snapshots draws the same picture every run.
  *
  * It checks for:
  *
@@ -20,13 +20,13 @@
  * reaches Lit, Babylon and the DOM at load time. The Node project cannot load them.
  *
  * WHY `storySetup` IS REPLACED. `storySetup()` turns the pre-step count a story names into zero
- * whenever the page is not Chromatic, which is where this test runs, and fills in 2000 when the
+ * whenever the page is not a visual capture, which is where this test runs, and fills in 2000 when the
  * story names none. Replacing it with a function that hands back exactly what the story asked for
  * lets this test read the count the story itself named.
  */
 
 import { composeStories } from "storybook/preview-api";
-import { assert, describe, it, vi } from "vitest";
+import { assert, beforeAll, describe, it, vi } from "vitest";
 
 vi.mock("../../stories/helpers", async (importOriginal) => ({
     ...(await importOriginal<typeof import("../../stories/helpers")>()),
@@ -232,7 +232,7 @@ function layoutIssues(file: string, stories: readonly CheckedStory[], settlingHe
             continue;
         }
 
-        // A story Chromatic never snapshots cannot produce a Chromatic diff.
+        // A story the visual capture never snapshots cannot produce a visual diff.
         if ((parameters.chromatic as { disableSnapshot?: boolean } | undefined)?.disableSnapshot === true) {
             continue;
         }
@@ -263,7 +263,7 @@ function layoutIssues(file: string, stories: readonly CheckedStory[], settlingHe
             }
         } else if (setup === undefined && behaviourPreSteps === undefined) {
             issues.push(
-                `${where} uses physics layout "${layout}" without preSteps - will not settle before Chromatic capture`,
+                `${where} uses physics layout "${layout}" without preSteps - will not settle before the visual capture`,
             );
         }
 
@@ -275,7 +275,7 @@ function layoutIssues(file: string, stories: readonly CheckedStory[], settlingHe
         if (!settles) {
             issues.push(
                 `${where} uses physics layout "${layout}" without waitForGraphSettled in its play function - ` +
-                    "will not settle before Chromatic capture",
+                    "will not settle before the visual capture",
             );
         }
     }
@@ -322,21 +322,27 @@ describe("Story Determinism", () => {
         assert.deepStrictEqual(issues, []);
     });
 
-    it("all story files should use deterministic patterns for Chromatic visual testing", async () => {
-        const files = Object.keys(storyModules).sort();
+    // One test per story file: importing a story module reaches Lit, Babylon and the DOM, and all of
+    // them in one test cost about 9 s of its 15 s limit (tools/vitest-time-budget.mjs, #1602).
+    const files = Object.keys(storyModules).sort();
+    const helperSettles = settlingHelperNames(Object.values(helperSources).join("\n"));
+
+    // The modules every story file shares -- the element, its entry point and the story helpers --
+    // loaded once up front, so the first story file's test does not pay for loading them all.
+    beforeAll(async () => {
+        await Promise.all([import("../../index"), import("../../stories/helpers")]);
+    });
+
+    it("finds the package's story files", () => {
         assert.isAbove(files.length, 20, "the glob must find the package's story files");
+    });
 
-        const helperSettles = settlingHelperNames(Object.values(helperSources).join("\n"));
-        const issues: string[] = [];
-
-        for (const file of files) {
-            const source = storySources[file];
-            const settlingHelpers = new Set([...helperSettles, ...settlingHelperNames(source)]);
-            const stories = composedStories(await storyModules[file]());
-            const relative = file.replace("../../", "");
-
-            issues.push(...unseededRandomIssues(relative, source), ...layoutIssues(relative, stories, settlingHelpers));
-        }
+    it.each(files)("%s uses deterministic patterns for the visual capture", async (file) => {
+        const source = storySources[file];
+        const settlingHelpers = new Set([...helperSettles, ...settlingHelperNames(source)]);
+        const stories = composedStories(await storyModules[file]());
+        const relative = file.replace("../../", "");
+        const issues = [...unseededRandomIssues(relative, source), ...layoutIssues(relative, stories, settlingHelpers)];
 
         assert.deepStrictEqual(
             issues,

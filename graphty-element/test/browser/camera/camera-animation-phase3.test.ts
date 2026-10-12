@@ -1,4 +1,4 @@
-import { afterEach, assert, test } from "vitest";
+import { afterEach, assert, test, vi } from "vitest";
 
 import type { CameraStateChangedEvent } from "../../../src/events.js";
 import { Graph } from "../../../src/Graph.js";
@@ -10,6 +10,16 @@ let graph: Graph;
 afterEach(() => {
     cleanupTestGraph(graph);
 });
+
+/**
+ * Wait until an animation has started moving the camera away from where it stood.
+ * @param from - The camera position before the animation was asked for.
+ */
+async function cameraLeft(from: { x: number; y: number; z: number } | undefined): Promise<void> {
+    await vi.waitFor(() => {
+        assert.notDeepEqual(graph.getCameraState().position, from, "the animation has moved the camera");
+    });
+}
 
 /**
  * Phase 3: Operation Queue Integration Tests
@@ -70,6 +80,7 @@ test("rapid successive camera animations - last one wins", async () => {
 
 test("disposal during animation does not throw", async () => {
     graph = await createTestGraph();
+    const start = graph.getCameraState().position;
 
     // Start a long animation - catch cancellation
     void graph
@@ -81,9 +92,8 @@ test("disposal during animation does not throw", async () => {
             /* Expected to be cancelled on disposal */
         });
 
-    // Wait a bit to ensure animation is running
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait until the animation is running
+    await cameraLeft(start);
 
     // Dispose the graph while animation is running
     // Should not throw any errors
@@ -94,6 +104,7 @@ test("disposal during animation does not throw", async () => {
 
 test("skipQueue option bypasses operation queue", async () => {
     graph = await createTestGraph();
+    const start = graph.getCameraState().position;
 
     // Start a long animation in the queue
     void graph.setCameraState(
@@ -101,9 +112,8 @@ test("skipQueue option bypasses operation queue", async () => {
         { animate: true, duration: 1000 },
     );
 
-    // Wait a bit
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait until the queued animation is running
+    await cameraLeft(start);
 
     // Use skipQueue to set camera immediately (should not wait for queue)
     const { ms } = await animationFramesOf(graph, () =>

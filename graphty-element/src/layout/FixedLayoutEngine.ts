@@ -68,7 +68,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
         const position = (n.data as Record<string, unknown>).position as
             { x?: number; y?: number; z?: number } | undefined;
         if (position) {
-            n.mesh.position.set(position.x ?? 0, position.y ?? 0, position.z ?? 0);
+            n.setMeshPosition(position.x ?? 0, position.y ?? 0, position.z ?? 0);
         }
     }
 

@@ -25,14 +25,5 @@ export const aliases: Alias[] = [
         find: /^@graphty\/graphty-element\/(.+)$/,
         replacement: resolve(__dirname, "../graphty-element/$1.ts"),
     },
-    // @mlc-ai/web-llm is an optional peer of graphty-element, loaded by a dynamic import inside
-    // its WebLlmProvider and nowhere else. It is not a dependency of this app, but it IS
-    // installed in graphty-element/node_modules, so without this rule the source alias above
-    // would pull the whole package into the bundle. The stub throws an install instruction if
-    // that path is ever taken.
-    {
-        find: "@mlc-ai/web-llm",
-        replacement: resolve(__dirname, "./src/stubs/web-llm-stub.ts"),
-    },
     { find: "@", replacement: resolve(__dirname, "./src") },
 ];

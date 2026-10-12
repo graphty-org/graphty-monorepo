@@ -129,7 +129,15 @@ describe("test-slots", () => {
         const releaseHolder = await acquire({ ...quiet, dir, slots: 1, pid: holder.pid, label: "holder" });
         // The timed command takes a slot the way vitest does: if the runner did not hold one, it would queue
         // behind the holder inside the 1 s limit and be killed.
-        const command = [process.execPath, SCRIPT, process.execPath, "-e", "console.log('timed command ran')"];
+        // The command stands in for vitest, so it writes the JSON report vitest would; without it an exit of 0 fails.
+        const report = JSON.stringify({ numTotalTests: 1, numPassedTests: 1, numFailedTests: 0 });
+        const command = [
+            process.execPath,
+            SCRIPT,
+            process.execPath,
+            "-e",
+            `require("fs").writeFileSync("browser-results.json", ${JSON.stringify(report)}); console.log("timed command ran")`,
+        ];
         const runner = spawn(
             process.execPath,
             [

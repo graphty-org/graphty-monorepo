@@ -14,16 +14,27 @@ export interface ShellLayoutOptions extends CommonLayoutOptions {
      * unset value, is not placed: its row is NaN. Default one shell of every node.
      */
     readonly nlist?: readonly NodeSet[] | string | undefined;
+    /**
+     * How far each shell is turned past the one inside it, in radians, as NetworkX's `shell_layout` `rotate`: shell k
+     * (innermost 0) starts at angle `(k + 1) * rotate`. Default 0, every shell starting on the positive x axis.
+     * `"networkx"` is NetworkX 2.8.8's default, `Math.PI / m` for m shells, so the shells no longer all start on the
+     * positive x axis.
+     */
+    readonly rotate?: ShellRotate | undefined;
 }
+
+/** A shell or ring rotation: radians per shell, or `"networkx"` for `Math.PI` over the number of shells. */
+export type ShellRotate = number | "networkx";
 
 /**
  * Concentric-circle rows. Shell k of m has radius `(k + 1) * scale / m`, except that a first shell of exactly one
  * node puts that node on the centre and shell k at `k * scale / m`; an empty shell is skipped and takes no radius.
- * A node listed twice keeps its last place.
+ * A node listed twice keeps its last place. Shell k starts at angle `(k + 1) * rotate`.
  * @param n - node count (rows)
  * @param shells - node indices per shell, innermost first
  * @param scale - the radius step times the shell count
  * @param center - at least 2 components
+ * @param rotate - the turn of each shell past the one inside it
  * @returns `2 * n` values, NaN for a node in no shell
  */
 export function shellRows(
@@ -31,10 +42,15 @@ export function shellRows(
     shells: readonly ArrayLike<number>[],
     scale: number,
     center: readonly number[],
+    rotate: ShellRotate = 0,
 ): F64 {
     const rows = new Float64Array(2 * n).fill(Number.NaN);
     if (shells.length === 0) {
         return rows;
+    }
+    const turn = rotate === "networkx" ? Math.PI / shells.length : rotate;
+    if (!Number.isFinite(turn)) {
+        throw new TypeError(`rotate must be a finite number of radians or "networkx", not ${String(rotate)}`);
     }
     const radiusBump = scale / shells.length;
     let radius = radiusBump;
@@ -47,9 +63,10 @@ export function shellRows(
             return;
         }
         const theta = np.linspace(0, 2 * Math.PI, shell.length + 1);
+        const first = (k + 1) * turn;
         for (let j = 0; j < shell.length; j++) {
-            rows[2 * shell[j]] = Math.cos(theta[j]) * radius + center[0];
-            rows[2 * shell[j] + 1] = Math.sin(theta[j]) * radius + center[1];
+            rows[2 * shell[j]] = Math.cos(theta[j] + first) * radius + center[0];
+            rows[2 * shell[j] + 1] = Math.sin(theta[j] + first) * radius + center[1];
         }
         radius += radiusBump;
     });
@@ -60,7 +77,8 @@ export function shellRows(
  * Nodes on concentric circles, one circle per shell, each circle's nodes evenly spaced in the order listed. In 3D the
  * circles lie in the plane of the centre's z.
  * @param s - the snapshot
- * @param options - `scale / m` is the radius step between the m shells; `nlist` the shells
+ * @param options - `scale / m` is the radius step between the m shells; `nlist` the shells; `rotate` the turn of
+ * each shell past the one inside it
  * @returns the layout
  */
 export function shell(s: GraphSnapshot, options: ShellLayoutOptions = {}): LayoutResult {
@@ -77,5 +95,5 @@ export function shell(s: GraphSnapshot, options: ShellLayoutOptions = {}): Layou
             }
         }
     }
-    return result(planar(shellRows(n, shells, scale, center), dim, center), dim, n);
+    return result(planar(shellRows(n, shells, scale, center, options.rotate), dim, center), dim, n);
 }

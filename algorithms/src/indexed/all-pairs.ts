@@ -8,7 +8,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
-import { PathWalkError, withCode } from "../errors.js";
+import { PathWalkError, tooLarge, withCode } from "../errors.js";
 import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 
@@ -316,13 +316,7 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
     const maxNodes = options.maxNodes ?? APSP_DEFAULT_MAX_NODES;
     // Written negated so a NaN maxNodes refuses rather than switching the bound off.
     if (!(n <= maxNodes)) {
-        const bytes = (options.paths === true ? 12 : 8) * n * n;
-        throw withCode(
-            new RangeError(
-                `allPairsShortestPath: ${String(n)} nodes exceeds maxNodes ${String(maxNodes)}; the result would allocate ${String(bytes)} bytes. Pass a larger maxNodes to allow it.`,
-            ),
-            "E_TOO_LARGE",
-        );
+        throw tooLarge("allPairsShortestPath", n, maxNodes, (options.paths === true ? 12 : 8) * n * n);
     }
     const { w, negative } = weightsInUse(s, options);
     const method = pickStrategy(s, w, negative, options.method);

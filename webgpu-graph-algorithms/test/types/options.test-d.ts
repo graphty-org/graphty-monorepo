@@ -68,6 +68,7 @@ const fr: FruchtermanReingoldOptions = {
 const spring: SpringElectricalOptions = {
     ...common,
     ...simulation,
+    maxIter: undefined,
     springLength: undefined,
     springCoefficient: undefined,
     gravity: undefined,
@@ -156,6 +157,7 @@ expectTypeOf<keyof FruchtermanReingoldOptions>().toEqualTypeOf<
 expectTypeOf<keyof SpringElectricalOptions>().toEqualTypeOf<
     | keyof CommonLayoutOptions
     | keyof SimulationOptions
+    | "maxIter"
     | "springLength"
     | "springCoefficient"
     | "gravity"

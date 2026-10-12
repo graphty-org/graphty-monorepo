@@ -39,6 +39,15 @@ describe("OBO lexical layer (research-obo.md 4.1)", () => {
         expect(stripComment("a  \t")).toBe("a");
     });
 
+    it("strips a comment after escaped marks, a quoted !, and a trailing backslash", () => {
+        expect(stripComment('a \\" b ! c')).toBe('a \\" b');
+        expect(stripComment("a \\\\ ! c")).toBe("a \\\\");
+        expect(stripComment('"x \\" ! y" ! z')).toBe('"x \\" ! y"');
+        expect(stripComment("a ! b ! c")).toBe("a");
+        expect(stripComment("a\\")).toBe("a\\");
+        expect(stripComment(`${"x".repeat(100_000)} ! c`)).toBe("x".repeat(100_000));
+    });
+
     it("recognizes a continuation backslash only when it is not escaped", () => {
         expect(endsWithContinuation("name: a \\")).toBe(true);
         expect(endsWithContinuation("name: a \\\\")).toBe(false);
@@ -119,5 +128,9 @@ describe("OBO lexical layer (research-obo.md 4.1)", () => {
         expect(hasStrayBrace("a P{GawB} b")).toBe(true);
         expect(hasStrayBrace('"a {b}" []')).toBe(false);
         expect(hasStrayBrace("a \\{b\\}")).toBe(false);
+        expect(hasStrayBrace("[a {q=1}] b")).toBe(false);
+        expect(hasStrayBrace("[a] {b")).toBe(true);
+        expect(hasStrayBrace('"a \\" {b" c')).toBe(false);
+        expect(hasStrayBrace("a\\")).toBe(false);
     });
 });

@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>XR sandbox tutorial</title>
+        <!-- The same text as xr-sandbox/TUTORIAL.md; keep the two in step. -->
+        <style>
+            :root {
+                color-scheme: dark;
+                --bg: #0f131b;
+                --panel: #1a2130;
+                --text: #e8ecf4;
+                --muted: #9fb3d9;
+                --accent: #6ea8ff;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                background: var(--bg);
+                color: var(--text);
+                font:
+                    18px/1.55 system-ui,
+                    sans-serif;
+            }
+            main {
+                max-width: 820px;
+                margin: 0 auto;
+                padding: 16px;
+            }
+            h1 {
+                font-size: 28px;
+            }
+            h2 {
+                font-size: 24px;
+                border-top: 1px solid #2c3650;
+                padding-top: 18px;
+                margin-top: 32px;
+            }
+            h3 {
+                font-size: 20px;
+                color: var(--accent);
+                margin-top: 26px;
+            }
+            a {
+                color: var(--accent);
+                word-break: break-word;
+            }
+            code {
+                font:
+                    0.9em ui-monospace,
+                    monospace;
+                background: var(--panel);
+                padding: 1px 4px;
+                border-radius: 4px;
+                word-break: break-all;
+            }
+            table {
+                border-collapse: collapse;
+                display: block;
+                overflow-x: auto;
+                font-size: 16px;
+            }
+            th,
+            td {
+                border: 1px solid #2c3650;
+                padding: 6px 8px;
+                vertical-align: top;
+                text-align: left;
+            }
+            th {
+                background: var(--panel);
+            }
+            li {
+                margin: 4px 0;
+            }
+            .back {
+                display: inline-block;
+                margin-bottom: 8px;
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <a class="back" href="./">Back to the sandbox</a>
+            <h1>XR sandbox: how to use it in the headset</h1>
+            <p>
+                A short guide to every page and control of the XR technique sandbox, for Meta Quest 3 (Quest Browser)
+                and Samsung Galaxy XR (Chrome). Read it on your phone or in the headset browser:
+                <a href="https://dev.ato.ms:9083/tutorial.html">https://dev.ato.ms:9083/tutorial.html</a>
+            </p>
+            <p>Words used below:</p>
+            <ul>
+                <li>
+                    <strong>Pinch</strong> = touch index finger and thumb (hands). <strong>Trigger</strong> =
+                    index-finger trigger (controllers). Both are &quot;select&quot;.
+                </li>
+                <li>
+                    <strong>Fist</strong> (hands) and <strong>grip</strong> (controllers, middle-finger button) are both
+                    &quot;squeeze&quot;.
+                </li>
+                <li><strong>Tap</strong> = a quick pinch or trigger, released in under about a third of a second.</li>
+                <li>
+                    <strong>Dominant hand</strong> is the right hand unless you change it (gear panel, Framework tab).
+                    The <strong>off hand</strong> is the other one.
+                </li>
+                <li>
+                    <strong>Ray</strong> = the pointer line from a hand or controller. Any panel button can be pressed
+                    by aiming the ray and tapping, or by poking it with a fingertip.
+                </li>
+            </ul>
+            <h2>1. Getting in</h2>
+            <h3>Which URL</h3>
+            <ul>
+                <li>
+                    <strong><a href="https://dev.ato.ms:9083">https://dev.ato.ms:9083</a></strong> -- the live copy. Use
+                    this one.
+                </li>
+                <li>
+                    <strong><a href="https://dev.ato.ms:9052">https://dev.ato.ms:9052</a></strong> -- a built copy whose
+                    logs, including every voice start and stop, go to a separate log server. Use it when trying voice so
+                    the voice log can be read afterward.
+                </li>
+            </ul>
+            <h3>The landing page</h3>
+            <p>Across the top:</p>
+            <ul>
+                <li>
+                    <strong>Session</strong> -- a short id. Every log line carries it; quote it when reporting a
+                    problem.
+                </li>
+                <li><strong>Mode</strong> -- VR, or Passthrough AR (your room shows behind the graph).</li>
+                <li>
+                    <strong>Arm the microphone (voice, dictation)</strong> -- tick it before entering if you want voice.
+                    The browser asks for the microphone once. Voice cannot be switched on until this is ticked.
+                </li>
+                <li>
+                    <strong>Enter VR</strong> -- starts the session. It says &quot;No WebXR here&quot; in a desktop
+                    browser without WebXR.
+                </li>
+                <li><strong>Download the last save</strong> -- appears once you have pressed Save in the headset.</li>
+            </ul>
+            <p>On the left, three lists of links (each reloads the page):</p>
+            <ul>
+                <li>
+                    <strong>Presets</strong> -- named mixes of techniques, each with the question it is for. Presets you
+                    saved in the headset are listed under them (&quot;saved in the headset&quot;).
+                </li>
+                <li><strong>One technique alone</strong> -- each technique by itself on an empty scene.</li>
+                <li><strong>Step lists</strong> -- the current preset with a step list open (see section 4).</li>
+            </ul>
+            <h3>The presets</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Preset</th>
+                        <th>What is on</th>
+                        <th>What to compare</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Empty</td>
+                        <td>nothing</td>
+                        <td>switch things on yourself in the gear panel</td>
+                    </tr>
+                    <tr>
+                        <td>Baseline</td>
+                        <td>hover tag, node menus (list), wrist menu, visible undo</td>
+                        <td>the control every other preset is compared with</td>
+                    </tr>
+                    <tr>
+                        <td>Baseline + pull to grow</td>
+                        <td>baseline + pull to grow</td>
+                        <td>getting a neighborhood: pull vs. the menu</td>
+                    </tr>
+                    <tr>
+                        <td>Baseline + palette</td>
+                        <td>baseline + palette</td>
+                        <td>color by: palette vs. menus</td>
+                    </tr>
+                    <tr>
+                        <td>Baseline + Figma menus</td>
+                        <td>baseline + Figma menus</td>
+                        <td>color by: desktop-style panels vs. menus</td>
+                    </tr>
+                    <tr>
+                        <td>Baseline + voice</td>
+                        <td>baseline + voice</td>
+                        <td>neighborhood and color by: voice vs. menus</td>
+                    </tr>
+                    <tr>
+                        <td>Hands first</td>
+                        <td>gestures, pull to grow, handling, hover tag, wrist menu, visible undo</td>
+                        <td>bare hands, few panels</td>
+                    </tr>
+                    <tr>
+                        <td>Palette</td>
+                        <td>palette, physical tools, hover tag, handling, visible undo</td>
+                        <td>an off-hand palette</td>
+                    </tr>
+                    <tr>
+                        <td>Figma</td>
+                        <td>Figma menus, node menus, hover tag, text entry, visible undo</td>
+                        <td>panels in space; keyboard vs. dictation</td>
+                    </tr>
+                    <tr>
+                        <td>Voice</td>
+                        <td>voice, text entry, hover tag, wrist menu, visible undo</td>
+                        <td>speech with the chip sentence</td>
+                    </tr>
+                    <tr>
+                        <td>Dense</td>
+                        <td>dense picking (both aids), handling, hover tag, node menus, visible undo</td>
+                        <td>picking in a crowded graph</td>
+                    </tr>
+                    <tr>
+                        <td>Dense, hint tags only / slab only</td>
+                        <td>as Dense, one aid off</td>
+                        <td>each picking aid alone</td>
+                    </tr>
+                    <tr>
+                        <td>Example module</td>
+                        <td>the example module + baseline</td>
+                        <td>the template module</td>
+                    </tr>
+                    <tr>
+                        <td>Everything</td>
+                        <td>every technique</td>
+                        <td>stress test: do they fight?</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p>The graph is the Florentine families (15 nodes) except in the Dense presets (480 random nodes).</p>
+            <h3>URL options worth knowing</h3>
+            <p>Add these after <code>?</code>, joined with <code>&amp;</code>:</p>
+            <ul>
+                <li><code>preset=baseline</code> -- which preset (default: baseline).</li>
+                <li>
+                    <code>on=palette,voice</code> / <code>off=hover-tag</code> -- add or remove techniques from the
+                    preset.
+                </li>
+                <li>
+                    <code>s.&lt;technique&gt;.&lt;setting&gt;=&lt;value&gt;</code> -- set a setting, e.g.
+                    <code>s.node-menus.style=ring</code>. The URL wins over anything changed in the headset.
+                </li>
+                <li>
+                    <code>steps=journey</code> (or <code>q2</code>, <code>q3</code>, <code>q4</code>, <code>q6</code>)
+                    -- open a step list as soon as you enter.
+                </li>
+                <li>
+                    <code>graph=dense&amp;n=480&amp;seed=7</code> -- the crowded graph, its node count (16 to 2000) and
+                    seed.
+                </li>
+                <li><code>mode=ar</code> -- start in passthrough AR.</li>
+                <li>
+                    <code>emulate=quest3-controllers</code> (also <code>quest3-hands</code>,
+                    <code>galaxyxr-hands</code>, <code>galaxyxr-controllers</code>, <code>galaxyxr-no-hands</code>) -- a
+                    fake headset for trying the page on a desktop. Never use it in a real headset.
+                </li>
+                <li>
+                    <code>still=1</code> -- stops the step timer from ticking (for automated checks; not useful to you).
+                </li>
+            </ul>
+            <p>
+                Example:
+                <code>https://dev.ato.ms:9083/?preset=baseline&amp;on=pull-to-grow&amp;s.node-menus.style=ring</code>
+            </p>
+            <h3>Getting around once inside</h3>
+            <ul>
+                <li>The graph appears about 75 cm ahead of you, slightly below eye level.</li>
+                <li>
+                    <strong>Gear button</strong>: a small &quot;Gear&quot; panel low and to your left. Opens the gear
+                    panel.
+                </li>
+                <li>
+                    <strong>Gear panel</strong> (opens up-left): also opened by clicking the off-hand thumbstick (left
+                    by default), or by holding <strong>both palms up for 1 second</strong> (works with hands when
+                    nothing else does).
+                    <ul>
+                        <li>Title bar: session id and build time.</li>
+                        <li>
+                            Under the tabs: an <strong>Undo</strong> button naming the last step, and
+                            <strong>Redo</strong>.
+                        </li>
+                        <li>
+                            <strong>Techniques</strong> tab: each technique with an On/Off switch, its name (press the
+                            name to open its settings, then &quot;Back&quot;) and a note. A red note says why it cannot
+                            be used (&quot;needs controllers&quot;, &quot;needs hand tracking&quot;, &quot;unarmed: tick
+                            the microphone on the landing page&quot;, &quot;Quest only&quot;).
+                        </li>
+                        <li>
+                            <strong>Framework</strong> tab: dominant hand, frame rate, foveation, node labels, pick
+                            radius for hands and controllers, hover hints, audio clicks, in-headset log, what the off
+                            hand carries (palette or held copy), and the buttons <strong>Recenter</strong>,
+                            <strong>Reset view</strong>, <strong>Flag</strong>, <strong>Steps</strong>,
+                            <strong>Save</strong>, <strong>Save as preset</strong>.
+                        </li>
+                        <li>
+                            <strong>Input map</strong> tab: which technique gets which press, highest priority first.
+                        </li>
+                        <li><strong>Close</strong> closes it; so does opening it again.</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Hint chip</strong> above each hand (when &quot;Hover hints&quot; is on): what a pinch or
+                    trigger, and a fist or grip, would do on what you are pointing at, e.g. &quot;trigger: Node menus /
+                    Select&quot;.
+                </li>
+                <li>
+                    <strong>Badge</strong> above the hand for a second after each press: the name of the technique that
+                    took it. If the wrong one won, that is worth a Flag.
+                </li>
+                <li>
+                    <strong>Tap a node</strong> to select it (it highlights). <strong>Tap empty space</strong> to clear
+                    the selection. This works in every preset, even Empty.
+                </li>
+            </ul>
+            <h3>Resetting</h3>
+            <ul>
+                <li>
+                    <strong>Recenter</strong> (gear panel or wrist menu): puts the graph and the panels in front of
+                    where you now look, keeping the graph&#39;s size.
+                </li>
+                <li><strong>Reset view</strong>: puts the graph back in front of you at its original size.</li>
+                <li>
+                    <strong>Start over</strong>: exit the session (headset system button) and reload the page. Graph
+                    changes are not kept across a reload.
+                </li>
+                <li>
+                    Settings changed in the headset are remembered per preset in this browser. To get the defaults back,
+                    open the preset with the settings in the URL, or set them back in the gear panel.
+                </li>
+            </ul>
+            <h2>2. Every technique</h2>
+            <h3>Hover name tag</h3>
+            <p>Point at a node and see its name, value and rank before pressing anything.</p>
+            <ol>
+                <li>
+                    Point any ray at a node. A small tag appears just under it, e.g. &quot;Strozzi degree 4, #2&quot;.
+                </li>
+                <li>
+                    After something colors the graph (e.g. PageRank) the tag shows that value: &quot;Strozzi 0.088,
+                    #3&quot;.
+                </li>
+                <li>Point away: the tag stays a moment (0.3 s), then hides.</li>
+            </ol>
+            <p>
+                Settings: which value to show, &quot;Letter height (deg)&quot; (default 1.2), a delay before showing,
+                how long it stays. Not shown when the input has no steady pointer (it then says &quot;needs
+                hover&quot;).
+            </p>
+            <h3>Node menus</h3>
+            <p>Hold on a node for a menu of node actions; hold on empty space for graph actions.</p>
+            <p>Open it:</p>
+            <ul>
+                <li>
+                    <strong>Hands</strong>: point at a node, pinch and hold still for about a third of a second, then
+                    let go.
+                </li>
+                <li>
+                    <strong>Controllers</strong>: point and press <strong>B</strong> (right) or
+                    <strong>Y</strong> (left) -- it opens at once. Holding the trigger still also works.
+                </li>
+                <li>
+                    A quick tap selects instead; moving more than 1.5 cm while holding hands the press to something else
+                    (for example pull to grow).
+                </li>
+            </ul>
+            <p>List style (the default):</p>
+            <ol>
+                <li>
+                    A panel with a column of buttons appears beside the node:
+                    <strong>Select, Neighbors, Probe, Note, Hide, Close</strong>.
+                </li>
+                <li>
+                    Point at one and tap (or poke it).
+                    <ul>
+                        <li>Neighbors selects the node and its direct neighbors.</li>
+                        <li>Probe shows a card above the node for 6 s: PageRank, rank, degree.</li>
+                        <li>
+                            Note asks for text (the keyboard if Text entry is on, otherwise three quick chips:
+                            &quot;check&quot;, &quot;interesting&quot;, &quot;?&quot;).
+                        </li>
+                    </ul>
+                </li>
+                <li>
+                    On empty space the menu is <strong>Show PageRank, Keep top half</strong> (filters at the median;
+                    reads &quot;Remove filter&quot; when a filter is on), <strong>Select none</strong>,
+                    <strong>Note</strong> (a note on the whole graph).
+                </li>
+                <li>It closes when you pick something, press Close, open another menu, or turn your head well away.</li>
+            </ol>
+            <p>Ring style (<code>s.node-menus.style=ring</code>, or the gear panel):</p>
+            <ol>
+                <li>Keep holding the pinch, trigger or B/Y that opened it. A ring of chips appears near your hand.</li>
+                <li>Turn your wrist (or the controller) toward an item; it turns blue.</li>
+                <li>Let go to run it. Let go with no item lit to cancel.</li>
+            </ol>
+            <h3>Wrist menu</h3>
+            <p>Global actions on the off hand: Undo, Redo, Save, Settings, Steps, Recenter, Flag.</p>
+            <ul>
+                <li>
+                    <strong>Hands</strong>: hold your off hand sideways across your body, palm facing in, thumb up, and
+                    look at it. The menu appears beside the hand (pinky side). Palm up, palm toward your face, or
+                    looking away hides it.
+                </li>
+                <li>
+                    <strong>Controllers</strong>: turn the off controller so the inside of your wrist faces you, like
+                    reading a watch worn on the inside of the wrist. Holding it normally hides it.
+                </li>
+            </ul>
+            <p>
+                Press its buttons with the <strong>other</strong> hand: poke with a fingertip, or ray and tap. The hand
+                wearing the menu cannot press it. <strong>Undo</strong> names the step it will undo.
+                <strong>Settings</strong> opens the gear panel.
+            </p>
+            <h3>Visible undo</h3>
+            <p>Every change is named where you can see it and can be taken back.</p>
+            <ol>
+                <li>
+                    Make a change (e.g. color by PageRank). A green note appears beside the hand that did it for 2 s:
+                    &quot;Colored by PageRank -- Undo&quot;. (It is a note, not a button.)
+                </li>
+                <li>
+                    Just above the graph, one panel lists your last five steps (oldest first), then an
+                    <strong>Undo: (the step)</strong> button and <strong>Redo</strong>.
+                </li>
+                <li>Tap Undo to undo the last step. Tap an older step to undo back to and including it.</li>
+            </ol>
+            <p>Selecting is never a step: it is not listed and not undone. Moving the graph is not a step either.</p>
+            <h3>Pull to grow</h3>
+            <p>Grab a node and pull to select its neighborhood, one ring at a time.</p>
+            <ol>
+                <li>
+                    Point at a node and pinch (or pull the trigger). Start moving at once -- holding still opens the
+                    node menu instead.
+                </li>
+                <li>
+                    Keep holding and pull your hand away, in any direction. Past 6 cm: 1 hop; every 8 cm more: one more
+                    hop. A chip on your hand says &quot;1 hop: 6&quot;, &quot;2 hops: +5&quot;; the rest of the graph
+                    dims. Each step clicks (controllers also buzz).
+                </li>
+                <li>Let go to select that neighborhood.</li>
+                <li>
+                    To cancel, bring your hand back close to where you started (&quot;Release to cancel&quot;), then let
+                    go.
+                </li>
+            </ol>
+            <h3>Palette</h3>
+            <p>A five-sided prism of cards on your off hand: Analyze, Style, Filter, Selection, History.</p>
+            <p>
+                Where it is: above the off controller, or on the back of your off hand. The front card turns to face
+                you. Hidden if the gear panel&#39;s &quot;Off hand carries&quot; is set to &quot;held copy&quot;.
+            </p>
+            <p>Turn to another card:</p>
+            <ul>
+                <li>
+                    <strong>Controllers</strong>: flick the off-hand thumbstick left or right. One flick = one card.
+                </li>
+                <li>
+                    <strong>Hands (both headsets)</strong>: with your dominant hand, pinch the orange rim under the
+                    cards and drag sideways, like turning a dial (about 12 cm per card). Let go and it snaps to a card.
+                </li>
+                <li>
+                    <strong>Hands on Quest</strong>: a thumb swipe on the off hand may also turn it (not yet tried on a
+                    headset).
+                </li>
+            </ul>
+            <p>Use a card: tap or poke its buttons with your dominant hand.</p>
+            <ul>
+                <li><strong>Analyze</strong>: &quot;Run PageRank&quot; (one per result) reveals a result.</li>
+                <li>
+                    <strong>Style</strong>: a &quot;Color by&quot; grid and a &quot;Size by&quot; grid of result names
+                    (PageRank, Degree, ...), each with <strong>None</strong>. The current choice is highlighted.
+                </li>
+                <li>
+                    <strong>Filter</strong>: &quot;Take the sieve&quot; (needs Physical tools on) and &quot;Remove
+                    filter&quot;.
+                </li>
+                <li>
+                    <strong>Selection</strong>: &quot;Grow 1 hop&quot; (one node selected), &quot;Hide selected&quot;,
+                    &quot;Clear selection&quot;, &quot;Show hidden&quot;.
+                </li>
+                <li><strong>History</strong>: Undo (naming the step) and Redo.</li>
+            </ul>
+            <p>
+                Tear off a card: grab its orange top bar (ray and pinch/trigger, or grab it), drag it away and let go --
+                it stays there and keeps working. Drag it back near its place on the prism to dock it.
+            </p>
+            <h3>Figma-like menus</h3>
+            <p>Desktop design-tool panels placed around you: a toolbar, a layer list, an inspector and a popover.</p>
+            <p>What you see (placed in front of you on entry and on Recenter):</p>
+            <ul>
+                <li>
+                    <strong>Toolbar</strong>, low in front: two rows of results (PageRank, Degree / Betweenness,
+                    Community), then Sieve, Probe and Note, with a status line.
+                </li>
+                <li>
+                    <strong>Layers</strong>, up-left: one row per thing applied (selection, color, size, filter, hidden,
+                    notes), each with an <strong>x</strong> that removes just that.
+                </li>
+                <li><strong>Inspector</strong>, up-right: the selected node&#39;s values and ranks (read only).</li>
+                <li><strong>Popover</strong> beside the selected node: <strong>1 hop, Hide, Note, Probe</strong>.</li>
+            </ul>
+            <p>All by ray-and-tap or poke:</p>
+            <ol>
+                <li>
+                    Press <strong>PageRank</strong>: the graph is colored by PageRank. (It counts as two steps -- run,
+                    then color -- so undo takes two presses.)
+                </li>
+                <li>
+                    Tap a node: the inspector fills in and the popover appears. <strong>1 hop</strong> selects its
+                    neighbors.
+                </li>
+                <li><strong>Note</strong> asks for text (keyboard if Text entry is on, otherwise quick chips).</li>
+                <li>
+                    <strong>Sieve</strong> / <strong>Probe</strong> put that tool in your dominant hand (grayed with a
+                    reason when Physical tools is off, as in the Figma preset).
+                </li>
+                <li>Move a panel: press and hold its title bar (&quot;drag here&quot;), move, let go.</li>
+            </ol>
+            <h3>Physical tools</h3>
+            <p>
+                A sieve (a filter you hold) and a probe (a pen that reads values) on a shelf to the right of the graph.
+            </p>
+            <p>Take a tool: aim at it and pinch/trigger (or grab it) and pull it off the shelf. One tool per hand.</p>
+            <p>Sieve:</p>
+            <ol>
+                <li>
+                    While held, the nodes it would remove dim, and a chip says e.g. &quot;PageRank 0.070: keeps 5 of
+                    15&quot;.
+                </li>
+                <li>
+                    Set the threshold with the slider under the handle, using your <strong>other</strong> hand (ray and
+                    tap, or poke). Optional setting: roll the holding wrist instead.
+                </li>
+                <li>
+                    <strong>Keep</strong>: press the Keep button, or pinch/trigger with the holding hand. The filter is
+                    applied and the sieve goes back.
+                </li>
+                <li>
+                    <strong>Put back</strong> (no change): press Put back, or make a fist / press grip with the holding
+                    hand.
+                </li>
+            </ol>
+            <p>Probe:</p>
+            <ol>
+                <li>
+                    Touch a node with the yellow tip, or point the holding hand at a node: a card shows its name,
+                    degree, PageRank and rank.
+                </li>
+                <li>Point at nothing: the card summarizes the current coloring (range and top three).</li>
+                <li>Put it back: pinch/trigger or fist/grip with the holding hand.</li>
+            </ol>
+            <h3>Handling</h3>
+            <p>Move, turn and scale the graph with your hands; optionally hold a small copy of it.</p>
+            <ol>
+                <li>
+                    <strong>One hand</strong>: controllers -- hold the grip anywhere. Hands -- make a fist anywhere, or
+                    pinch on empty space inside the graph and move. The graph follows your hand (softly). Let go to
+                    leave it.
+                </li>
+                <li>
+                    <strong>Two hands</strong>: while one hand holds, grab with the other (grip, fist, or
+                    pinch/trigger). Move the hands apart or together to scale (0.2x to 5x) and turn the line between
+                    them to rotate.
+                </li>
+                <li>Let go of one hand to continue with the other.</li>
+                <li>
+                    Held copy (setting &quot;Held copy in the off hand&quot;): a small copy floats above the off
+                    controller, or above your off hand when the palm faces up. Point the dominant ray at a node in the
+                    copy and tap to select it in the big graph.
+                </li>
+            </ol>
+            <p>Moving the graph is not undoable; use Reset view.</p>
+            <h3>Gestures (hands only)</h3>
+            <p>Hand poses and Quest thumb swipes bound to commands.</p>
+            <ol>
+                <li>
+                    <strong>Thumbs up</strong>, held briefly: next coloring (PageRank, Degree, ...). A purple chip names
+                    what ran.
+                </li>
+                <li><strong>Shaka</strong> (thumb and pinky out): undo.</li>
+                <li>
+                    Horns, Vulcan salute and Point are unbound until you bind them in the gear panel (choices: next or
+                    previous color, undo, redo, clear selection).
+                </li>
+                <li>
+                    <strong>Quest only, dominant hand thumb microgestures</strong>: swipe left/right = previous/next
+                    color, swipe forward/back = redo/undo, thumb tap = clear selection. Not available on Galaxy XR.
+                </li>
+            </ol>
+            <p>
+                A pose fires once per hold; it does nothing while you pinch. Note: a thumbs up is also a fist, so in
+                Hands first it may also grab the graph.
+            </p>
+            <p>
+                Record your own pose: gear panel, Gestures, pick &quot;Record into&quot;, press
+                <strong>Record pose</strong>, then hold the pose with both hands through the 3-2-1 countdown. It lasts
+                for this session.
+            </p>
+            <h3>Text entry</h3>
+            <p>
+                An in-scene keyboard that appears whenever something asks for text (a Note from node menus or the Figma
+                menus).
+            </p>
+            <ol>
+                <li>A keyboard appears in front of you, below eye level.</li>
+                <li>
+                    Type by poking keys with a fingertip, or ray and tap. Shift once = one capital, twice = caps lock.
+                </li>
+                <li><strong>Enter</strong> or <strong>Done</strong> saves; <strong>Cancel</strong> cancels.</li>
+                <li>
+                    Dictation key to the right of the keyboard:
+                    <ul>
+                        <li>
+                            <strong>Galaxy XR</strong> (&quot;Dictate&quot;): press, speak, press again
+                            (&quot;Stop&quot;). The words are added to the field.
+                        </li>
+                        <li>
+                            <strong>Quest</strong> (&quot;Quest keyboard&quot;): aim at it and pinch or pull the trigger
+                            -- a poke will not work (it then says &quot;Pinch me&quot;). Quest&#39;s own keyboard opens:
+                            use its microphone key or type, then close it. The text is added.
+                        </li>
+                    </ul>
+                </li>
+            </ol>
+            <p>
+                Without Text entry on, a note request shows quick chips instead: &quot;check&quot;,
+                &quot;interesting&quot;, &quot;?&quot;, &quot;Cancel&quot;. Note: in the Voice preset nothing asks for a
+                note, so the keyboard never appears there.
+            </p>
+            <h3>Dense picking</h3>
+            <p>Two aids for picking one node in a crowded graph: hint tags with a mini keyboard, and a slab.</p>
+            <p>Hint tags:</p>
+            <ol>
+                <li>
+                    Point your dominant ray at a crowded spot and hold still a quarter second. Two-letter yellow tags
+                    appear on the nodes near the ray.
+                </li>
+                <li>A mini keyboard appears above the graph with only the letters that can come next.</li>
+                <li>
+                    Tap letters (ray or poke). Tags that no longer match fade. When a whole tag is typed, that node is
+                    selected. <strong>Back</strong> removes a letter, <strong>Clear</strong> drops the tags.
+                </li>
+            </ol>
+            <p>Slab:</p>
+            <ol>
+                <li>A translucent blue square floats in front of your off hand. Push it into the graph.</li>
+                <li>The nodes in that thin slice show as white dots on the square; the rest dims.</li>
+                <li>Point your dominant ray at the square: the nearest dot lights up. Tap to select that node.</li>
+                <li>
+                    <strong>Pin</strong> it with an off-hand fist or grip, or the <strong>Pin slab</strong> button under
+                    it; then both hands can pick. <strong>Take slab</strong> returns it to your hand. The off hand&#39;s
+                    pinch/trigger does nothing on the graph while it carries the slab.
+                </li>
+            </ol>
+            <h3>Example: color cycle (controllers only)</h3>
+            <p>
+                The template module. A chip above the graph reads &quot;A: color by&quot; and the next result. Press
+                <strong>A</strong> on the right controller to cycle the coloring: PageRank, Degree, Betweenness,
+                Community. Undo names each step.
+            </p>
+            <h3>Voice chips</h3>
+            <p>
+                Say a command, see it as a row of word chips, fix any word by poking it, then press Run. See section 3.
+            </p>
+            <h2>3. Voice</h2>
+            <p>
+                Voice is off until you tick <strong>Arm the microphone</strong> on the landing page before entering.
+                Presets with voice: Baseline + voice, Voice, Everything. Prefer
+                <a href="https://dev.ato.ms:9052">https://dev.ato.ms:9052</a> so the voice log is kept.
+            </p>
+            <p>
+                What you see, in front of the graph: a <strong>Hold to talk</strong> chip, <strong>Clear</strong>, a
+                status line, then your sentence as chips, then <strong>Run</strong> (green when the sentence is
+                complete).
+            </p>
+            <p>How to talk:</p>
+            <ul>
+                <li>
+                    <strong>Galaxy XR</strong> (the browser&#39;s own speech recognition):
+                    <ul>
+                        <li>Controllers: <strong>hold X</strong> on the left (off-hand) controller, speak, let go.</li>
+                        <li>
+                            Hands: point at <strong>Hold to talk</strong> and hold the pinch (or poke and hold), speak,
+                            let go.
+                        </li>
+                        <li>Words stay gray until you let go; a pause can end listening early.</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Quest</strong> (no speech recognition in Quest Browser; it uses Quest&#39;s keyboard
+                    microphone):
+                    <ul>
+                        <li>Hands: point at <strong>Hold to talk</strong> and pinch. Quest&#39;s keyboard opens.</li>
+                        <li>
+                            Controllers: press and release <strong>X</strong>, then pull the trigger while aiming at the
+                            voice chips (not at empty space: that tap would clear your selection).
+                        </li>
+                        <li>
+                            Press the keyboard&#39;s microphone key, speak, then close the keyboard. The words appear as
+                            chips.
+                        </li>
+                    </ul>
+                </li>
+                <li>Press X again while listening to stop.</li>
+            </ul>
+            <p>Phrases it understands (filler like &quot;please&quot;, &quot;the&quot;, &quot;um&quot; is ignored):</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Say</th>
+                        <th>Does</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>&quot;color by PageRank&quot;, &quot;color these by degree&quot;</td>
+                        <td>color the graph by a result (also paint, shade)</td>
+                    </tr>
+                    <tr>
+                        <td>&quot;size by degree&quot;</td>
+                        <td>size nodes by a result (also scale)</td>
+                    </tr>
+                    <tr>
+                        <td>&quot;run PageRank&quot;, &quot;compute betweenness&quot;</td>
+                        <td>reveal a result</td>
+                    </tr>
+                    <tr>
+                        <td>&quot;select this&quot;, &quot;select Medici&quot;</td>
+                        <td>select (also pick, choose)</td>
+                    </tr>
+                    <tr>
+                        <td>&quot;hide this&quot;, &quot;hide all&quot;, &quot;show Medici&quot;</td>
+                        <td>hide or show nodes (also unhide)</td>
+                    </tr>
+                    <tr>
+                        <td>&quot;grow this two hops&quot;, &quot;expand Medici 1 hop&quot;</td>
+                        <td>select a node and its neighborhood</td>
+                    </tr>
+                    <tr>
+                        <td>&quot;keep PageRank at least point one&quot;</td>
+                        <td>
+                            filter (also &quot;filter&quot;, &quot;above&quot;, &quot;over&quot;, &quot;at most&quot;,
+                            &quot;below&quot;, &quot;under&quot;)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>&quot;undo&quot;, &quot;save&quot;</td>
+                        <td>undo, save</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p>
+                Results: PageRank (or &quot;page rank&quot;), Degree, Betweenness, Community. Numbers: &quot;two&quot;,
+                &quot;0.5&quot;, &quot;zero point five&quot;.
+            </p>
+            <p>
+                <strong>&quot;This&quot; while pointing</strong>: point your dominant hand at a node
+                <strong>as you start talking</strong>, then say &quot;this&quot;, &quot;that&quot; or &quot;it&quot;. If
+                something is selected, &quot;this&quot;/&quot;these&quot; means the selection instead. If neither, Run
+                says &quot;Cannot run: nothing selected or pointed at&quot;. (Color and size always apply to the whole
+                graph, whatever the target word says.)
+            </p>
+            <p>Fixing a sentence:</p>
+            <ol>
+                <li>
+                    Poke (or tap) any chip: a grid of choices opens, best three first. Poke the chip again to close.
+                </li>
+                <li>
+                    Pick a choice: only that word changes. A red chip ending in &quot;?&quot; was not understood; a
+                    &quot;?&quot; chip is a missing word.
+                </li>
+                <li><strong>Run</strong> runs it. <strong>Clear</strong> empties the sentence.</li>
+            </ol>
+            <p>
+                Voice is never the only way: every voice command can be built without speaking. Press
+                <strong>Clear</strong>, poke the &quot;?&quot; chip, pick a verb, fill each &quot;?&quot; from its grid,
+                press Run. And every preset that has voice also has menus or buttons for the same actions.
+            </p>
+            <h2>4. Step lists and feature switches</h2>
+            <p>
+                A step list shows one task at a time on a panel to your right, with a timer. It says what to do, never
+                how.
+            </p>
+            <ul>
+                <li>
+                    Open one: a &quot;Step lists&quot; link on the landing page (or <code>steps=</code> in the URL)
+                    opens it when you enter. In the headset: gear panel, Framework, <strong>Steps</strong>, or the wrist
+                    menu&#39;s <strong>Steps</strong>.
+                </li>
+                <li>
+                    Each step: do it with whatever the preset offers, then press <strong>Done</strong> (or
+                    <strong>Skip</strong>). Then rate how easy it was, 1 (very hard) to 7 (very easy), or
+                    <strong>Next</strong> to skip the rating.
+                </li>
+                <li>
+                    The family names and numbers change on every run, so a second run tests the technique, not your
+                    memory.
+                </li>
+            </ul>
+            <p>The lists:</p>
+            <ul>
+                <li>
+                    <strong>journey</strong> (10 steps): look around; find a family; select it and the families they
+                    married into; run PageRank; say which family ranks #k; color and size by PageRank; keep only
+                    families above a PageRank value; write a note on a family; color by degree, then undo it; save.
+                </li>
+                <li><strong>q2</strong>: open a family&#39;s menu and choose a given item (six times).</li>
+                <li><strong>q3</strong>: select a family and everything within 2 hops (four times).</li>
+                <li><strong>q4</strong>: color by a named result (four times).</li>
+                <li><strong>q6</strong>: write a three-word note on a family.</li>
+            </ul>
+            <p>
+                Not every preset can do every step (for example, Baseline has no way to set an exact filter value).
+                Press Done anyway and say so: that gap is a finding.
+            </p>
+            <p>
+                Switching features: gear panel, <strong>Techniques</strong> tab, press <strong>On/Off</strong> beside a
+                technique. Press its name for its settings. <strong>Save as preset</strong> (Framework tab) stores the
+                current mix; it appears in the landing page&#39;s preset list after a reload.
+            </p>
+            <h2>5. Troubleshooting</h2>
+            <p><strong>Nothing happens when I press.</strong></p>
+            <ul>
+                <li>
+                    Look at the badge above your hand after a press: it names the technique that took it. Check the hint
+                    chip for what a press would do here.
+                </li>
+                <li>Holding still for a third of a second turns a pinch into a menu hold; tap quickly to select.</li>
+                <li>
+                    In the gear panel, a red note beside a technique says why it is not working (wrong input type,
+                    microphone not armed, Quest only).
+                </li>
+                <li>
+                    Controllers-only features (Example, X to talk, B/Y menus, thumbstick turns) do nothing with hands,
+                    and gestures do nothing with controllers.
+                </li>
+                <li>If the rays are lost, hold both palms up for a second to open the gear panel, then Recenter.</li>
+                <li>Still stuck: exit the session and reload the page.</li>
+            </ul>
+            <p><strong>Text is too small or too far.</strong></p>
+            <ul>
+                <li>Lean in, or use <strong>Recenter</strong> so panels come back in front of you.</li>
+                <li>Handling: scale the graph up with two hands.</li>
+                <li>
+                    Hover tag: raise &quot;Letter height (deg)&quot; in its settings. Text entry: &quot;Keyboard
+                    distance&quot;. Dense picking: &quot;Tag letter height (deg)&quot;.
+                </li>
+                <li>Turn off &quot;Node labels&quot; in the Framework tab if labels crowd the view.</li>
+            </ul>
+            <p><strong>Voice is not heard.</strong></p>
+            <ul>
+                <li>
+                    Did you tick <strong>Arm the microphone</strong> before entering? Without it voice stays off (gray
+                    switch).
+                </li>
+                <li>
+                    On Quest, speech goes through Quest&#39;s keyboard microphone key; press it after the keyboard
+                    opens.
+                </li>
+                <li>
+                    The status line next to &quot;Hold to talk&quot; says what happened (&quot;No speech: ...&quot;,
+                    &quot;Speech error: ...&quot;).
+                </li>
+                <li>
+                    Use <a href="https://dev.ato.ms:9052">https://dev.ato.ms:9052</a> for voice: its log records every
+                    start and stop with the reason, so the problem can be traced afterward.
+                </li>
+                <li>You can always poke the chips instead.</li>
+            </ul>
+            <p><strong>Reporting a problem.</strong></p>
+            <ol>
+                <li>
+                    Right when something feels wrong, press <strong>Flag</strong>: click both thumbsticks together, or
+                    Flag on the wrist menu or gear panel (Framework tab). An id such as &quot;F3&quot; appears near the
+                    step panel. It saves the last 10 seconds of input.
+                </li>
+                <li>Note the <strong>session id</strong> (landing page, or the gear panel title bar).</li>
+                <li>
+                    Report &quot;session (id), F3: what I expected, what happened&quot;, with the preset and whether you
+                    used hands or controllers.
+                </li>
+            </ol>
+        </main>
+    </body>
+</html>

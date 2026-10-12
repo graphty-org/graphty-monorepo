@@ -280,6 +280,13 @@ const config: KnipConfig = {
             project: ["src/**/*.ts!", "test/**/*.ts", "bin/**/*.js!"],
         },
 
+        // xr-sandbox: the private XR technique playground (design/xr/sandbox/design.md); index.html loads
+        // src/main.ts, which imports the emulator and the dry-run hooks lazily
+        "xr-sandbox": {
+            entry: ["test/**/*.test.ts", "dryrun/**/*.mjs"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "dryrun/**/*.mjs"],
+        },
+
         // visual-review tool (plain .mjs, no build)
         "visual-review": {
             entry: ["test/**/*.test.mjs"],

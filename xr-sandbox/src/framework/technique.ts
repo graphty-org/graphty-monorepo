@@ -1,0 +1,178 @@
+// The technique module contract (design section 4.1). A technique is one module exporting one
+// object of this shape. It touches the sandbox only through its TechniqueContext: input reaches it
+// only through the arbiter (claims and onPress), hand poses only through the pose layer, and every
+// mesh, panel and hook it creates is built hidden at prepare and only shown at activate.
+
+import type { Scene, TransformNode, Vector3, WebXRDefaultExperience } from "@babylonjs/core";
+
+import type { Claim, Gesture, Hand, PressStart } from "../core/arbiter";
+import type { CommandCode, CommandParams, CommandRecord, HistoryEntry, Preview } from "../core/commands";
+import type { GraphState } from "../core/state";
+import type { GraphView, NodePick } from "../scene/graph-view";
+import type { HandPoses } from "../scene/poses";
+import type { Chip, Panel, PanelOptions, Reach } from "../scene/ui";
+import type { FrameworkActions } from "./runtime";
+
+/** What a technique needs from the session; unmet needs are shown in the gear panel. */
+export type Need = "hand-joints" | "hand-select" | "hover" | "controllers" | "microphone" | "quest-microgestures";
+
+/** One setting a technique declares; the gear panel is generated from these. */
+export interface SettingSpec {
+    key: string;
+    label: string;
+    kind: "bool" | "number" | "choice" | "action";
+    default?: boolean | number | string;
+    min?: number;
+    max?: number;
+    step?: number;
+    choices?: string[];
+}
+
+/** A press this technique won. */
+export interface OwnedPress {
+    press: PressStart;
+    claim: Claim;
+}
+
+/** What a technique does with a press it owns, frame by frame until it ends. */
+export interface PressSession {
+    move?(g: Gesture): void;
+    end?(): void;
+    /** The press was cancelled (blur, input removed, switched off): undo any preview or transform. */
+    cancel?(reason: string): void;
+}
+
+/** The one press the dry run makes to exercise a technique. */
+export interface SmokeStep {
+    input: "trigger" | "pinch" | "squeeze" | `button:${string}`;
+    hand?: "dominant" | "off";
+    /** What to aim at first. */
+    aim?: "node" | "space";
+}
+
+/** What the targeting layer says one hand is on. */
+export interface HoverInfo {
+    /** Node index, or -1. */
+    node: number;
+    context: "ui" | "tool" | "node" | "edge" | "graph" | "space";
+    /** Whether the input is a tracked hand (not a controller). */
+    isHand: boolean;
+    connected: boolean;
+}
+
+/** Everything a technique may touch, and the only way to touch it. */
+export interface TechniqueContext {
+    scene: Scene;
+    xr(): WebXRDefaultExperience | null;
+    graph: GraphView;
+    state: Readonly<GraphState>;
+    hover(hand: Hand): Readonly<HoverInfo>;
+    poses(hand: Hand): Readonly<HandPoses>;
+    dominant(): Hand;
+    commands: {
+        run<C extends CommandCode>(code: C, params: CommandParams[C], hand?: Hand): CommandRecord;
+        preview<C extends "neighbors" | "filter">(code: C, params: CommandParams[C], hand?: Hand): Preview;
+        undo(hand?: Hand): void;
+        redo(hand?: Hand): void;
+        undoLabel(): string | null;
+        /** The history, oldest first; selections are never in it. */
+        history(): readonly HistoryEntry[];
+        /** Undo back to and including history entry `index`. */
+        undoTo(index: number, hand?: Hand): void;
+    };
+    /** Anchors maintained by the framework: a hand's grip, or the space above the graph. */
+    anchor(name: "hand-left" | "hand-right" | "graph-top"): TransformNode;
+    ui: {
+        panel(name: string, widthM: number, heightM: number, px: number, options?: PanelOptions): Panel;
+        chip(name: string, minWidthM: number, read: Reach, billboard?: boolean, maxWidthM?: number): Chip;
+    };
+    settings: {
+        bool(key: string): boolean;
+        num(key: string): number;
+        str(key: string): string;
+        onChange(fn: (key: string) => void): void;
+        /** A framework setting, read-only (for example "offHand": "palette" or "held copy"). */
+        framework(key: string): boolean | number | string;
+    };
+    log(message: string, data?: Record<string, unknown>): void;
+    /** A per-frame hook, run only while the technique is on, timed for the frame budget. */
+    onFrame(fn: (dtMs: number) => void): void;
+    /**
+     * Become a hand's target provider (design section 5.2; the held copy, the slab), or stop with
+     * null. The provider is asked first each frame; when it returns null the plain ray is used.
+     */
+    target: { provide(hand: Hand, p: TargetProvider | null): void };
+    /** The framework's own actions (plan section 1.3), always present: gear panel, steps, recenter, flag, save. */
+    framework: Pick<FrameworkActions, "toggleGear" | "toggleSteps" | "recenter" | "flag" | "save">;
+    /**
+     * Ask for a line of text (plan section 1.3): the text entry technique's keyboard when it is on,
+     * a row of canned chips when it is off. Resolves with the text, or null when dismissed.
+     */
+    text: {
+        request(r: TextRequest): Promise<string | null>;
+        /** For the text entry technique only: become the provider, or stop being it with null. */
+        provide(fn: TextProvider | null): void;
+    };
+    /**
+     * Hand-held tools (plan section 1.3): physical tools and dense picking offer them; the Figma
+     * toolbar, the palette and node menus hand them to the owner with `take`.
+     */
+    tools: {
+        /** Provider: offer a tool at prepare. */
+        offer(tool: ToolOffer): void;
+        /** Consumer: put tool `id` in a hand. Returns null, or why it cannot (to gray the item). */
+        take(id: string, hand: Hand): string | null;
+        /** Why tool `id` cannot be taken now, or null. */
+        reason(id: string): string | null;
+        /** Provider: what a hand holds; that hand's select and squeeze then have context "tool", detail = the provider's id. */
+        hold(hand: Hand, id: string | null): void;
+    };
+}
+
+/** A tool a technique offers to the others. */
+export interface ToolOffer {
+    /** "sieve", "probe", "slab". */
+    id: string;
+    /** Put it in this hand. */
+    take(hand: Hand): void;
+}
+
+/** A request for a line of text. */
+export interface TextRequest {
+    /** What the text is for, shown above the field ("Note on Medici"). */
+    label: string;
+    /** Text the field starts with. */
+    initial?: string;
+    /** The hand that asked. */
+    hand?: Hand;
+}
+
+/** Answers a text request: the text, or null when dismissed. */
+export type TextProvider = (r: TextRequest) => Promise<string | null>;
+
+/** Picks a node of the full graph along a hand's ray (world space), or returns null. */
+export type TargetProvider = (origin: Vector3, dir: Vector3, minAngleRad: number) => NodePick | null;
+
+/** A technique module. */
+export interface Technique {
+    id: string;
+    name: string;
+    /** Owner color of its badge and ray tint. */
+    color: string;
+    needs?: Need[];
+    /** Must be armed on the landing page before entering XR. */
+    arm?: "microphone";
+    settings: SettingSpec[];
+    claims: Claim[];
+    /** Why it cannot be switched on at all (a stub reads "not built yet"). */
+    unavailable?: string;
+    /** At boot, for every registered technique: build everything hidden, compile materials. */
+    prepare(ctx: TechniqueContext): void | Promise<void>;
+    /** Show its UI; its claims become live. */
+    activate(): void;
+    /** Hide its UI. The framework has already cancelled its presses and previews. */
+    deactivate(): void;
+    /** Called when it wins a press; return how it follows the press. */
+    onPress?(p: OwnedPress, hand: Hand): PressSession | undefined;
+    smoke?: SmokeStep;
+}

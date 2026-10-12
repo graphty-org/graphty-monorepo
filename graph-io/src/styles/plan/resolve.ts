@@ -205,7 +205,8 @@ function atomTerms(p: Predicate): number {
         return 1;
     }
     if ("not" in p) {
-        return "has" in p.not ? 1 : 0;
+        // `not` over a degree test stays a predicate, so it follows later edits.
+        return "has" in p.not || "computed" in refOfTest(p.not) ? atomTerms(p.not) : 0;
     }
     if ("eq" in p) {
         return 1;
@@ -215,6 +216,21 @@ function atomTerms(p: Predicate): number {
         return n >= 1 && n <= MAX_PREDICATE_TERMS ? n : 0;
     }
     return 0;
+}
+
+/**
+ * The column an `eq` or `in` test reads, or an empty reference for any other predicate.
+ * @param p - the predicate
+ * @returns the column reference
+ */
+function refOfTest(p: Predicate): ColumnRef | Record<string, never> {
+    if ("eq" in p) {
+        return p.eq[0];
+    }
+    if ("in" in p) {
+        return p.in[0];
+    }
+    return {};
 }
 
 /**

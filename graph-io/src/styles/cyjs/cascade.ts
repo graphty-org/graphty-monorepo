@@ -1967,13 +1967,50 @@ function termOf(ctx: RuleContext, c: CyjsCheck): Predicate | null {
         case "bool":
             return c.op === "^" && faithful(ctx, c.field) ? { not: { has: { data: c.field } } } : null;
         case "meta":
-            if (c.op !== "=" || c.ci || !degreeAgrees(ctx, c.field)) {
+            if (c.ci || !degreeAgrees(ctx, c.field)) {
                 return null;
             }
-            return c.not ? { not: { eq: [{ computed: c.field }, c.value] } } : { eq: [{ computed: c.field }, c.value] };
+            return degreeTerm(c.field, c.op, c.not, c.value);
         default:
             return null;
     }
+}
+
+/**
+ * A degree test as a predicate over the computed degree, so it follows later edits: `=` as `eq`, and an order test
+ * as the degrees it keeps or the degrees it leaves out (degrees are whole numbers from 0), at most 8 of them.
+ * @param field - the degree
+ * @param op - the comparison
+ * @param not - whether the test is negated
+ * @param value - the number compared with
+ * @returns the predicate, or null when it needs more than 8 values
+ */
+function degreeTerm(
+    field: "degree" | "indegree" | "outdegree",
+    op: string,
+    not: boolean,
+    value: number,
+): Predicate | null {
+    const ref: ColumnRef = { computed: field };
+    if (op === "=") {
+        return not ? { not: { eq: [ref, value] } } : { eq: [ref, value] };
+    }
+    // The whole numbers from 0 the test leaves out (`>`, `>=`) or keeps (`<`, `<=`).
+    let below: number;
+    if (op === ">" || op === "<=") {
+        below = Math.floor(value) + 1;
+    } else if (op === ">=" || op === "<") {
+        below = Math.ceil(value);
+    } else {
+        return null;
+    }
+    if (!Number.isFinite(below) || below < 1 || below > 8) {
+        return null;
+    }
+    const values = Array.from({ length: below }, (_, k) => k);
+    const keeps = op === "<" || op === "<=";
+    const inSet: Predicate = { in: [ref, values] };
+    return keeps !== not ? inSet : { not: inSet };
 }
 
 /**

@@ -377,6 +377,27 @@ describe("the cascade", () => {
         expect(rules.map((x) => x.where)).toContainEqual({ eq: [{ computed: "degree" }, 0] });
     });
 
+    it("keeps an order test on the degree as a predicate on the computed degree, so it follows later edits", async () => {
+        const doc = {
+            elements: [...SMALL.elements, { data: { id: "e" } }, { data: { id: "ae", source: "a", target: "e" } }],
+            style: [
+                { selector: "node[[degree > 1]]", style: { opacity: 0.25 } },
+                { selector: "node[[degree < 2]]", style: { opacity: 0.5 } },
+            ],
+        };
+        const s = await snapshotOf(doc);
+        const st = cytoscapeJsStyles({ ...doc, snapshot: s });
+        const rules = "canonical" in st ? (st.node?.rules ?? []) : [];
+        const wheres = rules.filter((x) => x.origin === "declared").map((x) => x.where);
+        expect(wheres).toContainEqual({ not: { in: [{ computed: "degree" }, [0, 1]] } });
+        expect(wheres).toContainEqual({ in: [{ computed: "degree" }, [0, 1]] });
+        const ex = extract(doc, s);
+        const opacity = resolveStyles(ex, "node", "opacity", s);
+        const a = s.ids.indexOf("a");
+        expect(opacity[a]).toBe(0.25);
+        expect(evaluateCytoscapeJs(doc).node.values.opacity?.[a]).toBe(0.25);
+    });
+
     it("tests classes through membership style columns, never a long selector", async () => {
         const doc = { elements: SMALL.elements, style: [{ selector: ".big", style: { shape: "star" } }] };
         const s = await snapshotOf(doc);

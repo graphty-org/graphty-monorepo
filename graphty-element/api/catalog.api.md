@@ -293,11 +293,13 @@ export interface ChannelDescriptor {
     readonly caveat?: string;
     readonly channel: Channel;
     readonly default?: string | number | boolean;
+    readonly exclusiveMin?: boolean;
     readonly follows?: Channel;
     readonly group: ChannelGroup;
     readonly max?: number;
     readonly min?: number;
     readonly off?: string | number;
+    readonly perWorldUnit?: number;
     readonly plainName: string;
     readonly renderable: boolean;
     readonly shortName: string;

@@ -1283,7 +1283,10 @@ export class Node {
         material.diffuseColor = Color3.Black();
         material.specularColor = Color3.Black();
         material.alpha = alpha * painted.alpha;
-        if (name === SELECTION_HALO_MESH) {
+        // Every halo, the selection settings' and a layer's (whose source names its look after the
+        // same prefix): a layer's halo drawn with both faces veiled the node it rings, and a solid
+        // one hid it.
+        if (name.startsWith(SELECTION_HALO_MESH)) {
             // BACK FACES ONLY. The halo's front hemisphere lies between the camera and the node it
             // rings, so drawing it laid a 40% veil of the selection colour over the node: a black
             // node read olive and an orange one mustard. The back hemisphere lies behind the node,

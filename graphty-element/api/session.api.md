@@ -1676,6 +1676,7 @@ export interface LegendBlock {
     readonly overflow?: {
         readonly hidden: number;
     };
+    readonly painted?: number;
     readonly palette?: {
         readonly name: PaletteId;
         readonly reversed: boolean;

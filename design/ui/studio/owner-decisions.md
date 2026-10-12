@@ -27,6 +27,60 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- For the owner: a new label is too small to read at the default framing
+
+**What.** Not built; a question. A label's size is a length in the scene, not on screen: a label
+of size 48 (graphty-element's default) is one world unit tall per line, margins included, the
+diameter of a size-1 sphere node, so it shrinks and grows with the zoom. On Les Miserables framed
+whole in a 1000 x 700 canvas one world unit is about 7.6 px, so a default label's line is about 8
+px tall and its letters about 5 px; the graphty app's 72 draws about 11 px and 8 px. The option is
+named `sizePx`, which reads as screen pixels and is not. Either fix changes existing output:
+
+1. A larger default label size (about 130 for 14 px letters at that framing, but any number is
+   right for only one framing).
+2. A label size in screen pixels: letters stay the same height at every zoom. This is the fix that
+   makes "14" mean 14 px, but it changes what every existing label draws. As an additive option
+   (a label style field such as "size on screen") it is new renderer work -- the plane is rescaled
+   each frame from the camera, and its placement beside the node, the declutter pass and the
+   pulse animation follow -- so it is a feature to plan, not part of this fix.
+
+**Built instead (additive).** `ChannelDescriptor.perWorldUnit` states the unit: 48 on every label,
+tooltip and arrow caption size channel. A consumer can show the size as what it draws (1.5 is a
+line one and a half node diameters tall) and pick a size for its framing.
+
+**Why.** A reader who types 72 and sees letters 8 px tall was told a number that does not match the
+picture.
+
+## 2026-10-12 -- Decided by the team: a legend block's painted count, a node size of 0 refused, a label size's unit, and a visible Selected ring
+
+**What.** Additive changes in graphty-element.
+
+- `LegendBlock.painted`: how many elements the block's layer currently paints on its channel, as
+  `styles.counts(id).painted` counts them. 0 for the Selected row with nothing selected, so a
+  legend can leave such a block out. Each legend read counts each listed layer once.
+- `ChannelDescriptor.exclusiveMin`: `min` itself is refused. Set on `node.size` (min 0): a size of 0
+  draws no node, so a control can refuse it. `min` stays 0 (raising it would change the clamp of
+  every size binding that reaches 0).
+- `ChannelDescriptor.perWorldUnit` (see the owner item above).
+- The Selected starting row (unreleased, `startingRows`) now draws a two-tone ring: a solid
+  near-black halo (`#111111`, 17:1 on the default background) with a white glow inside it, and a
+  near-black edge band, at the `selectionStyle` sizes. One color cannot stand 3:1 off both the
+  background and all eight default palette colors (black and yellow among them); the dark halo
+  covers the background and seven colors, the white glow covers black. The `selectionStyle`
+  default (pale gold halo) is untouched (owner item 3 above).
+- Fixed: a halo a layer paints was drawn with both faces of its sphere, so it tinted the node it
+  ringed and a solid one hid it; it now draws only the back faces, as the selection halo always
+  did.
+- The force layout's catalog description no longer carries the code fragment "with `dim: 2`".
+
+**Checked, no change.** A size bound to a degree run's rank: the legend block names the field
+`results.<run>.rank` with `result: { algorithm: "degree", field: "rank" }`, so the element reports
+the right source. The graphty app's "Size: Degree" comes from its own key, which titles a block by
+the row's name (`sectionTitle` in `graphty/src/workspace/canvas/legendWords.ts`), not by the
+block's field: the app's to fix.
+
+**Not breaking.** New optional fields; the starting rows are unreleased.
+
 ## 2026-10-12 -- Decided by the team: a run's layers behave like a reader's (one route row, readable rules, kind change in place)
 
 **What.** Three additive changes in graphty-element, so where a layer came from never changes what

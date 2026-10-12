@@ -511,7 +511,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             technicalName: "Force-directed layout",
             description:
                 "Pulls connected nodes together and pushes unconnected ones apart until the " +
-                "shape stops moving, in three dimensions or, with `dim: 2`, flat.",
+                "shape stops moving, in three dimensions or flat.",
             family: "force",
             kind: "live",
             maxDimensions: 3,

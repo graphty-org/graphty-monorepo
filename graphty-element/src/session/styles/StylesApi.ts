@@ -841,7 +841,7 @@ export interface StylesApi {
     /**
      * Add back whichever of the three starting rows the tree lacks: Everything (nodes and edges,
      * pinned to the bottom, writing nothing), Selected (nodes and edges, pinned to the top,
-     * drawing the selection look as a node halo and an edge band) and Hovered (nodes, pinned to
+     * drawing a near-black node halo with a white glow and a near-black edge band) and Hovered (nodes, pinned to
      * the top, writing nothing). One undo step; nothing when all three are there. Setting the
      * project setting `startingRows` to true adds them the same way.
      * @param options - A signal to cancel with, and a progress handler.
@@ -1855,6 +1855,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         scales,
         ...(sources.field === undefined ? {} : { field: sources.field }),
         ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
+        painted: (id) => api.counts(id).painted,
         // Only a `{match:"has"}` layer below can be answered: its elements are the ones a column
         // lists, and each is put to the compiled test of the layer above. Every other shape would
         // need a walk over the whole graph, and a legend is read on every style change.

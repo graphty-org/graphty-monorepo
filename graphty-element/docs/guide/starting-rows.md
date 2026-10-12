@@ -25,11 +25,17 @@ console.log(session.styles.counts(hovered.id).matched); // 1
 
 ## The three rows
 
-| Row        | Paints                       | Pinned | Starts out writing                                             |
-| ---------- | ---------------------------- | ------ | -------------------------------------------------------------- |
-| Everything | every node and edge          | bottom | nothing                                                        |
-| Selected   | the selected nodes and edges | top    | a halo on nodes and a band on edges, at today's selection look |
-| Hovered    | the node under the pointer   | top    | nothing                                                        |
+| Row        | Paints                       | Pinned | Starts out writing                                        |
+| ---------- | ---------------------------- | ------ | --------------------------------------------------------- |
+| Everything | every node and edge          | bottom | nothing                                                   |
+| Selected   | the selected nodes and edges | top    | a two-tone ring on nodes and a dark band on edges (below) |
+| Hovered    | the node under the pointer   | top    | nothing                                                   |
+
+The Selected ring is a solid near-black halo with a white glow inside it, and the band is the
+same near-black, both at the `selectionStyle` sizes. The ring is two tones because no single color
+stands out from both the light default background and every color of the default palette, which
+includes black and yellow: the dark halo shows against the background and the light and mid
+colors, the white glow against the dark ones.
 
 Selected and Hovered use the selector `{ match: "state", state: "selected" }` (or `"hovered"`),
 which you can use in any layer of your own. They follow the selection and the pointer as they

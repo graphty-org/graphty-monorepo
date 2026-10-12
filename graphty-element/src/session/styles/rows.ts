@@ -234,24 +234,23 @@ export interface StartingRow {
 }
 
 /**
- * The selection look a Selected row starts with, as the selection settings state it.
+ * The ring a Selected row starts with: a solid near-black halo, with a white glow between it and
+ * the node. One color cannot stand 3:1 off both the light default background and every color
+ * of the default categorical palette (it holds black and yellow), so the ring is two tones: the
+ * dark halo carries it against the background and every light or mid color, the white glow
+ * against the dark ones. The selection settings' own default look (a pale gold halo) is unchanged;
+ * a Selected row takes only their sizes.
+ */
+export const STARTING_SELECTED_LOOK = { ring: "#111111", glow: "#FFFFFF" } as const;
+
+/**
+ * The starting rows, with the Selected row's sizes from the selection settings.
  * @param look - The selection settings' node halo and edge band.
- * @param look.color - The halo's colour.
  * @param look.scale - The halo's size, as a multiple of the node's drawn radius.
- * @param look.opacity - The halo's opacity.
- * @param look.edgeColor - The band's colour.
  * @param look.edgeScale - The band's width, as a multiple of twice the line's width.
- * @param look.edgeOpacity - The band's opacity.
  * @returns The three rows, in the order they are added: Everything, Selected, Hovered.
  */
-export function startingRows(look: {
-    readonly color: string;
-    readonly scale: number;
-    readonly opacity: number;
-    readonly edgeColor: string;
-    readonly edgeScale: number;
-    readonly edgeOpacity: number;
-}): readonly StartingRow[] {
+export function startingRows(look: { readonly scale: number; readonly edgeScale: number }): readonly StartingRow[] {
     const source = (templateId: StartingRowId): RowSpec["source"] => ({ by: "template", templateId });
 
     return [
@@ -273,12 +272,13 @@ export function startingRows(look: {
                 target: "both",
                 selector: { match: "state", state: "selected" },
                 set: {
-                    "node.haloColor": look.color,
+                    "node.haloColor": STARTING_SELECTED_LOOK.ring,
                     "node.haloSize": look.scale,
-                    "node.haloOpacity": look.opacity,
-                    "edge.bandColor": look.edgeColor,
+                    "node.haloOpacity": 1,
+                    "node.glow": STARTING_SELECTED_LOOK.glow,
+                    "edge.bandColor": STARTING_SELECTED_LOOK.ring,
                     "edge.bandWidth": look.edgeScale,
-                    "edge.bandOpacity": look.edgeOpacity,
+                    "edge.bandOpacity": 1,
                 },
                 source: source("graphty:starting-selected"),
             },

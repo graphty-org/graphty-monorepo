@@ -382,8 +382,23 @@ export interface ChannelDescriptor {
     readonly values?: readonly string[];
     /** The smallest value the renderer draws, when `accepts` is "number". */
     readonly min?: number;
+    /**
+     * Whether `min` itself is refused, so a value must be above it: a node of size 0 draws nothing,
+     * so a control that offers 0 lets a reader hide every node by accident. Absent when `min` is
+     * a value the renderer draws.
+     * @since 3.26.0
+     */
+    readonly exclusiveMin?: boolean;
     /** The largest value the renderer draws, when `accepts` is "number" and it is bounded. */
     readonly max?: number;
+    /**
+     * How many of this channel's numbers make one world unit, on a channel that is a length in the
+     * scene rather than on screen: 48 for a label size, so a label of size 48 draws one line,
+     * margins included, one world unit tall -- the diameter of a sphere node of size 1 -- and its
+     * height on screen follows the zoom. Absent on a channel that is not such a length.
+     * @since 3.26.0
+     */
+    readonly perWorldUnit?: number;
     /** Where the value lands in a parsed node or edge style, as a dotted path. */
     readonly stylePath: string;
     /** Whether the element draws this channel at all today. */
@@ -644,6 +659,12 @@ const VISIBLE_CAVEAT =
     "visibility filter is what takes an element out of the graph on screen.";
 
 /**
+ * A label's size per world unit: the label plane is `size / 48` world units tall per line
+ * (`RichTextLabel`), so the default 48 draws a line as tall as a size-1 sphere node.
+ */
+const LABEL_SIZE_PER_WORLD_UNIT = 48;
+
+/**
  * The three looks of one block of words that vary per element: size, text colour and background.
  *
  * The same three fields sit in the block's label style; these channels exist so a layer can bind
@@ -674,9 +695,10 @@ function textLookChannels<Base extends string>(
             channel: `${base}Size` as Channel,
             plainName: `${plainName} Size`,
             shortName: `${shortName} size`,
-            default: 48,
+            default: LABEL_SIZE_PER_WORLD_UNIT,
             accepts: "number",
             min: 1,
+            perWorldUnit: LABEL_SIZE_PER_WORLD_UNIT,
             stylePath: `${block}.fontSize`,
         },
         {
@@ -777,6 +799,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "shape",
         accepts: "number",
         min: 0,
+        exclusiveMin: true,
         stylePath: "shape.size",
         renderable: true,
     },

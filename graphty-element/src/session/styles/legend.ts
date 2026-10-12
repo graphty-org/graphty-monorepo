@@ -241,6 +241,14 @@ export interface LegendBlock {
     };
     /** Up to twelve rows, plus the `"other"` row when the paint folded some groups. */
     readonly swatches: readonly LegendSwatch[];
+    /**
+     * How many elements this block's layer currently paints on this channel: the elements where
+     * it is the layer the picture shows, as `styles.counts(layerId).painted[channel]` counts them.
+     * 0 when the layer matches nothing right now (a Selected row with nothing selected) or a layer
+     * above paints over all of it, so a consumer can leave such a block out.
+     * @since 3.26.0
+     */
+    readonly painted?: number;
     /** How many rows did not fit, when some did not. The `"other"` row is never counted here. */
     readonly overflow?: {
         /** How many rows were left out of `swatches`, as a number. */
@@ -374,6 +382,14 @@ export interface LegendSources {
      * @returns The rank by group, or undefined when the run has no sizes table.
      */
     readonly groupRanks?: (runId: string) => ReadonlyMap<string, number> | undefined;
+    /**
+     * How many elements one layer is the shown layer on, per channel it writes.
+     *
+     * Absent, the blocks carry no `painted` count.
+     * @param layerId - The layer.
+     * @returns The count per channel.
+     */
+    readonly painted?: (layerId: LayerId) => Readonly<Partial<Record<Channel, number>>>;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -974,6 +990,7 @@ function readingOf(prepared: PreparedBinding, kind: LegendBlock["kind"]): Legend
  * @param layers - The stack, bottom first, for the layers that paint over this one.
  * @param at - Where the layer sits in the stack.
  * @param sources - Where the scale's and the field's words come from.
+ * @param painted - How many elements the layer is shown on, per channel, when it was counted.
  * @returns The block.
  */
 function buildBlock(
@@ -982,6 +999,7 @@ function buildBlock(
     layers: readonly Layer[],
     at: number,
     sources: LegendSources,
+    painted: Readonly<Partial<Record<Channel, number>>> | undefined,
 ): LegendBlock {
     const { channel } = prepared;
     const rule = authoredRule(layer, channel);
@@ -1014,6 +1032,7 @@ function buildBlock(
             ? {}
             : { palette: { name: prepared.palette.id, reversed: rule?.reverse === true } }),
         swatches: Object.freeze(swatches),
+        ...(painted === undefined ? {} : { painted: painted[channel] ?? 0 }),
         ...(hidden === 0 ? {} : { overflow: { hidden } }),
         facts: Object.freeze([...facts]),
         departures: Object.freeze(facts.map(departureSentence)),
@@ -1027,8 +1046,8 @@ function buildBlock(
 /**
  * Read the legend out of the encoding model.
  *
- * SYNCHRONOUS, and it paints nothing and measures nothing: every figure it prints was worked out
- * when the bindings were prepared. The one cost it adds is the sweep that finds a stepped
+ * SYNCHRONOUS, and it paints nothing: every figure it prints was worked out when the bindings
+ * were prepared, except each block's `painted` count, which walks the layer's elements once. The one cost it adds is the sweep that finds a stepped
  * encoding's group boundaries, which is a few hundred calls into a closure per block.
  *
  * THE BASE LAYERS ARE NOT IN IT. A layer of kind "base" is what the picture looks like when
@@ -1051,8 +1070,12 @@ export function buildLegend(sources: LegendSources): readonly LegendBlock[] {
             continue;
         }
 
-        for (const prepared of sources.encoding(layer.id)) {
-            blocks.push(buildBlock(layer, prepared, layers, at, sources));
+        const prepared = sources.encoding(layer.id);
+        // ponytail: one count per layer per read, a walk over that layer's elements; memoize by
+        // the counts' revision if legend reads ever show up in a profile.
+        const painted = prepared.length === 0 ? undefined : sources.painted?.(layer.id);
+        for (const binding of prepared) {
+            blocks.push(buildBlock(layer, binding, layers, at, sources, painted));
         }
     }
 
@@ -1076,8 +1099,9 @@ export function buildLayerLegend(sources: LegendSources, layerId: LayerId): read
     }
 
     const layer = layers[at];
+    const painted = layer.enabled ? sources.painted?.(layerId) : undefined;
     const blocks = layer.enabled
-        ? sources.encoding(layerId).map((prepared) => buildBlock(layer, prepared, layers, at, sources))
+        ? sources.encoding(layerId).map((prepared) => buildBlock(layer, prepared, layers, at, sources, painted))
         : [];
 
     return blocks.length === 0 ? NO_BLOCKS : Object.freeze(blocks);

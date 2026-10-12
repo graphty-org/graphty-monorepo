@@ -11,6 +11,26 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Small element facts for the style panel** (test `test/session/style-panel-facts.test.ts`,
+  browser tests `label-size-unit` and `a-layer-halo-rings-its-node`). A label's size is a length in
+  the scene: `size / 48` world units per line (`RichTextLabel`), so on Les Miserables framed whole
+  at 1000 x 700 the default 48 draws an 8 px line (5 px letters) and the app's 72 an 11 px one.
+  Not a bug in the number; the unit. A readable default or screen-pixel sizes change output, so
+  they went to the owner; `ChannelDescriptor.perWorldUnit` (48) states the unit instead. Also
+  `ChannelDescriptor.exclusiveMin` (node size refuses 0; `min` stays 0 because the encoder clamps
+  to it) and `LegendBlock.painted` (from `styles.counts`, once per layer per read). The Selected
+  starting row is a solid `#111111` halo plus a white `node.glow`: no single color is 3:1 off both
+  whitesmoke and all of Okabe-Ito (black and yellow), so two tones. Why `glow` and not `outline`:
+  the outline's highlight layer has inner glow on and washed the whole node white; the glow layer
+  draws outside the silhouette only. Found on the way: a layer's halo drew both sphere faces (the
+  back-face rule matched only the selection halo's exact mesh name, not a layer halo's
+  `graphty-selection-halo|color|...`), so a solid one hid its node; fixed in `Node.ts`. The
+  degree-rank legend source was already right in the element (`field.result.field === "rank"`);
+  the app's `sectionTitle` titles by the row name. Lessons: a halo test needs several nodes at
+  scale 0.2 so the camera is not inside the halo; a single node fills the frame and hides the bug.
+  Seen failing, not mine: `optionsFromZod` "drops no option" (NodeStyle grew a field) and
+  `door-surface` (`layerSelector` unclassified).
+
 - (2026-10-12) **A run's layers now behave like a reader's in graphty-element.** A route is one
   style-tree row (node and edge parts share `row` and the name "Shortest route"; `highlight()`
   still returns the node layer first, because `const [nodes] = await styles.highlight(...)` is how

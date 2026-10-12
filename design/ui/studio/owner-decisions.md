@@ -27,6 +27,19 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: the Which elements editor, and a layer's kind waits on the element
+
+**What.** A layer's Which elements is now its rule as a sentence with the element's count ("50 of
+100 nodes"); a click opens an editor in place: the kind, the find field, a Rule select (Every one,
+Where a value, Top N by, Named, Members of a set, Selected, Hovered, Expression), condition rows
+shared with Data > Filters, and for a layer on nodes and edges with a node rule, "between them" or
+"touching them" (the element's `edges: "incident"`). Done keeps the rule; Escape restores it. No
+graphty-element API changed.
+
+**Not built.** Changing an existing layer's kind. The element refuses to retarget a row part and a
+part that sets nothing, so the editor enables only the layer's own kind. The fix is additive:
+`RowWrite.target`, adding or dropping a part, with an empty part allowed until its first write.
+
 ## 2026-10-12 -- Decided by the team: a color that follows another (`ChannelDescriptor.follows`), and words in an empty color field
 
 **What.** Two optional additions. In graphty-element, `ChannelDescriptor.follows`: the channel whose

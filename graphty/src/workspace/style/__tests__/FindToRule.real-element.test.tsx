@@ -111,6 +111,10 @@ describe("search and selection as ways into a rule", () => {
             await userEvent.click(style);
         }
 
+        // The find field is in the Which elements editor, which the rule's sentence opens.
+        await userEvent.click(
+            await screen.findByRole("button", { name: /^Which elements: / }, { timeout: TIMEOUT_MS }),
+        );
         const field = await screen.findByRole("combobox", { name: "Find elements" }, { timeout: TIMEOUT_MS });
         await userEvent.click(field);
         await userEvent.keyboard("bob");

@@ -625,6 +625,21 @@ tools vitest.* eslint.config.js compact-mantine/eslint` into a temp tree, the co
   every layer the reader's), not on how the caller built the tab. The other agent had also staged
   deletions in the shared index: commit through a private `GIT_INDEX_FILE` built from HEAD.
 
+- (2026-10-12) WORKED: the Which elements editor writes each whole rule to the layer as it is
+  edited (one transaction over the row's parts), so the count and the canvas are the element's
+  (`styles.counts`), and Escape writes back the selectors captured when it opened. No element
+  "count this selector" call was needed. Condition logic lives in `graphty/src/workspace/rules/
+conditions.ts` (a `.tsx` exporting functions trips react-refresh), the rows in `RuleRows.tsx`;
+  Filters keeps its look by offering one comparison on a category (no compare select, operand
+  named "Is") and drawing labels. Every Filters, FilterFocus and DataPlace test passed unchanged.
+  Typing a regex with userEvent: "[[" types one "[". Mantine Select inputs are role "combobox".
+- (2026-10-12) NOT BUILT: changing an existing layer's kind (Nodes, Edges, Both). graphty-element
+  refuses a retarget of a row part ("A row part keeps its row and its kind"), `RowWrite` has no
+  `target`, and a part that sets nothing is refused (`E_BAD_LAYER`). The editor draws the kind
+  choice with only the layer's own kind enabled. The fix is additive in the element: a
+  `RowWrite.target` that adds or drops a part, with an empty part allowed until its first write.
+  The draft's kind choice (`StyleTree.tsx`) already covers new layers.
+
 ## Sources
 
 - Digests in `design/ui/studio/digests/` (`tier1.md`, `decisions.md`, `study-rounds.md`,

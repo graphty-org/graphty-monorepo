@@ -7,23 +7,21 @@
 
 import { ControlSection, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import type { AttributeDescriptor, FilterStep, GraphSession, RuleTree } from "@graphty/graphty-element/session";
-import {
-    ActionIcon,
-    Autocomplete,
-    Button,
-    Checkbox,
-    Group,
-    Menu,
-    NumberInput,
-    Select,
-    Stack,
-    Text,
-    Tooltip,
-} from "@mantine/core";
+import { ActionIcon, Button, Checkbox, Group, Menu, Select, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
+import {
+    attributeOf,
+    BLANK_CONDITION,
+    type Condition,
+    conditionOf,
+    conditionRule,
+    filterCompares,
+    isNumber,
+} from "../rules/conditions";
+import { ConditionRow } from "../rules/RuleRows";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
 import {
@@ -232,21 +230,14 @@ export function FiltersSection(): React.JSX.Element {
 
 /** What a step keeps, as the editor's first field. */
 type Keep = "attribute" | "largest" | "neighbors";
-/** How a number attribute is compared. */
-type Compare = "at-least" | "at-most" | "between";
 
-/** The editor's fields. */
+/** The editor's fields: what the step keeps, and for an attribute's value, its condition. */
 interface Fields {
     readonly keep: Keep;
-    /** `<node|edge>:<path>`, or "" for none yet. */
-    readonly attribute: string;
-    readonly compare: Compare;
-    readonly low: number | string;
-    readonly high: number | string;
-    readonly text: string;
+    readonly condition: Condition;
 }
 
-const BLANK: Fields = { keep: "attribute", attribute: "", compare: "at-least", low: "", high: "", text: "" };
+const BLANK: Fields = { keep: "attribute", condition: BLANK_CONDITION };
 
 /**
  * The editor's fields for a step, or for a new one.
@@ -258,7 +249,8 @@ const BLANK: Fields = { keep: "attribute", attribute: "", compare: "at-least", l
 function fieldsOf(step: FilterStep | undefined, attributes: readonly AttributeDescriptor[], filled: string): Fields {
     const rule = step?.rule;
     if (rule === undefined) {
-        return { ...BLANK, attribute: filled };
+        const compare = filterCompares(attributeOf(filled, attributes))[0];
+        return { ...BLANK, condition: { ...BLANK_CONDITION, reads: filled, compare } };
     }
     if (rule.kind === "member") {
         return { ...BLANK, keep: "largest" };
@@ -266,40 +258,19 @@ function fieldsOf(step: FilterStep | undefined, attributes: readonly AttributeDe
     if (rule.kind === "neighborhood") {
         return { ...BLANK, keep: "neighbors" };
     }
-    if (rule.kind === "range" || rule.kind === "categories") {
-        const kind =
-            rule.nodes === "ends" ? "edge" : (attributes.find((a) => a.path === rule.attribute)?.kind ?? "node");
-        const attribute = `${kind}:${rule.attribute}`;
-        if (rule.kind === "categories") {
-            return { ...BLANK, attribute, text: rule.values.join(", ") };
-        }
-        let compare: Compare = "at-most";
-        if (rule.min !== undefined) {
-            compare = rule.max === undefined ? "at-least" : "between";
-        }
-        return { ...BLANK, attribute, compare, low: rule.min ?? rule.max ?? "", high: rule.max ?? "" };
-    }
-    return BLANK;
+    return { ...BLANK, condition: conditionOf(rule, attributes) ?? BLANK_CONDITION };
 }
-
-/**
- * Whether an attribute holds numbers.
- * @param attribute - the attribute.
- * @returns true for a number column.
- */
-const isNumber = (attribute: AttributeDescriptor | undefined): boolean =>
-    attribute?.type === "number" || attribute?.type === "integer";
 
 /**
  * The rule the fields describe, or null while they are incomplete.
  * @param fields - the fields.
- * @param attribute - the chosen attribute.
+ * @param attributes - the attributes.
  * @param seeds - the selected nodes, for a neighbors step.
  * @returns the rule.
  */
 function ruleOf(
     fields: Fields,
-    attribute: AttributeDescriptor | undefined,
+    attributes: readonly AttributeDescriptor[],
     seeds: readonly (string | number)[],
 ): RuleTree | null {
     if (fields.keep === "largest") {
@@ -308,55 +279,8 @@ function ruleOf(
     if (fields.keep === "neighbors") {
         return seeds.length === 0 ? null : { kind: "neighborhood", seeds, depth: 1 };
     }
-    if (attribute === undefined) {
-        return null;
-    }
-    return isNumber(attribute) ? rangeRule(fields, attribute) : categoriesRule(fields, attribute);
-}
-
-/**
- * The attribute part of a rule on an edge attribute: an edge keeps its ends.
- * @param attribute - the chosen attribute.
- * @returns `{ nodes: "ends" }` for an edge attribute, else nothing.
- */
-function endsOf(attribute: AttributeDescriptor): { nodes?: "ends" } {
-    return attribute.kind === "edge" ? { nodes: "ends" } : {};
-}
-
-/**
- * The categories rule the text field lists, or null while it lists none.
- * @param fields - the fields.
- * @param attribute - the chosen attribute.
- * @returns the rule.
- */
-function categoriesRule(fields: Fields, attribute: AttributeDescriptor): RuleTree | null {
-    const values = fields.text
-        .split(",")
-        .map((v) => v.trim())
-        .filter((v) => v !== "");
-    return values.length === 0 ? null : { kind: "categories", attribute: attribute.path, values, ...endsOf(attribute) };
-}
-
-/**
- * The range rule the comparison and its bounds describe, or null while a bound is missing.
- * @param fields - the fields.
- * @param attribute - the chosen attribute.
- * @returns the rule.
- */
-function rangeRule(fields: Fields, attribute: AttributeDescriptor): RuleTree | null {
-    const low = typeof fields.low === "number" ? fields.low : undefined;
-    const high = typeof fields.high === "number" ? fields.high : undefined;
-    const ends = endsOf(attribute);
-    switch (fields.compare) {
-        case "at-least":
-            return low === undefined ? null : { kind: "range", attribute: attribute.path, min: low, ...ends };
-        case "at-most":
-            return low === undefined ? null : { kind: "range", attribute: attribute.path, max: low, ...ends };
-        default:
-            return low === undefined || high === undefined
-                ? null
-                : { kind: "range", attribute: attribute.path, min: low, max: high, ...ends };
-    }
+    // An edge attribute's step keeps the edges that pass and the nodes at their ends.
+    return conditionRule(fields.condition, attributes, true);
 }
 
 /**
@@ -435,10 +359,10 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
         [id, session],
     );
     const seeds = session?.selection.nodes ?? [];
-    const attribute = attributes.find((a) => `${a.kind}:${a.path}` === fields.attribute);
+    const attribute = attributeOf(fields.condition.reads, attributes);
     // A neighbors step keeps its own seeds unless the editor opened on a new selection.
     const kept = step?.rule.kind === "neighborhood" ? step.rule.seeds : [];
-    const rule = ruleOf(fields, attribute, seeds.length > 0 ? seeds : kept);
+    const rule = ruleOf(fields, attributes, seeds.length > 0 ? seeds : kept);
     // Save step waits for a change: a rule that is the step's own saves nothing. An off step's
     // "Save and turn on" does something either way.
     const unchanged = step?.on === true && rule !== null && sameRule(rule, step.rule);
@@ -576,60 +500,15 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
             />
             {fields.keep === "attribute" && (
                 <>
-                    <Select
-                        label="Attribute"
-                        data={attributeChoices}
-                        value={fields.attribute === "" ? null : fields.attribute}
-                        searchable
-                        onChange={(value) => {
-                            set({ attribute: value ?? "", low: "", high: "", text: "" });
+                    <ConditionRow
+                        condition={fields.condition}
+                        onChange={(condition) => {
+                            set({ condition });
                         }}
+                        choices={attributeChoices}
+                        compares={filterCompares}
+                        attributes={attributes}
                     />
-                    {attribute !== undefined && isNumber(attribute) && (
-                        <>
-                            <Select
-                                label="Is"
-                                data={[
-                                    { value: "at-least", label: "at least" },
-                                    { value: "at-most", label: "at most" },
-                                    { value: "between", label: "between" },
-                                ]}
-                                value={fields.compare}
-                                allowDeselect={false}
-                                onChange={(value) => {
-                                    if (value === "at-least" || value === "at-most" || value === "between") {
-                                        set({ compare: value });
-                                    }
-                                }}
-                            />
-                            <NumberInput
-                                label={fields.compare === "between" ? "From" : "Value"}
-                                value={fields.low}
-                                onChange={(value) => {
-                                    set({ low: value });
-                                }}
-                            />
-                            {fields.compare === "between" && (
-                                <NumberInput
-                                    label="To"
-                                    value={fields.high}
-                                    onChange={(value) => {
-                                        set({ high: value });
-                                    }}
-                                />
-                            )}
-                        </>
-                    )}
-                    {attribute !== undefined && !isNumber(attribute) && (
-                        <Autocomplete
-                            label="Is"
-                            data={[...new Set(attribute.sampleValues.map(String))]}
-                            value={fields.text}
-                            onChange={(value) => {
-                                set({ text: value });
-                            }}
-                        />
-                    )}
                     {attribute?.kind === "edge" && (
                         <Text size="xs" c="dimmed">
                             {ENDS_LINE}

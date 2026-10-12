@@ -47,13 +47,12 @@ export const google: ProviderModule = {
                 fetch,
             },
         }),
-    // Google Search has no domain filter and no use cap: a request limited to some domains is left
-    // out rather than honored in part.
+    // Google Search has no domain filter (`hostedToolLimits`) and no use cap: a request limited to
+    // some domains is left out rather than honored in part.
     hostedTools: (requests) =>
         requests.some(({ tool, allowedDomains }) => tool === "web-search" && allowedDomains === undefined)
             ? [googleSearchTool()]
             : [],
-    hostedOnly: true,
     modelOptions: (request, settings) => ({
         ...(request.tools.length > 0 && {
             toolConfig: { functionCallingConfig: { mode: request.toolMode === "none" ? "NONE" : "AUTO" } },

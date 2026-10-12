@@ -6211,12 +6211,16 @@ export class Graph implements GraphContext {
 
     // AI Manager instance (lazy-initialized)
     private aiManager: import("./ai/AiManager").AiManager | null = null;
+    /** Counts `enableAiControl` and `disableAiControl` calls: an enable a later call superseded does nothing. */
+    private aiGeneration = 0;
 
     /**
      * Enable AI-powered natural language control of the graph.
      *
      * `provider: "webllm"` runs a model in the browser: install the optional package
      * `@mlc-ai/web-llm`; the model downloads on the first command.
+     * A later `enableAiControl` or `disableAiControl` supersedes one still settling: the earlier
+     * call then resolves without changing anything, and the later one decides which assistant is on.
      * @param config - AI configuration including provider and optional API key
      * @returns Promise resolving when AI is ready
      * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when `provider` is `"webllm"` and
@@ -6237,6 +6241,7 @@ export class Graph implements GraphContext {
      * ```
      */
     async enableAiControl(config: import("./ai/AiManager").AiManagerConfig): Promise<void> {
+        const generation = ++this.aiGeneration;
         // Helpers that cannot run reject before anything is built, and the current assistant stays.
         if (config.agents !== undefined) {
             const { checkAgents } = await import("./ai/roles");
@@ -6254,12 +6259,19 @@ export class Graph implements GraphContext {
             providerInstance = await loadWebLlmProvider(config.model);
         }
 
+        // A later enable or a disable came while this one loaded: that call decides.
+        if (generation !== this.aiGeneration) {
+            return;
+        }
+
         // Enabling again replaces the assistant: the previous one is disposed, not leaked.
         this.aiManager?.dispose();
-        this.aiManager = new AiManager();
-        this.aiManager.init(this, { ...config, providerInstance });
-        // With `history`, the saved conversation is open when this resolves.
-        await this.aiManager.ready();
+        const manager = new AiManager();
+        this.aiManager = manager;
+        manager.init(this, { ...config, providerInstance });
+        // With `history`, the saved conversation is open when this resolves. A call that supersedes
+        // this one meanwhile disposes `manager` itself, and leaves its own in place.
+        await manager.ready();
     }
 
     /**
@@ -6271,6 +6283,7 @@ export class Graph implements GraphContext {
      * ```
      */
     disableAiControl(): void {
+        this.aiGeneration++;
         if (this.aiManager) {
             this.aiManager.dispose();
             this.aiManager = null;

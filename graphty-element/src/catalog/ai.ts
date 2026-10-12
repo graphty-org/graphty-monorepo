@@ -294,6 +294,8 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *
  * Succeeded (`success: true`):
  * - `AI_COMPLETED` -- the model answered, running every tool it called. `{ toolCalls }`: how many ran.
+ *   A helper with web tools also states `{ hostedToolUses }` on its `delegate` result: how many
+ *   searches and page reads ran, 0 when it answered from the model's own knowledge.
  * - `AI_NO_RESPONSE` -- the model wrote nothing and called no tool.
  *
  * Failed (`success: false`):
@@ -332,7 +334,8 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *   `"too-long"`, `"too-many"`, `"unsupported"`, `"threw"`, `"invalid-plan"`), for an unknown
  *   command, `command`, and for a reason past a limit, `limit`. Field `"tools"` with reason
  *   `"web-tools-with-writes"`: a helper given web tools may also run commands that change the
- *   graph, which web content must not drive.
+ *   graph, which web content must not drive; with reason `"unsupported"`: a helper given web tools
+ *   beside any command, on a provider whose searching turn cannot also call commands (Google).
  * - `AI_ROLLBACK_PARTIAL` -- taking the message back stopped at someone else's step. `{ steps }`.
  * - `AI_APPROVAL_STALE` -- a held change was not run because its request ended without a
  *   decision. `{ request, reason }`: `"graph-changed"` (answered after the graph changed; the
@@ -343,14 +346,16 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_TOOL_DENIED_BY_POLICY` -- the host's approval policy refused a call, so none of its batch
  *   ran. `{ tool }`, and `reason`: `"parallel-helper"` for a call that does more than read a helper
  *   tried while other helpers ran beside it (helpers that run at once may only read);
- *   `"web-content"` for a call that does more than read while the message holds web content
- *   (`AiToolOptions.webContentMayWrite`); `"in-page-code"` for a call that does more than read
+ *   `"web-content"` for a call that does more than read, or a hand-off to a helper that fetches
+ *   web pages, while the conversation holds web content (`AiToolOptions.webContentWrites`);
+ *   `"in-page-code"` for a call that does more than read
  *   made from a program the model wrote (in-page code may only read).
  * - `AI_HOSTED_TOOL_UNSUPPORTED` -- a tool the configuration marks `required` cannot be used with
  *   this provider and model, so nothing was sent; it also states, on `ai-capability-unavailable`,
  *   that a tool was left out. `{ provider, model, tool }` (`AiHostedToolId`).
  * - `AI_PROVIDER_PAUSED` -- the provider stopped a turn that used one of its own tools before the
- *   model answered (a long search). `{ provider }`: asking again continues.
+ *   model answered (a long search), and stopped again each time the turn was sent back to
+ *   continue. `{ provider }`. What it found is not kept: asking again searches afresh.
  * - `AI_FAILED` -- anything else went wrong while the command ran.
  *
  * Carried by saved conversations and the conversation events rather than ending a command:

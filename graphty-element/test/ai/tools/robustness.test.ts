@@ -355,6 +355,41 @@ describe("a running algorithm leaves the reader in charge", () => {
     });
 });
 
+describe("the catalog leads a model to a diverging encoding", () => {
+    it("lists every entry of a kind when a search names a kind and no words, and refuses one with neither", async () => {
+        const assistant = new ScriptedAssistant(await assistantSession());
+        await assistant.say(
+            "find scales",
+            [{ tool: "catalog", args: { action: "search", kind: "scale", limit: 10 } }],
+            [{ tool: "catalog", args: { action: "search" } }],
+        );
+        const [listed, refused] = assistant.lastResults();
+        assert.strictEqual(listed.code, "AI_OK");
+        const names = (listed.data as { kind: string; name: string }[]).map((row) => row.name);
+        assert.include(names, "linear");
+        assert.isTrue((listed.data as { kind: string }[]).every((row) => row.kind === "scale"));
+        assert.strictEqual(refused.code, "AI_ARG_INVALID");
+    });
+
+    it("finds a scale with a midpoint for a diverging search, and a diverging palette says how to encode with it", async () => {
+        const assistant = new ScriptedAssistant(await assistantSession());
+        await assistant.say(
+            "diverging",
+            [{ tool: "catalog", args: { action: "search", text: "diverging continuous", kind: "scale" } }],
+            [{ tool: "catalog", args: { action: "describe", kind: "palette", name: "red-blue" } }],
+        );
+        const [found, described] = assistant.lastResults();
+        assert.include(
+            (found.data as { name: string }[]).map((row) => row.name),
+            "linear",
+        );
+        assert.deepStrictEqual((described.data as { example: unknown }).example, {
+            action: "encode",
+            encode: { channel: "node.color", attribute: "<attribute>", palette: "red-blue", midpoint: 0 },
+        });
+    });
+});
+
 describe("a call's values are read the way the catalog says", () => {
     it("checks a layout's options against the engine chosen", async () => {
         const session = await assistantSession();

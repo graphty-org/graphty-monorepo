@@ -92,6 +92,17 @@ describe("checkAgents", () => {
         checkAgents([{ ...COUNTER, provider: "anthropic", model: "claude-haiku-4-5-20251001" }], main);
     });
 
+    it("rejects web tools beside a command on a main provider that cannot mix them, and accepts it elsewhere", () => {
+        const searcher = [{ ...COUNTER, tools: { webSearch: true } }];
+        assert.deepInclude(rejection(searcher, "google").params, {
+            agent: "counter",
+            field: "tools",
+            reason: "unsupported",
+        });
+        checkAgents(searcher, "anthropic");
+        checkAgents([{ ...COUNTER, provider: "openai" as const, tools: { webSearch: true } }], "google");
+    });
+
     it("accepts a model alone on one of the element's remote providers", () => {
         checkAgents({ roles: [{ ...COUNTER, model: "gemini-small" }], classifierModel: "gemini-small" }, "google");
     });

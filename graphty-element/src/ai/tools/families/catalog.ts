@@ -143,7 +143,14 @@ async function describe(
         case "palette": {
             const entry =
                 catalog.palettes.find((each) => each.id === name) ?? missing(catalog.palettes.map((each) => each.id));
-            return { tool: "style", data: toJson(entry) as JsonObject };
+            // How to color by it: a diverging palette is centered on a midpoint.
+            const encode = {
+                channel: "node.color",
+                attribute: "<attribute>",
+                palette: entry.id,
+                ...(entry.kind === "diverging" ? { midpoint: 0 } : {}),
+            };
+            return { tool: "style", data: { ...(toJson(entry) as JsonObject), example: { action: "encode", encode } } };
         }
 
         case "scale": {
@@ -232,7 +239,7 @@ export function catalogTool(sources: CatalogSources): ToolDefinition {
             name: "search",
             summary: "find by words",
             fields: {
-                text: z.string().min(1).max(500).describe("What you want to do or find."),
+                text: z.string().min(1).max(500).optional().describe("What you want to do or find."),
                 kind,
                 limit: z.number().int().min(1).max(10).optional().describe("Default 5."),
                 detail: z
@@ -243,10 +250,16 @@ export function catalogTool(sources: CatalogSources): ToolDefinition {
             effect: "read",
             reaches: [],
             run: async ({ tx }, args) => {
-                const hits = sources.index().search(text(args.text), {
-                    ...(args.kind === undefined ? {} : { kind: args.kind as CatalogKind }),
-                    limit: (args.limit as number | undefined) ?? 5,
-                });
+                const limit = (args.limit as number | undefined) ?? 5;
+                const kind = args.kind as CatalogKind | undefined;
+                if (args.text === undefined && kind === undefined) {
+                    throw new ToolRefusal("AI_ARG_INVALID", { path: "text", expected: "text, or a kind to list" });
+                }
+
+                const hits =
+                    args.text === undefined
+                        ? sources.index().entries(kind).slice(0, limit)
+                        : sources.index().search(text(args.text), { ...(kind === undefined ? {} : { kind }), limit });
                 const rows: JsonObject[] = [];
                 for (const [index, hit] of hits.entries()) {
                     const row: JsonObject = hitRow(hit);

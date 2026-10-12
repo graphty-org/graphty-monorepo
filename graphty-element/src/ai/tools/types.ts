@@ -226,14 +226,14 @@ export interface MessageState {
      */
     readonly readOnly?: "parallel-helper" | "in-page-code";
     /**
-     * The model acted from a history window holding text read on the web: derived from the
-     * conversation for each batch, never stored. Every call that does not only read is then held
-     * (gate `"web-content"`) when an approval policy is set, else refused
-     * (`AI_TOOL_DENIED_BY_POLICY` with `reason: "web-content"`), unless `webContentMayWrite`.
+     * The conversation holds text read on the web: derived from it for each batch, never stored,
+     * and handed on to a helper the conversation starts. Every call that does not only read is
+     * then refused (`AI_TOOL_DENIED_BY_POLICY` with `reason: "web-content"`), held (gate
+     * `"web-content"`) or run, as `webContentWrites` says.
      */
     readonly webContent?: boolean;
-    /** `AiToolOptions.webContentMayWrite`: web content does not hold or refuse a write. */
-    readonly webContentMayWrite?: boolean;
+    /** `AiToolOptions.webContentWrites`; `"refuse"` when absent. */
+    readonly webContentWrites?: "refuse" | "ask" | "allow";
     /** The message's id, its steps' `provenance.message`. */
     readonly id: string;
     /** Runs the assistant started in this conversation, which it may cancel without asking. */

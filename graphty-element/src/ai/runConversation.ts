@@ -156,6 +156,11 @@ export interface Delegation {
     /** The `delegate` tool, its `agent` an enum of the role names. */
     readonly tool: ToolSpec;
     /**
+     * The helpers that may fetch web pages: a task the model hands one can carry what it read
+     * into a URL, so after web content it is judged as a write (`webContentWrites`).
+     */
+    readonly fetches: ReadonlySet<string>;
+    /**
      * Run one turn's `delegate` calls, after the turn's other calls committed.
      * @param calls - The calls.
      * @param parent - The run that made them, whose message, session and abort the helpers share.
@@ -204,8 +209,8 @@ export interface DelegatedRun {
     /** A helper's held batch, which ends the message there; its call has no result yet. */
     readonly held?: HeldHelper;
     /**
-     * A helper's provider stopped its turn mid-search (`AI_PROVIDER_PAUSED`'s params): the message
-     * ends there, and asking again continues.
+     * A helper's provider stopped its turn mid-search, and kept stopping when the turn was sent
+     * back to continue (`AI_PROVIDER_PAUSED`'s params): the message ends there.
      */
     readonly paused?: AiResultParams;
 }
@@ -712,7 +717,14 @@ async function modelTurn(
         } else if (event.type === "hosted-tool") {
             // A tool the provider ran: its sources are the reader's to see, and web content.
             const sources = event.sources.map((source) => ({ ...source }));
-            hosted.push({ type: "hosted-tool", origin: "web", tool: event.tool, status: event.status, sources });
+            hosted.push({
+                type: "hosted-tool",
+                origin: "web",
+                tool: event.tool,
+                status: event.status,
+                sources,
+                ...(event.providerState && { providerState: event.providerState }),
+            });
             sink.emit({
                 type: "ai-hosted-tool-result",
                 tool: event.tool,
@@ -904,17 +916,31 @@ function answerResult(answer: ReaderAnswer, id: string): SavedMessage {
 }
 
 /**
- * Whether the model acts from text read on the web: the history window it is shown holds a part
- * read there (a research helper's answer). Derived, never stored: it survives a reload with the
+ * Whether the model may act from text read on the web: the conversation holds a part read there
+ * (a research helper's answer), or the run is a helper a marked conversation started. The whole
+ * conversation, not the window the model is shown: the model's own words restating the page stay
+ * in the window after the page has left it. Derived, never stored: it survives a reload with the
  * conversation, and a new conversation has none.
  * @param run - The loop's run.
- * @returns True when it does.
+ * @param state - The message's state.
+ * @returns True when it may.
  */
-function readFromWeb(run: ConversationRun): boolean {
-    const budget = run.historyBudgetTokens ?? DEFAULT_HISTORY_BUDGET_TOKENS[run.profile ?? "standard"];
-    return historyWindow(pairedForModel(run.conversation.messages), budget).some((message) =>
-        message.parts.some((part) => part.origin === "web"),
+function readFromWeb(run: ConversationRun, state: MessageState): boolean {
+    return (
+        state.webContent === true ||
+        run.conversation.messages.some((message) => message.parts.some((part) => part.origin === "web"))
     );
+}
+
+/**
+ * The message's state, marked when the conversation holds web content: what a batch and a helper
+ * the run starts are judged with.
+ * @param run - The loop's run.
+ * @param state - The message's state.
+ * @returns The state, marked or as it was.
+ */
+function marked(run: ConversationRun, state: MessageState): MessageState {
+    return readFromWeb(run, state) && state.webContent !== true ? { ...state, webContent: true } : state;
 }
 
 /**
@@ -932,7 +958,7 @@ function toolBatch(run: ConversationRun, calls: readonly ToolCallRequest[], stat
         graph: run.graph,
         session,
         label: run.label,
-        message: readFromWeb(run) ? { ...state, webContent: true } : state,
+        message: marked(run, state),
         after: latestStepOf(session, message),
         abort: run.abort,
         sink: run.sink,
@@ -1068,7 +1094,7 @@ async function runDelegated(
     sequence = false,
 ): Promise<boolean> {
     if (batch.failure === undefined && run.delegation !== undefined) {
-        const ran = await run.delegation.run(calls, run, state, sequence);
+        const ran = await run.delegation.run(calls, run, marked(run, state), sequence);
         return applyDelegated(run, ran, tally, added, newId);
     }
 
@@ -1136,6 +1162,9 @@ function addParts(
     return message;
 }
 
+/** How often a turn the provider paused is sent back to continue before the message ends `AI_PROVIDER_PAUSED`. */
+const MAX_PAUSED_RESENDS = 3;
+
 /** A batch with nothing in it, which delegate calls of their own run after. */
 const NO_BATCH: BatchOutcome = { results: [], writes: false };
 
@@ -1155,7 +1184,7 @@ async function holdDelegates(
     state: MessageState,
     tally: MessageTally,
     messageId: string,
-    gate: "plan" | "policy",
+    gate: "plan" | "policy" | "web-content",
 ): Promise<void> {
     const held: HeldBatch = { gate, preview: {}, calls, totals: { ...state.totals } };
     tally.held = { request: await run.hold?.(held, messageId), gate: held.gate };
@@ -1177,7 +1206,12 @@ function delegateVerdict(state: MessageState, calls: readonly ToolCallRequest[])
 
     const verdicts = calls.map((call) => {
         try {
-            return policy({ command: DELEGATE, arguments: call.arguments, effect: "read" });
+            return policy({
+                command: DELEGATE,
+                arguments: call.arguments,
+                effect: "read",
+                ...(state.webContent === true ? { webContent: true } : {}),
+            });
         } catch {
             return "deny";
         }
@@ -1191,6 +1225,32 @@ function delegateVerdict(state: MessageState, calls: readonly ToolCallRequest[])
 
 /** The outcome of hand-offs the host's policy refused. */
 const DELEGATE_DENIED: Outcome = { code: "AI_TOOL_DENIED_BY_POLICY", params: {} };
+
+/** The outcome of hand-offs refused because a page read on the web may have written their task. */
+const DELEGATE_WEB_DENIED: Outcome = { code: "AI_TOOL_DENIED_BY_POLICY", params: { reason: "web-content" } };
+
+/**
+ * The model's hand-offs after the conversation read the web: a task for a helper that fetches
+ * pages may carry what a page asked for (graph data in a URL), so it is judged as a write is,
+ * by `webContentWrites`. Search alone reaches only the provider's search, so it is not.
+ * @param run - The loop's run, with its delegation.
+ * @param state - The message's state, marked.
+ * @param calls - The `delegate` calls.
+ * @returns `"allow"`, or what `webContentWrites` says to do.
+ */
+function webDelegate(
+    run: ConversationRun,
+    state: MessageState,
+    calls: readonly ToolCallRequest[],
+): "allow" | "refuse" | "ask" {
+    const mode = state.webContentWrites ?? "refuse";
+    const fetches = run.delegation?.fetches;
+    return state.webContent === true &&
+        mode !== "allow" &&
+        calls.some((call) => fetches?.has(String(call.arguments.agent)) === true)
+        ? mode
+        : "allow";
+}
 
 /** The outcome of a turn's calls that a hold before them kept from running. */
 const NOT_RUN_HELD: Outcome = { code: "AI_TOOL_NOT_RUN", params: { reason: "held" } };
@@ -1257,6 +1317,8 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
 
     // Set when the message ends without another model turn: it waits on the reader.
     let stopped = false;
+    // Paused turns sent back to continue so far.
+    let resent = 0;
     // A helper ends at its hold: the reader's decision continues it, and the message with it.
     const endHeld = (): boolean => {
         if (run.endAtHold !== true || tally.held === undefined) {
@@ -1299,7 +1361,7 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
     if (run.resume !== undefined && run.delegation !== undefined) {
         // A helper held for the reader continues with the decision, then the message goes on.
         sink.status.startExecuting();
-        const ran = await run.delegation.resume(run.resume.callId, run.resume.decided, run, state);
+        const ran = await run.delegation.resume(run.resume.callId, run.resume.decided, run, marked(run, state));
         stopped = await applyDelegated(run, ran, tally, undefined, newId);
     }
 
@@ -1398,8 +1460,13 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
                 });
             }
 
+            if (paused && heldResults === undefined && resent < MAX_PAUSED_RESENDS) {
+                // The provider stopped mid-search: the turn, sent back, continues where it stopped.
+                resent++;
+                continue;
+            }
+
             if (paused) {
-                // The provider stopped mid-search: asking again continues.
                 tally.paused = { provider: run.engine.providerName };
             }
 
@@ -1455,17 +1522,20 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
             added = addParts(run, parts, added, newId);
         }
 
-        const verdict =
-            delegated.length > 0 && batch.failure === undefined ? delegateVerdict(state, delegated) : "allow";
-        if (verdict === "deny") {
+        const judged = marked(run, state);
+        const live = delegated.length > 0 && batch.failure === undefined;
+        const web = live ? webDelegate(run, judged, delegated) : "allow";
+        const verdict = live && web !== "refuse" ? delegateVerdict(judged, delegated) : "allow";
+        if (web === "refuse") {
+            addParts(run, closingResults(delegated, DELEGATE_WEB_DENIED, "").parts, added, newId);
+        } else if (verdict === "deny") {
             addParts(run, closingResults(delegated, DELEGATE_DENIED, "").parts, added, newId);
-        } else if (
-            delegated.length > 0 &&
-            batch.failure === undefined &&
-            (run.confirmDelegates === true || verdict === "ask")
-        ) {
+        } else if (live && (run.confirmDelegates === true || verdict === "ask" || web === "ask")) {
             // Held: the model reads that they wait on the reader, as for any held batch.
-            const gate = run.confirmDelegates === true ? "plan" : "policy";
+            let gate: "plan" | "policy" | "web-content" = web === "ask" ? "web-content" : "policy";
+            if (run.confirmDelegates === true) {
+                gate = "plan";
+            }
             await holdDelegates(run, delegated, state, tally, callsMessage, gate);
             heldResults = closingResults(delegated, { code: "AI_CONFIRMATION_NEEDED", params: { gate } }, newId());
             conversation.messages.push(heldResults);

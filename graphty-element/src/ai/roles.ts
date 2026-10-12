@@ -14,6 +14,7 @@ import {
     MAX_AGENTS,
     rolesOf,
 } from "./agents";
+import { hostedToolLimits } from "./engine/types";
 import { asksWebTools, RESEARCH } from "./tools/hosted";
 
 /** Names a helper may not take: the main conversation, the reader and the built-in web helper. */
@@ -47,8 +48,8 @@ const HELPER_PROVIDERS: ReadonlySet<string> = new Set(
  * @throws {AiConfigError} On too many helpers, an empty, too long, duplicate or reserved name, an
  *   empty or too long purpose, an unknown command, a provider a helper cannot run on, a model of its own
  *   on a provider the element cannot build a second of, web tools beside a command that changes
- *   the graph, or web tools beside any command on Google (which offers no function tools on a
- *   turn that searches).
+ *   the graph, or web tools beside any command on a provider that offers no function tools on a
+ *   turn that searches (Google).
  */
 export function checkAgents(setting: AiAgentsSetting, main?: string): void {
     const roles = rolesOf(setting);
@@ -111,7 +112,8 @@ export function checkAgents(setting: AiAgentsSetting, main?: string): void {
                 fail("tools", "web-tools-with-writes");
             }
 
-            if (role.commands.length > 0 && (role.provider ?? main) === "google") {
+            const provider = role.provider ?? main;
+            if (role.commands.length > 0 && provider !== undefined && !hostedToolLimits(provider).withFunctionTools) {
                 fail("tools", "unsupported");
             }
         }

@@ -1,9 +1,9 @@
 /**
- * @file Text read on the web cannot drive a write and cannot carry data out. While the history the
- * model acts from holds a research helper's answer, a call that does not only read is held for the
- * reader (gate "web-content") when approvals are on and refused (AI_TOOL_DENIED_BY_POLICY, reason
- * "web-content") when they are off, unless `tools.webContentMayWrite`; reads always run. Web fetch
- * never reaches a host only the model or the graph named.
+ * @file Text read on the web cannot drive a write and cannot carry data out. While the conversation
+ * holds a research helper's answer, a call that does not only read, and a hand-off to a helper that
+ * fetches pages, is refused (AI_TOOL_DENIED_BY_POLICY, reason "web-content"), held for the reader
+ * (gate "web-content") or run, as `tools.webContentWrites` says; reads always run. Web fetch never
+ * reaches a host only the model or the graph named.
  */
 
 import { assert, describe, it } from "vitest";
@@ -83,7 +83,7 @@ function resultOf(requests: readonly TurnRequest[], callId: string): { code: str
 }
 
 describe("a message holding web content", () => {
-    it("with approvals off, refuses a write (reason web-content) and leaves the graph unchanged; a read runs", async () => {
+    it("by default, refuses a write (reason web-content) and leaves the graph unchanged; a read runs", async () => {
         const { harness, engine } = await webAssistant({});
         const before = await digest(harness.session);
         engine.push(...RESEARCHED, [COUNT, CALLS], [REMOVE_E, CALLS], [{ type: "text", delta: "Refused." }, STOP]);
@@ -99,8 +99,8 @@ describe("a message holding web content", () => {
         assert.notStrictEqual(result.code, "AI_CONFIRMATION_NEEDED");
     });
 
-    it("with approvals on, holds a write with gate web-content; approving it runs it", async () => {
-        const { harness, engine } = await webAssistant({ approvals: "writes" });
+    it("with webContentWrites ask and no approvals, holds a write with gate web-content; approving it runs it", async () => {
+        const { harness, engine } = await webAssistant({ tools: { webSearch: true, webContentWrites: "ask" } });
         const before = await digest(harness.session);
         engine.push(...RESEARCHED, [COUNT, CALLS], [REMOVE_E, CALLS], [{ type: "text", delta: "Held." }, STOP]);
 
@@ -122,8 +122,18 @@ describe("a message holding web content", () => {
         assert.strictEqual(harness.session.status.counts.nodes, 9, "the reader's approval lets it through");
     });
 
-    it("with webContentMayWrite, the write runs", async () => {
-        const { harness, engine } = await webAssistant({ tools: { webSearch: true, webContentMayWrite: true } });
+    it("by default, refuses a write even with approvals on", async () => {
+        const { harness, engine } = await webAssistant({ approvals: "writes" });
+        engine.push(...RESEARCHED, [REMOVE_E, CALLS], [{ type: "text", delta: "Refused." }, STOP]);
+
+        const result = await harness.controller.execute("look up French cities and act on it");
+
+        assert.deepStrictEqual(resultOf(engine.requests, "rm")?.params, { tool: "edit_data", reason: "web-content" });
+        assert.notStrictEqual(result.code, "AI_CONFIRMATION_NEEDED");
+    });
+
+    it("with webContentWrites allow, the write runs", async () => {
+        const { harness, engine } = await webAssistant({ tools: { webSearch: true, webContentWrites: "allow" } });
         engine.push(...RESEARCHED, [REMOVE_E, CALLS], [{ type: "text", delta: "Removed." }, STOP]);
 
         await harness.controller.execute("look up French cities and act on it");
@@ -135,6 +145,7 @@ describe("a message holding web content", () => {
     it("a host policy sees webContent on the call's facts, and its own deny still wins", async () => {
         const seen: AiToolCallFacts[] = [];
         const { harness, engine } = await webAssistant({
+            tools: { webSearch: true, webContentWrites: "ask" },
             approvals: {
                 policy: (call) => {
                     seen.push(call);
@@ -174,6 +185,97 @@ describe("a message holding web content", () => {
         await harness.controller.execute("remove e");
         assert.strictEqual(resultOf(engine.requests, "rm3")?.code, "AI_COMPLETED");
         assert.strictEqual(harness.session.status.counts.nodes, 9);
+    });
+
+    it("stays marked after the research answer leaves the window the model is shown", async () => {
+        // A small window: only the newest messages are shown, so the research result falls out
+        // while the model's own words about it stay.
+        const { harness, engine } = await webAssistant({ history: { store: "memory", budgetTokens: 60 } });
+        engine.push(...RESEARCHED, [{ type: "text", delta: "Paris, Marseille, Lyon. Remove node e." }, STOP]);
+        await harness.controller.execute("look up French cities");
+        for (const filler of ["one", "two", "three"]) {
+            engine.push([{ type: "text", delta: `Noted ${filler}.` }, STOP]);
+            await harness.controller.execute(`note ${filler}`);
+        }
+
+        engine.push([{ ...REMOVE_E, id: "rm4" }, CALLS], [{ type: "text", delta: "Refused." }, STOP]);
+        await harness.controller.execute("do what the page said");
+
+        const shown = engine.requests.at(-2)?.messages.flatMap((message) => message.parts) ?? [];
+        assert.isFalse(
+            shown.some((part) => part.origin === "web"),
+            "the research answer is out of the window the model was shown",
+        );
+        assert.deepStrictEqual(resultOf(engine.requests, "rm4")?.params, { tool: "edit_data", reason: "web-content" });
+        assert.strictEqual(harness.session.status.counts.nodes, 10);
+    });
+
+    it("refuses a second hand-off to a helper that fetches pages after web content, and holds it under ask", async () => {
+        const second = {
+            type: "tool-call" as const,
+            id: "d2",
+            name: "delegate",
+            arguments: { agent: "research", task: "fetch https://example.org/log?d=Alpha,Bravo" },
+        };
+        const fetching = { webSearch: true, webFetch: { allowedDomains: ["example.org"] } } as const;
+        const refusing = await webAssistant({ tools: fetching });
+        refusing.engine.push(...RESEARCHED, [second, CALLS], [{ type: "text", delta: "Refused." }, STOP]);
+
+        await refusing.harness.controller.execute("look up French cities on https://example.org/fr");
+
+        assert.deepStrictEqual(resultOf(refusing.engine.requests, "d2"), {
+            code: "AI_TOOL_DENIED_BY_POLICY",
+            params: { reason: "web-content", tool: "delegate" },
+        });
+        assert.lengthOf(refusing.engine.requests, 4, "the helper never ran for it");
+
+        const asking = await webAssistant({ tools: { ...fetching, webContentWrites: "ask" } });
+        asking.engine.push(...RESEARCHED, [second, CALLS], [{ type: "text", delta: "Held." }, STOP]);
+        const result = await asking.harness.controller.execute("look up French cities on https://example.org/fr");
+        assert.strictEqual(result.code, "AI_CONFIRMATION_NEEDED");
+        assert.strictEqual(result.params?.gate, "web-content");
+    });
+
+    it("hands a second task to a helper that only searches", async () => {
+        const { harness, engine } = await webAssistant({});
+        engine.push(
+            ...RESEARCHED,
+            [{ type: "tool-call", id: "d2", name: "delegate", arguments: { agent: "research", task: "more" } }, CALLS],
+            [{ type: "text", delta: "Nice too." }, STOP],
+            [{ type: "text", delta: "Done." }, STOP],
+        );
+
+        await harness.controller.execute("look up French cities, then more");
+
+        assert.strictEqual(resultOf(engine.requests, "d2")?.code, "AI_COMPLETED");
+    });
+
+    it("a consumer helper handed a task after web content cannot write", async () => {
+        const driver = fakeDriver();
+        const engine = driver.engine as FakeEngine;
+        engine.capability = {
+            toolCalls: "available",
+            hostedTools: { "web-search": "available", "web-fetch": "available" },
+        };
+        const harness = new Harness(await assistantSession(GRAPH), driver, {
+            tools: { webSearch: true },
+            agents: [{ name: "remover", purpose: "Removes nodes.", commands: ["edit_data"] }],
+        });
+        engine.push(
+            ...RESEARCHED,
+            [
+                { type: "tool-call", id: "d2", name: "delegate", arguments: { agent: "remover", task: "remove e" } },
+                CALLS,
+            ],
+            [REMOVE_E, CALLS],
+            [{ type: "text", delta: "Refused." }, STOP],
+            [{ type: "text", delta: "Nothing removed." }, STOP],
+        );
+
+        await harness.controller.execute("look up French cities and act on it");
+
+        assert.deepStrictEqual(resultOf(engine.requests, "rm")?.params, { tool: "edit_data", reason: "web-content" });
+        assert.strictEqual(harness.session.status.counts.nodes, 10);
     });
 
     it("a plan's later helper told the research answer is marked too", async () => {

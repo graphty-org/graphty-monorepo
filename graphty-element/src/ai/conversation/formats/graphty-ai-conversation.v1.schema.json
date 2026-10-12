@@ -541,6 +541,31 @@
                                                                             "const": "web",
                                                                             "type": "string"
                                                                         },
+                                                                        "providerState": {
+                                                                            "additionalProperties": false,
+                                                                            "properties": {
+                                                                                "data": {},
+                                                                                "engine": {
+                                                                                    "minLength": 1,
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "model": {
+                                                                                    "minLength": 1,
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "provider": {
+                                                                                    "minLength": 1,
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "engine",
+                                                                                "provider",
+                                                                                "model",
+                                                                                "data"
+                                                                            ],
+                                                                            "type": "object"
+                                                                        },
                                                                         "sources": {
                                                                             "items": {
                                                                                 "additionalProperties": false,
@@ -631,6 +656,31 @@
                                         "origin": {
                                             "const": "web",
                                             "type": "string"
+                                        },
+                                        "providerState": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "data": {},
+                                                "engine": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "model": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "provider": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "engine",
+                                                "provider",
+                                                "model",
+                                                "data"
+                                            ],
+                                            "type": "object"
                                         },
                                         "sources": {
                                             "items": {

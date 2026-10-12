@@ -17,7 +17,12 @@ import {
 } from "../../catalog/ai";
 import type { AiAgentRole, AiHostedToolOptions, AiToolOptions } from "../agents";
 import { PROGRAM_IN_BUILD } from "../engine/programBuild";
-import type { EngineCapabilities, EngineHostedTool, HostedToolRequest } from "../engine/types";
+import {
+    type EngineCapabilities,
+    type EngineHostedTool,
+    hostedToolLimits,
+    type HostedToolRequest,
+} from "../engine/types";
 import { readerUrls } from "./readerUrls";
 
 /** The built-in helper that alone runs the web tools: a reserved role name. */
@@ -140,8 +145,8 @@ export function capabilitiesOf(
 
 /**
  * The web tools a configuration asks for, each kept when the provider and model can use it as
- * asked, else left out and reported. A search limited to some domains on Google, which has no
- * domain filter, cannot be used as asked.
+ * asked, else left out and reported. A search limited to some domains on a provider whose search
+ * has no domain filter (Google) cannot be used as asked.
  * @param options - The tool options.
  * @param capabilities - What the provider and model can use.
  * @returns The tools offered and the ones left out.
@@ -156,7 +161,10 @@ export function resolveTools(options: AiToolOptions | undefined, capabilities: A
         }
 
         const { maxUses, allowedDomains, required = false }: AiHostedToolOptions = asked === true ? {} : asked;
-        const unfiltered = tool === "web-search" && allowedDomains !== undefined && capabilities.provider === "google";
+        const unfiltered =
+            tool === "web-search" &&
+            allowedDomains !== undefined &&
+            !hostedToolLimits(capabilities.provider).searchDomainFilter;
         if (capabilities.tools[tool] === "available" && !unfiltered) {
             offered.push({
                 tool,

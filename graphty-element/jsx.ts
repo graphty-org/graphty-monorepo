@@ -343,7 +343,7 @@ export interface GraphtyElementJSXProps {
      */
     "onai-export-ready"?: (event: CustomEvent<EventOfType<"ai-export-ready">>) => void;
     /**
-     * A tool the provider ran for the assistant (a web search, reading a web page) finished. Draw its sources as text or as links, http and https only.
+     * A tool the provider ran for the assistant (a web search, reading a web page) finished, or a helper that had it answered without using it. Draw its sources as text or as links, http and https only.
      */
     "onai-hosted-tool-result"?: (event: CustomEvent<EventOfType<"ai-hosted-tool-result">>) => void;
     /**

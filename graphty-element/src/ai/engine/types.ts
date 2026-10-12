@@ -154,7 +154,7 @@ export interface TurnRequest {
 
 /**
  * Why a turn finished: `paused` when the provider stopped a turn that used one of its own tools
- * before the model answered.
+ * before the model answered; sending the turn back continues it.
  */
 export type TurnFinishCode = "stop" | "tool-calls" | "paused";
 
@@ -179,6 +179,11 @@ export type TurnEvent =
           readonly tool: EngineHostedTool;
           readonly status: "done" | "result-unavailable";
           readonly sources: readonly HostedToolSource[];
+          /**
+           * The call and its result as the provider wrote them, for an engine that sends them
+           * back (a paused turn continues from them); opaque to everything else.
+           */
+          readonly providerState?: ProviderState;
       }
     | { readonly type: "usage"; readonly inputTokens: number; readonly outputTokens: number }
     | { readonly type: "finish"; readonly reason: TurnFinishCode }
@@ -208,6 +213,32 @@ export interface EngineCapabilities {
     readonly toolCalls: EngineCapabilityStatus;
     /** Each tool the provider runs itself, and whether this engine can offer it. */
     readonly hostedTools: Readonly<Record<EngineHostedTool, EngineCapabilityStatus>>;
+}
+
+/**
+ * How a provider's own tools sit beside graphty's: the facts the engine-neutral core reads (which
+ * web tools to offer, which helpers can run) instead of comparing provider names.
+ */
+export interface HostedToolLimits {
+    /** Web search takes a domain filter (`allowedDomains`). */
+    readonly searchDomainFilter: boolean;
+    /** A turn that offers one of the provider's tools may also declare function tools. */
+    readonly withFunctionTools: boolean;
+}
+
+/** The providers whose own tools are limited: Gemini's Google Search has no domain filter and no function tools beside it. */
+const HOSTED_TOOL_LIMITS: ReadonlyMap<string, HostedToolLimits> = new Map([
+    ["google", { searchDomainFilter: false, withFunctionTools: false }],
+]);
+
+/**
+ * How a provider's own tools sit beside graphty's. The one place these facts live: the adapter
+ * and the core both read them.
+ * @param provider - The provider's name.
+ * @returns Its limits; none for a provider not listed.
+ */
+export function hostedToolLimits(provider: string): HostedToolLimits {
+    return HOSTED_TOOL_LIMITS.get(provider) ?? { searchDomainFilter: true, withFunctionTools: true };
 }
 
 /** No tool the provider runs itself. */

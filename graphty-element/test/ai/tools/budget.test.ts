@@ -20,7 +20,7 @@ import { ASK_READER_TOOL } from "../../../src/ai/questions";
 import { turnTools } from "../../../src/ai/runConversation";
 import { researchRole } from "../../../src/ai/tools/hosted";
 import { installAssistantTools } from "../../../src/ai/tools/install";
-import { RUN_CODE_TOOL } from "../../../src/ai/tools/program";
+import { RUN_CODE_TOOL } from "../../../src/ai/tools/runCode";
 import { isAssistantTool } from "../../../src/ai/tools/toolset";
 import { clearRegisteredLayoutsForTesting } from "../../../src/catalog/layoutRegistry";
 import { clearRegisteredAlgorithmsForTesting } from "../../../src/catalog/registry";

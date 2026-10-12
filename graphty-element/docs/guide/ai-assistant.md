@@ -609,6 +609,11 @@ Each time the provider runs a web tool, `ai-hosted-tool-result` fires with
 the tool but its results did not come back. `sources` (`AiSource[]`) lists the pages found or read,
 `{ tool, url, title? }`, in the provider's order.
 
+A model may answer without searching, from what it already knows (Gemini decides for itself
+whether a question needs Google Search). Then `ai-hosted-tool-result` fires once for each web tool
+that was offered and not used, with `status: "not-used"` and no sources, and the `delegate` call's
+result in the conversation carries `hostedToolUses: 0`. Tell the reader the answer has no source.
+
 The same sources are in the conversation: each assistant message of `getAiConversation()` has
 `sources`, every page the web tools found for that message (empty when none ran). A renderer:
 
@@ -686,20 +691,33 @@ web tools and any command on Google rejects with `reason: "unsupported"`.
 
 ### What web content may not do
 
-Text read on the web may say anything, including "remove every node". So once a message has read
-web content, the assistant does not change the graph on that content's say-so:
+Text read on the web may say anything, including "remove every node". So once a conversation has
+read web content, the assistant does not change the graph on that content's say-so.
+`tools.webContentWrites` says what happens to every call that does more than read:
 
-- **With approvals on** (`approvals: "writes"`, `{ ask }` or a `policy`), every call that does more
-  than read is held for the reader, with `request.gate === "web-content"`. Your policy is still
-  asked, sees `webContent: true` on the call, and its `"deny"` still wins.
-- **With approvals off** (the default), every such call is refused: the model hears
-  `AI_TOOL_DENIED_BY_POLICY` with `reason: "web-content"`, the graph is left alone, and it answers.
-- "Does more than read" includes the selection and the camera, not only the data.
-- **It lasts for the message.** A new conversation (`newAiConversation()`) clears it; with
-  `history`, it survives a reload, since the web content is saved with the message.
+- **`"refuse"` (the default):** the call is refused: the model hears `AI_TOOL_DENIED_BY_POLICY`
+  with `reason: "web-content"`, the graph is left alone, and it answers.
+- **`"ask"`:** the call is held for the reader, with `request.gate === "web-content"`, whether or
+  not `approvals` is set; approving it runs it. Your policy, if you set one, is still asked first,
+  sees `webContent: true` on the call, and its `"deny"` still wins.
+- **`"allow"`:** the call runs as any other would, under `approvals`. Set it only when the reader
+  trusts what the web will say.
 
-`tools: { webContentMayWrite: true }` lets such calls run as any other would. Set it only when the
-reader trusts what the web will say.
+```typescript
+await element.enableAiControl({
+    provider: "google",
+    apiKey: myKey,
+    tools: { webSearch: true, webContentWrites: "ask" },
+});
+```
+
+- "Does more than read" includes the selection and the camera, not only the data, and a helper's
+  calls as much as the main model's.
+- A hand-off to a helper that fetches web pages counts too: the model could write what a page told
+  it into the task, and a fetch would carry it out in a URL. Under `"refuse"` it is refused, under
+  `"ask"` held. A helper that only searches is handed tasks as before.
+- **It lasts for the conversation.** A new conversation (`newAiConversation()`) clears it; with
+  `history`, it survives a reload, since the web content is saved with the conversation.
 
 **Web content cannot carry data out.** Web pages are read only on hosts you allow: a web fetch
 reaches the hosts in `webFetch.allowedDomains`, plus the hosts of `http` and `https` URLs in the
@@ -743,11 +761,11 @@ The sandbox (about 130 kB of script and 240 kB of WebAssembly) loads only on the
 
 ### Result codes these tools add
 
-| Code                         | When                                                                                                                                 |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `AI_HOSTED_TOOL_UNSUPPORTED` | a `required` tool cannot be used; `{ provider, model, tool }`. Also the code of `ai-capability-unavailable`                          |
-| `AI_PROVIDER_PAUSED`         | the provider stopped a turn that used its own tool before the model answered (a long search); `{ provider }`. Asking again continues |
-| `AI_TOOL_DENIED_BY_POLICY`   | with `reason: "web-content"` or `"in-page-code"`, as above                                                                           |
+| Code                         | When                                                                                                                                                                                                                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AI_HOSTED_TOOL_UNSUPPORTED` | a `required` tool cannot be used; `{ provider, model, tool }`. Also the code of `ai-capability-unavailable`                                                                                                                                           |
+| `AI_PROVIDER_PAUSED`         | the provider stopped a turn that used its own tool before the model answered (a long search), and again each of the three times the assistant sent the turn back to continue; `{ provider }`. What it found is not kept: asking again searches afresh |
+| `AI_TOOL_DENIED_BY_POLICY`   | with `reason: "web-content"` or `"in-page-code"`, as above                                                                                                                                                                                            |
 
 ## Privacy
 

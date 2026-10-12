@@ -4,7 +4,7 @@
  * published declarations with no cast.
  *
  * The config must take `tools` (`webSearch`, `webFetch` with `maxUses`, `allowedDomains` and
- * `required`, `inPageCode`, `webContentMayWrite`) and a role's `tools`; `ai-hosted-tool-result` and
+ * `required`, `inPageCode`, `webContentWrites`) and a role's `tools`; `ai-hosted-tool-result` and
  * `ai-capability-unavailable` must reach an element listener with a typed `detail`; an assistant
  * message must carry `sources`; `getAiCapabilities()` must return per-tool statuses; and the
  * catalog must export the table and `aiHostedToolStatus`. Nothing here runs;
@@ -113,7 +113,7 @@ export async function advancedTools(myKey: string): Promise<AiCapabilityStatus |
             webSearch: { maxUses: 3, allowedDomains: ["wikipedia.org"] },
             webFetch: { allowedDomains: ["example.org"] },
             inPageCode: { required: true },
-            webContentMayWrite: false,
+            webContentWrites: "ask",
         },
         agents: [
             {

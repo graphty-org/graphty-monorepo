@@ -113,6 +113,7 @@ export const anthropic: ProviderModule = {
                 ? webSearchTool({ name: "web_search", type: "web_search_20250305", ...limits(request) })
                 : webFetchTool(limits(request)),
         ),
+    pausesTurns: true,
     modelOptions: (request, settings) => ({
         ...(request.tools.length > 0 && { tool_choice: { type: request.toolMode } }),
         max_tokens: request.maxOutputTokens ?? settings.maxTokens ?? maxOutputTokens(settings.model),

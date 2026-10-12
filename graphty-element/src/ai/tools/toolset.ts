@@ -529,6 +529,11 @@ function buildIndex(
             summary: `A ${entry.domainKind} scale.`,
             tool: "style",
             action: "encode",
+            // Its options, and what a midpoint is for: a search for a diverging encoding finds it.
+            words: [
+                ...entry.options.map((option) => option.name),
+                ...(entry.options.some((option) => option.name === "midpoint") ? ["diverging", "center"] : []),
+            ],
         })),
         ...catalog.channels.map((entry) => ({
             kind: "channel" as const,

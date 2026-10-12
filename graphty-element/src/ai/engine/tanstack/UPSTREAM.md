@@ -14,11 +14,22 @@ fixes the cause.
   the beta in `computeAnthropicBetas` when a `web_fetch` provider tool is present.
 - **`pause_turn` is reported as a plain stop.** The stream's `message_delta` maps every stop
   reason other than `tool_use` and `max_tokens` to `RUN_FINISHED` with finish reason `stop`, so a
-  turn the API paused during a long server-tool run looks finished. Workaround: `ChunkReader` in
-  `index.ts` finishes a turn that had a provider-run tool and ends with no text and no call as
-  `"paused"`. To report: pass `pause_turn` through as its own finish reason.
+  turn the API paused during a long server-tool run looks finished. Workaround: on Anthropic only
+  (`pausesTurns` in `anthropic.ts`), `ChunkReader` in `index.ts` finishes a turn that had a
+  provider-run tool and ends with no text and no call as `"paused"`; elsewhere such a turn is an
+  empty answer. The loop sends a paused turn back, its `server_tool_use` blocks and results
+  carried as provider state, up to three times. To report: pass `pause_turn` through as its own
+  finish reason.
 
 ## In-page code: `@tanstack/ai-isolate-quickjs` 0.3.2 over `quickjs-emscripten` 0.31.0
+
+The in-page code sandbox is not part of the provider engine: a program runs in the page whichever
+engine or model wrote it, the in-browser model's included. It sits in this folder only because its
+driver is a TanStack package, and only this folder may import one. So it is a second seam: the
+loop reaches it through `loadProgramRunner()` and the `ProgramRunner` type in `../load.ts` and
+`../types.ts`, never through the engine. **Replacing the provider engine does not replace the
+sandbox**: move `program.ts` with its own driver, or keep this folder's TanStack Code Mode
+dependency for it alone.
 
 `program.ts` uses Code Mode's QuickJS driver (`createQuickJSIsolateDriver`) and `stripTypeScript`
 directly. The driver builds for browsers with Vite and with webpack

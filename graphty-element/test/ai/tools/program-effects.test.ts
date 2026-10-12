@@ -11,7 +11,7 @@ import { assert, describe, it } from "vitest";
 import { createGraphSession } from "../../../session";
 import { CommandRegistry } from "../../../src/ai/commands";
 import { installAssistantTools } from "../../../src/ai/tools/install";
-import { type BoundAction, boundActions } from "../../../src/ai/tools/program";
+import { type BoundAction, boundActions } from "../../../src/ai/tools/runCode";
 import { AssistantTool, isAssistantTool } from "../../../src/ai/tools/toolset";
 
 /**

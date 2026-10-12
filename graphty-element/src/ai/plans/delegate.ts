@@ -39,7 +39,7 @@ import {
     TurnFailed,
 } from "../runConversation";
 import type { ToolCallRequest } from "../ToolExecutor";
-import type { HostedToolSetting } from "../tools/hosted";
+import { type HostedToolSetting, turnHostedTools } from "../tools/hosted";
 import { assistantInstructions, factsBlock } from "../tools/prompt";
 import { resultText } from "../tools/shape";
 import { isAssistantTool } from "../tools/toolset";
@@ -117,15 +117,41 @@ export function engineOf(role: AiAgentRole, options: DelegationOptions): { engin
  * @param role - The role.
  * @param tools - Its commands.
  * @param parent - The main run, for the profile.
+ * @param web - It has web tools: it is told to use them rather than answer from memory.
  * @returns The system prompt.
  */
-function helperSystem(role: AiAgentRole, tools: CommandRegistry, parent: ConversationRun): string {
+function helperSystem(role: AiAgentRole, tools: CommandRegistry, parent: ConversationRun, web: boolean): string {
     const names = tools.getNames();
     const base = tools.getAll().some(isAssistantTool)
         ? `${assistantInstructions(parent.profile ?? "standard", [], names)}\n`
         : "";
+    const search = web ? "\nUse your web tools before you answer: never answer from memory alone." : "";
     return `${base}You are "${role.name}", a helper of the assistant. Your purpose: ${role.purpose}
-Do only the task you are given, with your tools, then answer in plain text with what you found or changed. You cannot ask the reader anything.`;
+Do only the task you are given, with your tools, then answer in plain text with what you found or changed. You cannot ask the reader anything.${search}`;
+}
+
+/**
+ * A helper's messages as the message keeps them: a provider-run call's round-trip state, needed
+ * only while its turn is continued, is dropped.
+ * @param messages - The helper's messages.
+ * @returns Them, without it.
+ */
+function kept(messages: readonly SavedMessage[]): SavedMessage[] {
+    return messages.map((message) =>
+        message.parts.some((part) => part.type === "hosted-tool" && part.providerState !== undefined)
+            ? {
+                  ...message,
+                  parts: message.parts.map((part) => {
+                      if (part.type !== "hosted-tool") {
+                          return part;
+                      }
+
+                      const { providerState: _dropped, ...rest } = part;
+                      return rest;
+                  }),
+              }
+            : message,
+    );
 }
 
 /**
@@ -256,6 +282,7 @@ function helperTools(role: AiAgentRole, parent: ConversationRun): CommandRegistr
  * @param task - The task.
  * @param answers - What earlier helpers of the message answered.
  * @param parent - The main run.
+ * @param hosted - The helper has web tools.
  * @returns The conversation.
  */
 function helperConversation(
@@ -264,6 +291,7 @@ function helperConversation(
     task: string,
     answers: readonly HelperAnswer[],
     parent: ConversationRun,
+    hosted: boolean,
 ): Conversation {
     const tools = helperTools(role, parent);
     const first: SavedMessage = {
@@ -294,7 +322,7 @@ function helperConversation(
             { type: "text", origin: "graphty", text: task },
         ],
     };
-    return { system: helperSystem(role, tools, parent), messages: [first] };
+    return { system: helperSystem(role, tools, parent, hosted), messages: [first] };
 }
 
 /**
@@ -402,20 +430,31 @@ async function runHelper(
         }
     }
 
-    sink.emit({ type: "ai-agent-end", agent: role.name, code: outcome.code, params: outcome.params, usage });
+    const ran = conversation.messages.slice(from);
+    // The web tools it was offered that never ran: the model answered from memory. Reported, as
+    // the reader asked for the web and got no source.
+    const uses = ran.flatMap((message) => message.parts).filter((part) => part.type === "hosted-tool").length;
+    if (hostedTools.length > 0 && uses === 0 && held === undefined) {
+        for (const { tool } of turnHostedTools(hostedTools, parent.host?.readerText ?? parent.label, {})) {
+            sink.emit({ type: "ai-hosted-tool-result", tool, status: "not-used", sources: [] });
+        }
+    }
+
+    const facts = hostedTools.length === 0 ? outcome.params : { ...outcome.params, hostedToolUses: uses };
+    sink.emit({ type: "ai-agent-end", agent: role.name, code: outcome.code, params: facts, usage });
     const ref: SavedPart = {
         type: "agent-ref",
         origin: "graphty",
         agent: role.name,
         callId: call.id,
-        messages: conversation.messages.slice(from) as HelperMessages,
+        messages: kept(ran) as HelperMessages,
     };
     if (held !== undefined) {
         // No result yet: the reader's decision continues the helper, which then answers the call.
         return { usage, parts: [ref], held };
     }
 
-    const params = { ...outcome.params, agent: role.name };
+    const params = { ...facts, agent: role.name };
     return {
         usage,
         ...(outcome.code === "AI_PROVIDER_PAUSED" ? { paused: outcome.params } : {}),
@@ -587,7 +626,14 @@ export function delegation(options: DelegationOptions): Delegation {
                 role,
                 call,
                 task,
-                helperConversation(role, call, task, answers, within),
+                helperConversation(
+                    role,
+                    call,
+                    task,
+                    answers,
+                    within,
+                    (options.hosted?.get(role.name) ?? []).length > 0,
+                ),
                 within,
                 shared,
                 options,
@@ -627,6 +673,11 @@ export function delegation(options: DelegationOptions): Delegation {
 
     return {
         tool,
+        fetches: new Set(
+            [...(options.hosted ?? [])].flatMap(([name, tools]) =>
+                tools.some((setting) => setting.tool === "web-fetch") ? [name] : [],
+            ),
+        ),
         run,
         resume: async (callId, decided, parent, state): Promise<DelegatedRun> => {
             const refs = parent.conversation.messages
@@ -654,7 +705,10 @@ export function delegation(options: DelegationOptions): Delegation {
                 role,
                 call,
                 task ?? "",
-                { system: helperSystem(role, tools, parent), messages },
+                {
+                    system: helperSystem(role, tools, parent, (options.hosted?.get(role.name) ?? []).length > 0),
+                    messages,
+                },
                 parent,
                 state,
                 options,

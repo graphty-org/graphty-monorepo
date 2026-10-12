@@ -309,7 +309,7 @@ export interface AiHostedToolOptions {
 // @public
 export interface AiHostedToolResultEvent {
     sources: readonly AiSource[];
-    status: "done" | "result-unavailable";
+    status: "done" | "result-unavailable" | "not-used";
     tool: AiHostedToolId;
     type: "ai-hosted-tool-result";
 }
@@ -476,7 +476,7 @@ export interface AiToolCallFacts {
 // @public
 export interface AiToolOptions {
     readonly inPageCode?: boolean | Pick<AiHostedToolOptions, "required">;
-    readonly webContentMayWrite?: boolean;
+    readonly webContentWrites?: "refuse" | "ask" | "allow";
     readonly webFetch?: boolean | AiHostedToolOptions;
     readonly webSearch?: boolean | AiHostedToolOptions;
 }

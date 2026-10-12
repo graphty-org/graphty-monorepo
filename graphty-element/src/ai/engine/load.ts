@@ -59,7 +59,9 @@ export interface ProgramModule {
 
 /**
  * Load the in-page code sandbox (TanStack Code Mode's QuickJS driver and its WebAssembly), its own
- * chunk, on the first program. Not an engine method: code runs in the page whichever engine wrote it.
+ * chunk, on the first program. Not an engine method: code runs in the page whichever engine wrote
+ * it. A seam of its own that lives in `./tanstack/` only for its driver (`./tanstack/UPSTREAM.md`):
+ * replacing the provider engine leaves it in place.
  * @returns The sandbox.
  */
 export async function loadProgramRunner(): Promise<ProgramModule> {

@@ -50,6 +50,22 @@ async function events(
     return out;
 }
 
+/**
+ * A turn's provider-run tools, without the round-trip state a provider that pauses turns adds.
+ * @param out - The turn's events.
+ * @returns Its hosted-tool events.
+ */
+function hostedOf(out: TurnEvent[]): TurnEvent[] {
+    return out.flatMap((event) => {
+        if (event.type !== "hosted-tool") {
+            return [];
+        }
+
+        const { providerState: _state, ...rest } = event;
+        return [rest];
+    });
+}
+
 /** The turn's error, which a failed turn ends with. */
 function lastError(out: TurnEvent[]): Extract<TurnEvent, { type: "error" }> {
     const last = out.at(-1);
@@ -522,10 +538,9 @@ describe.each(PROVIDERS)("%s: web search, run by the provider", (provider) => {
         const { engine, reply, requests } = providerApiFixture(provider);
         reply({ hosted: [{ tool: "search", pages: PAGES }], text: "It opened in 1889." });
         const out = await events(engine, request({ hostedTools: [SEARCH] }));
-        assert.deepStrictEqual(
-            out.filter((e) => e.type === "hosted-tool"),
-            [{ type: "hosted-tool", tool: "web-search", status: "done", sources: PAGES }],
-        );
+        assert.deepStrictEqual(hostedOf(out), [
+            { type: "hosted-tool", tool: "web-search", status: "done", sources: PAGES },
+        ]);
         assert.strictEqual(out.flatMap((e) => (e.type === "text" ? [e.delta] : [])).join(""), "It opened in 1889.");
         assert.notOk(out.some((e) => e.type === "tool-call" || e.type === "error"));
         assert.deepStrictEqual(out.at(-1), { type: "finish", reason: "stop" });
@@ -581,14 +596,21 @@ describe.each(PROVIDERS)("%s: web search, run by the provider", (provider) => {
         }
     });
 
+    it("finishes a search with no text as a plain stop, except on Anthropic, which pauses such turns", async () => {
+        const { engine, reply } = providerApiFixture(provider);
+        reply({ hosted: [{ tool: "search", pages: PAGES }] });
+        const out = await events(engine, request({ hostedTools: [SEARCH] }));
+        // TanStack reports Anthropic's pause_turn as a stop, so there such a turn is taken as paused.
+        assert.deepStrictEqual(out.at(-1), { type: "finish", reason: provider === "anthropic" ? "paused" : "stop" });
+    });
+
     it("keeps only http and https sources, and reports a search with none as result-unavailable", async () => {
         const { engine, reply } = providerApiFixture(provider);
         reply({ hosted: [{ tool: "search", pages: [{ url: "javascript:alert(1)", title: "x" }] }], text: "None." });
         const out = await events(engine, request({ hostedTools: [SEARCH] }));
-        assert.deepStrictEqual(
-            out.filter((e) => e.type === "hosted-tool"),
-            [{ type: "hosted-tool", tool: "web-search", status: "result-unavailable", sources: [] }],
-        );
+        assert.deepStrictEqual(hostedOf(out), [
+            { type: "hosted-tool", tool: "web-search", status: "result-unavailable", sources: [] },
+        ]);
     });
 });
 
@@ -628,20 +650,18 @@ describe("Anthropic's web search and web fetch", () => {
         const { engine, reply } = providerApiFixture("anthropic");
         reply({ hosted: [{ tool: "fetch", pages: [PAGE] }], text: "It says so." });
         const out = await events(engine, request({ hostedTools: [{ tool: "web-fetch" }] }));
-        assert.deepStrictEqual(
-            out.filter((e) => e.type === "hosted-tool"),
-            [{ type: "hosted-tool", tool: "web-fetch", status: "done", sources: [PAGE] }],
-        );
+        assert.deepStrictEqual(hostedOf(out), [
+            { type: "hosted-tool", tool: "web-fetch", status: "done", sources: [PAGE] },
+        ]);
     });
 
     it("reports a web_search_tool_result_error as result-unavailable", async () => {
         const { engine, reply } = providerApiFixture("anthropic");
         reply({ hosted: [{ tool: "search", error: "max_uses_exceeded" }], text: "I could not search." });
         const out = await events(engine, request({ hostedTools: [{ tool: "web-search" }] }));
-        assert.deepStrictEqual(
-            out.filter((e) => e.type === "hosted-tool"),
-            [{ type: "hosted-tool", tool: "web-search", status: "result-unavailable", sources: [] }],
-        );
+        assert.deepStrictEqual(hostedOf(out), [
+            { type: "hosted-tool", tool: "web-search", status: "result-unavailable", sources: [] },
+        ]);
         assert.deepStrictEqual(out.at(-1), { type: "finish", reason: "stop" });
     });
 
@@ -652,5 +672,43 @@ describe("Anthropic's web search and web fetch", () => {
         assert.deepStrictEqual(out.at(-1), { type: "finish", reason: "paused" });
         assert.notOk(out.some((e) => e.type === "tool-call"));
         assert.strictEqual(requests.length, 1);
+    });
+
+    it("sends a paused turn back with its server_tool_use block and result, so the provider continues", async () => {
+        const { engine, reply, requests } = providerApiFixture("anthropic");
+        reply({ hosted: [{ tool: "search", pages: [PAGE] }], paused: true });
+        const paused = await events(engine, request({ hostedTools: [{ tool: "web-search" }] }));
+        const searched = paused.find((e) => e.type === "hosted-tool");
+        assert.ok(searched?.type === "hosted-tool" && searched.providerState !== undefined, "the state is kept");
+
+        reply({ text: "It says so." });
+        const turn = request({ hostedTools: [{ tool: "web-search" }] });
+        await events(engine, {
+            ...turn,
+            messages: [
+                ...turn.messages,
+                {
+                    id: "a1",
+                    role: "assistant",
+                    parts: [
+                        {
+                            type: "hosted-tool",
+                            origin: "web",
+                            tool: "web-search",
+                            status: "done",
+                            sources: [PAGE],
+                            ...(searched?.type === "hosted-tool" && { providerState: searched.providerState }),
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const sent = (requests[1].body.messages as { role: string; content: { type: string }[] }[]).at(-1);
+        assert.strictEqual(sent?.role, "assistant");
+        assert.deepStrictEqual(
+            sent?.content.map((block) => block.type),
+            ["server_tool_use", "web_search_tool_result"],
+        );
     });
 });

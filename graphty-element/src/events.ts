@@ -927,16 +927,21 @@ export interface AiAgentEndEvent {
 }
 
 /**
- * A tool the provider ran for the assistant (a web search, reading a web page) finished. Draw its
- * sources as text or as links, http and https only.
+ * A tool the provider ran for the assistant (a web search, reading a web page) finished, or a
+ * helper that had it answered without using it. Draw its sources as text or as links, http and
+ * https only.
  */
 export interface AiHostedToolResultEvent {
     /** The event's name. */
     type: "ai-hosted-tool-result";
     /** The tool. */
     tool: AiHostedToolId;
-    /** `"done"`, or `"result-unavailable"` when the provider ran it but its results did not come back. */
-    status: "done" | "result-unavailable";
+    /**
+     * `"done"`; `"result-unavailable"` when the provider ran it but its results did not come back;
+     * `"not-used"` when the helper offered it answered without running it (from the model's own
+     * knowledge), so there are no sources.
+     */
+    status: "done" | "result-unavailable" | "not-used";
     /** The pages it read or found, in the provider's order. */
     sources: readonly AiSource[];
 }

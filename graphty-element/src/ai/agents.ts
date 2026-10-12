@@ -46,10 +46,13 @@ export interface AiToolOptions {
      */
     readonly inPageCode?: boolean | Pick<AiHostedToolOptions, "required">;
     /**
-     * Let commands that change the graph run while the message holds web content. Default false:
-     * they wait for the reader's approval, or are refused when approvals are off.
+     * What happens to a command that changes the graph, or a hand-off to a helper that reads the
+     * web, while the conversation holds text read on the web: `"refuse"` (the default) refuses it
+     * (`AI_TOOL_DENIED_BY_POLICY` with `reason: "web-content"`); `"ask"` holds it for the reader's
+     * approval (`ai-approval-requested` with gate `"web-content"`), whether or not `approvals` is
+     * set; `"allow"` runs it as any other call, under `approvals`.
      */
-    readonly webContentMayWrite?: boolean;
+    readonly webContentWrites?: "refuse" | "ask" | "allow";
 }
 
 /** One helper the assistant may hand a task to. */

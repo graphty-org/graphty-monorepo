@@ -277,20 +277,84 @@ describe("the research helper, on the scripted engine", () => {
         assert.isUndefined(harness.driver.requests[3].hostedTools, "spent: the second helper has no search");
     });
 
-    it("a turn the provider paused resolves the message AI_PROVIDER_PAUSED", async () => {
+    it("sends a turn the provider paused back, which continues it, and the message completes", async () => {
+        const session = await assistantSession();
+        const harness = new Harness(session, webDriver(), { tools: { webSearch: true }, history: "memory" });
+        const engine = harness.driver.engine as FakeEngine;
+        const state = { engine: "provider-api", provider: "anthropic", model: "m", data: { id: "srv_1" } };
+        engine.push(
+            research("search long"),
+            [
+                { type: "hosted-tool", tool: "web-search", status: "done", sources: [EIFFEL], providerState: state },
+                { type: "finish", reason: "paused" },
+            ],
+            [
+                { type: "text", delta: "It opened in 1889." },
+                { type: "finish", reason: "stop" },
+            ],
+            [
+                { type: "text", delta: "1889." },
+                { type: "finish", reason: "stop" },
+            ],
+        );
+
+        const result = await harness.controller.execute("search for a long time");
+
+        assert.strictEqual(result.code, "AI_COMPLETED");
+        const continued = harness.driver.requests[2].messages.at(-1);
+        assert.strictEqual(continued?.role, "assistant", "the paused turn is sent back as it was");
+        assert.deepInclude(continued?.parts[0] ?? {}, { type: "hosted-tool", providerState: state });
+        // The state is needed only to continue the turn: the saved conversation does not keep it.
+        const saved = await harness.controller.exportConversation(harness.controller.getConversation()?.id ?? "");
+        assert.include(saved ?? "", "hosted-tool");
+        assert.notInclude(saved ?? "", "srv_1");
+    });
+
+    it("ends the message AI_PROVIDER_PAUSED when the provider keeps pausing, after three re-sends", async () => {
         const session = await assistantSession();
         const harness = new Harness(session, webDriver(), { tools: { webSearch: true } });
         const engine = harness.driver.engine as FakeEngine;
-        engine.push(research("search long"), [
+        const pausedTurn: TurnEvent[] = [
             { type: "hosted-tool", tool: "web-search", status: "done", sources: [EIFFEL] },
             { type: "finish", reason: "paused" },
-        ]);
+        ];
+        engine.push(research("search long"), pausedTurn, pausedTurn, pausedTurn, pausedTurn);
 
         const result = await harness.controller.execute("search for a long time");
 
         assert.strictEqual(result.code, "AI_PROVIDER_PAUSED");
         assert.deepStrictEqual(result.params, { provider: "fake" });
-        assert.lengthOf(harness.driver.requests, 2, "the main model is not asked again");
+        assert.lengthOf(harness.driver.requests, 5, "one turn and three re-sends; the main model is not asked again");
+    });
+
+    it("reports a search the helper never ran: not-used on the event, hostedToolUses 0 on the hand-off", async () => {
+        const session = await assistantSession();
+        const harness = new Harness(session, webDriver(), { tools: { webSearch: true }, history: "memory" });
+        const engine = harness.driver.engine as FakeEngine;
+        engine.push(
+            research("When did the Eiffel Tower open?"),
+            [
+                { type: "text", delta: "1889, from memory." },
+                { type: "finish", reason: "stop" },
+            ],
+            [
+                { type: "text", delta: "1889." },
+                { type: "finish", reason: "stop" },
+            ],
+        );
+
+        await harness.controller.execute("search the web for when the Eiffel Tower opened");
+
+        assert.include(harness.driver.requests[1].system, "Use your web tools before you answer");
+        assert.deepStrictEqual(
+            harness.events.filter((event) => event.type === "ai-hosted-tool-result"),
+            [{ type: "ai-hosted-tool-result", tool: "web-search", status: "not-used", sources: [] }],
+        );
+        const calls = (harness.controller.getConversation()?.messages ?? []).flatMap((message) =>
+            message.role === "assistant" ? message.calls : [],
+        );
+        const handOff = calls.find((call) => call.command === "delegate");
+        assert.strictEqual(handOff?.params.hostedToolUses, 0);
     });
 
     it("getCapabilities reads the engine for web tools and the catalog for why not", async () => {

@@ -108,6 +108,8 @@ const hostedToolPart = z.strictObject({
             title: z.string().optional(),
         }),
     ),
+    /** The call and its result as the provider wrote them, for the engine that wrote them only. */
+    providerState: providerStateSchema.optional(),
 });
 
 const role = z.enum(["user", "assistant", "tool"]);

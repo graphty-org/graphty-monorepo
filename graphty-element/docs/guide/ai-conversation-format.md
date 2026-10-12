@@ -127,7 +127,7 @@ assistant message, in the helper's conversation inside its `agent-ref`, with the
 ```
 
 A record whose `sources` hold an address that is not `http` or `https` is invalid. `"web"` parts
-are what makes a message hold web content (see
+are what makes a conversation hold web content (see
 [what web content may not do](./ai-assistant#what-web-content-may-not-do)), so that survives a
 reload. When the model reads them again, they are marked as data, never as instructions.
 `getAiConversation()` gathers each assistant message's sources from these parts into its
@@ -142,7 +142,7 @@ words (`origin: "graph-data"`) and instructions (`origin: "graphty"`). `getAiCon
 them out; a page that shows a transcript from an exported record should show only `"reader"` and
 `"model"` text.
 
-**`providerState`** may appear on `tool-call` and `reasoning` parts:
+**`providerState`** may appear on `tool-call`, `reasoning` and `hosted-tool` parts:
 `{ engine, provider, model, data }`. It is the one opaque field, data a provider needs back on
 the next turn (a signature over the model's reasoning, for instance). It is sent back only to the
 same engine, provider and model, and any reader may drop it: a conversation without it continues.

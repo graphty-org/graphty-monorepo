@@ -14,6 +14,7 @@ import { chat, EventType, type ModelMessage, type StreamChunk } from "@tanstack/
 import { providerFailure } from "../LlmProviderEngine";
 import {
     type EngineHostedTool,
+    hostedToolLimits,
     type HostedToolRequest,
     type HostedToolSource,
     type ProviderApiSettings,
@@ -52,8 +53,11 @@ export interface ProviderModule {
      * request the provider cannot honor in full is left out.
      */
     hostedTools(requests: readonly HostedToolRequest[]): ChatTool[];
-    /** A turn with a hosted tool declares no function tools (Gemini cannot mix the two). */
-    readonly hostedOnly?: boolean;
+    /**
+     * The provider pauses a long turn of its own tools and continues it when the turn is sent
+     * back (Anthropic's `pause_turn`): its provider-run calls are kept, and sent back.
+     */
+    readonly pausesTurns?: boolean;
     /** The turn's tool mode, output limit and temperature, under this provider's own option names. */
     modelOptions(request: TurnRequest, settings: ProviderApiSettings): Record<string, unknown>;
     /**
@@ -153,6 +157,38 @@ function ownState(state: ProviderState | undefined, settings: ProviderApiSetting
         : undefined;
 }
 
+/** A provider-run call as this engine keeps it: what TanStack's adapter sends back. */
+interface HostedCallState {
+    readonly id: string;
+    readonly name: string;
+    readonly input: unknown;
+    readonly metadata: Record<string, unknown>;
+}
+
+/**
+ * A provider-run call this engine, provider and model wrote, as a TanStack tool call the adapter
+ * sends back (Anthropic: its `server_tool_use` block and result).
+ * @param part - The saved part.
+ * @param settings - The turn's provider and model.
+ * @returns The call, or none for a part without this engine's state.
+ */
+function hostedCall(
+    part: Extract<SavedMessage["parts"][number], { type: "hosted-tool" }>,
+    settings: ProviderApiSettings,
+): NonNullable<ModelMessage["toolCalls"]> {
+    const own = ownState(part.providerState, settings) as HostedCallState | undefined;
+    return own === undefined
+        ? []
+        : [
+              {
+                  id: own.id,
+                  type: "function",
+                  function: { name: own.name, arguments: JSON.stringify(own.input ?? {}) },
+                  metadata: own.metadata,
+              },
+          ];
+}
+
 /**
  * The conversation as TanStack messages: a tool message per tool result; a tool call carries its
  * provider state back only to the engine, provider and model that wrote it.
@@ -178,18 +214,20 @@ function toModelMessages(
                 calls.map((call) => ownState(call.providerState, settings)),
                 settings.model,
             );
+            const toolCalls = [
+                ...message.parts.flatMap((part) => (part.type === "hosted-tool" ? hostedCall(part, settings) : [])),
+                ...calls.map((call, index) => ({
+                    id: call.callId,
+                    type: "function" as const,
+                    function: { name: call.command, arguments: JSON.stringify(call.arguments) },
+                    ...(states[index] !== undefined && { metadata: states[index] }),
+                })),
+            ];
             return [
                 {
                     role: "assistant",
                     content: text === "" ? null : text,
-                    ...(calls.length > 0 && {
-                        toolCalls: calls.map((call, index) => ({
-                            id: call.callId,
-                            type: "function" as const,
-                            function: { name: call.command, arguments: JSON.stringify(call.arguments) },
-                            ...(states[index] !== undefined && { metadata: states[index] }),
-                        })),
-                    }),
+                    ...(toolCalls.length > 0 && { toolCalls }),
                 },
             ];
         }
@@ -412,6 +450,8 @@ class ChunkReader {
     /** Whether the turn has ended, with a finish or an error. */
     done = false;
     private readonly pending = new Map<string, PendingCall>();
+    /** Provider-run calls whose input has not come in yet (it comes with their end). */
+    private readonly hostedPending = new Map<string, { name: string; metadata: Record<string, unknown> }>();
     private calls = 0;
     private hosted = 0;
     private wrote = false;
@@ -421,11 +461,13 @@ class ChunkReader {
      * @param settings - The turn's provider and model, which the provider state names.
      * @param response - What graphty's fetch saw, for an error's code.
      * @param signal - The turn's signal.
+     * @param pausesTurns - The provider pauses its own tools' turns (`ProviderModule.pausesTurns`).
      */
     constructor(
         private readonly settings: ProviderApiSettings,
         private readonly response: ResponseRecord,
         private readonly signal: AbortSignal,
+        private readonly pausesTurns = false,
     ) {}
 
     /**
@@ -441,8 +483,10 @@ class ChunkReader {
             case EventType.TOOL_CALL_START: {
                 const { tanstack: _tanstack, ...metadata } = (chunk.metadata ?? {}) as Record<string, unknown>;
                 // A call the provider ran itself, its result already in: never one for the loop to run.
+                // Reported at its end, which carries its input.
                 if (metadata.providerExecuted === true) {
-                    return this.hostedResult(chunk.toolCallName, metadata);
+                    this.hostedPending.set(chunk.toolCallId, { name: chunk.toolCallName, metadata });
+                    return [];
                 }
 
                 this.pending.set(chunk.toolCallId, {
@@ -462,7 +506,9 @@ class ChunkReader {
                 return [];
             }
             case EventType.TOOL_CALL_END:
-                return this.callEnded(chunk.toolCallId, (chunk as { input?: unknown }).input);
+                return this.hostedPending.has(chunk.toolCallId)
+                    ? this.hostedResult(chunk.toolCallId, (chunk as { input?: unknown }).input)
+                    : this.callEnded(chunk.toolCallId, (chunk as { input?: unknown }).input);
             case EventType.RUN_ERROR: {
                 this.done = true;
                 const error = chunk as RunError;
@@ -480,19 +526,35 @@ class ChunkReader {
 
     /**
      * A tool the provider ran: its sources, or `result-unavailable` for an error or nothing readable.
-     * @param name - TanStack's name of the tool.
-     * @param metadata - The call's metadata, which carries the result.
+     * A provider that pauses its turns gets the call and its result back as provider state.
+     * @param id - The call's id.
+     * @param input - What the provider ran it with.
      * @returns Its event, or none for a provider tool graphty never offers.
      */
-    private hostedResult(name: string, metadata: Record<string, unknown>): TurnEvent[] {
-        const tool = Object.hasOwn(HOSTED_TOOL_IDS, name) ? HOSTED_TOOL_IDS[name] : undefined;
-        if (tool === undefined) {
+    private hostedResult(id: string, input: unknown): TurnEvent[] {
+        const started = this.hostedPending.get(id);
+        this.hostedPending.delete(id);
+        const tool =
+            started !== undefined && Object.hasOwn(HOSTED_TOOL_IDS, started.name)
+                ? HOSTED_TOOL_IDS[started.name]
+                : undefined;
+        if (started === undefined || tool === undefined) {
             return [];
         }
 
         this.hosted++;
-        const sources = hostedSources(metadata);
-        return [{ type: "hosted-tool", tool, status: sources.length > 0 ? "done" : "result-unavailable", sources }];
+        const sources = hostedSources(started.metadata);
+        const { provider, model } = this.settings;
+        const data: HostedCallState = { id, name: started.name, input: input ?? {}, metadata: started.metadata };
+        return [
+            {
+                type: "hosted-tool",
+                tool,
+                status: sources.length > 0 ? "done" : "result-unavailable",
+                sources,
+                ...(this.pausesTurns && { providerState: { engine: ENGINE, provider, model, data } }),
+            },
+        ];
     }
 
     /**
@@ -538,7 +600,10 @@ class ChunkReader {
             return [failure("The turn was cancelled.", this.response, this.settings, this.signal)];
         }
 
-        const events = [...this.pending.keys()].flatMap((id) => this.callEnded(id, undefined, true));
+        const events = [
+            ...[...this.hostedPending.keys()].flatMap((id) => this.hostedResult(id, undefined)),
+            ...[...this.pending.keys()].flatMap((id) => this.callEnded(id, undefined, true)),
+        ];
         if (usage?.promptTokens !== undefined && usage.completionTokens !== undefined) {
             events.push({ type: "usage", inputTokens: usage.promptTokens, outputTokens: usage.completionTokens });
         }
@@ -548,8 +613,9 @@ class ChunkReader {
     }
 
     /**
-     * Why the turn finished. A turn that used a provider's tool and ends with no text and no call
-     * was paused by the provider: TanStack reports Anthropic's `pause_turn` as a plain stop.
+     * Why the turn finished. On a provider that pauses its own tools' turns, a turn that used one
+     * and ends with no text and no call was paused: TanStack reports Anthropic's `pause_turn` as a
+     * plain stop (UPSTREAM.md). Anywhere else such a turn is an empty answer.
      * @returns The reason.
      */
     private finishReason(): TurnFinishCode {
@@ -557,7 +623,7 @@ class ChunkReader {
             return "tool-calls";
         }
 
-        return this.hosted > 0 && !this.wrote ? "paused" : "stop";
+        return this.pausesTurns && this.hosted > 0 && !this.wrote ? "paused" : "stop";
     }
 }
 
@@ -588,7 +654,8 @@ export async function* providerApiTurn(
         const module = await PROVIDERS[settings.provider]();
         const hosted = module.hostedTools(request.hostedTools ?? []);
         // A provider that cannot mix its own tools with function tools gets only its own.
-        const turn = module.hostedOnly === true && hosted.length > 0 ? { ...request, tools: [] } : request;
+        const alone = hosted.length > 0 && !hostedToolLimits(settings.provider).withFunctionTools;
+        const turn = alone ? { ...request, tools: [] } : request;
         const stream = chat({
             adapter: module.createAdapter(settings, recordingFetch(response), turn),
             messages: toModelMessages(turn.messages, settings, module),
@@ -606,7 +673,7 @@ export async function* providerApiTurn(
             debug: false,
         }) as AsyncIterable<StreamChunk>;
 
-        const reader = new ChunkReader(settings, response, signal);
+        const reader = new ChunkReader(settings, response, signal, module.pausesTurns === true);
         for await (const chunk of stream) {
             yield* reader.read(chunk);
             if (reader.done) {

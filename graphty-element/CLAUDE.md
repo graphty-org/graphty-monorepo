@@ -536,13 +536,17 @@ name is offered as `app_<name>`). Helpers, routers and plans live in `src/ai/pla
 **Web tools and in-page code** (`AiManagerConfig.tools`, guide section "Web search, web pages and
 code"). Web search and web fetch run at the provider, and only in the built-in read-only helper
 `research` (a reserved role name), which the loop adds to `delegate` when a web tool is on and
-available (`src/ai/tools/hosted.ts`); a message holding a part with `origin: "web"` holds or refuses
-every call that does not only read (`ToolExecutor` judge, gate and reason `"web-content"`).
+available (`src/ai/tools/hosted.ts`); a conversation holding a part with `origin: "web"` refuses,
+holds or allows every call that does not only read, and every hand-off to a helper that fetches
+pages, as `tools.webContentWrites` says (`ToolExecutor` judge, gate and reason `"web-content"`).
+Provider differences the core needs (Google's search has no domain filter and no function tools
+beside it) are `hostedToolLimits()` in `src/ai/engine/types.ts`, never a provider-name check.
 `run_code` is loop-owned like `delegate` (`profiles: []` in `ASSISTANT_TOOLS`), declared only with
-`tools.inPageCode`; its program runs in the page in QuickJS (`src/ai/engine/tanstack/program.ts`),
+`tools.inPageCode`; its program runs in the page in QuickJS (`src/ai/engine/tanstack/program.ts`, a seam of its own
+that is not the provider engine: see that folder's `UPSTREAM.md`),
 its own chunk plus a `.wasm` asset, loaded by `loadProgramRunner()` and never reached statically
 from `./ai` or `index.js`; `./bundle` leaves it out (`programBuild.ts`). Bindings are the read
-actions that hand the host nothing (`src/ai/tools/program.ts`). Which provider offers which tool is
+actions that hand the host nothing (`src/ai/tools/runCode.ts`). Which provider offers which tool is
 `AI_HOSTED_TOOL_CAPABILITIES` in `src/catalog/ai.ts`; after changing it, build and run
 `node scripts/generate-ai-feature-matrix.mjs`, which rewrites `docs/guide/ai-provider-features.md`
 (`test/documentation/ai-provider-features.test.ts` fails until you do).

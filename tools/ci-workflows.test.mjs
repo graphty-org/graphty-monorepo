@@ -329,7 +329,7 @@ describe("the pre-push gate matches CI", () => {
 
     it("checks the large-graph GPU screenshots on the local NVIDIA GPU when cytoscape-extensions is affected, skipping without a card", () => {
         const prepush = code(tool("prepush.sh"));
-        const tests = prepush.indexOf("node tools/prepush-tests.mjs");
+        const tests = prepush.indexOf("prepush-tests.mjs' '$PROJECTS'");
         const shots = prepush.indexOf("node scripts/gpu-screenshots.mjs --check");
         assert.ok(tests > 0 && shots > tests, "after the Tests step");
         assert.match(

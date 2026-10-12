@@ -253,11 +253,12 @@ const gexf = `<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/v
   </nodes><edges><edge id="ab" source="a" target="b"/></edges></graph>
 </gexf>`;
 
-await cy.graphtyImport(gexf, "gexf", { styles: true, applyStyles: true });
+const { directed } = await cy.graphtyImport(gexf, "gexf", { styles: true, applyStyles: true });
 console.log(cy.$id("a").style("background-color")); // rgb(228,26,28)
 
 cy.style().selector("#b").style("background-color", "gold").update();
 const graphml = await cy.graphtyExport("graphml", {
+    directed,
     styles: true,
     onLoss: (notes) => notes.forEach((n) => console.warn(n.code, n.message)),
 });
@@ -328,6 +329,17 @@ draws it, plus the rules themselves in a `graphty.styles` block that other progr
 | `W_STYLE_APPROXIMATED`    | Written as the nearest value the format has (a shape GEXF lacks, a color as the nearest Pajek color name)                 |
 | `W_STYLE_RULES_NOT_KEPT`  | The format keeps no rules (CSV, Neo4j), so the look is lost                                                               |
 | `W_STYLE_LAYER_FLATTENED` | A rule the format's own style language cannot express, or a function-valued property, is written per element              |
+
+The core draws every property, its own defaults included, so a format with no slot for opacity,
+visibility or arrows reports them even when no rule of yours sets them. A note about a property
+you never styled says only that the format cannot hold Cytoscape.js's default; it is safe to ignore
+when that default is what you want.
+
+`onLoss` also hears what a format loses that is not a style: positions it has no place for
+(`W_POSITIONS_DROPPED`), a label column read back under its role (`W_ROLE_ASSUMED`), a list value
+written as JSON text (`W_JSON_UNSUPPORTED`, which a Gephi file's `data.color` array gets in GraphML;
+the colors themselves are in the style slots). Every code is listed on graph-io's
+[codes page](https://graphty.app/docs/graph-io/guide/codes.html).
 
 Without `styles`, `graphtyExport` writes exactly what it always did, and `onLoss` hears
 `W_STYLES_NOT_EXPORTED` when the core has a stylesheet of its own.

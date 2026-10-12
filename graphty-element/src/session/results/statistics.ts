@@ -924,6 +924,9 @@ export function buildHistogram(column: NumericColumnSource, options?: HistogramR
             scale: "linear",
             suggestedScale,
             binning: "per-value",
+            min: statistics.min,
+            median: statistics.median,
+            max: statistics.max,
         });
     }
 
@@ -954,5 +957,8 @@ export function buildHistogram(column: NumericColumnSource, options?: HistogramR
         scale: plan === null ? "linear" : "log",
         suggestedScale,
         binning: "banded",
+        min: statistics.min,
+        median: statistics.median,
+        max: statistics.max,
     });
 }

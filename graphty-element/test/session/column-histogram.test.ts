@@ -41,6 +41,9 @@ describe("session.data.histogram", () => {
             assert.strictEqual(score.binning, "banded");
         }
 
+        // Scores 0, 0.5, 1, 1.5, 2: the lower median is the middle one, a value the data holds.
+        assert.deepStrictEqual(score.kind === "numeric" ? [score.min, score.median, score.max] : [], [0, 1, 2]);
+
         const age = session.data.histogram({ kind: "node", name: "age" }, { bins: 3 });
         assert.strictEqual(age.kind === "numeric" && age.binning, "banded");
         assert.strictEqual(age.kind === "numeric" && age.bins.length, 3);

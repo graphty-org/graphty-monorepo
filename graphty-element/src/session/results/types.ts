@@ -732,6 +732,15 @@ export interface Histogram {
      * measured. A per-value histogram ignores the scale, because it has no bands to space.
      */
     readonly binning: HistogramBinning;
+    /** The lowest value measured. Absent when nothing was measured. @since 3.26.0 */
+    readonly min?: number;
+    /**
+     * The middle value measured: the lower median, a value the data holds. Absent when nothing
+     * was measured. @since 3.26.0
+     */
+    readonly median?: number;
+    /** The highest value measured. Absent when nothing was measured. @since 3.26.0 */
+    readonly max?: number;
 }
 
 /** How a histogram is cut. */

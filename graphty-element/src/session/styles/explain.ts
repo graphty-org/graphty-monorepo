@@ -196,6 +196,13 @@ export interface StyleCounts {
      */
     readonly outsideScale: number;
     /**
+     * Every value the layer reads, its selector's and its bindings', without repeats, as paths
+     * (`data.age`, `results.louvain.group`): what a panel lists as "values read". Empty for a
+     * layer that reads none, such as one matching everything with fixed values.
+     * @since 3.26.0
+     */
+    readonly reads: readonly Path[];
+    /**
      * Changes whenever these counts may have changed: on every `style:changed`, and on every change
      * to the data or the run results the layers read. Equal revisions mean equal counts.
      */
@@ -783,7 +790,7 @@ export function styleCounts(
     sources: ExplainSources,
     revision: string,
 ): StyleCounts {
-    const { layer, selector } = requireLayer(layerId, sources);
+    const { layer, selector, reads } = requireLayer(layerId, sources);
     const own = sources.encoding(layerId);
     const painted = zeroPerChannel(layer);
     const stack = prepareStack(sources);
@@ -807,7 +814,7 @@ export function styleCounts(
         }
     }
 
-    return { matched, painted: Object.freeze(painted), noValue, outsideScale, revision };
+    return { matched, painted: Object.freeze(painted), noValue, outsideScale, reads, revision };
 }
 
 /**

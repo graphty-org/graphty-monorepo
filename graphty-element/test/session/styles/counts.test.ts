@@ -47,6 +47,15 @@ describe("styles.counts, how many elements a layer covers and where it wins", ()
         const upper = styles.counts(above.id);
         assert.strictEqual(upper.matched, 3);
         assert.deepStrictEqual(upper.painted, { "node.color": 3 });
+        assert.deepStrictEqual(upper.reads, [], "fixed values on listed ids read no value");
+
+        const scored = await styles.add({
+            name: "Scored",
+            target: "node",
+            selector: { match: "has", path: "data.team" },
+            encode: { "node.size": { by: "data.score" } },
+        });
+        assert.sameMembers([...styles.counts(scored.id).reads], ["data.team", "data.score"]);
         session.dispose();
     });
 

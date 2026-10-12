@@ -1386,6 +1386,9 @@ export interface HighlightSuggestion {
 export interface Histogram {
     readonly binning: HistogramBinning;
     readonly bins: readonly HistogramBin[];
+    readonly max?: number;
+    readonly median?: number;
+    readonly min?: number;
     readonly scale: "linear" | "log";
     readonly suggestedScale: "linear" | "log";
 }
@@ -3769,6 +3772,7 @@ export interface StyleCounts {
     readonly noValue: number;
     readonly outsideScale: number;
     readonly painted: Readonly<Partial<Record<Channel, number>>>;
+    readonly reads: readonly Path[];
     readonly revision: string;
 }
 

@@ -11,6 +11,24 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Graph settings are built** (`inspector/GraphSettings.tsx`, mounted for the graph
+  in place of the old Canvas section; test `inspector/__tests__/GraphSettings.real-element.test.tsx`).
+  Canvas: Background (Color | Image; Image takes an address, since an empty skybox is refused),
+  View (3D | 2D through `session.layout.setDimension`), Lighting, Same size at any depth,
+  Highlight color. Labels: Hide overlapping labels, Move labels off nodes and edges. The
+  background and the view are the project's and go through the session; lighting, the label
+  rules, same size and the highlight color are the reader's view preferences, kept in the chrome
+  store (`lighting`, `labelsAvoid`, `sameSizeAtAnyDepth`, `highlightColor`) and written on the
+  element's tag by `frame/ElementHost.tsx`, so they survive a project switch (each project mounts a
+  new element) and record no undo step. Same size is null until the reader sets it, so it follows
+  the size binding as before (`frame/useSizeBound.ts`, moved out so the panel shows the same
+  value). Hide overlapping labels is the inverse of the existing `allLabelsShown`, shared with the
+  Text list's "Show all labels". No element change was needed. Seen: the layout form under the
+  settings draws its own 3D | 2D (the layout's shape, not the camera), so tests reach View through
+  its radiogroup; two identical-looking toggles in one panel is a candidate for the studio to
+  judge. Failing, not mine: `frame/__tests__/undoWords.real-element.test.tsx` cannot find a
+  treeitem named "Selection", and the app's tsc on `historyWords.ts` and `inspector/words.ts`.
+
 - (2026-10-12) **The value picker is built** (`style/ValuePicker.tsx`, replacing `FromDataList.tsx`;
   test `ValuePicker.real-element.test.tsx`). Still compact-mantine's `QuickActions` (search focused
   on open, arrows and Enter, flat results while searching), now with its second line: each row

@@ -7,10 +7,11 @@
  * tests each get their own.
  */
 
-import type { ViewInsets } from "@graphty/graphty-element";
+import type { Lighting, ViewInsets } from "@graphty/graphty-element";
 import type { GraphSession, NoteTargetInput } from "@graphty/graphty-element/session";
 import { useSyncExternalStore } from "react";
 
+import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import type { InspectedKind } from "../commands/registry";
 
 /** A left-panel place on the rail (tier1-design.md section 2.2). */
@@ -77,6 +78,17 @@ export interface WorkspaceState {
      * reader's preference, not the project's; the element's tag carries it.
      */
     readonly allLabelsShown: boolean;
+    /** Graph settings, Labels: move a label off the nodes and edges it would cover. */
+    readonly labelsAvoid: boolean;
+    /**
+     * Graph settings, Same size at any depth: null follows whether a node size is bound to data;
+     * true or false is the reader's own choice.
+     */
+    readonly sameSizeAtAnyDepth: boolean | null;
+    /** Graph settings, Lighting: how the 3D nodes are lit. A view preference, never saved. */
+    readonly lighting: Lighting;
+    /** Graph settings, Highlight color: what a run paints its result in when no layer says otherwise. */
+    readonly highlightColor: string;
     /**
      * The canvas margins the legend card covers, reported by the card and handed to the element
      * so a fit never puts a node under it. Empty while no card is drawn.
@@ -135,6 +147,10 @@ const INITIAL: WorkspaceState = {
     dockColumn: null,
     legendShown: true,
     allLabelsShown: false,
+    labelsAvoid: false,
+    sameSizeAtAnyDepth: null,
+    lighting: "studio",
+    highlightColor: APP_HIGHLIGHT_COLOR,
     viewInsets: {},
     exportOn: "image",
     singleKeyShortcuts: true,

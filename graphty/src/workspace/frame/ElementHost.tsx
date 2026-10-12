@@ -2,9 +2,9 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { LAYOUT_SEED } from "../layout/methods";
-import { useWorkspaceState } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useSizeBound } from "./useSizeBound";
 
 /**
  * The element's force layout (its catalog id; the element picks the engine), from the app's
@@ -18,35 +18,6 @@ const LAYOUT_CONFIG = { seed: LAYOUT_SEED } as const;
  * The workspace's View menu offers VR and AR, so the element draws no XR buttons on the canvas.
  */
 const XR_CONFIG = { ui: { enabled: false } } as const;
-
-/**
- * Whether a node size is bound to data: a drawn `node.size` legend block that reads a field.
- * Re-read after every style or project change.
- * @param session - the element's session, or null.
- * @returns true while node sizes encode values a reader compares.
- */
-function useSizeBound(session: GraphSession | null): boolean {
-    const [bound, setBound] = useState(false);
-    useEffect(() => {
-        if (session === null) {
-            setBound(false);
-            return undefined;
-        }
-        const read = (): void => {
-            setBound(
-                session.styles.legend().some((block) => block.channel === "node.size" && block.field !== undefined),
-            );
-        };
-        read();
-        const offs = [session.on("style:changed", read), session.on("project:changed", read)];
-        return () => {
-            offs.forEach((off) => {
-                off();
-            });
-        };
-    }, [session]);
-    return bound;
-}
 
 /** Props for ElementHost. */
 interface ElementHostProps {
@@ -66,6 +37,7 @@ interface ElementHostProps {
  */
 export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
+    const { store } = useWorkspace();
     // Labels that would land on each other are thinned out until the reader turns on Show all
     // labels (tier1-design.md section 2.7), and a still graph is not drawn again on every animation
     // frame: the workspace never changes the Babylon scene behind the element's back, so nothing it
@@ -78,14 +50,23 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
     // disposed with its element, until this one hands its own up.
     const [hosted, setHosted] = useState<GraphSession | null>(null);
     const sizeBound = useSizeBound(hosted);
+    // Graph settings: the reader's choices, view preferences that record no step. Same size at
+    // any depth follows the size binding until the reader sets it.
+    const labelsAvoid = useWorkspaceState((state) => state.labelsAvoid);
+    const sameSize = useWorkspaceState((state) => state.sameSizeAtAnyDepth) ?? sizeBound;
+    const lighting = useWorkspaceState((state) => state.lighting);
+    const highlightColor = useWorkspaceState((state) => state.highlightColor);
     const layoutBehavior = useMemo(
         () => ({
-            labels: { declutter: !allLabelsShown },
-            node: { depthIndependentSize: sizeBound },
+            labels: { declutter: !allLabelsShown, avoidNodesAndEdges: labelsAvoid },
+            node: { depthIndependentSize: sameSize },
             rendering: { onDemand: true },
         }),
-        [allLabelsShown, sizeBound],
+        [allLabelsShown, labelsAvoid, sameSize],
     );
+    useEffect(() => {
+        hosted?.styles.setHighlightColor(highlightColor);
+    }, [hosted, highlightColor]);
     // The legend card's margins: the element keeps every fit clear of them.
     const viewInsets = useWorkspaceState((state) => state.viewInsets);
 
@@ -96,7 +77,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
             // Undefined until the tag has upgraded to the element.
             const session: GraphSession | undefined = element?.session;
             if (!disposed && element !== null && session !== undefined) {
-                session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR);
+                session.styles.setHighlightColor(store.get().highlightColor);
                 setHosted(session);
                 onReady(element, session);
             }
@@ -110,7 +91,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
             disposed = true;
             onReady(null, null);
         };
-    }, [onReady]);
+    }, [onReady, store]);
 
     return (
         <graphty-element
@@ -119,6 +100,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
             layout={LAYOUT_ID}
             layoutConfig={LAYOUT_CONFIG}
             layoutBehavior={layoutBehavior}
+            lighting={lighting}
             viewInsets={viewInsets}
             xr={XR_CONFIG}
             style={{ display: "block", width: "100%", height: "100%" }}

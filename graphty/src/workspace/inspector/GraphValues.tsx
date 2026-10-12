@@ -1,6 +1,6 @@
-import { CompactColorInput, ControlSection, DataRow } from "@graphty/compact-mantine";
+import { ControlSection, DataRow } from "@graphty/compact-mantine";
 import type { ScopeInput } from "@graphty/graphty-element/session";
-import { Stack, Text, Tooltip } from "@mantine/core";
+import { Text, Tooltip } from "@mantine/core";
 import type React from "react";
 
 import { weightName } from "../analyze/words";
@@ -102,41 +102,6 @@ export function Overview(): React.JSX.Element | null {
                 {whole}
             </ControlSection>
         </>
-    );
-}
-
-/**
- * The graph's Style tab, Canvas section (tier1-design.md section 2.7): Background. Show all
- * labels waits for a view-only door in graphty-element (#903), and Reframe when data changes for
- * a yes/no switch (#900); neither is drawn until then.
- * @returns The section
- */
-export function CanvasSection(): React.JSX.Element | null {
-    const { session } = useWorkspace();
-    if (session === null) {
-        return null;
-    }
-    const { background } = session.config;
-    const color = background.backgroundType === "color" ? background.color : undefined;
-
-    return (
-        <ControlSection label="Canvas" defaultOpened>
-            <Stack gap={4} px="md">
-                <CompactColorInput
-                    label="Background"
-                    color={color}
-                    defaultColor="#ffffff"
-                    showOpacity={false}
-                    onChangeEnd={(next) => {
-                        if (next !== undefined) {
-                            // Once per gesture, so a drag is one step; project:changed re-renders
-                            // the inspector with the new color.
-                            void session.config.set({ background: { backgroundType: "color", color: next } });
-                        }
-                    }}
-                />
-            </Stack>
-        </ControlSection>
     );
 }
 

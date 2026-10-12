@@ -26,7 +26,8 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FolderPanel } from "../style/FolderPanel";
 import { MultiRowPanel } from "../style/MultiRowPanel";
 import { DraftPanel, GroupStyle, SelectionRowStyle, SelectionStyle, StylePanel } from "../style/StylePanel";
-import { AttributeValues, CanvasSection, EverythingValues, Overview } from "./GraphValues";
+import { GraphSettings } from "./GraphSettings";
+import { AttributeValues, EverythingValues, Overview } from "./GraphValues";
 import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
 import { MENUS } from "./kindMenus";
@@ -436,7 +437,7 @@ function bodyOf(
             return {
                 style: (
                     <>
-                        <CanvasSection />
+                        <GraphSettings />
                         {/* The panel's content band, where every section's rows begin. */}
                         <Box pl={PANEL_GRID.PAD_LEFT} pr={PANEL_GRID.PAD_RIGHT}>
                             <LayoutGroup />

@@ -72,6 +72,8 @@ export interface EngineFixture {
      * which must then leave both members absent.
      */
     readonly voice?: { readonly transcript: string; readonly audio: Blob };
+    /** True for an engine that opens live conversations; absent, `openLive` must be absent. */
+    readonly live?: true;
 }
 
 /** A promise that settles when the signal fires. */
@@ -135,6 +137,13 @@ export function fakeVoiceFixture(): EngineFixture {
     };
     (fixture.engine as FakeEngine).scriptVoice({ transcribe: voice.transcript, speak: voice.audio });
     return { ...fixture, voice };
+}
+
+/** A `FakeEngine` that opens live conversations, as a provider with a live API does. */
+export function fakeLiveFixture(): EngineFixture {
+    const fixture = fakeFixture();
+    (fixture.engine as FakeEngine).scriptLive();
+    return { ...fixture, live: true };
 }
 
 /** Requests as the model saw them. */
@@ -569,6 +578,24 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
                 new Uint8Array(await audio.arrayBuffer()),
                 new Uint8Array(await voice.audio.arrayBuffer()),
             );
+        });
+
+        it("opens a live conversation where its provider can, and leaves openLive absent where it cannot", async () => {
+            const { engine, live } = make();
+            if (live === undefined) {
+                assert.isFalse("openLive" in engine, "no openLive member, not even a stub");
+                return;
+            }
+
+            const opened = await engine.openLive?.(
+                { instructions: "Answer briefly.", tools: [] },
+                new AbortController().signal,
+            );
+            assert.strictEqual(opened?.code, "AI_COMPLETED");
+            if (opened?.code === "AI_COMPLETED") {
+                opened.connection.capture(false);
+                opened.connection.close();
+            }
         });
 
         it("answers a key check with a code, and disposes", async () => {

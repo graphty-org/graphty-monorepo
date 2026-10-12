@@ -4,7 +4,7 @@
  * @module ai/voice/choose
  */
 
-import type { AiVoiceUnavailableReason } from "../../catalog/ai";
+import type { AiProviderId, AiVoiceUnavailableReason } from "../../catalog/ai";
 import type { AiVoiceMode, AiVoiceOptions, AiVoicePath, AiVoiceSupport } from "../AiManager";
 
 /** Whether the provider can carry one direction of speech: able, unable, or able but keyless. */
@@ -147,5 +147,79 @@ export function chooseVoice(options: AiVoiceOptions, facts: VoiceFacts): AiVoice
     return {
         input: chooseInput(options.input ?? "auto", facts),
         output: chooseOutput(options.output ?? "auto", facts),
+    };
+}
+
+/** What a live conversation reads: the provider, its live API, and what the page offers it. */
+export interface LiveFacts extends Pick<VoiceEnvironment, "secureContext" | "microphone" | "permission"> {
+    /** The chat provider. */
+    readonly provider: AiProviderId;
+    /** Its live API (`AI_VOICE_CAPABILITIES[provider].live`), and whether its key is set. */
+    readonly live: ProviderVoiceReadiness;
+    /** A `baseUrl` is configured: live reaches only the provider's own host. */
+    readonly customBaseUrl: boolean;
+    /** `RTCPeerConnection` exists (OpenAI's live API is WebRTC). */
+    readonly rtcPeerConnection: boolean;
+    /** `WebSocket` exists (Google's live API). */
+    readonly webSocket: boolean;
+    /** `AudioWorklet` exists (Google's live audio is captured and played through worklets). */
+    readonly audioWorklet: boolean;
+}
+
+/**
+ * Whether the page has what a provider's live API needs.
+ * @param facts - What the page offers.
+ * @returns True when it has.
+ */
+function hasLiveTransport(facts: LiveFacts): boolean {
+    return facts.provider === "openai" ? facts.rtcPeerConnection : facts.webSocket && facts.audioWorklet;
+}
+
+/**
+ * A live conversation, whatever `mode` asks for, so a host can offer it: the provider's live API,
+ * then its key, then the provider's own host, then the transport, then the microphone, then
+ * `output` (a live answer is always spoken, so `"off"` keeps every press turn by turn). Every
+ * reason is reported with `path: "input"`.
+ * @param output - `AiVoiceOptions.output`.
+ * @param facts - What the page and provider can do.
+ * @returns The live path.
+ */
+export function chooseLive(output: AiVoiceMode, facts: LiveFacts): AiVoicePath {
+    if (facts.live === "unsupported") {
+        return unavailable("input", "no-provider-live");
+    }
+
+    if (facts.live === "no-key") {
+        return unavailable("input", "no-key");
+    }
+
+    if (facts.customBaseUrl) {
+        return unavailable("input", "live-custom-base-url");
+    }
+
+    if (!hasLiveTransport(facts)) {
+        return unavailable("input", "no-live-transport");
+    }
+
+    if (!facts.secureContext) {
+        return unavailable("input", "insecure-context");
+    }
+
+    if (!facts.microphone) {
+        return unavailable("input", "no-microphone");
+    }
+
+    if (facts.permission === "denied") {
+        return unavailable("input", "permission-denied");
+    }
+
+    if (output === "off") {
+        return unavailable("input", "output-off");
+    }
+
+    return {
+        path: "provider",
+        status: facts.permission === "granted" ? "ready" : "needs-permission",
+        destination: "provider",
     };
 }

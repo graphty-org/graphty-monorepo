@@ -818,6 +818,15 @@ export interface AiStreamToolResultEvent {
 /** Emitted when voice input starts */
 export interface AiVoiceStartEvent {
     type: "ai-voice-start";
+    /**
+     * How the press reaches the model, when `AiVoiceOptions.mode` is set: `"live"`, or `"turns"`.
+     * Live asked for but run turn by turn carries `code` and `params`.
+     */
+    mode?: "turns" | "live";
+    /** Why a press asked to be live runs turn by turn: `AI_VOICE_UNAVAILABLE`. */
+    code?: AiResultCode;
+    /** The facts behind `code` (`{ path: "input", reason }`). */
+    params?: AiResultParams;
 }
 
 /** Emitted when voice transcript is available */

@@ -8,6 +8,11 @@ import {
     type AiEngine,
     type EngineCapabilities,
     type EngineOutcome,
+    type LiveConnection,
+    type LiveEvent,
+    type LiveOpened,
+    type LiveOptions,
+    type LiveToolResult,
     NO_HOSTED_TOOLS,
     type SpeakOptions,
     type SpokenAudio,
@@ -33,8 +38,102 @@ export type FakeTranscribe = (audio: Blob, options: TranscribeOptions, signal: A
 export type FakeSpeak = (text: string, options: SpeakOptions, signal: AbortSignal) => Promise<SpokenAudio>;
 
 /**
- * An engine that plays a script. Like a provider that cannot, it has no `transcribe` or `speak`
- * until a test scripts them (`scriptVoice`).
+ * A live connection a test drives: it records what graphty asked of it, and `emit` plays what the
+ * provider would report.
+ */
+export class FakeLiveConnection implements LiveConnection {
+    /** Every `capture` call, in order. */
+    readonly captures: boolean[] = [];
+    /** How many times `interrupt` was called. */
+    interrupts = 0;
+    /** Every `sendToolResults` call's results, in order. */
+    readonly sentResults: (readonly LiveToolResult[])[] = [];
+    /** What `level` answers. */
+    inputLevel = 0;
+    closed = false;
+    private readonly listeners = new Set<(event: LiveEvent) => void>();
+
+    /**
+     * A connection opened with these options.
+     * @param options - What it was opened with.
+     */
+    constructor(readonly options: LiveOptions) {}
+
+    /**
+     * Record a capture switch.
+     * @param on - Whether the microphone is sent.
+     */
+    capture(on: boolean): void {
+        if (!this.closed) {
+            this.captures.push(on);
+        }
+    }
+
+    /** Record an interrupt. */
+    interrupt(): void {
+        if (!this.closed) {
+            this.interrupts++;
+        }
+    }
+
+    /**
+     * Record tool results.
+     * @param results - One response's results.
+     */
+    sendToolResults(results: readonly LiveToolResult[]): void {
+        if (!this.closed) {
+            this.sentResults.push([...results]);
+        }
+    }
+
+    /**
+     * The scripted level.
+     * @returns `inputLevel`.
+     */
+    level(): number {
+        return this.inputLevel;
+    }
+
+    /**
+     * Listen.
+     * @param listener - Called with each event.
+     * @returns Stops listening.
+     */
+    on(listener: (event: LiveEvent) => void): () => void {
+        this.listeners.add(listener);
+        return () => {
+            this.listeners.delete(listener);
+        };
+    }
+
+    /** Close: no more events reach a listener. */
+    close(): void {
+        this.closed = true;
+        this.listeners.clear();
+    }
+
+    /**
+     * Play what the provider would report; a `closed` event closes the connection after it.
+     * @param event - The event.
+     */
+    emit(event: LiveEvent): void {
+        if (this.closed) {
+            return;
+        }
+
+        for (const listener of [...this.listeners]) {
+            listener(event);
+        }
+
+        if (event.type === "closed") {
+            this.close();
+        }
+    }
+}
+
+/**
+ * An engine that plays a script. Like a provider that cannot, it has no `transcribe`, `speak` or
+ * `openLive` until a test scripts them (`scriptVoice`, `scriptLive`).
  */
 export class FakeEngine implements AiEngine {
     readonly kind = "fake";
@@ -52,6 +151,9 @@ export class FakeEngine implements AiEngine {
     // Declared, not initialized: an own property holding undefined would make `"speak" in engine` lie.
     declare transcribe?: FakeTranscribe;
     declare speak?: FakeSpeak;
+    declare openLive?: (options: LiveOptions, signal: AbortSignal) => Promise<LiveOpened>;
+    /** Every live connection `openLive` opened, in order. */
+    readonly liveConnections: FakeLiveConnection[] = [];
     /** Every clip `transcribe` was given and every text `speak` was given, in order. */
     readonly voiceCalls: ({ kind: "transcribe"; audio: Blob } | { kind: "speak"; text: string })[] = [];
     private readonly script: FakeTurn[];
@@ -98,6 +200,27 @@ export class FakeEngine implements AiEngine {
                     : speak(text, options, signal);
             };
         }
+    }
+
+    /**
+     * Give the fake a provider's live conversations: `openLive` opens a `FakeLiveConnection`
+     * (recorded in `liveConnections`), or fails with `failure`.
+     * @param failure - What every open fails with; absent, each open succeeds.
+     */
+    scriptLive(failure?: Exclude<LiveOpened, { code: "AI_COMPLETED" }>): void {
+        this.openLive = (options, signal) => {
+            if (signal.aborted) {
+                return Promise.resolve({ code: "AI_CANCELLED", params: {} });
+            }
+
+            if (failure !== undefined) {
+                return Promise.resolve(failure);
+            }
+
+            const connection = new FakeLiveConnection(options);
+            this.liveConnections.push(connection);
+            return Promise.resolve({ code: "AI_COMPLETED", params: {}, connection });
+        };
     }
 
     /**

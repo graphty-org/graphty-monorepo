@@ -91,6 +91,16 @@ export interface AiVoiceOptions {
      * `"on"`: on everywhere, by the browser's speech, else the provider's.
      */
     output?: AiVoiceMode;
+    /**
+     * How a press of talk reaches the model. `"turns"` (the default): each utterance becomes text,
+     * sent as a message, and the answer is spoken by `output`'s path. `"live"`: a live
+     * conversation with the provider, speech to speech, where the provider can
+     * (`getAiVoiceSupport().live`); where it cannot, a press runs turn by turn and
+     * `ai-voice-start` says why.
+     */
+    mode?: "turns" | "live";
+    /** The model of a live conversation. Default: the provider's (`AI_VOICE_CAPABILITIES`). */
+    liveModel?: string;
     /** The language spoken and heard, a BCP 47 tag (`"fr-FR"`). Default: the page's language. */
     language?: string;
     /** The voice the provider speaks with, by the provider's own name for it. */
@@ -157,6 +167,11 @@ export interface AiVoiceSupport {
     input: AiVoicePath;
     /** Text to speech. */
     output: AiVoicePath;
+    /**
+     * A live conversation with the provider (`AiVoiceOptions.mode: "live"`), whatever `mode` is
+     * set to: `AI_VOICE_UNAVAILABLE` with `{ path: "input", reason }` when it cannot run.
+     */
+    live?: AiVoicePath;
 }
 
 /** Speech that cannot be used because the assistant has no `voice`. */

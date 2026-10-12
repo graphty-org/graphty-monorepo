@@ -274,11 +274,21 @@ export interface AiProviderVoice {
         /** The default speech model; absent when there is none. */
         readonly model?: string;
     };
+    /**
+     * A live conversation with the provider, speech to speech (`AiVoiceOptions.mode: "live"`).
+     * Absent means unsupported.
+     */
+    readonly live?: {
+        readonly status: AiCapabilityStatus;
+        /** The default live model (`AiVoiceOptions.liveModel` overrides it); absent when there is none. */
+        readonly model?: string;
+    };
 }
 
 const NO_PROVIDER_VOICE: AiProviderVoice = {
     transcription: { status: "unsupported" },
     speech: { status: "unsupported" },
+    live: { status: "unsupported" },
 };
 
 /**
@@ -290,10 +300,12 @@ export const AI_VOICE_CAPABILITIES: Readonly<Record<AiProviderId, AiProviderVoic
     openai: {
         transcription: { status: "available", model: "gpt-4o-mini-transcribe" },
         speech: { status: "available", model: "tts-1" },
+        live: { status: "available", model: "gpt-realtime-2.1" },
     },
     google: {
         transcription: { status: "available", viaChatModel: true },
         speech: { status: "available", model: "gemini-3.1-flash-tts-preview" },
+        live: { status: "available", model: "gemini-3.8-live" },
     },
     anthropic: NO_PROVIDER_VOICE,
     webllm: NO_PROVIDER_VOICE,
@@ -337,6 +349,13 @@ export type AiVoiceDestination = "on-device" | "browser-vendor" | "provider" | "
 /**
  * Why speech cannot be used, the `reason` of `AI_VOICE_UNAVAILABLE`. OPEN UNION: reasons may be
  * added in a minor release.
+ *
+ * Why a live conversation (`AiVoiceOptions.mode: "live"`) cannot run, reported with `path:
+ * "input"`, after which a press runs turn by turn: `"no-provider-live"` (the provider has no live
+ * API), `"live-custom-base-url"` (a `baseUrl` is set; live reaches only the provider's own host),
+ * `"no-live-transport"` (the browser lacks what the provider's live API needs: WebRTC for OpenAI,
+ * WebSocket and `AudioWorklet` for Google), `"output-off"` (`AiVoiceOptions.output` is `"off"`,
+ * and a live answer is always spoken).
  */
 export const AI_VOICE_UNAVAILABLE_REASONS = Object.freeze([
     "no-recognition",
@@ -350,6 +369,10 @@ export const AI_VOICE_UNAVAILABLE_REASONS = Object.freeze([
     "playback-failed",
     "unknown-voice",
     "recognition-network",
+    "no-provider-live",
+    "live-custom-base-url",
+    "no-live-transport",
+    "output-off",
 ] as const);
 
 /**

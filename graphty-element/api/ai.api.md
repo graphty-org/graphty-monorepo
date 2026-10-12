@@ -528,7 +528,9 @@ export interface AiVoiceOptions {
     holdKey?: string;
     input?: AiVoiceMode;
     language?: string;
+    liveModel?: string;
     maxPressSeconds?: number;
+    mode?: "turns" | "live";
     output?: AiVoiceMode;
     push?: "hold" | "toggle";
     replies?: {
@@ -559,6 +561,9 @@ export interface AiVoicePath {
 
 // @public
 export interface AiVoiceStartEvent {
+    code?: AiResultCode;
+    mode?: "turns" | "live";
+    params?: AiResultParams;
     // (undocumented)
     type: "ai-voice-start";
 }
@@ -566,6 +571,7 @@ export interface AiVoiceStartEvent {
 // @public
 export interface AiVoiceSupport {
     input: AiVoicePath;
+    live?: AiVoicePath;
     output: AiVoicePath;
 }
 

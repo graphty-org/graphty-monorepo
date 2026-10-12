@@ -5,7 +5,14 @@
 
 import { assert, describe, it } from "vitest";
 
-import { chooseInput, chooseOutput, chooseVoice, type VoiceFacts } from "../../../src/ai/voice/choose";
+import {
+    chooseInput,
+    chooseLive,
+    chooseOutput,
+    chooseVoice,
+    type LiveFacts,
+    type VoiceFacts,
+} from "../../../src/ai/voice/choose";
 
 /** Chrome on a desktop with the microphone allowed and an OpenAI key: every path open. */
 const CHROME: VoiceFacts = {
@@ -211,4 +218,102 @@ describe("both directions", () => {
         assert.strictEqual(support.input.path, "provider");
         assert.strictEqual(support.output.path, "none");
     });
+});
+
+describe("a live conversation", () => {
+    /** Chrome with an OpenAI key and the microphone allowed: live can run. */
+    const OPENAI: LiveFacts = {
+        provider: "openai",
+        live: "ready",
+        customBaseUrl: false,
+        rtcPeerConnection: true,
+        webSocket: true,
+        audioWorklet: true,
+        secureContext: true,
+        microphone: true,
+        permission: "granted",
+    };
+    const rows: {
+        name: string;
+        facts?: Partial<LiveFacts>;
+        output?: "auto" | "on" | "browser" | "provider" | "off";
+        expected: { status: "ready" | "needs-permission" | "unavailable"; reason?: string };
+    }[] = [
+        { name: "OpenAI: ready", expected: { status: "ready" } },
+        {
+            name: "Google: ready",
+            facts: { provider: "google", rtcPeerConnection: false },
+            expected: { status: "ready" },
+        },
+        {
+            name: "OpenAI, microphone not asked yet",
+            facts: { permission: "prompt" },
+            expected: { status: "needs-permission" },
+        },
+        {
+            name: "Anthropic: no live API",
+            facts: { provider: "anthropic", live: "unsupported" },
+            expected: { status: "unavailable", reason: "no-provider-live" },
+        },
+        { name: "no key", facts: { live: "no-key" }, expected: { status: "unavailable", reason: "no-key" } },
+        {
+            name: "a baseUrl",
+            facts: { customBaseUrl: true },
+            expected: { status: "unavailable", reason: "live-custom-base-url" },
+        },
+        {
+            name: "OpenAI without RTCPeerConnection",
+            facts: { rtcPeerConnection: false },
+            expected: { status: "unavailable", reason: "no-live-transport" },
+        },
+        {
+            name: "Google without AudioWorklet",
+            facts: { provider: "google", audioWorklet: false },
+            expected: { status: "unavailable", reason: "no-live-transport" },
+        },
+        {
+            name: "Google without WebSocket",
+            facts: { provider: "google", webSocket: false },
+            expected: { status: "unavailable", reason: "no-live-transport" },
+        },
+        {
+            name: "an insecure page",
+            facts: { secureContext: false },
+            expected: { status: "unavailable", reason: "insecure-context" },
+        },
+        {
+            name: "no microphone",
+            facts: { microphone: false },
+            expected: { status: "unavailable", reason: "no-microphone" },
+        },
+        {
+            name: "microphone denied",
+            facts: { permission: "denied" },
+            expected: { status: "unavailable", reason: "permission-denied" },
+        },
+        { name: "output off", output: "off", expected: { status: "unavailable", reason: "output-off" } },
+        {
+            name: "output off, Anthropic: the provider is the reason",
+            output: "off",
+            facts: { provider: "anthropic", live: "unsupported" },
+            expected: { status: "unavailable", reason: "no-provider-live" },
+        },
+    ];
+    for (const row of rows) {
+        it(row.name, () => {
+            const got = chooseLive(row.output ?? "auto", { ...OPENAI, ...row.facts });
+            assert.strictEqual(got.status, row.expected.status, row.name);
+            if (row.expected.reason === undefined) {
+                assert.deepStrictEqual(got, { path: "provider", status: row.expected.status, destination: "provider" });
+            } else {
+                assert.deepStrictEqual(got, {
+                    path: "none",
+                    status: "unavailable",
+                    code: "AI_VOICE_UNAVAILABLE",
+                    params: { path: "input", reason: row.expected.reason },
+                    destination: "none",
+                });
+            }
+        });
+    }
 });

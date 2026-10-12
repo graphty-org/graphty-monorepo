@@ -47,7 +47,7 @@ export const AI_VOICE_APPROVABLE_GATES: readonly string[];
 export const AI_VOICE_CAPABILITIES: Readonly<Record<AiProviderId, AiProviderVoice>>;
 
 // @public
-export const AI_VOICE_UNAVAILABLE_REASONS: readonly ["no-recognition", "no-microphone", "permission-denied", "insecure-context", "no-provider-transcription", "no-provider-speech", "no-key", "no-synthesis", "playback-failed", "unknown-voice", "recognition-network"];
+export const AI_VOICE_UNAVAILABLE_REASONS: readonly ["no-recognition", "no-microphone", "permission-denied", "insecure-context", "no-provider-transcription", "no-provider-speech", "no-key", "no-synthesis", "playback-failed", "unknown-voice", "recognition-network", "no-provider-live", "live-custom-base-url", "no-live-transport", "output-off"];
 
 // @public
 export interface AiCapabilities {
@@ -123,6 +123,10 @@ export type AiProviderId = (typeof AI_PROVIDER_IDS)[number];
 
 // @public
 export interface AiProviderVoice {
+    readonly live?: {
+        readonly status: AiCapabilityStatus;
+        readonly model?: string;
+    };
     readonly speech: {
         readonly status: AiCapabilityStatus;
         readonly model?: string;

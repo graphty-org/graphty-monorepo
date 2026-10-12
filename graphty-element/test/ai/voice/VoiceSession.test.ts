@@ -151,6 +151,7 @@ describe("a press sends what was heard as a spoken command", () => {
             ["ai-voice-start", "ai-voice-transcript", "ai-voice-transcript", "ai-voice-end"],
         );
         assert.deepStrictEqual(of(h, "ai-voice-end"), [{ reason: "user", code: "AI_COMPLETED", params: {} }]);
+        assert.deepStrictEqual(of(h, "ai-voice-start"), [{}], "no mode and no code without voice.mode");
         assert.strictEqual(h.fake.liveTracks(), 0, "the microphone closed on release");
     });
 

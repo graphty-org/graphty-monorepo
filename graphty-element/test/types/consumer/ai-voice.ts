@@ -100,6 +100,34 @@ export const xrAi: XRAiConfig = {
     labels: { approve: "Oui", deny: "Non" },
 };
 
+/**
+ * A live conversation, and why it cannot run.
+ * @param myKey - The provider key.
+ * @returns Why live cannot run, when it cannot.
+ */
+export async function liveWhenSupported(myKey: string): Promise<string | undefined> {
+    const g = document.querySelector("graphty-element");
+    if (g === null) {
+        return undefined;
+    }
+
+    await g.enableAiControl({
+        provider: "openai",
+        apiKey: myKey,
+        voice: { mode: "live", liveModel: "gpt-realtime-2.1" },
+    });
+    g.addEventListener("ai-voice-start", (e) => {
+        if (e.detail.mode === "turns" && e.detail.code !== undefined) {
+            g.dataset.why = String(e.detail.params?.reason);
+        }
+    });
+    const support = await g.getAiVoiceSupport();
+    return support.live?.code;
+}
+
+export const liveModel: string | undefined = AI_VOICE_CAPABILITIES.google.live?.model;
+export const liveBaseUrl: AiVoiceUnavailableReason = "live-custom-base-url";
+
 /** The catalog's facts: can a provider transcribe? */
 export const googleHears: AiCapabilityStatus = aiVoiceStatus("google", "input");
 export const openAiSpeechModel: string | undefined = AI_VOICE_CAPABILITIES.openai.speech.model;

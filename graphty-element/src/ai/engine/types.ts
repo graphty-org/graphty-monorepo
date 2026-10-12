@@ -335,6 +335,75 @@ export interface ProviderVoice {
     ): Promise<VoiceAttempt<Blob>>;
 }
 
+/** How to open a live conversation: speech to speech, the provider deciding when the reader finished. */
+export interface LiveOptions {
+    /** The live model; absent, the provider's default (`AI_VOICE_CAPABILITIES`). */
+    readonly model?: string;
+    /** The provider's name for the voice it answers with; absent, its default. */
+    readonly voice?: string;
+    /** The language spoken, a BCP 47 tag; absent, the provider guesses. */
+    readonly language?: string;
+    /** The system prompt, with whatever the session should start from. */
+    readonly instructions: string;
+    /** The tools the model may call, declared once for the whole connection. */
+    readonly tools: readonly ToolSpec[];
+}
+
+/** One tool call of a live response. */
+export type LiveToolCall = Omit<Extract<TurnEvent, { type: "tool-call" }>, "type" | "providerState">;
+
+/** A tool result, as a live connection sends it back: the saved part, shown through `toolResultText`. */
+export type LiveToolResult = Extract<SavedPart, { type: "tool-result" }>;
+
+/** What a live connection reports. */
+export type LiveEvent =
+    /** What the reader said, as the provider heard it; `final` once the provider settled it. */
+    | { readonly type: "reader-transcript"; readonly text: string; readonly final: boolean }
+    /** More of the answer's text (what the model is saying). */
+    | { readonly type: "answer-text"; readonly delta: string }
+    /** One response's tool calls, all of them, in the order the model made them. */
+    | { readonly type: "tool-calls"; readonly calls: readonly LiveToolCall[] }
+    /** The provider finished one response. */
+    | { readonly type: "response-end" }
+    /** The model started (`true`) or stopped (`false`) speaking. */
+    | { readonly type: "speaking"; readonly on: boolean }
+    /** The model's answer was cut off (`interrupt()`, or the reader spoke over it). */
+    | { readonly type: "interrupted" }
+    | { readonly type: "usage"; readonly inputTokens: number; readonly outputTokens: number }
+    /**
+     * The connection ended from the provider's side: `AI_PROVIDER_ERROR` (`{ provider, cause }`),
+     * `AI_KEY_REJECTED`, or `AI_COMPLETED` for a provider that asked to end it. Nothing follows.
+     */
+    | { readonly type: "closed"; readonly code: AiResultCode; readonly params: AiResultParams };
+
+/** An open live conversation. Every member is safe to call after it closed, and does nothing then. */
+export interface LiveConnection {
+    /** Send the microphone's audio (`true`) or stop sending it (`false`, which ends the reader's turn). */
+    capture(on: boolean): void;
+    /** Cut off the answer being spoken. */
+    interrupt(): void;
+    /** Answer one response's tool calls, all of them, in one call. */
+    sendToolResults(results: readonly LiveToolResult[]): void;
+    /** The microphone's level now, from 0 (silence) to 1. */
+    level(): number;
+    /**
+     * Listen to the connection's events.
+     * @returns A function that stops listening.
+     */
+    on(listener: (event: LiveEvent) => void): () => void;
+    /** Stop the microphone and the audio, and close the connection. Emits nothing. */
+    close(): void;
+}
+
+/**
+ * What opening a live conversation gave: `AI_COMPLETED` with the connection, or the code it
+ * failed with (`AI_KEY_REJECTED`, `AI_PROVIDER_ERROR`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`).
+ * Never thrown.
+ */
+export type LiveOpened =
+    | { readonly code: "AI_COMPLETED"; readonly params: AiResultParams; readonly connection: LiveConnection }
+    | { readonly code: Exclude<AiResultCode, "AI_COMPLETED">; readonly params: AiResultParams };
+
 /** Talks to a model, one turn per call. */
 export interface AiEngine {
     readonly kind: "provider-api" | "llm-provider" | "fake";
@@ -352,6 +421,8 @@ export interface AiEngine {
     transcribe?(audio: Blob, options: TranscribeOptions, signal: AbortSignal): Promise<TurnText>;
     /** Text to speech through the provider; absent, like `transcribe`, where it cannot. */
     speak?(text: string, options: SpeakOptions, signal: AbortSignal): Promise<SpokenAudio>;
+    /** A live conversation with the provider; absent, like `transcribe`, where it has none. */
+    openLive?(options: LiveOptions, signal: AbortSignal): Promise<LiveOpened>;
     dispose(): void;
 }
 

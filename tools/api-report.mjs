@@ -323,7 +323,12 @@ export const OPTION_ROOTS = ["AiManagerConfig", "ProviderOptions"];
  * Open-ended members allowed on the AI configuration anyway, as `Type.member` -> the reason. A
  * member that already exists on the merge base never fails, so this lists only deliberate additions.
  */
-export const OPEN_OPTION_EXCEPTIONS = new Map([]);
+export const OPEN_OPTION_EXCEPTIONS = new Map([
+    [
+        "AiToolCallFacts.arguments",
+        "the model's tool-call arguments, handed to the consumer's approval policy as data to judge; not a setting passed through to a framework",
+    ],
+]);
 
 /** `unknown`, `any` or `object` anywhere in a type (not a property name), or an empty object type `{}`. */
 const OPEN_TYPE = /(?<![\w$.])(?:unknown|any|object)(?![\w$]|\??:)|\{\s*\}/;

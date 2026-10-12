@@ -378,7 +378,10 @@ export interface Unrelated {
             "LlmProvider",
             "ProviderOptions",
         ]);
-        assert.equal(OPEN_OPTION_EXCEPTIONS.size, 0, "an exception names its reason; none is needed yet");
+        for (const [member, reason] of OPEN_OPTION_EXCEPTIONS) {
+            assert.match(member, /^\w+\.\w+$/, "an exception names one member, as Type.member");
+            assert.ok(reason.length >= 20, `${member} gives its reason`);
+        }
     });
 
     it("finds no open member the committed graphty-element reports do not already have", () => {

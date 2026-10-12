@@ -4,7 +4,7 @@
  * on every frame each edge ends at its two nodes' current centers (issue #2073, where the nodes
  * moved by a CSS transition and the edges jumped straight to their final positions).
  */
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { generateGraph, generateRandomPositions } from "../stories/utils/graph-generators.js";
 import { createStoryContainer, renderGraph, updatePositions } from "../stories/utils/visualization.js";
@@ -17,11 +17,25 @@ function center(svg: SVGSVGElement, id: string): { x: number; y: number } {
 }
 
 describe("layout story animation", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     it("keeps every edge on its nodes' centers on every frame, and ends at the layout", async () => {
         const graph = generateGraph("cycle", 8, 42);
         const { svg } = createStoryContainer();
         renderGraph(svg, graph, generateRandomPositions(graph, 500, 500, 42), 20, 1, 0, 0);
         const start = center(svg, "0");
+        // happy-dom runs animation frames back to back (setImmediate) with the wall clock as their
+        // time, so how many frames the 500 ms animation takes depended on the machine's speed. Give
+        // each frame its own 16 ms instead, as a 60 Hz display does: about 32 frames, everywhere.
+        let clock = 0;
+        vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
+            setTimeout(() => {
+                clock += 16;
+                callback(clock);
+            }, 0),
+        );
         const final: Record<number, [number, number]> = {};
         graph.nodes.forEach((node, i) => {
             final[node.id] = [Math.cos((2 * Math.PI * i) / 8), Math.sin((2 * Math.PI * i) / 8)];

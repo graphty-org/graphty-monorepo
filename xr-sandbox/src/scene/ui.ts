@@ -27,7 +27,7 @@ import { AdvancedDynamicTexture, Button, Control, StackPanel, TextBlock } from "
 export const uiStats = { panelRenders: 0, chipRedraws: 0 };
 
 /** Cap height of every text the sandbox draws, degrees of visual angle at its reading distance. */
-export const TEXT_DEG = 1.2;
+const TEXT_DEG = 1.2;
 /** Cap height per em of Arial, the font every panel and chip draws in. */
 const CAP_EM = 0.716;
 /** The font family (Babylon GUI's default, used for chips too so both measure alike). */
@@ -43,7 +43,7 @@ export type Reach = keyof typeof READ;
  * @param deg - cap height, degrees
  * @returns the font size in meters
  */
-export const fontM = (distM: number, deg = TEXT_DEG): number => (2 * distM * Math.tan((deg * Math.PI) / 360)) / CAP_EM;
+const fontM = (distM: number, deg = TEXT_DEG): number => (2 * distM * Math.tan((deg * Math.PI) / 360)) / CAP_EM;
 
 /** Every panel built, so the dry run can find a GUI control on any of them by name. */
 export const panels: Panel[] = [];
@@ -68,7 +68,7 @@ export interface TextItem {
 }
 
 /** A texture with text drawn straight onto it: chips, hint tags. */
-export interface TextSurface {
+interface TextSurface {
     name: string;
     /** The mesh showing it (its world scale applies), or null for sprites. */
     mesh: AbstractMesh | null;

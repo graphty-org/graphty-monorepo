@@ -39,7 +39,7 @@ const readingDistance = (mesh: AbstractMesh, head: Vector3): number => {
 };
 
 /** One line of text found in the scene, measured. */
-export interface Measured {
+interface Measured {
     /** Mesh (surface) name. */
     surface: string;
     /** Control name or role within the surface. */
@@ -73,7 +73,7 @@ const capCache = new Map<string, { cap: number; line: number }>();
  * @param font - CSS font
  * @returns the metrics
  */
-export function fontMetrics(font: string): { cap: number; line: number } {
+function fontMetrics(font: string): { cap: number; line: number } {
     let m = capCache.get(font);
     if (!m) {
         scratch().font = font;
@@ -93,7 +93,7 @@ export function fontMetrics(font: string): { cap: number; line: number } {
  * @param text - the text
  * @returns its width
  */
-export function textWidth(font: string, text: string): number {
+function textWidth(font: string, text: string): number {
     scratch().font = font;
     return scratch().measureText(text).width;
 }

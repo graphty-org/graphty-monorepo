@@ -213,9 +213,11 @@ function keyValues(value: unknown, spec: OfferedShape): (string | number | boole
  * @returns The halves it lives on.
  */
 function halvesOf(values: FilterRunResult, field: string): { node: boolean; edge: boolean } {
-    const kinds = values.fields.filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind);
+    const kinds = new Set(
+        values.fields.filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind),
+    );
 
-    return { node: kinds.includes("node"), edge: kinds.includes("edge") };
+    return { node: kinds.has("node"), edge: kinds.has("edge") };
 }
 
 /**

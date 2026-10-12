@@ -352,7 +352,7 @@ export class OperationQueueManager implements Manager {
         const customObsoletes = metadata?.obsoletes ?? [];
         const defaultObsoletes = defaultRule?.obsoletes ?? [];
 
-        const categoriesToObsolete = [...new Set([...customObsoletes, ...defaultObsoletes])];
+        const categoriesToObsolete = new Set([...customObsoletes, ...defaultObsoletes]);
         const shouldObsolete = metadata?.shouldObsolete;
         const skipRunning = metadata?.skipRunning ?? defaultRule?.skipRunning ?? false;
         const respectProgress = metadata?.respectProgress ?? defaultRule?.respectProgress ?? true;
@@ -373,7 +373,7 @@ export class OperationQueueManager implements Manager {
             let shouldCancel = false;
 
             // Check category-based obsolescence
-            if (categoriesToObsolete.includes(operation.category)) {
+            if (categoriesToObsolete.has(operation.category)) {
                 shouldCancel = true;
             }
 

@@ -397,6 +397,22 @@ async function addLayer(
         selector: selectorOf(target, kind),
         set,
     };
+    // A layer of the assistant's own over the same elements already sets one of these channels:
+    // a second only hides it ("orange instead of blue" left both). Change that one instead.
+    const selector = JSON.stringify(spec.selector);
+    const covered = tx.styles
+        .list()
+        .find(
+            (layer) =>
+                isAssistantLayer(layer.source) &&
+                layer.target === kind &&
+                JSON.stringify(layer.selector) === selector &&
+                Object.keys(set).some((channel) => layer.set !== undefined && channel in layer.set),
+        );
+    if (covered !== undefined) {
+        throw new ToolRefusal("AI_ARG_INVALID", { path: "action", expected: "update", layer: covered.id });
+    }
+
     const facts = validate(tx, spec);
     const layer = await coded(() => tx.styles.add(spec, positionOf(tx, args)));
     return ok(

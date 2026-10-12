@@ -447,6 +447,37 @@ describe("every generated action", () => {
         assert.include(JSON.stringify(layer), "#ff0000");
     });
 
+    it("refuses a second layer of its own that sets a channel its layer on the same elements sets", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        const servers = "data.type == 'server'";
+        await assistant.say("blue and big", [
+            {
+                tool: "style",
+                args: { action: "add", where: servers, values: { "node.color": "#0000ff", "node.size": 2 } },
+            },
+        ]);
+        const first = session.styles.list().at(-1);
+        await assistant.say("orange instead", [
+            { tool: "style", args: { action: "add", where: servers, values: { "node.color": "#ffa500" } } },
+        ]);
+        const [refused] = assistant.lastResults();
+        assert.strictEqual(refused.code, "AI_ARG_INVALID", JSON.stringify(refused));
+        assert.deepInclude(refused.params, { path: "action", expected: "update", layer: first?.id });
+        // Another channel on the same elements, or the same channel elsewhere, is a layer of its own.
+        await assistant.say("labels", [
+            { tool: "style", args: { action: "add", where: servers, values: { "node.label": "server" } } },
+        ]);
+        assert.strictEqual(assistant.lastResults()[0].code, "style.add-layer");
+        await assistant.say("the others", [
+            {
+                tool: "style",
+                args: { action: "add", where: "data.type != 'server'", values: { "node.color": "#ffa500" } },
+            },
+        ]);
+        assert.strictEqual(assistant.lastResults()[0].code, "style.add-layer");
+    });
+
     it("describes an entry by its name alone when only one kind has it", async () => {
         const session = await assistantSession();
         const assistant = new ScriptedAssistant(session);

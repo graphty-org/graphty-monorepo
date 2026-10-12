@@ -459,11 +459,16 @@ export const ForceAtlas2: Story = {
     args: {
         /*
          * `preSteps` MATCHES `fa2MaxIter` BELOW, so under capture the 100 iterations run before
-         * the first frame is drawn, off the frame clock. Everywhere else the layout animates, one
-         * iteration per rendered frame. The picture is the same either way, because ForceAtlas2 is
-         * deterministic under `seed` and stops at `maxIter` whichever clock ran it.
+         * the first frame is drawn, off the frame clock. Everywhere else the layout animates,
+         * `stepMultiplier` iterations per rendered frame. One a frame was 100 frames, and the
+         * Storybook test browser's software renderer draws this scene at 50 to 250 ms a frame
+         * (most of it the edges' ray tests against the node meshes, issue #412), so both
+         * ForceAtlas2 stories here were sometimes still moving when the 15 second wait for a
+         * final frame gave up. Twenty a frame is 5 frames, as in LayoutGpu's ForceAtlas2Fake. The
+         * picture is the same either way, because ForceAtlas2 is deterministic under `seed` and
+         * stops at `maxIter` whichever clock ran it.
          */
-        setup: storySetup({ viewMode: "2d", preSteps: 100 }),
+        setup: storySetup({ viewMode: "2d", preSteps: 100, stepMultiplier: 20 }),
         layout: "forceatlas2",
         // Named outright, the way Circular, Random, Spring and Kamada-Kawai name it. The element
         // does derive a layout's dimensionality from `viewMode` -- `LayoutManager.setLayout`

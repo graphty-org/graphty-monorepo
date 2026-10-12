@@ -24,7 +24,11 @@ import type { WorkspaceState } from "../state/store";
  *   view: the run's result shape decides between the measure and the groups.
  * - `group-row`: one group of a grouping run; the id is `groupKey(runId, group)`.
  * - `everything-row` and `selection-row`: the Graph place's two built-in rows; no id.
- * - `layer-row`: one of the reader's own style layers in the Graph place; the id is the layer id.
+ * - `layer-row`: one row of the style tree; the id is the row's id (its layer, or its node part).
+ * - `folder-row`: a folder of the style tree; the id is the folder's id.
+ * - `rows`: several rows of the style tree selected together; the id is their ids as a JSON array.
+ * - `draft-row`: the new layer "+" adds, not written yet; the id is what it paints (`node`,
+ *   `edge` or `both`), `node` when absent. Opening anything else abandons it.
  * - `attribute`: an attribute from the Data place; the id is its path, such as `data.age`.
  * - `filter-step`: the filter step editor; the id is the step's id, `new`, or
  *   `new:<node|edge>:<path>` for a new step on that attribute.
@@ -43,6 +47,9 @@ export const INSPECTED_KINDS = [
     "everything-row",
     "selection-row",
     "layer-row",
+    "folder-row",
+    "rows",
+    "draft-row",
     "attribute",
     "filter-step",
     "source",
@@ -70,9 +77,15 @@ export type Resolved =
     | { readonly kind: "group-row"; readonly run: RunId; readonly group: string | number }
     | { readonly kind: "everything-row" | "selection-row" }
     | { readonly kind: "layer-row"; readonly layer: string }
+    | { readonly kind: "folder-row"; readonly row: string }
+    | { readonly kind: "rows"; readonly rows: readonly string[] }
+    | { readonly kind: "draft-row"; readonly paints: DraftPaints }
     | { readonly kind: "attribute"; readonly path: string }
     | { readonly kind: "filter-step"; readonly step: string }
     | { readonly kind: "source"; readonly row: string };
+
+/** What a new layer not yet written paints. */
+export type DraftPaints = "node" | "edge" | "both";
 
 /**
  * The id a node carries in `inspected.id`. A node id is a string or a number, and the two must
@@ -185,6 +198,23 @@ function fromRow(inspected: WorkspaceState["inspected"]): Resolved | undefined {
                 return { kind: "layer-row", layer: inspected.id };
             }
             break;
+        case "folder-row":
+            if (inspected.id !== undefined) {
+                return { kind: "folder-row", row: inspected.id };
+            }
+            break;
+        case "rows": {
+            const parsed = parse(inspected.id);
+            if (Array.isArray(parsed) && parsed.every((id) => typeof id === "string")) {
+                return { kind: "rows", rows: parsed };
+            }
+            break;
+        }
+        case "draft-row":
+            return {
+                kind: "draft-row",
+                paints: inspected.id === "edge" || inspected.id === "both" ? inspected.id : "node",
+            };
         case "attribute":
             if (inspected.id !== undefined) {
                 return { kind: "attribute", path: inspected.id };

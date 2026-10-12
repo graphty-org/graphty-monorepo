@@ -16,7 +16,8 @@ import { loadIndexOf, loadName, type SourceKind, sourceRowOf, sourcesWords } fro
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
-import { runRowKind } from "../graph-place/rows";
+import { rowName, rowsHeading, runRowKind } from "../graph-place/rows";
+import { DraftPanel, FolderRowPanel, LayerRowPanel, RowsPanel } from "../graph-place/StyleTree";
 import { LayoutGroup } from "../layout/LayoutForm";
 import { notesAbout } from "../notes/words";
 import { runName } from "../runWords";
@@ -371,7 +372,13 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
         case "selection-row":
             return { name: "Selection" };
         case "layer-row":
-            return { name: session.styles.get(resolved.layer)?.name ?? "Gone" };
+            return { name: rowName(session, resolved.layer) };
+        case "folder-row":
+            return { name: rowName(session, resolved.row) };
+        case "rows":
+            return { name: rowsHeading(session, resolved.rows) };
+        case "draft-row":
+            return { name: "New layer" };
         case "filter-step": {
             // Whether the step is on, as its row's checkbox says, so the editor alone tells.
             const step = session.visibility.steps.find((s) => s.id === resolved.step);
@@ -480,7 +487,14 @@ function bodyOf(
         case "selection-row":
             return { style: <SelectionStyle />, values: <SeveralValues version={version} /> };
         case "layer-row":
-            return { only: <StyleTab /> };
+            // Keyed by the row, so the side and an empty line are dropped when another opens.
+            return { only: <LayerRowPanel key={resolved.layer} id={resolved.layer} /> };
+        case "folder-row":
+            return { only: <FolderRowPanel id={resolved.row} /> };
+        case "rows":
+            return { only: <RowsPanel ids={resolved.rows} /> };
+        case "draft-row":
+            return { only: <DraftPanel paints={resolved.paints} /> };
         case "filter-step":
             // Keyed by the step, so opening another step starts from its own fields.
             return { only: <FilterStepEditor key={resolved.step} id={resolved.step} /> };

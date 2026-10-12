@@ -1,8 +1,7 @@
 /**
  * The Graph place over a headless graphty-element session (the element's own session, with no
  * canvas): the title line, the footer line, the find list's keyboard rules and the "/" command.
- * Runs need the element's executor, so the paint tree after a run is
- * `tasks.real-element.test.tsx`.
+ * The style tree driven by real input is `StyleTree.real-element.test.tsx`.
  */
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
@@ -135,12 +134,20 @@ describe("the Graph place", () => {
         assert.equal(tip.textContent, "Les Miserables");
     });
 
-    it("draws Selection and Everything only, with nothing run", async () => {
-        renderPlace(await sessionWithGraph());
-        const rows = within(screen.getByRole("tree", { name: "Paint tree" })).getAllByRole("treeitem");
+    it("lists the element's style tree top first, each row named with its kind and what it paints", async () => {
+        const session = await sessionWithGraph();
+        await session.config.set({ startingRows: true });
+        await session.styles.addFolder("Annotations");
+        renderPlace(session);
+        const rows = within(screen.getByRole("tree", { name: "Style layers" })).getAllByRole("treeitem");
         assert.deepEqual(
             rows.map((r) => r.getAttribute("aria-label")),
-            ["Selection", "Everything"],
+            [
+                "Hovered, layer, 0 nodes",
+                "Selected, layer, 0 nodes, 0 edges",
+                "Annotations, folder, 0 layers",
+                "Everything, layer, 3 nodes, 2 edges",
+            ],
         );
     });
 

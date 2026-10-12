@@ -98,14 +98,6 @@
     min-height: 0;
 }
 
-.ws-paint-swatch {
-    display: inline-block;
-    width: 24px;
-    height: 8px;
-    border-radius: 2px;
-    vertical-align: middle;
-}
-
 .ws-graph-footer {
     flex: none;
     padding: 8px 16px;
@@ -121,4 +113,58 @@
 /* A rule offered as an option is set like every rule the box quotes. */
 .ws-find-rule .cm-result-name {
     font-family: var(--mantine-font-family-monospace);
+}
+
+/* The style tree's title line with its "+", and its footer (tier 3 design section 2.1). */
+.ws-style-tree-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 8px 2px 16px;
+}
+
+.ws-style-tree-title {
+    color: var(--cm-text-secondary);
+    font-size: 11px;
+    font-weight: 550;
+}
+
+.ws-style-tree-foot {
+    flex: none;
+    border-top: 1px solid var(--cm-border);
+}
+
+.ws-style-tree-foot-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 16px;
+    font-size: 11px;
+}
+
+.ws-style-tree-foot-row:hover {
+    background: var(--cm-bg-hover);
+}
+
+/* What a layer row paints: a dot for nodes, a line for edges. */
+.ws-row-marks {
+    display: inline-flex;
+    gap: 2px;
+    color: var(--cm-text-secondary);
+}
+
+.ws-row-pin {
+    display: inline-flex;
+    align-items: center;
+    color: var(--cm-text-secondary);
+}
+
+/* A locked row's panel: a native disabled fieldset, drawn as nothing. */
+.ws-row-fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
 }

@@ -11,6 +11,33 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **The app's style tree is built** (`graph-place/StyleTree.tsx`, replacing
+  `PaintTree.tsx` and the paint rows). It draws `styles.tree()` top first (the element's tree is
+  bottom first at every level, so each level is reversed) with two row kinds, a layer and a
+  folder; accessible names "Key people, layer, 2 nodes" and "Annotations, folder, 1 layer" from
+  `styles.counts(...).matched` per part; "Painted over" when every `painted` count is 0. Eye and
+  lock are `ToggleIconButton`s on the row; a pin is a `data-pinned` mark. Moves go through
+  `rows.ts` `placeOf`, which turns the tree control's top-first index into the element's
+  bottom-first `StyleRowPlace` and REFUSES a landing outside the row's pin band. Why refuse and
+  not let the element clamp: a clamp moves the row somewhere the reader did not drop it (Key
+  people dropped on Hovered would land at the top of the unpinned rows). New inspector kinds:
+  `folder-row`, `rows` (id = JSON array, header "2 layers"), `draft-row` (id = node / edge /
+  both). The draft lives only in `inspected`, so opening anything else abandons it with nothing to
+  clean up. A locked row's panel is a native `<fieldset disabled>` around the Style tab (the
+  platform disables every input and button in it; no flag threaded through StyleTab). Row menu:
+  Rename, Pin to top, Pin to bottom, Unpin, Ungroup (folder: moves the rows out in one
+  `session.transaction`, then deletes the folder), Delete. Not built, owed to the element first:
+  Duplicate and Select what it paints (no `styles` verb or layer scope exists), and a fact for
+  which starting rows are missing (the footer reads the `graphty:starting-` template ids, marked
+  temporary in `lacksStartingRows`). Move to folder is drag only. Given up: the tree no longer
+  shows a run with no layer (running, failed), group rows and their eyes, or a path's length;
+  those go to the Values tab and the binding popover in their own units. The app does NOT turn
+  on `startingRows` yet, so Everything, Selected and Hovered appear only where a project sets it
+  (the tests set it); turning it on app-wide changes the selection look and belongs with the
+  Style tab unit. Seen failing on this branch, not mine: the app's tsc (new halo and band
+  channels and the `style.restore-starting-rows` history code have no words) and the selection
+  row test that expects an ids selector (the find-and-selection unit in flight).
+
 - (2026-10-12) **The ramp editor is built in compact-mantine** (`RampEditor`, story
   `Components/Color/RampEditor`). It wraps `HistogramRow` (bars now take `paint`) and lays the
   handles over it, so the table of values and the named image come free. Handles snap to the

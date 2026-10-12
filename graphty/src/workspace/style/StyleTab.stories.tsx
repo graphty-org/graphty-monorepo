@@ -54,7 +54,7 @@ async function inspectPageRank(
 ): Promise<void> {
     const { runId } = await element.session.runs.start("pagerank");
     await element.session.styles.settled();
-    // As the paint tree opens a run's row: the row's kind and the run id.
+    // As the toolbar opens a finished run: the row's kind and the run id.
     store.set({ inspected: { kind: "measure-row", id: runId } });
     // The tab is rebuilt for the new row, on Values again.
     await openStyleTab(canvasElement);
@@ -92,9 +92,9 @@ function styleStory(
         play: async ({ canvasElement }) => {
             store.set({ inspected: null });
             const element = await loadRing(canvasElement);
-            // As the reader gets here: the Everything row in the paint tree, then the inspector's
-            // Style tab (it opens on Values).
-            await userEvent.click(await within(canvasElement).findByText("Everything"));
+            // The Everything row's Style tab, as Why this look opens it (the style tree lists the
+            // starting rows only while the project draws them).
+            store.set({ inspected: { kind: "everything-row" } });
             await openStyleTab(canvasElement);
             await play?.(canvasElement, element, store);
         },

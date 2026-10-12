@@ -17,7 +17,6 @@ export const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>
         "notes.add",
     ],
     neighborhood: ["view.frame-selection"],
-    "measure-row": ["row.move-up", "row.move-down", "row.delete"],
-    "run-row": ["row.move-up", "row.move-down", "row.delete"],
-    "layer-row": ["row.rename", "row.move-up", "row.move-down", "row.delete"],
+    "layer-row": ["row.rename", "row.pin-top", "row.pin-bottom", "row.pin-none", "row.delete"],
+    "folder-row": ["row.rename", "row.pin-top", "row.pin-bottom", "row.pin-none", "row.ungroup", "row.delete"],
 };

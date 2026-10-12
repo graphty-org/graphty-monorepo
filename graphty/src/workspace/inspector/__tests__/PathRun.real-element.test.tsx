@@ -74,7 +74,7 @@ describe("a path run's Values", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "names the total by the weight column it read, in the Values and on the run row",
+        "names the total by the weight column it read, in the Values",
         async () => {
             const store = createWorkspaceStore({ project: { name: "Trail", id: 1 } });
             const view = render(<Workspace store={store} />);
@@ -120,20 +120,13 @@ describe("a path run's Values", () => {
                 assert.isNotNull(inspector.getByText("Total minutes"));
             });
             assert.isNull(inspector.queryByText("Total distance"));
-
-            // The bus-stops row says how long the trip takes, not how many stops it passes.
-            const row = await view.findByRole("treeitem", { name: /^Shortest path/ });
-            await waitFor(() => {
-                assert.include(row.textContent, "minutes 14");
-            });
-            assert.notInclude(row.textContent, "hops");
         },
         TIMEOUT_MS,
     );
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "opens on Values as a Path, and its tree row gives the path's size, not every element it measured",
+        "opens on Values as a Path, whatever tab a measure last opened on",
         async () => {
             const store = createWorkspaceStore({ project: { name: "Line", id: 1 } });
             const view = render(<Workspace store={store} />);
@@ -164,21 +157,6 @@ describe("a path run's Values", () => {
             await inspector.findByRole("group", { name: "Nodes in order" });
             assert.equal(inspector.getByRole("tab", { name: "Values" }).getAttribute("aria-selected"), "true");
             assert.isNull(inspector.queryByText("Measure"));
-            assert.isNotNull(inspector.getByRole("button", { name: "Path actions" }));
-
-            // 5 nodes and 5 edges were measured; the row says what the path is.
-            const row = await view.findByRole("treeitem", { name: /^Shortest path/ });
-            await waitFor(() => {
-                assert.include(row.textContent, "2 hops");
-            });
-            assert.notInclude(row.textContent, "10");
-
-            // Opened as a measure, the run is still its own tree row: marked selected, one glyph.
-            assert.equal(row.getAttribute("aria-selected"), "true");
-            const headerGlyph = document.querySelector("[data-inspected] svg")?.getAttribute("class") ?? "";
-            const glyph = headerGlyph.split(" ").find((name) => name.startsWith("lucide-"));
-            assert.isDefined(glyph);
-            assert.isNotNull(row.querySelector(`svg.${glyph}`), `the row draws ${glyph}`);
         },
         TIMEOUT_MS,
     );

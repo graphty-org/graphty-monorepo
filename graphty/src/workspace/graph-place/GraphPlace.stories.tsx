@@ -1,26 +1,15 @@
 // Storybook does not run src/main.tsx, so the story defines the real <graphty-element> itself.
 import "@graphty/graphty-element";
 
-import { defineAlgorithm } from "@graphty/graphty-element/extend";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
-import { runName } from "../runWords";
 import { Workspace } from "../Workspace";
 import { EDGES, NODES } from "./twoRings.fixture";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
 
 const OPEN = { project: { name: "Two rings", id: 1 } } as const;
-
-// A story-only algorithm that always fails, registered through the element's public extension API.
-defineAlgorithm({
-    id: "graphty-story-fails",
-    name: "Fails on purpose",
-    nodes: () => {
-        throw new Error("This sample algorithm always fails.");
-    },
-});
 
 /**
  * The story's element, laid out flat with the fixture's fixed positions.
@@ -79,7 +68,7 @@ const meta: Meta<typeof Workspace> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** No data yet: Selection and Everything, and "Add data to start" (`#/graph-place/empty`). */
+/** No data yet: an empty style tree, and "Add data to start" (`#/graph-place/empty`). */
 export const Empty: Story = { args: { initialState: OPEN } };
 
 /**
@@ -93,7 +82,7 @@ export const AtRest: Story = {
     },
 };
 
-/** PageRank finished: its row on top, under Selection, with its ramp and count (`#/graph-place/finished`). */
+/** PageRank finished: its layer on top of the style tree (`#/graph-place/finished`). */
 export const Finished: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
@@ -108,8 +97,9 @@ export const Hidden: Story = {
         const element = await loadRings(canvasElement);
         await run(element, "pagerank");
         const [listed] = element.session.runs.list();
+        const layer = listed === undefined ? undefined : element.session.runs.bindings(listed.id)[0];
         const eye = await within(canvasElement).findByRole("button", {
-            name: `Hide ${listed === undefined ? "" : runName(element.session, listed)}`,
+            name: `Hide ${layer === undefined ? "" : (element.session.styles.get(layer)?.name ?? "")}`,
         });
         await userEvent.click(eye);
         await userEvent.unhover(eye);
@@ -118,8 +108,8 @@ export const Hidden: Story = {
 };
 
 /**
- * Louvain over PageRank: a run row with its groups open, each with its color and size
- * (`#/graph-place/louvain-open`).
+ * Louvain over PageRank: two layers, Louvain on top; its groups are the categories of its color,
+ * not rows of the tree (`#/graph-place/louvain-open`).
  */
 export const LouvainOpen: Story = {
     args: { initialState: OPEN },
@@ -156,18 +146,5 @@ export const FileLoaded: Story = {
         const json = JSON.stringify({ nodes: NODES, edges: EDGES });
         await element.session.data.import({ config: { file: new File([json], "two-rings.json") } });
         await element.waitForStableFrame();
-    },
-};
-
-/** A run that failed: the error icon, the element's message in its tooltip (`#/graph-place/failed`). */
-export const Failed: Story = {
-    args: { initialState: OPEN },
-    play: async ({ canvasElement }) => {
-        const element = await loadRings(canvasElement);
-        await element.session.runs.start("graphty-story-fails").then(
-            () => undefined,
-            () => undefined,
-        );
-        await within(canvasElement).findByRole("treeitem", { name: "Fails on purpose" });
     },
 };

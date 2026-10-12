@@ -1,144 +1,118 @@
-import type { LayerId } from "@graphty/graphty-element/catalog";
+import type { StyleRow, StyleRowPin } from "@graphty/graphty-element/session";
 
 import { type Command, type CommandContext, defineRegistration } from "../commands/registry";
-import { deleteRow, moveRow } from "./actions";
+import { deleteRow, orNotice, ungroup } from "./actions";
 import { FIND_BOX_ID } from "./FindBox";
-import { findRow, isMovable, layerAbove, type PaintRow, paintRows, type RowKind } from "./rows";
+import { findTreeRow } from "./rows";
 
 /**
- * A command on one paint-tree row. Every door to it -- the row's context menu, the inspector
- * header's "...", the row's keys, Quick actions -- runs this one list, so they always agree.
+ * A command on one row of the style tree. Every door to it -- the row's context menu, the
+ * inspector header's "...", the row's keys, Quick actions -- runs this one list, so they agree.
+ * Every layer has the same list, whatever made it; a folder adds Ungroup.
  */
-interface RowCommand {
+export interface RowCommand {
     readonly id: string;
     readonly label: string;
     /** The keys that run it on the focused row, the first shown in menus. */
     readonly rowKeys: readonly string[];
-    /** Whether the row has it at all. A row with none draws no "..." and opens no menu. */
-    readonly applies: (row: PaintRow) => boolean;
-    /** Why it cannot run on the row now, among the tree's rows (top first), or null. */
-    readonly disabled: (row: PaintRow, rows: readonly PaintRow[]) => string | null;
+    /** Whether the row has it at all. */
+    readonly applies: (row: StyleRow) => boolean;
+    /** Why it cannot run on the row now, or null. */
+    readonly disabled: (row: StyleRow) => string | null;
     /** Does it to the row. */
-    readonly run: (ctx: CommandContext, row: PaintRow) => void | Promise<void>;
+    readonly run: (ctx: CommandContext, row: StyleRow) => void | Promise<void>;
 }
 
 /** Longer than a closing menu takes to hand focus back to its opener. */
 const MENU_FOCUS_RETURN_MS = 50;
 
-/** A run still running has no verbs until it ends. */
-const RUNNING = "Wait for the run to finish, or cancel it";
-
 /**
- * A row's move one place up (-1) or down (1) among the top-level rows: the layer it would sit
- * below, or undefined at an end. Moving up past rows that do not paint changes nothing, so a row
- * with none that paints above it is at the top.
- * @param rows - the rows, top first.
- * @param row - the row.
- * @param step - -1 for up, 1 for down.
- * @returns the layer to sit below, null for the top, or undefined.
- */
-function stepTarget(rows: readonly PaintRow[], row: PaintRow, step: -1 | 1): LayerId | null | undefined {
-    const at = rows.findIndex((candidate) => candidate.id === row.id);
-    if (step === -1 && !rows.slice(0, Math.max(at, 0)).some((other) => other.layerIds.length > 0)) {
-        return undefined;
-    }
-    return at < 0 ? undefined : layerAbove(rows, row.id, null, at + step);
-}
-
-/**
- * A Move up or Move down command.
- * @param step - -1 for up, 1 for down.
+ * A Pin to top, Pin to bottom or Unpin command.
+ * @param pin - where it pins.
+ * @param label - its words.
  * @returns the command.
  */
-function moveCommand(step: -1 | 1): RowCommand {
-    const up = step === -1;
+function pinCommand(pin: StyleRowPin, label: string): RowCommand {
     return {
-        id: up ? "row.move-up" : "row.move-down",
-        label: up ? "Move up" : "Move down",
-        rowKeys: [up ? "Alt+ArrowUp" : "Alt+ArrowDown"],
-        applies: isMovable,
-        disabled: (row, rows) => {
-            if (row.state === "running") {
-                return RUNNING;
+        id: `row.pin-${pin}`,
+        label,
+        rowKeys: [],
+        applies: () => true,
+        disabled: (row) => {
+            if (row.pin !== pin) {
+                return null;
             }
-            if (stepTarget(rows, row, step) === undefined) {
-                return up ? "Already at the top" : "Already at the bottom";
-            }
-            return null;
+            return pin === "none" ? "Not pinned" : "Already pinned there";
         },
         run: async ({ session, workspace }, row) => {
-            if (session === null) {
-                return;
-            }
-            const before = stepTarget(paintRows(session), row, step);
-            if (before !== undefined) {
-                await moveRow(session, workspace, row, before);
+            if (session !== null) {
+                await orNotice(workspace, `pin ${row.name}`, session.styles.pinRow(row.id, pin));
             }
         },
     };
 }
 
-/**
- * The row commands, in menu order. Selection, Everything and a group row have none. A run row
- * has no Rename: graphty-element has no verb that renames a run.
- */
+/** The row commands, in menu order. */
 export const ROW_COMMANDS: readonly RowCommand[] = [
     {
         id: "row.rename",
         label: "Rename",
         rowKeys: ["F2"],
-        applies: (row) => row.kind === "layer-row",
+        applies: () => true,
         disabled: () => null,
         run: ({ workspace }, row) => {
-            // The paint tree opens the name field; it may only now be drawn. A menu hands focus
-            // back to its opener 10 ms after it closes (Mantine's useFocusReturn), which would blur
-            // the new field and close it at once, so the field opens after that.
+            // A menu hands focus back to its opener 10 ms after it closes (Mantine's
+            // useFocusReturn), which would blur the new field and close it at once.
             setTimeout(() => {
                 workspace.set({ page: "panels", place: "graph", renamingRow: row.id });
             }, MENU_FOCUS_RETURN_MS);
         },
     },
-    moveCommand(-1),
-    moveCommand(1),
+    pinCommand("top", "Pin to top"),
+    pinCommand("bottom", "Pin to bottom"),
+    pinCommand("none", "Unpin"),
+    {
+        id: "row.ungroup",
+        label: "Ungroup",
+        rowKeys: [],
+        applies: (row) => row.kind === "folder",
+        disabled: () => null,
+        run: async ({ session, workspace }, row) => {
+            if (session !== null) {
+                await orNotice(workspace, `ungroup ${row.name}`, ungroup(session, row));
+                workspace.set({ inspected: null });
+            }
+        },
+    },
     {
         id: "row.delete",
         label: "Delete",
         rowKeys: ["Delete", "Backspace"],
-        applies: (row) =>
-            row.kind === "layer-row" ||
-            ((row.kind === "measure-row" || row.kind === "run-row") && row.runId !== undefined),
-        disabled: (row) => (row.state === "running" ? RUNNING : null),
+        applies: () => true,
+        disabled: () => null,
         run: async ({ session, workspace }, row) => {
             if (session !== null) {
-                await deleteRow(session, workspace, row);
+                await orNotice(workspace, `delete ${row.name}`, deleteRow(session, workspace, row));
             }
         },
     },
 ];
 
-const ROW_KINDS: ReadonlySet<string> = new Set<RowKind>([
-    "selection-row",
-    "measure-row",
-    "run-row",
-    "group-row",
-    "layer-row",
-    "everything-row",
-]);
-
 /**
- * The paint-tree row the inspector shows, which a row command run from the inspector's "...",
- * Quick actions or the command list acts on.
+ * The tree row the inspector shows, which a row command run from the inspector's "...", Quick
+ * actions or the command list acts on.
  * @param ctx - the command context.
- * @returns the row, or undefined when no row is inspected.
+ * @returns the row, or undefined when no single row is inspected.
  */
-function inspectedRow(ctx: CommandContext): { row: PaintRow; rows: PaintRow[] } | undefined {
+function inspectedRow(ctx: CommandContext): StyleRow | undefined {
     const { inspected } = ctx.workspace.get();
-    if (ctx.session === null || inspected?.id === undefined || !ROW_KINDS.has(inspected.kind)) {
+    if (ctx.session === null || inspected?.id === undefined) {
         return undefined;
     }
-    const rows = paintRows(ctx.session);
-    const row = findRow(rows, inspected.id);
-    return row === undefined ? undefined : { row, rows };
+    if (inspected.kind !== "layer-row" && inspected.kind !== "folder-row") {
+        return undefined;
+    }
+    return findTreeRow(ctx.session.styles.tree(), inspected.id)?.row;
 }
 
 /**
@@ -153,26 +127,24 @@ function onInspectedRow(command: RowCommand): Command {
         group: "Graph tree",
         rowKeys: command.rowKeys,
         disabled: (ctx) => {
-            const found = inspectedRow(ctx);
-            if (found === undefined) {
-                return "Select a style row first";
+            const row = inspectedRow(ctx);
+            if (row === undefined) {
+                return "Select a style layer first";
             }
-            const { row, rows } = found;
-            return command.applies(row) ? command.disabled(row, rows) : `Not available for ${row.name}`;
+            return command.applies(row) ? command.disabled(row) : `Not available for ${row.name}`;
         },
         run: async (ctx) => {
-            const found = inspectedRow(ctx);
-            if (found !== undefined) {
-                await command.run(ctx, found.row);
+            const row = inspectedRow(ctx);
+            if (row !== undefined) {
+                await command.run(ctx, row);
             }
         },
     };
 }
 
 /**
- * The Graph place's commands. A click on a row sets `inspected` to `{ kind, id }` with the row's
- * kind and id; the inspector registers and draws those kinds, except a reader's own layer row,
- * which only the paint tree has.
+ * The Graph place's commands and the kinds its tree opens in the inspector: a layer, a folder,
+ * several rows at once, and the new layer not yet written.
  */
 export const registration = defineRegistration({
     owner: "graph-place",
@@ -194,5 +166,10 @@ export const registration = defineRegistration({
         },
         ...ROW_COMMANDS.map(onInspectedRow),
     ],
-    inspectedKinds: [{ kind: "layer-row", tabs: [] }],
+    inspectedKinds: [
+        { kind: "layer-row", tabs: [] },
+        { kind: "folder-row", tabs: [] },
+        { kind: "rows", tabs: [] },
+        { kind: "draft-row", tabs: [] },
+    ],
 });

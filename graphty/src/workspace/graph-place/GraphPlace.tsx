@@ -7,8 +7,7 @@ import React, { useMemo } from "react";
 import { GLYPHS } from "../glyphs";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FindBox } from "./FindBox";
-import { PaintTree } from "./PaintTree";
-import { paintRows } from "./rows";
+import { StyleTree } from "./StyleTree";
 import { useSessionVersion } from "./useSessionVersion";
 
 /**
@@ -39,8 +38,8 @@ function Footer({ hasGraph, hasRuns }: Readonly<{ hasGraph: boolean; hasRuns: bo
 }
 
 /**
- * The Graph place (tier1-design.md section 2.5): the graph title line, the find box, the paint
- * tree and one footer line. Everything it shows is read from graphty-element's session.
+ * The Graph place (tier1-design.md section 2.5): the graph title line, the find box, the style
+ * tree (tier 3 design section 2.1) and one footer line. Everything it shows is read from graphty-element's session.
  * @returns The Graph place
  */
 export function GraphPlace(): React.JSX.Element {
@@ -48,14 +47,14 @@ export function GraphPlace(): React.JSX.Element {
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
     const version = useSessionVersion(session);
 
-    const { rows, name, hasGraph } = useMemo(() => {
+    const { name, hasGraph, hasRuns } = useMemo(() => {
         const _changeCount = version; // NOSONAR(S1481): reads the change count so the memo runs again on each session change
         return session === null
-            ? { rows: [], name: projectName, hasGraph: false }
+            ? { name: projectName, hasGraph: false, hasRuns: false }
             : {
-                  rows: paintRows(session),
                   name: session.data.source()?.name ?? projectName,
                   hasGraph: session.data.statistics().nodeCount > 0,
+                  hasRuns: session.runs.list().some((run) => run.status !== "removed"),
               };
     }, [session, version, projectName]);
 
@@ -78,8 +77,8 @@ export function GraphPlace(): React.JSX.Element {
             <div className="ws-graph-treebar">
                 <FindBox />
             </div>
-            {session === null ? null : <PaintTree rows={rows} />}
-            <Footer hasGraph={hasGraph} hasRuns={rows.some((row) => row.runId !== undefined)} />
+            {session === null ? null : <StyleTree session={session} />}
+            <Footer hasGraph={hasGraph} hasRuns={hasRuns} />
         </section>
     );
 }

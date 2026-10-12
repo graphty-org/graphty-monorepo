@@ -482,7 +482,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         assert.deepEqual(controlNames(), [...new Set(controlNames())]);
     });
 
-    it("every fixed row has a Style: the Selection's highlight, a group's color and eye, a run opening on Style", async () => {
+    it("every fixed row has a Style: the Selection's highlight, a group's color, a run opening on Style", async () => {
         const { session, store } = await openRings();
         const id = await runToEnd(session, "louvain");
 
@@ -538,18 +538,6 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         });
         assert.equal(colorOf(inSecond), otherBefore, "another group keeps its color");
 
-        // The group's eye hides that group's paint and no other.
-        await userEvent.click(
-            await screen.findByRole("button", { name: `Hide ${groupNameOf(first.rank, first.group)}` }),
-        );
-        await act(async () => {
-            await session.styles.settled();
-        });
-        await waitFor(() => {
-            assert.isFalse(citesRun(inFirst));
-        });
-        assert.isTrue(citesRun(inSecond));
-
         // The run's row opens on Style the first time.
         act(() => {
             store.set({ inspected: { kind: "run-row", id } });
@@ -559,13 +547,3 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         });
     });
 });
-
-/**
- * A group row's name as the paint tree draws it.
- * @param rank - the group's rank, if any.
- * @param group - the group.
- * @returns the name.
- */
-function groupNameOf(rank: number | undefined, group: string | number): string {
-    return rank === undefined ? String(group) : `Group ${String(rank)}`;
-}

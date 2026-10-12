@@ -1,7 +1,7 @@
 /**
  * The workspace's icons: one icon per concept, one concept per icon. Every workspace file draws
  * its icons from here (lint forbids importing lucide-react anywhere else under src/workspace), so
- * a concept looks the same in the toolbar, the paint tree, the inspector and the menus.
+ * a concept looks the same in the toolbar, the style tree, the inspector and the menus.
  */
 
 import {
@@ -26,6 +26,7 @@ import {
     FilePlus,
     FileText,
     FlaskConical,
+    Folder,
     FolderOpen,
     Group,
     Hash,
@@ -37,6 +38,8 @@ import {
     ListOrdered,
     LoaderCircle,
     Lock,
+    LockKeyhole,
+    LockKeyholeOpen,
     type LucideIcon,
     Menu,
     Minus,
@@ -45,6 +48,7 @@ import {
     Network,
     Orbit,
     Paintbrush,
+    Pin,
     Plus,
     Redo2,
     Route,
@@ -81,6 +85,11 @@ export const GLYPHS = {
     run: Shapes,
     group: Circle,
     layer: Paintbrush,
+    // A folder of style layers, and the marks a layer row carries.
+    folder: Folder,
+    pin: Pin,
+    lock: LockKeyhole,
+    unlock: LockKeyholeOpen,
     everything: Layers,
     // Analyses and value types.
     paths: Route,
@@ -136,7 +145,7 @@ export const GLYPHS = {
     shared: Share2,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
-/** The icon of each thing the inspector shows; a paint tree row draws the same icon. */
+/** The icon of each thing the inspector shows; a style tree row draws the same icon. */
 export const KIND_GLYPHS: Readonly<Record<InspectedKindId, LucideIcon>> = {
     graph: GLYPHS.graph,
     node: GLYPHS.node,
@@ -149,6 +158,9 @@ export const KIND_GLYPHS: Readonly<Record<InspectedKindId, LucideIcon>> = {
     "everything-row": GLYPHS.everything,
     "selection-row": GLYPHS.selection,
     "layer-row": GLYPHS.layer,
+    "folder-row": GLYPHS.folder,
+    rows: GLYPHS.layer,
+    "draft-row": GLYPHS.layer,
     attribute: GLYPHS.attribute,
     "filter-step": GLYPHS.filter,
     source: GLYPHS.file,

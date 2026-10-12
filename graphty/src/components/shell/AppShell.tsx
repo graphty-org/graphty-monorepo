@@ -3112,13 +3112,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    same route the inspector's own neighbour rows take. The aggregate tie
                    row carries no node id and stays inert text (RT-6).
 
-                   `row.nodeId` is the ELEMENT's own id and `row.name` is the printed one,
-                   and the two are different types on two of the three shipped samples:
-                   karate.gml and football.gml declare integer ids, GMLDataSource parses
-                   them with parseInt, and the element's node Map is keyed on the number.
-                   The ranking used to carry `String(node.id)`, so `selectById("1")` missed
-                   the key `1`, returned false, emitted nothing, and every ranked row on
-                   those two samples was inert. Print the label, select the id. */
+                   `row.nodeId` is the element's own id and `row.name` is the printed one.
+                   Print the label, select the id. */
                 const body: ResultBodyRow[] = nodeMetricResultBody(ranking).map((row) => {
                     const { nodeId } = row;
 

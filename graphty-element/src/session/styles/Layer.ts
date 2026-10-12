@@ -61,11 +61,13 @@ import type {
     StaticStyle,
 } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
+import type { GraphtyWarningCode } from "../../errors/codes";
 import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
+import type { CodedFact } from "../shared";
 import { type ChannelDescriptor, channelDescriptor, channelsFor, toColorValue } from "./channels";
-import type { CompiledSelector, SelectorSource, SelectorTarget } from "./predicate";
+import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
 import { compileSelector, type Selector } from "./selector";
 
@@ -192,6 +194,14 @@ export interface ValidationResult {
      * have meant the column, which reads as `data.graphty.<name>`.
      */
     readonly shadowedPaths: readonly Path[];
+    /**
+     * What will paint nothing, as codes. Not errors: the layer is still added.
+     *
+     * `W_UNKNOWN_ID`: a `{ match: "ids" }` selector names ids no element of the layer's target
+     * answers to now, by either spelling of an integer id. `params.target` is `"node"` or
+     * `"edge"`, `params.ids` those ids as the layer named them.
+     */
+    readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
 }
 
 /**
@@ -368,6 +378,41 @@ const NO_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Nothing was wrong. */
 const NO_PROBLEMS: readonly LayerProblem[] = Object.freeze([]);
+
+/** Nothing to warn about. */
+const NO_WARNINGS: readonly CodedFact<GraphtyWarningCode>[] = Object.freeze([]);
+
+/**
+ * The warnings a layer's selector earns: the ids an `ids` selector names that nothing answers to.
+ * @param spec - The specification.
+ * @param target - The layer's target, or null when it could not be settled.
+ * @param elements - Where an id is looked up.
+ * @returns The warnings; none when the session cannot look an id up.
+ */
+function selectorWarnings(
+    spec: LayerSpec,
+    target: SelectorTarget | null,
+    elements: SelectorSource,
+): readonly CodedFact<GraphtyWarningCode>[] {
+    const selector = spec.selector as { match?: unknown; nodes?: unknown; edges?: unknown } | null | undefined;
+    if (target === null || selector?.match !== "ids") {
+        return NO_WARNINGS;
+    }
+
+    const named = (target === "node" ? selector.nodes : selector.edges) as readonly (string | number)[] | undefined;
+    const { indexOf } = columnsFor(elements, target);
+    if (named === undefined || indexOf === null) {
+        return NO_WARNINGS;
+    }
+
+    const unknown = named.filter((id) => indexOf(id) === undefined);
+
+    return unknown.length === 0
+        ? NO_WARNINGS
+        : Object.freeze([
+              Object.freeze({ code: "W_UNKNOWN_ID" as const, params: Object.freeze({ target, ids: unknown }) }),
+          ]);
+}
 
 /**
  * Mint the id a new layer will carry.
@@ -1014,13 +1059,16 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
                 errors: Object.freeze([...log.problems]),
                 unresolvedPaths,
                 shadowedPaths,
+                warnings: NO_WARNINGS,
             }),
             layer: null,
         };
     }
 
+    const warnings = selectorWarnings(spec, target, options.elements);
+
     return {
-        result: Object.freeze({ ok: true, errors: NO_PROBLEMS, unresolvedPaths, shadowedPaths }),
+        result: Object.freeze({ ok: true, errors: NO_PROBLEMS, unresolvedPaths, shadowedPaths, warnings }),
         layer: buildLayer(spec, options.id, target, compiled, log.paths),
     };
 }

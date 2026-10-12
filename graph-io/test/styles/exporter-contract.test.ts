@@ -18,9 +18,10 @@ import {
     STYLE_BLOCK_NAME,
     styleFingerprint,
     type StyleProperty,
+    type StyleRule,
     styleTag,
 } from "../../src/styles/index.js";
-import type { GraphExporter } from "../../src/types.js";
+import type { GraphExporter, LossNote } from "../../src/types.js";
 
 /**
  * A graph of eight nodes in two groups and a ring of edges.
@@ -159,6 +160,43 @@ describe('an exporter with block: "attributes"', () => {
                 (f) => !f.canExport || f.capabilities?.styles === builtIn.exporter(f.format).styles?.capabilities,
             ),
         ).toBe(true);
+    });
+});
+
+describe("a property only graphty draws", () => {
+    /**
+     * The styles above with a `graphty:glow` value on every node.
+     * @param snapshot - the graph
+     * @returns the styles
+     */
+    function withGlow(snapshot: GraphSnapshot): ExtractedStyles {
+        const base = styles(snapshot);
+        const glow: StyleRule = {
+            id: "glow",
+            target: "node",
+            role: "group",
+            origin: "declared",
+            where: { all: true },
+            set: { "graphty:glow": 2 },
+        };
+        return { ...base, styles: { ...base.styles, rules: [...base.styles.rules, glow] } };
+    }
+
+    const lostGlow = (notes: readonly LossNote[]): boolean =>
+        notes.some((n) => n.code === "W_STYLE_NOT_WRITTEN" && n.style?.property === "graphty:glow");
+
+    it("is not lost where the block keeps it, whoever reports it", () => {
+        const snapshot = graph();
+        for (const format of ["gexf", "cx2", "json"]) {
+            expect(lostGlow(createRegistry().checkExport(snapshot, format, { styles: withGlow(snapshot) }))).toBe(
+                false,
+            );
+        }
+    });
+
+    it("is lost where no block is written", () => {
+        const snapshot = graph();
+        expect(lostGlow(createRegistry().checkExport(snapshot, "csv", { styles: withGlow(snapshot) }))).toBe(true);
     });
 });
 

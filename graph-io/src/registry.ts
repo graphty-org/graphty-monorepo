@@ -47,7 +47,7 @@ import { pajekExporter, pajekImporter } from "./formats/pajek/index.js";
 import { xgmmlExporter, xgmmlImporter } from "./formats/xgmml/index.js";
 import { type FormatName, rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
 import { extractStyles, type StyleImportOptions } from "./styles/io/generic.js";
-import { prepareStyleExport } from "./styles/io/writer.js";
+import { isKeptGraphtyProperty, prepareStyleExport } from "./styles/io/writer.js";
 import type { ExtractedStyles } from "./styles/types.js";
 import {
     type CommonExportOptions,
@@ -835,7 +835,11 @@ export class FormatRegistry {
             notes = [
                 ...styled.exporter
                     .check(styled.snapshot, styled.options)
-                    .filter((n) => n.style === undefined || !reported.has(key(n))),
+                    .filter(
+                        (n) =>
+                            n.style === undefined ||
+                            (!reported.has(key(n)) && !isKeptGraphtyProperty(n, styled.exporter)),
+                    ),
                 ...styled.notes,
             ];
         } else {

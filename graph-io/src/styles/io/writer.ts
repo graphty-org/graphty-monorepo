@@ -128,6 +128,30 @@ export function prepareStyleExport(
 }
 
 /**
+ * Whether an exporter keeps the `graphty.styles` block, natively or as a graph attribute.
+ * @param exporter - the exporter
+ * @returns true when the block is written
+ */
+export function keepsStyleBlock(exporter: GraphExporter): boolean {
+    const caps = exporter.styles?.capabilities;
+    return (
+        caps !== undefined &&
+        (caps.block === "native" || (caps.block === "attributes" && exporter.capabilities.graphAttributes))
+    );
+}
+
+/**
+ * Whether a loss note is about a property only graphty draws (`graphty:<channel>`) in a file that keeps the block:
+ * the block carries it, and no other program would draw it, so nothing is lost.
+ * @param note - the note
+ * @param exporter - the exporter writing the file
+ * @returns true when the note names nothing lost
+ */
+export function isKeptGraphtyProperty(note: LossNote, exporter: GraphExporter): boolean {
+    return note.style?.property.startsWith("graphty:") === true && keepsStyleBlock(exporter);
+}
+
+/**
  * The losses of an export with styles: W_STYLE_NOT_WRITTEN for every property the format does not write natively
  * (all of them for an exporter without a `styles` member), and W_STYLE_RULES_NOT_KEPT when the block is not kept.
  * @param extracted - the styles
@@ -143,6 +167,7 @@ function lossNotes(
     picture: (target: StyleTarget, property: StyleProperty) => readonly (StyleValue | null)[],
 ): LossNote[] {
     const notes: LossNote[] = [];
+    const kept = keepsStyleBlock(exporter);
     for (const target of TARGETS) {
         const written = new Set<string>(caps?.[target] ?? []);
         const properties = new Set<string>();
@@ -154,7 +179,8 @@ function lossNotes(
             }
         }
         for (const property of properties) {
-            if (written.has(property)) {
+            // a property only graphty draws is written into the block alone: lost only when the block is
+            if (written.has(property) || (kept && property.startsWith("graphty:"))) {
                 continue;
             }
             const count = picture(target, property as StyleProperty).filter((v) => v !== null).length;
@@ -183,9 +209,6 @@ function lossNotes(
             );
         }
     }
-    const kept =
-        caps !== null &&
-        (caps.block === "native" || (caps.block === "attributes" && exporter.capabilities.graphAttributes));
     if (!kept && extracted.styles.rules.length > 0) {
         notes.push(
             Object.freeze({

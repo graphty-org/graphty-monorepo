@@ -1734,7 +1734,7 @@ export function createColumn(parts: MutableColumnParts): Column {
         case "string": {
             if (parts.offsets === null || parts.utf8 === null) {
                 const { strings } = parts;
-                if (strings === null || strings.length !== length) {
+                if (strings?.length !== length) {
                     throw lengthError(meta, "strings", length, strings === null ? -1 : strings.length);
                 }
                 for (let row = 0; row < length; row++) {
@@ -1753,7 +1753,7 @@ export function createColumn(parts: MutableColumnParts): Column {
             return new StringColumnImpl(meta, length, parts.offsets, parts.utf8, parts.strings, validity, nullCount);
         }
         case "list": {
-            if (parts.offsets === null || parts.offsets.length !== length + 1) {
+            if (parts.offsets?.length !== length + 1) {
                 throw lengthError(meta, "offsets", length + 1, parts.offsets === null ? -1 : parts.offsets.length);
             }
             const { child } = parts;
@@ -1775,7 +1775,7 @@ export function createColumn(parts: MutableColumnParts): Column {
             return new ListColumnImpl(meta, length, parts.offsets, child, validity, nullCount);
         }
         case "json": {
-            if (parts.values === null || parts.values.length !== length) {
+            if (parts.values?.length !== length) {
                 throw lengthError(meta, "values", length, parts.values === null ? -1 : parts.values.length);
             }
             return new JsonColumnImpl(meta, length, parts.values, validity, nullCount);

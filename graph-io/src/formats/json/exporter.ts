@@ -1246,7 +1246,7 @@ function idText(id: NodeId): string {
  */
 function edgeIdText(p: Plan, e: number, c: Cursor): string | null {
     const column = p.edgeIds;
-    if (column === null || !column.isSet(e)) {
+    if (!column?.isSet(e)) {
         return null;
     }
     return cellText(column, e, c.ids, c.nonfinite);

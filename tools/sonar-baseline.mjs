@@ -22,7 +22,8 @@
 // that run's coverage, restore the profile if the file changed, and run a full scan under the lock
 // the gate uses (waiting up to LOCK_WAIT_S for a push to release it, else retrying at the next
 // poll). The first pass of each ISO week comments the numbers on the pinned "SonarQube burn-down"
-// issue.
+// issue. When the worktree cannot be moved, installed or built, the first failed pass of a streak
+// opens one issue ("SonarQube baseline: the build of master fails") and the next success closes it.
 //
 // The token goes only to the scanner child and to tools/sonar/api.mjs; every other child (git,
 // pnpm, gh, the build) runs with both tokens removed from its environment.
@@ -190,7 +191,81 @@ async function setup(cfg) {
     log(`setup done; pinned server id ${status.id}`);
 }
 
-const sh = (cmd, args, cwd) => spawnSync(cmd, args, { cwd, stdio: "inherit", env: envWithoutToken() }).status === 0;
+const sh = (cmd, args, cwd, env = {}) =>
+    spawnSync(cmd, args, { cwd, stdio: "inherit", env: { ...envWithoutToken(), ...env } }).status === 0;
+
+// The heap CI gives its builds (ci.yml's build steps, NODE_OPTIONS): graphty's vite build needs about
+// 4 GB, node's default limit. sonar-baseline.test.mjs fails when ci.yml's "Build all" step differs.
+export const BUILD_NODE_OPTIONS = "--max-old-space-size=8192";
+
+/**
+ * How the baseline runs an install or build step: CI's heap, no token, and no core files (each
+ * out-of-memory abort of the graphty build left a 4.2 GB core in the worktree, #2113).
+ * @param cmd - The program.
+ * @param args - Its arguments.
+ * @returns `{ cmd, args, env }` for spawnSync.
+ */
+export function buildChild(cmd, args) {
+    return {
+        cmd: "sh",
+        args: ["-c", 'ulimit -c 0 && exec "$@"', "sh", cmd, ...args],
+        env: { NODE_OPTIONS: BUILD_NODE_OPTIONS },
+    };
+}
+const build = (cmd, args, cwd) => {
+    const c = buildChild(cmd, args);
+    return sh(c.cmd, c.args, cwd, c.env);
+};
+
+/**
+ * Raise one alert per streak of failed worktree preparations, and clear it on the next success.
+ * The open alert's issue number is kept in `stampFile`.
+ * @param failure - Why preparing failed, or "" when it succeeded.
+ * @param stampFile - Where the open alert's issue number is kept.
+ * @param issues - `{ open(failure) -> number | null, close(number) -> boolean }`.
+ */
+export function prepareAlert(failure, stampFile, issues) {
+    const open = existsSync(stampFile) ? readFileSync(stampFile, "utf8").trim() : "";
+    if (failure && !open) {
+        const n = issues.open(failure);
+        if (n) writeFileSync(stampFile, `${n}\n`);
+    } else if (!failure && open && issues.close(open)) {
+        rmSync(stampFile, { force: true });
+    }
+}
+
+const ALERT_TITLE = "SonarQube baseline: the build of master fails";
+const ALERT_LABELS = "bug,priority:medium,effort:medium";
+
+// The alert as a GitHub issue; null or false (logged) when gh failed, so the next poll tries again.
+const alertIssues = {
+    open(failure) {
+        const body = [
+            "`tools/sonar-baseline.mjs --watch` (servherd `sonar-baseline`) could not prepare the baseline worktree:",
+            "",
+            `    ${failure}`,
+            "",
+            "Project `graphty-monorepo` stops following master until it succeeds. The step's output is in",
+            "`servherd_logs sonar-baseline`. The runner retries every poll and closes this issue at the first",
+            "success; it opens no other issue until then.",
+        ].join("\n");
+        try {
+            const args = ["issue", "create", "--title", ALERT_TITLE, "--label", ALERT_LABELS, "--body", body];
+            const url = execFileSync("gh", args, { cwd: ROOT, encoding: "utf8", env: envWithoutToken() }).trim();
+            log(`ALERT: ${failure}; opened ${url}`);
+            return url.split("/").pop();
+        } catch (e) {
+            log(`gh issue create failed: ${firstLine(e)}`);
+            return null;
+        }
+    },
+    close(number) {
+        const comment = "The baseline worktree built again; the runner is scanning master.";
+        const ok = sh("gh", ["issue", "close", number, "--comment", comment], ROOT);
+        if (ok) log(`build recovered; closed #${number}`);
+        return ok;
+    },
+};
 const ghJson = (args) => JSON.parse(execFileSync("gh", args, { cwd: ROOT, encoding: "utf8", env: envWithoutToken() }));
 
 /**
@@ -387,20 +462,19 @@ async function postWeekly(api, key) {
     }
 }
 
-// Move the baseline worktree to `sha`, install and build. False (logged) when a step failed.
+// Move the baseline worktree to `sha`, install and build. Why it failed, or "" when it succeeded.
 function prepareWorktree(worktree, sha) {
     const moved = existsSync(worktree)
         ? sh("git", ["checkout", "--quiet", "--detach", "--force", sha], worktree)
         : sh("git", ["worktree", "add", "--detach", worktree, sha], ROOT);
-    const fail = (why) => {
-        log(`${why}; next poll`);
-        return false;
-    };
-    if (!moved) return fail("could not move the baseline worktree");
-    if (!sh("pnpm", ["install", "--frozen-lockfile"], worktree)) return fail("pnpm install failed");
-    if (!sh("pnpm", ["exec", "nx", "run-many", "-t", "build", "--parallel=3"], worktree)) return fail("build failed");
-    sh("npm", ["run", "build:bundle"], join(worktree, "webgpu-graph-algorithms"));
-    return true;
+    const at = sha.slice(0, 9);
+    if (!moved) return `could not move the baseline worktree to ${at}`;
+    if (!build("pnpm", ["install", "--frozen-lockfile"], worktree)) return `pnpm install failed at ${at}`;
+    if (!build("pnpm", ["exec", "nx", "run-many", "-t", "build", "--parallel=3"], worktree)) {
+        return `build failed at ${at}`;
+    }
+    build("npm", ["run", "build:bundle"], join(worktree, "webgpu-graph-algorithms"));
+    return "";
 }
 
 // Restore the profile when the worktree's file differs from the one last restored.
@@ -462,7 +536,9 @@ async function pass(cfg) {
     } else {
         log(`scanning ${sha.slice(0, 9)}, the candidate of release-train run ${run.databaseId}`);
         const worktree = join(dirname(commonDir()), ".worktrees", "sonar-baseline");
-        if (!prepareWorktree(worktree, sha)) return;
+        const failure = prepareWorktree(worktree, sha);
+        prepareAlert(failure, join(sonarDir(), "prepare-alert"), alertIssues);
+        if (failure) return log(`${failure}; next poll`);
         if (!mergeCoverage(run, worktree)) {
             rmSync(join(worktree, "coverage/lcov.info"), { force: true });
             log(`scanning ${sha.slice(0, 9)} WITHOUT coverage (run ${run.databaseId} has none to download)`);

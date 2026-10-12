@@ -7,7 +7,7 @@
  * render with) the antialiased edge of large text comes out one alpha level different at a few
  * dozen scattered pixels from one page load to the next -- with the same words, font, size,
  * transform and draw order. Minified onto the screen that is one to three pixels one colour level
- * apart, and `Styles/Label: Declutter` was reported changed on nearly every Chromatic build
+ * apart, and `Styles/Label: Declutter` was reported changed on nearly every screenshot build
  * because of it. The same canvas rasterised on the CPU is identical on every load.
  *
  * WHAT IS MEASURED. Chromium keeps a 2D canvas on the CPU when its context is created with

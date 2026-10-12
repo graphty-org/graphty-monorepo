@@ -68,7 +68,8 @@ case "${1:-}" in
 esac
 if [[ "$MODE" != "pr" ]]; then
     HEAD="$(git -C "$HERE" rev-parse --verify "${2:-}^{commit}")" || die "usage: visual-preview.sh $1 <commit>"
-    BRANCH="$(git -C "$HERE" symbolic-ref --short -q HEAD || true)"
+    # The branch of the checkout being pushed: PREPUSH_ROOT when the gate runs from its live copy.
+    BRANCH="$(git -C "${PREPUSH_ROOT:-$HERE}" symbolic-ref --short -q HEAD || true)"
     PR=""
     if [[ -n "$BRANCH" ]]; then
         PR="$(jq -r --arg b "$BRANCH" '[.pullRequests[]? | select(.head == $b) | .number][0] // empty' \
@@ -211,7 +212,9 @@ status running
 STEP="finding the affected projects"
 status running
 mapfile -t ALL < <(jq -r '.projects | keys[]' "$WT/visual-review.config.json")
-if AFFECTED="$(cd "$WT" && bounded pnpm exec nx show projects --affected --base="$MERGE^1" --head="$MERGE" --json 2>> "$LOG")"; then
+# An exit 0 with no JSON array is nx cut short (a pnpm older than 10.29.1 reports a signal as 0): capture all.
+if AFFECTED="$(cd "$WT" && bounded pnpm exec nx show projects --affected --base="$MERGE^1" --head="$MERGE" --json 2>> "$LOG")" &&
+    [[ "$AFFECTED" == "["* ]]; then
     mapfile -t PROJECTS < <(jq -r --argjson all "$(printf '%s\n' "${ALL[@]}" | jq -R . | jq -s .)" \
         '.[] | select(. as $p | $all | index($p))' <<< "$AFFECTED")
 elif [[ $? -eq 124 ]]; then

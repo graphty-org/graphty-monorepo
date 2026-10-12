@@ -108,6 +108,7 @@ function createMinimalStyles(): Styles {
             },
             labels: {
                 declutter: false,
+                avoidNodesAndEdges: false,
             },
             rendering: {
                 onDemand: false,

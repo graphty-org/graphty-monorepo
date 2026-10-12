@@ -17,8 +17,15 @@
 # type-check (inside each package's lint), and the tests. The screenshots run in the background and
 # are reported at the end; a run_step failure stops them (the EXIT trap).
 
+# Where the gate's scripts are (SCRIPT_DIR) and the checkout they check (ROOT_DIR). The push queue
+# runs the gate from one live copy, .worktrees/gate-live, against the checkout being pushed, named in
+# PREPUSH_ROOT, so a fix to the gate takes effect for every branch at once. Without PREPUSH_ROOT the
+# gate checks its own checkout, as it always did. What is checked -- package.json scripts, the CI test
+# matrix, run-tests.sh, every config -- is always the checkout's own, exactly as CI runs it.
+# PREPUSH_ROOT is unset at once so no check inherits it; the gate's scripts get it explicitly.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+ROOT_DIR="$(cd "${PREPUSH_ROOT:-$(dirname "$SCRIPT_DIR")}" && pwd)" || exit 1
+unset PREPUSH_ROOT
 
 cd "$ROOT_DIR"
 
@@ -32,7 +39,7 @@ unset $(git rev-parse --local-env-vars)
 # is refused before the gate starts (ALLOW_PUSH_WHILE_QUEUED=1 for a deliberate one). It checks the
 # checked-out branch, the one this gate tests.
 PUSH_BRANCH="$(git symbolic-ref --short -q HEAD)"
-if [ -n "$PUSH_BRANCH" ] && ! node tools/queued-push-guard.mjs "$PUSH_BRANCH"; then
+if [ -n "$PUSH_BRANCH" ] && ! node "$SCRIPT_DIR/queued-push-guard.mjs" "$PUSH_BRANCH"; then
     exit 1
 fi
 
@@ -41,10 +48,19 @@ echo "Pre-push validation"
 echo "========================================"
 echo ""
 
+# A global pnpm older than 10.29.1 runs the pinned one through a version switch that exits 0 when the
+# pnpm it started dies by a signal (issue #2116). The test stage does not trust that exit 0
+# (tools/shard-verdict.mjs), but every other step does, so say so. Turning the switch off shows the
+# global version, not the pinned one.
+GLOBAL_PNPM="$(npm_config_manage_package_manager_versions=false pnpm --version 2>/dev/null | tail -1)"
+if [ -n "$GLOBAL_PNPM" ] && [ "$(printf '%s\n' "$GLOBAL_PNPM" 10.29.1 | sort -V | head -1)" != 10.29.1 ]; then
+    echo "WARNING: the pnpm on PATH is $GLOBAL_PNPM, older than 10.29.1, so a pnpm exec killed by a signal exits 0; run pnpm self-update"
+fi
+
 # The source-only checks (formatting, links, the tool and config checks, SonarQube's changed-lines
 # scan), and run_step, the colors and SONAR_LOG every step below uses.
 # tools/prepush-source-checks.sh says why they come first and when they are skipped.
-source "$SCRIPT_DIR/prepush-source-checks.sh"
+PREPUSH_ROOT="$ROOT_DIR" source "$SCRIPT_DIR/prepush-source-checks.sh"
 
 # Track failures.
 #
@@ -70,7 +86,7 @@ cleanup() {
         kill -- -"$SCREENSHOTS_PGID" 2>/dev/null || kill "$SCREENSHOTS_PGID" 2>/dev/null
         wait "$SCREENSHOTS_PGID" 2>/dev/null
     fi
-    [ "$SCREENSHOTS_STAGED" = 1 ] && ./tools/visual-preview.sh --discard "$PUSH_HEAD" >/dev/null 2>&1
+    [ "$SCREENSHOTS_STAGED" = 1 ] && PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --discard "$PUSH_HEAD" >/dev/null 2>&1
 }
 trap cleanup EXIT
 
@@ -81,6 +97,11 @@ if [ "${PREPUSH_ALL:-0}" = "1" ]; then
 else
     BASE=$(git merge-base origin/master HEAD)
     PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$BASE" --head=HEAD --json 2>/dev/null)
+fi
+# An empty answer is nx (or the pnpm in front of it) cut short, not "nothing affected", which is "[]".
+if [[ "$PROJECTS" != "["* ]]; then
+    echo "nx show projects printed no project list, so the affected packages are unknown; stopping" >&2
+    exit 1
 fi
 PROJECT_LIST=$(echo "$PROJECTS" | tr -d '[]" ')
 affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }
@@ -192,7 +213,7 @@ fi
 SCREENSHOTS_LOG="$MAIN_DIR/tmp/visual-preview/prepush-$(basename "$ROOT_DIR").log"
 mkdir -p "$(dirname "$SCREENSHOTS_LOG")"
 echo -e "${YELLOW}> Screenshots, in the background (log: $SCREENSHOTS_LOG)${NC}"
-setsid env VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" ./tools/visual-preview.sh --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
+setsid env VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
 SCREENSHOTS_PGID=$!
 SCREENSHOTS_STAGED=1
 echo ""
@@ -207,7 +228,7 @@ echo ""
 # counts too; --foreground keeps Ctrl-C reaching it, and on the timeout's SIGTERM prepush-tests.mjs
 # stops every shard's process group itself.
 run_step "Tests (the CI shards of the affected packages)" \
-    "timeout --foreground --kill-after=60s '${PREPUSH_TESTS_TIMEOUT:-90m}' node tools/prepush-tests.mjs '$PROJECTS' '${BASE:-}'"
+    "timeout --foreground --kill-after=60s '${PREPUSH_TESTS_TIMEOUT:-90m}' PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'"
 
 # The real-GPU half: the paid T4 runs only on the daily release, so this is the only NVIDIA run before it.
 # CI's webgpu-graph-algorithms-node shard (above, through run-tests.sh) runs on Mesa lavapipe; this runs
@@ -239,7 +260,7 @@ echo "========================================"
 sonar_reminder
 if [ $FAILED -eq 0 ]; then
     # Every check passed, so the push goes ahead: the staged capture becomes the branch's preview.
-    ./tools/visual-preview.sh --promote "$PUSH_HEAD" && SCREENSHOTS_STAGED=0
+    PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --promote "$PUSH_HEAD" && SCREENSHOTS_STAGED=0
     echo -e "${GREEN}All pre-push checks passed!${NC}"
     exit 0
 else

@@ -250,7 +250,7 @@ function javaSplitLines(text: string): string[] {
         return [text];
     }
     const items = text.split("\n");
-    while (items.length > 0 && items[items.length - 1].length === 0) {
+    while (items.at(-1)?.length === 0) {
         items.pop();
     }
     return items;

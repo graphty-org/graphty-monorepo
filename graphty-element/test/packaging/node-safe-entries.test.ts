@@ -219,6 +219,14 @@ describe("the Node-safe entry points", () => {
         assert.deepEqual(session.fileStyleOf({ userData: { "graphty.fileStyle": origin } }), origin);
         assert.isNull(session.fileStyleOf({}));
     });
+
+    it("lists every style code in plain Node, from ./session alone", () => {
+        const code: session.FileStyleNoteCode = session.FILE_STYLE_ISSUE.LAYER_REFUSED;
+
+        assert.include(session.FILE_STYLE_CODES, code);
+        assert.include(session.FILE_STYLE_CODES, "W_STYLE_LAYER_CAP");
+        assert.strictEqual(session.FILE_STYLE_SHAPES.ellipse, "sphere");
+    });
 });
 
 describe("the ./webgpu entry point", () => {

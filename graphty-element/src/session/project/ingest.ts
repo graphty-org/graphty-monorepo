@@ -17,12 +17,19 @@ import jmespath from "jmespath";
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId } from "../../catalog/types";
 import { DataSource, type DataSourceChunk, type DeclaredDirection } from "../../data/DataSource";
-import { decideRepeat } from "../../data/edgeIdentity";
+import { decideRepeat, edgeIdOf } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
-import { type ImportReport, type ImportTally, loadErrorOf, newImportTally, sealImportReport } from "../../data/report";
+import {
+    type ImportReport,
+    type ImportTally,
+    loadErrorOf,
+    type LoadReport,
+    newImportTally,
+    sealImportReport,
+} from "../../data/report";
 import { readSeedPosition } from "../../data/seedPosition";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import { GraphtyLogger, type Logger } from "../../logging/GraphtyLogger.js";
@@ -37,6 +44,7 @@ import {
 } from "../commands/data";
 import { DEFAULT_LIMITS } from "../limits";
 import type { ProgressChange } from "../shared";
+import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
 import { frozenRecord } from "./draft";
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
@@ -450,7 +458,11 @@ export class Ingest<K extends KnownEdge> {
      * @param signal - Fires when the import is cancelled; it stops before the next chunk.
      * @returns Settles once the last chunk is written.
      */
-    async importSource(command: DataImportCommand, writer: GraphWriter, signal?: AbortSignal): Promise<void> {
+    async importSource(
+        command: DataImportCommand,
+        writer: GraphWriter,
+        signal?: AbortSignal,
+    ): Promise<ImportOutcome | null> {
         const { type, config } = command.source;
         const loads = type !== undefined && config !== undefined;
         if (loads && command.mode !== "merge") {
@@ -459,7 +471,7 @@ export class Ingest<K extends KnownEdge> {
 
         writer.setGraphValues({ [SOURCE_VALUE]: describeSource(command.source) });
         if (!loads) {
-            return;
+            return null;
         }
 
         this.leaveOutUnmatched = command.unmatched === "leave-out";
@@ -470,7 +482,7 @@ export class Ingest<K extends KnownEdge> {
         this.measure = command.measure === undefined || command.mode === "merge" ? (command.measure ?? null) : EMPTY;
         this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
         try {
-            await this.addDataFromSource(
+            return await this.addDataFromSource(
                 type,
                 config,
                 writer,
@@ -673,6 +685,7 @@ export class Ingest<K extends KnownEdge> {
             const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
             const dstNodeId = readEndpoint(edge, endpoints.target) as NodeIdType;
             if (this.loadTally !== null && this.isUnmatched(srcNodeId, dstNodeId, this.loadTally)) {
+                tally.edgeIds.push(null);
                 continue;
             }
 
@@ -692,6 +705,7 @@ export class Ingest<K extends KnownEdge> {
             if (known !== null) {
                 tally.repeatedSeen++;
                 if (this.mergeRepeat(known, record, weight.weight, policy, srcNodeId, dstNodeId, tally, writer)) {
+                    tally.edgeIds.push(null);
                     continue;
                 }
             }
@@ -713,6 +727,7 @@ export class Ingest<K extends KnownEdge> {
                 // has a store row" an invariant everything downstream can rely on.
                 tally.rejected++;
                 tally.errors.push({ code: "refused-row", params: { rowsAre: "edges" } });
+                tally.edgeIds.push(null);
                 continue;
             }
 
@@ -723,6 +738,7 @@ export class Ingest<K extends KnownEdge> {
                 tally.edgesByPosition++;
             }
 
+            tally.edgeIds.push(edgeIdOf(edgeId));
             this.host.edgeStored({ record, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId });
         }
 
@@ -1085,6 +1101,7 @@ export class Ingest<K extends KnownEdge> {
      *     is a failure
      * @param held - Rows a draft already read, loaded instead of reading the source
      * @param name - What the import called the data, for its progress
+     * @returns What the load left for the step that applies the file's styles
      */
     async addDataFromSource(
         type: string,
@@ -1094,7 +1111,7 @@ export class Ingest<K extends KnownEdge> {
         replacing = false,
         held?: HeldRows,
         name?: string,
-    ): Promise<void> {
+    ): Promise<ImportOutcome> {
         this.logger.info("Loading data source", { type, options: opts });
 
         const startTime = Date.now();
@@ -1142,7 +1159,8 @@ export class Ingest<K extends KnownEdge> {
         const { store } = writer;
         store.openLoad();
         try {
-            const reader: ChunkReader | null = held === undefined ? DataSource.get(type, opts) : heldReader(held);
+            const source = held === undefined ? DataSource.get(type, opts) : null;
+            const reader: ChunkReader | null = held === undefined ? source : heldReader(held);
             if (!reader) {
                 throw unknownFormat(type);
             }
@@ -1251,6 +1269,15 @@ export class Ingest<K extends KnownEdge> {
 
                 this.host.loadComplete(type, report, progress, duration, errorCount);
                 end({ outcome: "succeeded" });
+                return {
+                    reader: held === undefined ? source : (HELD_READERS.get(held) ?? null),
+                    edgeIds: Object.freeze([...tally.edgeIds]),
+                    report,
+                    heldNode: (id) => {
+                        const heldId = this.heldId("node", id);
+                        return this.host.hasNode(heldId) ? heldId : undefined;
+                    },
+                };
             } catch (error) {
                 end(failedEnd(error, signal));
                 // A cancelled load did not fail: whoever cancelled it says why.
@@ -1312,7 +1339,7 @@ export class Ingest<K extends KnownEdge> {
      * @param writer - the graph primitives to write through
      * @returns the report
      */
-    private sealLoad(format: string, tally: ImportTally, writer: GraphWriter): ImportReport {
+    private sealLoad(format: string, tally: ImportTally, writer: GraphWriter): LoadReport {
         const { knownFields } = this.host.dataConfig();
         const endpoints = this.loadEndpoints ?? {
             // A file with no edge records at all: nothing was probed, so nothing was decided, and

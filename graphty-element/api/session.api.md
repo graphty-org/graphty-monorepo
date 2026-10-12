@@ -8,9 +8,11 @@ import type { DerivedGraph } from '@graphty/graph-format';
 import type { DuplicatePolicy } from '@graphty/graph-format';
 import type { GraphSnapshot } from '@graphty/graph-format';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
+import { StyleNoteCode } from '@graphty/graph-io/styles';
 import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
+import type { StyleTool } from '@graphty/graph-io/styles';
 import { z } from 'zod/v4';
 
 // @public
@@ -665,6 +667,82 @@ export interface FieldWords {
 }
 
 // @public
+export const FILE_STYLE_CODES: readonly FileStyleCode[];
+
+// @public
+export const FILE_STYLE_ISSUE: Readonly<{
+    NOT_DRAWN: "W_STYLE_NOT_DRAWN";
+    NO_COUNTERPART: "W_STYLE_NO_COUNTERPART";
+    DRAWN_NEAREST: "W_STYLE_DRAWN_NEAREST";
+    COLUMN_ABSENT: "W_STYLE_COLUMN_ABSENT";
+    TABLE_AS_VALUES: "W_STYLE_TABLE_AS_VALUES";
+    LAYERS_FOLDED: "W_STYLE_LAYERS_FOLDED";
+    LABEL_CAPPED: "W_STYLE_LABEL_CAPPED";
+    LAYER_REFUSED: "W_STYLE_LAYER_REFUSED";
+    LAYER_SPEC_IGNORED: "W_STYLE_LAYER_SPEC_IGNORED";
+    NOT_UNDERSTOOD: "W_STYLE_NOT_UNDERSTOOD";
+    VALUE_TOO_LONG: "W_STYLE_VALUE_TOO_LONG";
+    BAD_VALUE: "W_STYLE_BAD_VALUE";
+    UNKNOWN_VALUE: "W_STYLE_UNKNOWN_VALUE";
+    ALPHA_DROPPED: "W_STYLE_ALPHA_DROPPED";
+    COLOR_LIST: "W_STYLE_COLOR_LIST";
+    GRADIENT: "W_STYLE_GRADIENT";
+    UNFILLED: "W_STYLE_UNFILLED";
+    NO_FILL: "W_STYLE_NO_FILL";
+    NO_STROKE: "W_STYLE_NO_STROKE";
+    SIZE_MINIMUM: "W_STYLE_SIZE_MINIMUM";
+    HTML_LABEL: "W_STYLE_HTML_LABEL";
+    RECORD_LABEL: "W_STYLE_RECORD_LABEL";
+    EXTRA_LABELS: "W_STYLE_EXTRA_LABELS";
+    INHERIT_COLOR: "W_STYLE_INHERIT_COLOR";
+    NOT_CARRIED: "W_STYLE_NOT_CARRIED";
+    BAD_MAPPING: "W_STYLE_BAD_MAPPING";
+    MAPPING_COLUMN_MISSING: "W_STYLE_MAPPING_COLUMN_MISSING";
+    REFERENCE_CYCLE: "W_STYLE_REFERENCE_CYCLE";
+    UNRESOLVED: "W_STYLE_UNRESOLVED";
+    NESTING: "W_STYLE_NESTING";
+    UNREADABLE: "W_STYLE_UNREADABLE";
+    NO_VIZMAP: "W_STYLE_NO_VIZMAP";
+    VIEW_STYLE_MISSING: "W_STYLE_VIEW_STYLE_MISSING";
+    OTHER_STYLES: "W_STYLE_OTHER_STYLES";
+    OTHER_VIEWS: "W_STYLE_OTHER_VIEWS";
+    SELECTOR: "W_STYLE_SELECTOR";
+    SELECTOR_AS_COLUMN: "W_STYLE_SELECTOR_AS_COLUMN";
+    STATE_ASSUMED: "W_STYLE_STATE_ASSUMED";
+    RAMP_ROUNDED: "W_STYLE_RAMP_ROUNDED";
+    LAYER_CAP: "W_STYLE_LAYER_CAP";
+    BUDGET: "W_STYLE_BUDGET";
+    BLOCK_IGNORED: "W_STYLE_BLOCK_IGNORED";
+    NOT_WRITTEN: "W_STYLE_NOT_WRITTEN";
+    APPROXIMATED: "W_STYLE_APPROXIMATED";
+    RULES_NOT_KEPT: "W_STYLE_RULES_NOT_KEPT";
+    LAYER_FLATTENED: "W_STYLE_LAYER_FLATTENED";
+    NOT_IMPORTED: "W_STYLES_NOT_IMPORTED";
+    NOT_EXPORTED: "W_STYLES_NOT_EXPORTED";
+    MISMATCH: "E_STYLES_MISMATCH";
+}>;
+
+// @public
+export const FILE_STYLE_SHAPES: FileStyleShapeTable;
+
+// @public
+export const FILE_STYLE_TRANSLATION_ISSUE: Readonly<{
+    NOT_DRAWN: "W_STYLE_NOT_DRAWN";
+    NO_COUNTERPART: "W_STYLE_NO_COUNTERPART";
+    DRAWN_NEAREST: "W_STYLE_DRAWN_NEAREST";
+    COLUMN_ABSENT: "W_STYLE_COLUMN_ABSENT";
+    TABLE_AS_VALUES: "W_STYLE_TABLE_AS_VALUES";
+    LAYERS_FOLDED: "W_STYLE_LAYERS_FOLDED";
+    LABEL_CAPPED: "W_STYLE_LABEL_CAPPED";
+    LAYER_REFUSED: "W_STYLE_LAYER_REFUSED";
+    LAYER_SPEC_IGNORED: "W_STYLE_LAYER_SPEC_IGNORED";
+    NOT_UNDERSTOOD: "W_STYLE_NOT_UNDERSTOOD";
+}>;
+
+// @public
+export type FileStyleCode = (typeof FILE_STYLE_ISSUE)[keyof typeof FILE_STYLE_ISSUE];
+
+// @public
 export interface FileStyleColumnValues {
     readonly ids: readonly (NodeId | EdgeId)[];
     readonly key: string;
@@ -693,9 +771,26 @@ export interface FileStyleMeaning {
 }
 
 // @public
+export interface FileStyleNote {
+    readonly code: FileStyleNoteCode;
+    readonly params: Readonly<Record<string, CodedFactParam>>;
+}
+
+// @public
+export type FileStyleNoteCode = StyleNoteCode | FileStyleTranslationCode;
+
+// @public
 export function fileStyleOf(layer: {
     readonly userData?: Readonly<Record<string, unknown>>;
 }): FileStyleOrigin | null;
+
+// @public
+export interface FileStyleOptions {
+    readonly labelLayers?: number;
+    readonly lengths?: "median" | "file";
+    readonly shapes?: FileStyleShapeTable;
+    readonly toolDefaults?: boolean;
+}
 
 // @public
 export interface FileStyleOrigin {
@@ -725,6 +820,22 @@ export type FileStyleRuleOrigin = StyleRuleOrigin;
 
 // @public
 export type FileStyleScalar = string | number | boolean;
+
+// @public
+export type FileStyleShapeTable = Readonly<Record<string, string>>;
+
+// @public
+export interface FileStyleSummary {
+    readonly edgeRules: number;
+    readonly nodeRules: number;
+    readonly tool: FileStyleTool | null;
+}
+
+// @public
+export type FileStyleTool = StyleTool;
+
+// @public
+export type FileStyleTranslationCode = (typeof FILE_STYLE_TRANSLATION_ISSUE)[keyof typeof FILE_STYLE_TRANSLATION_ISSUE];
 
 // @public @deprecated
 export type Filter = RuleTree;
@@ -1664,6 +1775,8 @@ export interface LoadChoices extends ImportOptions {
     readonly directed?: boolean | "auto";
     readonly duplicateIds?: "first" | "merge" | "refuse";
     readonly mapping?: LoadMapping;
+    readonly styleOptions?: FileStyleOptions;
+    readonly styles?: "file" | "none";
     readonly unmatched?: "add" | "leave-out";
 }
 
@@ -1676,6 +1789,10 @@ export interface LoadDraft {
     report(choices?: LoadChoices): Promise<LoadReport>;
     resolve(choices?: LoadChoices): LoadMappingRead;
     rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
+    readonly styles: {
+        readonly declared: boolean;
+        readonly summary: FileStyleSummary;
+    } | null;
     readonly tables: readonly DraftTable[];
     readonly type: string;
 }
@@ -1706,11 +1823,18 @@ export interface LoadReport extends ImportReport {
         readonly ids: readonly (string | number)[];
     };
     readonly errors: readonly LoadError[];
+    readonly styles?: LoadStyleReport;
     readonly tooLarge: TooLargeDetails | null;
     readonly unmatched: {
         readonly rows: number;
         readonly values: number;
     };
+}
+
+// @public
+export interface LoadStyleReport {
+    readonly layers: readonly LayerId[];
+    readonly notes: readonly FileStyleNote[];
 }
 
 // @public

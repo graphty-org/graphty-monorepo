@@ -43,7 +43,7 @@ import {
     type ImportSource,
     SOURCE_VALUE,
 } from "./commands/data";
-import { Draft, readSource } from "./draft";
+import { Draft, draftStyles, readSource } from "./draft";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { failedEnd, Ingest, progressSource } from "./project/ingest";
@@ -537,6 +537,8 @@ export class SessionData implements SessionDataApi {
             source: resolved,
             mode: options.mode ?? "replace",
             ...(options.layout === undefined ? {} : { layout: options.layout }),
+            ...(options.styles === undefined ? {} : { styles: options.styles }),
+            ...(options.styleOptions === undefined ? {} : { styleOptions: options.styleOptions }),
         });
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
@@ -556,20 +558,25 @@ export class SessionData implements SessionDataApi {
         this.requireLive("prepare");
         this.draft?.dispose();
         const read = await readWithProgress(source, options.signal, (change) => this.writes.progress?.(change));
-        const draft = new Draft(read, {
-            config: () => this.readConfig(),
-            graph: () => {
-                const slice = this.writes.slice();
-                return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size };
+        const styles = await draftStyles(read, options.signal);
+        const draft = new Draft(
+            read,
+            {
+                config: () => this.readConfig(),
+                graph: () => {
+                    const slice = this.writes.slice();
+                    return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size };
+                },
+                importer: () => this.writes.importer(),
+                measure: (command, config) => this.writes.measure(command, config),
+                released: (released) => {
+                    if (this.draft === released) {
+                        this.draft = null;
+                    }
+                },
             },
-            importer: () => this.writes.importer(),
-            measure: (command, config) => this.writes.measure(command, config),
-            released: (released) => {
-                if (this.draft === released) {
-                    this.draft = null;
-                }
-            },
-        });
+            styles,
+        );
         this.draft = draft;
         return draft;
     }

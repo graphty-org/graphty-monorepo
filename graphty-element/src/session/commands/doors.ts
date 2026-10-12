@@ -1548,6 +1548,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Measured in a scratch session; this one is untouched.
             report: READ,
             rows: READ,
+            styles: READ,
             // A draft of TINY_JSON: the rows it held, loaded without reading the source again.
             load: calls(
                 [],

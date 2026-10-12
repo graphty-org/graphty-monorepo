@@ -14,6 +14,7 @@
  */
 
 import type { DerivedGraph, GraphSnapshot, NodeId } from "@graphty/graph-format";
+import type { StyleTool } from "@graphty/graph-io/styles";
 import type { z } from "zod/v4";
 
 import type {
@@ -71,6 +72,7 @@ import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget, Sel
 import type { SetChange, SetsApi } from "./sets/types";
 import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
+import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
 /**
@@ -1041,7 +1043,28 @@ export interface LoadDraft {
     load(choices?: LoadChoices): Promise<void>;
     /** Let go of the held rows. */
     dispose(): void;
+    /**
+     * Whether the file carries styles a load with `styles: "file"` would draw, and how many rules
+     * they hold per kind; null when the format cannot carry styles or the file holds none.
+     */
+    readonly styles: { readonly declared: boolean; readonly summary: FileStyleSummary } | null;
 }
+
+/** How many rules a file's styles hold, and the program whose defaults fill in the rest. */
+export interface FileStyleSummary {
+    /** The rules for nodes. */
+    readonly nodeRules: number;
+    /** The rules for edges. */
+    readonly edgeRules: number;
+    /**
+     * The program that wrote the file, whose defaults fill in what it leaves unset (`gephi`,
+     * `cytoscape`, `graphviz`, ...), or null when it is not known. Open union.
+     */
+    readonly tool: FileStyleTool | null;
+}
+
+/** The program whose defaults a file's styles take: graph-io's tool ids. Open union. */
+export type FileStyleTool = StyleTool;
 
 /** One table of a draft. */
 export interface DraftTable {
@@ -1191,6 +1214,18 @@ export interface LoadChoices extends ImportOptions {
     readonly duplicateIds?: "first" | "merge" | "refuse";
     /** Writes `data.directed` in the same step. */
     readonly directed?: boolean | "auto";
+    /**
+     * `"file"` draws the file's own styles -- its colors, sizes, shapes, labels and the rest --
+     * as style layers above the element's base layers, in the same step, so the graph looks as
+     * it does in the program that wrote the file. `"none"` (the default) loads the data alone.
+     * `lastImport().styles` says which layers the file made and what could not be drawn.
+     * `catalog.formats()` says which formats can carry styles (`styles.read`).
+     *
+     * OPEN UNION: later releases may add choices.
+     */
+    readonly styles?: "file" | "none";
+    /** How a file's styles are turned into layers, when `styles` is `"file"`. */
+    readonly styleOptions?: FileStyleOptions;
 }
 
 /**

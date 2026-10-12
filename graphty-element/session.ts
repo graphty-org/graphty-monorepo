@@ -177,19 +177,34 @@ export { recommendLayout } from "./src/session";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    FileStyleCode,
     FileStyleColumnValues,
     FileStyleKind,
     FileStyleLoadValues,
     FileStyleMappingKind,
     FileStyleMeaning,
+    FileStyleNote,
+    FileStyleNoteCode,
+    FileStyleOptions,
     FileStyleOrigin,
     FileStyleReason,
     FileStyleRole,
     FileStyleRuleOrigin,
     FileStyleScalar,
+    FileStyleShapeTable,
+    FileStyleSummary,
+    FileStyleTool,
+    FileStyleTranslationCode,
+    LoadStyleReport,
 } from "./src/session";
 export { LOAD_ROLES } from "./src/session";
-export { fileStyleOf } from "./src/session";
+export {
+    FILE_STYLE_CODES,
+    FILE_STYLE_ISSUE,
+    FILE_STYLE_SHAPES,
+    FILE_STYLE_TRANSLATION_ISSUE,
+    fileStyleOf,
+} from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // Runs: starting a computation, watching it, stopping it, and finding it again

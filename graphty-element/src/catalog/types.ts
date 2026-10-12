@@ -859,6 +859,21 @@ export interface FormatDescriptor {
      * here is refused with `E_UNKNOWN_OPTION`.
      */
     writerOptions?: readonly OptionDescriptor[];
+    /**
+     * Whether the format's files carry styles: `read` when its reader can draw a file's own
+     * styles (`styles: "file"` on a load), and what its writer keeps of a graph's styles --
+     * `"rules"` (the layers come back as layers when the file is read again), `"values"` (only
+     * each element's values) or `"none"`. Absent means `{ read: false, write: "none" }`.
+     */
+    styles?: FormatStyles;
+}
+
+/** What a format's files keep of a graph's styles. See {@link FormatDescriptor.styles}. */
+export interface FormatStyles {
+    /** Whether the reader can draw a file's own styles. */
+    readonly read: boolean;
+    /** What the writer keeps: the rules, only the values, or nothing. Open union. */
+    readonly write: "rules" | "values" | "none";
 }
 
 /** One colour palette. */

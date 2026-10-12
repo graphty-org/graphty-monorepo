@@ -38,7 +38,9 @@ import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher"
 import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import type { CodedFact } from "../shared";
+import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
 import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
+import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
 import type { HistoryCode, NodeRecordInput, RowUpdate } from "../types";
 import type { BatchCommand } from "./index";
@@ -149,6 +151,13 @@ export interface DataImportCommand {
      * properties assigned one after the other are one load.
      */
     readonly coalesce?: string;
+    /**
+     * `"file"` draws the file's own styles as layers, in the same step; `"none"` leaves them out.
+     * Absent, the source's `styles` option decides, and without one the file's styles are left out.
+     */
+    readonly styles?: "file" | "none";
+    /** How the file's styles are turned into layers; the source's `styleOptions` when absent. */
+    readonly styleOptions?: FileStyleOptions;
 }
 
 /** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */
@@ -256,7 +265,7 @@ export interface DataService {
         draft: Draft,
         signal: AbortSignal,
         after?: UndoableContext["after"],
-    ): Promise<void>;
+    ): Promise<ImportOutcome | null | undefined>;
     /**
      * Set graph-level values through `draft`: what a plugin algorithm wrote to `graphResults`, or
      * the data source's new name.
@@ -602,7 +611,9 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
             });
         }
 
-        await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        // The file's styles, and the previous file's layers swept, in this same step.
+        await applyFileStyles(command, outcome ?? null, ctx);
     },
 };
 

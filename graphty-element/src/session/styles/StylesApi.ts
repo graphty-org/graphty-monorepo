@@ -2281,6 +2281,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
             return { result: planned.result, painted } satisfies EditOutcome<unknown>;
         },
+        validate: (spec) => check(spec, mint(spec.name)).result,
     };
 
     // The `styles` hook: the repaint follows the stack, whatever moved it -- an edit, an undo, a

@@ -21,6 +21,7 @@ import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core';
 import { EngineInstrumentation } from '@babylonjs/core';
 import { ExportCapabilities } from '@graphty/graph-io';
+import type { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
 import { GEXF_LOSS } from '@graphty/graph-io';
@@ -59,6 +60,8 @@ import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
+import { StyleNoteCode } from '@graphty/graph-io/styles';
+import type { StyleTool } from '@graphty/graph-io/styles';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector';
@@ -470,6 +473,10 @@ export abstract class DataSource {
         extractionFailed: (path: string, error: string) => string;
     };
     protected fetchWithRetry(url: string, retries?: number, timeout?: number): Promise<Response>;
+    fileStyles(options?: {
+        readonly toolDefaults?: boolean;
+        readonly signal?: AbortSignal;
+    }): Promise<FileStylesRead | null>;
     static fromImporter<Opts>(importer: GraphImporter<Opts>, descriptor: FormatDescriptor, options?: ImporterSourceOptions<Opts>): ImporterDataSourceClass;
     static get(type: string, opts?: object): DataSource | null;
     protected getBytes(): Promise<Uint8Array>;
@@ -756,6 +763,14 @@ export interface FieldDescriptor {
 }
 
 // @public
+export interface FileStylesRead {
+    readonly extracted: ExtractedStyles;
+    readonly format: string;
+    readonly path: ReaderColumnPath;
+    readonly snapshot: GraphSnapshot;
+}
+
+// @public
 export function forEachChunked<T>(context: RunControls, phase: string, items: readonly T[], step: (item: T, index: number) => void): Promise<void>;
 
 // @public
@@ -773,6 +788,7 @@ export interface FormatDescriptor {
     options: readonly OptionDescriptor[];
     // (undocumented)
     plainName: string;
+    styles?: FormatStyles;
     writerOptions?: readonly OptionDescriptor[];
 }
 
@@ -1768,6 +1784,9 @@ export interface Progress {
     readonly phase: string;
     readonly total: number | null;
 }
+
+// @public
+export type ReaderColumnPath = (kind: "node" | "edge", column: string) => readonly string[] | null;
 
 // @public
 export function registerAccelerator(registration: AcceleratorRegistration, options?: RegisterAcceleratorOptions): void;

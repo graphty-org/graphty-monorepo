@@ -123,6 +123,8 @@ export type {
 export { DataSource } from "./src/data/DataSource";
 export type { DataLoadingError, ErrorSummary } from "./src/data/ErrorAggregator";
 export { ErrorAggregator } from "./src/data/ErrorAggregator";
+export type { FileStylesRead } from "./src/session/styles/fileStyles/apply";
+export type { ReaderColumnPath } from "./src/session/styles/fileStyles/columns";
 
 /**
  * A READER FROM A GRAPH-IO IMPORTER. `DataSource.fromImporter(importer, descriptor)` turns a

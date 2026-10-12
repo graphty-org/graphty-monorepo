@@ -18,7 +18,7 @@ import type { CommonExportOptions, GraphExporter } from "@graphty/graph-io";
 import { GraphtyError } from "../errors";
 import { registeredFormatById, registeredFormatDescriptors } from "./formatRegistry";
 import { createPluginRegistry, type RegisterOptions } from "./pluginRegistry";
-import { type FormatDescriptor, KNOWN_FORMAT_IDS, type OptionDescriptor } from "./types";
+import { type FormatDescriptor, type FormatStyles, KNOWN_FORMAT_IDS, type OptionDescriptor } from "./types";
 
 /** What `registerFormatWriter` accepts. */
 export interface FormatWriterRegistration {
@@ -89,10 +89,31 @@ const registry = createPluginRegistry<FormatWriterRegistration, FormatDescriptor
         Object.freeze({
             ...entry.descriptor,
             writerOptions: [...(entry.writerOptions ?? []), ...COMMON_WRITER_OPTIONS],
+            // What the writer keeps of styles, from the exporter itself unless the descriptor says.
+            styles: entry.descriptor.styles ?? { read: false, write: writtenStyles(entry.exporter) },
         }),
     implementationOf: (entry) => entry.exporter,
     builtInIds: () => KNOWN_FORMAT_IDS,
 });
+
+/**
+ * What an exporter keeps of a graph's styles: the rules when it carries graphty's style block
+ * (natively or as attributes), only values when it writes some properties natively, else nothing.
+ * @param exporter - The exporter.
+ * @returns What it keeps.
+ */
+function writtenStyles(exporter: FormatWriterRegistration["exporter"]): FormatStyles["write"] {
+    const capabilities = exporter.styles?.capabilities;
+    if (capabilities === undefined) {
+        return "none";
+    }
+
+    if (capabilities.block !== "none") {
+        return "rules";
+    }
+
+    return capabilities.node.length + capabilities.edge.length > 0 ? "values" : "none";
+}
 
 /**
  * Refuse a registration, naming the field at fault.
@@ -225,18 +246,23 @@ export function catalogFormatDescriptors(): readonly FormatDescriptor[] {
 
     if (merged?.readers !== readers || merged.writers !== writers) {
         const readerIds = new Set(readers.map((descriptor) => descriptor.id));
-        const writerIds = new Set(writers.map((descriptor) => descriptor.id));
-        const writerOptionsById = new Map(writers.map((descriptor) => [descriptor.id, descriptor.writerOptions]));
+        const writerById = new Map(writers.map((descriptor) => [descriptor.id, descriptor]));
         const list = [
-            ...readers.map((descriptor) =>
-                writerIds.has(descriptor.id)
-                    ? Object.freeze({
+            ...readers.map((descriptor) => {
+                const writer = writerById.get(descriptor.id);
+                return writer === undefined
+                    ? descriptor
+                    : Object.freeze({
                           ...descriptor,
                           canExport: true,
-                          writerOptions: writerOptionsById.get(descriptor.id),
-                      })
-                    : descriptor,
-            ),
+                          writerOptions: writer.writerOptions,
+                          // The reader says what it reads; the writer what it keeps.
+                          styles: {
+                              read: descriptor.styles?.read ?? false,
+                              write: writer.styles?.write ?? "none",
+                          },
+                      });
+            }),
             ...writers
                 .filter((descriptor) => !readerIds.has(descriptor.id))
                 .map((descriptor) => Object.freeze({ ...descriptor, canImport: false })),

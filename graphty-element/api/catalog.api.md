@@ -471,6 +471,7 @@ export interface FormatDescriptor {
     options: readonly OptionDescriptor[];
     // (undocumented)
     plainName: string;
+    styles?: FormatStyles;
     writerOptions?: readonly OptionDescriptor[];
 }
 
@@ -482,6 +483,12 @@ export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
 // @public
 export function formatsForExtension(extension: string): readonly FormatDescriptor[];
+
+// @public
+export interface FormatStyles {
+    readonly read: boolean;
+    readonly write: "rules" | "values" | "none";
+}
 
 // @public
 export interface FunctionDescriptor {

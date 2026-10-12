@@ -399,6 +399,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canExport: true,
         options: [...jsonOptions, ...endpointOptions],
         writerOptions: writerOptionsOf("json"),
+        styles: { read: true, write: "rules" },
     },
     {
         id: "csv",
@@ -409,6 +410,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canExport: true,
         options: [...csvOptions, ...endpointOptions],
         writerOptions: writerOptionsOf("csv"),
+        styles: { read: false, write: "none" },
     },
     {
         id: "graphml",
@@ -419,6 +421,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canExport: true,
         options: endpointOptions,
         writerOptions: writerOptionsOf("graphml"),
+        styles: { read: true, write: "rules" },
     },
     {
         id: "gexf",
@@ -434,6 +437,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canExport: true,
         options: endpointOptions,
         writerOptions: writerOptionsOf("gexf"),
+        styles: { read: true, write: "rules" },
     },
     {
         id: "gml",
@@ -444,6 +448,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canExport: true,
         options: endpointOptions,
         writerOptions: writerOptionsOf("gml"),
+        styles: { read: true, write: "rules" },
     },
     {
         id: "dot",
@@ -454,6 +459,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canExport: true,
         options: endpointOptions,
         writerOptions: writerOptionsOf("dot"),
+        styles: { read: true, write: "rules" },
     },
     {
         id: "pajek",
@@ -464,6 +470,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canExport: true,
         options: endpointOptions,
         writerOptions: writerOptionsOf("pajek"),
+        styles: { read: true, write: "rules" },
     },
     {
         id: "xgmml",
@@ -475,6 +482,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canExport: true,
         options: xgmmlOptions,
         writerOptions: writerOptionsOf("xgmml"),
+        styles: { read: true, write: "rules" },
     },
     {
         id: "cx2",
@@ -485,6 +493,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canExport: true,
         options: [zAsOption],
         writerOptions: writerOptionsOf("cx2"),
+        styles: { read: true, write: "rules" },
     },
     {
         id: "cx",
@@ -494,6 +503,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canImport: true,
         canExport: false,
         options: [networkOption, zAsOption],
+        styles: { read: true, write: "none" },
     },
     {
         id: "cys",
@@ -503,6 +513,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canImport: true,
         canExport: false,
         options: [networkOption, zAsOption],
+        styles: { read: true, write: "none" },
     },
     {
         id: "obo",
@@ -512,6 +523,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canImport: true,
         canExport: false,
         options: oboOptions,
+        styles: { read: false, write: "none" },
     },
 ];
 

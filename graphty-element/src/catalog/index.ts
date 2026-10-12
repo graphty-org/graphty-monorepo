@@ -43,6 +43,7 @@ export type {
     FieldInterpretation,
     FormatDescriptor,
     FormatId,
+    FormatStyles,
     FunctionDescriptor,
     GraphtyErrorCode,
     KnownAlgorithm,

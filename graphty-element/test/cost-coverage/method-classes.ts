@@ -371,7 +371,6 @@ export const READ_ONLY: readonly string[] = [
     "DataSource.dataValidator",
     "DataSource.declareDirection",
     "DataSource.fetchWithRetry",
-    "DataSource.fileStyles",
     "DataSource.fromImporter",
     "DataSource.get",
     "DataSource.getBytes",

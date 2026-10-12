@@ -203,6 +203,10 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
             if (spec.type === "positive" && !(typeof value === "number" && value > 0)) {
                 return null;
             }
+            // Cytoscape.js takes an empty bypass as no bypass at all; a blank, which it trims, draws no text
+            if (value === "" && /label$/i.test(property)) {
+                return exact({ [name]: " " });
+            }
             return exact({ [name]: typeof value === "boolean" ? String(value) : value });
         }
     }
@@ -448,6 +452,19 @@ function emitRule(e: Emit, rule: StyleRule, index: number): void {
             emitMapping(e, rule, index, selectors, p, m);
         }
     }
+}
+
+/**
+ * Whether Cytoscape.js holds a neutral value exactly: a value it cannot hold, or holds only as a nearest one, reads back
+ * as something else.
+ * @param target - nodes or edges
+ * @param property - the neutral property
+ * @param value - the value
+ * @returns true when it is written as it is
+ */
+export function cyjsHoldsExactly(target: StyleTarget, property: string, value: StyleValue): boolean {
+    const w = toCyjs(target, property, value);
+    return w !== null && !w.approximate;
 }
 
 /**

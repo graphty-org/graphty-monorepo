@@ -27,7 +27,12 @@ import type { CanonSite } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { cytoscapeJsStyles } from "../../styles/cyjs/cascade.js";
-import { CYTOSCAPE_IMPORT_KEY, type CytoscapeStylesheetRule, toCytoscapeStylesheet } from "../../styles/cyjs/emit.js";
+import {
+    CYTOSCAPE_IMPORT_KEY,
+    cyjsHoldsExactly,
+    type CytoscapeStylesheetRule,
+    toCytoscapeStylesheet,
+} from "../../styles/cyjs/emit.js";
 import { CYJS_EDGE_PROPERTIES, CYJS_NODE_PROPERTIES } from "../../styles/cyjs/mappers.js";
 import { toolDefaults } from "../../styles/defaults.js";
 import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
@@ -149,6 +154,7 @@ function cytoscapeStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context:
             src.block,
             { node: (read.node?.values ?? {}) as Values, edge: (read.edge?.values ?? {}) as Values },
             CYJS_WRITTEN,
+            cyjsHoldsExactly,
         );
     } else if (sheetless) {
         tool = "cytoscape";
@@ -413,12 +419,15 @@ type Written = Partial<
  * @param text - the block's text, or null
  * @param values - the native values per target, changed in place
  * @param written - what the writer writes for each approximated property
+ * @param holdsExactly - whether the dialect holds a value as it is; where it does not, the native value tells
+ *     nothing about the block's (the writer never wrote it), so the block's value is the truth
  */
 function exactFromBlock(
     snapshot: GraphSnapshot,
     text: string | null,
     values: Record<StyleTarget, Values>,
     written: Written,
+    holdsExactly?: (target: StyleTarget, property: string, value: StyleValue) => boolean,
 ): void {
     if (text === null) {
         return;
@@ -439,6 +448,22 @@ function exactFromBlock(
             }
             return r;
         };
+        if (holdsExactly !== undefined) {
+            const properties = new Set(
+                ex.styles.rules
+                    .filter((r) => r.target === target)
+                    .flatMap((r) => [...Object.keys(r.set ?? {}), ...Object.keys(r.map ?? {})]),
+            );
+            for (const property of properties) {
+                const want = resolved(property);
+                for (let i = 0; i < n; i++) {
+                    const w = want[i];
+                    if (w !== null && !holdsExactly(target, property, w)) {
+                        (values[target][property] ??= new Array<StyleValue | null>(n).fill(null))[i] = w;
+                    }
+                }
+            }
+        }
         for (const [property, write] of Object.entries(written[target] ?? {})) {
             const want = resolved(property);
             for (let i = 0; i < n; i++) {

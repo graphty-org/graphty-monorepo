@@ -157,7 +157,7 @@ export interface PropDef {
 }
 
 /** graphty-element's 25 node shapes, in its order, with the default first among equals. */
-export const SHAPES = [
+const SHAPES = [
     "Box",
     "Sphere",
     "Cylinder",
@@ -185,7 +185,7 @@ export const SHAPES = [
     "Geodesic",
 ] as const;
 
-export const PATTERNS = ["Solid", "Dot", "Star", "Box", "Dash", "Diamond", "Dash-dot", "Sine wave", "Zigzag"] as const;
+const PATTERNS = ["Solid", "Dot", "Star", "Box", "Dash", "Diamond", "Dash-dot", "Sine wave", "Zigzag"] as const;
 
 /** The patterns drawn as repeated elements, which a pattern count spreads. */
 export const COUNTED_PATTERNS = ["Dot", "Star", "Box", "Dash", "Diamond", "Dash-dot"];
@@ -554,7 +554,7 @@ export interface MockLayer {
 }
 
 /** A palette as graphty-element describes it: id, plain name, kind and colors. */
-export interface PaletteDef {
+interface PaletteDef {
     readonly id: string;
     readonly name: string;
     readonly kind: "sequential" | "diverging" | "categorical";
@@ -562,7 +562,7 @@ export interface PaletteDef {
 }
 
 /** graphty-element's 18 built-in palettes (`PALETTE_DESCRIPTORS`), in its order. */
-export const PALETTES: readonly PaletteDef[] = [
+const PALETTES: readonly PaletteDef[] = [
     {
         id: "viridis",
         name: "Purple to Yellow",
@@ -675,7 +675,7 @@ export const RAMP_PALETTES = PALETTES.filter((p) => p.kind !== "categorical");
 export const CATEGORY_PALETTES = PALETTES.filter((p) => p.kind === "categorical");
 
 /** Okabe-Ito, the default categorical palette. */
-export const OKABE_ITO = paletteOf(DEFAULT_CATEGORICAL).colors;
+const OKABE_ITO = paletteOf(DEFAULT_CATEGORICAL).colors;
 
 /** graphty-element's color for groups folded into Other. */
 export const OTHER_COLOR = "686868";
@@ -703,7 +703,7 @@ export function rampGradient(palette: string, reverse: boolean, steps?: number):
     return `linear-gradient(to right, ${parts.join(", ")})`;
 }
 
-export interface Community {
+interface Community {
     readonly n: number;
     readonly size: number;
     readonly members: readonly string[];
@@ -750,13 +750,13 @@ export const TOP_TEN: readonly (readonly [string, number])[] = [
 
 export const ROUTE = ["Valjean", "Fauchelevent", "Cosette", "Thenardier", "Javert"];
 
-export interface Bin {
+interface Bin {
     readonly label: string;
     readonly count: number;
 }
 
 /** What a number value holds, for its histogram and its summary rows. */
-export interface NumberFacts {
+interface NumberFacts {
     readonly bins: readonly Bin[];
     readonly domain: readonly [number, number];
     readonly min: string;

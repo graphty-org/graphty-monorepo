@@ -456,6 +456,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             ) : null}
             {isTabs ? (
                 <Box
+                    className="cm-popout-body"
                     data-testid="popout-panel-content"
                     role="tabpanel"
                     id={tabPanelId(tabsBaseId, activeTab)}
@@ -464,7 +465,9 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                     {tabsConfig?.tabs.find((tab) => tab.id === activeTab)?.content}
                 </Box>
             ) : (
-                <Box data-testid="popout-panel-content">{children}</Box>
+                <Box className="cm-popout-body" data-testid="popout-panel-content">
+                    {children}
+                </Box>
             )}
         </Box>
     );

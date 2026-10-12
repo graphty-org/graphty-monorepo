@@ -11,6 +11,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Pop-outs fit the window and give focus back** (compact-mantine, test
+  `tests/popout/PopoutFitAndFocus.browser.test.tsx`). A Popout panel is at most the window's
+  height; its header stays and its body (`.cm-popout-body`) scrolls, so Label settings' lower
+  sections are reachable and Tab scrolls a field into view natively. Docking beside the panel at
+  the row's height, shifted up at the window's bottom, already worked with `Popout.Anchor` and
+  `width={240}` -- the test pins it. The focus loss was not the Tooltip eating the ref (Mantine's
+  Tooltip merges it): the vary glyph is `display: none` unless hovered, focused or
+  `aria-expanded`, and the panel's focus return ran after the render that closed it, onto a hidden
+  button. Two fixes: `close()` now focuses the trigger first when focus is inside the panel, and
+  `Popout.Trigger` puts its ARIA and click-outside mark on the button inside a Tooltip (they went
+  to the bubble). The app's hand-written `aria-expanded` on Tooltip-wrapped triggers can go.
+  Still the app's: `BoundValue` ("Size/Color from data") has no `Popout.Trigger`, so nothing
+  holds a trigger to return focus to; give the pill a trigger ref or focus it in `onOpenChange`.
+
 - (2026-10-12) **Small element facts for the style panel** (test `test/session/style-panel-facts.test.ts`,
   browser tests `label-size-unit` and `a-layer-halo-rings-its-node`). A label's size is a length in
   the scene: `size / 48` world units per line (`RichTextLabel`), so on Les Miserables framed whole

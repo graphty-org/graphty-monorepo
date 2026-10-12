@@ -222,8 +222,11 @@ const css = `
 .cm-popover { padding: 8px; }
 .cm-popover-arrow { border: 0; }
 
-/* The Popout panel. */
-.cm-popout { overflow: hidden; }
+/* The Popout panel. Never taller than the window: the header stays and the body scrolls, so every
+   field can be reached, and focus moving to a field scrolls it into view. */
+.cm-popout { overflow: hidden; display: flex; flex-direction: column; max-height: 100vh; }
+.cm-popout > .cm-popout-header { flex-shrink: 0; }
+.cm-popout-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .cm-popout:focus { outline: none; }
 .cm-popout:focus-visible { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
 

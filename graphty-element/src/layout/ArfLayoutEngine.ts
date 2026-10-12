@@ -34,6 +34,14 @@ const arfLayoutOptionsSchema = defineOptions({
             advanced: true,
         },
     },
+    scale: {
+        schema: z.number().positive().default(1),
+        meta: {
+            label: "Scale",
+            description: "Distance of the farthest node from the center, in layout units",
+            step: 0.1,
+        },
+    },
     maxIter: {
         schema: z.number().int().positive().default(1000),
         meta: {
@@ -56,6 +64,7 @@ const ArfLayoutConfig = z.strictObject({
     pos: z.record(z.number(), z.array(z.number())).or(z.null()).default(null),
     scaling: z.number().positive().default(1),
     a: z.number().positive().default(1.1),
+    scale: z.number().positive().default(1),
     maxIter: z.number().positive().default(1000),
     seed: z.number().positive().or(z.null()).default(null),
 });
@@ -120,6 +129,11 @@ export class ArfLayout extends SnapshotLayoutEngine {
                 a: this.config.a,
                 maxIter: this.config.maxIter,
                 seed: this.config.seed,
+                // Unscaled, ARF keeps whatever size its forces settle at, which grows with the
+                // node count and `scaling`: a 77-node graph spans about 14 layout units, and once
+                // the camera fits that its nodes shrink to nothing. Rescaled like every other
+                // one-pass layout, the farthest node is `scale` from the center.
+                scale: this.config.scale,
             }),
             ArfLayout.scale,
         );

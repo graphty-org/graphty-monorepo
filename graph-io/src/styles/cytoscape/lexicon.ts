@@ -640,10 +640,10 @@ function normalizeObject(
  * @category Styles
  */
 export function normalizeVisualProperties(target: StyleTarget, raw: unknown, notes?: StyleNotes): Map<string, unknown> {
-    const out = new Map<string, unknown>();
     if (raw === null || typeof raw !== "object") {
-        return out;
+        return new Map();
     }
+    const out = new Map<string, unknown>();
     const stack: [Record<string, unknown>, number][] = [[raw as Record<string, unknown>, 0]];
     let deep = 0;
     for (let top = stack.pop(); top !== undefined; top = stack.pop()) {

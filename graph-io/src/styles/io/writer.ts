@@ -250,8 +250,8 @@ class LostInputs {
         }
         const { map: _given, ...unmapped } = given;
         const plain = Object.keys(map).length === 0 ? { ...unmapped, where } : { ...unmapped, where, map };
-        // NOSONAR(S7784): a JSON copy drops undefined members, as the written block does; structuredClone keeps them
-        const moved = JSON.parse(JSON.stringify(plain)) as StyleRule;
+        // a JSON copy drops undefined members, as the written block does; structuredClone would keep them
+        const moved = JSON.parse(JSON.stringify(plain)) as StyleRule; // NOSONAR(S7784): undefined members must go
         return ext === undefined ? moved : { ...moved, ext };
     }
 

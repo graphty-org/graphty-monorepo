@@ -8,6 +8,7 @@ import type { AdvancedDynamicTexture } from "@babylonjs/gui";
 
 import type { Technique, TechniqueContext, TextRequest } from "../../framework/technique";
 import { placeAtReach } from "../../framework/text-seam";
+import { controlWorld } from "../../scene/ui";
 import { handTracking } from "../../scene/xr";
 import { createDictationKey, type DictationKey } from "./dictation-key";
 import { createKeyboard, type Keyboard } from "./keyboard";
@@ -78,7 +79,8 @@ const installHooks = (): void => {
             /** World +z of the panel: away from the viewer, the direction of a poke. */
             normal: kb.mesh.forward.asArray(),
             name: kb.mesh.name,
-            dictate: dictation.panel.mesh.getAbsolutePosition().asArray(),
+            // The middle of the key as drawn: the panel fits its label, so it is not centered on its origin.
+            dictate: dictation.panel.mesh.getBoundingInfo().boundingBox.centerWorld.asArray(),
         }),
         /**
          * The index fingertip's world position, where Babylon's near interaction pokes from.
@@ -103,16 +105,9 @@ const installHooks = (): void => {
             if (!mesh || !adt || !chip) {
                 return null;
             }
-            const size = adt.getSize();
-            const half = mesh.getBoundingInfo().boundingBox.extendSize;
-            const local = new Vector3(
-                (chip.centerX / size.width - 0.5) * 2 * half.x,
-                (0.5 - chip.centerY / size.height) * 2 * half.y,
-                0,
-            );
             return {
                 visible: mesh.isEnabled(),
-                check: Vector3.TransformCoordinates(local, mesh.computeWorldMatrix(true)).asArray(),
+                check: controlWorld(mesh, adt, chip).asArray(),
                 normal: mesh.forward.asArray(),
             };
         },

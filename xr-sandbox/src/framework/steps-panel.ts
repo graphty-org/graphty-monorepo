@@ -3,10 +3,10 @@
 // to do a step and never judges it: the commands in the log show what happened.
 
 import type { Scene } from "@babylonjs/core";
-import { Control, StackPanel, TextBlock } from "@babylonjs/gui";
+import { Control } from "@babylonjs/gui";
 
 import { buildSteps, type Step, type StepFacts } from "../core/steps";
-import { type Chip, createChip, createPanel, guiButton, type Panel } from "../scene/ui";
+import { type Chip, createChip, createPanel, type Panel } from "../scene/ui";
 import type { Zones } from "../scene/zones";
 import type { Logger } from "./logging";
 
@@ -35,14 +35,15 @@ export function createStepsPanel(
     facts: StepFacts,
     still: boolean,
 ): StepsPanel {
-    const panel = createPanel(scene, "steps-panel", 0.32, 0.17, 512);
+    const panel = createPanel(scene, "steps-panel", 0.36, 0.17, 576, { fit: true });
     panel.mesh.parent = zones.steps;
-    const timer: Chip = createChip(scene, "steps-timer", 0.08, 0.02);
+    // Above the panel's top edge (fixed at 0.085 m; the panel grows downward).
+    const timer: Chip = createChip(scene, "steps-timer", 0.06, "reach");
     timer.mesh.parent = zones.steps;
-    timer.mesh.position.set(0.12, 0.1, 0);
-    const notice: Chip = createChip(scene, "steps-notice", 0.1, 0.03);
+    timer.mesh.position.set(0.13, 0.11, 0);
+    const notice: Chip = createChip(scene, "steps-notice", 0.1, "reach");
     notice.mesh.parent = zones.steps;
-    notice.mesh.position.set(-0.1, 0.11, 0);
+    notice.mesh.position.set(-0.08, 0.11, 0);
 
     let list = "journey";
     let steps: Step[] = [];
@@ -52,20 +53,11 @@ export function createStepsPanel(
     let interval: ReturnType<typeof setInterval> | undefined;
     let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const heading = new TextBlock("steps-heading", "");
-    heading.height = "34px";
-    heading.color = "#9fb3d9";
-    heading.fontSize = 20;
-    const text = new TextBlock("steps-text", "");
-    text.height = "120px";
-    text.color = "#ffffff";
-    text.fontSize = 26;
-    text.textWrapping = true;
-    text.paddingLeft = "12px";
-    text.paddingRight = "12px";
-    const buttons = new StackPanel();
-    buttons.isVertical = false;
-    buttons.height = "60px";
+    const heading = panel.text("", "#9fb3d9");
+    heading.name = "steps-heading";
+    const text = panel.text("", "#ffffff", true);
+    text.name = "steps-text";
+    const buttons = panel.line();
     buttons.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     panel.stack.addControl(heading);
     panel.stack.addControl(text);
@@ -83,26 +75,24 @@ export function createStepsPanel(
         };
         for (let r = 1; r <= 7; r++) {
             buttons.addControl(
-                guiButton(
+                panel.button(
                     `steps-rate-${r}`,
                     String(r),
                     () => {
                         rate(r);
                     },
-                    52,
-                    58,
+                    64,
                 ),
             );
         }
         buttons.addControl(
-            guiButton(
+            panel.button(
                 "steps-rate-none",
                 "Next",
                 () => {
                     rate(null);
                 },
-                52,
-                80,
+                96,
             ),
         );
     };
@@ -113,13 +103,12 @@ export function createStepsPanel(
             heading.text = `${list}: finished`;
             text.text = "All steps done. Open the gear panel to pick another list.";
             buttons.addControl(
-                guiButton(
+                panel.button(
                     "steps-close",
                     "Close",
                     () => {
                         api.toggle();
                     },
-                    52,
                     140,
                 ),
             );
@@ -130,24 +119,22 @@ export function createStepsPanel(
         heading.text = `${list}  ${index + 1} of ${steps.length}`;
         text.text = steps[index].text;
         buttons.addControl(
-            guiButton(
+            panel.button(
                 "steps-done",
                 "Done",
                 () => {
                     finish("done");
                 },
-                52,
                 160,
             ),
         );
         buttons.addControl(
-            guiButton(
+            panel.button(
                 "steps-skip",
                 "Skip",
                 () => {
                     finish("skip");
                 },
-                52,
                 160,
             ),
         );

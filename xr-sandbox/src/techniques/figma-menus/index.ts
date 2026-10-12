@@ -8,6 +8,7 @@ import { type AbstractMesh, type Mesh, MeshBuilder, type TransformNode, Vector3 
 import type { AdvancedDynamicTexture } from "@babylonjs/gui";
 
 import type { Technique, TechniqueContext } from "../../framework/technique";
+import { controlWorld } from "../../scene/ui";
 import { createInspector, type Inspector } from "./inspector";
 import { createLayerList, type LayerList } from "./layer-list";
 import { createPopover, type Popover } from "./popover";
@@ -143,17 +144,10 @@ const installHooks = (): void => {
                 if (!c || !m.isEnabled()) {
                     continue;
                 }
-                const { width, height } = adt.getSize();
-                const ext = m.getBoundingInfo().boundingBox.extendSize;
-                const local = new Vector3(
-                    (c.centerX / width - 0.5) * ext.x * 2,
-                    (0.5 - c.centerY / height) * ext.y * 2,
-                    0,
-                );
                 marker ??= MeshBuilder.CreateBox("figma-menus-marker", { size: 0.002 }, ctx.scene);
                 marker.isPickable = false;
                 marker.setEnabled(false);
-                marker.position.copyFrom(Vector3.TransformCoordinates(local, m.computeWorldMatrix(true)));
+                marker.position.copyFrom(controlWorld(m, adt, c));
                 return { mesh: marker.name, at: marker.position.asArray() };
             }
             return null;

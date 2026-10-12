@@ -161,7 +161,7 @@ export function createProbe(ctx: TechniqueContext, card: Card, sieveResult: () =
             }
             // Beside the node it reads, or above the tip for a summary.
             const at = node >= 0 ? graph.nodeWorld(node, tmp).clone() : tip.clone();
-            at.y += node >= 0 ? graph.radiusWorld() + 0.06 : 0.07;
+            at.y += node >= 0 ? graph.radiusWorld() + 0.02 : 0.03;
             card.place(at);
         },
     };

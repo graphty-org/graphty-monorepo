@@ -34,6 +34,10 @@ the JSONL file under `/tmp/remote-logger/<worktree>/`.
    `src/techniques/example/index.ts` is the smallest working one: copy it.
 2. `prepare(ctx)` builds everything hidden (panels and chips from `ctx.ui`, parented to
    `ctx.anchor(...)`), `activate()` shows it, `deactivate()` hides it. Build nothing at activate.
+   Make text only with `ctx.ui`: a panel's `button`, `text` and `line`, and chips. Say where the
+   text is read from (`read: "hand" | "reach" | "graph"`) and the font size follows from one scale
+   (a capital 1.2 degrees tall at that distance); give a panel `fit: true` and it grows to its
+   content. Never set a font size or a fixed row height by hand.
 3. Input arrives only through the arbiter: declare `claims` (channel, contexts, priority, optional
    `decide`) and implement `onPress(press, hand)`, returning `{ move, end, cancel }` to follow the
    press. Read hover with `ctx.hover(hand)` and hand poses with `ctx.poses(hand)`; never subscribe to
@@ -60,3 +64,11 @@ still-head jitter, idle GUI textures, selecting a node by trigger or pinch, the 
 stick click, the example module, and the log reaching the log server. It writes `report.json` and a
 screenshot per run, and exits non-zero on any failure. Headless pacing is not headset pacing: it
 catches runaway work, not the device's frame rate.
+
+Every dry-run script (`run.mjs`, `journey.mjs`, `checks/*.mjs`) also runs the text fit check
+(`dryrun/fit.mjs`, measured in the page by `src/framework/text-audit.ts`): while the script drives
+the sandbox, every line of text shown in 3D is measured against its box, and the run fails on text
+wider or taller than its box, clipped by its panel, cut short, or with capitals under 1.0 degree at
+the closest distance the run saw them from (never counted nearer than 0.3 m, nor farther than 0.6 m
+for text on a hand). Each new state of every text surface is saved under `<out>/fit/<page>/` as the
+texture itself (`tex-*.png`) and the emulated headset's view (`view-*.png`), with `fit.json`.

@@ -15,6 +15,8 @@ import { parseArgs } from "node:util";
 
 import { chromium } from "playwright";
 
+import { instrumentFit } from "../fit.mjs";
+
 const { values: args } = parseArgs({
     options: {
         url: { type: "string" },
@@ -32,6 +34,7 @@ const browser = await chromium.launch({
     headless: true,
     args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
 });
+const fit = instrumentFit(browser, join(args.out, "fit"));
 
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
@@ -113,9 +116,9 @@ const rimTurn = async (page, hand, kind, steps) => {
         const before = await pal(page, "face");
         await press(page, hand, kind, true);
         await frames(page, 6);
-        // About one face of arc (r * 72 degrees is 12 cm at a 14 cm face), in steps, sideways (+x).
+        // About one face of arc (r * 72 degrees is 15.6 cm at an 18 cm face), in steps, sideways (+x).
         for (let k = 1; k <= 10; k++) {
-            await setPos(page, hand, add(at, [0.011 * k, 0, 0]));
+            await setPos(page, hand, add(at, [0.0145 * k, 0, 0]));
             await frames(page, 2);
         }
         await press(page, hand, kind, false);
@@ -446,6 +449,8 @@ for (const profile of args.profiles.split(",")) {
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((x) => x.pass), results };
+report.textFit = fit.summary();
+report.pass &&= report.textFit.pass;
 writeFileSync(join(args.out, "report.json"), JSON.stringify(report, null, 2));
 console.log(
     `${results.filter((x) => x.pass).length} of ${results.length} profiles passed; report: ${join(args.out, "report.json")}`,

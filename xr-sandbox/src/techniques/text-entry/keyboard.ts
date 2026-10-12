@@ -8,11 +8,11 @@
 // the GUI focus, and a pointer up anywhere off this panel (the other hand, a ray on the graph)
 // blurs the field and hides the keyboard, so keys are applied here from `onKeyPressObservable`.
 
-import { type Mesh, PointerEventTypes, Vector3 } from "@babylonjs/core";
+import { type Mesh, PointerEventTypes } from "@babylonjs/core";
 import { Control, InputText, StackPanel, VirtualKeyboard } from "@babylonjs/gui";
 
 import type { TechniqueContext } from "../../framework/technique";
-import { guiButton, guiText, type Panel } from "../../scene/ui";
+import { controlWorld, type Panel } from "../../scene/ui";
 
 const BACK = "←";
 const ENTER = "↵";
@@ -55,16 +55,15 @@ export interface Keyboard {
  * @returns the keyboard
  */
 export function createKeyboard(ctx: TechniqueContext): Keyboard {
-    const panel = ctx.ui.panel("keyboard", WIDTH_M, HEIGHT_M, PX);
+    const panel = ctx.ui.panel("keyboard", WIDTH_M, HEIGHT_M, PX, { fit: true });
     const { mesh } = panel;
-    const label = guiText("", 36, "#9aa6bf");
+    const label = panel.text("", "#9aa6bf");
     panel.stack.addControl(label);
 
     const field = new InputText("text-entry-field", "");
     field.disableMobilePrompt = true;
-    field.height = "56px";
+    field.height = `${panel.row}px`;
     field.width = "640px";
-    field.fontSize = 30;
     field.color = "#e8ecf4";
     field.background = "#0e1320";
     field.focusedBackground = "#0e1320";
@@ -90,9 +89,9 @@ export function createKeyboard(ctx: TechniqueContext): Keyboard {
     kb.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     panel.stack.addControl(kb);
 
-    const row = new StackPanel("text-entry-actions");
-    row.isVertical = false;
-    row.height = "60px";
+    const row = panel.line();
+    row.name = "text-entry-actions";
+    row.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     panel.stack.addControl(row);
 
     let shift = 0;
@@ -124,18 +123,10 @@ export function createKeyboard(ctx: TechniqueContext): Keyboard {
         onFinish: () => undefined,
         keys() {
             const out: Record<string, { center: number[]; widthM: number; heightM: number }> = {};
-            const h = Math.round((PX * HEIGHT_M) / WIDTH_M);
-            const world = mesh.computeWorldMatrix(true);
             for (const r of kb.children as StackPanel[]) {
                 for (const key of r.children) {
-                    // Texture pixels to the plane's local meters (u right, v down), then to the world.
-                    const local = new Vector3(
-                        (key.centerX / PX - 0.5) * WIDTH_M,
-                        (0.5 - key.centerY / h) * HEIGHT_M,
-                        0,
-                    );
                     out[key.name ?? ""] = {
-                        center: Vector3.TransformCoordinates(local, world).asArray(),
+                        center: controlWorld(mesh, panel.adt, key).asArray(),
                         widthM: (key.widthInPixels - 2 * KEY_PAD_PX) / PX_PER_M,
                         heightM: (key.heightInPixels - 2 * KEY_PAD_PX) / PX_PER_M,
                     };
@@ -145,24 +136,22 @@ export function createKeyboard(ctx: TechniqueContext): Keyboard {
         },
     };
     row.addControl(
-        guiButton(
+        panel.button(
             "text-entry-cancel",
             "Cancel",
             () => {
                 k.onFinish("cancel");
             },
-            56,
             200,
         ),
     );
     row.addControl(
-        guiButton(
+        panel.button(
             "text-entry-done",
             "Done",
             () => {
                 k.onFinish("done");
             },
-            56,
             200,
         ),
     );

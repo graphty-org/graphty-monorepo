@@ -264,7 +264,7 @@ export const technique: Technique = {
         };
         for (const hand of HANDS) {
             trackers[hand] = createTracker(opts, fires);
-            chips[hand] = c.ui.chip(`feedback-${hand}`, 0.14, 0.022, true);
+            chips[hand] = c.ui.chip(`feedback-${hand}`, 0.06, "reach", true);
             chips[hand].mesh.parent = c.anchor(`hand-${hand}`);
             chips[hand].mesh.position.set(0, 0.13, 0);
         }

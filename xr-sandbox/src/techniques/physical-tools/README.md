@@ -36,7 +36,7 @@ off, and whether the probe reads what it points at (off: touch only).
 | -------------------------- | ------------------------------------------------------------------------------ |
 | Taking a tool off the rack | Babylon `SixDofDragBehavior` (ray grab and near grab, hands and controllers)   |
 | Threshold slider           | Babylon GUI `Slider` on a framework panel (ray and poke, like every panel)     |
-| Keep, Put back, probe card | The framework's panels, chips and `guiButton`                                  |
+| Keep, Put back, probe card | The framework's panels, chips and panel buttons                                |
 | Preview, commit, cancel    | The framework's command layer (`commands.preview("filter")`), and its labels   |
 | Values, ranks, communities | Computed at load by `@graphty/algorithms` (PageRank, Louvain) in the framework |
 

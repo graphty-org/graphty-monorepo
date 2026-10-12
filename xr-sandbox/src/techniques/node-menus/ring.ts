@@ -11,7 +11,8 @@ import type { TechniqueContext } from "../../framework/technique";
 import type { Chip } from "../../scene/ui";
 import { ringPosition, ringSlot, type Verb } from "./verbs";
 
-const RADIUS_M = 0.075;
+// Wide enough that the side items clear a long node name in the middle.
+const RADIUS_M = 0.14;
 const IDLE = "#2c3650";
 const LIT = "#3f6fd8";
 const TITLE = "#14192a";
@@ -42,11 +43,11 @@ export interface RingMenu {
 export function createRingMenu(ctx: TechniqueContext, slots: number): RingMenu {
     const root = new TransformNode("node-menus-ring", ctx.scene);
     const chips: Chip[] = Array.from({ length: slots }, (_, i) => {
-        const c = ctx.ui.chip(`ring-${i}`, 0.07, 0.022);
+        const c = ctx.ui.chip(`ring-${i}`, 0.05, "reach");
         c.mesh.parent = root;
         return c;
     });
-    const title = ctx.ui.chip("ring-title", 0.07, 0.018);
+    const title = ctx.ui.chip("ring-title", 0.05, "reach");
     title.mesh.parent = root;
     // Compile the chips' shader now, so the first open does not stall a frame.
     for (const c of [...chips, title]) {

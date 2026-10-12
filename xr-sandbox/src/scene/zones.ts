@@ -7,7 +7,8 @@ import { type Scene, TransformNode, Vector3 } from "@babylonjs/core";
 /** Offsets from the head, in its yaw frame: [right, up, forward], meters. */
 const ZONES = {
     gear: [-0.2, -0.3, 0.35],
-    gearPanel: [-0.3, -0.1, 0.5],
+    // Its top edge 21 cm above this; it grows down to hold every technique, clear of the gear.
+    gearPanel: [-0.32, 0.03, 0.5],
     steps: [0.32, -0.2, 0.48],
     log: [0, -0.38, 0.5],
 } as const;

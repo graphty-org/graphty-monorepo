@@ -17,6 +17,8 @@ import { parseArgs } from "node:util";
 
 import { chromium } from "playwright";
 
+import { instrumentFit } from "./fit.mjs";
+
 const { values: args } = parseArgs({
     options: {
         url: { type: "string" },
@@ -35,6 +37,7 @@ const browser = await chromium.launch({
     headless: true,
     args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
 });
+const fit = instrumentFit(browser, join(args.out, "fit"));
 
 const ev = (page, fn, arg) => page.evaluate(fn, arg);
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
@@ -253,7 +256,7 @@ const runMix = async (preset, profile) => {
         await doStep("married", async () => {
             if (nm) {
                 await openMenu(family);
-                const hit = await tapMesh("node-menus-node-1BackMesh");
+                const hit = await tapMesh("node-menus-node-1");
                 const s = await state();
                 return {
                     how: "node menu, Neighbors",
@@ -281,7 +284,7 @@ const runMix = async (preset, profile) => {
             }
             if (nm) {
                 await openMenu("space");
-                const hit = await tapMesh("node-menus-graph-0BackMesh");
+                const hit = await tapMesh("node-menus-graph-0");
                 return {
                     how: "graph menu, Show PageRank",
                     hit,
@@ -313,7 +316,7 @@ const runMix = async (preset, profile) => {
         await doStep("keep", async () => {
             if (nm) {
                 await openMenu("space");
-                const hit = await tapMesh("node-menus-graph-1BackMesh");
+                const hit = await tapMesh("node-menus-graph-1");
                 const cmd = (await ev(page, () => globalThis.__sandbox.log(50))).findLast(
                     (e) => e.message === "command",
                 )?.data;
@@ -335,7 +338,7 @@ const runMix = async (preset, profile) => {
                 await tapControl("figma-pop-Note");
             } else if (nm) {
                 await openMenu(noteFamily);
-                await tapMesh("node-menus-node-3BackMesh");
+                await tapMesh("node-menus-node-3");
             } else {
                 return { gap: "no technique in this mix leaves a note" };
             }
@@ -420,5 +423,7 @@ for (const mix of args.mixes.split(",")) {
     );
 }
 await browser.close();
+const textFit = fit.summary();
 writeFileSync(join(args.out, "journey.json"), JSON.stringify(results, null, 2));
-process.exit(results.every((r) => r.pass) ? 0 : 1);
+writeFileSync(join(args.out, "text-fit.json"), JSON.stringify(textFit, null, 2));
+process.exit(results.every((r) => r.pass) && textFit.pass ? 0 : 1);

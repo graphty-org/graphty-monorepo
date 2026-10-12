@@ -25,7 +25,7 @@ Placement follows the head's yaw at session start and after every Recenter.
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Every panel                    | Babylon 2D GUI on a mesh (`AdvancedDynamicTexture.CreateForMesh`), through the framework's `ctx.ui.panel`, as in playgrounds #24DLJ4#7 and #43YQHC#2 |
 | Slate drag                     | Babylon core `PointerDragBehavior` -- the behavior `HolographicSlate` itself drags its content with                                                  |
-| Buttons and text               | The framework's `guiButton` and `guiText`                                                                                                            |
+| Buttons and text               | The framework panel's `button` and `text` (sized from the shared text scale)                                                                         |
 | Tool hand-over, text, commands | The framework seams `ctx.tools`, `ctx.text`, `ctx.commands`                                                                                          |
 
 `NearMenu`, `HolographicSlate` and `FollowBehavior` themselves are not used:

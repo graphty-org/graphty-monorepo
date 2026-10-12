@@ -9,9 +9,10 @@ import { lookRotation, type XRDevice } from "iwer";
 import type { Hand } from "../core/arbiter";
 import type { FrameStats } from "../scene/frame-stats";
 import type { GraphView } from "../scene/graph-view";
-import { panels, uiStats } from "../scene/ui";
+import { controlWorld, panels, uiStats } from "../scene/ui";
 import type { GearPanel } from "./gear-panel";
 import type { Framework } from "./runtime";
+import { degrees, type FitIssue, fitProblems, HAND_M, measureText, MIN_CAP_DEG, NEAREST_M } from "./text-audit";
 
 interface HookDeps {
     device: XRDevice;
@@ -66,6 +67,17 @@ export function installTestHooks(d: HookDeps): void {
           }
         | undefined => (device.primaryInputMode === "hand" ? device.hands[hand] : device.controllers[hand]);
 
+    const lastControl = new Map<string, Vector3>();
+    const shownControl = (name: string, hiddenToo = false): Vector3 | null => {
+        for (const p of panels) {
+            const c = p.adt.getControlByName(name);
+            if (c && (hiddenToo || p.mesh.isEnabled())) {
+                return controlWorld(p.mesh, p.adt, c);
+            }
+        }
+        return null;
+    };
+
     const targetOf = (what: string): Vector3 => {
         if (what === "gear") {
             return d.gear.button.mesh.getAbsolutePosition().clone();
@@ -81,15 +93,126 @@ export function installTestHooks(d: HookDeps): void {
                 scene.getMeshByName(what) ??
                 UtilityLayerRenderer.DefaultUtilityLayer.utilityLayerScene.getMeshByName(what);
             if (mesh) {
-                return mesh.getAbsolutePosition().clone();
+                // The middle of what is drawn: a panel that fits its content is not centered on its origin.
+                // (Computing the world matrix also updates the bounds of a mesh that is not drawn.)
+                mesh.computeWorldMatrix(true);
+                return mesh.getBoundingInfo().boundingBox.centerWorld.clone();
             }
-            throw new Error(`no node or mesh named ${what}`);
+            // A GUI control on a shown panel, or where it last was (to press where a closed menu was),
+            // or where its hidden panel is.
+            const at = shownControl(what) ?? lastControl.get(what) ?? shownControl(what, true);
+            if (at) {
+                lastControl.set(what, at);
+                return at.clone();
+            }
+            throw new Error(`no node, mesh or control named ${what}`);
         }
         return graph.nodeWorld(i, new Vector3());
     };
 
+    // The text fit audit (dryrun/fit.mjs): from fitStart on, every 10 rendered frames, measure every
+    // line of text shown; keep each overflow, the closest view of each line, and a capture of each
+    // surface the first few times its text changes.
+    const fit = {
+        on: false,
+        issues: new Map<string, FitIssue>(),
+        views: new Map<
+            string,
+            { surface: string; control: string; text: string; capMm: number; distM: number; deg: number }
+        >(),
+        sigs: new Map<string, Set<string>>(),
+        captures: [] as { surface: string; n: number; png: string; texts: string[] }[],
+    };
+    let fitTick = 0;
+    // A problem counts, and a surface is captured, only when the next measurement 10 frames later
+    // sees the same: a panel that fits its content resizes a frame after its text changes.
+    let lastProblems = new Set<string>();
+    const lastSig = new Map<string, string>();
+    scene.onAfterRenderObservable.add(() => {
+        if (!fit.on || ++fitTick % 10 !== 0) {
+            return;
+        }
+        const canvases = new Map<string, unknown>();
+        const ms = measureText(scene, camera.globalPosition, canvases);
+        const bySurface = new Map<string, string[]>();
+        const problems = new Set<string>();
+        for (const m of ms) {
+            for (const p of fitProblems(m)) {
+                const k = `${p.surface}|${p.control}|${p.text}|${p.problem}`;
+                problems.add(k);
+                if (lastProblems.has(k)) {
+                    fit.issues.set(k, p);
+                }
+            }
+            const key = `${m.surface}|${m.control}|${m.text}`;
+            const deg = degrees(m.capM, Math.max(m.distM, NEAREST_M));
+            const best = fit.views.get(key);
+            if (!best || deg > best.deg) {
+                fit.views.set(key, {
+                    surface: m.surface,
+                    control: m.control,
+                    text: m.text,
+                    capMm: Math.round(m.capM * 10000) / 10,
+                    distM: Math.round(m.distM * 100) / 100,
+                    deg: Math.round(deg * 100) / 100,
+                });
+            }
+            bySurface.set(m.surface, [...(bySurface.get(m.surface) ?? []), m.text]);
+        }
+        lastProblems = problems;
+        for (const [surface, texts] of bySurface) {
+            const sig = texts.join("\n");
+            const steady = lastSig.get(surface) === sig;
+            lastSig.set(surface, sig);
+            if (!steady) {
+                continue;
+            }
+            const seen = fit.sigs.get(surface) ?? new Set<string>();
+            fit.sigs.set(surface, seen);
+            const c = canvases.get(surface) as HTMLCanvasElement | undefined;
+            if (seen.has(sig) || seen.size >= 6 || typeof c?.toDataURL !== "function") {
+                continue;
+            }
+            seen.add(sig);
+            fit.captures.push({ surface, n: seen.size, png: c.toDataURL("image/png"), texts });
+        }
+    });
+
     const api = {
         ready: true,
+        /** Start the text fit audit (see `fit` above). */
+        fitStart() {
+            fit.on = true;
+        },
+        /**
+         * The text fit audit so far: every overflow, and every line whose cap height at the closest
+         * view the run had (never nearer than NEAREST_M) is under MIN_CAP_DEG.
+         * @returns the problems, and how many lines and surfaces were seen
+         */
+        fitReport() {
+            const small = [...fit.views.values()]
+                .filter((v) => v.deg < MIN_CAP_DEG)
+                .map((v) => ({
+                    surface: v.surface,
+                    control: v.control,
+                    text: v.text,
+                    problem: "too-small" as const,
+                    detail: `cap ${v.capMm} mm at ${v.distM} m = ${v.deg} deg (needs ${MIN_CAP_DEG})`,
+                }));
+            return {
+                rule: `cap height at least ${MIN_CAP_DEG} deg at the closest view, never nearer than ${NEAREST_M} m (hand-borne text: never farther than ${HAND_M} m)`,
+                issues: [...fit.issues.values(), ...small],
+                lines: fit.views.size,
+                surfaces: [...fit.sigs.keys()],
+            };
+        },
+        /**
+         * The surface captures taken since the last call (PNG data URLs).
+         * @returns the captures
+         */
+        fitCaptures() {
+            return fit.captures.splice(0);
+        },
         preset: d.preset,
         presets: d.presets,
         // The node with the highest PageRank, a target on either graph.
@@ -144,22 +267,9 @@ export function installTestHooks(d: HookDeps): void {
          * @returns its center in world meters, or null when no shown panel has it
          */
         control(name: string): number[] | null {
-            for (const p of panels) {
-                const c = p.adt.getControlByName(name);
-                if (!c || !p.mesh.isEnabled()) {
-                    continue;
-                }
-                const { width, height } = p.adt.getSize();
-                const ext = p.mesh.getBoundingInfo().boundingBox.extendSize;
-                const local = new Vector3(
-                    (c.centerX / width - 0.5) * ext.x * 2,
-                    (0.5 - c.centerY / height) * ext.y * 2,
-                    0,
-                );
-                return Vector3.TransformCoordinates(local, p.mesh.computeWorldMatrix(true)).asArray();
-            }
-            return null;
+            return shownControl(name)?.asArray() ?? null;
         },
+
         counts: () => ({ meshes: scene.meshes.length, beforeRender: scene.onBeforeRenderObservable.observers.length }),
         /**
          * IWER's remote control (get_transform, look_at, animate_to, ...), for checks that move the

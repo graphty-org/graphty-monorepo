@@ -8,7 +8,7 @@ import { type Mesh, TransformNode } from "@babylonjs/core";
 import type { Button } from "@babylonjs/gui";
 
 import type { TechniqueContext } from "../../framework/technique";
-import { type Chip, guiButton, type Panel } from "../../scene/ui";
+import type { Chip, Panel } from "../../scene/ui";
 
 /** How a chip looks. */
 export type ChipStyle = "solid" | "interim" | "unparsed" | "run" | "run-off" | "top" | "more";
@@ -42,10 +42,10 @@ interface RowEvents {
 const CHIPS = 10;
 const ALTS = 20;
 const ALT_COLUMNS = 5;
-const W = 0.1;
+const W = 0.13;
 const H = 0.032;
 const GAP = 0.006;
-const PER_ROW = 6;
+const PER_ROW = 5;
 const STYLE: Record<ChipStyle, { bg: string; fg: string }> = {
     solid: { bg: "#34405a", fg: "#ffffff" },
     interim: { bg: "#2a2f3a", fg: "#8c93a3" },
@@ -76,9 +76,9 @@ export function createChipRow(ctx: TechniqueContext, on: RowEvents): ChipRow {
     root.setEnabled(false);
 
     const slot = (name: string, w: number, onClick: () => void): Slot => {
-        const panel = ctx.ui.panel(name, w, H, Math.round(256 * (w / W)));
+        const panel = ctx.ui.panel(name, w, H, Math.round(256 * (w / W)), { read: "reach", fit: true });
         panel.mesh.parent = root;
-        const button = guiButton(`${name}-button`, "", onClick, 78, "100%");
+        const button = panel.button(`${name}-button`, "", onClick);
         button.paddingTop = button.paddingBottom = "0px";
         panel.stack.addControl(button);
         return { panel, button, key: "" };
@@ -93,7 +93,6 @@ export function createChipRow(ctx: TechniqueContext, on: RowEvents): ChipRow {
         if (button.textBlock) {
             button.textBlock.text = text;
             button.textBlock.color = STYLE[style].fg;
-            button.textBlock.fontSize = Math.min(40, Math.floor(400 / Math.max(6, text.length)));
         }
         button.background = STYLE[style].bg;
         button.isEnabled = style !== "run-off";
@@ -116,7 +115,7 @@ export function createChipRow(ctx: TechniqueContext, on: RowEvents): ChipRow {
     clear.panel.mesh.position.set(left + W * 1.3 + GAP + W * 0.4, H + GAP, 0);
     paint(clear, "Clear", "more");
     const statusLeft = left + W * 2.1 + 2 * GAP;
-    const status: Chip = ctx.ui.chip("status", right - statusLeft, H * 0.8);
+    const status: Chip = ctx.ui.chip("status", right - statusLeft, "reach");
     status.mesh.parent = root;
     status.mesh.position.set((statusLeft + right) / 2, H + GAP, 0);
 

@@ -25,7 +25,7 @@ import { createHints, type Hints } from "./hints";
 import { createMiniKeyboard, type MiniKeyboard } from "./mini-keyboard";
 import { createSlab, type Slab } from "./slab";
 
-const KB_W = 0.28;
+const KB_W = 0.3;
 const KB_H = 0.16;
 /** The graph is re-dimmed at most this often while the slice changes (each re-dim rebuilds its buffers). */
 const DIM_EVERY_MS = 100;
@@ -341,7 +341,7 @@ export const technique: Technique = {
         { key: "hints", label: "Hint tags", kind: "bool", default: true },
         { key: "slab", label: "Slab", kind: "bool", default: true },
         { key: "coneDeg", label: "Hint cone half angle (deg)", kind: "number", min: 1, max: 10, step: 0.5, default: 3 },
-        { key: "tagDeg", label: "Tag height (deg)", kind: "number", min: 0.6, max: 3, step: 0.2, default: 1.4 },
+        { key: "tagDeg", label: "Tag letter height (deg)", kind: "number", min: 1, max: 2.5, step: 0.1, default: 1.2 },
         { key: "dwellMs", label: "Hold to latch tags (ms)", kind: "number", min: 0, max: 1000, step: 50, default: 250 },
         {
             key: "alphabet",
@@ -367,12 +367,12 @@ export const technique: Technique = {
     prepare(c) {
         ctx = c;
         hints = createHints(c.scene);
-        kb = createMiniKeyboard(c.ui.panel("keys", KB_W, KB_H, 560), KB_W, KB_H, onKey);
+        kb = createMiniKeyboard(c.ui.panel("keys", KB_W, KB_H, 600, { read: "graph", fit: true }), onKey);
         slab = createSlab(
             c.scene,
             c.graph.data.nodeCount,
             () => c.graph.radiusWorld() * 1.2,
-            c.ui.panel("pin", 0.1, 0.035, 300),
+            c.ui.panel("pin", 0.16, 0.035, 400, { read: "graph", fit: true }),
             () => {
                 if (slab.pinned) {
                     take(other(ctx.dominant()));

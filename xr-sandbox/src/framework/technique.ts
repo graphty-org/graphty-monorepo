@@ -10,7 +10,7 @@ import type { CommandCode, CommandParams, CommandRecord, HistoryEntry, Preview }
 import type { GraphState } from "../core/state";
 import type { GraphView, NodePick } from "../scene/graph-view";
 import type { HandPoses } from "../scene/poses";
-import type { Chip, Panel } from "../scene/ui";
+import type { Chip, Panel, PanelOptions, Reach } from "../scene/ui";
 import type { FrameworkActions } from "./runtime";
 
 /** What a technique needs from the session; unmet needs are shown in the gear panel. */
@@ -83,8 +83,8 @@ export interface TechniqueContext {
     /** Anchors maintained by the framework: a hand's grip, or the space above the graph. */
     anchor(name: "hand-left" | "hand-right" | "graph-top"): TransformNode;
     ui: {
-        panel(name: string, widthM: number, heightM: number, px: number): Panel;
-        chip(name: string, widthM: number, heightM: number, billboard?: boolean): Chip;
+        panel(name: string, widthM: number, heightM: number, px: number, options?: PanelOptions): Panel;
+        chip(name: string, minWidthM: number, read: Reach, billboard?: boolean, maxWidthM?: number): Chip;
     };
     settings: {
         bool(key: string): boolean;

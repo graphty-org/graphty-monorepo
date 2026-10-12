@@ -14,6 +14,8 @@ import { parseArgs } from "node:util";
 
 import { chromium } from "playwright";
 
+import { instrumentFit } from "../fit.mjs";
+
 const { values: args } = parseArgs({
     options: {
         url: { type: "string" },
@@ -31,6 +33,7 @@ const browser = await chromium.launch({
     headless: true,
     args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
 });
+const fit = instrumentFit(browser, join(args.out, "fit"));
 
 const TARGET = "Medici";
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
@@ -123,18 +126,7 @@ const turnRight = async (page, hand, device, deg) => {
     await frames(page, 8);
 };
 /** The framework's canned-chip panel (text-seam.ts): its first chip, "check", in world meters. */
-const cannedCheckPoint = async (page) => {
-    const head = await transform(page, "headset");
-    const yaw = Math.atan2(head.fwd[0], head.fwd[2]);
-    const c = [head.pos[0] + Math.sin(yaw) * 0.4, head.pos[1] - 0.3, head.pos[2] + Math.cos(yaw) * 0.4];
-    const z = norm(c.map((v, i) => v - head.pos[i]));
-    const x = norm([z[2], 0, -z[0]]);
-    const y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]];
-    // 0.3 x 0.075 m panel at 600 x 150 px: a 44 px title, then four 140 px chips centered in a row.
-    const xm = ((90 - 300) / 600) * 0.3;
-    const ym = (-(92 - 75) / 150) * 0.075;
-    return c.map((v, i) => v + x[i] * xm + y[i] * ym);
-};
+const cannedCheckPoint = (page) => page.evaluate(() => globalThis.__sandbox.control("text-fallback-check"));
 
 const open = async (profile, query) => {
     const r = { consoleErrors: [], pageErrors: [] };
@@ -222,7 +214,7 @@ const runList = async (profile) => {
 
         // A ray press on Probe logs probe for the node.
         let t0 = await now(page);
-        const hitProbe = await tap(page, "right", "node-menus-node-2BackMesh", sel);
+        const hitProbe = await tap(page, "right", "node-menus-node-2", sel);
         let cmds = await commandsSince(page, t0);
         const probe = cmds.find((c) => c.code === "probe");
         await check("listProbe", probe?.label === `Probe ${TARGET}` && cmds.every((c) => c.code !== "select"), {
@@ -242,9 +234,12 @@ const runList = async (profile) => {
         }
         await frames(page, 5);
         t0 = await now(page);
-        const hitNote = await tap(page, "right", "node-menus-node-3BackMesh", sel);
+        const hitNote = await tap(page, "right", "node-menus-node-3", sel);
         const req = (await logSince(page, t0, "text.request")).at(-1)?.data;
         const p = await cannedCheckPoint(page);
+        // The hand back at a resting reach first, as a person would point, not level with the panel.
+        await sb(page, () => globalThis.__sandbox.place("right", 0.18, 1.3, 0.25));
+        await frames(page, 3);
         await sb(page, ([h, q]) => globalThis.__sandbox.aimAt(h, q[0], q[1], q[2]), ["right", p]);
         await frames(page, 15);
         const onChip = await sb(page, () => globalThis.__sandbox.hover("right"));
@@ -287,7 +282,7 @@ const runList = async (profile) => {
             },
         );
         // Show PageRank from it colors by PageRank, and undo names it.
-        const hitShow = await tap(page, "right", "node-menus-graph-0BackMesh", sel);
+        const hitShow = await tap(page, "right", "node-menus-graph-0", sel);
         const s = await sb(page, () => globalThis.__sandbox.state());
         await check("graphVerbRuns", s.colorBy === "pagerank" && s.undoLabel === "Undo: Color by PageRank", {
             hover: hitShow,
@@ -296,7 +291,7 @@ const runList = async (profile) => {
         });
 
         // Choosing closed the list: its buttons are no longer UI under the ray.
-        await aim(page, "right", "node-menus-graph-0BackMesh");
+        await aim(page, "right", "node-menus-graph-0");
         const gone = await sb(page, () => globalThis.__sandbox.hover("right"));
         await check("listClosesAfterChoice", gone.context !== "ui", { context: gone.context, uiMesh: gone.uiMesh });
 
@@ -399,7 +394,7 @@ const runOff = async (profile) => {
         });
         // Off, its hidden buttons are not under the ray and a press there probes nothing.
         const t1 = await now(page);
-        const hit = await tap(page, "right", "node-menus-node-2BackMesh", hands ? "pinch" : "trigger");
+        const hit = await tap(page, "right", "node-menus-node-2", hands ? "pinch" : "trigger");
         const probes = (await commandsSince(page, t1)).filter((c) => c.code === "probe");
         check("offListHidden", hit.context !== "ui" && probes.length === 0, { hover: hit, probes: probes.length });
         const j = await sb(page, () => globalThis.__sandbox.jitter(60));
@@ -431,6 +426,8 @@ for (const profile of args.profiles.split(",")) {
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((x) => x.pass), results };
+report.textFit = fit.summary();
+report.pass &&= report.textFit.pass;
 writeFileSync(join(args.out, "report.json"), JSON.stringify(report, null, 2));
 console.log(
     `${results.filter((x) => x.pass).length} of ${results.length} runs passed; report: ${join(args.out, "report.json")}`,

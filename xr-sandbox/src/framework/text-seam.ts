@@ -4,9 +4,9 @@
 // "interesting", "?") still lets a note be made.
 
 import { type Scene, type TransformNode, Vector3 } from "@babylonjs/core";
-import { StackPanel } from "@babylonjs/gui";
+import { Control } from "@babylonjs/gui";
 
-import { createPanel, guiButton, guiText } from "../scene/ui";
+import { createPanel } from "../scene/ui";
 import type { TextProvider, TextRequest } from "./technique";
 
 const CANNED = ["check", "interesting", "?"];
@@ -49,13 +49,14 @@ interface TextSeam {
 export function createTextSeam(scene: Scene, log: (message: string, data: Record<string, unknown>) => void): TextSeam {
     let provider: TextProvider | null = null;
     let pending: ((v: string | null) => void) | null = null;
-    const panel = createPanel(scene, "text-fallback", 0.3, 0.075, 600);
-    const title = guiText("", 44);
+    const panel = createPanel(scene, "text-fallback", 0.4, 0.1, 800, { fit: true });
+    const title = panel.text("", "#e8ecf4", true);
     panel.stack.addControl(title);
-    const row = new StackPanel("text-fallback-row");
-    row.isVertical = false;
-    row.height = "96px";
+    const row = panel.line();
+    row.name = "text-fallback-row";
+    row.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     panel.stack.addControl(row);
+    const WIDTHS: Record<string, number> = { check: 160, interesting: 250, "?": 100, Cancel: 190 };
     const finish = (v: string | null): void => {
         panel.hide();
         const p = pending;
@@ -64,14 +65,13 @@ export function createTextSeam(scene: Scene, log: (message: string, data: Record
     };
     for (const t of [...CANNED, "Cancel"]) {
         row.addControl(
-            guiButton(
+            panel.button(
                 `text-fallback-${t}`,
                 t,
                 () => {
                     finish(t === "Cancel" ? null : t);
                 },
-                84,
-                140,
+                WIDTHS[t],
             ),
         );
     }
@@ -83,7 +83,8 @@ export function createTextSeam(scene: Scene, log: (message: string, data: Record
                 return provider(r);
             }
             title.text = r.label;
-            placeAtReach(panel.mesh, scene);
+            // A little higher than the default spot, so its row of chips clears the gear button below.
+            placeAtReach(panel.mesh, scene, 0.4, 0.22);
             panel.show();
             return new Promise((resolve) => {
                 pending = resolve;

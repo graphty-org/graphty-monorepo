@@ -6,6 +6,7 @@
 
 import { Color4, DynamicTexture, type Scene, Sprite, SpriteManager, Vector3 } from "@babylonjs/core";
 
+import { textSurfaces } from "../../scene/ui";
 import { hintStrings, nextLetters } from "./hint-strings";
 
 const LETTERS = "abcdefghijklmnopqrstuvwxyz";
@@ -36,7 +37,7 @@ export interface Hints {
     type(key: string): number;
     /** Letters that may come next. */
     next(): string[];
-    /** Per frame: put each tag at its node, sized to `deg` degrees from the head. */
+    /** Per frame: put each tag at its node, its letters `deg` degrees tall from the head. */
     place(at: (i: number, out: Vector3) => Vector3 | null, head: Vector3, deg: number): void;
 }
 
@@ -63,6 +64,8 @@ export function createHints(scene: Scene): Hints {
         }
     }
     atlas.update(false);
+    // How much of a cell's height a capital letter takes, to size tags by their letters.
+    const capOfCell = (g as CanvasRenderingContext2D).measureText("H").actualBoundingBoxAscent / CELL_H;
     const manager = new SpriteManager("dense-picking-tags", "", MAX_TAGS, { width: CELL_W, height: CELL_H }, scene);
     manager.texture = atlas;
     manager.renderingGroupId = 1;
@@ -77,6 +80,26 @@ export function createHints(scene: Scene): Hints {
     let latched: Latched | null = null;
     let typed = "";
     const tmp = new Vector3();
+    // For the dry run's fit audit: the first few tags shown (every tag has the same angular size).
+    textSurfaces.push({
+        name: "dense-picking-tags",
+        mesh: null,
+        canvas: () => atlas.getContext().canvas,
+        items: () =>
+            (latched?.tags ?? [])
+                .slice(0, 3)
+                .map((t, k) => ({ t, s: sprites[k] }))
+                .filter(({ s }) => s.isVisible)
+                .map(({ t, s }) => ({
+                    control: "tag",
+                    lines: [t.toUpperCase()],
+                    font: g.font,
+                    boxW: CELL_W - 4,
+                    boxH: CELL_H - 4,
+                    metersPerPx: s.height / CELL_H,
+                    at: s.position,
+                })),
+    });
 
     const tint = (): void => {
         if (!latched) {
@@ -141,7 +164,7 @@ export function createHints(scene: Scene): Hints {
             if (!latched) {
                 return;
             }
-            const k2 = 2 * Math.tan((deg * Math.PI) / 360);
+            const k2 = (2 * Math.tan((deg * Math.PI) / 360)) / capOfCell;
             latched.nodes.forEach((i, k) => {
                 const s = sprites[k];
                 const p = at(i, tmp);

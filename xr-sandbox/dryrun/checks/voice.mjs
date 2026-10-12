@@ -17,6 +17,8 @@ import { parseArgs } from "node:util";
 
 import { chromium } from "playwright";
 
+import { instrumentFit } from "../fit.mjs";
+
 const { values: args } = parseArgs({
     options: {
         url: { type: "string" },
@@ -41,6 +43,7 @@ const browser = await chromium.launch({
         "--use-fake-device-for-media-stream",
     ],
 });
+const fit = instrumentFit(browser, join(args.out, "fit"));
 
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
@@ -386,6 +389,8 @@ for (const profile of args.profiles.split(",")) {
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((r) => r.pass), results };
+report.textFit = fit.summary();
+report.pass &&= report.textFit.pass;
 writeFileSync(join(args.out, "report.json"), JSON.stringify(report, null, 2));
 console.log(
     `${results.filter((r) => r.pass).length} of ${results.length} profiles passed; report: ${join(args.out, "report.json")}`,

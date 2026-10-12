@@ -6,7 +6,6 @@
 import {
     Color3,
     type Color4,
-    DynamicTexture,
     Matrix,
     type Mesh,
     MeshBuilder,
@@ -21,6 +20,7 @@ import type { Hand } from "../core/arbiter";
 import type { PreviewView } from "../core/commands";
 import { type GraphState, isVisible } from "../core/state";
 import type { GraphData } from "./graph-data";
+import { createChip } from "./ui";
 
 /** A node picked along a ray. */
 export interface NodePick {
@@ -118,31 +118,21 @@ export function createGraphView(
         m.alwaysSelectAsActiveMesh = true;
     }
 
-    // Labels (Florentine only): one small texture each, drawn once, offset above the node and in a
-    // later rendering group so they never z-fight with the spheres.
+    // Labels (Florentine only): one chip each, drawn once, offset above the node and in a later
+    // rendering group so they never z-fight with the spheres. Sized to be read from beside the graph.
     const labels: Mesh[] = [];
     if (data.kind === "florentine") {
         for (let i = 0; i < n; i++) {
-            const plane = MeshBuilder.CreatePlane(`label-${i}`, { width: 0.09, height: 0.0225 }, scene);
-            const tex = new DynamicTexture(`label-tex-${i}`, { width: 256, height: 64 }, scene, true);
-            tex.hasAlpha = true;
-            tex.drawText(data.names[i], null, 46, "bold 34px sans-serif", "#ffffff", "rgba(20,24,32,0.75)", true, true);
-            const mat = new StandardMaterial(`label-mat-${i}`, scene);
-            mat.diffuseTexture = tex;
-            mat.emissiveColor = WHITE;
-            mat.disableLighting = true;
-            mat.useAlphaFromDiffuseTexture = true;
-            mat.backFaceCulling = false;
-            plane.material = mat;
+            const chip = createChip(scene, `label-${i}`, 0, "graph", true);
+            chip.set(data.names[i], "rgba(20,24,32,0.75)");
+            const plane = chip.mesh;
             plane.parent = root;
-            plane.billboardMode = TransformNode.BILLBOARDMODE_ALL;
-            plane.renderingGroupId = 1;
-            plane.isPickable = false;
             plane.position.set(
                 data.positions[i * 3],
-                data.positions[i * 3 + 1] + radius * 2.2,
+                data.positions[i * 3 + 1] + radius * 2.2 + chip.heightM / 2,
                 data.positions[i * 3 + 2],
             );
+            plane.setEnabled(true);
             labels.push(plane);
         }
     }

@@ -8,12 +8,12 @@ hand's shows.
 
 ## Settings (gear panel)
 
-| Setting                   | Default   | What it does                                                                                    |
-| ------------------------- | --------- | ----------------------------------------------------------------------------------------------- |
-| Value shown               | `current` | The shown result (degree when none is shown), or always PageRank, degree or betweenness         |
-| Size (mm per m)           | 20        | Tag height per meter of distance, so its angular size stays constant (20 is about 1.15 degrees) |
-| Dwell before showing (ms) | 0         | How long a new node must be pointed at before its tag appears                                   |
-| Keep after leaving (ms)   | 300       | How long the tag stays after the ray slips off every node, so it does not blink                 |
+| Setting                   | Default   | What it does                                                                                                             |
+| ------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Value shown               | `current` | The shown result (degree when none is shown), or always PageRank, degree or betweenness                                  |
+| Letter height (deg)       | 1.2       | Height of the tag's capital letters in degrees from the eye, kept constant at any distance (1.0 is the legibility floor) |
+| Dwell before showing (ms) | 0         | How long a new node must be pointed at before its tag appears                                                            |
+| Keep after leaving (ms)   | 300       | How long the tag stays after the ray slips off every node, so it does not blink                                          |
 
 The tag needs hover. When every input is a transient pointer (an input that exists only while
 pinching, as Galaxy XR's may be), the gear panel shows "needs hover (this input is a transient

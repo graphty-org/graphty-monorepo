@@ -11,7 +11,7 @@
 import type { TechniqueContext } from "../../framework/technique";
 import { listen, type Listening, speechSupport } from "../../scene/speech";
 import { systemKeyboard } from "../../scene/system-keyboard";
-import { guiButton, type Panel } from "../../scene/ui";
+import type { Panel } from "../../scene/ui";
 import type { Keyboard } from "./keyboard";
 
 /** How dictation would run here. */
@@ -47,7 +47,7 @@ const join = (base: string, words: string): string => {
  * @returns the key
  */
 export function createDictationKey(ctx: TechniqueContext, kb: Keyboard): DictationKey {
-    const panel = ctx.ui.panel("dictate", 0.12, 0.06, 240);
+    const panel = ctx.ui.panel("dictate", 0.14, 0.06, 280, { fit: true });
     panel.mesh.parent = kb.mesh;
     panel.mesh.position.set(0.24, -0.05, 0);
     let listening: Listening | null = null;
@@ -76,16 +76,9 @@ export function createDictationKey(ctx: TechniqueContext, kb: Keyboard): Dictati
         "system-keyboard": "Quest keyboard",
         none: "No dictation",
     };
-    const button = guiButton(
-        "text-entry-dictate",
-        "Dictate",
-        () => {
-            click();
-        },
-        112,
-        232,
-    );
-    button.fontSize = 30;
+    const button = panel.button("text-entry-dictate", "Dictate", () => {
+        click();
+    });
     panel.stack.addControl(button);
     const setLabel = (t: string): void => {
         if (button.textBlock && button.textBlock.text !== t) {

@@ -2,10 +2,7 @@
 // the graph, in order -- the selection highlight, color by, size by, the filter, hidden nodes --
 // each with a remove button that issues the command undoing just that layer.
 
-import { Control, StackPanel } from "@babylonjs/gui";
-
 import type { TechniqueContext } from "../../framework/technique";
-import { guiButton, guiText } from "../../scene/ui";
 import { createSlate, type Slate } from "./inspector";
 
 /** The layer list. */
@@ -24,15 +21,14 @@ interface Row {
     remove?: () => void;
 }
 
-const ROW_PX = 60;
-
 /**
  * Build the layer list, hidden.
  * @param ctx - the technique context
  * @returns the layer list
  */
 export function createLayerList(ctx: TechniqueContext): LayerList {
-    const slate = createSlate(ctx, "layers", "Layers", 0.28, 0.26, 640);
+    const slate = createSlate(ctx, "layers", "Layers", 0.36, 0.26, 704);
+    const p = slate.body;
     const { data } = ctx.graph;
     const s = ctx.state;
     const count = (n: number): string => `${n} ${n === 1 ? data.noun[0] : data.noun[1]}`;
@@ -94,29 +90,26 @@ export function createLayerList(ctx: TechniqueContext): LayerList {
                 c.dispose();
             }
             if (shown.length === 0) {
-                slate.body.stack.addControl(guiText("No layers yet: use the toolbar", ROW_PX, "#9fb3d9"));
+                p.stack.addControl(p.text("No layers yet: use the toolbar", "#9fb3d9"));
                 return;
             }
             for (const r of shown) {
-                const row = new StackPanel(`figma-layer-row-${r.id}`);
-                row.isVertical = false;
-                row.height = `${ROW_PX}px`;
-                row.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-                const text = guiText(r.label, ROW_PX);
-                text.width = "520px";
+                const row = p.line();
+                row.name = `figma-layer-row-${r.id}`;
+                const text = p.text(r.label);
+                text.width = "584px";
                 row.addControl(text);
                 const { remove } = r;
                 if (remove) {
                     row.addControl(
-                        guiButton(
+                        p.button(
                             `figma-layer-x-${r.id}`,
                             "x",
                             () => {
                                 ctx.log("click", { item: `remove ${r.id}` });
                                 remove();
                             },
-                            ROW_PX - 6,
-                            100,
+                            110,
                         ),
                     );
                 }

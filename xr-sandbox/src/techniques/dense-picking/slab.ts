@@ -17,7 +17,7 @@ import {
 } from "@babylonjs/core";
 
 import type { NodePick } from "../../scene/graph-view";
-import { guiButton, type Panel } from "../../scene/ui";
+import type { Panel } from "../../scene/ui";
 
 /** The slab's pose and contents, for the hints, the provider and the dry run. */
 export interface Slab {
@@ -99,7 +99,7 @@ export function createSlab(
     dots.setEnabled(false);
 
     button.mesh.billboardMode = TransformNode.BILLBOARDMODE_ALL;
-    const pin = guiButton("dense-picking-pin", "Pin slab", onPin, 56);
+    const pin = button.button("dense-picking-pin", "Pin slab", onPin);
     button.stack.addControl(pin);
 
     const center = new Vector3();

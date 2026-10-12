@@ -32,7 +32,7 @@ fingertip poke.
 | Key buttons, rows, shift display | Babylon GUI `VirtualKeyboard` (`addKeysRow`, `applyShiftState`, `onKeyPressObservable`)   | All key drawing and hit testing                                                    |
 | The field                        | Babylon GUI `InputText` with `disableMobilePrompt = true`                                 | Display; a touch focus can no longer call `window.prompt()` and freeze the session |
 | Poke on a 2D GUI panel           | Babylon `WebXRNearInteraction` (sphere pick that fills in texture coordinates)            | Fingertip typing with no 3D key meshes                                             |
-| Panel, buttons                   | `ctx.ui.panel`, `guiButton`, `guiText` (`src/scene/ui.ts`)                                | Near-pickable, ray-pickable plane                                                  |
+| Panel, buttons                   | `ctx.ui.panel` and its `button` and `text` (`src/scene/ui.ts`)                            | Near-pickable, ray-pickable plane                                                  |
 | Speech                           | `src/scene/speech.ts`, a thin wrapper of the browser's Web Speech API                     | Galaxy XR dictation                                                                |
 | Quest system keyboard            | `src/scene/system-keyboard.ts`, after Meta's WebXR keyboard page and spatial-kanban PR #4 | Quest typing and dictation                                                         |
 

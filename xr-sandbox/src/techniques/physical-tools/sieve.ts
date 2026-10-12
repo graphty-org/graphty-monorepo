@@ -12,7 +12,6 @@ import type { Hand } from "../../core/arbiter";
 import type { Preview } from "../../core/commands";
 import { type Filter, passes } from "../../core/state";
 import type { TechniqueContext } from "../../framework/technique";
-import { guiButton } from "../../scene/ui";
 import type { Tool } from "./rack";
 
 /** The sieve. */
@@ -70,7 +69,7 @@ export function createSieve(ctx: TechniqueContext, put: () => void): Sieve {
     frame.rotation.x = Math.PI / 2;
     frame.isPickable = false;
 
-    const readoutChip = ctx.ui.chip("sieve-readout", 0.16, 0.024, true);
+    const readoutChip = ctx.ui.chip("sieve-readout", 0.1, "reach", true);
     readoutChip.mesh.parent = root;
     // Beside the ring, clear of the framework's hint and badge chips above the hand.
     readoutChip.mesh.position.set(0.145, 0.085, 0);
@@ -90,12 +89,13 @@ export function createSieve(ctx: TechniqueContext, put: () => void): Sieve {
     slider.thumbWidth = "24px";
     slider.isThumbCircle = true;
     sliderPanel.adt.addControl(slider);
-    const keepPanel = ctx.ui.panel("sieve-keep", 0.062, 0.026, 256);
+    // Their top edges 2 cm under the slider; they grow down to hold their labels.
+    const keepPanel = ctx.ui.panel("sieve-keep", 0.08, 0.026, 320, { read: "hand", fit: true });
     keepPanel.mesh.parent = controls;
-    keepPanel.mesh.position.set(-0.034, -0.032, 0);
-    const backPanel = ctx.ui.panel("sieve-back", 0.062, 0.026, 256);
+    keepPanel.mesh.position.set(-0.043, -0.032, 0);
+    const backPanel = ctx.ui.panel("sieve-back", 0.08, 0.026, 320, { read: "hand", fit: true });
     backPanel.mesh.parent = controls;
-    backPanel.mesh.position.set(0.034, -0.032, 0);
+    backPanel.mesh.position.set(0.043, -0.032, 0);
     const mark = MeshBuilder.CreateBox("physical-tools-slider-mark", { size: 0.001 }, scene);
     mark.parent = sliderPanel.mesh;
     mark.isVisible = false;
@@ -121,6 +121,8 @@ export function createSieve(ctx: TechniqueContext, put: () => void): Sieve {
         }
         readout = `${data.resultNames[f.result]} ${f.value.toFixed(3)}: keeps ${kept} of ${data.nodeCount}`;
         readoutChip.set(readout, "#5a2030");
+        // Its left edge just outside the ring, however wide the text makes it.
+        readoutChip.mesh.position.x = 0.065 + readoutChip.widthM / 2;
     };
     const range = (): void => {
         const v = data.results[result()];
@@ -139,13 +141,6 @@ export function createSieve(ctx: TechniqueContext, put: () => void): Sieve {
         preview.update(filter());
         refresh();
     });
-    const button = (name: string, text: string, onClick: () => void): ReturnType<typeof guiButton> => {
-        const b = guiButton(name, text, onClick, 100);
-        b.height = 1;
-        b.width = 1;
-        b.fontSize = 44;
-        return b;
-    };
 
     const sieve: Sieve = {
         tool: {
@@ -227,11 +222,11 @@ export function createSieve(ctx: TechniqueContext, put: () => void): Sieve {
             return mark.name;
         },
     };
-    keepPanel.adt.addControl(
-        button("physical-tools-sieve-keep", "Keep", () => {
+    keepPanel.stack.addControl(
+        keepPanel.button("physical-tools-sieve-keep", "Keep", () => {
             sieve.commit(hand ?? ctx.dominant());
         }),
     );
-    backPanel.adt.addControl(button("physical-tools-sieve-back", "Put back", put));
+    backPanel.stack.addControl(backPanel.button("physical-tools-sieve-back", "Put back", put));
     return sieve;
 }

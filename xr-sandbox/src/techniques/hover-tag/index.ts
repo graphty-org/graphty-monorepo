@@ -16,9 +16,8 @@ import type { Technique, TechniqueContext } from "../../framework/technique";
 import type { Chip } from "../../scene/ui";
 import { TagTarget, tagText } from "./tag";
 
-/** The chip's size at scale 1: 20 mm tall, so `scale = size(mm per m) * distance / 20`. */
-const BASE_H = 0.02;
-const BASE_W = 0.16;
+/** The chip's narrowest width at scale 1, meters. */
+const BASE_W = 0.06;
 const HANDS: Hand[] = ["left", "right"];
 
 interface HandTag {
@@ -64,21 +63,20 @@ const hide = (t: HandTag): void => {
     t.visible = false;
 };
 
-// Put the tag under its node, toward the viewer, sized to `size` mm per meter of distance.
+// Put the tag under its node, toward the viewer, its capitals `size` degrees tall from the head.
 const place = (t: HandTag, cam: Vector3): void => {
     const g = ctx.graph;
     g.nodeWorld(t.target.shown, node);
     cam.subtractToRef(node, toCam);
     const d = toCam.length();
     const r = g.radiusWorld();
-    const k = ctx.settings.num("size") / 1000;
     const m = t.chip.mesh;
+    const capAt = (dist: number): number => 2 * dist * Math.tan((ctx.settings.num("size") * Math.PI) / 360);
     toCam.scaleInPlace(r / Math.max(d, 1e-6));
     m.position.copyFrom(node).addInPlace(toCam);
-    m.position.y -= r * 1.5 + (k * d) / 2;
+    m.position.y -= r * 1.5 + ((capAt(d) / t.chip.capM) * t.chip.heightM) / 2;
     // Size from the tag's own distance, so its angular size is exact where it is drawn.
-    const s = (k * Vector3.Distance(cam, m.position)) / BASE_H;
-    m.scaling.setAll(s);
+    m.scaling.setAll(capAt(Vector3.Distance(cam, m.position)) / t.chip.capM);
 };
 
 // Notice a change of input kind (transient pointers have no hover) and of what the tag text shows.
@@ -169,16 +167,16 @@ const installHooks = (): void => {
                     ];
                 }),
             ),
-        // The tag's angular height and the one the setting asks for, in degrees.
+        // The tag's capital letters' angular height and the one the setting asks for, in degrees.
         angular(hand: Hand) {
             const m = tags[hand].chip.mesh;
             m.computeWorldMatrix(true);
-            const h = BASE_H * m.scaling.y;
+            const h = tags[hand].chip.capM * m.scaling.y;
             const d = Vector3.Distance(camera(), m.getAbsolutePosition());
             const deg = (a: number): number => (a * 180) / Math.PI;
             return {
                 deg: deg(2 * Math.atan(h / 2 / d)),
-                wantDeg: deg(2 * Math.atan(ctx.settings.num("size") / 1000 / 2)),
+                wantDeg: ctx.settings.num("size"),
                 distance: d,
             };
         },
@@ -245,7 +243,7 @@ export const technique: Technique = {
             choices: ["current", "pagerank", "degree", "betweenness"],
             default: "current",
         },
-        { key: "size", label: "Size (mm per m)", kind: "number", min: 10, max: 40, step: 2, default: 20 },
+        { key: "size", label: "Letter height (deg)", kind: "number", min: 1, max: 2.5, step: 0.1, default: 1.2 },
         { key: "dwellMs", label: "Dwell before showing (ms)", kind: "number", min: 0, max: 600, step: 50, default: 0 },
         { key: "lingerMs", label: "Keep after leaving (ms)", kind: "number", min: 0, max: 800, step: 50, default: 300 },
     ],
@@ -253,7 +251,7 @@ export const technique: Technique = {
     prepare(c) {
         ctx = c;
         for (const hand of HANDS) {
-            const chip = c.ui.chip(`tag-${hand}`, BASE_W, BASE_H, true);
+            const chip = c.ui.chip(`tag-${hand}`, BASE_W, "hand", true);
             tags[hand] = { chip, target: new TagTarget(), text: "", redraws: 0, visible: false };
         }
         c.settings.onChange((key) => {

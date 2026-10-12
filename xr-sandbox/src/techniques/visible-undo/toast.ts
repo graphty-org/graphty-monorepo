@@ -45,7 +45,7 @@ export interface Toast {
  * @returns the toast
  */
 export function createToast(ctx: TechniqueContext): Toast {
-    const chip: Chip = ctx.ui.chip("toast", 0.2, 0.026, true);
+    const chip: Chip = ctx.ui.chip("toast", 0.08, "reach", true);
     let until = 0;
     let shownAt = 0;
     let redraws = 0;
@@ -56,8 +56,9 @@ export function createToast(ctx: TechniqueContext): Toast {
             chip.set(text, "#3d5a1e");
             redraws++;
             chip.mesh.parent = ctx.anchor(`hand-${hand}`);
-            // Outside the hand, level with the win badge, so the two never overlap.
-            chip.mesh.position.set(hand === "left" ? -0.14 : 0.14, 0.04, 0);
+            // Outside the hand, below the win badge, its inner edge 5 cm out however wide the text is.
+            const x = 0.05 + chip.widthM / 2;
+            chip.mesh.position.set(hand === "left" ? -x : x, 0.04, 0);
             chip.show();
             shownAt = now;
             until = now + Math.max(0.5, ctx.settings.num("toastSeconds") || 2) * 1000;

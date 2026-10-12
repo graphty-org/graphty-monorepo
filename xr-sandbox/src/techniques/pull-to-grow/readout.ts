@@ -24,7 +24,7 @@ export interface Readout {
  * @returns the readout
  */
 export function createReadout(ctx: TechniqueContext): Readout {
-    const chip: Chip = ctx.ui.chip("readout", 0.12, 0.026, true);
+    const chip: Chip = ctx.ui.chip("readout", 0.06, "reach", true);
     let last = "";
     let redraws = 0;
     const draw = (text: string): void => {
@@ -39,7 +39,7 @@ export function createReadout(ctx: TechniqueContext): Readout {
             if (chip.mesh.parent !== anchor) {
                 chip.mesh.parent = anchor;
                 // Below the owner badge (0.07) and the hover hint (0.1).
-                chip.mesh.position.set(0, 0.04, 0);
+                chip.mesh.position.set(0, 0.035, 0);
             }
             if (text !== last) {
                 draw(text);

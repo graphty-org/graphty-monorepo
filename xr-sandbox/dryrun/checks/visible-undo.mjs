@@ -14,6 +14,8 @@ import { parseArgs } from "node:util";
 
 import { chromium } from "playwright";
 
+import { instrumentFit } from "../fit.mjs";
+
 const { values: args } = parseArgs({
     options: {
         url: { type: "string" },
@@ -31,6 +33,7 @@ const browser = await chromium.launch({
     headless: true,
     args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
 });
+const fit = instrumentFit(browser, join(args.out, "fit"));
 
 const until = (page, fn, arg, timeout = 60_000) => page.waitForFunction(fn, arg, { timeout, polling: 50 });
 const frames = async (page, n) => {
@@ -45,7 +48,9 @@ const now = (page) => sb(page, () => Date.now());
 
 /** Aim the right hand at `target`, press and release. */
 const pressAt = async (page, target, kind) => {
-    await sb(page, (t) => globalThis.__sandbox.aim("right", t), target);
+    // A node by name, or a strip button (one panel) by its control name.
+    const what = target.startsWith("visible-undo-") ? `${target}-button` : target;
+    await sb(page, (t) => globalThis.__sandbox.aim("right", t), what);
     await frames(page, 15);
     const hover = await sb(page, () => globalThis.__sandbox.hover("right"));
     await sb(page, (k) => globalThis.__sandbox.press("right", k, true), kind);
@@ -271,6 +276,8 @@ for (const profile of args.profiles.split(",")) {
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((x) => x.pass), results };
+report.textFit = fit.summary();
+report.pass &&= report.textFit.pass;
 writeFileSync(join(args.out, "report.json"), JSON.stringify(report, null, 2));
 console.log(
     `${results.filter((x) => x.pass).length} of ${results.length} runs passed; report: ${join(args.out, "report.json")}`,

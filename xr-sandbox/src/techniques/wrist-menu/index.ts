@@ -21,11 +21,11 @@ import {
     WebXRHandJoint,
     type WebXRNearInteraction,
 } from "@babylonjs/core";
-import { type Button, StackPanel } from "@babylonjs/gui";
+import { type Button, Control, type StackPanel } from "@babylonjs/gui";
 
 import type { Hand } from "../../core/arbiter";
 import type { Technique, TechniqueContext } from "../../framework/technique";
-import { guiButton, type Panel } from "../../scene/ui";
+import { controlWorld, type Panel } from "../../scene/ui";
 import { handTracking } from "../../scene/xr";
 import { type ControllerVariant, createControllerVariant } from "./controller-variant";
 
@@ -40,8 +40,8 @@ const ACROSS: [number, number] = [0.6, 0.4];
 const LEVEL: [number, number] = [0.5, 0.7];
 const WIDTH_M = 0.18;
 const HEIGHT_M = 0.16;
+const ROW_PX = 96;
 const PX = 512;
-const ROW_PX = 100;
 
 type Mode = "hand" | "controller" | null;
 
@@ -90,7 +90,8 @@ const handOfPointer = (pointerId: number | undefined): Hand | null => {
 };
 
 const item = (name: string, text: string, act: (hand: Hand) => void): Button => {
-    const button = guiButton(`wrist-menu-${name}`, text, () => undefined, ROW_PX - 4, name === "undo" ? 492 : 244);
+    // Rows a finger can poke without brushing the next one: 3.4 cm, taller than the text needs.
+    const button = panel.button(`wrist-menu-${name}`, text, () => undefined, name === "undo" ? 500 : 250, ROW_PX);
     button.onPointerClickObservable.add((_v, state) => {
         const id = (state.userInfo as { event?: { pointerId?: number } } | undefined)?.event?.pointerId;
         const hand = handOfPointer(id);
@@ -106,9 +107,8 @@ const item = (name: string, text: string, act: (hand: Hand) => void): Button => 
 };
 
 const row = (...buttons: Button[]): StackPanel => {
-    const r = new StackPanel();
-    r.isVertical = false;
-    r.height = `${ROW_PX}px`;
+    const r = panel.line();
+    r.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     for (const x of buttons) {
         r.addControl(x);
     }
@@ -290,14 +290,7 @@ const installDebug = (): void => {
             if (!c) {
                 throw new Error(`no wrist menu button ${name}`);
             }
-            const size = panel.adt.getSize();
-            const local = new Vector3(
-                (c.centerX / size.width - 0.5) * WIDTH_M,
-                (0.5 - c.centerY / size.height) * HEIGHT_M,
-                0,
-            );
-            const m = panel.mesh.computeWorldMatrix(true);
-            const p = Vector3.TransformCoordinates(local, m);
+            const p = controlWorld(panel.mesh, panel.adt, c);
             const cam = ctx.xr()?.baseExperience.camera.globalPosition ?? Vector3.Zero();
             return { point: toArr(p), toward: toArr(cam.subtract(p).normalize()), mesh: panel.mesh.name };
         },
@@ -405,15 +398,12 @@ export const technique: Technique = {
         variant = createControllerVariant(c, new TransformNode("wrist-menu-controller", c.scene));
         variant.node.setEnabled(false);
 
-        panel = c.ui.panel("panel", WIDTH_M, HEIGHT_M, PX);
+        panel = c.ui.panel("panel", WIDTH_M, HEIGHT_M, PX, { read: "hand", fit: true });
         panel.mesh.parent = follow;
         panel.mesh.billboardMode = TransformNode.BILLBOARDMODE_ALL;
         undoButton = item("undo", "Undo", (h) => {
             c.commands.undo(h);
         });
-        if (undoButton.textBlock) {
-            undoButton.textBlock.fontSize = 34;
-        }
         panel.stack.addControl(row(undoButton));
         panel.stack.addControl(
             row(

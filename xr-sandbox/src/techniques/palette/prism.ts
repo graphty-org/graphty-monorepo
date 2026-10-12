@@ -30,9 +30,9 @@ export interface Prism {
 }
 
 /** Meters across one face; the cards are this wide. */
-export const FACE_W = 0.14;
+export const FACE_W = 0.18;
 /** Height of a card, its tear bar included. */
-export const FACE_H = 0.13;
+export const FACE_H = 0.2;
 
 /**
  * Build the prism, hidden.

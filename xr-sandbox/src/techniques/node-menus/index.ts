@@ -3,8 +3,7 @@
 // switched in the gear panel:
 // - ring: items in a ring at the hand, steered by turning the wrist; release commits (ring.ts,
 //   written fresh after Open Brush's PinCushion.cs, Apache-2.0, as reference only);
-// - list: a column of Babylon GUI 3D HolographicButtons on a CylinderPanel beside the node, chosen
-//   by ray (list.ts).
+// - list: a column of buttons on a framework panel beside the node, chosen by ray (list.ts).
 // Note asks for text through the framework's ctx.text: the text entry technique's keyboard when it
 // is on, canned chips when it is off.
 //
@@ -15,8 +14,6 @@
 // - Dismissal rules are first guesses: the list closes on Close, on a new menu, or when the head
 //   turns more than 70 degrees away from it; the ring cancels when released in its dead zone.
 // - The list is placed once and does not follow the node if the graph is moved while it is open.
-// - Each GUI3DManager makes its utility layer the default one (see list.ts); the framework should
-//   own a single shared manager before a second technique uses GUI 3D.
 // - The touch style (a direct-touch panel) and Kando-style expert strokes are deferred.
 
 import { Ray, Vector3 } from "@babylonjs/core";
@@ -66,7 +63,10 @@ const showCard = (t: number): void => {
         `${d.names[t]}  PageRank ${d.results.pagerank[t].toFixed(3)} #${d.rank.pagerank[t]}  degree ${deg}`,
         "#203a2c",
     );
-    card.mesh.position.copyFrom(ctx.graph.nodeWorld(t, new Vector3())).addInPlaceFromFloats(0, 0.06, 0);
+    // Its bottom edge 3 cm above the node, however many lines the text took.
+    card.mesh.position
+        .copyFrom(ctx.graph.nodeWorld(t, new Vector3()))
+        .addInPlaceFromFloats(0, 0.03 + card.heightM / 2, 0);
     card.show();
     cardMs = 6000;
 };
@@ -162,14 +162,16 @@ const listSpot = (t: number, hand: Hand, head: Vector3): Vector3 => {
         const at = ctx.graph.nodeWorld(t, new Vector3());
         const fwd = at.subtract(head).normalize();
         const right = Vector3.Cross(Vector3.Up(), fwd).normalize();
-        return at.addInPlace(right.scale(0.1)).subtractInPlace(fwd.scale(0.06));
+        // The column's bottom edge: right of the node, level with it, so the column rises above the
+        // step list and the other panels below the line of sight.
+        return at.addInPlace(right.scale(0.18)).subtractInPlace(fwd.scale(0.06));
     }
     const src = ctx.xr()?.input.controllers.find((c) => c.inputSource.handedness === hand);
     if (!src) {
-        return head.add(new Vector3(0, -0.15, 0.45));
+        return head.add(new Vector3(0, -0.23, 0.45));
     }
     src.getWorldPointerRayToRef(ray, false);
-    return ray.origin.add(ray.direction.scale(0.45));
+    return ray.origin.add(ray.direction.scale(0.45)).addInPlaceFromFloats(0, -0.08, 0);
 };
 
 export const technique: Technique = {
@@ -200,12 +202,12 @@ export const technique: Technique = {
     prepare(c) {
         ctx = c;
         ring = createRingMenu(c, NODE_VERBS.length);
-        list = createListMenu(c.scene, { node: NODE_VERBS, graph: graphVerbs(false, false) }, (kind, index) => {
+        list = createListMenu(c, { node: NODE_VERBS, graph: graphVerbs(false, false) }, (kind, index) => {
             if (open && open.target >= 0 === (kind === "node")) {
                 choose(index);
             }
         });
-        card = c.ui.chip("card", 0.3, 0.028, true);
+        card = c.ui.chip("card", 0.1, "graph", true);
         c.onFrame((dt) => {
             if (cardMs > 0) {
                 cardMs -= dt;

@@ -37,7 +37,7 @@ export const technique: Technique = {
     smoke: { input: "button:a", hand: "dominant" },
     prepare(c) {
         ctx = c;
-        chip = c.ui.chip("example-chip", 0.22, 0.03, true);
+        chip = c.ui.chip("example-chip", 0.1, "graph", true);
         chip.mesh.parent = c.anchor("graph-top");
         c.settings.onChange(refresh);
         // Undo can change the coloring too; the chip follows it.

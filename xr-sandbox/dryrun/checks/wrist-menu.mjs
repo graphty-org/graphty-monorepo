@@ -15,6 +15,8 @@ import { parseArgs } from "node:util";
 
 import { chromium } from "playwright";
 
+import { instrumentFit } from "../fit.mjs";
+
 const { values: args } = parseArgs({
     options: {
         url: { type: "string" },
@@ -32,6 +34,7 @@ const browser = await chromium.launch({
     headless: true,
     args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
 });
+const fit = instrumentFit(browser, join(args.out, "fit"));
 
 /** The off (left) hand's orientations, IWER Euler degrees, found by reading the palm normal back. */
 const POSE = {
@@ -259,6 +262,7 @@ const runOn = async (profile) => {
         }
 
         // Settings opens the gear panel; pressing it again closes it.
+        const tGear = await now(page);
         await showMenu(page, hands);
         if (hands) {
             await poke(page, "settings");
@@ -273,7 +277,12 @@ const runOn = async (profile) => {
             await rayPress(page, "settings", press);
         }
         const gearClosed = !(await sb(page, () => globalThis.__sandbox.gearOpen()));
-        check("settingsOpensGear", gearOpen && gearClosed, { opened: gearOpen, closedAgain: gearClosed });
+        const gearLog = [
+            ...(await logSince(page, tGear, "gear")),
+            ...(await logSince(page, tGear, "wrist-menu.item")),
+            ...(await logSince(page, tGear, "wrist-menu.ignored")),
+        ].map((e) => `${e.message} ${JSON.stringify(e.data)}`);
+        check("settingsOpensGear", gearOpen && gearClosed, { opened: gearOpen, closedAgain: gearClosed, log: gearLog });
 
         // Flag logs a flag entry (by ray, both kinds of input).
         await showMenu(page, hands);
@@ -387,6 +396,8 @@ for (const profile of args.profiles.split(",")) {
 }
 await browser.close();
 const report = { url: args.url, time: new Date().toISOString(), pass: results.every((x) => x.pass), results };
+report.textFit = fit.summary();
+report.pass &&= report.textFit.pass;
 writeFileSync(join(args.out, "report.json"), JSON.stringify(report, null, 2));
 console.log(`report: ${join(args.out, "report.json")}`);
 process.exit(report.pass ? 0 : 1);

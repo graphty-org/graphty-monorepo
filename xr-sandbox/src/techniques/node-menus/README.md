@@ -20,11 +20,11 @@ that technique is on, a row of canned chips ("check", "interesting", "?") when i
 
 ## What it is built on
 
-| Part | Reused                                                                    | Notes                                                                                                                                                                                                                                                                                                                                |
-| ---- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| List | Babylon GUI 3D `CylinderPanel` of `HolographicButton`s (`@babylonjs/gui`) | One column, buttons 4.5 cm square, placed beside the node. Two workarounds: each button gets our own larger `TextBlock` label (the stock `text` is 24 px of 512, unreadable at arm's length, and rebuilds the texture on every change), and a list is hidden by disabling the panel's node (`isVisible` does nothing on a container) |
-| Ring | Open Brush `PinCushion.cs` (Apache-2.0), as reference only                | Written fresh (`ring.ts`, `verbs.ts`): the hand's rotation since opening is applied to a point ahead of the hand and projected onto the ring's plane; the angle picks the item, a dead zone picks none, as PinCushion does                                                                                                           |
-| Text | The framework's `ctx.text` seam                                           | Canned chips when text entry is off                                                                                                                                                                                                                                                                                                  |
+| Part | Reused                                                             | Notes                                                                                                                                                                                                                                              |
+| ---- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| List | The framework's panel and buttons (`ctx.ui.panel`, Babylon 2D GUI) | One column beside the node, as tall as its labels at the shared text size. It replaced a GUI 3D `CylinderPanel` of 4.5 cm square `HolographicButton`s, whose labels could not be made legible at the node's distance and still fit a square button |
+| Ring | Open Brush `PinCushion.cs` (Apache-2.0), as reference only         | Written fresh (`ring.ts`, `verbs.ts`): the hand's rotation since opening is applied to a point ahead of the hand and projected onto the ring's plane; the angle picks the item, a dead zone picks none, as PinCushion does                         |
+| Text | The framework's `ctx.text` seam                                    | Canned chips when text entry is off                                                                                                                                                                                                                |
 
 ## What we would fix or replace later
 
@@ -41,4 +41,3 @@ that technique is on, a row of canned chips ("check", "interesting", "?") when i
 - **One level only.** pangmenu's child rings on a bounded arc (design only; it has no license) are
   not built. The `touch` style (a direct-touch panel beside the node) and Kando-style expert strokes
   without waiting for the ring are deferred.
-- **HolographicButtons are square**, so long labels wrap; a wider MRTK 3 button may read better.

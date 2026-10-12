@@ -5,7 +5,7 @@
 import { TransformNode, Vector3 } from "@babylonjs/core";
 import { type Button, Control, StackPanel } from "@babylonjs/gui";
 
-import { guiButton, type Panel } from "../../scene/ui";
+import { controlWorld, type Panel } from "../../scene/ui";
 
 /** The keyboard. */
 export interface MiniKeyboard {
@@ -17,28 +17,19 @@ export interface MiniKeyboard {
 }
 
 const PER_ROW = 7;
-const KEY_PX = 76;
+const KEY_PX = 84;
 
 /**
  * Build the keyboard on a panel, hidden.
  * @param panel - a framework panel, about 0.28 m by 0.13 m at 560 px
- * @param widthM - the panel's width in meters
- * @param heightM - the panel's height in meters
  * @param onKey - a letter, "back" or "clear"
  * @returns the keyboard
  */
-export function createMiniKeyboard(
-    panel: Panel,
-    widthM: number,
-    heightM: number,
-    onKey: (key: string) => void,
-): MiniKeyboard {
+export function createMiniKeyboard(panel: Panel, onKey: (key: string) => void): MiniKeyboard {
     panel.mesh.billboardMode = TransformNode.BILLBOARDMODE_ALL;
     const rows: StackPanel[] = [];
     const row = (): StackPanel => {
-        const r = new StackPanel();
-        r.isVertical = false;
-        r.height = `${KEY_PX - 8}px`;
+        const r = panel.line();
         r.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         panel.stack.addControl(r);
         rows.push(r);
@@ -49,35 +40,32 @@ export function createMiniKeyboard(
     }
     const keys = new Map<string, Button>();
     for (const ch of "abcdefghijklmnopqrstuvwxyz") {
-        const b = guiButton(
+        const b = panel.button(
             `dense-picking-key-${ch}`,
             ch.toUpperCase(),
             () => {
                 onKey(ch);
             },
-            KEY_PX - 8,
             KEY_PX,
         );
         b.isVisible = false;
         keys.set(ch, b);
     }
-    const back = guiButton(
+    const back = panel.button(
         "dense-picking-key-back",
         "Back",
         () => {
             onKey("back");
         },
-        KEY_PX - 8,
-        150,
+        180,
     );
-    const clear = guiButton(
+    const clear = panel.button(
         "dense-picking-key-clear",
         "Clear",
         () => {
             onKey("clear");
         },
-        KEY_PX - 8,
-        150,
+        180,
     );
     rows[3].addControl(back);
     rows[3].addControl(clear);
@@ -106,13 +94,7 @@ export function createMiniKeyboard(
             if (!b?.isVisible || !panel.visible) {
                 return null;
             }
-            const size = panel.adt.getSize();
-            const local = new Vector3(
-                (b.centerX / size.width - 0.5) * widthM,
-                (0.5 - b.centerY / size.height) * heightM,
-                0,
-            );
-            return Vector3.TransformCoordinates(local, panel.mesh.getWorldMatrix());
+            return controlWorld(panel.mesh, panel.adt, b);
         },
     };
 }

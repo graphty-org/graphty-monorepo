@@ -5,7 +5,7 @@ import { Vector3 } from "@babylonjs/core";
 import type { TextBlock } from "@babylonjs/gui";
 
 import type { TechniqueContext } from "../../framework/technique";
-import { guiButton, guiText, type Panel } from "../../scene/ui";
+import type { Panel } from "../../scene/ui";
 
 /** The popover. */
 export interface Popover {
@@ -19,7 +19,7 @@ export interface Popover {
 
 const VERBS = ["1 hop", "Hide", "Note", "Probe"];
 /** Meters to the right of the node, as the head sees it. */
-const BESIDE_M = 0.085;
+const BESIDE_M = 0.14;
 
 /**
  * Build the popover, hidden.
@@ -27,10 +27,10 @@ const BESIDE_M = 0.085;
  * @returns the popover
  */
 export function createPopover(ctx: TechniqueContext): Popover {
-    const panel = ctx.ui.panel("popover", 0.11, 0.14, 384);
+    const panel = ctx.ui.panel("popover", 0.22, 0.14, 512, { read: "graph", fit: true });
     const { data } = ctx.graph;
     let node = -1;
-    const title: TextBlock = guiText("", 64, "#ffd479");
+    const title: TextBlock = panel.text("", "#ffd479");
     panel.stack.addControl(title);
     const ids = (): number[] => [...ctx.state.selection];
     const act: Record<string, () => void> = {
@@ -48,15 +48,10 @@ export function createPopover(ctx: TechniqueContext): Popover {
     };
     for (const v of VERBS) {
         panel.stack.addControl(
-            guiButton(
-                `figma-pop-${v.replace(" ", "")}`,
-                v,
-                () => {
-                    ctx.log("click", { item: `popover ${v}`, node: data.names[node] });
-                    act[v]();
-                },
-                72,
-            ),
+            panel.button(`figma-pop-${v.replace(" ", "")}`, v, () => {
+                ctx.log("click", { item: `popover ${v}`, node: data.names[node] });
+                act[v]();
+            }),
         );
     }
     const at = new Vector3();

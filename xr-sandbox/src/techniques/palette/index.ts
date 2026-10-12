@@ -22,7 +22,7 @@ import {
 
 import type { Hand } from "../../core/arbiter";
 import type { Technique, TechniqueContext } from "../../framework/technique";
-import type { Panel } from "../../scene/ui";
+import { controlWorld, type Panel } from "../../scene/ui";
 import { handTracking } from "../../scene/xr";
 import { analyzeFace } from "./faces/analyze";
 import { filterFace } from "./faces/filter";
@@ -220,15 +220,8 @@ const installProbe = (): void => {
             for (const c of cards) {
                 const ctl = c.panel.adt.getControlByName(name);
                 if (ctl) {
-                    const size = c.panel.adt.getSize();
-                    const ext = c.panel.mesh.getBoundingInfo().boundingBox.extendSize;
-                    const local = new Vector3(
-                        (ctl.centerX / size.width - 0.5) * 2 * ext.x,
-                        (0.5 - ctl.centerY / size.height) * 2 * ext.y,
-                        0,
-                    );
                     return {
-                        pos: Vector3.TransformCoordinates(local, c.panel.mesh.computeWorldMatrix(true)).asArray(),
+                        pos: controlWorld(c.panel.mesh, c.panel.adt, ctl).asArray(),
                         normal: c.panel.mesh.forward.asArray(),
                         enabled: ctl.isEnabled,
                         text: (ctl as { textBlock?: { text: string } }).textBlock?.text ?? null,
@@ -358,7 +351,7 @@ export const technique: Technique = {
         const build = [
             analyzeFace,
             styleFace,
-            (x: TechniqueContext, s: Panel["stack"]) => filterFace(x, s, sieve),
+            (x: TechniqueContext, p: Panel) => filterFace(x, p, sieve),
             selectionFace,
             historyFace,
         ];
@@ -375,7 +368,11 @@ export const technique: Technique = {
             bar.isNearPickable = true;
             bar.parent = prism.slots[k];
             bar.position.set(0, FACE_H / 2 - BAR_H / 2, 0);
-            const panel = c.ui.panel(`card-${face.toLowerCase()}`, FACE_W, FACE_H - BAR_H - 0.002, 448);
+            // Its top edge stays under the bar; it is as tall as its face's content.
+            const panel = c.ui.panel(`card-${face.toLowerCase()}`, FACE_W, FACE_H - BAR_H - 0.002, 512, {
+                read: "hand",
+                fit: true,
+            });
             panel.mesh.parent = bar;
             panel.mesh.position.set(0, -(FACE_H - 0.002) / 2, 0);
             panel.show(); // shown with its card; the prism root's enabled state hides it all
@@ -383,7 +380,7 @@ export const technique: Technique = {
             if (panel.mesh.material) {
                 panel.mesh.material.backFaceCulling = true;
             }
-            const refresh = build[k](c, panel.stack);
+            const refresh = build[k](c, panel);
             const tear = makeTearable(c.scene, bar, prism.slots[k], (what, distM) => {
                 c.log(what, { face, distCm: Math.round(distM * 1000) / 10 });
             });

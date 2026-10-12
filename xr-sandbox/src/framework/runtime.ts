@@ -115,19 +115,19 @@ export function createFramework(
     });
 
     const badges: Record<Hand, Chip> = {
-        left: createChip(scene, "badge-left", 0.1, 0.022, true),
-        right: createChip(scene, "badge-right", 0.1, 0.022, true),
+        left: createChip(scene, "badge-left", 0.06, "reach", true),
+        right: createChip(scene, "badge-right", 0.06, "reach", true),
     };
     const hints: Record<Hand, Chip> = {
-        left: createChip(scene, "hint-left", 0.16, 0.02, true),
-        right: createChip(scene, "hint-right", 0.16, 0.02, true),
+        left: createChip(scene, "hint-left", 0.06, "reach", true),
+        right: createChip(scene, "hint-right", 0.06, "reach", true),
     };
     const badgeTimers: Record<Hand, ReturnType<typeof setTimeout> | undefined> = { left: undefined, right: undefined };
     for (const h of ["left", "right"] as const) {
         badges[h].mesh.parent = anchors[`hand-${h}`];
         badges[h].mesh.position.set(0, 0.07, 0);
         hints[h].mesh.parent = anchors[`hand-${h}`];
-        hints[h].mesh.position.set(0, 0.1, 0);
+        hints[h].mesh.position.set(0, 0.11, 0);
     }
     const nameOf = (owner: string): string =>
         owner === "framework" ? "Select" : (techniques.find((t) => t.id === owner)?.name ?? owner);
@@ -246,8 +246,8 @@ export function createFramework(
             },
             anchor: (name) => anchors[name],
             ui: {
-                panel: (name, w, h, px) => createPanel(scene, `${t.id}-${name}`, w, h, px),
-                chip: (name, w, h, billboard) => createChip(scene, `${t.id}-${name}`, w, h, billboard),
+                panel: (name, w, h, px, options) => createPanel(scene, `${t.id}-${name}`, w, h, px, options),
+                chip: (name, w, read, billboard, max) => createChip(scene, `${t.id}-${name}`, w, read, billboard, max),
             },
             settings: {
                 bool: (k) => settings.get(`${t.id}.${k}`) === true,

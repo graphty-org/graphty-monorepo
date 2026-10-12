@@ -1,10 +1,8 @@
 // The Filter face: hands the owner the sieve (physical tools) through the framework's tool seam,
 // grayed with the reason when no technique offers it; shows and removes the current filter.
 
-import type { StackPanel } from "@babylonjs/gui";
-
 import type { TechniqueContext } from "../../../framework/technique";
-import { guiButton, guiText } from "../../../scene/ui";
+import type { Panel } from "../../../scene/ui";
 
 /** The sieve as the palette sees it: why it cannot be taken (null when it can), and take it. */
 interface SieveHandle {
@@ -15,24 +13,24 @@ interface SieveHandle {
 /**
  * Fill the Filter card.
  * @param ctx - the technique context
- * @param stack - the card's stack
+ * @param p - the card's panel
  * @param sieve - the sieve through the tool seam
  * @returns refresh, called when the state changes
  */
-export function filterFace(ctx: TechniqueContext, stack: StackPanel, sieve: SieveHandle): () => void {
-    stack.addControl(guiText("Filter", 34, "#f78c6c"));
-    const line = guiText("No filter", 34);
-    stack.addControl(line);
-    const take = guiButton("palette-filter-sieve", "Take the sieve", () => {
+export function filterFace(ctx: TechniqueContext, p: Panel, sieve: SieveHandle): () => void {
+    p.stack.addControl(p.text("Filter", "#f78c6c", true));
+    const line = p.text("No filter");
+    p.stack.addControl(line);
+    const take = p.button("palette-filter-sieve", "Take the sieve", () => {
         if (sieve.reason() === null) {
             sieve.take();
         }
     });
-    stack.addControl(take);
-    const clear = guiButton("palette-filter-clear", "Remove filter", () => {
+    p.stack.addControl(take);
+    const clear = p.button("palette-filter-clear", "Remove filter", () => {
         ctx.commands.run("clearFilter", {}, ctx.dominant());
     });
-    stack.addControl(clear);
+    p.stack.addControl(clear);
     return () => {
         const f = ctx.state.filter;
         const name = f ? (ctx.graph.data.resultNames[f.result] ?? f.result) : "";

@@ -10,7 +10,7 @@ import { PointerDragBehavior, Vector3 } from "@babylonjs/core";
 import type { TextBlock } from "@babylonjs/gui";
 
 import type { TechniqueContext } from "../../framework/technique";
-import { guiText, type Panel } from "../../scene/ui";
+import type { Panel } from "../../scene/ui";
 
 /** A title bar you drag by ray or hand, with a body panel hanging under it. */
 export interface Slate {
@@ -20,7 +20,7 @@ export interface Slate {
     hide(): void;
 }
 
-const BAR_M = 0.035;
+const BAR_M = 0.045;
 
 /**
  * A slate: the bar is the root (place and drag it); the body is its child.
@@ -40,10 +40,11 @@ export function createSlate(
     heightM: number,
     px: number,
 ): Slate {
-    const bar = ctx.ui.panel(`${name}-bar`, widthM, BAR_M, 512);
+    const bar = ctx.ui.panel(`${name}-bar`, widthM, BAR_M, 512, { read: "graph" });
     bar.stack.background = "#3a4a6aee";
-    bar.stack.addControl(guiText(`${title}  (drag here)`, 64, "#e8ecf4"));
-    const body = ctx.ui.panel(name, widthM, heightM, px);
+    bar.stack.addControl(bar.text(`${title}  (drag here)`));
+    // The body grows down from its top edge, just under the bar.
+    const body = ctx.ui.panel(name, widthM, heightM, px, { read: "graph", fit: true });
     body.mesh.parent = bar.mesh;
     body.mesh.position.set(0, -(BAR_M / 2 + 0.004 + heightM / 2), 0);
     // Drag in the slate's own plane: a 20 cm sweep of the ray's hit point moves it 20 cm, with no
@@ -98,10 +99,10 @@ const fmt = (v: number): string => (Number.isInteger(v) ? String(v) : v.toFixed(
  * @returns the inspector
  */
 export function createInspector(ctx: TechniqueContext): Inspector {
-    const slate = createSlate(ctx, "inspector", "Inspector", 0.28, 0.26, 640);
+    const slate = createSlate(ctx, "inspector", "Inspector", 0.36, 0.26, 704);
     const rows: TextBlock[] = [];
     for (let i = 0; i < LINES; i++) {
-        const t = guiText("", 64, i === 0 ? "#ffd479" : "#e8ecf4");
+        const t = slate.body.text("", i === 0 ? "#ffd479" : "#e8ecf4");
         t.name = `figma-insp-line-${i}`;
         rows.push(t);
         slate.body.stack.addControl(t);

@@ -65,8 +65,9 @@ export const SHARDS = [
     // path the twin would never exercise the PageRank reduction on a device without the feature.
     // the node suite runs through scripts/run-node-shard.js: it forwards every argument and exits with
     // vitest's own code, except that an exit of 0 still fails (a [shard-verdict] line names why) when the run
-    // went 90 seconds silent and was signalled, printed no vitest summary, or did not write its --outputFile
-    // (issue #2111). On a non-zero exit its FIRST line is the [missing-files] block -- how many test
+    // printed no vitest summary or did not write its --outputFile whole (tools/shard-verdict.mjs, issue #2111),
+    // and a run still silent after its last 90-second snapshot is killed and fails; a snapshot alone fails
+    // nothing (issue #2181). On a non-zero exit its FIRST line is the [missing-files] block -- how many test
     // files started, how many reported, and the names of the difference, which is what a dead worker
     // swallowed; after it, and after 90 seconds of silence, the process table with each process's kernel
     // wait channel and a Node diagnostic report per surviving process (G4-F14).

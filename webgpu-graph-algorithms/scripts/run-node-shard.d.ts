@@ -22,15 +22,16 @@ export function digestReport(file: string): string;
 /** What one run did, as the verdict reads it. */
 export interface ShardRun {
     readonly status: number;
-    readonly signalled: number;
+    readonly killed?: boolean;
     readonly silenceMs: number;
     readonly output: string;
     readonly outputFile?: string;
     readonly outputWritten?: boolean;
 }
 /**
- * The wrapper's exit code and cause: a non-zero vitest exit passes through; an exit of 0 fails when the hang watcher
- * signalled the run, when the output holds no vitest summary, or when the named --outputFile was not written.
+ * The wrapper's exit code and cause: a run the watcher killed fails as hung; otherwise tools/shard-verdict.mjs decides
+ * (exit 0, the vitest summary, the named --outputFile written whole), a failure keeping vitest's non-zero code.
+ * Snapshots taken along the way do not change it.
  */
 export function verdict(run: ShardRun): { exitCode: number; cause: string };
 /**

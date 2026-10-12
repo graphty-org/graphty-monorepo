@@ -555,6 +555,6 @@ export function pajekStyledExport(
             }),
         );
     }
-    const comment = PAJEK_STYLE_COMMENT + writeStyleBlock(input.rules, { inlineColumns: true });
+    const comment = PAJEK_STYLE_COMMENT + writeStyleBlock(input.rules, { inlineColumns: true, snapshot });
     return { snapshot: out, comment, notes };
 }

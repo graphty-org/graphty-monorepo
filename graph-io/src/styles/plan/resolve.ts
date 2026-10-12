@@ -218,13 +218,31 @@ function atomTerms(p: Predicate): number {
 }
 
 /**
- * Whether a column value equals a predicate's scalar.
+ * Whether a column value equals a predicate's scalar. A boolean also equals the 1 or 0 and the "true" or "false" (any
+ * case) of a format that has no booleans (GML writes them as 1 and 0), so a rule over a boolean column still selects
+ * the same elements after such a file is read back.
  * @param v - the element's value
  * @param k - the scalar
  * @returns true when equal
  */
 function scalarEq(v: unknown, k: Scalar): boolean {
-    return v !== null && v !== undefined && v === k;
+    if (v === k) {
+        return v !== null && v !== undefined;
+    }
+    if (typeof k === "boolean") {
+        return boolEq(k, v);
+    }
+    return typeof v === "boolean" && boolEq(v, k);
+}
+
+/**
+ * Whether a value is a boolean's 1 or 0, or its "true" or "false" in any case.
+ * @param b - the boolean
+ * @param other - the value
+ * @returns true when equal
+ */
+function boolEq(b: boolean, other: unknown): boolean {
+    return other === (b ? 1 : 0) || (typeof other === "string" && other.toLowerCase() === String(b));
 }
 
 /**

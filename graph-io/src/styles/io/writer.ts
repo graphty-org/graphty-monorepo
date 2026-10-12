@@ -118,7 +118,7 @@ export function prepareStyleExport(
             tags[target].set(styleTag(target, key), col);
         }
     }
-    const block = writeStyleBlock(extracted);
+    const block = writeStyleBlock(extracted, { snapshot });
     return {
         snapshot: styledSnapshot(snapshot, caps, tags, block),
         input: exporter.styles === undefined ? null : { picture, block, tags, rules: extracted },
@@ -218,10 +218,14 @@ function styledSnapshot(
     block: string,
 ): GraphSnapshot {
     const attributes = caps?.block === "attributes";
-    const roled = (table: GraphSnapshot["nodes"]): string[] =>
-        Array.from(table.names()).filter((name) => STYLE_ROLES.has(table.get(name)?.meta.role ?? ""));
-    const nodeRoles = roled(snapshot.nodes);
-    const edgeRoles = roled(snapshot.edges);
+    // a format that writes the label from the styles has its label slot taken: the label column is data there too
+    const roled = (table: GraphSnapshot["nodes"], target: StyleTarget): string[] =>
+        Array.from(table.names()).filter((name) => {
+            const role = table.get(name)?.meta.role ?? "";
+            return STYLE_ROLES.has(role) || (role === "label" && (caps?.[target] ?? []).includes("label"));
+        });
+    const nodeRoles = roled(snapshot.nodes, "node");
+    const edgeRoles = roled(snapshot.edges, "edge");
     if (!attributes && nodeRoles.length === 0 && edgeRoles.length === 0) {
         return snapshot;
     }
@@ -239,10 +243,18 @@ function styledSnapshot(
         }
     }
     if (attributes) {
-        for (const [table, byName] of [
-            [out.nodes, tags.node],
-            [out.edges, tags.edge],
+        for (const [table, byName, target] of [
+            [out.nodes, tags.node, "node"],
+            [out.edges, tags.edge, "edge"],
         ] as const) {
+            // the tagged values of an earlier import are replaced, in the order of these styles' columns, so writing
+            // a file read back gives the same bytes whichever elements held a value first
+            const prefix = styleTag(target, "");
+            for (const name of Array.from(table.names())) {
+                if (name.startsWith(prefix)) {
+                    table.remove(name);
+                }
+            }
             for (const [name, col] of byName) {
                 const dtype = tagDtype(col);
                 table.set(name, dtype === "string" ? col.map((v) => (v === null ? null : String(v))) : col, { dtype });

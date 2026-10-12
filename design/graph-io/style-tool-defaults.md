@@ -112,13 +112,13 @@ matters for hand-made or truncated sessions. Source:
 | Node shape        | `ELLIPSE`                                                  | 302-303                      |
 | Node size / w / h | 50 / 60 / 40                                               | 147, 155, 163                |
 | Node border       | `#000000` (Color.BLACK), width 2.0                         | 230, 54, 238                 |
-| Node label        | empty text; `#000000`; SansSerif 12; centered              | 123, 91, 255, 55, 205        |
+| Node label        | empty text; `#000000`; SansSerif plain 12; centered        | 123, 91, 255, 55, 205        |
 | Node opacity      | 255                                                        | 273                          |
 | Edge color        | Color.DARK_GRAY `#404040` (`EDGE_STROKE_UNSELECTED_PAINT`) | 469                          |
 | Edge width        | 1.0                                                        | 368                          |
 | Edge line type    | `SOLID`                                                    | 392                          |
 | Edge arrows       | none; size 6                                               | 487, 493, 500, 508           |
-| Edge label        | empty; `#000000`; SansSerif 10                             | 360, 327, 408, 416           |
+| Edge label        | empty; `#000000`; SansSerif plain 10                       | 360, 327, 408, 416           |
 | Background        | `#FFFFFF` (Color.WHITE)                                    | 667                          |
 
 ## 3. Cytoscape.js (Cytoscape.js JSON)

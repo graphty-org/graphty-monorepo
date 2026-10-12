@@ -23,6 +23,7 @@ import type {
     StyleValue,
 } from "../types.js";
 import { STYLE_PROPERTIES } from "../vocabulary.js";
+import { JAVA_FONTS } from "./lexicon.js";
 import {
     type CytoscapeContinuousPoint,
     type CytoscapeMapping,
@@ -109,7 +110,12 @@ function enumOut(
         }
         if (s.startsWith("other:")) {
             const raw = s.slice("other:".length);
-            return upper ? raw.toUpperCase().replace(/-/g, "_") : raw;
+            const out = upper ? raw.toUpperCase().replace(/-/g, "_") : raw;
+            if (out !== raw) {
+                // read back in Cytoscape's spelling, which is another value
+                approx();
+            }
+            return out;
         }
         approx();
         return Object.hasOwn(near, s) ? near[s] : Object.values(table)[0];
@@ -361,18 +367,27 @@ function fontOut(
     const bold = weight === "bold";
     const it = italic === true;
     let fam = family === null ? "sans-serif" : String(family);
+    // a Java logical name is read back as the family Cytoscape draws it with (Dialog as sans-serif)
+    const readsAs = (name: string): string => JAVA_FONTS.get(name.toLowerCase()) ?? name;
     if (dialect === "cx2") {
+        if (readsAs(fam) !== fam) {
+            approx();
+        }
         return { FONT_FAMILY: fam, FONT_STYLE: it ? "italic" : "normal", FONT_WEIGHT: bold ? "bold" : "normal" };
     }
+    const whole = fam;
     if (fam.includes(",")) {
-        approx();
         fam = fam.split(",")[0].trim();
+    }
+    const java = CSS_TO_JAVA[fam] ?? fam;
+    if (readsAs(java) !== whole) {
+        approx();
     }
     let style = "plain";
     if (bold || it) {
         style = `${bold ? "bold" : ""}${it ? "italic" : ""}`;
     }
-    return `${CSS_TO_JAVA[fam] ?? fam},${style},12`;
+    return `${java},${style},12`;
 }
 
 /**
@@ -490,10 +505,17 @@ function emitTarget(
         () => {
             notes.add(STYLE_ISSUE.APPROXIMATED, target, p);
         };
+    // a default written as an approximation changes every element that draws it
+    const approxDefault =
+        (p: string, value: StyleValue): (() => void) =>
+        () => {
+            const count = (truth.get(p) ?? []).filter((v) => v === value).length;
+            notes.add(STYLE_ISSUE.APPROXIMATED, target, p, { count: Math.max(count, 1) });
+        };
     for (const [p, w] of writers) {
         const set = model.set.get(p);
         if (written.has(p) && set !== undefined) {
-            s.defaults.set(w.vp, w.write(set, approx(p)));
+            s.defaults.set(w.vp, w.write(set, approxDefault(p, set)));
         }
         let m = model.map.get(p);
         if (!written.has(p) || m === undefined) {
@@ -544,7 +566,7 @@ function emitTarget(
             }
         }
     }
-    emitFont(target, dialect, model, truth, n, s, bypasses, approx);
+    emitFont(target, dialect, model, truth, n, s, bypasses, approx, approxDefault);
 }
 
 /**
@@ -762,6 +784,7 @@ function typeOf(values: readonly unknown[]): string {
  * @param s - the target's style
  * @param bypasses - the bypasses
  * @param approx - the approximation note
+ * @param approxDefault - the approximation note of a default, counted over the elements that draw it
  */
 function emitFont(
     target: StyleTarget,
@@ -772,6 +795,7 @@ function emitFont(
     s: CytoscapeStyle["node"],
     bypasses: (Map<string, unknown> | null)[],
     approx: (p: string) => () => void,
+    approxDefault: (p: string, value: StyleValue) => () => void,
 ): void {
     if (!FONT_PROPS.some((p) => truth.has(p))) {
         return;
@@ -779,7 +803,10 @@ function emitFont(
     const [fd, wd, id] = FONT_PROPS.map((p) => model.set.get(p) ?? null);
     const vp = FONT_VP[target];
     if (fd !== null || wd !== null || id !== null) {
-        s.defaults.set(vp, fontOut(dialect, fd, wd, id, approx("labelFont")));
+        s.defaults.set(
+            vp,
+            fontOut(dialect, fd, wd, id, fd === null ? approx("labelFont") : approxDefault("labelFont", fd)),
+        );
     }
     const [ft, wt, it] = FONT_PROPS.map((p) => truth.get(p) ?? null);
     for (let i = 0; i < n; i++) {

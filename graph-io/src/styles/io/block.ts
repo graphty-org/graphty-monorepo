@@ -8,6 +8,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { toolDefaults } from "../defaults.js";
 import { featuresOf, styleFingerprint } from "../plan/features.js";
 import { plainCell, refSource, resolveRules, within } from "../plan/resolve.js";
 import type {
@@ -25,6 +26,7 @@ import type {
     StyleRule,
     StyleRuleFacts,
     StyleTarget,
+    StyleTool,
     StyleValue,
 } from "../types.js";
 
@@ -84,6 +86,15 @@ export interface StyleBlock {
         readonly node: ReadonlyMap<string, StyleColumn>;
         readonly edge: ReadonlyMap<string, StyleColumn>;
     };
+    /**
+     * A hash of the values of every data column the rules read, per target, by the column's name when the block was
+     * written; absent in a block written without its graph. A column the file reads back under another name (a
+     * format writes its label column as its own `label`) is found again by its values.
+     */
+    readonly data?: {
+        readonly node: ReadonlyMap<string, string>;
+        readonly edge: ReadonlyMap<string, string>;
+    };
     /** The graph the block describes. */
     readonly fingerprint: StyleFingerprint;
 }
@@ -95,6 +106,11 @@ export interface StyleBlock {
 export interface WriteStyleBlockOptions {
     /** Write the style columns inside the block, for a format with no per-element attributes; defaults to false. */
     readonly inlineColumns?: boolean;
+    /**
+     * The graph being written: with it, the block records a hash of each data column the rules read, so the rules
+     * still find their columns in a file that renames them.
+     */
+    readonly snapshot?: GraphSnapshot;
 }
 
 /**
@@ -120,6 +136,16 @@ export function writeStyleBlock(extracted: ExtractedStyles, options: WriteStyleB
             node: Object.fromEntries(columns.node),
             edge: Object.fromEntries(columns.edge),
         };
+    }
+    const { snapshot } = options;
+    if (snapshot !== undefined) {
+        const hashes = (target: StyleTarget): Record<string, string> => {
+            const table = target === "node" ? snapshot.nodes : snapshot.edges;
+            const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+            const read = dataNames(styles.rules.filter((r) => r.target === target)).filter((c) => table.has(c));
+            return Object.fromEntries(read.map((c) => [c, columnHash(table, c, n)]));
+        };
+        out.data = { node: hashes("node"), edge: hashes("edge") };
     }
     out.fingerprint = { nodes: fingerprint.nodes, edges: fingerprint.edges, ids: fingerprint.ids };
     return JSON.stringify(out);
@@ -318,8 +344,9 @@ function readBlock(top: Record<string, unknown>): StyleBlock {
         },
         fingerprint: { nodes: count(fp.nodes), edges: count(fp.edges), ids: name(fp.ids) },
     };
+    const withData = top.data === undefined ? block : { ...block, data: readData(top.data) };
     if (top.values === undefined) {
-        return block;
+        return withData;
     }
     const v = isObject(top.values) ? top.values : invalid();
     const inline = { node: new Map<string, StyleColumn>(), edge: new Map<string, StyleColumn>() };
@@ -337,7 +364,131 @@ function readBlock(top: Record<string, unknown>): StyleBlock {
             );
         }
     }
-    return { ...block, values: inline };
+    return { ...withData, values: inline };
+}
+
+/**
+ * The data column hashes of a block.
+ * @param v - the parsed `data` member
+ * @returns the hashes by column name, per target
+ */
+function readData(v: unknown): NonNullable<StyleBlock["data"]> {
+    const d = isObject(v) ? v : invalid();
+    const byTarget = (t: unknown): Map<string, string> => {
+        const o = isObject(t) ? t : invalid();
+        const keys = Object.keys(o);
+        if (keys.length > MAX_RULES) {
+            invalid();
+        }
+        return new Map(keys.map((k) => [name(k), name(o[k])]));
+    };
+    return { node: byTarget(d.node), edge: byTarget(d.edge) };
+}
+
+/**
+ * A cell's value as text: a list as JSON, no value as a character no text holds.
+ * @param v - the cell
+ * @returns the text
+ */
+function cellText(v: unknown): string {
+    if (v === null) {
+        return "\u0001";
+    }
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+        return String(v);
+    }
+    return JSON.stringify(v);
+}
+
+/**
+ * A hash of a column's values as text, by element index: the text of a value, so a format that reads the number 7
+ * back as "7" keeps the hash.
+ * @param table - the node or edge table
+ * @param column - the column's name
+ * @param n - the element count
+ * @returns the hash
+ */
+function columnHash(table: GraphSnapshot["nodes"], column: string, n: number): string {
+    let h1 = 0x811c9dc5;
+    let h2 = 0x01000193 ^ 0x5bd1e995;
+    for (let i = 0; i < n; i++) {
+        const text = `${cellText(plainCell(table.value(column, i)))}\u0000`;
+        for (let c = 0; c < text.length; c++) {
+            const code = text.charCodeAt(c);
+            h1 = Math.imul(h1 ^ code, 0x01000193);
+            h2 = Math.imul(h2 ^ code, 0x01000193) ^ (h2 >>> 13);
+        }
+    }
+    const hex = (h: number): string => (h >>> 0).toString(16).padStart(8, "0");
+    return hex(h1) + hex(h2);
+}
+
+/**
+ * Every data column some rule reads, in first-read order. A rule's `ext` is the consumer's own and is not read.
+ * @param rules - the rules
+ * @returns the column names
+ */
+function dataNames(rules: readonly StyleRule[]): string[] {
+    const out = new Set<string>();
+    for (const { ext: _ext, ...rule } of rules) {
+        JSON.stringify(rule, (_k, v: unknown) => {
+            if (isObject(v) && typeof v.data === "string" && Object.keys(v).length === 1) {
+                out.add(v.data);
+            }
+            return v;
+        });
+    }
+    return [...out];
+}
+
+/**
+ * A rule with its data column references renamed; its `ext` is kept untouched.
+ * @param rule - the rule
+ * @param rename - the new name of each column that moved
+ * @returns the rule
+ */
+function renameData(rule: StyleRule, rename: ReadonlyMap<string, string>): StyleRule {
+    const { ext, ...rest } = rule;
+    const moved = JSON.parse(
+        JSON.stringify(rest, (_k, v: unknown) =>
+            isObject(v) && typeof v.data === "string" && Object.keys(v).length === 1 && rename.has(v.data)
+                ? { data: rename.get(v.data) }
+                : v,
+        ),
+    ) as StyleRule;
+    return ext === undefined ? moved : { ...moved, ext };
+}
+
+/**
+ * Where each data column a block's rules read is in the imported graph: under its own name when its values are the
+ * same, else the first column holding the same values (a format that renamed it), else under its own name.
+ * @param block - the block
+ * @param snapshot - the graph
+ * @param target - nodes or edges
+ * @returns the new name of each column that moved
+ */
+function movedColumns(block: StyleBlock, snapshot: GraphSnapshot, target: StyleTarget): Map<string, string> {
+    const moved = new Map<string, string>();
+    const want = block.data?.[target];
+    if (want === undefined || want.size === 0) {
+        return moved;
+    }
+    const table = target === "node" ? snapshot.nodes : snapshot.edges;
+    const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+    let have: Map<string, string> | null = null;
+    for (const [column, hash] of want) {
+        if (table.has(column) && columnHash(table, column, n) === hash) {
+            continue;
+        }
+        have ??= new Map(Array.from(table.names(), (c) => [c, columnHash(table, c, n)]));
+        for (const [c, h] of have) {
+            if (h === hash) {
+                moved.set(column, c);
+                break;
+            }
+        }
+    }
+    return moved;
 }
 
 /**
@@ -563,6 +714,9 @@ function blockColumns(
  * @param format - the format the file was read as
  * @param truth - the native per-element values per target and property, when the format has any
  * @param notes - notes to carry (the reader's own)
+ * @param tool - the program whose drawing the native values describe: where the rules give an element no value and
+ * the file holds only what that program draws for an unset property (a font written with "plain" style), it is not
+ * an edit
  * @returns the styles, or null when a style column the rules read is missing from the file
  * @category Styles
  */
@@ -572,6 +726,7 @@ export function blockStyles(
     format: string,
     truth: Partial<Record<StyleTarget, Partial<Record<string, StyleColumn>>>> = {},
     notes: readonly StyleNote[] = [],
+    tool: StyleTool | null = null,
 ): ExtractedStyles | null {
     const node = blockColumns(block, snapshot, "node");
     const edge = blockColumns(block, snapshot, "edge");
@@ -580,7 +735,10 @@ export function blockStyles(
     }
     const columns = { node, edge };
     const features = { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") };
-    const rules: StyleRule[] = [...block.rules];
+    // a data column the file holds under another name is read there
+    const moved = { node: movedColumns(block, snapshot, "node"), edge: movedColumns(block, snapshot, "edge") };
+    const blockRules = block.rules.map((r) => (moved[r.target].size === 0 ? r : renameData(r, moved[r.target])));
+    const rules: StyleRule[] = [...blockRules];
     for (const target of TARGETS) {
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const src = refSource(target, n, columns[target], features[target], snapshot);
@@ -589,11 +747,13 @@ export function blockStyles(
             if (values === undefined) {
                 continue;
             }
-            const resolved = resolveRules(block.rules, target, property, src);
+            const resolved = resolveRules(blockRules, target, property, src);
+            const unset = (tool === null ? null : toolDefaults(tool))?.[target]?.[property as never] as
+                { readonly value: StyleValue } | undefined;
             let exceptions: (StyleValue | null)[] | null = null;
             for (let i = 0; i < n; i++) {
                 const t = values[i] ?? null;
-                if (t !== null && !within(t, resolved[i])) {
+                if (t !== null && !within(t, resolved[i]) && !(resolved[i] === null && t === unset?.value)) {
                     exceptions ??= new Array<StyleValue | null>(n).fill(null);
                     exceptions[i] = t;
                 }

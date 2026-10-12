@@ -51,7 +51,7 @@ import {
     Z_COLUMN,
 } from "./constants.js";
 import { aliasesOf } from "./emit.js";
-import { styledGraphGraphics, styledGraphics, XGMML_STYLE_CAPABILITIES } from "./styles.js";
+import { styledGraphGraphics, styledGraphics, styledGraphicsNotes, XGMML_STYLE_CAPABILITIES } from "./styles.js";
 
 /** The two escapes Cytoscape reads back as a newline and a tab, as a message writes them. */
 const LITERAL_ESCAPES = String.raw`\n or \t`;
@@ -1231,8 +1231,14 @@ export const xgmmlExporter: GraphExporter<XgmmlExportOptions> = Object.freeze({
     options: Object.freeze(["cytoscapeEscapes"]),
     capabilities: CAPABILITIES,
     styles: Object.freeze({ capabilities: XGMML_STYLE_CAPABILITIES }),
-    check: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): readonly LossNote[] =>
-        Object.freeze(planExport(snapshot, resolveExportOptions(options), resolveEscapes(options)).notes),
+    check: (
+        snapshot: GraphSnapshot,
+        options?: XgmmlExportOptions & CommonExportOptions & ExporterStyleOptions,
+    ): readonly LossNote[] =>
+        Object.freeze([
+            ...planExport(snapshot, resolveExportOptions(options), resolveEscapes(options)).notes,
+            ...(options?.styles === undefined ? [] : styledGraphicsNotes(options.styles, snapshot)),
+        ]),
     export: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> =>
         encodeChunks(write(snapshot, options)),
     exportToString: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): Promise<string> =>

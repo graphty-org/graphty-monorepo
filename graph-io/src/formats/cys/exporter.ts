@@ -37,8 +37,10 @@ import { writeZip, type ZipWriteEntry } from "../../common/zip.js";
 import { type CytoscapeEmitted, cytoscapeVizmapXml, emitCytoscapeStyle } from "../../styles/cytoscape/emit.js";
 import { STYLE_BLOCK_NAME, writeStyleBlock } from "../../styles/io/block.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
+import { StyleNotes } from "../../styles/notes.js";
 import type { StyleValue, StyleWriteCapabilities } from "../../styles/types.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
+import { lossOf } from "../cx/styles.js";
 import { ORIGINAL_ID_ATTRIBUTE } from "../graphml/constants.js";
 import {
     CY_NAMESPACE,
@@ -307,6 +309,8 @@ interface Plan {
     readonly positionZ: boolean;
     /** The styles as a Cytoscape style, its bypasses and the columns its mappings add, or null without styles. */
     readonly styled: CytoscapeEmitted | null;
+    /** Every style value written approximately or flattened into bypasses, as loss notes. */
+    readonly styleNotes: readonly LossNote[];
     /** The `graphty.styles` block, written as its own entry: the styles being written, else the one the snapshot carries as a graph attribute; or null. */
     readonly block: string | null;
 }
@@ -1064,7 +1068,11 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions, styles?: E
     }
     const placed =
         (position !== null && position.nullCount < position.length) || (z !== null && z.nullCount < z.length);
-    const styled = styles === undefined ? null : emitCytoscapeStyle(styles.rules, snapshot, { dialect: "desktop" });
+    const emitNotes = new StyleNotes();
+    const styled =
+        styles === undefined
+            ? null
+            : emitCytoscapeStyle(styles.rules, snapshot, { dialect: "desktop", notes: emitNotes });
     // written with styles, the graphics an XGMML or session import kept are the view's to say, from the styles
     const superseded = (c: Column): boolean =>
         styled !== null &&
@@ -1146,7 +1154,9 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions, styles?: E
         z: placed ? z : null,
         positionZ,
         styled,
-        block: styles === undefined ? blockOf(snapshot) : writeStyleBlock(styles.rules, { inlineColumns: true }),
+        styleNotes: emitNotes.list().map(lossOf),
+        block:
+            styles === undefined ? blockOf(snapshot) : writeStyleBlock(styles.rules, { inlineColumns: true, snapshot }),
     };
 }
 
@@ -1477,8 +1487,9 @@ export const cysExporter: GraphExporter<CysExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the notes, empty when the export is exact
      */
-    check(snapshot: GraphSnapshot, options?: CysExportOptions): readonly LossNote[] {
-        return Object.freeze([...plan(snapshot, resolveExportOptions(options)).notes]);
+    check(snapshot: GraphSnapshot, options?: CysExportOptions & ExporterStyleOptions): readonly LossNote[] {
+        const p = plan(snapshot, resolveExportOptions(options), options?.styles);
+        return Object.freeze([...p.notes, ...p.styleNotes]);
     },
 
     /**

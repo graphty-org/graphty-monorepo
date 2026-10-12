@@ -1014,7 +1014,7 @@ export function gmlStyledExport(
     const keys = [...input.rules.columns.node.keys()].map((k) => tagKey("node", k));
     const edgeKeys = [...input.rules.columns.edge.keys()].map((k) => tagKey("edge", k));
     if (new Set(keys).size !== keys.length || new Set(edgeKeys).size !== edgeKeys.length) {
-        block = writeStyleBlock(input.rules, { inlineColumns: true });
+        block = writeStyleBlock(input.rules, { inlineColumns: true, snapshot });
     } else {
         for (const target of ["node", "edge"] as const) {
             const table = target === "node" ? out.nodes : out.edges;

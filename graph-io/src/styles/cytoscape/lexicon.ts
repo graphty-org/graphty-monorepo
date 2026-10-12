@@ -262,7 +262,8 @@ function fontFace(raw: unknown, site: CanonSite): FontFace | null {
 }
 
 /** Java's logical font names, which Cytoscape desktop writes, as the CSS generic families they stand for. */
-const JAVA_FONTS: ReadonlyMap<string, string> = new Map([
+/** The family a Java logical font name is read as (`Dialog` is drawn as a sans-serif font). */
+export const JAVA_FONTS: ReadonlyMap<string, string> = new Map([
     ["sansserif", "sans-serif"],
     ["dialog", "sans-serif"],
     ["default", "sans-serif"],

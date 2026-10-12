@@ -74,7 +74,9 @@ export function featuresOf(snapshot: GraphSnapshot, target: StyleTarget): StyleF
 }
 
 /**
- * The fingerprint of a graph: its node and edge counts and a hash of its node ids in snapshot order.
+ * The fingerprint of a graph: its node and edge counts and a hash of its node ids' text in snapshot order. The id 7
+ * and the id "7" hash alike, so a graph written to a format that reads its ids back as text (or as numbers) keeps
+ * its fingerprint.
  * @param snapshot - the graph
  * @returns the fingerprint
  * @category Styles
@@ -84,7 +86,7 @@ export function styleFingerprint(snapshot: GraphSnapshot): StyleFingerprint {
     let h1 = 0x811c9dc5;
     let h2 = 0x01000193 ^ 0x5bd1e995;
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        const text = `${typeof snapshot.ids.idOf(i)}:${String(snapshot.ids.idOf(i))}\u0000`;
+        const text = `${String(snapshot.ids.idOf(i))}\u0000`;
         for (let c = 0; c < text.length; c++) {
             const code = text.charCodeAt(c);
             h1 = Math.imul(h1 ^ code, 0x01000193);

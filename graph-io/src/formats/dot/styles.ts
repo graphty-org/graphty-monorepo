@@ -365,6 +365,22 @@ function readColor(
 }
 
 /**
+ * A length in points as the shortest inches (at least 6 significant digits) that read back as the same length.
+ * @param points - the length
+ * @returns the inches
+ */
+function inchesOf(points: number): number {
+    const want = num6(points);
+    for (let digits = 6; digits < 17; digits++) {
+        const inches = Number((points / DOT_POINTS_PER_INCH).toPrecision(digits));
+        if (num6(inches * DOT_POINTS_PER_INCH) === want) {
+            return inches + 0;
+        }
+    }
+    return points / DOT_POINTS_PER_INCH;
+}
+
+/**
  * A size attribute in inches, or null with a note when it is not a non-negative number.
  * @param raw - the value
  * @param at - where it was read
@@ -1132,10 +1148,10 @@ function nodeAttributes(get: Get, cx: NodeContext, approximate: Approximate, not
             out.set("fixedsize", "true");
         }
         if (typeof width === "number") {
-            out.set("width", num6(width / DOT_POINTS_PER_INCH));
+            out.set("width", inchesOf(width));
         }
         if (typeof height === "number") {
-            out.set("height", num6(height / DOT_POINTS_PER_INCH));
+            out.set("height", inchesOf(height));
         }
     }
     // the label is written where it differs from what Graphviz shows without one (the name), "" for none
@@ -1438,7 +1454,7 @@ export function dotStyledExport(
             }
         }
     }
-    const block = inline ? writeStyleBlock(input.rules, { inlineColumns: true }) : input.block;
+    const block = inline ? writeStyleBlock(input.rules, { inlineColumns: true, snapshot }) : input.block;
     out.graph.set(STYLE_BLOCK_NAME, [dotSafeJson(block)], { dtype: "string" });
     const losses: LossNote[] = [];
     for (const [key, a] of approximated) {

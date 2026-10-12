@@ -241,7 +241,7 @@ interface CytoscapeStyledExport {
  * @param n - the note
  * @returns the loss note
  */
-function lossOf(n: StyleNote): LossNote {
+export function lossOf(n: StyleNote): LossNote {
     return Object.freeze({
         code: n.code,
         message: n.message,

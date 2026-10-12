@@ -828,7 +828,16 @@ export class FormatRegistry {
         if (styled === null) {
             notes = this.exporter(format).check(snapshot, options);
         } else if (styled.refusal === null) {
-            notes = [...styled.exporter.check(styled.snapshot, styled.options), ...styled.notes];
+            // a property graph-io already reports as not written is reported once, whoever else notices
+            const key = (n: LossNote): string =>
+                `${n.code}\u0000${n.style?.target ?? ""}\u0000${n.style?.property ?? ""}`;
+            const reported = new Set(styled.notes.filter((n) => n.style !== undefined).map(key));
+            notes = [
+                ...styled.exporter
+                    .check(styled.snapshot, styled.options)
+                    .filter((n) => n.style === undefined || !reported.has(key(n))),
+                ...styled.notes,
+            ];
         } else {
             notes = [...styled.exporter.check(snapshot, styled.plain), styled.refusal];
         }

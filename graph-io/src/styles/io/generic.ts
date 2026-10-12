@@ -107,7 +107,14 @@ export function extractStyles(
         const parsed = parseStyleBlock(blockText, fingerprint);
         if (parsed.ok) {
             const truth = canonical === null ? {} : { node: canonical.node.values, edge: canonical.edge.values };
-            const fromBlock = blockStyles(parsed.block, snapshot, importer.format, truth, canonical?.notes ?? []);
+            const fromBlock = blockStyles(
+                parsed.block,
+                snapshot,
+                importer.format,
+                truth,
+                canonical?.notes ?? [],
+                canonical?.tool ?? null,
+            );
             if (fromBlock !== null) {
                 return fromBlock;
             }

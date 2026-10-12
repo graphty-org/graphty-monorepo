@@ -7,6 +7,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { STYLE_ISSUE } from "../../styles/codes.js";
 import { cytoscapeElementProperties, cytoscapeWritableProperties } from "../../styles/cytoscape/emit.js";
 import { normalizeVisualProperties } from "../../styles/cytoscape/lexicon.js";
 import { emptyCytoscapeStyle } from "../../styles/cytoscape/mappings.js";
@@ -28,6 +29,8 @@ import type {
     StyleValue,
     StyleWriteCapabilities,
 } from "../../styles/types.js";
+import type { LossNote } from "../../types.js";
+import { lossOf } from "../cx/styles.js";
 import { GRAPHICS_COLUMN, XGMML_ORIGIN_NAMESPACE } from "./constants.js";
 
 type Table = GraphSnapshot["nodes"];
@@ -269,6 +272,31 @@ export function styledGraphics(
         out[vp] = String(v);
     }
     return Object.keys(out).length === 0 ? null : out;
+}
+
+/**
+ * What writing every element's graphics with styles loses: each value written as the nearest one Cytoscape allows,
+ * counted per element.
+ * @param styles - the exporter's style input
+ * @param snapshot - the graph
+ * @returns the loss notes
+ */
+export function styledGraphicsNotes(styles: ExporterStyleInput, snapshot: GraphSnapshot): LossNote[] {
+    const notes = new StyleNotes();
+    for (const target of ["node", "edge"] as const) {
+        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        for (let i = 0; i < n; i++) {
+            cytoscapeElementProperties(
+                target,
+                (p) => styles.picture(target, p as StyleProperty)[i] ?? null,
+                "desktop",
+                (p) => {
+                    notes.add(STYLE_ISSUE.APPROXIMATED, target, p, { element: i });
+                },
+            );
+        }
+    }
+    return notes.list().map(lossOf);
 }
 
 /**

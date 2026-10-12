@@ -122,7 +122,9 @@ export interface GexfImportOptions extends CommonImportOptions {
     /**
      * Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape,
      * thickness) into node and edge attributes; false skips them, with one W_GEXF_VIZ_SKIPPED
-     * warning.
+     * warning. The color, size, shape and thickness columns are deprecated and leave the import
+     * result in the next major version: read a file's styles with `styles: true` instead. The
+     * position column stays.
      * @defaultValue true
      */
     viz?: boolean | undefined;

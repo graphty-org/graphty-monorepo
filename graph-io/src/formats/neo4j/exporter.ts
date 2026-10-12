@@ -412,7 +412,8 @@ class ExportPlan {
                 this.fatalEdges = new GraphFormatError("E_DIRECTED", gen.message, { reason: "mixed direction" });
             }
             if ((gen.code === LOSS.POSITIONS || gen.code === LOSS.VIZ) && gen.column !== null) {
-                // written as a plain property (a point for a position); the role is what is lost
+                // written as a plain property (a point for a position); the role is what is lost. Deprecated for
+                // the style roles (next major): styles reach a file only through the style writer.
                 this.notes.push(
                     Object.freeze({
                         code: gen.code,

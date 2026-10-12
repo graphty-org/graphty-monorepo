@@ -159,7 +159,10 @@ export interface GraphmlImportOptions extends CommonImportOptions {
      * `yfiles.borderWidth`, `yfiles.label` and `yfiles.shape` for nodes, and the line color, width
      * and arrows for edges. The report's `lossy` list then holds W_GRAPHML_YFILES_JSON, because the
      * XML comes back with the same structure but not byte for byte. "skip" leaves the graphics out,
-     * with a W_GRAPHML_YFILES_SKIPPED warning per key.
+     * with a W_GRAPHML_YFILES_SKIPPED warning per key. The `yfiles.*` columns are deprecated and
+     * kept as they are, not fixed: read a file's styles with `styles: true` instead. In the next
+     * major version they leave the import result, together with the rule that a target arrow makes
+     * an edge directed and the label role of `yfiles.label`.
      * @defaultValue "json"
      */
     yfiles?: "json" | "skip" | undefined;

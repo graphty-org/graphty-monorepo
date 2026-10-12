@@ -369,7 +369,12 @@ export interface ExportCapabilities {
     readonly graphAttributes: boolean;
     /** Whether the file can hold node positions. When false, the layout is lost. */
     readonly positions: boolean;
-    /** Whether the file can hold node and edge color, size, shape and thickness. When false, they are lost. */
+    /**
+     * Whether the file can hold node and edge color, size, shape and thickness. When false, they are lost.
+     * @deprecated This describes the `color`, `size`, `shape` and `thickness` role columns, the old way styles
+     *     reached a file. Use {@link ExportCapabilities.styles}, what the format's style writer can hold. Removed in
+     *     the next major version.
+     */
     readonly viz: boolean;
     /**
      * What the format's writer can hold of a graph's styles (the exporter's `styles.capabilities`): per target the

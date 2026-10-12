@@ -1440,6 +1440,10 @@ function listItems(column: Column, row: number): readonly unknown[] {
 
 /**
  * The viz elements of one node or edge.
+ *
+ * Deprecated path, unchanged until the next major version: without `styles`, the color, size,
+ * shape and thickness role columns are written into `viz:*`. With `styles`, gexfStyledExport()
+ * replaces those columns with what the graph draws, so the style writer is the only path.
  * @param roles - the domain's role columns
  * @param row - the element's row
  * @param indent - the indentation

@@ -76,7 +76,10 @@ and graph-io puts them back when it reads the file.
   and edge graphics are also read into plain columns: `yfiles.position`, `yfiles.width`,
   `yfiles.height`, `yfiles.color`, `yfiles.borderColor`, `yfiles.borderWidth`, `yfiles.label`,
   `yfiles.shape`, and for edges `yfiles.color`, `yfiles.width`, `yfiles.targetArrow` and
-  `yfiles.sourceArrow`. Pass `yfiles: "skip"` to ignore yEd graphics.
+  `yfiles.sourceArrow`. Pass `yfiles: "skip"` to ignore yEd graphics. These `yfiles.*` columns
+  are deprecated and kept exactly as they are: in the next major version they leave the import
+  result, together with the rule that a target arrow makes an edge directed and the label role of
+  `yfiles.label`. To read how a yEd file looks, import with `styles: true`.
 - Ids follow the `ids` option.
 
 ## What a saved file keeps and loses
@@ -168,7 +171,7 @@ These come on top of the [options every importer takes](../options.md#every-impo
 | -------------------------- | ------------------ | -------- |
 | [`yfiles`](#import-yfiles) | `"skip" \| "json"` | `"json"` |
 
-- <a id="import-yfiles"></a>`yfiles`: How yEd graphics (keys with a `yfiles.type`) are read. "json" keeps each one as a JSON attribute named after the key (for example, `d0`) that holds its XML as a tree, which the GraphML exporter writes back, and also reads the shapes it knows into plain columns beside it: `yfiles.position`, `yfiles.width`, `yfiles.height`, `yfiles.color`, `yfiles.borderColor`, `yfiles.borderWidth`, `yfiles.label` and `yfiles.shape` for nodes, and the line color, width and arrows for edges. The report's `lossy` list then holds `W_GRAPHML_YFILES_JSON`, because the XML comes back with the same structure but not byte for byte. "skip" leaves the graphics out, with a `W_GRAPHML_YFILES_SKIPPED` warning per key.
+- <a id="import-yfiles"></a>`yfiles`: How yEd graphics (keys with a `yfiles.type`) are read. "json" keeps each one as a JSON attribute named after the key (for example, `d0`) that holds its XML as a tree, which the GraphML exporter writes back, and also reads the shapes it knows into plain columns beside it: `yfiles.position`, `yfiles.width`, `yfiles.height`, `yfiles.color`, `yfiles.borderColor`, `yfiles.borderWidth`, `yfiles.label` and `yfiles.shape` for nodes, and the line color, width and arrows for edges. The report's `lossy` list then holds `W_GRAPHML_YFILES_JSON`, because the XML comes back with the same structure but not byte for byte. "skip" leaves the graphics out, with a `W_GRAPHML_YFILES_SKIPPED` warning per key. The `yfiles.*` columns are deprecated and kept as they are, not fixed: read a file's styles with `styles: true` instead. In the next major version they leave the import result, together with the rule that a target arrow makes an edge directed and the label role of `yfiles.label`.
 
 ## Export options
 

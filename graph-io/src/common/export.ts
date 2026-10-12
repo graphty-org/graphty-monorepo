@@ -339,8 +339,20 @@ export interface CheckExtras {
      * True for a format that writes a column with the role `color`, `size`, `shape` or `thickness` as a plain
      * attribute when it has no slot for it: its W_VIZ_DROPPED note then says the value is kept and the role is lost.
      * Default false: the note says the column cannot be written.
+     *
+     * Deprecated behavior, kept unchanged until the next major version: a writer that stores a role column as a plain
+     * attribute (JSON, Neo4j CSV) keeps writing it that way. Styles reach a file through the style writer
+     * (`ExportOptions.styles`); in the next major version role columns are written only into a format's style slots.
      */
     readonly vizAsAttributes?: boolean | undefined;
+}
+
+/**
+ * The deprecated `ExportCapabilities.viz` fact, read only by the deprecated role-column notes below, which are what it
+ * describes.
+ */
+interface RoleSlots {
+    readonly viz: boolean;
 }
 
 /** The roles checkCapabilities() treats structurally rather than as attribute columns. */
@@ -697,8 +709,10 @@ function checkColumns(
             }
             continue;
         }
+        // Deprecated path (removed in the next major version): the role columns as the old way styles reached a
+        // file. With styles, the style writer is the only path and the caller leaves the role columns out.
         if (role !== null && VIZ_ROLES.has(role)) {
-            if (!caps.viz) {
+            if (!(caps as RoleSlots).viz) {
                 note(
                     LOSS.VIZ,
                     extras.vizAsAttributes === true

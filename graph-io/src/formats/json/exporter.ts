@@ -661,6 +661,7 @@ function plan(snapshot: GraphSnapshot, resolved: Resolved): Plan {
     const notes = checkCapabilities(snapshot, caps, resolved.common, {
         roles: SLOT_ROLES[dialect],
         positionDtype: "f64",
+        // Deprecated (next major): role columns are written as plain attributes; styles go through the style writer.
         vizAsAttributes: true,
     }).filter((n) => n.code !== LOSS.POSITIONS && n.code !== LOSS.EDGE_IDS_DROPPED);
     const note: NoteFn = (code, message, column = null, count = null): void => {

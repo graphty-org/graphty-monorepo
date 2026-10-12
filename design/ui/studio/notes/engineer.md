@@ -11,6 +11,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Tier 3 (unified styles) started; my answers to the owner's 12 questions are in
+  `tier3/decide/engineer.md`.** The studio worktree is now `.worktrees/design-studio-tier3`
+  (branch `design/studio-tier3`). The owner approves the built UI before any study.
+- (2026-10-12) **Element facts the tier 3 build leans on** (cite, do not re-derive): layers still
+  paint one kind (`Layer.ts:112`, a breaking change to widen); selectors are everything, expression,
+  has, ids, top, member (`selector.ts:98`); a member selector takes `{ define: rule }`, so a
+  `RuleTree` (range, categories, degree, neighborhood, threshold, all, any) reaches a layer; no
+  rule has a text test or functions, while selection has substring, exact and regex
+  (`selection/targets.ts:68`); `styles.proposeEncoding` answers fit per column cheaply; lighting
+  (`config/Lighting.ts`) is on this branch and absent from the mock; `LabelStyle` has `onTop` and
+  `pickable` here (49 fields).
 - (2026-10-11) **Round 5 audit on 8c015b806 done** (`tier2/rounds/round-5/expert/engineer.md`): five
   round 4 fixes hold; new: an edge-only filter step marks runs "out of date" with "Ran on 20 nodes;
   20 shown now" (needs edge counts in `run.stale`, element, additive); table count cut at 900.
@@ -52,6 +63,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Delete does nothing on a step; Analyze box jumps as the list narrows.
 
 ## Decisions and reasons
+
+- (2026-10-12) **Tier 3 recommendations, and why** (full text in `tier3/decide/engineer.md`):
+  a 0-or-1 property is an always-present row whose empty field means off, because "+" promised
+  many where one fits and a switch has no "not set" position; yes-or-no properties are two-word
+  selects. Rows pair on the 88 | 88 grid so a layer at rest fits at 1440 x 900, rather than tabs
+  or folding, which hide what a layer does. An empty kind group folds to one line with the
+  element's reason. The degree ramp becomes a histogram-plus-ramp editor in compact-mantine,
+  because Figma's stop editor has a color axis, not a data axis. Category layers arrive unsplit.
+  "Which elements" starts with Nodes / Edges / Both. Additive element asks: `reach` on
+  validation, `scalePreview`, inline palettes, `addPair` until the major, a text leaf in
+  `RuleTree`, `contains`/`starts_with` in the expression subset, label looks, shape schemes,
+  bindable label size and colors. None is built yet; record each in `owner-decisions.md` when it is.
 
 - (2026-10-11) **Round 4 closed; what it decided and why:** study fixed first (a refusal in the
   command every session runs, because a written rule failed twice); one change per problem; fix in

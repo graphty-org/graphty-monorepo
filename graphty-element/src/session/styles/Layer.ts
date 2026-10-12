@@ -68,6 +68,7 @@ import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
 import type { CodedFact } from "../shared";
 import { type ChannelDescriptor, channelDescriptor, channelsFor, toColorValue } from "./channels";
+import { stopsProblem } from "./palettes";
 import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
 import { compileSelector, type Selector } from "./selector";
@@ -821,6 +822,16 @@ function checkBinding(
             path: `${path}.palette`,
             candidates: knownPaletteIds(),
         });
+    }
+
+    if (binding.stops !== undefined) {
+        const problem =
+            binding.palette === undefined
+                ? stopsProblem(binding.stops)
+                : "A binding names a palette or carries its own stops, not both.";
+        if (problem !== null) {
+            report(log, { code: "E_BAD_LAYER", message: problem, path: `${path}.stops` });
+        }
     }
 
     if (binding.overflow !== undefined && !OVERFLOW_POLICIES.includes(binding.overflow)) {

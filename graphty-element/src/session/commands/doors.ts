@@ -583,6 +583,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     settled: READ,
     explain: READ,
     agreement: READ,
+    preview: READ,
     counts: READ,
     legendOf: READ,
     resolveToStatic: calls(

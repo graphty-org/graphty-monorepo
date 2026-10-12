@@ -28,6 +28,27 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   entries read before). Read into a variable first. Shared files here change under you: build a
   unit's commit from HEAD plus its own edits (a replay script and a scratch worktree), never
   `git add` a file another agent is editing.
+- (2026-10-12) **Panel facts built in the element**: `styles.agreement(scope, channel, { below })`
+  cuts the painted stack beneath a tree row (rows met before it in the tree walk are exactly the
+  consumer layers beneath, since tree order is paint order); `styles.preview(binding, { channel,
+  bins })` runs the repaint's own `prepareBinding` plus `previewBinding` (`encoding.ts`): numeric
+  bins are equal stretches of the scale's position (bin edges found by bisection, so plugin scales
+  work), stepped scales bin in data units and report `steps` (new `PreparedBinding.steps`);
+  binding `stops` is an inline palette (`palettes.ts` `inlinePalette`, legend id `custom`). Why:
+  reuse the one preparation so a preview cannot disagree with the paint. Limit: a continuous bin's
+  `paints` is its middle's color, so only a value at the middle matches it exactly; the ramp
+  editor should draw the ramp, not one color per bar, if that ever reads wrong.
+- (2026-10-12) **The style tree is built in graphty-element** (`src/session/styles/tree.ts`):
+  `styles.tree()` plus addFolder, renameRow, moveRow, pinRow, lockRow, hideRow, deleteRow; error
+  `E_LOCKED`; saved as `StyleDocument.tree`. The app's panel reads rows from it and never orders
+  layers itself. Not yet exercised in a browser or by the renderer twin of the history fixtures.
+- (2026-10-12) **Split by value is built in the element** (`styles.split`, `unsplit`,
+  `setSplitOverride`, `splitChildren`; `session/styles/split.ts`). A child's override is the
+  parent binding's `map` entry, so palettes reach every other child and unsplit is free; a re-run of
+  a partition run matches groups by shared members inside the run's own step (`RunsApi.commit`).
+  Limit: a child overrides only channels the parent paints by the split value; overriding a fixed
+  property needs generated child layers in the stack. The tree must still show split rows from
+  `layer.split` and `splitChildren` (the tree unit was in flight beside this one).
 - (2026-10-12) **Generic rules built in the element** (commit "generic layer rules"): selector
   `{ match: "rule", where, edges? }` (a member of the inline rule set, so live scopes and data
   dependencies come free); `RuleTree` leaf `{ kind: "text", reads: "id" | path, mode, text,

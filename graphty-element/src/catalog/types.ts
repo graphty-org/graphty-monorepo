@@ -637,6 +637,15 @@ export type Binding =
               | "passthrough"
               | (string & {});
           palette?: PaletteId;
+          /**
+           * The binding's own palette: two or more colours, lowest first, saved with the layer.
+           * Given, `palette` is not: a binding names a catalogue palette or carries its stops. A
+           * scale that names groups reads them as a categorical palette (one colour per group, so
+           * as many stops as groups), a binding with a `midpoint` as a diverging one, and anything
+           * else as a sequential ramp. The legend names it `custom`.
+           * @since 3.26.0
+           */
+          stops?: string[];
           domain?: [number, number] | "auto";
           clamp?: [number, number];
           range?: [number, number];

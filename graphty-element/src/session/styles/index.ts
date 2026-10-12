@@ -24,6 +24,7 @@ export type { AutoApplyPolicy, AutoApplyRun, AutoApplySources, AutoApplyStyles }
 export { createAutoApplyPolicy } from "./autoApply";
 export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./derive";
 export { suggestStyles } from "./derive";
+export type { BindingPreview, BindingPreviewBin } from "./encoding";
 export type {
     ColumnEncodingSpec,
     EncodingOptions,
@@ -73,7 +74,6 @@ export { quotePath, rulePath } from "./predicate";
 export type { ElementPaint } from "./repaint";
 export type { RowEncoding, RowParts, RowSpec, RowStyle, RowTarget, RowWrite } from "./rows";
 export type { Selector } from "./selector";
-export type { StyleRow, StyleRowId, StyleRowPin, StyleRowPlace } from "./tree";
 export type { SplitChild } from "./split";
 export type {
     DefaultPalettes,
@@ -87,3 +87,4 @@ export type {
     TemplateReport,
 } from "./StylesApi";
 export { createStylesApi } from "./StylesApi";
+export type { StyleRow, StyleRowId, StyleRowPin, StyleRowPlace } from "./tree";

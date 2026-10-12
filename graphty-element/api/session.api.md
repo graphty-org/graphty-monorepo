@@ -137,6 +137,7 @@ export type Binding = {
     by: Path;
     scale?: "linear" | "log" | "neglog10" | "sqrt" | "pow" | "bins" | "quantile" | "ordinal" | "passthrough" | (string & {});
     palette?: PaletteId;
+    stops?: string[];
     domain?: [number, number] | "auto";
     clamp?: [number, number];
     range?: [number, number];
@@ -158,6 +159,29 @@ export type Binding = {
 
 // @public
 export type BindingOverflow = "other" | "shape" | "extend";
+
+// @public
+export interface BindingPreview {
+    readonly above: number;
+    readonly below: number;
+    readonly bins: readonly BindingPreviewBin[];
+    readonly channel: Channel;
+    readonly domain: readonly [number, number] | null;
+    readonly noValue: number;
+    readonly noValuePaints: EncodedValue | null;
+    readonly outsideScale: number;
+    readonly scale: NonNullable<RuleBinding["scale"]>;
+    readonly steps: readonly number[];
+}
+
+// @public
+export interface BindingPreviewBin {
+    readonly count: number;
+    readonly from: number | null;
+    readonly paints: EncodedValue | null;
+    readonly to: number | null;
+    readonly value?: unknown;
+}
 
 // @public
 export interface BrowserProjects {
@@ -3770,7 +3794,9 @@ export interface StylesApi {
     add(spec: LayerSpec, at?: LayerPosition, options?: RunOptions): Run<Layer>;
     addFolder(name: string, at?: StyleRowPlace, options?: RunOptions): Run<StyleRow>;
     addRow(spec: RowSpec, at?: LayerPosition, options?: RunOptions): Run<RowParts>;
-    agreement(scope: Scope, channel?: Channel): StyleAgreement;
+    agreement(scope: Scope, channel?: Channel, options?: {
+        readonly below?: StyleRowId;
+    }): StyleAgreement;
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
     counts(id: LayerId): StyleCounts;
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
@@ -3788,6 +3814,10 @@ export interface StylesApi {
     moveRow(id: StyleRowId, to: StyleRowPlace, options?: RunOptions): Run<StyleRow>;
     parts(id: LayerId): RowParts | undefined;
     pinRow(id: StyleRowId, pin: StyleRowPin, options?: RunOptions): Run<StyleRow>;
+    preview(binding: RuleBinding, options: {
+        readonly channel: Channel;
+        readonly bins?: number;
+    }): BindingPreview;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;
     removeBySource(predicate: (source: LayerSource) => boolean, options?: RunOptions): Run<readonly LayerId[]>;

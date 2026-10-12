@@ -928,6 +928,7 @@ export const READ_ONLY: readonly string[] = [
     "StylesApi.legendOf",
     "StylesApi.list",
     "StylesApi.parts",
+    "StylesApi.preview",
     "StylesApi.proposeEncoding",
     "StylesApi.setDefaultPalettes",
     "StylesApi.settled",

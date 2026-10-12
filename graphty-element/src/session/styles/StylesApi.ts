@@ -127,7 +127,13 @@ import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { beneathAuthored } from "./autoApply";
 import { channelDescriptor, isChannel } from "./channels";
-import type { PreparedBinding } from "./encoding";
+import {
+    type BindingPreview,
+    type PreparedBinding,
+    previewBinding,
+    requireChannel,
+    type RuleBinding,
+} from "./encoding";
 import {
     type ColumnEncodingSpec,
     type EncodingProposal,
@@ -178,6 +184,7 @@ import {
     type LegendBlock,
     type LegendSources,
 } from "./legend";
+import { stopsProblem } from "./palettes";
 import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate";
 import { stackChange } from "./repaint";
 import { assertRouted, partPatch, rowOf, type RowParts, rowParts, type RowSpec, type RowWrite } from "./rows";
@@ -562,11 +569,40 @@ export interface StylesApi {
      *     other scope the session resolves.
      * @param channel - One channel to restrict the answer to. Absent, every channel something
      *     painted is answered.
+     * @param options - What else to read.
+     * @param options.below - A row of {@link StylesApi.tree}. Given, the answer reads only the
+     *     layers beneath that row (the element's own layers beneath it included), so it is what
+     *     those elements would look like without the row and everything above it: the value a
+     *     panel shows as an empty field's placeholder. Beneath the bottom row it is the element's
+     *     own floor. Since 3.26.0.
      * @returns Per channel, the value and deciding layer they all share or how they split, and how
      *     many elements nothing painted on it.
-     * @throws A `GraphtyError` with code `E_UNKNOWN_CHANNEL` when `channel` names no channel.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_CHANNEL` when `channel` names no channel, and
+     *     `E_UNKNOWN_LAYER` when `below` names no row.
      */
-    agreement(scope: Scope, channel?: Channel): StyleAgreement;
+    agreement(scope: Scope, channel?: Channel, options?: { readonly below?: StyleRowId }): StyleAgreement;
+    /**
+     * What a binding would paint, read before it is written: the bins of its scale over the
+     * channel's kind of element, how many elements fall in each and what each paints, where a
+     * stepped scale changes step, and how many elements sit below or above the domain, carry no
+     * value, or carry one the scale has no place for.
+     *
+     * Prepared exactly as the repaint prepares a written binding (the session's default palettes
+     * filled in the same way), so a layer written with this binding paints what the preview said.
+     * Counts only, in one pass over the elements of the channel's kind.
+     * @param binding - The binding, as it would be written: `{ by, scale, palette or stops, ... }`.
+     * @param options - Where to read it.
+     * @param options.channel - The channel it would paint.
+     * @param options.bins - How many bins to cut a numeric domain into (20 when absent); a scale of
+     *     categories has one bin per category.
+     * @returns The preview.
+     * @throws A `GraphtyError`: `E_UNKNOWN_CHANNEL` for a channel the element does not have,
+     *     `E_BAD_COMMAND` for a binding that reads no value, `E_BAD_LAYER`, `E_UNKNOWN_SCALE`,
+     *     `E_UNKNOWN_PALETTE` or `E_CAP_EXCEEDED` for one the channel cannot take, as writing it
+     *     would.
+     * @since 3.26.0
+     */
+    preview(binding: RuleBinding, options: { readonly channel: Channel; readonly bins?: number }): BindingPreview;
     /**
      * How many elements one layer covers, and on how many it decides each channel it writes.
      *
@@ -1716,6 +1752,43 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         };
     };
 
+    /**
+     * The stack as it paints, cut beneath one row of the tree: every layer under it, the
+     * element's own layers there included.
+     * @param id - The row.
+     * @returns The layers beneath it, bottom first.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the tree holds no such row.
+     */
+    const stackBelow = (id: StyleRowId): readonly CompiledLayer[] => {
+        const rows = rowsOf(current());
+        if (findRow(rows, id) === undefined) {
+            throw unknownRow(id, rows);
+        }
+
+        // The tree order is the paint order, so the rows met before this one are the consumer
+        // layers beneath it, and they are a prefix of the consumer layers in the stack.
+        const beneath = new Set<LayerId>();
+        const walk = (list: Rows): boolean =>
+            list.some((row) => {
+                if (row.id === id) {
+                    return true;
+                }
+
+                if (row.kind === "layer") {
+                    beneath.add(row.id);
+                    return false;
+                }
+
+                return walk(row.children ?? []);
+            });
+        walk(rows);
+
+        const painted = paintedStack(current());
+        const cut = painted.findIndex((entry) => !entry.layer.locked && !beneath.has(rowKeyOf(entry)));
+
+        return cut === -1 ? painted : painted.slice(0, cut);
+    };
+
     /** What a legend is read from. */
     const legendSources: LegendSources = {
         layers: () => paintedStack(current()).map((entry) => entry.layer),
@@ -1771,7 +1844,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns The kind.
      */
     const paletteKindOf = (binding: Binding): keyof DefaultPalettes | null => {
-        if (!("by" in binding) || binding.map !== undefined || binding.scale === "passthrough") {
+        if (
+            !("by" in binding) ||
+            binding.stops !== undefined ||
+            binding.map !== undefined ||
+            binding.scale === "passthrough"
+        ) {
             return null;
         }
 
@@ -3372,8 +3450,50 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return explainStyle(target, explainSources);
         },
 
-        agreement(scope: Scope, channel?: Channel): StyleAgreement {
-            return styleAgreement(elementsOf(scope), explainSources, channel);
+        agreement(scope: Scope, channel?: Channel, options?: { readonly below?: StyleRowId }): StyleAgreement {
+            const below = options?.below;
+            const read = below === undefined ? explainSources : { ...explainSources, stack: () => stackBelow(below) };
+
+            return styleAgreement(elementsOf(scope), read, channel);
+        },
+
+        preview(binding: RuleBinding, options: { readonly channel: Channel; readonly bins?: number }): BindingPreview {
+            const descriptor = requireChannel(options.channel);
+            if (!("by" in binding) || typeof binding.by !== "string") {
+                throw badCommand("A preview reads a binding that reads a value: { by: <path>, ... }.", {
+                    field: "by",
+                });
+            }
+
+            if (binding.stops !== undefined) {
+                const problem =
+                    binding.palette === undefined
+                        ? stopsProblem(binding.stops)
+                        : "A binding names a palette or carries its own stops, not both.";
+                if (problem !== null) {
+                    throw new GraphtyError({
+                        code: "E_BAD_LAYER",
+                        message: problem,
+                        source: "style",
+                        details: { stops: binding.stops },
+                    });
+                }
+            }
+
+            const kind = descriptor.accepts === "color" ? paletteKindOf(binding) : null;
+            const palette = kind === null || binding.palette !== undefined ? undefined : defaultPalettes[kind];
+            const filled: RuleBinding = palette === undefined ? binding : { ...binding, palette };
+            const { nodes, edges } = elementsOf(WHOLE_GRAPH);
+            const read = descriptor.target === "node" ? sources.elements.nodeValue : sources.elements.edgeValue;
+            const column = [...(descriptor.target === "node" ? nodes : edges)].map((index) => read(index, binding.by));
+
+            return previewBinding({
+                channel: descriptor.channel,
+                binding: filled,
+                column,
+                scales,
+                ...(options.bins === undefined ? {} : { bins: options.bins }),
+            });
         },
 
         counts(id: LayerId): StyleCounts {

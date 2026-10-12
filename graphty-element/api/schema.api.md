@@ -21,6 +21,7 @@ export type Binding = {
     by: Path;
     scale?: "linear" | "log" | "neglog10" | "sqrt" | "pow" | "bins" | "quantile" | "ordinal" | "passthrough" | (string & {});
     palette?: PaletteId;
+    stops?: string[];
     domain?: [number, number] | "auto";
     clamp?: [number, number];
     range?: [number, number];

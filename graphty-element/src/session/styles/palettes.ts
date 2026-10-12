@@ -95,6 +95,11 @@ export interface RampSpec extends Omit<ScaleContext, "palette" | "range"> {
      */
     palette?: PaletteId;
     /**
+     * The binding's own colours, lowest first, in place of a named palette. See
+     * {@link inlinePalette} for the kind they are read as.
+     */
+    stops?: readonly string[];
+    /**
      * What to paint for a value with no place on the scale. "skip" -- the default -- paints
      * nothing at all, so the element keeps the colour the layers below it gave it.
      */
@@ -120,6 +125,48 @@ export interface RampSpec extends Omit<ScaleContext, "palette" | "range"> {
  */
 export function overflowCapacity(named: PaletteId | undefined): number | null {
     return paletteDescriptor(named ?? DEFAULT_CATEGORICAL_PALETTE)?.capacity ?? null;
+}
+
+/** The id a binding's own stops are reported under, in a legend and a prepared binding. */
+export const INLINE_PALETTE_ID: PaletteId = "custom";
+
+/**
+ * A binding's own stops as a palette: categorical under a scale that names groups (one colour per
+ * group), diverging with a midpoint, and sequential otherwise.
+ * @param stops - The colours, lowest first.
+ * @param categorical - Whether the scale names groups.
+ * @param diverging - Whether the binding has a midpoint.
+ * @returns The palette.
+ */
+export function inlinePalette(stops: readonly string[], categorical: boolean, diverging: boolean): PaletteDescriptor {
+    let kind: PaletteDescriptor["kind"] = diverging ? "diverging" : "sequential";
+    if (categorical) {
+        kind = "categorical";
+    }
+
+    return {
+        id: INLINE_PALETTE_ID,
+        plainName: "Custom",
+        kind,
+        colors: [...stops],
+        capacity: categorical ? stops.length : null,
+        colorblindSafe: [],
+    };
+}
+
+/**
+ * What is wrong with a binding's own stops, or null when nothing is.
+ * @param stops - The stops as authored.
+ * @returns A sentence for the refusal, or null.
+ */
+export function stopsProblem(stops: unknown): string | null {
+    if (!Array.isArray(stops) || stops.length < 2) {
+        return 'A binding\'s own stops are two or more colours, lowest first, such as ["#fff7bc", "#993404"].';
+    }
+
+    const bad = stops.find((stop) => typeof stop !== "string" || toColorValue(stop) === null);
+
+    return bad === undefined ? null : `"${String(bad)}" is not a colour, so it cannot be a stop.`;
 }
 
 /** A colour binding with everything knowable worked out, ready to be asked once per element. */
@@ -357,7 +404,7 @@ function parsedSwatches(palette: PaletteDescriptor): readonly ColorValue[] {
  *   element chose for itself always fits, because it is chosen from the group count below.
  */
 export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRamp {
-    const { scale = DEFAULT_SCALE, palette: named, missing, overflow, ...options } = spec;
+    const { scale = DEFAULT_SCALE, palette: named, stops, missing, overflow, ...options } = spec;
     const map = registry.require(scale);
 
     // Counted before the palette is looked up, because the count is what decides which palette a
@@ -369,7 +416,14 @@ export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRa
     // A binding that says what to do with too many groups is painted through the preferred palette
     // and handles the rest itself -- except "extend", whose whole point is the larger palette.
     const folds = overflow === "other" || overflow === "shape";
-    const palette = requirePalette(named ?? defaultPaletteFor(registry, scale, folds ? 0 : declared));
+    const palette =
+        stops === undefined
+            ? requirePalette(named ?? defaultPaletteFor(registry, scale, folds ? 0 : declared))
+            : inlinePalette(
+                  stops,
+                  registry.describe(scale)?.domainKind === "categorical",
+                  options.midpoint !== undefined,
+              );
     const context: ScaleContext = { ...counting, palette };
     const categorical = palette.kind === "categorical";
     const slots = categorical && declared === 0 ? palette.colors.length : declared;

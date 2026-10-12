@@ -460,6 +460,8 @@ export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    BindingPreview,
+    BindingPreviewBin,
     ChannelAgreement,
     ChannelExplanation,
     ChannelRefusalCode,

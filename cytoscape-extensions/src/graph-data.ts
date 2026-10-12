@@ -8,6 +8,7 @@ import type { ImportInput, ImportReport } from "@graphty/graph-io";
 import type { FetchDatasetOptions } from "@graphty/graph-samples";
 import type { Collection, CollectionReturnValue, Core, ElementDefinition } from "cytoscape";
 
+import { coreDestroyedError } from "./gpu.js";
 import type { ExportFormat, ExportOptions, ImportFormat, ImportOptions } from "./io.js";
 import { loadPart } from "./lazy.js";
 import type { GeneratorName, GeneratorOptions } from "./samples.js";
@@ -108,8 +109,12 @@ export class IdTakenError extends Error {
  * @param elements - the definitions; edge data may be changed
  * @returns the added elements
  * @throws IdTakenError naming the first node id the core already holds; nothing is added
+ * @throws Error with `code` "E_CORE_DESTROYED" when the core was destroyed; nothing is added
  */
 function addTo(cy: Core, elements: ElementDefinition[]): CollectionReturnValue {
+    if (cy.destroyed()) {
+        throw coreDestroyedError();
+    }
     for (const el of elements) {
         if (el.group === "nodes" && el.data.id !== undefined && cy.getElementById(el.data.id).nonempty()) {
             throw new IdTakenError(el.data.id);

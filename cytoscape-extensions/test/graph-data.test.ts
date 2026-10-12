@@ -1,6 +1,7 @@
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { ImportError } from "@graphty/graph-io";
 import { DATASETS } from "@graphty/graph-samples";
+import { karate } from "@graphty/graph-samples/datasets/karate";
 import { wikipathwaysSenescenceAutophagy } from "@graphty/graph-samples/datasets/wikipathways-senescence-autophagy";
 import cytoscape from "cytoscape";
 import { describe, expect, it } from "vitest";
@@ -376,5 +377,65 @@ describe("integer ids in the integer-id formats", () => {
             await cy.graphtyExport(format, { onLoss: (notes) => codes.push(...notes.map((n) => n.code)) });
             expect(codes).not.toContain("W_ID_TEXT_TYPE");
         }
+    });
+});
+
+describe("a core destroyed before or while the graph loads", () => {
+    const expectCoreDestroyed = async (p: Promise<unknown>): Promise<void> => {
+        await expect(p).rejects.toMatchObject({
+            code: "E_CORE_DESTROYED",
+            message: "graphty: the Cytoscape core was destroyed",
+        });
+    };
+    const gml = "graph [ node [ id 1 ] node [ id 2 ] edge [ source 1 target 2 ] ]";
+    const calls: [string, (cy: cytoscape.Core) => Promise<unknown>][] = [
+        ["graphtyGenerate", (cy) => cy.graphtyGenerate("path", { n: 3 })],
+        ["graphtyDataset", (cy) => cy.graphtyDataset("karate")],
+        ["graphtyImport", (cy) => cy.graphtyImport(gml, "gml")],
+    ];
+    for (const [name, call] of calls) {
+        it(`${name} rejects with E_CORE_DESTROYED and adds nothing, destroyed before the call or during its load`, async () => {
+            const before = core();
+            before.destroy();
+            await expectCoreDestroyed(call(before));
+            expect(before.elements().length).toBe(0);
+            // the load is awaited, so a destroy right after the call lands during it
+            const during = core();
+            const pending = call(during);
+            during.destroy();
+            await expectCoreDestroyed(pending);
+            expect(during.elements().length).toBe(0);
+        });
+    }
+
+    it("graphtyDataset rejects with E_CORE_DESTROYED and adds nothing when the core is destroyed during the download", async () => {
+        const stream = new Blob([fromEdgeArrays(karate()).toBytes().slice()]).stream();
+        const body = new Uint8Array(
+            await new Response(stream.pipeThrough(new CompressionStream("gzip"))).arrayBuffer(),
+        );
+        let respond: (r: Response) => void = () => undefined;
+        let fetched: () => void = () => undefined;
+        const called = new Promise<void>((resolve) => {
+            fetched = resolve;
+        });
+        const fetchDeferred = (): Promise<Response> => {
+            fetched();
+            return new Promise<Response>((resolve) => {
+                respond = resolve;
+            });
+        };
+        const cy = core();
+        const pending = cy.graphtyDataset("road-ny", { baseUrl: "https://example.test/", fetch: fetchDeferred });
+        await called;
+        cy.destroy();
+        respond(new Response(body));
+        await expectCoreDestroyed(pending);
+        expect(cy.elements().length).toBe(0);
+    });
+
+    it("a live core is unaffected", async () => {
+        const cy = core();
+        const r = await cy.graphtyGenerate("path", { n: 3 });
+        expect(r.elements.nodes().length).toBe(3);
     });
 });

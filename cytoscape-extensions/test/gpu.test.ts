@@ -245,6 +245,8 @@ interface Fake {
     onStep?: () => void;
     /** Simulations disposed. */
     simsDisposed: number;
+    /** Called when a pageRank call starts on the device. */
+    onPageRank?: () => void;
 }
 
 /**
@@ -290,6 +292,7 @@ function fakeProvider(decline?: string): Fake {
                 kind: "fake",
                 pageRank: async (s, o) => {
                     fake.pageRankCalls++;
+                    fake.onPageRank?.();
                     if (fake.failNext) {
                         fake.failNext = false;
                         throw new Error("E_DEVICE_LOST: the device was lost mid-run");
@@ -305,6 +308,10 @@ function fakeProvider(decline?: string): Fake {
                     try {
                         await before;
                         await new Promise((resolve) => setTimeout(resolve, 0));
+                        if (gone) {
+                            // as a real device's context does after dispose()
+                            throw new Error('GpuContext "fake" is disposed');
+                        }
                         assertResident(fake, s);
                         return pageRank(s, o);
                     } finally {
@@ -360,6 +367,17 @@ function fakeProvider(decline?: string): Fake {
         },
     });
     return fake;
+}
+
+/**
+ * Expects a call to reject with the destroyed-core error the layouts and the device use.
+ * @param p - the call
+ */
+async function expectCoreDestroyed(p: Promise<unknown>): Promise<void> {
+    await expect(p).rejects.toMatchObject({
+        code: "E_CORE_DESTROYED",
+        message: "graphty: the Cytoscape core was destroyed",
+    });
 }
 
 describe("the device lifecycle (a fake provider)", () => {
@@ -433,14 +451,42 @@ describe("the device lifecycle (a fake provider)", () => {
         await expect(cy.graphtyPageRankAsync()).rejects.toThrow(/destroyed/);
     });
 
-    it("disposes a device acquired after the core was destroyed", async () => {
+    for (const gpu of ["auto", "require"] as const) {
+        it(`destroying the core while the device is being acquired disposes it and rejects with E_CORE_DESTROYED, writing nothing (gpu ${gpu})`, async () => {
+            const fake = fakeProvider();
+            const cy = mainGraph();
+            const nodes = cy.nodes();
+            const pending = cy.graphtyPageRankAsync({ gpu, field: "pr" });
+            cy.destroy();
+            await expectCoreDestroyed(pending);
+            expect(fake.disposed).toBe(1);
+            expect(fake.pageRankCalls).toBe(0);
+            expect(nodes.filter((n) => n.data("pr") !== undefined)).toHaveLength(0);
+        });
+    }
+
+    it("destroying the core while the run is on the device rejects with E_CORE_DESTROYED, not the device's error, writing nothing", async () => {
         const fake = fakeProvider();
         const cy = mainGraph();
-        const pending = cy.graphtyPageRankAsync();
-        cy.destroy();
-        const r = await pending;
-        expect(r.backend.ran).toBe("cpu");
+        const nodes = cy.nodes();
+        await cy.graphtyPageRankAsync();
+        fake.onPageRank = () => {
+            cy.destroy();
+        };
+        await expectCoreDestroyed(cy.graphtyPageRankAsync({ field: "pr" }));
+        expect(fake.pageRankCalls).toBe(2);
         expect(fake.disposed).toBe(1);
+        expect(nodes.filter((n) => n.data("pr") !== undefined)).toHaveLength(0);
+    });
+
+    it("a run on the CPU of a core destroyed before the call rejects with E_CORE_DESTROYED, writing nothing", async () => {
+        registerGpuProvider(null);
+        const cy = mainGraph();
+        const nodes = cy.nodes();
+        cy.destroy();
+        await expectCoreDestroyed(cy.graphtyPageRankAsync({ field: "pr" }));
+        await expectCoreDestroyed(nodes.graphtyConnectedComponentsAsync({ field: "deg" }));
+        expect(nodes.filter((n) => n.data("pr") !== undefined || n.data("deg") !== undefined)).toHaveLength(0);
     });
 
     it("releases a snapshot's upload when the graph changes, and a weight function's after the call", async () => {

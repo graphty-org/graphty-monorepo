@@ -136,7 +136,16 @@ import type {
 } from "cytoscape";
 
 import { OPTION_NAMES } from "./algorithm-options.js";
-import { type Backend, backendOf, checkGpuMode, gpuFor, type GpuMode, recording, warnIfFixable } from "./gpu.js";
+import {
+    type Backend,
+    backendOf,
+    checkGpuMode,
+    coreDestroyedError,
+    gpuFor,
+    type GpuMode,
+    recording,
+    warnIfFixable,
+} from "./gpu.js";
 import {
     coreOf,
     type CytoscapeSnapshot,
@@ -1782,15 +1791,39 @@ function run(
         ...DEFAULTS[key],
         ...Object.fromEntries(Object.entries(options).filter(([k, v]) => !ADAPTER_KEYS.has(k) && v !== undefined)),
     };
+    const cy = coreOf(eles);
     const c: Ctx = {
         name,
-        cy: coreOf(eles),
+        cy,
         cs,
         s: cs.snapshot,
         field: options.field,
         weighted: options.weight !== undefined,
         rest,
-        call: (k, ...args) => (algos[k] as (...a: unknown[]) => never)(...args),
+        call: (k, ...args) => {
+            const r = (algos[k] as (...a: unknown[]) => unknown)(...args);
+            // a core destroyed while the run was on the device gets nothing written to it, and the device's own
+            // error ("GpuContext is disposed": the destroy disposed it) is not the cause
+            const alive = (): void => {
+                if (cy.destroyed()) {
+                    throw coreDestroyedError();
+                }
+            };
+            const checked =
+                r instanceof Promise
+                    ? r.then(
+                          (v: unknown) => {
+                              alive();
+                              return v;
+                          },
+                          (e: unknown) => {
+                              alive();
+                              throw e;
+                          },
+                      )
+                    : r;
+            return checked as never;
+        },
     };
     const fail = (error: unknown): never => {
         throw named(error, key);
@@ -1818,6 +1851,9 @@ function named(error: unknown, key: keyof Impls): unknown {
     }
     const name = methodName(key);
     const { code } = error as { code?: unknown };
+    if (code === "E_CORE_DESTROYED") {
+        return error;
+    }
     if (code === "E_NEEDS_UNDIRECTED") {
         const instead = key === "connectedComponents" ? ", or call graphtyWeaklyConnectedComponents" : "";
         error.message = `${name}: needs an undirected graph; leave out directed: true${instead}`;
@@ -1859,7 +1895,11 @@ function runSync(eles: Collection, key: keyof Impls, options: AlgorithmOptions =
  */
 async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): Promise<unknown> {
     checkGpuMode(`${methodName(key)}Async`, options?.gpu);
-    const d = await gpuFor(coreOf(eles), options.gpu);
+    const cy = coreOf(eles);
+    const d = await gpuFor(cy, options.gpu);
+    if (cy.destroyed()) {
+        throw coreDestroyedError();
+    }
     const rec = d.gpu === null ? null : recording(d.gpu.accelerator);
     warnIfFixable(d, eles.nodes().length);
     const { result, snapshot } = run(eles, key, options, accelerated(rec?.accelerator ?? null));

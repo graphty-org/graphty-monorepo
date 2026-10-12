@@ -51,9 +51,9 @@ and static layouts always run on the CPU, synchronously.
 The first `...Async` call or simulation loads the GPU code with a dynamic `import()`, as its own
 chunk. A browser without `navigator.gpu` never loads it. Each Cytoscape core acquires one device
 when it first needs one and reuses it; after a device loss the next call acquires a new one, and
-`cy.destroy()` releases it. If you destroy the core during an `...Async` call, check
-`cy.destroyed()` after the `await` and drop the result; the call can also reject with
-`graphty: the Cytoscape core was destroyed`.
+`cy.destroy()` releases it. An `...Async` call on a destroyed core, or on one destroyed while
+the call waits for the device or runs on it, writes nothing and rejects with an error whose `code`
+is `"E_CORE_DESTROYED"` (`graphty: the Cytoscape core was destroyed`).
 
 ## Which backend ran
 
@@ -79,7 +79,6 @@ A simulation sets `layout.backend` just before it emits `layoutstart`. Under the
 | `@graphty/webgpu-graph-algorithms did not load:`       | The GPU chunk failed to load.                | Serve the package's chunks.                      |
 | `the options or the graph need the CPU implementation` | This call needs the CPU.                     | [See below](#when-options-send-work-to-the-cpu). |
 | `accelerator: null was passed`                         | A simulation got `accelerator: null`.        | Remove it.                                       |
-| `the core was destroyed`                               | `cy.destroy()` ran during setup.             | Drop the result.                                 |
 
 Browsers expose `navigator.gpu` only in secure contexts: a page over plain `http` from a LAN
 address gets `this runtime has no WebGPU`. Serve it over `https` or from `localhost`.

@@ -350,6 +350,10 @@ export async function gpuFor(cy: Core, mode: GpuMode = "auto"): Promise<Decision
                 g.by = src;
             }
             d = await g.decision;
+            // destroyed while the device was being acquired: decide() disposed it
+            if (g.destroyed) {
+                throw coreDestroyedError();
+            }
         }
     }
     if (mode === "require" && d.gpu === null) {

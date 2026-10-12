@@ -158,6 +158,9 @@ The loading methods add to whatever the core holds. A taken node id rejects with
 (`code` `"E_ID_TAKEN"`) and adds nothing; a taken edge id gets a new id from Cytoscape. Generated
 graphs always number nodes from `"0"`, so call `cy.elements().remove()` before loading a second one.
 
+A loading method called on a destroyed core, or on one destroyed while it loads, downloads or reads
+the graph, adds nothing and rejects with an error whose `code` is `"E_CORE_DESTROYED"`.
+
 ## Exporting a file
 
 `cy.graphtyExport(format, options)` resolves to the file's text. `eles.graphtyExport()` does the

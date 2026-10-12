@@ -7,8 +7,11 @@
  * work than it has cores and tests whose own work is a large part of their time limit failed at
  * random. Every vitest run therefore takes one of GRAPHTY_TEST_SLOTS slots before its tests start
  * (default: one per 8 cores, at least 2 -- 4 on a 32-thread machine) and gives it back
- * when it ends. A browser run and a Node run count the same: a Node run forks one worker per core,
- * so it can fill the machine on its own while it runs. A browser run is not lighter: Vitest opens
+ * when it ends. A browser run and a Node run count the same. A Node run would fork one worker per
+ * core by default, so four of them side by side asked for about 130 cores' work (load average 130
+ * on 2026-10-12) and CPU-bound tests ran past their time limits; every Node run therefore gets at
+ * most its share of the cores, workerShare() = cores / slots (8 on a 32-thread machine with 4
+ * slots), as its maxWorkers. A browser run is not lighter: Vitest opens
  * min(12, cores - 1) pages at once unless the project sets maxWorkers, and one page drawing a real
  * graphty-element through SwiftShader keeps about 1.75 cores busy, so an uncapped run on this
  * 32-thread machine asked for about 21 cores. Every browser project that runs files in parallel
@@ -68,6 +71,21 @@ export function slotCount(env = process.env, cores = availableParallelism()) {
         throw new Error(`GRAPHTY_TEST_SLOTS must be a whole number (0 turns the limit off), not "${set}"`);
     }
     return n;
+}
+
+/**
+ * How many workers one Node vitest run may use: its share of the machine, so that `slotCount()`
+ * runs side by side ask for about one worker per core between them instead of one per core each.
+ * Every package's vitest config sets it as the root `maxWorkers`; a browser project's own
+ * `maxWorkers: 3` (or `fileParallelism: false`) still applies to that project, and `--maxWorkers`
+ * on the command line still overrides it.
+ * @param env the environment (GITHUB_ACTIONS, GRAPHTY_TEST_SLOTS)
+ * @param cores the machine's cores
+ * @returns max(1, floor(cores / slots)), or undefined (Vitest's own default) when slots are off
+ */
+export function workerShare(env = process.env, cores = availableParallelism()) {
+    const slots = env.GITHUB_ACTIONS === "true" ? 0 : slotCount(env, cores);
+    return slots === 0 ? undefined : Math.max(1, Math.floor(cores / slots));
 }
 
 /**

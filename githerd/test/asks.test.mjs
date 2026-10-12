@@ -733,6 +733,27 @@ describe("inviting idle sessions to pull work", () => {
         expect(atActiveCap(state, "s1", config)).toMatch(/you hold 1 active jobs/);
     });
 
+    it("does not count a job whose local wait is its push in the push queue (issue #1377)", () => {
+        const state = queued();
+        const config = { workers: { maxActive: 1 } };
+        state.jobs["issue-447"] = {
+            ...newJob({ kind: "issue", target: "#447", id: "issue-447" }, NOW),
+            state: "waiting",
+            waitingFor: { local: "b1", output: "/t/b1.output" },
+            worktree: "/r/.worktrees/fix-447",
+            holder: { session: "s1" },
+        };
+        // A local wait on the session's own task, such as a test run, is work.
+        expect(atActiveCap(state, "s1", config)).toMatch(/you hold 1 active jobs/);
+        state.pushTickets = [{ branch: "fix/447", cwd: "/r/.worktrees/fix-447", session: "s1" }];
+        expect(atActiveCap(state, "s1", config)).toBeNull();
+        // With no worktree: the session's ticket and a status that says push.
+        state.jobs["issue-447"].worktree = null;
+        state.pushTickets = [{ branch: "fix/447", cwd: "/r", session: "s1" }];
+        state.jobs["issue-447"].status = { at: NOW.toISOString(), text: "push queued in background" };
+        expect(atActiveCap(state, "s1", config)).toBeNull();
+    });
+
     it("does not mark a job invited while only a session that cannot claim it is idle", async () => {
         const state = ownReview();
         const f = fake();

@@ -87,7 +87,7 @@ function prWait(rec) {
 }
 
 /**
- * What each held job in `working` or `starting` is only waiting on, if anything.
+ * What each held job in `working` or `starting`, or waiting on a local task, is only waiting on, if anything.
  * @param {any} state the daemon state
  * @returns {Map<string, "push" | "ci" | "owner" | "merge">} the waiting jobs, by id
  */
@@ -99,8 +99,11 @@ export function jobWaits(state) {
         const i = tickets.findIndex(match);
         return i !== -1 && tickets.splice(i, 1).length > 0;
     };
+    // A job waiting on its session's own background task counts as worked, unless that task is
+    // the job's push in the push queue (issue #1377): only the push rule applies to it.
+    const local = (/** @type {any} */ j) => j.state === "waiting" && Boolean(j.waitingFor?.local);
     const held = Object.values(state.jobs ?? {}).filter(
-        (j) => j.holder?.session && (j.state === "working" || j.state === "starting"),
+        (j) => j.holder?.session && (j.state === "working" || j.state === "starting" || local(j)),
     );
     const branchless = [];
     for (const job of held) {
@@ -108,6 +111,8 @@ export function jobWaits(state) {
         const branch = rec?.headRef;
         if (take((t) => (branch && t.branch === branch) || (job.worktree && t.cwd === job.worktree))) {
             out.set(job.id, "push");
+        } else if (local(job)) {
+            if (!job.worktree) branchless.push(job);
         } else if (rec) {
             const wait = prWait(rec);
             if (wait) out.set(job.id, wait);

@@ -225,37 +225,56 @@ function withLostInputsCarried(
             Array.from({ length: n }, (_u, i) => read(plainCell(table.value(name, i))));
         const { ext, ...given } = rule;
         let touched = false;
+        // every other reference to a lost input reads a copy of its values as they are
+        const walk = <T>(value: T): T =>
+            JSON.parse(
+                JSON.stringify(value, (_k, v: unknown) => {
+                    if (typeof v !== "object" || v === null || Array.isArray(v) || Object.keys(v).length !== 1) {
+                        return v;
+                    }
+                    const ref = v as { data?: unknown; computed?: unknown };
+                    if (isLost(ref.data)) {
+                        const name = ref.data;
+                        touched = true;
+                        return carry(`data.${name}`, () => cells(name, (raw) => (isStyleScalar(raw) ? raw : null)));
+                    }
+                    const which = ref.computed;
+                    if ((which === "indegree" || which === "outdegree") && direction && rule.target === "node") {
+                        touched = true;
+                        return carry(`computed.${which}`, () => degreeValues(snapshot, which));
+                    }
+                    return v;
+                }),
+            ) as T;
         // a passthrough reads a data column as the property's value: its copy holds those values
         const map = Object.create(null) as Record<string, Mapping>;
         for (const [property, mapping] of Object.entries(given.map ?? {})) {
-            const by = mapping?.by as { data?: unknown } | undefined;
-            if (mapping?.kind === "passthrough" && isLost(by?.data)) {
-                const name = by.data;
+            if (mapping === undefined) {
+                continue;
+            }
+            const name = (mapping.by as { data?: unknown }).data;
+            if (mapping.kind !== "passthrough") {
+                map[property] = walk(mapping);
+                continue;
+            }
+            const lostColumn = typeof name === "string" && lost.has(name) && table.has(name);
+            const values = lostColumn ? cells(name, canonicalFor(rule.target, property)) : null;
+            if (values !== null && !values.some((v) => v !== null)) {
+                // it gave no element a value (a list, text that is not a color): it is left out, so no other value
+                // the file reads back in the column (a list written as text) is given either
                 touched = true;
-                const canon = canonicalFor(rule.target, property);
-                map[property] = { ...mapping, by: carry(`${property}.data.${name}`, () => cells(name, canon)) };
-            } else if (mapping !== undefined) {
+            } else if (values !== null && isLost(name)) {
+                touched = true;
+                map[property] = { ...mapping, by: carry(`${property}.data.${name}`, () => values) };
+            } else {
                 map[property] = mapping;
             }
         }
-        const rest = given.map === undefined ? given : { ...given, map };
-        const text = JSON.stringify(rest, (_k, v: unknown) => {
-            if (typeof v !== "object" || v === null || Array.isArray(v) || Object.keys(v).length !== 1) {
-                return v;
-            }
-            const ref = v as { data?: unknown; computed?: unknown };
-            if (isLost(ref.data)) {
-                const name = ref.data;
-                touched = true;
-                return carry(`data.${name}`, () => cells(name, (raw) => (isStyleScalar(raw) ? raw : null)));
-            }
-            if ((ref.computed === "indegree" || ref.computed === "outdegree") && direction && rule.target === "node") {
-                const which = ref.computed;
-                touched = true;
-                return carry(`computed.${which}`, () => degreeValues(snapshot, which));
-            }
-            return v;
-        });
+        const where = walk(given.where);
+        const { map: _given, ...unmapped } = given;
+        const text = JSON.stringify(
+            Object.keys(map).length === 0 ? { ...unmapped, where } : { ...unmapped, where, map },
+        );
         if (touched) {
             changed = true;
             const moved = JSON.parse(text) as StyleRule;
@@ -462,10 +481,15 @@ function styledSnapshot(
         });
     const nodeRoles = roled(snapshot.nodes, "node");
     const edgeRoles = roled(snapshot.edges, "edge");
-    if (!attributes && nodeRoles.length === 0 && edgeRoles.length === 0) {
+    // the block of an earlier import is replaced by the one these styles write, wherever the format puts that
+    const staleBlock = snapshot.graph.has(STYLE_BLOCK_NAME);
+    if (!attributes && !staleBlock && nodeRoles.length === 0 && edgeRoles.length === 0) {
         return snapshot;
     }
     const out = snapshot.withColumns();
+    if (staleBlock) {
+        out.graph.remove(STYLE_BLOCK_NAME);
+    }
     for (const [table, names] of [
         [out.nodes, nodeRoles],
         [out.edges, edgeRoles],

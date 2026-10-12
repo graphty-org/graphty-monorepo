@@ -758,16 +758,10 @@ function compareRules(written: ExtractedStyles, read: ExtractedStyles, excused: 
             rules
                 .filter((r) => r.role !== "exceptions")
                 .map(({ ext, ...r }) => ({
-                    // a data column may come back under another name, or as the copy the writer carried for a
-                    // format that loses it (a style column `input.<...>`): the rule reads the same values
+                    // a data column may come back under another name
                     ...(JSON.parse(
                         JSON.stringify(r, (_k, v: unknown) =>
-                            v !== null &&
-                            typeof v === "object" &&
-                            Object.keys(v).length === 1 &&
-                            ("data" in v ||
-                                ("computed" in v && v.computed !== "degree") ||
-                                ("style" in v && String(v.style).startsWith("input.")))
+                            v !== null && typeof v === "object" && Object.keys(v).length === 1 && "data" in v
                                 ? { data: "" }
                                 : v,
                         ),
@@ -833,7 +827,9 @@ export async function roundTrip(writer: StyleWriter, loaded: LoadedGraph, ex: Ex
         }
     }
     if (keepsRules) {
-        failures.push(...compareRules(ex, backStyles, excused));
+        // the rules written are the block's: the writer reads a copy of an input the format loses, and leaves out a
+        // mapping that gives no element a value
+        failures.push(...compareRules(rulesWritten(writer, written, ex), backStyles, excused));
     }
     // a node is the same node when its id has the same text: a format may read the id 7 back as "7"
     const backIndex = new Map<string, number>();
@@ -897,6 +893,26 @@ export async function roundTrip(writer: StyleWriter, loaded: LoadedGraph, ex: Ex
         }
     }
     return failures;
+}
+
+/**
+ * The styles with the rules a written file's block holds, when the writer can read its block back.
+ * @param writer - how the format writes
+ * @param written - the file
+ * @param ex - the styles written
+ * @returns the styles, with the block's rules
+ */
+function rulesWritten(writer: StyleWriter, written: Uint8Array, ex: ExtractedStyles): ExtractedStyles {
+    let rules: StyleRule[] | null = null;
+    writer.replaceBlock?.(written, (block) => {
+        try {
+            ({ rules } = JSON.parse(block) as { rules: StyleRule[] });
+        } catch {
+            rules = null;
+        }
+        return block;
+    });
+    return rules === null ? ex : { ...ex, styles: { ...ex.styles, rules } };
 }
 
 /**

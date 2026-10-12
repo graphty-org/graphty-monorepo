@@ -345,19 +345,36 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles
                 return viz && table.byRole(key) !== null ? null : key;
             }
 
-            switch (role) {
-                case "label":
-                    // An attribute titled `label` is written over the file's label.
-                    return hasAttributeTitled(kind, table, "label") ? null : "label";
-                case "size":
-                    return kind === "node" && !fileStyles ? "size" : null;
-                case "id":
-                    return kind === "edge" ? "gexfId" : null;
-                default:
-                    return null;
-            }
+            return rolePath(kind, table, role, fileStyles);
         },
     };
+}
+
+/**
+ * The record key a column with a role is written under.
+ * @param kind - node or edge
+ * @param table - the node or edge table
+ * @param role - the column's role
+ * @param fileStyles - whether the file's styles are read as layers, so a node's size is not a record key
+ * @returns the key, or null when the column is not written
+ */
+function rolePath(
+    kind: "node" | "edge",
+    table: Iterable<Column>,
+    role: string | null,
+    fileStyles: boolean,
+): string | null {
+    switch (role) {
+        case "label":
+            // An attribute titled `label` is written over the file's label.
+            return hasAttributeTitled(kind, table, "label") ? null : "label";
+        case "size":
+            return kind === "node" && !fileStyles ? "size" : null;
+        case "id":
+            return kind === "edge" ? "gexfId" : null;
+        default:
+            return null;
+    }
 }
 
 /**

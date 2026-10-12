@@ -343,7 +343,8 @@ function categoryOf(value: unknown): string | null {
  */
 function literal(value: unknown): string {
     if (typeof value === "string") {
-        return `'${value.replaceAll("\\", String.raw`\\`).replaceAll("'", String.raw`\'`)}'`;
+        const escaped = value.replaceAll("\\", String.raw`\\`).replaceAll("'", String.raw`\'`);
+        return `'${escaped}'`;
     }
 
     return `\`${JSON.stringify(value)}\``;

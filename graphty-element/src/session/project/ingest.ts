@@ -1275,8 +1275,16 @@ export class Ingest<K extends KnownEdge> {
                     edgeIds: Object.freeze([...tally.edgeIds]),
                     report,
                     heldNode: (id) => {
-                        const heldId = this.heldId("node", id);
-                        return this.host.hasNode(heldId) ? heldId : undefined;
+                        // A node an edge created has a row but no record: it is held all the same.
+                        const { builder } = this.host.store();
+                        const held = (one: NodeIdType): boolean =>
+                            this.host.hasNode(one) || (isStorableId(one) && builder.hasNode(one));
+                        if (held(id)) {
+                            return id;
+                        }
+
+                        const other = otherIdSpelling(id);
+                        return other !== undefined && held(other) ? other : undefined;
                     },
                 };
             } catch (error) {

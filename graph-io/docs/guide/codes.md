@@ -256,7 +256,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GML_GROUPS"></a>`W_GML_GROUPS`: YEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment. Import: [gml](./formats/gml.md).
 - <a id="W_GML_ID_DROPPED"></a>`W_GML_ID_DROPPED`: Under `nodeIdFrom: "label"` or `"index"` the file's integer ids are not kept. It is listed in `report.lossy`, not in `report.issues`. Import: [gml](./formats/gml.md).
 - <a id="W_GML_JSON_ARRAY"></a>`W_GML_JSON_ARRAY`: A json row that is an array, written as repeated keys. Save: [gml](./formats/gml.md).
-- <a id="W_GML_KEY_MANGLED"></a>`W_GML_KEY_MANGLED`: A key rewritten under sanitizeKeys "mangle". Save: [gml](./formats/gml.md).
+- <a id="W_GML_KEY_MANGLED"></a>`W_GML_KEY_MANGLED`: A key rewritten under sanitizeKeys "mangle", or a column renamed because its key would read back as a style value. Save: [gml](./formats/gml.md).
 - <a id="W_GML_NESTED_ELEMENT"></a>`W_GML_NESTED_ELEMENT`: A graph, node or edge record nested in a node or edge; kept as json, not read as structure. Import: [gml](./formats/gml.md).
 - <a id="W_GML_POSITION_COMPONENTS"></a>`W_GML_POSITION_COMPONENTS`: A position column with more than three components. Save: [gml](./formats/gml.md).
 - <a id="W_GML_RECORD_BOOLEAN"></a>`W_GML_RECORD_BOOLEAN`: A json column holds booleans, written 1 / 0. Save: [gml](./formats/gml.md).

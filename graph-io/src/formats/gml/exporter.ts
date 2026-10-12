@@ -46,7 +46,14 @@ import { encodeChunks, joinText } from "../../common/writer.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { GML_STYLE_CAPABILITIES, gmlStyledExport } from "./styles.js";
-import { EMPTY_LIST_TEXT, isGmlKey, LIST_START_MARKER, mangleGmlKey, ORIGINAL_ID_KEY } from "./syntax.js";
+import {
+    EMPTY_LIST_TEXT,
+    isGmlKey,
+    KEY_MANGLED_CODE,
+    LIST_START_MARKER,
+    mangleGmlKey,
+    ORIGINAL_ID_KEY,
+} from "./syntax.js";
 
 /**
  * The format-specific options of the GML exporter.
@@ -107,11 +114,7 @@ export const INVALID_KEY_CODE = "E_GML_INVALID_KEY";
  * @category Issue and loss codes
  */
 export const RESERVED_KEY_CODE = "E_GML_RESERVED_KEY";
-/**
- * Keys rewritten under sanitizeKeys "mangle".
- * @category Issue and loss codes
- */
-export const KEY_MANGLED_CODE = "W_GML_KEY_MANGLED";
+export { KEY_MANGLED_CODE } from "./syntax.js";
 /**
  * A position column with more than three components; x, y and z are written.
  * @category Issue and loss codes

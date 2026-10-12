@@ -565,6 +565,13 @@ export function isGmlKey(text: string): boolean {
 }
 
 /**
+ * Keys rewritten under sanitizeKeys "mangle", or a data column renamed because its key would read back as one of
+ * graphty's style values.
+ * @category Issue and loss codes
+ */
+export const KEY_MANGLED_CODE = "W_GML_KEY_MANGLED";
+
+/**
  * Rewrite a text as a GML key: every character outside `[0-9A-Za-z_]` becomes `_` and a leading
  * non-letter is prefixed with `x` (the exporter's `sanitizeKeys: "mangle"`).
  * @param text - the text

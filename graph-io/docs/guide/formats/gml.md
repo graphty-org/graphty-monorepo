@@ -232,7 +232,7 @@ The codes `checkExport(snapshot, "gml", options)` can return before a save, also
 - `W_GML_JSON_ARRAY` (warning): A json row that is an array, written as repeated keys.
 - `E_GML_INVALID_KEY` (error, the save throws): An attribute name GML cannot use as a key (keys are letters and digits, starting with a letter). The save fails unless `sanitizeKeys` is "mangle".
 - `E_GML_RESERVED_KEY` (error, the save throws): A column named like a structural key.
-- `W_GML_KEY_MANGLED` (warning): A key rewritten under sanitizeKeys "mangle".
+- `W_GML_KEY_MANGLED` (warning): A key rewritten under sanitizeKeys "mangle", or a column renamed because its key would read back as a style value.
 - `W_GML_POSITION_COMPONENTS` (warning): A position column with more than three components.
 - `W_GML_GRAPHICS_OVERRIDDEN` (warning): A graphics record whose x / y / z the position column overrides.
 - `E_GML_GRAPHICS_CONFLICT` (error, the save throws): A graphics record that cannot hold the position.

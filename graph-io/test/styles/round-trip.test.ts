@@ -306,6 +306,9 @@ describe("a file graphty wrote whose block was set aside", () => {
     const files = [
         "json/generated/graphology-tamper-node-added.json",
         "json/generated/graphology-tamper-block-truncated.json",
+        // data columns named like GML's style value keys (graphty_style_*), which GML export renames
+        "json/generated/cytoscape-tamper-node-added.json",
+        "json/generated/cytoscape-tamper-block-truncated.json",
     ];
 
     describe.each(files.map((f) => [f] as const))("%s", async (file) => {

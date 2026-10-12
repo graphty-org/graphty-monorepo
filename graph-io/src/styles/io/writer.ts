@@ -566,7 +566,7 @@ function isStyleTagName(name: string): boolean {
  * @param target - nodes or edges
  * @returns the column names
  */
-function dataRead(rules: readonly StyleRule[], target: StyleTarget): Set<string> {
+export function dataRead(rules: readonly StyleRule[], target: StyleTarget): Set<string> {
     const out = new Set<string>();
     for (const { ext: _ext, ...rule } of rules.filter((r) => r.target === target)) {
         JSON.stringify(rule, (_k, v: unknown) => {

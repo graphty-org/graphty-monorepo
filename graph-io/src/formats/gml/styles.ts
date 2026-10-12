@@ -24,7 +24,7 @@ import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { CYTOSCAPE_LEXICON } from "../../styles/cytoscape/lexicon.js";
 import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME, styleTag, writeStyleBlock } from "../../styles/io/block.js";
-import type { ExporterStyleInput } from "../../styles/io/writer.js";
+import { dataRead, type ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { styleFingerprint } from "../../styles/plan/features.js";
 import { plainCell, resolveStyles } from "../../styles/plan/resolve.js";
@@ -50,7 +50,7 @@ import {
     yedColor,
     yedValue,
 } from "../graphml/styles-yed.js";
-import { mangleGmlKey } from "./syntax.js";
+import { KEY_MANGLED_CODE, mangleGmlKey } from "./syntax.js";
 
 /** A GML record as the importer keeps it (a json cell). */
 type Rec = Record<string, unknown>;
@@ -973,6 +973,7 @@ export function gmlStyledExport(
     }
     const approximated = new Map<string, { count: number; samples: Set<string> }>();
     const out = snapshot.withColumns();
+    const renames: LossNote[] = [];
     const picture = (target: StyleTarget, property: string): readonly (StyleValue | null)[] =>
         input.picture(target, property as never);
     for (const target of ["node", "edge"] as const) {
@@ -1005,10 +1006,31 @@ export function gmlStyledExport(
                 table.remove(name);
             }
         }
+        // the per-element style values of an earlier write go; a data column the rules read, or any other whose key
+        // would read back as a style value, is renamed out of the keys the style values take
+        const read = dataRead(input.rules.styles.rules, target);
         for (const name of [...table.names()]) {
-            if (name.startsWith(TAG_PREFIX)) {
-                table.remove(name);
+            if (!mangleGmlKey(name).startsWith(TAG_PREFIX)) {
+                continue;
             }
+            const col = table.get(name);
+            table.remove(name);
+            if (col === null || (name.startsWith(TAG_PREFIX) && !read.has(name))) {
+                continue;
+            }
+            let renamed = `data_${name}`;
+            for (let k = 2; table.has(renamed); k++) {
+                renamed = `data_${name}_${String(k)}`;
+            }
+            table.set(renamed, col);
+            renames.push(
+                Object.freeze({
+                    code: KEY_MANGLED_CODE,
+                    message: `${target} column "${name}" is written as "${renamed}": keys starting with ${TAG_PREFIX} hold graphty's style values`,
+                    column: name,
+                    count: null,
+                }),
+            );
         }
     }
     let { block } = input;
@@ -1031,7 +1053,7 @@ export function gmlStyledExport(
         }
     }
     out.graph.set(GML_STYLE_BLOCK_KEY, [block], { dtype: "string" });
-    const notes: LossNote[] = [];
+    const notes: LossNote[] = [...renames];
     for (const [key, a] of approximated) {
         const [target, property] = key.split(".") as [StyleTarget, string];
         notes.push(

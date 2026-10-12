@@ -257,8 +257,8 @@ export class NodeEffects {
         if (effect?.glow && colorValue !== undefined) {
             const glowLayer = this.getOrCreateGlowLayer(scene);
             const glowColors = scene.metadata?.glowColors as Map<number, Color3> | undefined;
-            // A glow is added light, so its colour's alpha fades it: `#ff000080` glows as
-            // `#800000` does, and the strength scales that as it scales any colour.
+            // A glow is added light, so its color's alpha fades it: `#ff000080` glows as
+            // `#800000` does, and the strength scales that as it scales any color.
             const { rgb, alpha } = readColor(colorValue, DEFAULT_GLOW_COLOR);
             glowColors?.set(renderedMesh.uniqueId, rgb.scale(alpha));
             this.glowStrengths(scene).set(renderedMesh, effect.glow.strength ?? 1);

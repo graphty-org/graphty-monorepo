@@ -280,7 +280,7 @@ export function approvalLines(request: AiApprovalRequest): string[] {
 }
 
 /** What the transcript is drawn from, as `useAiManager` holds it. */
-export interface AiTranscriptSource {
+interface AiTranscriptSource {
     readonly conversation: AiConversationSnapshot | null;
     readonly historyNotice: { readonly code: AiResultCode; readonly params: AiResultParams } | null;
     /** The tools the element left out, each noticed once. */

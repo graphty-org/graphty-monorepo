@@ -153,10 +153,10 @@ function voiceOptions(
 }
 
 /** What the element answered, or why the hook could not ask it. */
-export type AiCommandOutcome = ExecutionResult & { readonly error?: Error };
+type AiCommandOutcome = ExecutionResult & { readonly error?: Error };
 
 /** A store failure the element reported with `ai-conversation-changed`, or a tool it left out. */
-export interface AiHistoryNotice {
+interface AiHistoryNotice {
     readonly code: AiResultCode;
     readonly params: AiResultParams;
 }

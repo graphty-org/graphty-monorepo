@@ -1586,7 +1586,7 @@ export class GraphBuilder implements GraphBuilderContract {
     private columnIndex(columns: readonly StagingColumn[], name: string): number {
         const cached = columns === this.staging.nodeColumns ? this.nodeNames : this.edgeNames;
         let index = cached;
-        if (index === null || index.columns !== columns || index.map.size !== columns.length) {
+        if (index?.columns !== columns || index.map.size !== columns.length) {
             const map = new Map<string, number>();
             for (let i = 0; i < columns.length; i++) {
                 map.set(columns[i].meta.name, i);

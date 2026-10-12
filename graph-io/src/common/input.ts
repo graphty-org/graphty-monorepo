@@ -999,7 +999,7 @@ function utf8Length(text: string): number {
  * @category Writing a format
  */
 export function throwIfAborted(signal: AbortSignal | null | undefined): void {
-    if (signal === null || signal === undefined || !signal.aborted) {
+    if (!signal?.aborted) {
         return;
     }
     const { reason }: { reason: unknown } = signal;

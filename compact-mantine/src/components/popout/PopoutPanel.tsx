@@ -265,7 +265,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         next.top = (next.top - frame.y) / frame.scaleY;
 
         setPosition((previous) => {
-            if (previous && previous.left === next.left && previous.top === next.top) {
+            if (previous?.left === next.left && previous.top === next.top) {
                 return previous;
             }
             return next;

@@ -1267,7 +1267,7 @@ class GexfReader implements XmlHandler {
         }
         this.checkAttributes("attribute", attrs, line);
         const group = this.attributeGroup;
-        if (group === null || group.domain === null) {
+        if (!group?.domain) {
             // the group's class was refused; its attributes are dropped with it
             this.ctx.push(Ctx.Skip);
             return;

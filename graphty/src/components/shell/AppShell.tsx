@@ -3421,7 +3421,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const openResult = useCallback(
         (id: string) => {
-            if (activeResult === null || activeResult.id !== id) {
+            if (activeResult?.id !== id) {
                 return;
             }
 
@@ -4679,7 +4679,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
-        if (acceleration === null || acceleration.state !== "error") {
+        if (acceleration?.state !== "error") {
             return undefined;
         }
 

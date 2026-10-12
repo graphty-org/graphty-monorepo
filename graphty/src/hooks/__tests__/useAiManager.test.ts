@@ -9,6 +9,8 @@ import type { AiCapabilities } from "@graphty/graphty-element/catalog";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { aiSay } from "../../components/ai/aiResultText";
+
 // The element's assistant doors, as a stand-in element exposes them, on a real EventTarget so the
 // hook's listeners hear the events the test sends.
 const mockStatusCallback = vi.fn();
@@ -32,6 +34,11 @@ const mockDoors = {
     }),
     aiCommand: vi.fn().mockResolvedValue({ success: true, message: "Done" }),
     cancelAiCommand: vi.fn(),
+    aiTalk: vi.fn(),
+    getAiVoiceSupport: vi.fn().mockResolvedValue({
+        input: { path: "browser", status: "ready", destination: "browser-vendor" },
+        output: { path: "none", status: "unavailable", destination: "none" },
+    }),
 };
 const mockElement = mockDoors as unknown as GraphtyElement;
 
@@ -45,6 +52,8 @@ describe("useAiManager", () => {
         localStorage.removeItem("graphty.ai.webSearch.v1");
         localStorage.removeItem("graphty.ai.webFetch.v1");
         localStorage.removeItem("graphty.ai.inPageCode.v1");
+        localStorage.removeItem("graphty.ai.speakAnswers.v1");
+        localStorage.removeItem("graphty.ai.transcription.v1");
     });
 
     afterEach(() => {
@@ -99,6 +108,7 @@ describe("useAiManager", () => {
             history: "browser",
             questions: true,
             tools: { webContentWrites: "ask" },
+            voice: { output: "off", say: aiSay },
         });
     });
 
@@ -121,6 +131,7 @@ describe("useAiManager", () => {
                 history: "browser",
                 questions: true,
                 tools: { webContentWrites: "ask" },
+                voice: { output: "off", say: aiSay },
             });
         });
 
@@ -140,6 +151,7 @@ describe("useAiManager", () => {
                     history: "browser",
                     questions: true,
                     tools: { webContentWrites: "ask" },
+                    voice: { output: "off", say: aiSay },
                 });
             });
         });
@@ -698,6 +710,116 @@ describe("useAiManager", () => {
 
             expect(mockDoors.disableAiControl.mock.calls.length).toBe(offs);
             expect(result.current.isReady).toBe(true);
+        });
+    });
+
+    describe("voice", () => {
+        it("speaks no answers until the reader says so, and passes the saved choice", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            expect(result.current.voiceSettings.speakAnswers).toBe("off");
+            expect(mockDoors.enableAiControl.mock.calls[0][0]).toHaveProperty("voice.output", "off");
+
+            act(() => {
+                result.current.setVoiceSetting("speakAnswers", "vr");
+            });
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenLastCalledWith(
+                    expect.objectContaining({ voice: { output: "auto", say: aiSay } }),
+                );
+            });
+            expect(localStorage.getItem("graphty.ai.speakAnswers.v1")).toBe("vr");
+        });
+
+        it("reads a saved choice back", async () => {
+            localStorage.setItem("graphty.ai.speakAnswers.v1", "always");
+            const { useAiManager } = await import("../useAiManager");
+            renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl.mock.calls[0]?.[0]).toHaveProperty("voice.output", "browser");
+            });
+        });
+
+        it("transcribes through the chosen provider, with its key, for a provider that cannot", async () => {
+            localStorage.setItem("graphty.ai.transcription.v1", "openai");
+            const getKey = vi.fn((provider: string) => `key-${provider}`);
+            const { useAiManager } = await import("../useAiManager");
+            renderHook(() => useAiManager({ element: mockElement, defaultProvider: "anthropic", getKey }));
+
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        voice: { output: "off", say: aiSay, transcription: { provider: "openai" } },
+                        apiKeys: { openai: "key-openai" },
+                    }),
+                );
+            });
+        });
+
+        it("leaves transcription to a provider that has its own", async () => {
+            localStorage.setItem("graphty.ai.transcription.v1", "openai");
+            const { useAiManager } = await import("../useAiManager");
+            renderHook(() => useAiManager({ element: mockElement, defaultProvider: "google" }));
+
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenCalled();
+            });
+            const config = mockDoors.enableAiControl.mock.calls[0][0] as Record<string, unknown>;
+            expect(config.voice).toEqual({ output: "off", say: aiSay });
+            expect(config).not.toHaveProperty("apiKeys");
+        });
+
+        it("reads voice support once per enable, holds talk through the element and follows listening", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+
+            await waitFor(() => {
+                expect(result.current.voiceSupport?.input.status).toBe("ready");
+            });
+            expect(mockDoors.getAiVoiceSupport).toHaveBeenCalledTimes(1);
+
+            act(() => {
+                result.current.talk(true);
+            });
+            expect(mockDoors.aiTalk).toHaveBeenCalledWith(true);
+
+            act(() => {
+                events.dispatchEvent(new CustomEvent("ai-voice-start", { detail: {} }));
+            });
+            expect(result.current.listening).toBe(true);
+            act(() => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-voice-end", {
+                        detail: {
+                            reason: "error",
+                            code: "AI_VOICE_UNAVAILABLE",
+                            params: { path: "input", reason: "permission-denied" },
+                        },
+                    }),
+                );
+            });
+            expect(result.current.listening).toBe(false);
+            expect(result.current.voiceNotice).toEqual({
+                code: "AI_VOICE_UNAVAILABLE",
+                params: { path: "input", reason: "permission-denied" },
+            });
+        });
+
+        it("gives the element the app's words for the controls drawn in VR and AR", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenCalled();
+            });
+            expect(
+                (mockElement as unknown as { xr: { ai: { labels: Record<string, string> } } }).xr.ai.labels.XR_APPROVE,
+            ).toBe("Approve");
         });
     });
 });

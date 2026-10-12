@@ -6,7 +6,9 @@
  * asks shows as a card with one button per choice; clicking one continues the message, and the
  * question, too, comes back on an element mounted again. Switching on Run code lets the model run a
  * program in the page, and a change asked for after the assistant read the web is held with the
- * app's web-content wording; the web sources show under the answer as links.
+ * app's web-content wording; the web sources show under the answer as links. Holding the microphone
+ * with the real mouse, or with Space, sends what a fake recognizer heard as one spoken message, and
+ * with no way to hear speech the microphone is not drawn.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -14,8 +16,8 @@ import "@graphty/graphty-element";
 
 import type { MockLlmProvider } from "@graphty/graphty-element/ai";
 import React from "react";
-import { afterEach, assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { cdp, userEvent } from "vitest/browser";
 
 import { useAiManager } from "../../../../hooks/useAiManager";
 import { render, screen, waitFor, within } from "../../../../test/test-utils";
@@ -103,6 +105,9 @@ function Assistant({ element }: { readonly element: ElementUnderTest }): React.J
                 messages={aiTranscript(ai)}
                 providerConfigured
                 isProcessing={ai.isProcessing}
+                speechAvailable={ai.voiceSupport !== null && ai.voiceSupport.input.status !== "unavailable"}
+                listening={ai.listening}
+                onListeningChange={ai.talk}
                 onSend={(text) => {
                     void ai.execute(text);
                 }}
@@ -447,5 +452,170 @@ describe("the AI panel on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
         assert.strictEqual(second.session.status.counts.nodes, 3);
+    });
+});
+
+/** What the fake recognizer hears as soon as it starts. */
+const HEARD = "how many nodes are there";
+
+/**
+ * Press or release the left mouse button in the middle of an element, through the DevTools
+ * protocol, so the browser makes every pointer event itself.
+ * @param target - The element.
+ * @param type - Press or release.
+ */
+async function mouse(target: Element, type: "mousePressed" | "mouseReleased"): Promise<void> {
+    const session = cdp() as unknown as { send: (method: string, params: Record<string, unknown>) => Promise<unknown> };
+    const rect = target.getBoundingClientRect();
+    // The test page is an iframe of the runner's page, possibly scaled to fit it.
+    const frame = window.frameElement;
+    const box = frame?.getBoundingClientRect();
+    const scale = box === undefined ? 1 : box.width / window.innerWidth;
+    const x = (box?.left ?? 0) + (rect.left + rect.width / 2) * scale;
+    const y = (box?.top ?? 0) + (rect.top + rect.height / 2) * scale;
+    if (type === "mousePressed") {
+        await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none", buttons: 0 });
+    }
+
+    await session.send("Input.dispatchMouseEvent", {
+        type,
+        x,
+        y,
+        button: "left",
+        buttons: type === "mousePressed" ? 1 : 0,
+        clickCount: 1,
+    });
+}
+
+describe("talking to the assistant", () => {
+    /** Every command the element started, by its input. */
+    let commands: string[];
+
+    /**
+     * A real element with the panel on it, whose mock provider answers what was heard.
+     * @param id - The element's id.
+     * @returns The element.
+     */
+    async function talkingAssistant(id: string): Promise<ElementUnderTest> {
+        const element = await placeElement(id);
+        commands = [];
+        element.addEventListener("ai-command-start", (event) => {
+            commands.push((event as CustomEvent<{ input: string }>).detail.input);
+        });
+        await renderAssistant(element);
+        (element.getAiManager()?.getProvider() as MockLlmProvider).setResponse(HEARD, {
+            text: "Three.",
+            toolCalls: [],
+        });
+        return element;
+    }
+
+    /**
+     * After release: exactly one command with what was heard, drawn in the transcript as spoken.
+     */
+    async function sentOnceAsSpoken(): Promise<void> {
+        const transcript = screen.getByTestId("ai-transcript");
+        await within(transcript).findByText("Three.", {}, { timeout: TIMEOUT_MS });
+        assert.deepStrictEqual(commands, [HEARD], "exactly one command, with what was heard");
+        const said = within(transcript).getByText(HEARD);
+        assert.isNotNull(said.closest("div")?.parentElement?.querySelector("[data-testid=ai-message-spoken]"));
+        assert.strictEqual(screen.getByTestId("ai-microphone").getAttribute("aria-pressed"), "false");
+    }
+
+    describe("where speech can be heard", () => {
+        beforeEach(() => {
+            // A recognizer that hears one sentence once started, and a microphone that is a silent tone.
+            vi.stubGlobal("SpeechRecognition", undefined);
+            vi.stubGlobal(
+                "webkitSpeechRecognition",
+                class {
+                    continuous = false;
+                    interimResults = false;
+                    lang = "";
+                    onresult: ((event: unknown) => void) | null = null;
+                    onerror: ((event: unknown) => void) | null = null;
+                    onend: (() => void) | null = null;
+                    onstart: (() => void) | null = null;
+                    start(): void {
+                        queueMicrotask(() => {
+                            this.onstart?.();
+                            const result = Object.assign([{ transcript: HEARD, confidence: 1 }], { isFinal: true });
+                            this.onresult?.({ resultIndex: 0, results: [result] });
+                        });
+                    }
+
+                    stop(): void {
+                        queueMicrotask(() => this.onend?.());
+                    }
+
+                    abort(): void {
+                        this.stop();
+                    }
+                },
+            );
+            vi.spyOn(navigator.mediaDevices, "getUserMedia").mockImplementation(() =>
+                Promise.resolve(new AudioContext().createMediaStreamDestination().stream),
+            );
+        });
+
+        afterEach(() => {
+            vi.unstubAllGlobals();
+            vi.restoreAllMocks();
+        });
+
+        it("holding the microphone with the mouse sends one spoken message", async () => {
+            await talkingAssistant("talk-mouse");
+            const mic = await screen.findByTestId("ai-microphone", {}, { timeout: TIMEOUT_MS });
+
+            await mouse(mic, "mousePressed");
+            await waitFor(() => {
+                assert.strictEqual(mic.getAttribute("aria-pressed"), "true", "listening while held");
+            });
+            assert.deepStrictEqual(commands, [], "nothing is sent while talk is held");
+            await mouse(mic, "mouseReleased");
+
+            await sentOnceAsSpoken();
+        });
+
+        it("holding Space on the microphone sends one spoken message", async () => {
+            await talkingAssistant("talk-space");
+            const mic = await screen.findByTestId("ai-microphone", {}, { timeout: TIMEOUT_MS });
+
+            mic.focus();
+            await userEvent.keyboard("[Space>]");
+            await waitFor(() => {
+                assert.strictEqual(mic.getAttribute("aria-pressed"), "true", "listening while held");
+            });
+            assert.deepStrictEqual(commands, [], "nothing is sent while talk is held");
+            await userEvent.keyboard("[/Space]");
+
+            await sentOnceAsSpoken();
+        });
+    });
+
+    describe("where speech cannot be heard", () => {
+        beforeEach(() => {
+            vi.stubGlobal("SpeechRecognition", undefined);
+            vi.stubGlobal("webkitSpeechRecognition", undefined);
+        });
+
+        afterEach(() => {
+            vi.unstubAllGlobals();
+        });
+
+        it("draws no microphone: no recognition, and the mock provider cannot transcribe", async () => {
+            const element = await talkingAssistant("talk-none");
+            await waitFor(
+                async () => {
+                    const support = await element.getAiVoiceSupport();
+                    assert.strictEqual(support.input.status, "unavailable");
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            // The panel has drawn with the element's answer: its composer is there, the microphone is not.
+            await screen.findByRole("button", { name: "Send" });
+            assert.isNull(screen.queryByTestId("ai-microphone"));
+            assert.deepStrictEqual(commands, []);
+        });
     });
 });

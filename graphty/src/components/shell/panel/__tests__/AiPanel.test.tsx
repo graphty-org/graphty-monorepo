@@ -172,6 +172,40 @@ describe("AiPanel", () => {
             expect(mic).toHaveAccessibleName("Stop listening");
             expect(mic).toHaveAttribute("aria-pressed", "true");
         });
+
+        it("is not pressed while nothing is heard", () => {
+            renderPanel({ speechAvailable: true, listening: false });
+
+            expect(screen.getByTestId("ai-microphone")).toHaveAttribute("aria-pressed", "false");
+        });
+
+        it("talks while Space is held on it, and the release does not toggle it back on", async () => {
+            const onListeningChange = vi.fn();
+            renderPanel({ speechAvailable: true, onListeningChange });
+
+            screen.getByTestId("ai-microphone").focus();
+            await userEvent.keyboard("[Space>]");
+            expect(onListeningChange.mock.calls).toEqual([[true]]);
+            await userEvent.keyboard("[/Space]");
+            expect(onListeningChange.mock.calls).toEqual([[true], [false]]);
+        });
+
+        it("toggles on a click with no hold, for keyboard and switch users", async () => {
+            const onListeningChange = vi.fn();
+            const { rerender } = renderPanel({ speechAvailable: true, onListeningChange });
+
+            screen.getByTestId("ai-microphone").focus();
+            await userEvent.keyboard("{Enter}");
+            expect(onListeningChange.mock.calls).toEqual([[true]]);
+
+            rerender(
+                <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
+                    <AiPanel speechAvailable listening onListeningChange={onListeningChange} />
+                </ShellProvider>,
+            );
+            await userEvent.keyboard("{Enter}");
+            expect(onListeningChange.mock.calls).toEqual([[true], [false]]);
+        });
     });
 
     describe("the in-flight controls", () => {

@@ -32,7 +32,13 @@ import {
 import { Box, Button, Checkbox, NativeSelect, PasswordInput, Switch } from "@mantine/core";
 import React, { useCallback, useState } from "react";
 
-import { AI_TOOL_SWITCHES, type AiToolSwitch, type AiToolSwitches } from "../../hooks/useAiManager";
+import {
+    AI_TOOL_SWITCHES,
+    type AiToolSwitch,
+    type AiToolSwitches,
+    type AiVoiceSettings,
+    needsTranscriptionProvider,
+} from "../../hooks/useAiManager";
 import { getCreateProvider, type ProviderType } from "../../types/ai";
 import { PanelOutlineButton } from "../shell/panel/panelButtons";
 
@@ -185,6 +191,90 @@ export interface AiProviderSettingsProps {
     readonly onToolChange?: (name: AiToolSwitch, on: boolean) => void;
     /** What the current provider can use, as graphty-element reports it; null until the assistant is on. */
     readonly toolCapabilities?: AiCapabilities | null;
+    /** The reader's voice settings. The voice block draws only with `onVoiceChange`. */
+    readonly voice?: AiVoiceSettings;
+    /** Changes one voice setting. */
+    readonly onVoiceChange?: <K extends keyof AiVoiceSettings>(name: K, value: AiVoiceSettings[K]) => void;
+}
+
+/** The speak-answers choices, in the app's words. */
+const SPEAK_CHOICES: readonly { value: AiVoiceSettings["speakAnswers"]; label: string }[] = [
+    { value: "off", label: "Off" },
+    { value: "vr", label: "In VR and AR only" },
+    { value: "always", label: "Always" },
+];
+
+/**
+ * The assistant's voice: when answers are spoken, and, for a provider that cannot turn speech
+ * into text, which provider does it instead.
+ * @param props - The settings and what to call on a change.
+ * @param props.voice - The reader's choices.
+ * @param props.onVoiceChange - Changes one.
+ * @param props.provider - The chat provider.
+ * @returns The block.
+ */
+export function AiVoiceSettingsBlock({
+    voice,
+    onVoiceChange,
+    provider,
+}: {
+    readonly voice: AiVoiceSettings;
+    readonly onVoiceChange: <K extends keyof AiVoiceSettings>(name: K, value: AiVoiceSettings[K]) => void;
+    readonly provider: ProviderType | null;
+}): React.JSX.Element {
+    const transcribers = PROVIDER_WORDS.filter((entry) => !needsTranscriptionProvider(entry.type));
+    return (
+        <Box
+            style={{ display: "flex", flexDirection: "column", maxWidth: PANE_COLUMN }}
+            data-testid="ai-voice-settings"
+        >
+            <Box style={{ height: 1, background: PANEL_INK.DIVIDER }} />
+            <Box
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    height: PANEL_GRID.SECTION_HEADER,
+                    fontSize: NAME_FONT_SIZE,
+                    fontWeight: 500,
+                    lineHeight: 1.2,
+                    color: PANEL_INK.VALUE,
+                }}
+            >
+                Voice
+            </Box>
+            <Box
+                style={{ display: "flex", flexDirection: "column", gap: PANEL_GRID.TRAIL_GAP, width: NAME_FIELD_WIDTH }}
+            >
+                <NativeSelect
+                    label="Speak answers"
+                    data-testid="ai-speak-answers"
+                    value={voice.speakAnswers}
+                    data={SPEAK_CHOICES.map((choice) => ({ ...choice }))}
+                    onChange={(event) => {
+                        onVoiceChange("speakAnswers", event.currentTarget.value as AiVoiceSettings["speakAnswers"]);
+                    }}
+                />
+                {provider !== null && needsTranscriptionProvider(provider) && (
+                    <NativeSelect
+                        label="Turn speech into text with"
+                        title="Your provider cannot turn speech into text. The browser does it where it can."
+                        data-testid="ai-transcription-provider"
+                        value={voice.transcription}
+                        data={[
+                            { value: "none", label: "The browser only" },
+                            ...transcribers.map((entry) => ({ value: entry.type, label: entry.name })),
+                        ]}
+                        onChange={(event) => {
+                            onVoiceChange(
+                                "transcription",
+                                event.currentTarget.value as AiVoiceSettings["transcription"],
+                            );
+                        }}
+                    />
+                )}
+            </Box>
+        </Box>
+    );
 }
 
 /** The app's words for each optional tool: its name, and what it costs the reader. */
@@ -375,6 +465,8 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
         tools,
         onToolChange,
         toolCapabilities,
+        voice,
+        onVoiceChange,
     } = props;
 
     /* The row that is open. One at a time, like the nav it sits inside: the form is
@@ -817,6 +909,10 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
 
             {tools !== undefined && onToolChange !== undefined && (
                 <AiToolSettings tools={tools} onToolChange={onToolChange} capabilities={toolCapabilities} />
+            )}
+
+            {voice !== undefined && onVoiceChange !== undefined && (
+                <AiVoiceSettingsBlock voice={voice} onVoiceChange={onVoiceChange} provider={defaultProvider} />
             )}
 
             {/* Key storage. */}

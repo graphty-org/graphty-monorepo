@@ -5,14 +5,26 @@ import type {
     AiQuestionRequest,
     AiStatus,
     AiToolOptions,
+    AiVoiceOptions,
+    AiVoiceSupport,
     ExecutionResult,
 } from "@graphty/graphty-element/ai";
-import type { AiCapabilities, AiHostedToolId, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
+import {
+    type AiCapabilities,
+    type AiHostedToolId,
+    type AiProviderId,
+    type AiResultCode,
+    type AiResultParams,
+    aiVoiceStatus,
+} from "@graphty/graphty-element/catalog";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { aiSay, XR_AI_LABELS } from "../components/ai/aiResultText";
 import type { ProviderType } from "../types/ai";
 import {
     AI_IN_PAGE_CODE,
+    AI_SPEAK_ANSWERS,
+    AI_TRANSCRIPTION,
     AI_WEB_FETCH,
     AI_WEB_SEARCH,
     readPreference,
@@ -55,6 +67,61 @@ function readToolSwitches(): AiToolSwitches {
 function toolOptions(switches: AiToolSwitches): AiToolOptions {
     const on = AI_TOOL_SWITCHES.filter((entry) => switches[entry.name]);
     return { ...Object.fromEntries(on.map((entry) => [entry.name, true])), webContentWrites: "ask" };
+}
+
+/** The reader's voice settings: when answers are spoken, and who transcribes for a provider that cannot. */
+export interface AiVoiceSettings {
+    readonly speakAnswers: (typeof AI_SPEAK_ANSWERS.values)[number];
+    readonly transcription: (typeof AI_TRANSCRIPTION.values)[number];
+}
+
+/** The element's `output` for each speak-answers choice. */
+const SPEAK_OUTPUT: Readonly<Record<AiVoiceSettings["speakAnswers"], AiVoiceOptions["output"]>> = {
+    off: "off",
+    // The element's "auto": off on a flat page, on in an immersive session.
+    vr: "auto",
+    // ponytail: "always" speaks with the browser's own voice; the element has no "on, any path"
+    // mode, so a browser without speech synthesis stays silent on a flat page.
+    always: "browser",
+};
+
+/**
+ * Whether a chat provider has no transcription of its own, so the reader may name another (the
+ * catalog's fact, as graphty-element reports it).
+ * @param provider - The chat provider.
+ * @returns True when it cannot transcribe.
+ */
+export function needsTranscriptionProvider(provider: ProviderType): boolean {
+    return aiVoiceStatus(provider, "input") !== "available";
+}
+
+/**
+ * The reader's saved voice settings.
+ * @returns Each, at its default unless the reader chose another.
+ */
+function readVoiceSettings(): AiVoiceSettings {
+    return { speakAnswers: readPreference(AI_SPEAK_ANSWERS), transcription: readPreference(AI_TRANSCRIPTION) };
+}
+
+/**
+ * The `voice` option and the keys it needs, from the reader's settings.
+ * @param settings - The reader's choices.
+ * @param provider - The chat provider.
+ * @param getKey - The key store.
+ * @returns The option, and `apiKeys` for a transcription provider when one is used.
+ */
+function voiceOptions(
+    settings: AiVoiceSettings,
+    provider: ProviderType,
+    getKey: ((provider: ProviderType) => string | undefined) | undefined,
+): { voice: AiVoiceOptions; apiKeys?: Partial<Record<AiProviderId, string>> } {
+    const voice: AiVoiceOptions = { output: SPEAK_OUTPUT[settings.speakAnswers], say: aiSay };
+    const other = settings.transcription;
+    if (other === "none" || other === provider || !needsTranscriptionProvider(provider)) {
+        return { voice };
+    }
+
+    return { voice: { ...voice, transcription: { provider: other } }, apiKeys: { [other]: getKey?.(other) } };
 }
 
 /** What the element answered, or why the hook could not ask it. */
@@ -118,6 +185,18 @@ interface UseAiManagerResult {
     capabilities: AiCapabilities | null;
     /** The tools the element left out because the provider cannot use them; each once. */
     capabilityNotices: readonly AiHistoryNotice[];
+    /** The reader's voice settings; saved in this browser. */
+    voiceSettings: AiVoiceSettings;
+    /** Change one voice setting; the assistant is switched on again with it. */
+    setVoiceSetting: <K extends keyof AiVoiceSettings>(name: K, value: AiVoiceSettings[K]) => void;
+    /** How speech would be carried, as the element reports it once per enable; null until the assistant is on. */
+    voiceSupport: AiVoiceSupport | null;
+    /** Whether the element is listening to the reader. */
+    listening: boolean;
+    /** Hold talk (true) or let go (false): the element's `aiTalk`. */
+    talk: (down: boolean) => void;
+    /** Why the last utterance could not be heard, when it could not. */
+    voiceNotice: AiHistoryNotice | null;
 }
 
 /**
@@ -144,6 +223,10 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
     const [toolSwitches, setToolSwitches] = useState<AiToolSwitches>(readToolSwitches);
     const [capabilities, setCapabilities] = useState<AiCapabilities | null>(null);
     const [capabilityNotices, setCapabilityNotices] = useState<readonly AiHistoryNotice[]>([]);
+    const [voiceSettings, setVoiceSettings] = useState<AiVoiceSettings>(readVoiceSettings);
+    const [voiceSupport, setVoiceSupport] = useState<AiVoiceSupport | null>(null);
+    const [listening, setListening] = useState(false);
+    const [voiceNotice, setVoiceNotice] = useState<AiHistoryNotice | null>(null);
     // The tools already noticed for this provider: the element reports a left-out tool again
     // after every enable, and a switch turned on enables it again.
     const noticed = useRef(new Set<string>());
@@ -170,6 +253,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             setApprovals([]);
             setQuestions([]);
             setCapabilities(null);
+            setVoiceSupport(null);
 
             return undefined;
         }
@@ -202,7 +286,21 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             }
         };
 
+        const onVoiceStart = (): void => {
+            setVoiceNotice(null);
+            setListening(true);
+        };
+        const onVoiceEnd = (event: { detail: { code?: AiResultCode; params?: AiResultParams } }): void => {
+            setListening(false);
+            const { code, params } = event.detail;
+            if (code === "AI_VOICE_UNAVAILABLE") {
+                setVoiceNotice({ code, params: params ?? {} });
+            }
+        };
+
         async function enable(target: GraphtyElement, provider: ProviderType): Promise<void> {
+            // The app's words for the controls the element draws in VR and AR.
+            target.xr = { ...target.xr, ai: { ...target.xr?.ai, labels: XR_AI_LABELS } };
             try {
                 await target.enableAiControl({
                     provider,
@@ -210,6 +308,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
                     history: "browser",
                     questions: true,
                     tools,
+                    ...voice,
                 });
             } catch (err) {
                 console.error("[useAiManager] Failed to enable the assistant:", err);
@@ -239,12 +338,19 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             target.addEventListener("ai-question-asked", read);
             target.addEventListener("ai-pending-resolved", read);
             target.addEventListener("ai-capability-unavailable", onCapabilityUnavailable);
+            target.addEventListener("ai-voice-start", onVoiceStart);
+            target.addEventListener("ai-voice-end", onVoiceEnd);
             read();
             setCapabilities(target.getAiCapabilities());
             setEnabled(target);
+            const support = await target.getAiVoiceSupport();
+            if (!cancelled) {
+                setVoiceSupport(support);
+            }
         }
 
         const tools = toolOptions(toolSwitches);
+        const voice = voiceOptions(voiceSettings, currentProvider, getKey);
         void enable(element, currentProvider);
 
         return () => {
@@ -255,10 +361,26 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             element.removeEventListener("ai-question-asked", read);
             element.removeEventListener("ai-pending-resolved", read);
             element.removeEventListener("ai-capability-unavailable", onCapabilityUnavailable);
+            element.removeEventListener("ai-voice-start", onVoiceStart);
+            element.removeEventListener("ai-voice-end", onVoiceEnd);
             element.disableAiControl();
             setEnabled(null);
+            setVoiceSupport(null);
+            setListening(false);
         };
-    }, [element, currentProvider, getKey, toolSwitches]);
+    }, [element, currentProvider, getKey, toolSwitches, voiceSettings]);
+
+    const setVoiceSetting = useCallback(<K extends keyof AiVoiceSettings>(name: K, value: AiVoiceSettings[K]): void => {
+        writePreference<string>(name === "speakAnswers" ? AI_SPEAK_ANSWERS : AI_TRANSCRIPTION, value);
+        setVoiceSettings((current) => ({ ...current, [name]: value }));
+    }, []);
+
+    const talk = useCallback(
+        (down: boolean) => {
+            enabled?.aiTalk(down);
+        },
+        [enabled],
+    );
 
     const setToolSwitch = useCallback((name: AiToolSwitch, on: boolean) => {
         const entry = AI_TOOL_SWITCHES.find((candidate) => candidate.name === name);
@@ -349,6 +471,12 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
         setToolSwitch,
         capabilities,
         capabilityNotices,
+        voiceSettings,
+        setVoiceSetting,
+        voiceSupport,
+        listening,
+        talk,
+        voiceNotice,
     };
 }
 

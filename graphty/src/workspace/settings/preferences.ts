@@ -72,3 +72,23 @@ export const AI_IN_PAGE_CODE = {
     values: ["off", "on"],
     fallback: "off",
 } as const;
+
+/**
+ * When the assistant speaks its answers (Settings > AI providers): never, only in an immersive
+ * session, or always. Off until the reader turns it on.
+ */
+export const AI_SPEAK_ANSWERS = {
+    key: "graphty.ai.speakAnswers.v1",
+    values: ["off", "vr", "always"],
+    fallback: "off",
+} as const;
+
+/**
+ * The provider that turns the reader's speech into text when the chat provider cannot
+ * (Settings > AI providers); `none` leaves it to the browser alone.
+ */
+export const AI_TRANSCRIPTION = {
+    key: "graphty.ai.transcription.v1",
+    values: ["none", "openai", "anthropic", "google", "webllm", "mock"],
+    fallback: "none",
+} as const;

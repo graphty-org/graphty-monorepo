@@ -33,6 +33,7 @@ const WORDS: Partial<Record<AiResultCode, string>> = {
     AI_HOSTED_TOOL_UNSUPPORTED: "This provider cannot use that tool, so the assistant works without it.",
     AI_PROVIDER_PAUSED:
         "The provider kept pausing its web search, so it did not finish. Sending the message again starts the search over.",
+    AI_VOICE_UNAVAILABLE: "Speech cannot be used here. Type your message instead.",
 };
 
 /** Words for a code whose `reason` (or else `tool`) param says more, keyed by code and then that param. */
@@ -53,6 +54,20 @@ const REASON_WORDS: Partial<Record<AiResultCode, Readonly<Record<string, string>
         "resolved-elsewhere": "That request was answered in another window.",
         superseded: "A newer message replaced that request, so the change did not run.",
     },
+    // Keyed by every AI_VOICE_UNAVAILABLE_REASONS entry (a test checks each has words).
+    AI_VOICE_UNAVAILABLE: {
+        "no-recognition":
+            "This browser cannot turn speech into text. Choose a transcription provider in Settings, or type.",
+        "no-microphone": "No microphone was found. Type your message instead.",
+        "permission-denied": "The microphone is blocked for this page. Allow it in the browser, or type.",
+        "insecure-context": "Speech needs a secure (https) page. Type your message instead.",
+        "no-provider-transcription":
+            "Your provider cannot turn speech into text. Choose a transcription provider in Settings, or type.",
+        "no-provider-speech": "Your provider cannot speak answers, so they are shown as text.",
+        "no-key": "Add an API key for the provider that handles speech in Settings first.",
+        "no-synthesis": "This browser cannot speak answers, so they are shown as text.",
+        "playback-failed": "The answer could not be played, so it is shown as text.",
+    },
     AI_HISTORY_UNAVAILABLE: {
         "invalid-record": "A saved conversation could not be read, so it was skipped.",
         "storage-unavailable": "This browser cannot save conversations. This one is kept until you close the page.",
@@ -70,6 +85,29 @@ export function aiCodeText(code: AiResultCode, params: AiResultParams | undefine
     const reason = params?.reason ?? params?.tool;
     return (typeof reason === "string" ? REASON_WORDS[code]?.[reason] : undefined) ?? WORDS[code];
 }
+
+/**
+ * The words the element speaks for an outcome the model wrote no text for (`voice.say`).
+ * @param fact - The outcome.
+ * @param fact.code - Its code.
+ * @param fact.params - Its params.
+ * @returns The app's words, or undefined to say nothing.
+ */
+export function aiSay(fact: { code: AiResultCode; params: AiResultParams }): string | undefined {
+    return aiCodeText(fact.code, fact.params);
+}
+
+/**
+ * The app's words for the controls the element draws in VR and AR (`xr.ai.labels`): approve,
+ * deny, the reader's words as heard, and each result code's text.
+ */
+export const XR_AI_LABELS: Readonly<Record<string, string>> = {
+    ...WORDS,
+    AI_COMPLETED: "Assistant",
+    XR_APPROVE: "Approve",
+    XR_DENY: "Deny",
+    XR_TRANSCRIPT: "You said",
+};
 
 /**
  * What the AI panel says for an assistant result.
@@ -186,6 +224,8 @@ export interface AiTranscriptSource {
     readonly historyNotice: { readonly code: AiResultCode; readonly params: AiResultParams } | null;
     /** The tools the element left out, each noticed once. */
     readonly capabilityNotices?: readonly { readonly code: AiResultCode; readonly params: AiResultParams }[];
+    /** Why the last utterance could not be heard. */
+    readonly voiceNotice?: { readonly code: AiResultCode; readonly params: AiResultParams } | null;
 }
 
 /**
@@ -198,7 +238,14 @@ export function aiTranscript(source: AiTranscriptSource): ChatMessage[] {
     const waiting = new Set(source.conversation?.pending.map((request) => request.messageId));
     const messages: ChatMessage[] = (source.conversation?.messages ?? []).flatMap((message): ChatMessage[] => {
         if (message.role === "reader") {
-            return [{ id: message.id, role: "user", content: message.text }];
+            return [
+                {
+                    id: message.id,
+                    role: "user",
+                    content: message.text,
+                    ...(message.via === "voice" ? { spoken: true } : {}),
+                },
+            ];
         }
 
         if (message.role !== "assistant") {
@@ -230,6 +277,15 @@ export function aiTranscript(source: AiTranscriptSource): ChatMessage[] {
             content: aiCodeText(notice.code, notice.params) ?? "",
         });
     });
+
+    const voiceNotice = source.voiceNotice ?? null;
+    if (voiceNotice !== null) {
+        messages.push({
+            id: "voice-notice",
+            role: "system",
+            content: aiCodeText(voiceNotice.code, voiceNotice.params) ?? "",
+        });
+    }
 
     if (source.historyNotice !== null) {
         messages.push({

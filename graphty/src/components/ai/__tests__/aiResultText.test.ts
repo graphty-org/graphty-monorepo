@@ -1,8 +1,8 @@
 import type { AiApprovalRequest, AiConversationSnapshot } from "@graphty/graphty-element/ai";
-import type { AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
+import { AI_VOICE_UNAVAILABLE_REASONS, type AiResultCode, type AiResultParams } from "@graphty/graphty-element/catalog";
 import { describe, expect, it } from "vitest";
 
-import { aiResultText, aiTranscript, approvalLines } from "../aiResultText";
+import { aiCodeText, aiResultText, aiSay, aiTranscript, approvalLines, XR_AI_LABELS } from "../aiResultText";
 
 describe("aiResultText", () => {
     it("shows the answer of a completed command", () => {
@@ -101,7 +101,7 @@ describe("aiTranscript", () => {
                 content: "Add an API key for this provider in Settings first.",
                 isError: true,
             },
-            { id: "m3", role: "user", content: "try again" },
+            { id: "m3", role: "user", content: "try again", spoken: true },
         ]);
     });
 
@@ -226,5 +226,52 @@ describe("approvalLines", () => {
             'edit_data {"action":"remove_nodes","ids":["e"]}',
             "Removes 1 node.",
         ]);
+    });
+});
+
+describe("voice", () => {
+    it("has its own words for every reason speech cannot be used", () => {
+        const general = aiCodeText("AI_VOICE_UNAVAILABLE", {});
+        expect(general).toBeTruthy();
+        for (const reason of AI_VOICE_UNAVAILABLE_REASONS) {
+            const words = aiCodeText("AI_VOICE_UNAVAILABLE", { path: "input", reason });
+            expect(words, reason).toBeTruthy();
+            expect(words, reason).not.toBe(general);
+        }
+    });
+
+    it("hands the element the app's words to speak, and nothing for a code it has none for", () => {
+        expect(aiSay({ code: "AI_KEY_MISSING", params: {} })).toBe(
+            "Add an API key for this provider in Settings first.",
+        );
+        expect(aiSay({ code: "AI_TOOL_FAILED", params: {} })).toBeUndefined();
+    });
+
+    it("labels the controls drawn in VR and AR", () => {
+        for (const code of ["XR_APPROVE", "XR_DENY", "XR_TRANSCRIPT", "AI_CONFIRMATION_NEEDED", "AI_QUESTION_ASKED"]) {
+            expect(XR_AI_LABELS[code], code).toBeTruthy();
+        }
+    });
+
+    it("marks a message the reader said as spoken, and says why speech failed", () => {
+        const conversation = {
+            id: "c",
+            messages: [
+                { id: "1", role: "reader", text: "how many nodes", via: "voice" },
+                { id: "2", role: "reader", text: "typed", via: "text" },
+            ],
+            pending: [],
+        } as unknown as AiConversationSnapshot;
+        const messages = aiTranscript({
+            conversation,
+            historyNotice: null,
+            voiceNotice: { code: "AI_VOICE_UNAVAILABLE", params: { path: "input", reason: "no-microphone" } },
+        });
+        expect(messages[0].spoken).toBe(true);
+        expect(messages[1].spoken).toBeUndefined();
+        expect(messages[2]).toMatchObject({
+            role: "system",
+            content: "No microphone was found. Type your message instead.",
+        });
     });
 });

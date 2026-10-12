@@ -1,7 +1,7 @@
 import { ActionRow, PANEL_GRID, PANEL_INK, ProseBlock } from "@graphty/compact-mantine";
 import type { AiApprovalRequest, AiQuestionRequest } from "@graphty/graphty-element/ai";
 import { ActionIcon, Box, Button, Group, Paper, Text, Textarea } from "@mantine/core";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 
 import { AiMessageBubble, type ChatMessage } from "../../ai/AiMessageBubble";
 import { approvalLines } from "../../ai/aiResultText";
@@ -107,9 +107,9 @@ export interface AiPanelProps {
     readonly providerTitle?: string;
     /** Whether a call is in flight, which is what puts Cancel on screen. */
     readonly isProcessing?: boolean;
-    /** Whether the browser offers speech recognition. The mic draws only if it does. */
+    /** Whether speech can be heard here (graphty-element's voice support). The mic draws only if it can. */
     readonly speechAvailable?: boolean;
-    /** Whether dictation is currently listening. */
+    /** Whether the assistant is listening. */
     readonly listening?: boolean;
     /** Sends the console's text. */
     readonly onSend?: (text: string) => void;
@@ -117,7 +117,10 @@ export interface AiPanelProps {
     readonly onCancel?: () => void;
     /** Retries a failed message. */
     readonly onRetry?: (message: ChatMessage) => void;
-    /** Starts or stops dictation. */
+    /**
+     * Holds talk (true) or lets go (false). The microphone calls it on press and release of the
+     * pointer or Space, and toggles it on a click with no hold (Enter, a switch, assistive tech).
+     */
     readonly onListeningChange?: (listening: boolean) => void;
     /** Opens Settings, from the setup prompt and the Provider row. */
     readonly onOpenSettings?: () => void;
@@ -174,6 +177,15 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
     } = props;
 
     const [draft, setDraft] = useState("");
+    // Set by a press of the pointer or Space, so the click that follows its release does not toggle.
+    const held = useRef(false);
+    const hold = (): void => {
+        held.current = true;
+        onListeningChange?.(true);
+    };
+    const letGo = (): void => {
+        onListeningChange?.(false);
+    };
 
     const askChip = keyChipFor("focusAssistant");
     const askTooltip = askChip === null ? ASK_LABEL : `${ASK_LABEL} (${askChip})`;
@@ -480,7 +492,30 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
                             aria-label={STOP_LISTENING_LABEL}
                             aria-pressed={listening}
                             data-testid="ai-microphone"
+                            onPointerDown={(event) => {
+                                if (event.button === 0) {
+                                    event.currentTarget.setPointerCapture(event.pointerId);
+                                    hold();
+                                }
+                            }}
+                            onPointerUp={letGo}
+                            onPointerCancel={letGo}
+                            onKeyDown={(event) => {
+                                if (event.key === " " && !event.repeat) {
+                                    hold();
+                                }
+                            }}
+                            onKeyUp={(event) => {
+                                if (event.key === " ") {
+                                    letGo();
+                                }
+                            }}
                             onClick={() => {
+                                if (held.current) {
+                                    held.current = false;
+                                    return;
+                                }
+
                                 onListeningChange?.(!listening);
                             }}
                         >

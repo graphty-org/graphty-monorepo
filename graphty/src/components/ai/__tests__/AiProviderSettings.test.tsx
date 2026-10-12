@@ -356,4 +356,30 @@ describe("AiProviderSettings", () => {
             expect(screen.getByRole("switch", { name: /^Run code/ })).toBeEnabled();
         });
     });
+
+    describe("voice", () => {
+        const voice = { speakAnswers: "off", transcription: "none" } as const;
+
+        it("draws speak-answers off, and reports a change", async () => {
+            const onVoiceChange = vi.fn();
+            render(<AiProviderSettings {...keyStore({ voice, onVoiceChange, defaultProvider: "openai" })} />);
+
+            const select = screen.getByLabelText("Speak answers");
+            expect(select).toHaveValue("off");
+            await userEvent.selectOptions(select, "In VR and AR only");
+            expect(onVoiceChange).toHaveBeenCalledWith("speakAnswers", "vr");
+        });
+
+        it("offers a transcription provider only when the chat provider has none", async () => {
+            const onVoiceChange = vi.fn();
+            const { rerender } = render(
+                <AiProviderSettings {...keyStore({ voice, onVoiceChange, defaultProvider: "openai" })} />,
+            );
+            expect(screen.queryByTestId("ai-transcription-provider")).not.toBeInTheDocument();
+
+            rerender(<AiProviderSettings {...keyStore({ voice, onVoiceChange, defaultProvider: "anthropic" })} />);
+            await userEvent.selectOptions(screen.getByLabelText("Turn speech into text with"), "OpenAI");
+            expect(onVoiceChange).toHaveBeenCalledWith("transcription", "openai");
+        });
+    });
 });

@@ -1468,6 +1468,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         conversation: aiConversation,
         historyNotice: aiHistoryNotice,
         capabilityNotices: aiCapabilityNotices,
+        voiceNotice: aiVoiceNotice,
     } = aiManager;
     // The element's saved conversation is the transcript; the shell keeps no copy of it.
     const aiMessages = useMemo(
@@ -1476,8 +1477,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 conversation: aiConversation,
                 historyNotice: aiHistoryNotice,
                 capabilityNotices: aiCapabilityNotices,
+                voiceNotice: aiVoiceNotice,
             }),
-        [aiConversation, aiHistoryNotice, aiCapabilityNotices],
+        [aiConversation, aiHistoryNotice, aiCapabilityNotices, aiVoiceNotice],
     );
 
     /* The key store's own surface, as Settings takes it. Assembled here rather than in
@@ -1500,9 +1502,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             tools: aiManager.toolSwitches,
             onToolChange: aiManager.setToolSwitch,
             toolCapabilities: aiManager.capabilities,
+            voice: aiManager.voiceSettings,
+            onVoiceChange: aiManager.setVoiceSetting,
         }),
         [
             aiManager.capabilities,
+            aiManager.setVoiceSetting,
+            aiManager.voiceSettings,
             aiManager.setToolSwitch,
             aiManager.toolSwitches,
             aiKeyStorage.configuredProviders,
@@ -3903,6 +3909,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         providerConfigured={aiKeyStorage.hasAnyProvider}
                         providerLabel={aiManager.currentProvider ?? undefined}
                         isProcessing={aiManager.isProcessing}
+                        speechAvailable={
+                            aiManager.voiceSupport !== null && aiManager.voiceSupport.input.status !== "unavailable"
+                        }
+                        listening={aiManager.listening}
+                        onListeningChange={aiManager.talk}
                         onSend={(text) => {
                             void aiManager.execute(text);
                         }}

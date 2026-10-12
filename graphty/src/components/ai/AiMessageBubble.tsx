@@ -12,6 +12,8 @@ export interface ChatMessage {
     isError?: boolean;
     /** The helper that said it, when a helper did; drawn as a label above the message. */
     agent?: string;
+    /** Whether the reader said it rather than typed it; drawn as a label above the message. */
+    spoken?: boolean;
     /** The web pages the answer drew on, drawn as links under it. */
     sources?: readonly { readonly url: string; readonly title?: string }[];
 }
@@ -102,6 +104,11 @@ export function AiMessageBubble({ message, onRetry }: AiMessageBubbleProps): Rea
                 maxWidth: "85%",
             }}
         >
+            {message.spoken === true && (
+                <Text size="xs" c="dimmed" mb={2} ta="right" data-testid="ai-message-spoken">
+                    Spoken
+                </Text>
+            )}
             {message.agent !== undefined && (
                 <Text size="xs" c="dimmed" mb={2} data-testid="ai-message-agent">
                     {`Helper: ${message.agent}`}

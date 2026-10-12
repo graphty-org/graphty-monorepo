@@ -51,9 +51,10 @@ and static layouts always run on the CPU, synchronously.
 The first `...Async` call or simulation loads the GPU code with a dynamic `import()`, as its own
 chunk. A browser without `navigator.gpu` never loads it. Each Cytoscape core acquires one device
 when it first needs one and reuses it; after a device loss the next call acquires a new one, and
-`cy.destroy()` releases it. If you destroy the core during an `...Async` call, check
-`cy.destroyed()` after the `await` and drop the result; the call can also reject with
-`graphty: the Cytoscape core was destroyed`.
+`cy.destroy()` releases it. An `...Async` call on a core that is destroyed before or during the
+call rejects with an error whose `code` is `"E_CORE_DESTROYED"` (`graphty: the Cytoscape core was
+destroyed`), and so do `cy.graphtyGenerate`, `cy.graphtyDataset` and `cy.graphtyImport`, which then
+add nothing.
 
 ## Which backend ran
 

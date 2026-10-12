@@ -86,8 +86,10 @@ function createSpiralStory(args: SpiralArgs): HTMLElement {
         isApplied = true;
 
         // Animate to final positions
-        updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250);
-        updateStatus(statusPanel, "Spiral layout applied! Nodes arranged along a spiral path.");
+        // The status says "applied" once the last frame is drawn; the play function waits on it
+        void updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250).then(() =>
+            updateStatus(statusPanel, "Spiral layout applied! Nodes arranged along a spiral path."),
+        );
     }
 
     /**

@@ -33,7 +33,6 @@ interface Scene3D {
     nodeGroup: THREE.Group;
     edgeGroup: THREE.Group;
     container: HTMLDivElement;
-    animationId: number | null;
 }
 
 /**
@@ -79,6 +78,12 @@ export function create3DScene(width: number = 500, height: number = 500, enableC
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = false;
     controls.enabled = enableControls;
+    // Draw only when something changed: a frame loop that never stops queues a WebGL frame on
+    // every animation frame, and where those are timer-driven (Playwright's clock in the visual
+    // capture) faster than a software GPU draws them, the backlog starves screenshots (#2114).
+    controls.addEventListener("change", () => {
+        renderer.render(scene, camera);
+    });
 
     // Groups for nodes and edges
     const nodeGroup = new THREE.Group();
@@ -94,7 +99,6 @@ export function create3DScene(width: number = 500, height: number = 500, enableC
         nodeGroup,
         edgeGroup,
         container,
-        animationId: null,
     };
 }
 
@@ -255,6 +259,8 @@ export function render3DGraph(
         line.userData.target = edge.target;
         scene3D.edgeGroup.add(line);
     }
+
+    scene3D.renderer.render(scene3D.scene, scene3D.camera);
 }
 
 /**
@@ -333,25 +339,10 @@ export function update3DPositions(
 }
 
 /**
- * Start the animation loop for the 3D scene.
- */
-export function startAnimationLoop(scene3D: Scene3D): void {
-    function animate(): void {
-        scene3D.animationId = requestAnimationFrame(animate);
-        scene3D.controls.update();
-        scene3D.renderer.render(scene3D.scene, scene3D.camera);
-    }
-    animate();
-}
-
-/**
- * Stop the animation loop and clean up resources.
+ * Clean up the scene's controls and resources.
  */
 export function cleanup3DScene(scene3D: Scene3D): void {
-    if (scene3D.animationId !== null) {
-        cancelAnimationFrame(scene3D.animationId);
-        scene3D.animationId = null;
-    }
+    scene3D.controls.dispose();
 
     // Dispose of geometries and materials
     scene3D.nodeGroup.traverse((obj) => {

@@ -1004,7 +1004,7 @@ export class ForceSimulation<
             this.fixedWords = makeMask(n);
             this.fixedDirty = false;
         }
-        if (inputs !== null && inputs.fixed !== undefined && inputs.fixed !== null) {
+        if (inputs?.fixed !== undefined && inputs.fixed !== null) {
             this.fixedWords.set(inputs.fixed.subarray(0, Math.ceil(n / 32)));
             this.fixedDirty = true;
         }

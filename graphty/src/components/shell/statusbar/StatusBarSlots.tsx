@@ -75,7 +75,7 @@ const BARE_BUTTON: React.CSSProperties = {
  * @param props.color - The dot's ink.
  * @returns The dot, which is decorative: the text beside it carries the meaning.
  */
-function StatusDot({ size, color }: { size: number; color: string }): React.JSX.Element {
+function StatusDot({ size, color }: Readonly<{ size: number; color: string }>): React.JSX.Element {
     return (
         <span
             aria-hidden="true"
@@ -131,11 +131,11 @@ function CancelControl({
     disabled,
     title,
     onCancel,
-}: {
+}: Readonly<{
     disabled: boolean;
     title?: string;
     onCancel?: () => void;
-}): React.JSX.Element {
+}>): React.JSX.Element {
     return (
         <button
             aria-disabled={disabled || undefined}
@@ -169,7 +169,7 @@ function CancelControl({
  * @param props.counts - The counts model.
  * @returns The counts slot.
  */
-export function StatusBarCountsSlot({ counts }: { counts: StatusBarCounts }): React.JSX.Element {
+export function StatusBarCountsSlot({ counts }: Readonly<{ counts: StatusBarCounts }>): React.JSX.Element {
     return (
         <button
             onClick={counts.onClick}
@@ -194,7 +194,7 @@ export function StatusBarCountsSlot({ counts }: { counts: StatusBarCounts }): Re
  * @param props.zoom - The zoom model.
  * @returns The zoom slot.
  */
-export function StatusBarZoomSlot({ zoom }: { zoom: StatusBarZoom }): React.JSX.Element {
+export function StatusBarZoomSlot({ zoom }: Readonly<{ zoom: StatusBarZoom }>): React.JSX.Element {
     return (
         <button aria-haspopup="menu" onClick={zoom.onClick} style={{ ...BARE_BUTTON, cursor: "pointer" }} type="button">
             {zoom.label}
@@ -213,7 +213,7 @@ export function StatusBarZoomSlot({ zoom }: { zoom: StatusBarZoom }): React.JSX.
  * @param props.xr - The XR model.
  * @returns The XR mode slot.
  */
-export function StatusBarXrSlot({ xr }: { xr: StatusBarXr }): React.JSX.Element {
+export function StatusBarXrSlot({ xr }: Readonly<{ xr: StatusBarXr }>): React.JSX.Element {
     return (
         <span style={SLOT_STYLE}>
             <StatusBarChip>{xr.mode}</StatusBarChip>
@@ -245,12 +245,12 @@ export function StatusBarLayoutSlot({
     nameDropped,
     nameRef,
     menu,
-}: {
+}: Readonly<{
     layout: StatusBarLayoutModel;
     nameDropped: boolean;
     nameRef: (node: HTMLElement | null) => void;
     menu: React.ReactNode;
-}): React.JSX.Element {
+}>): React.JSX.Element {
     const caretSlot = layout.caret ? menu : undefined;
 
     return (
@@ -273,7 +273,7 @@ export function StatusBarLayoutSlot({
  * @param props.running - The running model.
  * @returns The running slot.
  */
-export function StatusBarRunningSlot({ running }: { running: StatusBarRunningModel }): React.JSX.Element {
+export function StatusBarRunningSlot({ running }: Readonly<{ running: StatusBarRunningModel }>): React.JSX.Element {
     const indeterminate = running.percentLabel === undefined;
     const cancelDisabled = indeterminate || !running.cancellable;
     const spinner = indeterminate ? <Loader aria-hidden="true" size={STATUS_BAR_GEOMETRY.SPINNER} /> : null;
@@ -312,7 +312,7 @@ export function StatusBarRunningSlot({ running }: { running: StatusBarRunningMod
  * @param props.viewing - The Viewing model.
  * @returns The Viewing slot.
  */
-export function StatusBarViewingSlot({ viewing }: { viewing: StatusBarViewing }): React.JSX.Element {
+export function StatusBarViewingSlot({ viewing }: Readonly<{ viewing: StatusBarViewing }>): React.JSX.Element {
     return (
         <span style={SLOT_STYLE}>
             <span>{viewing.label}</span>
@@ -337,7 +337,7 @@ export function StatusBarViewingSlot({ viewing }: { viewing: StatusBarViewing })
  * @param props.issues - The issues model.
  * @returns The issues slot.
  */
-export function StatusBarIssuesSlot({ issues }: { issues: StatusBarIssuesModel }): React.JSX.Element {
+export function StatusBarIssuesSlot({ issues }: Readonly<{ issues: StatusBarIssuesModel }>): React.JSX.Element {
     const { validation, notes, performance, acceleration } = issues;
 
     return (
@@ -393,7 +393,7 @@ export function StatusBarIssuesSlot({ issues }: { issues: StatusBarIssuesModel }
  * @param props.ai - The AI model.
  * @returns The AI status slot.
  */
-export function StatusBarAiSlot({ ai }: { ai: StatusBarAi }): React.JSX.Element {
+export function StatusBarAiSlot({ ai }: Readonly<{ ai: StatusBarAi }>): React.JSX.Element {
     return (
         <span style={{ ...SLOT_STYLE, gap: STATUS_BAR_GEOMETRY.AI_GAP }}>
             <StatusDot color={AI_DOT_INK[ai.state]} size={STATUS_BAR_GEOMETRY.AI_DOT} />
@@ -414,7 +414,7 @@ export function StatusBarAiSlot({ ai }: { ai: StatusBarAi }): React.JSX.Element 
  * @param props.selection - The selection model.
  * @returns The selection slot.
  */
-export function StatusBarSelectionSlot({ selection }: { selection: StatusBarSelection }): React.JSX.Element {
+export function StatusBarSelectionSlot({ selection }: Readonly<{ selection: StatusBarSelection }>): React.JSX.Element {
     return (
         <span style={SLOT_STYLE}>
             <span style={{ color: PANEL_INK.VALUE }}>{selection.label}</span>
@@ -433,7 +433,7 @@ export function StatusBarSelectionSlot({ selection }: { selection: StatusBarSele
  * @param props.loading - The loading model.
  * @returns The loading slot.
  */
-export function StatusBarLoadingSlot({ loading }: { loading: StatusBarLoading }): React.JSX.Element {
+export function StatusBarLoadingSlot({ loading }: Readonly<{ loading: StatusBarLoading }>): React.JSX.Element {
     const { label, progress, cancellable, onCancel } = loading;
 
     return (

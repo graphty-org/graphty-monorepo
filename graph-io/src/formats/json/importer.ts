@@ -615,7 +615,7 @@ function withoutPath(value: unknown, segments: readonly string[]): unknown {
  * @returns the key
  */
 function pathEdgesKey(json: ResolvedJsonOptions, edgesPath: readonly string[]): string {
-    return json.edgesKey ?? (edgesPath[edgesPath.length - 1] === "links" ? "links" : "edges");
+    return json.edgesKey ?? (edgesPath.at(-1) === "links" ? "links" : "edges");
 }
 
 /**

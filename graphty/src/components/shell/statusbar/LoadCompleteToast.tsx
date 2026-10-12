@@ -67,10 +67,10 @@ export function LoadCompleteToast({ completion }: LoadCompleteToastProps): React
             return undefined;
         }
 
-        const timer = window.setTimeout(onDismiss, STATUS_BAR_GEOMETRY.TOAST_DURATION_MS);
+        const timer = globalThis.setTimeout(onDismiss, STATUS_BAR_GEOMETRY.TOAST_DURATION_MS);
 
         return () => {
-            window.clearTimeout(timer);
+            globalThis.clearTimeout(timer);
         };
     }, [onDismiss]);
 

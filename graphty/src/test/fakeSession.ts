@@ -899,7 +899,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                 throw new Error("E_UNKNOWN_LAYER");
             }
 
-            return { matched: 3, painted: {}, noValue: 0, outsideScale: 0, revision: "0" };
+            return { matched: 3, painted: {}, noValue: 0, outsideScale: 0, reads: [], revision: "0" };
         },
         legend: (): readonly LegendBlock[] =>
             layers

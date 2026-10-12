@@ -378,7 +378,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
  * @param props.run - The run
  * @returns The sections
  */
-function PathValues({ session, run }: Readonly<{ session: GraphSession; run: Run }>): React.JSX.Element | null {
+export function PathValues({ session, run }: Readonly<{ session: GraphSession; run: Run }>): React.JSX.Element | null {
     // After Find path, focus goes to the inspector's title once the route is drawn: the result the
     // reader asked for, not the canvas, the control that opened the form, or a node row whose
     // ring would read as picked.

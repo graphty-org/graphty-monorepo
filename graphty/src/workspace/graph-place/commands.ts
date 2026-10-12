@@ -167,8 +167,8 @@ export const registration = defineRegistration({
         ...ROW_COMMANDS.map(onInspectedRow),
     ],
     inspectedKinds: [
-        { kind: "layer-row", tabs: [] },
-        { kind: "folder-row", tabs: [] },
+        { kind: "layer-row", tabs: ["style", "values"] },
+        { kind: "folder-row", tabs: ["style", "values"] },
         { kind: "rows", tabs: [] },
         { kind: "draft-row", tabs: [] },
     ],

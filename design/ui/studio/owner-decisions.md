@@ -27,6 +27,24 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: what a layer reads, and a histogram's minimum, median and maximum
+
+**What.** Two additive readings in graphty-element. `StyleCounts.reads`: every value a layer reads,
+its selector's and its bindings', as paths (`data.age`, `results.louvain.group`), read with the
+counts it already returns. And `Histogram.min`, `median` and `max` (optional): the lowest, middle
+(the lower median, a value the data holds) and highest measured value, on every histogram the
+element returns (`RunResult.histogram`, `data.histogram`, the degree histogram); absent when nothing
+was measured.
+
+**Why.** A layer row's Values tab lists the values the row reads and draws each one's histogram with
+its minimum, median and maximum. The element already worked out both (the compiled layer's reads,
+the column statistics behind every histogram) and dropped them; the app would otherwise parse
+selectors and bindings, and compute a median over a column.
+
+**Alternatives.** A separate `styles.reads(id)` (one more call for a fact the Values tab reads with
+the counts anyway); `AttributeDescriptor.median` (data columns only, and it would cost every
+`attributes()` call a sort).
+
 ## 2026-10-12 -- Decided by the team: each step's count in a binding preview, and rules over a run's value
 
 **What.** Two changes in graphty-element. `BindingPreview.stepCounts` (optional reading, additive):

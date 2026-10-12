@@ -11,6 +11,30 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **The Values tab is built for every row** (`inspector/LayerValues.tsx`, mounted by
+  `Inspector.tsx` for `layer-row` and `folder-row`, whose kinds now take tabs Style | Values in
+  `graph-place/commands.ts`; test `inspector/__tests__/LayerValues.real-element.test.tsx`, on Les
+  Miserables). One component for every layer row, driven by what the row reads, never by where it
+  came from: Summary (matched per part, Values read with the run's state or "Data", and "Is
+  selected / Is hovered: This view only" for a state selector), then per value read: a path run's
+  numbered steps (reuses `PathValues`, now exported), a category binding's groups (largest first,
+  the chit from `legendOf`, a click selects the group by a `categories` rule scope, and the layer's
+  `unmatched` codes worded), a number's histogram with min, median and max and, for a stepped
+  binding, its step counts; then "Top N by" lists, a set or rule layer's members (when it matches
+  100 or fewer nodes), Selected's and Hovered's current elements, and Painted last ("Node color: 11
+  of 77"). A folder lists each value its layers read with the layers that read it. Element
+  additions it needed: `StyleCounts.reads` (the compiled layer already knew its reads; the app's
+  session type cannot reach `compiled()`) and `Histogram.min/median/max` (the column statistics
+  behind every histogram already had them). Data columns have no median in `attributes()`, so the
+  Degree acceptance compares the run's `summary()`, which is where a run's value is described.
+  The inspector's Tabs no longer keep the hidden tab mounted, so a row's Values (a walk per layer)
+  are read only when shown. NOT built: per-layer label counts (the element counts labels for the
+  whole graph only; Painted shows the label channel's count), search inside "N more" (it expands
+  the rest), a member list for edge-only sets. Seen: a click on a Values group selects it, and the
+  inspector's selection rule then closes the row (the reader lands on the selection, the door to
+  "New layer from selection"). Clicking a node on a force layout needs the click retried at the
+  element's current position until it selects (the layout is still moving).
+
 - (2026-10-12) **Graph settings are built** (`inspector/GraphSettings.tsx`, mounted for the graph
   in place of the old Canvas section; test `inspector/__tests__/GraphSettings.real-element.test.tsx`).
   Canvas: Background (Color | Image; Image takes an address, since an empty skybox is refused),

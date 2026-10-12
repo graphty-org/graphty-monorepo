@@ -31,6 +31,7 @@ import { AttributeValues, EverythingValues, Overview } from "./GraphValues";
 import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
 import { MENUS } from "./kindMenus";
+import { FolderValues, LayerValues } from "./LayerValues";
 import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValues";
 import { type Draft, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
@@ -182,8 +183,10 @@ export function Inspector(): React.JSX.Element {
         content = (
             // The underline tabs: the pill form drew the chosen tab as a filled button beside a
             // plain word, which read as a label ("Style:") and a button that did nothing.
+            // Only the chosen tab is drawn: a row's Values walk the graph, and Style edits it.
             <Tabs
                 variant="default"
+                keepMounted={false}
                 value={tab}
                 onChange={(next) => {
                     if (next === "style" || next === "values") {
@@ -491,9 +494,15 @@ function bodyOf(
             return { style: <SelectionStyle />, values: <SeveralValues version={version} /> };
         case "layer-row":
             // Keyed by the row, so the side and an empty line are dropped when another opens.
-            return { only: <LayerRowPanel key={resolved.layer} id={resolved.layer} /> };
+            return {
+                style: <LayerRowPanel key={resolved.layer} id={resolved.layer} />,
+                values: <LayerValues key={resolved.layer} id={resolved.layer} />,
+            };
         case "folder-row":
-            return { only: <FolderPanel key={resolved.row} id={resolved.row} /> };
+            return {
+                style: <FolderPanel key={resolved.row} id={resolved.row} />,
+                values: <FolderValues key={resolved.row} id={resolved.row} />,
+            };
         case "rows":
             return { only: <MultiRowPanel ids={resolved.rows} /> };
         case "draft-row":

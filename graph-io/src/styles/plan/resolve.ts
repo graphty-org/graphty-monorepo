@@ -7,6 +7,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { formatF32 } from "../../common/format.js";
 import { canonEnum } from "../canon/enums.js";
 import { canonBoolean, canonNumber, canonOpacity } from "../canon/number.js";
 import type { CanonSite } from "../canon/site.js";
@@ -84,6 +85,19 @@ export function plainCell(v: unknown): unknown {
 }
 
 /**
+ * One cell of a data column as a plain value; a 32-bit float as its shortest decimal, so a value gives the same style
+ * value whether a file kept it as a 32-bit or a 64-bit number.
+ * @param table - the node or edge table
+ * @param name - the column
+ * @param i - the element
+ * @returns the value
+ */
+export function dataCell(table: GraphSnapshot["nodes"], name: string, i: number): unknown {
+    const v = plainCell(table.value(name, i));
+    return typeof v === "number" && table.get(name)?.dtype === "f32" ? Number(formatF32(v)) : v;
+}
+
+/**
  * The degree arrays of a snapshot as plain numbers.
  * @param snapshot - the graph
  * @param which - which degree
@@ -140,7 +154,7 @@ export function refSource(
                 if (table.has(ref.data)) {
                     const vals = new Array<unknown>(n);
                     for (let i = 0; i < n; i++) {
-                        vals[i] = plainCell(table.value(ref.data, i));
+                        vals[i] = dataCell(table, ref.data, i);
                     }
                     out = vals;
                 }

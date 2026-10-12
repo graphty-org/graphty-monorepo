@@ -439,3 +439,50 @@ describe("the prototype's fixtures", () => {
         checkPlan(ex, { node: { fill, width: size, height: size, label } }, snapshot);
     });
 });
+
+describe("a value read from a 32-bit float column", () => {
+    it("gives the style value its 64-bit form gives: the shortest decimal of the float", () => {
+        // 0.705815 as a 32-bit float is 0.70581501722..., so 1 + it rounds to 1.70582 in six digits, 1.705815 to 1.70581
+        const widths = (dtype: "f32" | "f64"): readonly unknown[] => {
+            const b = new GraphBuilder({ directed: false });
+            b.addNode("a");
+            b.declareNodeColumn({ name: "score", dtype });
+            b.setNodeValue("score", 0, 0.705815);
+            const g = b.freeze();
+            const ex: ExtractedStyles = {
+                styles: {
+                    version: 1,
+                    source: { format: "test", dialect: null, tool: null },
+                    units: { length: "px" },
+                    graph: {},
+                    rules: [
+                        {
+                            id: "w",
+                            target: "node",
+                            role: "mapping",
+                            origin: "declared",
+                            where: { all: true },
+                            map: {
+                                width: {
+                                    kind: "continuous",
+                                    by: { data: "score" },
+                                    points: [
+                                        { at: 0, below: 1, value: 1, above: 1 },
+                                        { at: 1, below: 2, value: 2, above: 2 },
+                                    ],
+                                },
+                            },
+                        },
+                    ],
+                    notes: [],
+                },
+                columns: { node: new Map(), edge: new Map() },
+                features: { node: featuresOf(g, "node"), edge: featuresOf(g, "edge") },
+                fingerprint: styleFingerprint(g),
+            };
+            return resolveStyles(ex, "node", "width", g);
+        };
+        expect(widths("f64")).toEqual([1.70581]);
+        expect(widths("f32")).toEqual(widths("f64"));
+    });
+});

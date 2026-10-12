@@ -6,7 +6,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import type { ColumnRef, Scalar, StyleFeature, StyleFingerprint, StyleTarget } from "../types.js";
-import { degreeValues, plainCell } from "./resolve.js";
+import { dataCell, degreeValues } from "./resolve.js";
 
 /** Column types whose values can be features: one scalar per element. */
 const SCALAR_DTYPES: ReadonlySet<string> = new Set(["string", "dict", "bool", "i32", "u32", "u8", "f32", "f64"]);
@@ -44,7 +44,7 @@ export function featuresOf(snapshot: GraphSnapshot, target: StyleTarget): StyleF
         }
         const values = new Array<Scalar | null>(n);
         for (let i = 0; i < n; i++) {
-            const v = plainCell(table.value(name, i));
+            const v = dataCell(table, name, i);
             values[i] = typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? v : null;
         }
         if (name === PARENT_COLUMN) {

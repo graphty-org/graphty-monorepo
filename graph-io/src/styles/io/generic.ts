@@ -28,6 +28,7 @@ import type {
     StyleColumn,
     StyleDialect,
     StyleNote,
+    StyleProperty,
     StyleTarget,
     StyleTool,
     StyleValue,
@@ -187,7 +188,36 @@ export function readStyleValues(
         canonical = got === null ? null : canonicalOf(got, snapshot, notes, budget, signal);
     }
     signal?.throwIfAborted();
-    return canonical;
+    return canonical === null ? null : withPairedHalves(canonical, snapshot);
+}
+
+/**
+ * The values with the second half of each undirected edge of a directed graph given its first half's value: the file
+ * holds the edge once, its program draws it once, and the import read the element's values onto the first half.
+ * @param truth - the values read
+ * @param snapshot - the graph
+ * @returns the values
+ */
+function withPairedHalves(truth: StyleTruth, snapshot: GraphSnapshot): StyleTruth {
+    const pair = snapshot.edges.byRole("pair");
+    if (pair === null) {
+        return truth;
+    }
+    const values: Partial<Record<StyleProperty, StyleColumn>> = {};
+    for (const [property, col] of Object.entries(truth.edge.values) as [StyleProperty, StyleColumn | undefined][]) {
+        if (col === undefined) {
+            continue;
+        }
+        const out = [...col];
+        for (let e = 0; e < out.length; e++) {
+            const first = pair.isSet(e) ? (pair.value(e) as number) : e;
+            if (first < e) {
+                out[e] = col[first] ?? null;
+            }
+        }
+        values[property] = out;
+    }
+    return { ...truth, edge: { ...truth.edge, values } };
 }
 
 /**

@@ -252,12 +252,16 @@ export function gephiRules(
     // Gephi draws an edge without a color in its source node's color. graphty-element cannot bind an edge's color
     // to its source node's drawn color yet, so the color is frozen here; replace this column with that binding once
     // the element has it (tracking issue "graphty-element: bind an edge's color to its source node's drawn color").
+    // An undirected edge in a directed graph is one edge in the file and two halves here: Gephi draws it once, in
+    // the color of the source the file names, so the second half takes the first half's source.
     const own = edgeColor;
+    const pair = snapshot.edges.byRole("pair");
     const sourceColor: (StyleValue | null)[] = new Array<StyleValue | null>(snapshot.edgeCount).fill(null);
     let uncolored = 0;
     for (let e = 0; e < snapshot.edgeCount; e++) {
         if (own?.[e] === null || own === undefined) {
-            sourceColor[e] = nodeFill?.[snapshot.edgeSource(e)] ?? GEPHI_NODE_FILL;
+            const first = pair?.isSet(e) === true ? Math.min(e, pair.value(e) as number) : e;
+            sourceColor[e] = nodeFill?.[snapshot.edgeSource(first)] ?? GEPHI_NODE_FILL;
             uncolored++;
         }
     }

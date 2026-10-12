@@ -122,7 +122,7 @@ export function prepareStyleExport(
     return {
         snapshot: styledSnapshot(snapshot, caps, tags, block),
         input: exporter.styles === undefined ? null : { picture, block, tags, rules: extracted },
-        notes: lossNotes(extracted, exporter, caps, picture),
+        notes: lossNotes(extracted, exporter, caps, picture, snapshot),
         refusal: null,
     };
 }
@@ -158,6 +158,7 @@ export function isKeptGraphtyProperty(note: LossNote, exporter: GraphExporter): 
  * @param exporter - the exporter
  * @param caps - its style capabilities, or null
  * @param picture - each element's value of a property
+ * @param snapshot - the graph
  * @returns the notes
  */
 function lossNotes(
@@ -165,6 +166,7 @@ function lossNotes(
     exporter: GraphExporter,
     caps: StyleWriteCapabilities | null,
     picture: (target: StyleTarget, property: StyleProperty) => readonly (StyleValue | null)[],
+    snapshot: GraphSnapshot,
 ): LossNote[] {
     const notes: LossNote[] = [];
     const kept = keepsStyleBlock(exporter);
@@ -181,6 +183,9 @@ function lossNotes(
         for (const property of properties) {
             // a property only graphty draws is written into the block alone: lost only when the block is
             if (written.has(property) || (kept && property.startsWith("graphty:"))) {
+                if (target === "edge") {
+                    notes.push(...pairNotes(snapshot, exporter, property, picture("edge", property as StyleProperty)));
+                }
                 continue;
             }
             const count = picture(target, property as StyleProperty).filter((v) => v !== null).length;
@@ -220,6 +225,43 @@ function lossNotes(
         );
     }
     return notes;
+}
+
+/**
+ * W_STYLE_APPROXIMATED for the second halves of undirected edges in a directed graph whose value of a property
+ * differs from the first half's: every format writes such an edge once, so both halves read back with one value.
+ * @param snapshot - the graph
+ * @param exporter - the exporter
+ * @param property - the edge property
+ * @param values - each edge's value
+ * @returns the note, or none
+ */
+function pairNotes(
+    snapshot: GraphSnapshot,
+    exporter: GraphExporter,
+    property: string,
+    values: readonly (StyleValue | null)[],
+): LossNote[] {
+    const pair = snapshot.edges.byRole("pair");
+    let count = 0;
+    for (let i = 0; pair !== null && i < values.length; i++) {
+        const other = pair.isSet(i) ? (pair.value(i) as number) : i;
+        if (other < i && values[i] !== values[other]) {
+            count++;
+        }
+    }
+    if (count === 0) {
+        return [];
+    }
+    return [
+        Object.freeze({
+            code: STYLE_ISSUE.APPROXIMATED,
+            message: `edge ${property}: ${String(count)} undirected edge${plural(count)} in a directed graph ${agree(count, "has", "have")} another value on each half; the ${exporter.format} format writes the edge once, with the first half's value`,
+            column: null,
+            count,
+            style: Object.freeze({ target: "edge" as const, property: property as StyleProperty }),
+        }),
+    ];
 }
 
 /**

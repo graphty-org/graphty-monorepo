@@ -72,7 +72,8 @@ describe("writeStyleBlock and parseStyleBlock", () => {
         expect(parsed.block.units).toEqual(extracted.styles.units);
         expect(parsed.block.source).toEqual(extracted.styles.source);
         expect(parsed.block.columns.node).toEqual(Array.from(extracted.columns.node.keys()));
-        expect(parsed.block.fingerprint).toEqual(extracted.fingerprint);
+        const { nodes, edges, ids } = extracted.fingerprint;
+        expect(parsed.block.fingerprint).toEqual({ nodes, edges, ids });
         expect(parsed.block.values).toBeUndefined();
     });
 
@@ -92,6 +93,43 @@ describe("writeStyleBlock and parseStyleBlock", () => {
         }
         expect(back.styles.rules).toEqual(JSON.parse(JSON.stringify(extracted.styles.rules)));
         expect(back.styles.source).toEqual({ format: "test", dialect: "graphty", tool: "graphty" });
+    });
+
+    it("matches a graph read back with its nodes in another order, its inline values following each node's id", () => {
+        const snapshot = graph();
+        const extracted = styled(snapshot);
+        const text = writeStyleBlock(extracted, { inlineColumns: true, snapshot });
+        const b = new GraphBuilder({ directed: false });
+        const group = b.declareNodeColumn({ name: "group", dtype: "string" });
+        for (let i = 5; i >= 0; i--) {
+            const row = b.addNode(`n${String(i)}`);
+            b.setNodeValue(group, row, i < 3 ? "a" : "b");
+        }
+        for (let i = 0; i < 5; i++) {
+            b.addEdge(`n${String(i)}`, `n${String(i + 1)}`);
+        }
+        const reordered = b.freeze();
+        const parsed = parseStyleBlock(text, styleFingerprint(reordered));
+        if (!parsed.ok) {
+            throw new Error(parsed.reason);
+        }
+        const back = blockStyles(parsed.block, reordered, "test");
+        const byId = (ex: ExtractedStyles | null, of: GraphSnapshot): Record<string, unknown> =>
+            ex === null
+                ? {}
+                : Object.fromEntries(resolveStyles(ex, "node", "fill", of).map((v, i) => [String(of.ids.idOf(i)), v]));
+        expect(byId(back, reordered)).toEqual(byId(extracted, snapshot));
+    });
+
+    it("counts an undirected edge of a directed graph once, as every file holds it", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        b.addNode("b");
+        b.addEdge("a", "b");
+        b.addEdge("b", "a");
+        const halves = b.freeze().withColumns();
+        halves.edges.set("graphty.pair", [1, 0], { dtype: "u32", role: "pair" });
+        expect(styleFingerprint(halves)).toMatchObject({ edges: 2, heldEdges: 1 });
     });
 
     it("keeps a consumer's ext untouched", () => {

@@ -703,15 +703,21 @@ function isCluster(snapshot: GraphSnapshot, i: number): boolean {
 /**
  * Per element, what its labels' escapes and defaults depend on.
  * @param snapshot - the graph
+ * @param written - the direction every edge is written with when the graph mixes both, or null to read it per edge
  * @returns the contexts
  */
-function contexts(snapshot: GraphSnapshot): {
+function contexts(
+    snapshot: GraphSnapshot,
+    written: boolean | null = null,
+): {
     readonly node: (i: number) => NodeContext;
     readonly edge: (e: number) => EdgeContext;
 } {
     const html = htmlStrings(snapshot);
     const graph = snapshot.meta.name ?? "";
-    const directed = directedEdges(snapshot);
+    const own = directedEdges(snapshot);
+    // a graph mixing both directions is written with one, every edge then drawn as that one
+    const directed = written === null || own.every((d) => d === snapshot.directed) ? own : own.map(() => written);
     const name = (i: number): string => String(snapshot.ids.idOf(i));
     return {
         node: (i) => ({ name: name(i), graph, cluster: isCluster(snapshot, i), html }),
@@ -1364,18 +1370,21 @@ interface DotStyledExport {
  * instead, with all the others.
  * @param snapshot - the graph handed to the exporter
  * @param input - the styles, or undefined when none are written
+ * @param onMixedDirection - the exporter's option: the direction a graph mixing both is written with
  * @returns the styled export, or null without styles
  */
 export function dotStyledExport(
     snapshot: GraphSnapshot,
     input: ExporterStyleInput | undefined,
+    onMixedDirection?: unknown,
 ): DotStyledExport | null {
     if (input === undefined) {
         return null;
     }
     const approximated = new Map<string, { count: number; samples: Set<string> }>();
     const out = snapshot.withColumns();
-    const cx = contexts(snapshot);
+    const written = onMixedDirection === "directed" || onMixedDirection === "undirected";
+    const cx = contexts(snapshot, written ? onMixedDirection === "directed" : null);
     const notes = new StyleNotes();
     const picture = (target: StyleTarget, property: string): readonly (StyleValue | null)[] =>
         input.picture(target, property as never);

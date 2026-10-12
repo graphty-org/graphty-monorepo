@@ -74,27 +74,53 @@ export function featuresOf(snapshot: GraphSnapshot, target: StyleTarget): StyleF
 }
 
 /**
- * The fingerprint of a graph: its node and edge counts and a hash of its node ids' text in snapshot order. The id 7
- * and the id "7" hash alike, so a graph written to a format that reads its ids back as text (or as numbers) keeps
- * its fingerprint.
+ * The fingerprint of a graph: its node and edge counts and a hash of its node ids' text, whatever their order (a
+ * format may read nodes back in another order). The id 7 and the id "7" hash alike, so a graph written to a format
+ * that reads its ids back as text (or as numbers) keeps its fingerprint.
  * @param snapshot - the graph
  * @returns the fingerprint
  * @category Styles
  */
 export function styleFingerprint(snapshot: GraphSnapshot): StyleFingerprint {
-    // two FNV-1a hashes with different seeds over the ids' text, each id followed by a separator
-    let h1 = 0x811c9dc5;
-    let h2 = 0x01000193 ^ 0x5bd1e995;
+    // two FNV-1a hashes with different seeds over each id's text, summed: the sum does not depend on the order
+    let h1 = 0;
+    let h2 = 0;
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        const text = `${String(snapshot.ids.idOf(i))}\u0000`;
+        const text = String(snapshot.ids.idOf(i));
+        let a = 0x811c9dc5;
+        let b = 0x01000193 ^ 0x5bd1e995;
         for (let c = 0; c < text.length; c++) {
             const code = text.charCodeAt(c);
-            h1 = Math.imul(h1 ^ code, 0x01000193);
-            h2 = Math.imul(h2 ^ code, 0x01000193) ^ (h2 >>> 13);
+            a = Math.imul(a ^ code, 0x01000193);
+            b = Math.imul(b ^ code, 0x01000193) ^ (b >>> 13);
         }
+        h1 = (h1 + (a >>> 0)) >>> 0;
+        h2 = (h2 + (b >>> 0)) >>> 0;
     }
     const hex = (h: number): string => (h >>> 0).toString(16).padStart(8, "0");
-    return { nodes: snapshot.nodeCount, edges: snapshot.edgeCount, ids: hex(h1) + hex(h2) };
+    return {
+        nodes: snapshot.nodeCount,
+        edges: snapshot.edgeCount,
+        heldEdges: heldEdgeRows(snapshot).length,
+        ids: hex(h1) + hex(h2),
+    };
+}
+
+/**
+ * The edge rows a file holds, in order: every row but the second half of an undirected edge in a directed graph,
+ * which every format writes once.
+ * @param snapshot - the graph
+ * @returns the rows
+ */
+export function heldEdgeRows(snapshot: GraphSnapshot): number[] {
+    const pair = snapshot.edges.byRole("pair");
+    const rows: number[] = [];
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        if (!(pair?.isSet(e) === true && (pair.value(e) as number) < e)) {
+            rows.push(e);
+        }
+    }
+    return rows;
 }
 
 /**

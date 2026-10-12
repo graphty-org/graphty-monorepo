@@ -31,6 +31,7 @@ import {
     writeStyleBlock,
 } from "../../src/styles/index.js";
 import { readStyleValues } from "../../src/styles/io/generic.js";
+import { heldEdgeRows } from "../../src/styles/plan/features.js";
 import { isShortPredicate, matches, refSource, resolveRules, within } from "../../src/styles/plan/resolve.js";
 import type { GraphImporter, ImportReport, LossNote } from "../../src/types.js";
 
@@ -831,6 +832,7 @@ export async function roundTrip(writer: StyleWriter, loaded: LoadedGraph, ex: Ex
     for (let j = 0; j < back.snapshot.nodeCount; j++) {
         backIndex.set(String(back.snapshot.ids.idOf(j)), j);
     }
+    const edgeAt = edgeRowsBack(loaded.snapshot, back.snapshot);
     for (const target of TARGETS) {
         const properties = new Set<string>();
         for (const r of ex.styles.rules.filter((x) => x.target === target)) {
@@ -845,7 +847,7 @@ export async function roundTrip(writer: StyleWriter, loaded: LoadedGraph, ex: Ex
             let differ = 0;
             let first = "";
             for (let i = 0; i < before.length; i++) {
-                const j = target === "node" ? (backIndex.get(String(loaded.snapshot.ids.idOf(i))) ?? -1) : i;
+                const j = target === "node" ? (backIndex.get(String(loaded.snapshot.ids.idOf(i))) ?? -1) : edgeAt[i];
                 if (after[j] !== before[i] && differ++ === 0) {
                     first = `${elementName(loaded.snapshot, target, i)} ${p}: written ${JSON.stringify(before[i])}, read back ${JSON.stringify(after[j] ?? null)}`;
                 }
@@ -887,6 +889,32 @@ export async function roundTrip(writer: StyleWriter, loaded: LoadedGraph, ex: Ex
         }
     }
     return failures;
+}
+
+/**
+ * Each edge row's row in the graph read back. A format writes an undirected edge of a directed graph once; when the
+ * file reads it back as one directed edge (DOT, written with `onMixedDirection`), both halves are that edge.
+ * @param before - the graph written
+ * @param after - the graph read back
+ * @returns per edge row of `before`, the row of `after`
+ */
+function edgeRowsBack(before: GraphSnapshot, after: GraphSnapshot): number[] {
+    const rows = Array.from({ length: before.edgeCount }, (_unused, e) => e);
+    if (after.edgeCount === before.edgeCount) {
+        return rows;
+    }
+    const held = heldEdgeRows(before);
+    const heldAfter = heldEdgeRows(after);
+    const pair = before.edges.byRole("pair");
+    held.forEach((e, k) => {
+        rows[e] = heldAfter[k] ?? -1;
+    });
+    for (let e = 0; e < before.edgeCount; e++) {
+        if (pair?.isSet(e) === true && (pair.value(e) as number) < e) {
+            rows[e] = rows[pair.value(e) as number];
+        }
+    }
+    return rows;
 }
 
 /**

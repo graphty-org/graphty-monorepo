@@ -225,7 +225,7 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
         snapshot: GraphSnapshot,
         options?: DotExportOptions & CommonExportOptions & ExporterStyleOptions,
     ): readonly LossNote[] {
-        const styled = dotStyledExport(snapshot, options?.styles);
+        const styled = dotStyledExport(snapshot, options?.styles, options?.onMixedDirection);
         if (styled === null) {
             return checkPlain(snapshot, options);
         }
@@ -242,7 +242,12 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
         snapshot: GraphSnapshot,
         options?: DotExportOptions & CommonExportOptions & ExporterStyleOptions,
     ): AsyncIterable<Uint8Array> {
-        return encodeChunks(writeDot(dotStyledExport(snapshot, options?.styles)?.snapshot ?? snapshot, options));
+        return encodeChunks(
+            writeDot(
+                dotStyledExport(snapshot, options?.styles, options?.onMixedDirection)?.snapshot ?? snapshot,
+                options,
+            ),
+        );
     },
 
     /**
@@ -255,7 +260,12 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
         snapshot: GraphSnapshot,
         options?: DotExportOptions & CommonExportOptions & ExporterStyleOptions,
     ): Promise<string> {
-        return joinText(writeDot(dotStyledExport(snapshot, options?.styles)?.snapshot ?? snapshot, options));
+        return joinText(
+            writeDot(
+                dotStyledExport(snapshot, options?.styles, options?.onMixedDirection)?.snapshot ?? snapshot,
+                options,
+            ),
+        );
     },
 });
 

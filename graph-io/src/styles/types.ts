@@ -624,7 +624,12 @@ export interface StyleFingerprint {
     readonly nodes: number;
     /** The edge count. */
     readonly edges: number;
-    /** A hash of the node ids in snapshot order. */
+    /**
+     * The edges a file holds: an undirected edge of a directed graph, which the graph holds as two halves, counted
+     * once. Absent in a fingerprint made before it was recorded, which then means `edges`.
+     */
+    readonly heldEdges?: number;
+    /** A hash of the node ids, whatever their order. */
     readonly ids: string;
 }
 

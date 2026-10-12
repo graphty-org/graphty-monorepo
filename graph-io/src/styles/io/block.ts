@@ -9,7 +9,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { toolDefaults } from "../defaults.js";
-import { featuresOf, styleFingerprint } from "../plan/features.js";
+import { featuresOf, heldEdgeRows, styleFingerprint } from "../plan/features.js";
 import { plainCell, refSource, resolveRules, within } from "../plan/resolve.js";
 import type {
     ColumnRef,
@@ -86,6 +86,11 @@ export interface StyleBlock {
         /** Edge style column keys. */
         readonly edge: readonly string[];
     };
+    /**
+     * The text of each node's id, in the order the inline style columns list the nodes, so they are matched to a graph
+     * read back in another order; absent without inline columns.
+     */
+    readonly order?: readonly string[];
     /** The style columns themselves, for a format with no per-element attributes; absent otherwise. */
     readonly values?: {
         /** Node style columns by key. */
@@ -145,9 +150,17 @@ export function writeStyleBlock(extracted: ExtractedStyles, options: WriteStyleB
         columns: { node: Array.from(columns.node.keys()), edge: Array.from(columns.edge.keys()) },
     };
     if (options.inlineColumns === true) {
+        if (options.snapshot !== undefined) {
+            const { ids, nodeCount } = options.snapshot;
+            out.order = Array.from({ length: nodeCount }, (_unused, i) => String(ids.idOf(i)));
+        }
+        // an edge's values are listed once per edge the file holds
+        const held = options.snapshot === undefined ? null : heldEdgeRows(options.snapshot);
         out.values = {
             node: Object.fromEntries(columns.node),
-            edge: Object.fromEntries(columns.edge),
+            edge: Object.fromEntries(
+                Array.from(columns.edge, ([key, col]) => [key, held === null ? col : held.map((e) => col[e] ?? null)]),
+            ),
         };
     }
     const { snapshot } = options;
@@ -160,7 +173,11 @@ export function writeStyleBlock(extracted: ExtractedStyles, options: WriteStyleB
         };
         out.data = { node: hashes("node"), edge: hashes("edge") };
     }
-    out.fingerprint = { nodes: fingerprint.nodes, edges: fingerprint.edges, ids: fingerprint.ids };
+    out.fingerprint = {
+        nodes: fingerprint.nodes,
+        edges: fingerprint.heldEdges ?? fingerprint.edges,
+        ids: fingerprint.ids,
+    };
     return JSON.stringify(out).replace(/\\(.)/g, (escape, c: string) => SAFE_ESCAPES[c] ?? escape);
 }
 
@@ -235,7 +252,11 @@ export function parseStyleBlock(text: unknown, fingerprint: StyleFingerprint): P
         throw err;
     }
     const f = block.fingerprint;
-    if (f.nodes !== fingerprint.nodes || f.edges !== fingerprint.edges || f.ids !== fingerprint.ids) {
+    if (
+        f.nodes !== fingerprint.nodes ||
+        f.edges !== (fingerprint.heldEdges ?? fingerprint.edges) ||
+        f.ids !== fingerprint.ids
+    ) {
         return { ok: false, reason: "FINGERPRINT" };
     }
     return { ok: true, block };
@@ -362,6 +383,13 @@ function readBlock(top: Record<string, unknown>): StyleBlock {
         return withData;
     }
     const v = isObject(top.values) ? top.values : invalid();
+    const order =
+        top.order === undefined
+            ? undefined
+            : array(top.order, block.fingerprint.nodes).map((id) => (typeof id === "string" ? id : invalid()));
+    if (order !== undefined && order.length !== block.fingerprint.nodes) {
+        invalid();
+    }
     const inline = { node: new Map<string, StyleColumn>(), edge: new Map<string, StyleColumn>() };
     for (const target of TARGETS) {
         const n = target === "node" ? block.fingerprint.nodes : block.fingerprint.edges;
@@ -377,7 +405,7 @@ function readBlock(top: Record<string, unknown>): StyleBlock {
             );
         }
     }
-    return { ...withData, values: inline };
+    return { ...withData, ...(order === undefined ? {} : { order }), values: inline };
 }
 
 /**
@@ -700,7 +728,7 @@ function blockColumns(
     for (const key of block.columns[target]) {
         const inline = block.values?.[target].get(key);
         if (inline !== undefined) {
-            out.set(key, inline);
+            out.set(key, target === "node" ? inNodeOrder(block, snapshot, inline) : onEdgeRows(snapshot, inline));
             continue;
         }
         const tag = styleTag(target, key);
@@ -712,9 +740,73 @@ function blockColumns(
             const v = plainCell(table.value(tag, i));
             col[i] = isScalar(v) ? v : null;
         }
-        out.set(key, col);
+        out.set(key, target === "edge" ? withPairValues(snapshot, col) : col);
     }
     return out;
+}
+
+/**
+ * Inline node values in the order of the graph read back: by each node's id, when the block lists the order it wrote
+ * them in and the file read its nodes back in another.
+ * @param block - the block
+ * @param snapshot - the graph
+ * @param col - the values in the block's order
+ * @returns the values per node row
+ */
+function inNodeOrder(block: StyleBlock, snapshot: GraphSnapshot, col: StyleColumn): StyleColumn {
+    const { order } = block;
+    if (order === undefined || order.every((id, i) => id === String(snapshot.ids.idOf(i)))) {
+        return col;
+    }
+    const at = new Map<string, number>();
+    order.forEach((id, i) => {
+        if (!at.has(id)) {
+            at.set(id, i);
+        }
+    });
+    return Array.from(
+        { length: snapshot.nodeCount },
+        (_unused, i) => col[at.get(String(snapshot.ids.idOf(i))) ?? -1] ?? null,
+    );
+}
+
+/**
+ * Inline edge values, listed once per edge the file holds, per edge row: both halves of an undirected edge in a
+ * directed graph take the edge's value.
+ * @param snapshot - the graph
+ * @param col - the values per held edge
+ * @returns the values per edge row
+ */
+function onEdgeRows(snapshot: GraphSnapshot, col: StyleColumn): StyleColumn {
+    const held = heldEdgeRows(snapshot);
+    if (held.length === snapshot.edgeCount) {
+        return col;
+    }
+    const out = new Array<StyleValue | null>(snapshot.edgeCount).fill(null);
+    held.forEach((e, k) => {
+        out[e] = col[k] ?? null;
+    });
+    return withPairValues(snapshot, out);
+}
+
+/**
+ * Per-edge values with each half of an undirected edge in a directed graph given its other half's value where it has
+ * none: the file holds the edge once, and the format reads its values onto one half.
+ * @param snapshot - the graph
+ * @param col - the values per edge row
+ * @returns the values
+ */
+function withPairValues(snapshot: GraphSnapshot, col: (StyleValue | null)[]): (StyleValue | null)[] {
+    const pair = snapshot.edges.byRole("pair");
+    if (pair === null) {
+        return col;
+    }
+    for (let i = 0; i < col.length; i++) {
+        if (col[i] === null && pair.isSet(i)) {
+            col[i] = col[pair.value(i) as number] ?? null;
+        }
+    }
+    return col;
 }
 
 /**

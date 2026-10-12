@@ -33,6 +33,7 @@ Files under `generated/` were written for this project by seeded scripts, MIT li
 | `gexfjs-celegans.gexf.gz` | https://raw.githubusercontent.com/raphv/gexf-js/master/celegans.gexf | MIT |  |
 | `gexfjs-miserables.gexf` | https://raw.githubusercontent.com/raphv/gexf-js/master/miserables.gexf | MIT |  |
 | `glxxyz_hskhsk.com__HSK1-3_chars_v09.gexf.gz` | https://raw.githubusercontent.com/glxxyz/hskhsk.com/8a6f229c699e2fd7ac8708156c55c3afb2be7e1f/hanzigraphs/gexf/HSK1-3_chars_v09.gexf | MIT | GitHub glxxyz/hskhsk.com hanzigraphs/gexf/HSK1-3_chars_v09.gexf |
+| `graphology-basic.gexf` | https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/basic.gexf | MIT | an undirected edge in a directed graph, beside a directed one between the same nodes |
 | `graphology-missing_nodes.gexf` | https://github.com/graphology/graphology/blob/master/src/gexf/test/resources/missing_nodes.gexf | MIT | edges that name nodes the file never declares |
 | `gsa-fpki-certs.gexf` | https://github.com/GSA/idmanagement.gov/blob/main/_implement/tools/fpki-certs.gexf | CC0 / public domain (US government) |  |
 | `pygraphistry-sample-1.3-viz.gexf` | https://github.com/graphistry/pygraphistry/blob/master/graphistry/tests/data/gexf/sample-1.3-viz.gexf | BSD-3-Clause |  |

@@ -19,7 +19,16 @@ import type {
     TurnRequest,
 } from "../../../src/ai/engine/types";
 import { AI_CONVERSATION_FORMAT } from "../../../src/catalog/ai";
-import { HOSTS, KEYS, providerApiFixture } from "./providerApiFixtures";
+import {
+    geminiSpeechAnswer,
+    HOSTS,
+    KEYS,
+    providerApiFixture,
+    SPEECH_MP3,
+    SPEECH_PCM,
+    TRANSCRIPT,
+    wav,
+} from "./providerApiFixtures";
 
 const PROVIDERS = ["openai", "anthropic", "google"] as const;
 
@@ -710,5 +719,216 @@ describe("Anthropic's web search and web fetch", () => {
             sent?.content.map((block) => block.type),
             ["server_tool_use", "web_search_tool_result"],
         );
+    });
+});
+
+/** A clip as a browser's `MediaRecorder` makes it. */
+function clip(): Blob {
+    return new Blob([new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3, 4])], { type: "audio/webm;codecs=opus" });
+}
+
+/**
+ * A request's URL without its host, query or key, and its body, as a case compares them.
+ * @param request - The recorded request.
+ * @param request.url - Its URL.
+ * @param request.body - Its body.
+ * @returns The path and the body.
+ */
+function normalized(request: { url: string; body: Record<string, unknown> }): { path: string; body: unknown } {
+    return { path: new URL(request.url).pathname, body: request.body };
+}
+
+describe("speech through OpenAI's audio endpoints", () => {
+    it("transcribes one clip in one multipart request, with the model, the language and a file named for its type", async () => {
+        const { engine, requests } = providerApiFixture("openai");
+        const heard = await engine.transcribe?.(clip(), { language: "en-US" }, new AbortController().signal);
+        assert.deepStrictEqual(heard, { code: "AI_COMPLETED", params: {}, text: TRANSCRIPT });
+        assert.deepStrictEqual(requests.map(normalized), [
+            {
+                path: "/v1/audio/transcriptions",
+                body: {
+                    model: "gpt-4o-mini-transcribe",
+                    file: { file: "audio.webm", type: "audio/webm;codecs=opus", size: 8 },
+                    language: "en",
+                    response_format: "json",
+                },
+            },
+        ]);
+        assert.strictEqual(new URL(requests[0].url).host, HOSTS.openai);
+    });
+
+    it("sends the clip to the consumer's base URL, and takes another transcription model", async () => {
+        const { engine, requests, settings } = providerApiFixture("openai");
+        settings.baseUrl = "https://proxy.example.org/openai/v1";
+        await engine.transcribe?.(clip(), { model: "whisper-1" }, new AbortController().signal);
+        assert.strictEqual(requests.length, 1);
+        assert.strictEqual(requests[0].url, "https://proxy.example.org/openai/v1/audio/transcriptions");
+        assert.strictEqual(requests[0].body.model, "whisper-1");
+    });
+
+    it("speaks one text in one request and returns the MP3 as audio/mpeg", async () => {
+        const { engine, requests } = providerApiFixture("openai");
+        const said = await engine.speak?.("Two hubs.", { voiceName: "nova" }, new AbortController().signal);
+        assert.strictEqual(said?.code, "AI_COMPLETED");
+        const audio = said?.code === "AI_COMPLETED" ? said.audio : new Blob();
+        assert.strictEqual(audio.type, "audio/mpeg");
+        assert.deepStrictEqual(new Uint8Array(await audio.arrayBuffer()), SPEECH_MP3);
+        assert.deepStrictEqual(requests.map(normalized), [
+            { path: "/v1/audio/speech", body: { model: "tts-1", input: "Two hubs.", voice: "nova" } },
+        ]);
+    });
+});
+
+describe("speech through Gemini", () => {
+    it("transcribes on the chat model: one generateContent with the clip as inline audio and no tools", async () => {
+        const { engine, requests } = providerApiFixture("google");
+        const heard = await engine.transcribe?.(clip(), { language: "de-DE" }, new AbortController().signal);
+        assert.deepStrictEqual(heard, { code: "AI_COMPLETED", params: {}, text: TRANSCRIPT });
+        assert.strictEqual(requests.length, 1);
+        const { path, body } = normalized(requests[0]);
+        assert.match(path, /\/models\/gemini-3\.8-flash:(stream)?[gG]enerateContent$/);
+        const parts = (body as { contents: { parts: Record<string, unknown>[] }[] }).contents.flatMap((c) => c.parts);
+        assert.deepStrictEqual(
+            parts.flatMap((part) => (part.inlineData ? [part.inlineData] : [])),
+            [{ mimeType: "audio/webm", data: btoa(String.fromCharCode(0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3, 4)) }],
+        );
+        assert.include(JSON.stringify(parts), "de-DE", "the instruction names the language");
+        const sent = JSON.stringify(body);
+        assert.notInclude(sent, "functionDeclarations");
+        // TanStack's Gemini adapter always sends a tools list; it is empty.
+        assert.deepStrictEqual((body as { tools?: unknown[] }).tools ?? [], []);
+        assert.notProperty(body, "toolConfig");
+    });
+
+    it("speaks through the speech model, asking for audio, and wraps Gemini's PCM as a WAV file", async () => {
+        const { engine, requests } = providerApiFixture("google");
+        const said = await engine.speak?.("Two hubs.", {}, new AbortController().signal);
+        assert.strictEqual(said?.code, "AI_COMPLETED");
+        const audio = said?.code === "AI_COMPLETED" ? said.audio : new Blob();
+        assert.strictEqual(audio.type, "audio/wav");
+        const bytes = new Uint8Array(await audio.arrayBuffer());
+        const text = (from: number, to: number): string => String.fromCharCode(...bytes.subarray(from, to));
+        assert.strictEqual(text(0, 4), "RIFF");
+        assert.strictEqual(text(8, 12), "WAVE");
+        assert.deepStrictEqual(bytes, wav(SPEECH_PCM));
+
+        assert.strictEqual(requests.length, 1);
+        const { path, body } = normalized(requests[0]);
+        assert.strictEqual(path, "/v1beta/models/gemini-3.1-flash-tts-preview:generateContent");
+        const config = (body as { generationConfig: Record<string, unknown> }).generationConfig;
+        assert.deepStrictEqual(config.responseModalities, ["AUDIO"]);
+        assert.include(JSON.stringify(config.speechConfig), "Kore", "the adapter's default voice");
+    });
+
+    it("refuses a voice Gemini does not list with AI_VOICE_UNAVAILABLE, before any request", async () => {
+        const { engine, requests } = providerApiFixture("google");
+        const said = await engine.speak?.("Two hubs.", { voiceName: "Nova" }, new AbortController().signal);
+        assert.deepStrictEqual(said, {
+            code: "AI_VOICE_UNAVAILABLE",
+            params: { path: "output", reason: "no-provider-speech" },
+        });
+        assert.strictEqual(requests.length, 0);
+        const named = await engine.speak?.("Two hubs.", { voiceName: "Puck" }, new AbortController().signal);
+        assert.strictEqual(named?.code, "AI_COMPLETED");
+        assert.include(JSON.stringify(requests[0].body), "Puck");
+    });
+
+    it("takes the speech answer the API sends, exactly as recorded", () => {
+        // The recorded answer is the one the fake sends: a guard on the fixture itself.
+        assert.strictEqual(
+            (geminiSpeechAnswer().candidates as { content: { parts: { inlineData: { mimeType: string } }[] } }[])[0]
+                .content.parts[0].inlineData.mimeType,
+            "audio/L16;codec=pcm;rate=24000",
+        );
+    });
+});
+
+/** Each speech call, as a case runs it: its code and the request count. */
+const SPEECH_CALLS = {
+    transcribe: (engine: ProviderApiEngine, signal: AbortSignal) => engine.transcribe?.(clip(), {}, signal),
+    speak: (engine: ProviderApiEngine, signal: AbortSignal) => engine.speak?.("Two hubs.", {}, signal),
+} as const;
+
+describe.each(["openai", "google"] as const)("speech on %s: graphty's retries, codes and keys", (provider) => {
+    describe.each(["transcribe", "speak"] as const)("%s", (kind) => {
+        const call = SPEECH_CALLS[kind];
+
+        it("asks again after a 429 and succeeds: exactly two requests, the provider's wait honored", async () => {
+            const { engine, failOnce, requests, waits } = providerApiFixture(provider);
+            failOnce(429, 250);
+            const done = await call(engine, new AbortController().signal);
+            assert.strictEqual(done?.code, "AI_COMPLETED");
+            assert.strictEqual(requests.length, 2);
+            assert.deepStrictEqual(waits, [250]);
+        });
+
+        it("gives up after three 500s: exactly three requests, the status in the params", async () => {
+            const { engine, failOnce, requests, waits } = providerApiFixture(provider);
+            failOnce(500, Number.NaN);
+            failOnce(500, Number.NaN);
+            failOnce(500, Number.NaN);
+            const done = await call(engine, new AbortController().signal);
+            assert.deepStrictEqual(done, { code: "AI_PROVIDER_ERROR", params: { provider, status: 500 } });
+            assert.strictEqual(requests.length, 3);
+            assert.deepStrictEqual(waits, [2000, 4000]);
+        });
+
+        it("codes a refused key AI_KEY_REJECTED and never asks again", async () => {
+            const { engine, failOnce, requests } = providerApiFixture(provider);
+            failOnce(401);
+            const done = await call(engine, new AbortController().signal);
+            assert.strictEqual(done?.code, "AI_KEY_REJECTED");
+            assert.strictEqual(requests.length, 1);
+        });
+
+        it("is cancelled by its signal: AI_CANCELLED, and no further request", async () => {
+            const { engine, hang, requests } = providerApiFixture(provider);
+            const controller = new AbortController();
+            hang();
+            const pending = call(engine, controller.signal);
+            await vi.waitFor(() => {
+                assert.strictEqual(requests.length, 1);
+            });
+            controller.abort();
+            const done = await pending;
+            assert.deepStrictEqual(done, { code: "AI_CANCELLED", params: {} });
+            assert.strictEqual(requests.length, 1);
+
+            const already = await call(engine, AbortSignal.abort());
+            assert.strictEqual(already?.code, "AI_CANCELLED");
+            assert.strictEqual(requests.length, 1, "an aborted signal sends nothing");
+        });
+
+        it("refuses a call with no key before sending anything", async () => {
+            const { engine, requests, settings } = providerApiFixture(provider);
+            settings.apiKey = "";
+            const done = await call(engine, new AbortController().signal);
+            assert.deepStrictEqual(done, { code: "AI_KEY_MISSING", params: { provider } });
+            assert.strictEqual(requests.length, 0);
+        });
+
+        it("keeps the key out of the result and of every request but its header, even when the provider echoes it", async () => {
+            const { engine, requests, respondOnce } = providerApiFixture(provider);
+            const key = KEYS[provider];
+            const ok = await call(engine, new AbortController().signal);
+            respondOnce(401, JSON.stringify({ error: { message: `bad key ${key}` } }), {
+                "content-type": "application/json",
+            });
+            const refused = await call(engine, new AbortController().signal);
+            assert.strictEqual(refused?.code, "AI_KEY_REJECTED");
+            assert.notInclude(JSON.stringify([ok, refused]), key);
+            for (const sent of requests) {
+                assert.notInclude(`${sent.url}\n${JSON.stringify(sent.body)}`, key, "the key is in a header only");
+                assert.strictEqual(new URL(sent.url).host, HOSTS[provider]);
+            }
+        });
+    });
+});
+
+describe("speech on Anthropic", () => {
+    it("has neither member: Anthropic transcribes and speaks nothing itself", () => {
+        const { engine } = providerApiFixture("anthropic");
+        assert.isFalse("transcribe" in engine);
+        assert.isFalse("speak" in engine);
     });
 });

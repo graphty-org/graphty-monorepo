@@ -69,7 +69,7 @@ export interface ProviderModule {
 }
 
 /** What the turn's request got back, as graphty's own fetch saw it. */
-interface ResponseRecord {
+export interface ResponseRecord {
     /** The HTTP status of a response that was not ok. */
     status?: number;
     /** How long the provider asked to wait, from `retry-after-ms` or `retry-after`. */
@@ -116,7 +116,7 @@ function isSdkTelemetryHeader(name: string): boolean {
  * @param record - Where it records.
  * @returns The fetch.
  */
-function recordingFetch(record: ResponseRecord): typeof globalThis.fetch {
+export function recordingFetch(record: ResponseRecord): typeof globalThis.fetch {
     return async (input, init) => {
         const headers = new Headers(init?.headers);
         for (const name of [...headers.keys()].filter(isSdkTelemetryHeader)) {
@@ -139,7 +139,7 @@ function recordingFetch(record: ResponseRecord): typeof globalThis.fetch {
 }
 
 /** Each provider's module, loaded on its first turn. */
-const PROVIDERS: Readonly<Record<ProviderApiSettings["provider"], () => Promise<ProviderModule>>> = {
+export const PROVIDERS: Readonly<Record<ProviderApiSettings["provider"], () => Promise<ProviderModule>>> = {
     openai: async () => (await import("./openai")).openai,
     anthropic: async () => (await import("./anthropic")).anthropic,
     google: async () => (await import("./google")).google,
@@ -327,12 +327,12 @@ function isGoogleKeyRefusal(message: string, response: ResponseRecord, settings:
  * @param signal - The turn's signal: when it fired, the turn was cancelled.
  * @returns The error event.
  */
-function failure(
+export function failure(
     message: string,
     response: ResponseRecord,
     settings: ProviderApiSettings,
     signal: AbortSignal,
-): TurnEvent {
+): TurnError {
     const error = Object.assign(new Error(providerMessage(message)), { name: "ProviderApiError" });
     const { status } = response;
     if (status !== undefined) {

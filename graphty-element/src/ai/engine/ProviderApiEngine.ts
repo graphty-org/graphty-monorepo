@@ -4,19 +4,25 @@
  * on the first turn. The retry schedule is graphty's: the adapter turns off every lower layer's.
  */
 
-import { aiHostedToolStatus } from "../../catalog/ai";
+import { aiHostedToolStatus, type AiResultCode, type AiResultParams, aiVoiceStatus } from "../../catalog/ai";
 import { API_KEY_MISSING_ERROR } from "../safeError";
 import { providerFailure } from "./LlmProviderEngine";
-import { loadProviderApiTurn } from "./load";
+import { loadProviderApiTurn, loadProviderVoice } from "./load";
 import {
     type AiEngine,
     type EngineCapabilities,
     type EngineOutcome,
     type ProviderApiSettings,
     type ProviderApiTurn,
+    type ProviderVoice,
+    type SpeakOptions,
+    type SpokenAudio,
+    type TranscribeOptions,
     type TurnError,
     type TurnEvent,
     type TurnRequest,
+    type TurnText,
+    type VoiceAttempt,
 } from "./types";
 
 /** Retries after the first attempt: the AI SDK 5's schedule, which the assistant keeps. */
@@ -70,11 +76,40 @@ export interface ProviderApiEngineOptions {
     readonly load?: () => Promise<ProviderApiTurn>;
     /** Waits between attempts. */
     readonly wait?: (ms: number, signal: AbortSignal) => Promise<void>;
+    /** Loads the adapter's voice module. */
+    readonly loadVoice?: () => Promise<ProviderVoice>;
+}
+
+/**
+ * The key-missing failure of a call made with no key.
+ * @param provider - The provider.
+ * @param signal - The call's signal.
+ * @returns The error event.
+ */
+function keyMissing(provider: string, signal: AbortSignal): TurnError {
+    const error = Object.assign(new Error(`API key not configured for ${provider}`), { name: API_KEY_MISSING_ERROR });
+    return providerFailure(error, provider, signal);
+}
+
+/**
+ * A failed speech call's outcome.
+ * @param error - The last attempt's error.
+ * @returns Its code and params.
+ */
+function failed(error: TurnError): { code: Exclude<AiResultCode, "AI_COMPLETED">; params: AiResultParams } {
+    return {
+        code: error.code === "AI_COMPLETED" ? "AI_PROVIDER_ERROR" : error.code,
+        params: error.params,
+    };
 }
 
 /** A provider's API, called from the page. */
 export class ProviderApiEngine implements AiEngine {
     readonly kind = "provider-api";
+    // Present only where the provider can (assigned in the constructor), so `"speak" in engine` is
+    // the capability.
+    declare transcribe?: (audio: Blob, options: TranscribeOptions, signal: AbortSignal) => Promise<TurnText>;
+    declare speak?: (text: string, options: SpeakOptions, signal: AbortSignal) => Promise<SpokenAudio>;
 
     /**
      * An engine over a provider's live configuration.
@@ -84,7 +119,25 @@ export class ProviderApiEngine implements AiEngine {
     constructor(
         private readonly settings: () => ProviderApiSettings,
         private readonly options: ProviderApiEngineOptions = {},
-    ) {}
+    ) {
+        const { provider } = settings();
+        if (aiVoiceStatus(provider, "input") === "available") {
+            this.transcribe = async (audio, transcribeOptions, signal) => {
+                const done = await this.voiceCall(
+                    (voice, now) => voice.transcribe(now, audio, transcribeOptions, signal),
+                    signal,
+                );
+                return done.type === "done" ? { code: "AI_COMPLETED", params: {}, text: done.value } : failed(done);
+            };
+        }
+
+        if (aiVoiceStatus(provider, "output") === "available") {
+            this.speak = async (text, speakOptions, signal) => {
+                const done = await this.voiceCall((voice, now) => voice.speak(now, text, speakOptions, signal), signal);
+                return done.type === "done" ? { code: "AI_COMPLETED", params: {}, audio: done.value } : failed(done);
+            };
+        }
+    }
 
     /**
      * The provider's name.
@@ -120,10 +173,7 @@ export class ProviderApiEngine implements AiEngine {
     async *turn(request: TurnRequest, signal: AbortSignal): AsyncIterable<TurnEvent> {
         const settings = this.settings();
         if (settings.apiKey === undefined || settings.apiKey === "") {
-            const error = Object.assign(new Error(`API key not configured for ${settings.provider}`), {
-                name: API_KEY_MISSING_ERROR,
-            });
-            yield providerFailure(error, settings.provider, signal);
+            yield keyMissing(settings.provider, signal);
             return;
         }
 
@@ -178,6 +228,43 @@ export class ProviderApiEngine implements AiEngine {
         }
 
         return { code: "AI_PROVIDER_ERROR", params: { provider: this.providerName } };
+    }
+
+    /**
+     * One speech call, asked again on graphty's schedule like a turn: a rate limit, a server error
+     * or a lost connection.
+     * @param call - One attempt, with the voice module and the settings as they are now.
+     * @param signal - Cancels the call and any wait.
+     * @returns The value, or the coded error of the last attempt.
+     */
+    private async voiceCall<T>(
+        call: (voice: ProviderVoice, settings: ProviderApiSettings) => Promise<VoiceAttempt<T>>,
+        signal: AbortSignal,
+    ): Promise<VoiceAttempt<T>> {
+        const settings = this.settings();
+        if (settings.apiKey === undefined || settings.apiKey === "") {
+            return keyMissing(settings.provider, signal);
+        }
+
+        let voice: ProviderVoice;
+        try {
+            voice = await (this.options.loadVoice ?? loadProviderVoice)();
+        } catch (error) {
+            return providerFailure(error, settings.provider, signal);
+        }
+
+        for (let attempt = 0, backoff = FIRST_RETRY_MS; ; attempt++, backoff *= 2) {
+            const done = await call(voice, settings);
+            if (done.type === "done" || done.retryable !== true || attempt >= MAX_RETRIES) {
+                return done;
+            }
+
+            try {
+                await (this.options.wait ?? wait)(retryDelay(done.retryAfterMs, backoff), signal);
+            } catch (error) {
+                return providerFailure(error, settings.provider, signal);
+            }
+        }
     }
 
     /** The configuration is the provider's, and nothing outlives a turn's signal. */

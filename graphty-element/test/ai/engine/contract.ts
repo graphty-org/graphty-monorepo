@@ -563,7 +563,12 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
             assert.deepStrictEqual(heard, { code: "AI_COMPLETED", params: {}, text: voice.transcript });
             const said = await engine.speak?.("Two hubs.", {}, signal);
             assert.strictEqual(said?.code, "AI_COMPLETED");
-            assert.strictEqual(said?.code === "AI_COMPLETED" ? said.audio : undefined, voice.audio);
+            const audio = said?.code === "AI_COMPLETED" ? said.audio : new Blob();
+            assert.strictEqual(audio.type, voice.audio.type);
+            assert.deepStrictEqual(
+                new Uint8Array(await audio.arrayBuffer()),
+                new Uint8Array(await voice.audio.arrayBuffer()),
+            );
         });
 
         it("answers a key check with a code, and disposes", async () => {

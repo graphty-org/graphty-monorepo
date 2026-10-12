@@ -313,6 +313,28 @@ export type SpokenAudio =
     | { readonly code: "AI_COMPLETED"; readonly params: AiResultParams; readonly audio: Blob }
     | { readonly code: Exclude<AiResultCode, "AI_COMPLETED">; readonly params: AiResultParams };
 
+/** One attempt at a provider's speech call: its value, or a coded error like a turn's. */
+export type VoiceAttempt<T> = { readonly type: "done"; readonly value: T } | TurnError;
+
+/**
+ * The adapter's voice module (`loadProviderVoice()` in load.ts): one request per call, no retry
+ * (retries are the engine's), for a provider `AI_VOICE_CAPABILITIES` lists as able.
+ */
+export interface ProviderVoice {
+    transcribe(
+        settings: ProviderApiSettings,
+        audio: Blob,
+        options: TranscribeOptions,
+        signal: AbortSignal,
+    ): Promise<VoiceAttempt<string>>;
+    speak(
+        settings: ProviderApiSettings,
+        text: string,
+        options: SpeakOptions,
+        signal: AbortSignal,
+    ): Promise<VoiceAttempt<Blob>>;
+}
+
 /** Talks to a model, one turn per call. */
 export interface AiEngine {
     readonly kind: "provider-api" | "llm-provider" | "fake";

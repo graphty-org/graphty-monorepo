@@ -68,7 +68,11 @@ export default tseslint.config(
     // (tool_choice, max_output_tokens, stop_reason), whose quotes Prettier removes. Names graphty
     // declares itself are still checked.
     {
-        files: ["src/ai/engine/tanstack/**/*.ts", "test/ai/engine/providerApiFixtures.ts"],
+        files: [
+            "src/ai/engine/tanstack/**/*.ts",
+            "test/ai/engine/providerApiFixtures.ts",
+            "test/ai/engine/providerApi.test.ts",
+        ],
         rules: {
             camelcase: ["error", { properties: "never" }],
         },

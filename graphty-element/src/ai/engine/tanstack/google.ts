@@ -2,10 +2,12 @@
  * @file Google Gemini on TanStack AI. Loaded on the first Google turn.
  */
 
-import { createGeminiChat } from "@tanstack/ai-gemini";
+import { createGeminiChat, createGeminiSpeech } from "@tanstack/ai-gemini";
 import { googleSearchTool } from "@tanstack/ai-gemini/tools";
 
+import type { ProviderApiSettings } from "../types";
 import type { ProviderModule } from "./index";
+import type { ProviderVoiceModule } from "./voice";
 
 /**
  * The value Gemini documents for a function call whose thought signature is not available (one
@@ -36,16 +38,29 @@ function splitBaseUrl(baseUrl: string): { baseUrl: string; apiVersion: string } 
     return match ? { baseUrl: match[1], apiVersion: match[2] } : { baseUrl, apiVersion: "" };
 }
 
+/**
+ * `@google/genai`'s HTTP options, the same for chat and speech.
+ * @param settings - The base URL.
+ * @param fetch - graphty's fetch.
+ * @returns The options.
+ */
+function httpOptions(
+    settings: ProviderApiSettings,
+    fetch: typeof globalThis.fetch,
+): { baseUrl?: string; apiVersion?: string; retryOptions: { attempts: number }; fetch: typeof globalThis.fetch } {
+    return {
+        ...(settings.baseUrl !== undefined && splitBaseUrl(settings.baseUrl)),
+        // One attempt: retries are the engine's.
+        retryOptions: { attempts: 1 },
+        fetch,
+    };
+}
+
 export const google: ProviderModule = {
     createAdapter: (settings, fetch) =>
         // Any model id the consumer names is passed on: the adapter's typed list is not the API's.
         createGeminiChat(settings.model as Parameters<typeof createGeminiChat>[0], settings.apiKey ?? "", {
-            httpOptions: {
-                ...(settings.baseUrl !== undefined && splitBaseUrl(settings.baseUrl)),
-                // One attempt: retries are the engine's.
-                retryOptions: { attempts: 1 },
-                fetch,
-            },
+            httpOptions: httpOptions(settings, fetch),
         }),
     // Google Search has no domain filter (`hostedToolLimits`) and no use cap: a request limited to
     // some domains is left out rather than honored in part.
@@ -79,4 +94,17 @@ export const google: ProviderModule = {
             return !signed && checksSignatures(model) ? { thoughtSignature: SKIP_SIGNATURE } : undefined;
         });
     },
+};
+
+/**
+ * Gemini's speech, one `generateContent` asking for audio. Gemini has no transcription endpoint:
+ * the chat model transcribes (`voice.ts`).
+ */
+export const googleVoice: ProviderVoiceModule = {
+    speech: (model, settings, fetch) =>
+        createGeminiSpeech(model as Parameters<typeof createGeminiSpeech>[0], settings.apiKey ?? "", {
+            httpOptions: httpOptions(settings, fetch),
+        }),
+    // The adapter throws, in English, on a voice name `GeminiTTSVoices` does not list.
+    refusesUnknownVoices: true,
 };

@@ -181,6 +181,39 @@ describe("AI chunks load lazily", () => {
         }
     });
 
+    it("keeps the voice module and the transcription and speech adapters out of every chunk an entry loads up front", () => {
+        const { chunks } = JSON.parse(readFileSync(META, "utf8")) as { chunks: Chunk[] };
+        const byFile = new Map(chunks.map((c) => [c.fileName, c]));
+        const voiceModules = [
+            /^src\/ai\/engine\/tanstack\/voice\.ts$/,
+            /@tanstack\/ai-openai\/dist\/esm\/adapters\/(?:transcription|tts)\.js$/,
+            /@tanstack\/ai-gemini\/dist\/esm\/adapters\/tts\.js$/,
+            /@tanstack\/ai\/dist\/esm\/activities\/(?:generateTranscription|generateSpeech)\/index\.js$/,
+        ];
+        for (const pattern of voiceModules) {
+            assert.ok(
+                chunks.some((c) => c.modules.some((id) => pattern.test(id))),
+                `a chunk holds a module matching ${pattern}`,
+            );
+        }
+
+        const voice = chunks.filter((c) => c.modules.some((id) => voiceModules.some((p) => p.test(id))));
+        for (const entry of exportedEntries()) {
+            const reached = new Set<string>();
+            const queue = [entry];
+            for (let file = queue.pop(); file !== undefined; file = queue.pop()) {
+                if (!reached.has(file)) {
+                    reached.add(file);
+                    queue.push(...(byFile.get(file)?.imports ?? []).filter((i) => byFile.has(i)));
+                }
+            }
+
+            for (const chunk of voice) {
+                assert.notInclude([...reached], chunk.fileName, `${entry} loads ${chunk.fileName} up front`);
+            }
+        }
+    });
+
     it("builds the in-page code sandbox into its own chunk, reached only by import(), with its WebAssembly beside it", () => {
         const { chunks } = JSON.parse(readFileSync(META, "utf8")) as { chunks: Chunk[] };
         const program = chunks.find((c) => c.modules.includes("src/ai/engine/tanstack/program.ts"));

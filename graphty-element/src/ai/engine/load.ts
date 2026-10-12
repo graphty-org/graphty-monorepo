@@ -6,7 +6,7 @@
 
 import type { LlmProvider } from "../providers/types";
 import { LlmProviderEngine } from "./LlmProviderEngine";
-import type { AiEngine, ProgramRunner, ProviderApiTurn } from "./types";
+import type { AiEngine, ProgramRunner, ProviderApiTurn, ProviderVoice } from "./types";
 
 /**
  * An `AiController` option, keyed by this symbol, that runs a given engine instead of the
@@ -48,6 +48,15 @@ export function engineFor(provider: LlmProvider): AiEngine {
  */
 export async function loadProviderApiTurn(): Promise<ProviderApiTurn> {
     return (await import("./tanstack/index")).providerApiTurn;
+}
+
+/**
+ * Load the adapter's voice module (transcription and speech), its own chunk, on the first clip or
+ * spoken answer. Each provider's adapters come with that provider's chunk.
+ * @returns The voice module.
+ */
+export async function loadProviderVoice(): Promise<ProviderVoice> {
+    return (await import("./tanstack/voice")).providerVoice;
 }
 
 /** The in-page code sandbox, as its chunk exports it. */

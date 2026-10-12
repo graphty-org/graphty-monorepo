@@ -21,6 +21,31 @@ fixes the cause.
   carried as provider state, up to three times. To report: pass `pause_turn` through as its own
   finish reason.
 
+## Transcription and speech: `@tanstack/ai-openai` 0.29.1, `@tanstack/ai-gemini` 0.37.2
+
+`voice.ts` calls `generateTranscription` and `generateSpeech`; the provider's adapters come with
+its chat module (`openaiVoice` in `openai.ts`, `googleVoice` in `google.ts`).
+
+- **Gemini has no transcription adapter.** Workaround: the chat model transcribes, one `chat()`
+  turn with a fixed instruction and the clip as an `audio` content part (sent as `inlineData`),
+  with no tools. To report: a Gemini transcription adapter over the same call.
+- **The OpenAI transcription adapter names every `Blob` `audio.mp3`**, whatever its type
+  (`prepareAudioFile`), and the API reads the format from the name, so a WebM clip from
+  `MediaRecorder` would be sent as MP3. Workaround: `audioFile()` in `voice.ts` passes a `File`
+  named for its type, which the adapter passes on as it is. To report: name the file from the
+  `Blob`'s type.
+- **The audio adapters do not pass the call's `abortSignal` to their request**, so cancelling
+  only stops waiting for it. Workaround: `voiceFetch()` in `voice.ts` gives graphty's fetch the
+  call's signal too. To report: pass `abortSignal` to the SDK call.
+- **An unknown Gemini voice name throws an English sentence** (`toGeminiVoice`), before any
+  request. Workaround: `speak()` in `voice.ts` reads a throw before any request, on a module that
+  says `refusesUnknownVoices`, as that refusal and answers `AI_VOICE_UNAVAILABLE`. To report: a
+  coded error (or a voice check graphty can call) instead of the sentence.
+- **The OpenAI SDK fetches `data:,` before its first multipart request with a new fetch**
+  (`supportsFormData`), to learn the `Response` class. Workaround: `voiceFetch()` names
+  `Response` on the fetch it hands the SDK. Not reported: the SDK's own probe, harmless but for
+  the extra request.
+
 ## In-page code: `@tanstack/ai-isolate-quickjs` 0.3.2 over `quickjs-emscripten` 0.31.0
 
 The in-page code sandbox is not part of the provider engine: a program runs in the page whichever

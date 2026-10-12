@@ -520,6 +520,138 @@ const SEEN: Readonly<Record<ProviderApiId, (body: Record<string, unknown>) => Se
     }),
 };
 
+/** What every recorded transcription hears. */
+export const TRANSCRIPT = "color the hubs red";
+
+/** The bytes OpenAI's speech endpoint answers with: the start of an MP3 file. */
+export const SPEECH_MP3 = new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4]);
+
+/** The 16-bit PCM Gemini's speech answers with, as `audio/L16;codec=pcm;rate=24000`. */
+export const SPEECH_PCM = new Uint8Array([0, 0, 0x10, 0, 0x20, 0, 0x10, 0, 0, 0, 0xf0, 0xff]);
+
+/** Gemini's speech content type. */
+const GEMINI_PCM_TYPE = "audio/L16;codec=pcm;rate=24000";
+
+/**
+ * 16-bit mono PCM in a WAV file, as a reader's audio player takes it.
+ * @param pcm - The samples.
+ * @param rate - Samples per second.
+ * @returns The WAV file's bytes.
+ */
+export function wav(pcm: Uint8Array, rate = 24_000): Uint8Array<ArrayBuffer> {
+    const out = new Uint8Array(44 + pcm.length);
+    const view = new DataView(out.buffer);
+    const ascii = (at: number, text: string): void => {
+        for (let i = 0; i < text.length; i++) {
+            out[at + i] = text.charCodeAt(i);
+        }
+    };
+    ascii(0, "RIFF");
+    view.setUint32(4, 36 + pcm.length, true);
+    ascii(8, "WAVE");
+    ascii(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, rate, true);
+    view.setUint32(28, rate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    ascii(36, "data");
+    view.setUint32(40, pcm.length, true);
+    out.set(pcm, 44);
+    return out;
+}
+
+/** What each provider's engine hears and says through the recorded audio endpoints. */
+const VOICE: Partial<Record<ProviderApiId, { transcript: string; audio: Blob }>> = {
+    openai: { transcript: TRANSCRIPT, audio: new Blob([SPEECH_MP3], { type: "audio/mpeg" }) },
+    google: { transcript: TRANSCRIPT, audio: new Blob([wav(SPEECH_PCM)], { type: "audio/wav" }) },
+};
+
+/**
+ * A request body as the fake records it: JSON parsed, a multipart form as its fields (a file as
+ * its name, type and size), anything else empty.
+ * @param body - The body.
+ * @returns The record.
+ */
+function requestBody(body: BodyInit | null | undefined): Record<string, unknown> {
+    if (typeof body === "string") {
+        return JSON.parse(body) as Record<string, unknown>;
+    }
+
+    if (body instanceof FormData) {
+        return Object.fromEntries(
+            [...body.entries()].map(([name, value]) => [
+                name,
+                typeof value === "string" ? value : { file: value.name, type: value.type, size: value.size },
+            ]),
+        );
+    }
+
+    return {};
+}
+
+/**
+ * Whether a Gemini request carries an audio part (a clip to transcribe).
+ * @param body - The request body.
+ * @returns Whether it does.
+ */
+function hasAudioPart(body: Record<string, unknown>): boolean {
+    return JSON.stringify(body.contents ?? []).includes('"inlineData"');
+}
+
+/**
+ * What the fake answers when no case scripted a reply: a short answer to a turn, and the recorded
+ * answer of each audio endpoint.
+ * @param provider - The provider.
+ * @param url - The request's URL.
+ * @param body - The recorded body.
+ * @returns The reply.
+ */
+function defaultReply(provider: ProviderApiId, url: string, body: Record<string, unknown>): Reply {
+    const ok = (payload: BodyInit, type: string): Reply => {
+        return () => Promise.resolve(new Response(payload, { status: 200, headers: { "content-type": type } }));
+    };
+    if (url.endsWith("/audio/transcriptions")) {
+        return ok(JSON.stringify({ text: TRANSCRIPT }), "application/json");
+    }
+
+    if (url.endsWith("/audio/speech")) {
+        return ok(new Blob([SPEECH_MP3]), "audio/mpeg");
+    }
+
+    if (provider === "google" && url.includes(":generateContent")) {
+        return ok(JSON.stringify(geminiSpeechAnswer()), "application/json");
+    }
+
+    const text = provider === "google" && hasAudioPart(body) ? TRANSCRIPT : "ok";
+    return ok(STREAMS[provider]({ text }), "text/event-stream");
+}
+
+/**
+ * Gemini's answer to a speech request: the PCM as an inline audio part.
+ * @returns The response body.
+ */
+export function geminiSpeechAnswer(): Record<string, unknown> {
+    let binary = "";
+    for (const byte of SPEECH_PCM) {
+        binary += String.fromCharCode(byte);
+    }
+
+    return {
+        candidates: [
+            {
+                content: { role: "model", parts: [{ inlineData: { mimeType: GEMINI_PCM_TYPE, data: btoa(binary) } }] },
+                finishReason: "STOP",
+                index: 0,
+            },
+        ],
+        usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 10, totalTokenCount: 15 },
+        modelVersion: "gemini-3.1-flash-tts-preview",
+    };
+}
+
 /** A provider-API fixture, with what a provider-specific case needs beyond the contract. */
 export interface ProviderApiFixture extends EngineFixture {
     readonly engine: ProviderApiEngine;
@@ -560,13 +692,9 @@ export function providerApiFixture(
             Promise.resolve(new Response(body, { status, headers }));
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = input instanceof Request ? input.url : String(input);
-        requests.push({
-            url,
-            headers: Object.fromEntries(new Headers(init?.headers).entries()),
-            body: typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {},
-        });
-        const reply =
-            replies.shift() ?? respond(200, STREAMS[provider]({ text: "ok" }), { "content-type": "text/event-stream" });
+        const body = requestBody(init?.body);
+        requests.push({ url, headers: Object.fromEntries(new Headers(init?.headers).entries()), body });
+        const reply = replies.shift() ?? defaultReply(provider, url, body);
         return reply(init);
     });
     const engine = new ProviderApiEngine(() => ({ ...settings }), {
@@ -616,5 +744,6 @@ export function providerApiFixture(
         },
         seen: () => requests.map((r) => SEEN[provider](r.body)),
         wire: () => requests.map((r) => r.body),
+        ...(VOICE[provider] !== undefined && { voice: VOICE[provider] }),
     };
 }

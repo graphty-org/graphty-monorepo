@@ -76,7 +76,7 @@ export function readPersistedCanvasLayout(): Partial<PersistedCanvasLayout> {
     let raw: string | null = null;
 
     try {
-        raw = window.localStorage.getItem(CANVAS_LAYOUT_STORAGE_KEY);
+        raw = globalThis.localStorage.getItem(CANVAS_LAYOUT_STORAGE_KEY);
     } catch {
         return {};
     }
@@ -151,7 +151,7 @@ export function readPersistedCanvasLayout(): Partial<PersistedCanvasLayout> {
  */
 export function writePersistedCanvasLayout(layout: PersistedCanvasLayout): void {
     try {
-        window.localStorage.setItem(CANVAS_LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+        globalThis.localStorage.setItem(CANVAS_LAYOUT_STORAGE_KEY, JSON.stringify(layout));
     } catch {
         // Deliberately ignored: see the JSDoc above.
     }

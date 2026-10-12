@@ -18,7 +18,7 @@ import { Workspace } from "./workspace/Workspace";
  * @returns The application root component.
  */
 export function App(): React.JSX.Element {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(globalThis.location.search);
 
     if (params.has("demo")) {
         return (

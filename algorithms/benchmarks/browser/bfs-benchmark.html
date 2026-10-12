@@ -184,7 +184,7 @@
             function getSystemInfo() {
                 const nav = navigator;
                 const screen = window.screen;
-                const performance = window.performance;
+                const performance = globalThis.performance;
 
                 return {
                     platform: nav.platform,
@@ -254,8 +254,8 @@
                 }
 
                 // Force garbage collection after warmup if available
-                if (window.gc) {
-                    window.gc();
+                if (globalThis.gc) {
+                    globalThis.gc();
                 }
                 log(`  Warmup completed for ${name}`);
             }
@@ -347,8 +347,8 @@
                             minSamples: config.iterations,
                             setup: function () {
                                 // Browser GC hint (if available)
-                                if (window.gc) {
-                                    window.gc();
+                                if (globalThis.gc) {
+                                    globalThis.gc();
                                 }
                             },
                         });
@@ -489,9 +489,9 @@
             });
 
             // Make functions globally available
-            window.runBenchmark = runBenchmark;
-            window.clearConsole = clearConsole;
-            window.downloadResults = downloadResults;
+            globalThis.runBenchmark = runBenchmark;
+            globalThis.clearConsole = clearConsole;
+            globalThis.downloadResults = downloadResults;
         </script>
     </body>
 </html>

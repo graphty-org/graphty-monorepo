@@ -72,8 +72,6 @@ export function runIdBenchmarks(): BenchResult[] {
                 { setup: () => strings, run: (ids) => idsSnapshot(ids) },
                 { items: count, unit: "ids" },
             ),
-        );
-        results.push(
             bench(
                 "ids",
                 `intern ${label} string ids (addNode x n only)`,
@@ -89,8 +87,6 @@ export function runIdBenchmarks(): BenchResult[] {
                 },
                 { items: count, unit: "ids" },
             ),
-        );
-        results.push(
             bench(
                 "ids",
                 `intern ${label} sparse numeric ids (addNode x n + freeze)`,
@@ -139,8 +135,6 @@ export function runIdBenchmarks(): BenchResult[] {
             { setup: () => stringSnapshot, run: (s) => s.ids.toMap(values) },
             { items: n, unit: "ids" },
         ),
-    );
-    results.push(
         bench(
             "ids",
             "entries over 1M string ids (consumed)",
@@ -156,16 +150,12 @@ export function runIdBenchmarks(): BenchResult[] {
             },
             { items: n, unit: "ids" },
         ),
-    );
-    results.push(
         bench(
             "ids",
             "idsSlice of 1M string ids",
             { setup: () => stringSnapshot, run: (s) => s.ids.idsSlice() },
             { items: n, unit: "ids" },
         ),
-    );
-    results.push(
         bench(
             "ids",
             "toWire of a 1M string id map (encodes the Utf8 store once)",

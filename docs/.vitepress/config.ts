@@ -120,6 +120,7 @@ export default defineConfig({
                         { text: "JavaScript API", link: "/graphty-element/guide/javascript-api" },
                         { text: "Styling", link: "/graphty-element/guide/styling" },
                         { text: "Coloring by a Column", link: "/graphty-element/guide/column-encoding" },
+                        { text: "Styles from Files", link: "/graphty-element/guide/file-styles" },
                         { text: "Style Helpers & Palettes", link: "/graphty-element/guide/style-helpers" },
                         { text: "Layouts", link: "/graphty-element/guide/layouts" },
                         { text: "Acceleration", link: "/graphty-element/guide/acceleration" },

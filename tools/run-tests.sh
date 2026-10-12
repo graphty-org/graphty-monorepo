@@ -75,8 +75,12 @@ run_shard() {
         echo "==> $name: $cmd"
         # Exit 0 alone is not a pass: a pnpm older than 10.29.1 on PATH reports a pnpm exec killed by a
         # signal as exit 0. tools/shard-verdict.mjs also asks for the vitest summary and the reports.
-        log="$(mktemp)"
-        trap 'rm -f "$log"' EXIT
+        # The log lives in the checkout's own tmp/, not /tmp: other processes on this machine clear /tmp
+        # entries they did not make, and a log removed before the verdict read it failed a passing shard.
+        mkdir -p "$ROOT/tmp/run-tests" || exit 1
+        logdir="$(mktemp -d "$ROOT/tmp/run-tests/$name.XXXXXX")" || exit 1
+        trap 'rm -rf "$logdir"' EXIT
+        log="$logdir/output.log"
         start="$(node -p 'Date.now()')"
         sh -c "$cmd" 2>&1 | tee "$log"
         node "$ROOT/tools/shard-verdict.mjs" "$name" "${PIPESTATUS[0]}" "$log" "$start"

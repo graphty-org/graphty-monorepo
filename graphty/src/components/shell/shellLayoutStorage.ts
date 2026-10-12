@@ -79,7 +79,7 @@ export function readPersistedShellLayout(): Partial<PersistedShellLayout> {
     let raw: string | null = null;
 
     try {
-        raw = window.localStorage.getItem(SHELL_LAYOUT_STORAGE_KEY);
+        raw = globalThis.localStorage.getItem(SHELL_LAYOUT_STORAGE_KEY);
     } catch {
         return {};
     }
@@ -142,7 +142,7 @@ export function readPersistedShellLayout(): Partial<PersistedShellLayout> {
  */
 export function writePersistedShellLayout(layout: PersistedShellLayout): void {
     try {
-        window.localStorage.setItem(SHELL_LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+        globalThis.localStorage.setItem(SHELL_LAYOUT_STORAGE_KEY, JSON.stringify(layout));
     } catch {
         // A full or unavailable store is not an error the shell can act on: the
         // layout simply does not survive the session.

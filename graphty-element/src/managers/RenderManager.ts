@@ -91,7 +91,9 @@ let shaderCompilers: Promise<ShaderCompilers> | null = null;
 async function loadCompiler(name: "glslang" | "twgsl"): Promise<unknown> {
     const base = `${Tools._DefaultCdnUrl}/${name}/${name}`;
     await Tools.LoadBabylonScriptAsync(`${base}.js`);
-    const factory = (self as unknown as Record<string, ((wasmPath: string) => Promise<unknown>) | undefined>)[name];
+    const factory = (globalThis as unknown as Record<string, ((wasmPath: string) => Promise<unknown>) | undefined>)[
+        name
+    ];
     if (factory === undefined) {
         throw new Error(`${name}.js loaded but defined no ${name}`);
     }

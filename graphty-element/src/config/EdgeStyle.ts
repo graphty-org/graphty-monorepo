@@ -29,7 +29,8 @@ export const EdgeArrowTypes = z.enum([
 
 const ArrowStyle = z.strictObject({
     type: EdgeArrowTypes.default("normal").optional(),
-    size: z.number().positive().default(1).optional(),
+    /** 0 draws no cap, and the line runs as it would with none (EdgeMesh.createArrowHead). */
+    size: z.number().nonnegative().default(1).optional(),
     /**
      * The colour to draw the cap in, or unset to follow the line it caps.
      *
@@ -70,9 +71,10 @@ const LineStyle = z.strictObject({
      * space nodes are sized and placed in. Every line type (solid, patterned, bezier, animated,
      * 2D and 3D) draws the same width at the same thickness. Being a world length, a line grows
      * and shrinks with zoom like a node, and in 3D thins with distance only by ordinary
-     * perspective; it does not taper beyond that.
+     * perspective; it does not taper beyond that. 0 draws no line; the arrow caps and the label
+     * are still drawn (Edge.createLine).
      */
-    width: z.number().positive().optional(),
+    width: z.number().nonnegative().optional(),
     /**
      * How many pattern elements (dots, dashes, ...) to draw along a patterned edge.
      *
@@ -90,8 +92,10 @@ const LineStyle = z.strictObject({
      * This is a USER choice, deliberately. The renderer does not silently impose a ceiling,
      * because that would change how a graph looks to buy performance the caller never asked
      * for -- the same reason an algorithm's style layer never mutes another layer.
+     *
+     * A fraction is drawn rounded down (`discreteMeshCount`), which is what the channel accepts.
      */
-    patternCount: z.number().int().min(2).optional(),
+    patternCount: z.number().min(2).optional(),
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
     bezier: z.boolean().optional(),

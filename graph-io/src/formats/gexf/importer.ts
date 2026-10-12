@@ -740,7 +740,7 @@ class GexfReader implements XmlHandler {
     // ---------------------------------------------------------------- events
 
     start(name: string, attrs: ReadonlyMap<string, string>, line: number, ns: string | null = ""): void {
-        const parent = this.ctx.length === 0 ? null : this.ctx[this.ctx.length - 1];
+        const parent = this.ctx.at(-1) ?? null;
         const local = localName(name);
         if (
             ns === null &&
@@ -870,7 +870,7 @@ class GexfReader implements XmlHandler {
      * @param line - the line
      */
     text(text: string, line: number): void {
-        const ctx = this.ctx.length === 0 ? null : this.ctx[this.ctx.length - 1];
+        const ctx = this.ctx.at(-1) ?? null;
         switch (ctx) {
             case Ctx.MetaText:
                 this.metaText += text;
@@ -1465,7 +1465,7 @@ class GexfReader implements XmlHandler {
     private beginNode(attrs: ReadonlyMap<string, string>, line: number): void {
         const { report, sink } = this;
         this.checkAbort();
-        const enclosing = this.nodeStack.length === 0 ? INVALID_INDEX : this.nodeStack[this.nodeStack.length - 1].index;
+        const enclosing = this.nodeStack.at(-1)?.index ?? INVALID_INDEX;
         const idText = attrs.get("id");
         const where: IssueLocation = { line, element: idText ?? attrs.get("label") ?? null };
         this.countInSection("node");

@@ -64,6 +64,33 @@ async function inspectPageRank(
 /** The Style tab. */
 const tab = (canvasElement: HTMLElement): ReturnType<typeof within> =>
     within(within(canvasElement).getByTestId("style-tab"));
+/**
+ * A field's vary glyph, which shows while the field is hovered or holds focus.
+ * @param canvasElement - the story's root.
+ * @param field - the field's name, as "Node size".
+ * @returns the glyph's button.
+ */
+async function varyGlyph(canvasElement: HTMLElement, field: string): Promise<HTMLElement> {
+    const box = within(canvasElement)
+        .getByTestId("style-tab")
+        .querySelector<HTMLElement>(`[aria-label^="${field}, "]`)
+        ?.closest<HTMLElement>(".ws-field");
+    if (box === null || box === undefined) {
+        throw new Error(`no ${field} field`);
+    }
+    // The glyph shows while the field holds focus (a story's pointer events move no CSS hover).
+    box.querySelector<HTMLElement>("input")?.focus();
+    return within(box).findByRole("button", { name: `${field} by attribute` });
+}
+
+/** The Style tab's Nodes group: both groups draw a label entry. */
+const nodes = (canvasElement: HTMLElement): ReturnType<typeof within> => {
+    const group = within(canvasElement).getByTestId("style-tab").querySelector<HTMLElement>('[data-group="node"]');
+    if (group === null) {
+        throw new Error("the Style tab draws no Nodes group");
+    }
+    return within(group);
+};
 /** The body, where popovers render. */
 const body = (): ReturnType<typeof within> => within(document.body);
 
@@ -104,40 +131,35 @@ function styleStory(
 /** The Everything row: the element's base style as lines (`#/inspector-selection-and-everything/everything`). */
 export const Everything: Story = styleStory();
 
-/** The Edges side of the same row (`#/style-tab-same-panel/nodes`, switched to Edges). */
-export const Edges: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("radio", { name: /Edges/ }));
-});
-
 /** A measure row, PageRank, its Color bound (`#/inspector-measure-row/style`). */
 export const MeasureRow: Story = styleStory(async (canvasElement, element, store) => {
     await inspectPageRank(canvasElement, element, store);
 });
 
-/** Shape "+" on the measure row: the menu of what the row does not set (`#/style-pickers/plus-menu`). */
+/** Effects "+" on the measure row: the effects the row does not draw yet (`#/style-pickers/plus-menu`). */
 export const PlusMenu: Story = styleStory(async (canvasElement, element, store) => {
     await inspectPageRank(canvasElement, element, store);
-    await userEvent.click(await tab(canvasElement).findByRole("button", { name: "Add to Shape" }));
+    await userEvent.click(await tab(canvasElement).findByRole("button", { name: "Add to node effects" }));
 });
 
 /** The Color popover on Everything's color (`#/style-pickers/color`). */
 export const ColorPopover: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getAllByRole("button", { name: "Pick color" })[0]);
+    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Pick Node color" }));
 });
 
-/** The Shape popover: every shape by name, with a filter (`#/style-pickers/shape`). */
+/** The Shape grid: every shape the element draws, by its picture and name (`#/style-pickers/shape`). */
 export const ShapePopover: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: /^Shape / }));
+    await userEvent.click(tab(canvasElement).getByRole("combobox", { name: /^Node shape, / }));
 });
 
 /** The bind icon opens the From data list: attributes, a refused one last (`#/style-pickers/bind-prop`). */
 export const BindSize: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Size by attribute" }));
+    await userEvent.click(await varyGlyph(canvasElement, "Node size"));
 });
 
 /** Everything colored by department, the Binding popover open (`#/style-pickers/binding`). */
 export const BindingPopover: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Color by attribute" }));
+    await userEvent.click(await varyGlyph(canvasElement, "Node color"));
     await userEvent.click(await body().findByRole("option", { name: "dept" }));
     await waitFor(() => {
         expect(body().queryByRole("dialog", { name: "From data" })).toBeNull();
@@ -148,7 +170,7 @@ export const BindingPopover: Story = styleStory(async (canvasElement) => {
 
 /** The Binding popover's palette list open, for the department colors (`#/style-pickers/palette`). */
 export const Palette: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Color by attribute" }));
+    await userEvent.click(await varyGlyph(canvasElement, "Node color"));
     await userEvent.click(await body().findByRole("option", { name: "dept" }));
     await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^dept,/ }));
     const popover = await body().findByRole("group", { name: "Color binding" });
@@ -167,32 +189,29 @@ export const BindingUnknownPath: Story = styleStory(async (canvasElement, elemen
     await openStyleTab(canvasElement);
 });
 
-/** The Label "+": an empty line at Above, its attribute list open (`#/style-pickers/label-new-line`). */
+/** Text "+", then Label: the source list open, nothing written yet (`#/style-pickers/label-new-line`). */
 export const LabelNewLine: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Add label line" }));
+    await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to Text" }));
+    await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }));
+    await body().findByRole("dialog", { name: "From data" });
 });
 
-/** Esc on the list: the empty line reads "Pick an attribute" and draws nothing (`#/inspector-group-set-path-row/label-empty`). */
+/** Esc on the source list: no entry is left behind (`#/inspector-group-set-path-row/label-empty`). */
 export const LabelEmpty: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Add label line" }));
+    await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to Text" }));
+    await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }));
     await body().findByRole("dialog", { name: "From data" });
     await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+        expect(body().queryByRole("dialog", { name: "From data" })).toBeNull();
+    });
 });
 
-/** A label line bound to the name, with the element's count (`#/inspector-group-set-path-row/label-two`). */
+/** A label entry reading the name, with the element's count (`#/inspector-group-set-path-row/label-two`). */
 export const LabelBound: Story = styleStory(async (canvasElement, element) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Add label line" }));
+    await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to Text" }));
+    await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }));
     await userEvent.click(await body().findByRole("option", { name: "name" }));
+    await nodes(canvasElement).findByRole("button", { name: /^Label source: / });
     await element.waitForStableFrame();
-    // Picking the column leaves focus on the new line's position button, whose tooltip opens after
-    // the cold delay. Wait for it, so the story ends settled: a screenshot taken while that timer
-    // runs shows the tooltip or not depending on how long the capture took.
-    await waitFor(
-        () => {
-            const tip = body().getByRole("tooltip");
-            expect(tip).toHaveTextContent("Label position");
-            expect(tip).toBeVisible();
-        },
-        { timeout: 2000 },
-    );
 });

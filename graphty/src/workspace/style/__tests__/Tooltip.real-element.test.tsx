@@ -65,7 +65,7 @@ describe("a tooltip from an attribute on the real element", () => {
         assert.isNotNull(within(list).queryByRole("option", { name: "id" }), "the node id can be picked");
         await userEvent.click(within(list).getByRole("option", { name: "name" }));
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("button", { name: "Tooltip by attribute" }));
+            assert.isNull(screen.queryByRole("button", { name: "Node tooltip by attribute" }));
         });
         const line = document.querySelector<HTMLElement>('[data-line="node.tooltip"]');
         assert.isNotNull(line, "the Tooltip line is there");

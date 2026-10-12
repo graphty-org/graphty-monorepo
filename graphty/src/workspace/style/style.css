@@ -1,0 +1,56 @@
+/* The Style tab (StylePanel): paired property rows, and group headings that stick while it scrolls. */
+
+/* Nodes and Edges stick to the top of the panel: "Color" is in both groups, and the heading says which. */
+.ws-style-group > .cm-section > .cm-section-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--mantine-color-body);
+}
+
+.ws-style-panel-which {
+    padding: 8px 8px 0;
+}
+
+/* A row: the settings button's 24px slot, then its fields side by side. */
+.ws-property-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    min-width: 0;
+}
+
+.ws-property-row-gap {
+    flex: 0 0 24px;
+}
+
+.ws-field {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ws-field-line {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ws-field-control {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* The vary glyph shows on hover and focus, and always on touch, where nothing hovers. */
+.ws-vary {
+    display: inline-flex;
+}
+
+@media (hover: hover) {
+    .ws-field:not(:hover, :focus-within) .ws-vary:not(:has([aria-expanded="true"])) {
+        display: none;
+    }
+}

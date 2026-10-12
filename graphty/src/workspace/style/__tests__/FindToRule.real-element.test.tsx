@@ -76,7 +76,7 @@ function readerLayers(session: GraphSession): Layer[] {
 
 /**
  * Picks "New layer from selection" from the inspector's actions menu for the selection, then sets
- * the new layer's first value, a fill color, which makes it a layer.
+ * the new layer's first value, a node color, which makes it a layer.
  * @param hex - the color, six hex digits.
  */
 async function newLayerFromSelection(hex: string): Promise<void> {
@@ -84,19 +84,10 @@ async function newLayerFromSelection(hex: string): Promise<void> {
     await userEvent.click(await inspector.findByRole("button", { name: /actions$/ }, { timeout: TIMEOUT_MS }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /New layer from selection/ }));
     const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-    const fill = within(tab).getByRole("group", { name: "Fill" });
-    if (within(fill).queryByRole("group", { name: "Color" }) === null) {
-        const one = within(fill).queryByRole("button", { name: "Add Color" });
-        if (one === null) {
-            await userEvent.click(within(fill).getByRole("button", { name: "Add to Fill" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
-        } else {
-            await userEvent.click(one);
-        }
-    }
-    const field = await within(
-        await within(screen.getByTestId("style-tab")).findByRole("group", { name: "Color" }),
-    ).findByRole("textbox", { name: "Color hex value" });
+    // Node color is always drawn; typing its hex writes it.
+    const field = within(await within(tab).findByRole("group", { name: /^Node color, / })).getByRole("textbox", {
+        name: "Node color",
+    });
     await userEvent.clear(field);
     await userEvent.type(field, `${hex}{Enter}`);
 }

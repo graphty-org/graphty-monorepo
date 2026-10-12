@@ -43,6 +43,15 @@ describe("CompactColorInput accessible names", () => {
         await expect.element(page.getByRole("button", { name: "Pick Text color", exact: true })).toBeVisible();
     });
 
+    it("names its controls from aria-label without drawing a label", async () => {
+        renderField(<CompactColorInput aria-label="Edge color" defaultColor="#000000" />);
+
+        await expect.element(page.getByRole("textbox", { name: "Edge color", exact: true })).toHaveValue("000000");
+        await expect.element(page.getByRole("button", { name: "Pick Edge color", exact: true })).toBeVisible();
+        await expect.element(page.getByRole("textbox", { name: "Edge color opacity", exact: true })).toBeVisible();
+        await expect.element(page.getByText("Edge color", { exact: true })).not.toBeInTheDocument();
+    });
+
     it("announces a newly typed value on the same named box", async () => {
         renderField(<CompactColorInput label="Fill" defaultColor="#3B82F6" />);
 

@@ -9,11 +9,11 @@ import type { DraftPaints } from "../inspector/inspected";
 import { matchesKey } from "../keys/keys";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { StyleTab } from "../style/StyleTab";
+import { StylePanel } from "../style/StylePanel";
 import { useStyleVersion } from "../style/useStyleVersion";
 import { orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
-import { count, findTreeRow, isHidden, isLocked, layerCount, placeOf, rowLayers } from "./rows";
+import { count, findTreeRow, isHidden, layerCount, placeOf } from "./rows";
 
 /** The tree item id of the new layer "+" adds before it is written. */
 const DRAFT_ID = "draft";
@@ -414,32 +414,13 @@ function Footer({ session, store }: Readonly<{ session: GraphSession; store: Wor
 }
 
 /**
- * A layer row's panel: its Style tab, disabled while the row or a folder holding it is locked,
- * under a line saying so, and a line while it is hidden.
+ * A layer row's panel: its header and Style tab (the Style tab reads the row's lock and eye).
  * @param props - Component props
  * @param props.id - the row's id
  * @returns The panel
  */
-export function LayerRowPanel({ id }: Readonly<{ id: string }>): React.JSX.Element | null {
-    const { session, element } = useWorkspace();
-    useStyleVersion(session, element);
-    if (session === null) {
-        return null;
-    }
-    const found = findTreeRow(session.styles.tree(), id);
-    if (found === undefined) {
-        return <RowGone />;
-    }
-    const locked = isLocked(found);
-    return (
-        <>
-            {locked && <StateLine>This layer is locked</StateLine>}
-            {isHidden(found) && <StateLine>Hidden: changes will not show until it is shown</StateLine>}
-            <fieldset disabled={locked} className="ws-row-fieldset">
-                <StyleTab layers={rowLayers(session, id)} />
-            </fieldset>
-        </>
-    );
+export function LayerRowPanel({ id }: Readonly<{ id: string }>): React.JSX.Element {
+    return <StylePanel rowId={id} />;
 }
 
 /**

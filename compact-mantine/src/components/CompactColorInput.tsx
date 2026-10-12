@@ -146,6 +146,13 @@ export interface CompactColorInputProps {
      */
     label?: string;
     /**
+     * The field's name when nothing draws it: the swatch, the hex box and the opacity box are
+     * named from it as they are from `label` ("Pick node color", "Node color"), and no label is
+     * drawn. For a field whose name is drawn by what surrounds it in another form, such as a
+     * properties row that draws "Color" above two fields. Ignored when `label` is given.
+     */
+    "aria-label"?: string;
+    /**
      * Whether to offer an opacity box beside the color.
      * @default true
      */
@@ -228,6 +235,7 @@ export interface CompactColorInputProps {
  * @param props.onBlur - Called when the hex box or the opacity box loses focus
  * @param props.width - The field's width
  * @param props.showReset - Whether to offer the reset button
+ * @param props."aria-label" - The field's name when nothing draws it, which names its controls
  * @returns The paint field, and its reset button when something has been set
  * @example
  * ```tsx
@@ -256,8 +264,11 @@ export function CompactColorInput({
     onBlur,
     width = DEFAULT_WIDTH,
     showReset = true,
+    "aria-label": ariaLabel,
 }: CompactColorInputProps): React.JSX.Element {
     const labels = useLabels();
+    // What names the controls: the drawn label, else the undrawn name.
+    const name = label ?? ariaLabel;
     const labelId = useId();
 
     // Plain inputs, so every control takes aria-describedby directly.
@@ -399,7 +410,7 @@ export function CompactColorInput({
                             className="cm-paint-chit"
                             data-testid="compact-color-input-swatch"
                             disabled={disabled}
-                            aria-label={label === undefined ? labels.colorSwatch : labels.pickColor(label)}
+                            aria-label={name === undefined ? labels.colorSwatch : labels.pickColor(name)}
                             aria-describedby={annotation.describedBy}
                         >
                             <Chit color={showOpacity ? hexaValue : displayColor} variant="field" />
@@ -426,7 +437,7 @@ export function CompactColorInput({
                     spellCheck={false}
                     data-testid="compact-color-input-hex"
                     data-is-default={isColorDefault ? "true" : "false"}
-                    aria-label={label === undefined ? labels.colorHexValue : labels.colorValue(label)}
+                    aria-label={name === undefined ? labels.colorHexValue : labels.colorValue(name)}
                     aria-describedby={annotation.describedBy}
                     disabled={disabled}
                     value={hexDraft}
@@ -458,7 +469,7 @@ export function CompactColorInput({
                     <OpacityInput
                         value={displayOpacity}
                         onCommit={commitOpacity}
-                        ariaLabel={label === undefined ? labels.opacity : labels.colorOpacity(label)}
+                        ariaLabel={name === undefined ? labels.opacity : labels.colorOpacity(name)}
                         isDefault={isOpacityDefault}
                         disabled={disabled}
                         describedBy={annotation.describedBy}

@@ -6,40 +6,65 @@ import {
     bindsAtRest,
     cellOfLocation,
     channelWord,
+    clearWords,
+    CORE_ROWS,
     enumWords,
-    isLineChannel,
+    fieldStateName,
     labelStatement,
+    LISTS,
     locationOfCell,
     matchesWordStart,
     paletteWord,
     positionWord,
     refusalWords,
     resultWord,
-    SECTIONS,
 } from "../words";
 
 describe("the Style tab's words and arrangement", () => {
-    it("draws the design's sections in order, with Size under Shape", () => {
+    it("draws the seven core properties on four paired rows", () => {
         assert.deepEqual(
-            SECTIONS.node.map((s) => s.title),
-            ["Fill", "Shape", "Effects", "Label", "Tooltip"],
+            CORE_ROWS.node.map((r) => r.fields),
+            [["node.shape", "node.size"], ["node.color"]],
         );
         assert.deepEqual(
-            SECTIONS.edge.map((s) => s.title),
-            ["Line", "Arrows", "Label"],
+            CORE_ROWS.edge.map((r) => r.fields),
+            [
+                ["edge.color", "edge.width"],
+                ["edge.arrowHead", "edge.arrowTail"],
+            ],
         );
-        const size = channelsFor("node").find((d) => d.channel === "node.size");
-        assert.isDefined(size);
-        assert.equal(SECTIONS.node.find((s) => size !== undefined && s.holds(size))?.title, "Shape");
     });
 
-    it("puts every channel the element publishes in exactly one section, or on the label line", () => {
+    it("gives every channel it names a home the element publishes, and no channel two homes", () => {
         for (const target of ["node", "edge"] as const) {
-            for (const descriptor of channelsFor(target).filter(isLineChannel)) {
-                const homes = SECTIONS[target].filter((s) => s.holds(descriptor));
-                assert.lengthOf(homes, 1, descriptor.channel);
+            const published = new Set(channelsFor(target).map((d) => d.channel));
+            const homes = [
+                ...CORE_ROWS[target].flatMap((r) => [...r.fields, ...r.settings]),
+                ...LISTS[target].flatMap((l) => l.channels),
+            ];
+            for (const channel of homes) {
+                assert.isTrue(published.has(channel), channel);
             }
+            assert.equal(new Set(homes).size, homes.length, `${target}: a channel with two homes`);
         }
+    });
+
+    it("states a field's state in its name, and what Clear brings back", () => {
+        assert.equal(fieldStateName("node.size", "2", undefined), "Node size, set here, 2");
+        assert.equal(
+            fieldStateName("node.color", undefined, { value: "#3388FF", from: "Degree" }),
+            "Node color, not set, Degree gives #3388FF",
+        );
+        assert.equal(
+            fieldStateName("node.color", undefined, { mixed: ["Degree"] }),
+            "Node color, not set, mixed beneath",
+        );
+        assert.equal(
+            clearWords({ value: "Icosphere", from: "Everything" }),
+            "Clear: back to Icosphere, from Everything",
+        );
+        assert.equal(clearWords({ mixed: ["Degree", "Louvain"] }), "Clear: back to mixed, from Degree and Louvain");
+        assert.equal(clearWords(undefined), "Clear: back to the default");
     });
 
     it("shows the bind icon at rest on Color, Size and Tooltip only", () => {

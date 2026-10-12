@@ -27,6 +27,24 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: an empty select with words beneath, and a color field named without a drawn label
+
+**What.** Three optional props in compact-mantine, all additive. `StyleSelect` gains `placeholder`:
+given, a select nobody has chosen is drawn empty with those words (what the layers beneath give,
+or "Mixed") instead of showing `defaultValue` as if it were chosen. `StyleSelect` gains
+`showReset` (default on), as `CompactColorInput` already has, for a caller that draws its own way
+back to "not set". `CompactColorInput` gains `aria-label`: its swatch, hex box and opacity box are
+named from it ("Pick Node color", "Node color") as they are from `label`, and nothing is drawn.
+
+**Why.** The Style tab's three field states (tier 3 design, decision 1.1): a field this layer does
+not set is empty with the beneath value as its placeholder, and Clear is the row's minus, so a
+select needs an empty state and no second reset; with the Nodes and Edges groups both on screen,
+two unlabeled color fields were both "Pick color", which a screen reader cannot tell apart.
+
+**Alternatives.** A "Not set" first option in every select (a second way to clear, beside "None",
+which means the opposite); drawing each color field's label inside the field (a second name beside
+the row's own).
+
 ## 2026-10-12 -- Decided by the team: find offers "contains" rules, and a selection offers its layer selector
 
 **What.** Two additions to graphty-element, for search and selection as ways into a layer's rule.

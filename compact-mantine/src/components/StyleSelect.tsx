@@ -112,6 +112,18 @@ export interface StyleSelectProps {
      * @default 5
      */
     columns?: number;
+    /**
+     * Words shown, in the placeholder ink, while the reader has chosen nothing. Given, an
+     * unchosen control is drawn empty with these words instead of showing `defaultValue` as if
+     * it were chosen: what lies beneath in a stack of layers, or "Mixed".
+     */
+    placeholder?: string;
+    /**
+     * Whether to offer the reset button once something is chosen. Turn it off when the caller
+     * draws its own way back to "nothing chosen" beside the control.
+     * @default true
+     */
+    showReset?: boolean;
     /** Called when the control takes focus. Forwarded unchanged. */
     onFocus?: React.FocusEventHandler<HTMLInputElement>;
     /** Called when the control loses focus. Forwarded unchanged. */
@@ -145,6 +157,8 @@ export interface StyleSelectProps {
  * @param props.disabledReason - One sentence saying why the control is off, drawn only while it is off
  * @param props.layout - Whether the open list is a list or a grid of glyphs
  * @param props.columns - How many cells a row of the grid holds
+ * @param props.placeholder - Words shown while nothing is chosen, instead of `defaultValue`
+ * @param props.showReset - Whether to offer the reset button once something is chosen
  * @param props.onFocus - Called when the control takes focus
  * @param props.onBlur - Called when the control loses focus
  * @returns The dropdown, and its reset button when a choice has been made
@@ -175,6 +189,8 @@ export function StyleSelect({
     disabledReason,
     layout = "list",
     columns = 5,
+    placeholder,
+    showReset = true,
     onFocus,
     onBlur,
 }: StyleSelectProps): React.JSX.Element {
@@ -200,11 +216,11 @@ export function StyleSelect({
     });
 
     const isDefault = selected === undefined;
-    const displayValue = selected ?? defaultValue;
+    const displayValue = selected ?? (placeholder === undefined ? defaultValue : null);
     const grid = layout === "grid";
     const glyphs = new Map(options.map((option) => [option.value, option.glyph]));
     const hasGlyphs = options.some((option) => option.glyph !== undefined);
-    const shownGlyph = glyphs.get(displayValue);
+    const shownGlyph = displayValue === null ? undefined : glyphs.get(displayValue);
 
     /**
      * Draw one option: the theme's check column, then the glyph and the name; in a grid, the
@@ -311,6 +327,7 @@ export function StyleSelect({
                 aria-label={ariaLabel}
                 description={annotation.description}
                 value={displayValue}
+                placeholder={placeholder}
                 onChange={handleSelectChange}
                 onFocus={onFocus}
                 onBlur={onBlur}
@@ -341,7 +358,7 @@ export function StyleSelect({
                 panel of untouched controls stays quiet. Its 24px box is the
                 WCAG 2.2 (2.5.8) target-size minimum, and the same height as
                 the field, so bottom alignment puts the two level. */}
-            {!isDefault && (
+            {showReset && !isDefault && (
                 // An icon-only button says what it does on hover, not only to a screen reader.
                 <Tooltip label={labels.resetToDefault(label)}>
                     <ActionIcon

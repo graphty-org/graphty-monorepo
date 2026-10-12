@@ -71,7 +71,12 @@ async function openWithGraph(): Promise<Opened> {
  * @returns the list.
  */
 function textList(): HTMLElement {
-    return within(screen.getByTestId("style-tab")).getByRole("group", { name: "Text" });
+    // The Nodes group's list: the Edges group draws a Text list of its own.
+    const nodes = screen.getByTestId("style-tab").querySelector<HTMLElement>('[data-group="node"]');
+    if (nodes === null) {
+        throw new Error("the Style tab draws no Nodes group");
+    }
+    return within(nodes).getByRole("group", { name: "Text" });
 }
 
 /**

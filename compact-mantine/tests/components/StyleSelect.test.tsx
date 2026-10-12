@@ -102,6 +102,29 @@ describe("StyleSelect", () => {
         expect(document.getElementById(active ?? "")).toHaveAttribute("role", "option");
     });
 
+    it("draws an unchosen control empty with its placeholder, and showReset false draws no reset", () => {
+        const { rerender } = renderSelect(
+            <StyleSelect label="Select" defaultValue="option1" placeholder="Mixed" options={options} />,
+        );
+        const select = screen.getByRole("combobox", { name: "Select" });
+        expect(select).toHaveAttribute("value", "");
+        expect(select).toHaveAttribute("placeholder", "Mixed");
+        rerender(
+            <MantineProvider theme={compactTheme}>
+                <StyleSelect
+                    label="Select"
+                    value="option2"
+                    defaultValue="option1"
+                    placeholder="Mixed"
+                    showReset={false}
+                    options={options}
+                />
+            </MantineProvider>,
+        );
+        expect(screen.getByRole("combobox", { name: "Select" })).toHaveAttribute("value", "Option 2");
+        expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
+    });
+
     it("hides reset button when using default", () => {
         renderSelect(
             <StyleSelect

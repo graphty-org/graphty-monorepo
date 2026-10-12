@@ -23,7 +23,7 @@ import { notesAbout } from "../notes/words";
 import { runName } from "../runWords";
 import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { GroupStyle, SelectionRowStyle, SelectionStyle, StyleTab } from "../style/StyleTab";
+import { GroupStyle, SelectionRowStyle, SelectionStyle, StylePanel } from "../style/StylePanel";
 import { AttributeValues, CanvasSection, EverythingValues, Overview } from "./GraphValues";
 import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
@@ -473,7 +473,7 @@ function bodyOf(
         case "run-row":
             return run === undefined
                 ? { only: <Gone /> }
-                : { style: <StyleTab />, values: <RunValues run={run} draft={draft} onDraft={onDraft} /> };
+                : { style: <StylePanel />, values: <RunValues run={run} draft={draft} onDraft={onDraft} /> };
         case "group-row":
             return run === undefined
                 ? { only: <Gone /> }
@@ -482,7 +482,7 @@ function bodyOf(
                       values: <GroupValues run={run} group={resolved.group} version={version} />,
                   };
         case "everything-row":
-            return { style: <StyleTab />, values: <EverythingValues /> };
+            return { style: <StylePanel />, values: <EverythingValues /> };
         // Style edits the highlight a selected node is drawn with; Values is what the selection holds.
         case "selection-row":
             return { style: <SelectionStyle />, values: <SeveralValues version={version} /> };

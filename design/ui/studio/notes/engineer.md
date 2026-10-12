@@ -11,6 +11,38 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **The Style tab is built** (`style/StylePanel.tsx`, `style/PropertyRow.tsx`,
+  `style/style.css`; `StyleTab.tsx` and `SetLine.tsx` are gone, and every caller -- tree rows,
+  the Everything, run and selection rows -- renders `StylePanel`). Nodes and Edges are
+  `ControlSection`s (heading level 3, sticky by CSS), shown per kind the row has a part on. The
+  seven core properties are always drawn on four rows (`CORE_ROWS` in `words.ts`); rare ones sit
+  in each row's settings pop-out and draw as their own row once set. A `Field` is one property in
+  three states: empty with the beneath value as placeholder, set with a minus, set to nothing.
+  Clear = the minus, empty + Enter in a typed field, Delete/Backspace on a closed select or chit;
+  focus is moved into the field BEFORE the write, so the minus unmounting never drops focus to the
+  page. The placeholder and the minus's words come from `styles.agreement("graph", undefined,
+{ below: rowId })` read once per render; one value from several layers is that value, only
+  differing values are "Mixed". Combine lives in `encode[channel] = { value, combine }`
+  (`row.ts` `LiteralWrite`); its select is in the row's settings pop-out. The vary glyph shows on
+  hover and focus only (CSS `@media (hover: hover)`), so tests reach it by hovering the
+  `.ws-field` or by Tab from the field; storybook's synthetic hover moves no CSS, so stories focus
+  the field's input. Route layer measured: fits at 1440 x 900; at 900 x 700 its content is 704 px
+  in a 660 px panel (44 px of scroll). Why the inspector's own header and no second one: the
+  inspector already draws glyph, name and the row menu for a tree row; a second header was 40 px
+  of the same words.
+  Not built, owed: "Select what it paints" and a placeholder over the LAYER's own elements both
+  need a scope for "what a layer matches", which the element does not publish (the placeholder
+  reads the whole graph beneath the row; ponytail note in `beneathOf`). "Mixed" cannot show in a
+  color field (no words slot in `CompactColorInput` until the effects unit's `emptyText` lands;
+  the field shows the most common beneath color in italics, and its accessible name says mixed).
+  Tooltip stays its own list until the Text list takes it. The label entries are named the same
+  in both groups (`Text`, `Add to Text`, ...): the label unit must put the kind in those names;
+  its tests are scoped to the Nodes group for now.
+  Seen once, not reproduced in three reruns: FindToRule's Shift-click test found no node spheres
+  drawn while another agent was editing graphty-element source mid-run (vite serves it live).
+  `row.test.ts` "the element's own value for every channel" fails on HEAD: new label channels
+  (`node.labelBackground` first) state no default, so `startingValue` throws.
+
 - (2026-10-12) **Label entries are built** (`style/LabelSection.tsx`, `LabelSettings.tsx`, test
   `Labels.real-element.test.tsx`). The Text list keeps LabelSection's old props (`target`, `row`,
   `layers`, `fresh`) so the new StylePanel can mount it as StyleTab did. A new entry starts on the

@@ -6,65 +6,206 @@
  */
 
 import type { AlignmentMatrixValue } from "@graphty/compact-mantine";
-import type { ChannelDescriptor, KNOWN_PALETTE_IDS } from "@graphty/graphty-element/catalog";
+import {
+    type ChannelDescriptor,
+    EDGE_ARROW_DESCRIPTORS,
+    EDGE_LINE_DESCRIPTORS,
+    type GlyphDescriptor,
+    type KNOWN_PALETTE_IDS,
+    NODE_SHAPE_DESCRIPTORS,
+    toColorValue,
+} from "@graphty/graphty-element/catalog";
 import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
 import type { CodedFact, GraphSession } from "@graphty/graphty-element/session";
 
 /** Where a label sits, as the element names it. */
 type LabelLocation = NonNullable<LabelStyle["location"]>;
 
-/** One fixed section of the Style tab (tier1-design.md section 2.8). */
-export interface StyleSection {
-    /** Stable id, used in test ids and accessible names. */
+/** Nodes or edges: the two groups of the Style tab. */
+type Kind = "node" | "edge";
+
+/**
+ * One row of a group: its fields side by side (Figma pairs width and height the same way), and
+ * the rarer one-value properties behind the settings button at its start.
+ */
+export interface PropertyRowSpec {
+    /** Stable id, used in test ids. */
     readonly id: string;
-    /** The heading word. */
+    /** The settings popover's title, and its button's name. */
     readonly title: string;
-    /** Whether a channel sits in this section. */
-    readonly holds: (descriptor: ChannelDescriptor) => boolean;
+    /** The fields drawn on the row, always, set or not. */
+    readonly fields: readonly Channel[];
+    /** The rare properties: behind the settings button, drawn as rows of their own once set. */
+    readonly settings: readonly Channel[];
 }
 
 /**
- * Whether a channel draws a label (the label line handles it, not a set line).
- * @param d - the channel.
- * @returns true for a node's or an edge's label.
+ * The seven core properties on four rows, in the design's fixed order: Nodes `Shape | Size` and
+ * `Color`; Edges `Color | Width` and `Head | Tail` (tier3 design, decision 1.1).
  */
-const isLabel = (d: ChannelDescriptor): boolean => d.channel === "node.label" || d.channel === "edge.label";
-/**
- * Whether a channel writes a tooltip's words.
- * @param d - the channel.
- * @returns true for a node's tooltip.
- */
-const isTooltip = (d: ChannelDescriptor): boolean => d.channel === "node.tooltip";
-
-/**
- * The sections, per side, in the design's fixed order: Nodes: Fill, Shape (shape and size),
- * Effects, Label, Tooltip. Edges: Line, Arrows, Label. Size stays under Shape because the
- * element's `group` puts it there.
- */
-export const SECTIONS: Readonly<Record<"node" | "edge", readonly StyleSection[]>> = {
+export const CORE_ROWS: Readonly<Record<Kind, readonly PropertyRowSpec[]>> = {
     node: [
-        { id: "fill", title: "Fill", holds: (d) => d.group === "color" },
-        { id: "shape", title: "Shape", holds: (d) => d.group === "shape" },
-        { id: "effects", title: "Effects", holds: (d) => d.group === "effects" },
-        { id: "label", title: "Label", holds: isLabel },
-        { id: "tooltip", title: "Tooltip", holds: isTooltip },
+        {
+            id: "shape",
+            title: "Shape",
+            fields: ["node.shape", "node.size"],
+            settings: ["node.wireframe", "node.visible"],
+        },
+        { id: "fill", title: "Color", fields: ["node.color"], settings: ["node.opacity"] },
     ],
     edge: [
-        { id: "line", title: "Line", holds: (d) => d.group === "line" },
-        { id: "arrows", title: "Arrows", holds: (d) => d.group === "arrows" },
-        { id: "label", title: "Label", holds: isLabel },
+        {
+            id: "line",
+            title: "Line",
+            fields: ["edge.color", "edge.width"],
+            settings: ["edge.opacity", "edge.style", "edge.patternCount", "edge.curvature", "edge.visible"],
+        },
+        {
+            id: "ends",
+            title: "Ends",
+            fields: ["edge.arrowHead", "edge.arrowTail"],
+            settings: [
+                "edge.arrowHeadSize",
+                "edge.arrowHeadColor",
+                "edge.arrowHeadOpacity",
+                "edge.arrowTailSize",
+                "edge.arrowTailColor",
+                "edge.arrowTailOpacity",
+            ],
+        },
+    ],
+};
+
+/** A list of the Style tab: entries a layer adds with "+", each cleared by its own minus. */
+export interface ListSpec {
+    /** Stable id. */
+    readonly id: string;
+    /** The heading word. */
+    readonly title: string;
+    /** The channels its entries cover. */
+    readonly channels: readonly Channel[];
+}
+
+/** The lists under each group's core rows (labels are their own section for now). */
+export const LISTS: Readonly<Record<Kind, readonly ListSpec[]>> = {
+    node: [
+        { id: "tooltip", title: "Tooltip", channels: ["node.tooltip"] },
+        {
+            id: "effects",
+            title: "Effects",
+            channels: [
+                "node.outline",
+                "node.glow",
+                "node.glowStrength",
+                "node.haloColor",
+                "node.haloSize",
+                "node.haloOpacity",
+            ],
+        },
+    ],
+    edge: [
+        {
+            id: "effects",
+            title: "Effects",
+            channels: ["edge.bandColor", "edge.bandWidth", "edge.bandOpacity", "edge.animationSpeed"],
+        },
     ],
 };
 
 /**
- * Whether a channel is drawn as a set line. A label's and a tooltip's appearance (`labelStyle`)
- * is edited from the label line's swatch, not as a line of its own.
- * @param descriptor - the channel.
- * @returns true when a section lists it.
+ * The two words of each yes-or-no property, in the order its select lists them. Empty means not
+ * set, as in every other field, so a yes-or-no property is a select and never a switch.
  */
-export function isLineChannel(descriptor: ChannelDescriptor): boolean {
-    return descriptor.accepts !== "labelStyle";
+export const TWO_WORDS: Partial<Readonly<Record<Channel, readonly (readonly [boolean, string])[]>>> = {
+    "node.wireframe": [
+        [false, "Solid"],
+        [true, "Wireframe"],
+    ],
+    "node.visible": [
+        [true, "Shown"],
+        [false, "Hidden"],
+    ],
+    "edge.visible": [
+        [true, "Shown"],
+        [false, "Hidden"],
+    ],
+    "edge.curvature": [
+        [false, "Straight"],
+        [true, "Curved"],
+    ],
+};
+
+/**
+ * A field's full name, kind first: "Node size", "Edge head".
+ * @param channel - the element's channel id.
+ * @returns the words.
+ */
+export function fieldName(channel: Channel): string {
+    const kind = channel.startsWith("node.") ? "Node" : "Edge";
+    return `${kind} ${channelWord(channel).toLowerCase()}`;
 }
+
+/** What the layers beneath a row give a field, in words: one value and its layer, or several layers. */
+export type Beneath =
+    { readonly value: string; readonly from: string | undefined } | { readonly mixed: readonly string[] };
+
+/**
+ * A field's accessible name, stating its state: "Node size, set here, 2" or "Node size, not set,
+ * Everything gives 1" (tier3 design, decision 1.1).
+ * @param channel - the field's channel.
+ * @param set - the value this layer writes, in words, or undefined when it writes none.
+ * @param beneath - what the layers beneath give, when it writes none.
+ * @returns the name.
+ */
+export function fieldStateName(channel: Channel, set: string | undefined, beneath: Beneath | undefined): string {
+    const name = fieldName(channel);
+    if (set !== undefined) {
+        return `${name}, set here, ${set}`;
+    }
+    if (beneath === undefined) {
+        return `${name}, not set`;
+    }
+    if ("mixed" in beneath) {
+        return `${name}, not set, mixed beneath`;
+    }
+    return beneath.from === undefined
+        ? `${name}, not set, ${beneath.value} by default`
+        : `${name}, not set, ${beneath.from} gives ${beneath.value}`;
+}
+
+/**
+ * Joins names as a reader lists them: "A", "A and B", "A, B and C".
+ * @param names - the names.
+ * @returns the words.
+ */
+function listWords(names: readonly string[]): string {
+    return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
+}
+
+/**
+ * What Clear says before it clears: the value that comes back and the layer it comes from.
+ * @param beneath - what the layers beneath give.
+ * @returns "Clear: back to Icosphere, from Everything", "Clear: back to mixed, from Degree and
+ *   Louvain", or "Clear: back to the default".
+ */
+export function clearWords(beneath: Beneath | undefined): string {
+    if (beneath === undefined) {
+        return "Clear: back to the default";
+    }
+    if ("mixed" in beneath) {
+        return `Clear: back to mixed, from ${listWords(beneath.mixed)}`;
+    }
+    return beneath.from === undefined
+        ? `Clear: back to ${beneath.value}, the default`
+        : `Clear: back to ${beneath.value}, from ${beneath.from}`;
+}
+
+/** How a number a layer writes meets what lies beneath: its field's prefix and its menu word. */
+export const COMBINE_WORDS = {
+    replace: { prefix: undefined, word: "Replace" },
+    multiply: { prefix: "x", word: "Multiply" },
+    add: { prefix: "+", word: "Add" },
+} as const;
 
 /**
  * Whether a channel's line shows the bind icon at rest (round 7: Color and Size). A tooltip has
@@ -112,9 +253,23 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.wireframe": "Wireframe",
     "node.flat": "Flat shading",
     "node.marker": "Marker",
+    "node.haloColor": "Halo",
+    "node.haloSize": "Halo size",
+    "node.haloOpacity": "Halo opacity",
+    "node.visible": "Show",
+    "node.labelSize": "Label size",
+    "node.labelColor": "Label color",
+    "node.labelBackground": "Label background",
+    "node.tooltipSize": "Tooltip size",
+    "node.tooltipColor": "Tooltip color",
+    "node.tooltipBackground": "Tooltip background",
     "edge.color": "Color",
     "edge.width": "Width",
     "edge.opacity": "Opacity",
+    "edge.bandColor": "Band",
+    "edge.bandWidth": "Band width",
+    "edge.bandOpacity": "Band opacity",
+    "edge.visible": "Show",
     "edge.style": "Pattern",
     "edge.patternCount": "Pattern count",
     "edge.curvature": "Curved",
@@ -133,6 +288,15 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.animationSpeed": "Animation speed",
     "edge.label": "Label",
     "edge.labelStyle": "Label style",
+    "edge.labelSize": "Label size",
+    "edge.labelColor": "Label color",
+    "edge.labelBackground": "Label background",
+    "edge.arrowHeadTextSize": "Head text size",
+    "edge.arrowHeadTextColor": "Head text color",
+    "edge.arrowHeadTextBackground": "Head text background",
+    "edge.arrowTailTextSize": "Tail text size",
+    "edge.arrowTailTextColor": "Tail text color",
+    "edge.arrowTailTextBackground": "Tail text background",
 };
 
 /**
@@ -175,28 +339,7 @@ export interface CompoundLine {
     readonly startsFrom?: Channel;
 }
 
-/**
- * The arrow at one end of an edge, as one line.
- * @param end - which end.
- * @returns the line.
- */
-function arrowLine(end: "Head" | "Tail"): CompoundLine {
-    const part = (suffix: "" | "Size" | "Color" | "Opacity" | "Text"): Channel => `edge.arrow${end}${suffix}`;
-    return {
-        name: `${end} arrow`,
-        parts: [
-            { channel: part(""), word: "Shape", atRest: true },
-            { channel: part("Size"), word: "Size" },
-            { channel: part("Color"), word: "Color", more: true },
-            { channel: part("Opacity"), word: "Opacity", more: true },
-            { channel: part("Text"), word: "Text", more: true },
-        ],
-        adds: part(""),
-        ...(end === "Tail" ? { startsFrom: "edge.arrowHead" as const } : {}),
-    };
-}
-
-/** The compound lines. A channel in none of them is a line of its own. */
+/** The compound lines: one effect each, its settings in a popover. A channel in none of them is a line of its own. */
 const COMPOUND_LINES: readonly CompoundLine[] = [
     {
         name: "Glow",
@@ -208,17 +351,23 @@ const COMPOUND_LINES: readonly CompoundLine[] = [
         // element's default glow color and leaves the strength at the element's default.
         adds: "node.glow",
     },
-    arrowLine("Head"),
-    arrowLine("Tail"),
     {
-        name: "Pattern",
+        name: "Halo",
         parts: [
-            { channel: "edge.style", word: "Pattern", atRest: true },
-            { channel: "edge.patternCount", word: "Count", caveat: true },
-            // It moves only a straight solid line, so it is a setting of the pattern, not a line.
-            { channel: "edge.animationSpeed", word: "Animation speed", caveat: true },
+            { channel: "node.haloColor", word: "Color", atRest: true },
+            { channel: "node.haloSize", word: "Size" },
+            { channel: "node.haloOpacity", word: "Opacity" },
         ],
-        adds: "edge.style",
+        adds: "node.haloColor",
+    },
+    {
+        name: "Band",
+        parts: [
+            { channel: "edge.bandColor", word: "Color", atRest: true },
+            { channel: "edge.bandWidth", word: "Width" },
+            { channel: "edge.bandOpacity", word: "Opacity" },
+        ],
+        adds: "edge.bandColor",
     },
 ];
 
@@ -423,4 +572,46 @@ export function attributeName(session: GraphSession, path: string): string {
         return "id";
     }
     return session.data.attributes().find((a) => a.path === path)?.plainName ?? path;
+}
+
+/** The pictures of each glyph-grid property, from graphty-element's catalog. */
+export const GLYPH_TABLES: Partial<Readonly<Record<Channel, readonly GlyphDescriptor[]>>> = {
+    "node.shape": NODE_SHAPE_DESCRIPTORS,
+    "edge.arrowHead": EDGE_ARROW_DESCRIPTORS,
+    "edge.arrowTail": EDGE_ARROW_DESCRIPTORS,
+    "edge.style": EDGE_LINE_DESCRIPTORS,
+};
+
+/**
+ * A color as the paint field edits it: `#RRGGBB`.
+ * @param value - a color the element reports or a layer holds.
+ * @returns the hex, or null when it is not a color.
+ */
+export function hexOf(value: unknown): string | null {
+    const color =
+        typeof value === "string" || (typeof value === "object" && value !== null && "r" in value)
+            ? toColorValue(value as Parameters<typeof toColorValue>[0])
+            : null;
+    return color === null ? null : color.hex.slice(0, 7).toUpperCase();
+}
+
+/**
+ * A value as a reader reads it on its field: a color's hex, a shape's name, a yes-or-no
+ * property's word, a number as itself.
+ * @param descriptor - the channel.
+ * @param value - the value.
+ * @returns the words.
+ */
+export function valueWords(descriptor: ChannelDescriptor, value: unknown): string {
+    if (descriptor.accepts === "color") {
+        return hexOf(value) ?? String(value);
+    }
+    const two = TWO_WORDS[descriptor.channel];
+    if (two !== undefined && typeof value === "boolean") {
+        return two.find(([v]) => v === value)?.[1] ?? String(value);
+    }
+    if (typeof value === "string" && descriptor.accepts === "enum") {
+        return GLYPH_TABLES[descriptor.channel]?.find((g) => g.id === value)?.plainName ?? enumWords(value);
+    }
+    return typeof value === "number" || typeof value === "string" ? String(value) : JSON.stringify(value);
 }

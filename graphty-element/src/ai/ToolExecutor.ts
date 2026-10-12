@@ -379,14 +379,16 @@ export async function runToolBatch(batch: ToolBatch): Promise<BatchOutcome> {
 /**
  * The facts a policy judges one call by.
  * @param call - The call.
+ * @param webContent - The model acted from text read on the web.
  * @returns Its facts.
  */
-function callFacts(call: PreparedCall): AiToolCallFacts {
+function callFacts(call: PreparedCall, webContent?: boolean): AiToolCallFacts {
     return {
         command: call.command.name,
         ...(call.checked === undefined ? {} : { action: call.checked.action.name }),
         arguments: call.args,
         effect: call.checked?.action.effect ?? call.command.effect ?? "write",
+        ...(webContent === true ? { webContent } : {}),
     };
 }
 
@@ -419,29 +421,32 @@ function deniedBatch(
  * The host's approval policy on a batch whose structure passed, before any call runs: any `deny`
  * refuses the whole batch, any `ask` holds it (gate `"policy"`). A policy that throws, or answers
  * anything but the three verdicts, refuses or asks: it fails closed. A read-only message (a helper
- * running beside others) refuses any call that does not only read first.
+ * running beside others) refuses any call that does not only read first. While the model acts from
+ * text read on the web, a call that does not only read is held (gate `"web-content"`) when a policy
+ * is set and refused when none is, unless the host lets web content write; the policy's own deny
+ * still wins.
  * @param batch - The batch.
  * @param ready - Its calls.
  * @param writes - Whether any call writes.
  * @returns The refused or held batch, or undefined when every call is allowed.
  */
 function judge(batch: ToolBatch, ready: readonly PreparedCall[], writes: boolean): BatchOutcome | undefined {
-    const { policy, approved, readOnly } = batch.message;
-    if (readOnly !== undefined) {
-        // Only a read: an exempt call (an undo, a selection, the view) changes what the others read.
-        const at = ready.findIndex((call) => callFacts(call).effect !== "read");
-        if (at !== -1) {
-            return deniedBatch(batch, ready, at, { reason: readOnly });
-        }
+    const { policy, approved, readOnly, webContent, webContentMayWrite } = batch.message;
+    // Only a read: an exempt call (an undo, a selection, the view) changes what the others read.
+    const notReadAt = ready.findIndex((call) => callFacts(call).effect !== "read");
+    if (readOnly !== undefined && notReadAt !== -1) {
+        return deniedBatch(batch, ready, notReadAt, { reason: readOnly });
     }
 
+    // A web page may have written the call: it does not change the project on its own say-so.
+    const fromWeb = webContent === true && webContentMayWrite !== true && notReadAt !== -1;
     if (policy === undefined) {
-        return undefined;
+        return fromWeb ? deniedBatch(batch, ready, notReadAt, { reason: "web-content" }) : undefined;
     }
 
     const verdicts = ready.map((call) => {
         try {
-            return policy(callFacts(call));
+            return policy(callFacts(call, webContent));
         } catch {
             return "deny";
         }
@@ -452,9 +457,15 @@ function judge(batch: ToolBatch, ready: readonly PreparedCall[], writes: boolean
     }
 
     // A batch the reader approved is not asked about again; a deny of its (edited) calls still stands.
-    return approved !== undefined || verdicts.every((verdict) => verdict === "allow")
-        ? undefined
-        : held("policy", {}, batch, ready, writes);
+    if (approved !== undefined) {
+        return undefined;
+    }
+
+    if (fromWeb) {
+        return held("web-content", {}, batch, ready, writes);
+    }
+
+    return verdicts.every((verdict) => verdict === "allow") ? undefined : held("policy", {}, batch, ready, writes);
 }
 
 /**

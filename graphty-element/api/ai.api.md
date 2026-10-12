@@ -470,6 +470,7 @@ export interface AiToolCallFacts {
     readonly arguments: Readonly<Record<string, unknown>>;
     readonly command: string;
     readonly effect: ActionEffect;
+    readonly webContent?: boolean;
 }
 
 // @public

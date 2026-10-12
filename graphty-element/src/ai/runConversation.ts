@@ -119,6 +119,8 @@ export interface HelperAnswer {
     readonly code: AiResultCode;
     /** Its result, as the model reads it. */
     readonly content: string;
+    /** Its result was read on the web: a later helper is told it as web content. */
+    readonly web?: boolean;
 }
 
 /**
@@ -875,6 +877,20 @@ function answerResult(answer: ReaderAnswer, id: string): SavedMessage {
 }
 
 /**
+ * Whether the model acts from text read on the web: the history window it is shown holds a part
+ * read there (a research helper's answer). Derived, never stored: it survives a reload with the
+ * conversation, and a new conversation has none.
+ * @param run - The loop's run.
+ * @returns True when it does.
+ */
+function readFromWeb(run: ConversationRun): boolean {
+    const budget = run.historyBudgetTokens ?? DEFAULT_HISTORY_BUDGET_TOKENS[run.profile ?? "standard"];
+    return historyWindow(pairedForModel(run.conversation.messages), budget).some((message) =>
+        message.parts.some((part) => part.origin === "web"),
+    );
+}
+
+/**
  * Run one batch of calls in its transaction.
  * @param run - The loop's run.
  * @param calls - The calls.
@@ -897,7 +913,7 @@ async function runBatch(
             graph: run.graph,
             session,
             label: run.label,
-            message: state,
+            message: readFromWeb(run) ? { ...state, webContent: true } : state,
             after: latestStepOf(session, message),
             abort: run.abort,
             sink: run.sink,

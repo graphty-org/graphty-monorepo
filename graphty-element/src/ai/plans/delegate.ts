@@ -147,7 +147,14 @@ function answersText(answers: readonly HelperAnswer[]): string {
 function answerOf(agent: string, run: HelperRun): HelperAnswer[] {
     const result = run.parts.find((part) => part.type === "tool-result");
     return result?.type === "tool-result"
-        ? [{ agent, code: result.code as AiResultCode, content: result.content }]
+        ? [
+              {
+                  agent,
+                  code: result.code as AiResultCode,
+                  content: result.content,
+                  ...(result.origin === "web" ? { web: true } : {}),
+              },
+          ]
         : [];
 }
 
@@ -183,7 +190,14 @@ export function planAnswers(messages: readonly SavedMessage[]): HelperAnswer[] {
     );
     return since.flatMap((part) =>
         part.type === "tool-result" && issued.has(part.callId)
-            ? [{ agent: String(issued.get(part.callId)), code: part.code as AiResultCode, content: part.content }]
+            ? [
+                  {
+                      agent: String(issued.get(part.callId)),
+                      code: part.code as AiResultCode,
+                      content: part.content,
+                      ...(part.origin === "web" ? { web: true } : {}),
+                  },
+              ]
             : [],
     );
 }
@@ -267,7 +281,16 @@ function helperConversation(
                 : []),
             ...(answers.length === 0
                 ? []
-                : [{ type: "text" as const, origin: "graph-data" as const, text: answersText(answers) }]),
+                : [
+                      {
+                          type: "text" as const,
+                          // An answer read on the web keeps its mark: a later helper that writes is held.
+                          origin: answers.some((answer) => answer.web === true)
+                              ? ("web" as const)
+                              : ("graph-data" as const),
+                          text: answersText(answers),
+                      },
+                  ]),
             { type: "text", origin: "graphty", text: task },
         ],
     };

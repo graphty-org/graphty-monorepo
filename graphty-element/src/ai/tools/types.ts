@@ -132,10 +132,11 @@ export interface ToolHost {
 
 /**
  * Why a batch is held for the reader's approval: a measured limit, `"policy"` when the host's
- * approval policy asked about one of its calls, or `"plan"` for a hand-off to helpers while
- * `confirmPlans` is set.
+ * approval policy asked about one of its calls, `"plan"` for a hand-off to helpers while
+ * `confirmPlans` is set, or `"web-content"` for a call that does not only read while the message
+ * holds text read on the web.
  */
-export type GateKind = "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan";
+export type GateKind = "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content";
 
 /** One call the model made, as an approval policy judges it before anything runs. */
 export interface AiToolCallFacts {
@@ -147,6 +148,11 @@ export interface AiToolCallFacts {
     readonly arguments: Readonly<Record<string, unknown>>;
     /** What the call does: `read` changes nothing, `write` changes the project, `exempt` changes only the view. */
     readonly effect: ActionEffect;
+    /**
+     * True when the conversation the model acted from holds text read on the web (a research
+     * helper's answer): the call may be following an instruction a web page wrote.
+     */
+    readonly webContent?: boolean;
 }
 
 /** What an approval policy says about one call: run it, ask the reader first, or refuse it. */
@@ -218,6 +224,15 @@ export interface MessageState {
      * (`AI_TOOL_DENIED_BY_POLICY` with this as `reason`), before the policy is asked.
      */
     readonly readOnly?: "parallel-helper";
+    /**
+     * The model acted from a history window holding text read on the web: derived from the
+     * conversation for each batch, never stored. Every call that does not only read is then held
+     * (gate `"web-content"`) when an approval policy is set, else refused
+     * (`AI_TOOL_DENIED_BY_POLICY` with `reason: "web-content"`), unless `webContentMayWrite`.
+     */
+    readonly webContent?: boolean;
+    /** `AiToolOptions.webContentMayWrite`: web content does not hold or refuse a write. */
+    readonly webContentMayWrite?: boolean;
     /** The message's id, its steps' `provenance.message`. */
     readonly id: string;
     /** Runs the assistant started in this conversation, which it may cancel without asking. */

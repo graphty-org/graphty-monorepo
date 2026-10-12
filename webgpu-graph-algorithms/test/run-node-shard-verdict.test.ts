@@ -40,13 +40,22 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-/** Runs the wrapper with the stub as its runner; returns the exit code and the [shard-verdict] line. */
-async function run(stub: string, argv: string[] = []): Promise<{ code: number; verdictLine: string | undefined }> {
+/**
+ * Runs the wrapper with the stub as its runner; returns the exit code and the [shard-verdict] line. Only the hang case
+ * shortens the silence that counts as a hang: a stub that exits at once can still take longer than 200 ms to start on
+ * a loaded machine, and a snapshot then signals it and the run fails as hung instead of for its own cause (seen in the
+ * full node shard, issue #2158).
+ */
+async function run(
+    stub: string,
+    argv: string[] = [],
+    silenceMs = 60_000,
+): Promise<{ code: number; verdictLine: string | undefined }> {
     const lines: string[] = [];
     vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
         lines.push(args.map(String).join(" "));
     });
-    const code = await main(argv, { command: ["node", stub], silenceMs: 200, reportDir: join(dir, "reports") });
+    const code = await main(argv, { command: ["node", stub], silenceMs, reportDir: join(dir, "reports") });
     return { code, verdictLine: lines.find((line) => line.startsWith("[shard-verdict]")) };
 }
 
@@ -54,7 +63,7 @@ describe("scripts/run-node-shard.js fails closed (issue #2111)", () => {
     it.skipIf(process.platform === "win32")(
         "a runner that hangs, is signalled by the hang watcher and exits 0 fails as hung",
         async () => {
-            const { code, verdictLine } = await run(hangs);
+            const { code, verdictLine } = await run(hangs, [], 200);
             expect(code).not.toBe(0);
             expect(verdictLine).toBe("[shard-verdict] FAIL hung: no output for 0.2s, signalled 1 process(es)");
         },

@@ -10,7 +10,21 @@ const BLOCK_ASPECT = "graphty.styles";
 
 type Aspect = Record<string, unknown[]>;
 
-const decode = (bytes: Uint8Array): Aspect[] => JSON.parse(new TextDecoder().decode(bytes)) as Aspect[];
+/** JSON.rawJSON (Node 21 and later), which the TypeScript library in use does not declare. */
+const rawJSON = (JSON as unknown as { rawJSON(text: string): unknown }).rawJSON;
+
+/**
+ * A written file's aspects. An integer past 2^53 (a CX id may be any 64-bit integer) keeps its digits, as another
+ * program editing the file keeps them: parsed as a number it would become another id.
+ * @param bytes - the file
+ * @returns the aspects
+ */
+const decode = (bytes: Uint8Array): Aspect[] =>
+    JSON.parse(new TextDecoder().decode(bytes), (_key: string, value: unknown, context?: { source?: string }) =>
+        typeof value === "number" && !Number.isSafeInteger(value) && /^-?\d+$/.test(context?.source ?? "")
+            ? rawJSON(context?.source ?? "")
+            : value,
+    ) as Aspect[];
 const encode = (doc: unknown): Uint8Array => new TextEncoder().encode(JSON.stringify(doc));
 
 /**

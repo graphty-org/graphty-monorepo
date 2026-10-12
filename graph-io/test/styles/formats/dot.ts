@@ -50,5 +50,11 @@ export function replaceDotBlock(written: Uint8Array, change: (block: string) => 
 registerStyleFormat({
     name: "dot",
     mutantsPerFile: 1,
-    writer: { format: "dot", editNative: editDotNodeFill, replaceBlock: replaceDotBlock },
+    writer: {
+        format: "dot",
+        // DOT holds one direction per file: a graph mixing both is written directed, as the error asks
+        options: { onMixedDirection: "directed" },
+        editNative: editDotNodeFill,
+        replaceBlock: replaceDotBlock,
+    },
 });

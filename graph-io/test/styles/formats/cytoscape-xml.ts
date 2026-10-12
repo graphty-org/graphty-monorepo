@@ -160,6 +160,8 @@ registerStyleFormat({
     name: "cys",
     writer: {
         format: "cys",
+        // Cytoscape ids are integers: a file with other ids is written with them rewritten, as the error asks
+        options: { sanitizeIds: "mangle" },
         editNative: (written) => {
             // a color the session holds nowhere yet (its entries are stored, so their text is in the bytes)
             const color = decode(written).includes("123456") ? "#654321" : "#123456";

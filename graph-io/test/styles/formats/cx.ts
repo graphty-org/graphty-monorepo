@@ -112,14 +112,17 @@ export function editCxNodeFill(written: Uint8Array): Uint8Array | null {
     return encode(doc);
 }
 
+/** Cytoscape ids are integers: a file with other ids is written with them rewritten, as the error asks. */
+const MANGLE = { sanitizeIds: "mangle" } as const;
+
 registerStyleFormat({
     name: "cx",
     mutantsPerFile: 1,
-    writer: { format: "cx", editNative: editCxNodeFill, replaceBlock: replaceCxBlock },
+    writer: { format: "cx", options: MANGLE, editNative: editCxNodeFill, replaceBlock: replaceCxBlock },
 });
 
 registerStyleFormat({
     name: "cx2",
     mutantsPerFile: 1,
-    writer: { format: "cx2", editNative: editCx2NodeFill, replaceBlock: replaceCxBlock },
+    writer: { format: "cx2", options: MANGLE, editNative: editCx2NodeFill, replaceBlock: replaceCxBlock },
 });

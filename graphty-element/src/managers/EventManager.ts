@@ -569,6 +569,7 @@ export class EventManager implements Manager {
             case "ai-voice-transcript":
             case "ai-voice-end":
             case "ai-voice-level":
+            case "ai-voice-support-change":
             case "ai-speech-start":
             case "ai-speech-end":
             case "ai-approval-requested":

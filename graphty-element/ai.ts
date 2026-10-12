@@ -100,7 +100,11 @@ export type {
     AiQuestionRequest,
     AiSpeechEndEvent,
     AiSpeechStartEvent,
+    AiVoiceEndEvent,
     AiVoiceLevelEvent,
+    AiVoiceStartEvent,
+    AiVoiceSupportChangeEvent,
+    AiVoiceTranscriptEvent,
 } from "./src/events";
 
 // AI Commands

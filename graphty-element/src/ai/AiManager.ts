@@ -69,10 +69,11 @@ export interface KeyPersistenceConfig {
 
 /**
  * How one direction of speech is carried: `"auto"` (the element chooses; see
- * `AiVoiceOptions.input` and `.output`), `"browser"` (the browser's own recognition or speech),
- * `"provider"` (the AI provider transcribes or speaks), `"off"`.
+ * `AiVoiceOptions.input` and `.output`), `"on"` (by whichever path works, on every page),
+ * `"browser"` (the browser's own recognition or speech), `"provider"` (the AI provider
+ * transcribes or speaks), `"off"`.
  */
-export type AiVoiceMode = "auto" | "browser" | "provider" | "off";
+export type AiVoiceMode = "auto" | "on" | "browser" | "provider" | "off";
 
 /**
  * Speaking to the assistant and hearing it answer (`AiManagerConfig.voice`), driven by
@@ -85,7 +86,10 @@ export interface AiVoiceOptions {
      * provider's transcription, else `AI_VOICE_UNAVAILABLE`.
      */
     input?: AiVoiceMode;
-    /** Text to speech. `"auto"` (the default): off on a flat page, on in an immersive session. */
+    /**
+     * Text to speech. `"auto"` (the default): off on a flat page, on in an immersive session.
+     * `"on"`: on everywhere, by the browser's speech, else the provider's.
+     */
     output?: AiVoiceMode;
     /** The language spoken and heard, a BCP 47 tag (`"fr-FR"`). Default: the page's language. */
     language?: string;
@@ -94,15 +98,37 @@ export interface AiVoiceOptions {
     /** `"hold"` (the default): talk while `aiTalk(true)` holds. `"toggle"`: each `aiTalk(true)` starts or ends. */
     push?: "hold" | "toggle";
     /**
+     * A key (`KeyboardEvent.key`, such as `"v"`) that holds talk while it is held down with the
+     * graph focused, so the mouse stays free to point at nodes ("color this"). Default: none.
+     */
+    holdKey?: string;
+    /**
+     * The longest one press listens, in seconds; past it the press ends as if released. Default
+     * 60. `Infinity` for no limit.
+     */
+    maxPressSeconds?: number;
+    /**
+     * When the provider transcribes: the microphone level (0 to 1, as `ai-voice-level` reports it)
+     * a press must reach to be sent. A quieter press was heard as nothing, so silence is never sent
+     * to a model that might write words that were never said. Default 0.04. 0 sends every press.
+     */
+    speechLevel?: number;
+    /**
      * Transcribe through another provider than the chat's, with its key from `apiKeys`: an
-     * Anthropic reader's speech through OpenAI.
+     * Anthropic reader's speech through OpenAI. `model` names the transcription model; for a
+     * provider whose chat model transcribes (Google), it names that chat model.
      */
     transcription?: { provider: AiProviderId; model?: string };
     /**
      * Utterances that answer a pending approval instead of sending a message, compared with case
-     * and punctuation ignored. Default `{ approve: ["yes"], deny: ["no"] }`.
+     * and punctuation ignored. Default `{ approve: ["yes"], deny: ["no"] }`, in English whatever
+     * `language` is: set your own words for another language. `gates` lists the holds (the
+     * request's `gate`) a spoken approve may answer; default `AI_VOICE_APPROVABLE_GATES`, which leaves
+     * out `"web-content"` and `"irreversible"`. A spoken approve for any other hold changes nothing
+     * and answers `AI_CONFIRMATION_NEEDED` `{ gate, request }`: it is approved on screen. A spoken
+     * deny answers every hold.
      */
-    replies?: { approve?: readonly string[]; deny?: readonly string[] };
+    replies?: { approve?: readonly string[]; deny?: readonly string[]; gates?: readonly string[] };
     /**
      * The words to speak for an outcome the model wrote no text for (an error, a held approval).
      * Return undefined to say nothing. Absent, such an outcome is not spoken: the element speaks
@@ -144,6 +170,34 @@ const NO_VOICE_PATH: AiVoicePath = Object.freeze({
 
 /** Both directions, unavailable: the assistant has no `voice`, or is not enabled. */
 export const NO_VOICE_SUPPORT: AiVoiceSupport = Object.freeze({ input: NO_VOICE_PATH, output: NO_VOICE_PATH });
+
+/** What the element itself does with an assistant around an immersive session. */
+export interface AssistantXrHooks {
+    /** Inside the click that enters: ask for the microphone and unlock speech. */
+    prime(): void;
+    /** Bind talk, approve and deny, pointing and the cards to the session. */
+    enter(input: XRInputHandler, scene: Scene, config: XRAiConfig | undefined): Promise<void>;
+    /** Unbind, close a held microphone without sending, stop speaking. */
+    leave(): void;
+}
+
+/** Each assistant's XR hooks, kept off the class so a consumer never sees them. */
+const xrHooks = new WeakMap<AiManager, AssistantXrHooks>();
+
+/**
+ * The XR hooks of an assistant, for the element's own XR session code (Graph); not exported from
+ * any entry point.
+ * @param manager - The assistant.
+ * @returns Its hooks.
+ */
+export function assistantXr(manager: AiManager): AssistantXrHooks {
+    const hooks = xrHooks.get(manager);
+    if (hooks === undefined) {
+        throw new Error("An AiManager registers its XR hooks when it is constructed.");
+    }
+
+    return hooks;
+}
 
 /**
  * Configuration options for initializing the AiManager.
@@ -322,6 +376,8 @@ export class AiManager {
     private readonly xrPointed = new Set<(id: NodeId) => void>();
     /** Who hears a spoken message's outcome. */
     private readonly voiceAnswered = new Set<(result: ExecutionResult) => void>();
+    /** Stops `voice.holdKey` holding talk. */
+    private unbindHoldKey: (() => void) | undefined;
 
     /**
      * Creates a new AiManager instance.
@@ -330,6 +386,15 @@ export class AiManager {
         this.commandRegistry = new CommandRegistry();
         this.apiKeyManager = new ApiKeyManager();
         this.statusManager = new AiStatusManager();
+        xrHooks.set(this, {
+            prime: () => {
+                this.primeVoice();
+            },
+            enter: (input, scene, config) => this.enterXR(input, scene, config),
+            leave: () => {
+                this.leaveXR();
+            },
+        });
     }
 
     /**
@@ -424,6 +489,10 @@ export class AiManager {
 
         this.voiceOptions = config.voice;
         this.voiceKeys = config.apiKeys;
+        if (config.voice?.holdKey !== undefined) {
+            this.bindHoldKey(graph.element, config.voice.holdKey);
+        }
+
         if (config.voice !== undefined) {
             this.voicePrimeLoad = import("./voice/prime").then(
                 (module) => {
@@ -440,7 +509,7 @@ export class AiManager {
      * Prime speech for an immersive session, inside the click that enters it: ask for the
      * microphone (and close it at once), unlock speech synthesis and audio. Nothing without `voice`.
      */
-    primeVoice(): void {
+    private primeVoice(): void {
         if (this.voiceOptions !== undefined) {
             this.voicePrime?.primeVoice(this.voiceOptions);
         }
@@ -453,7 +522,7 @@ export class AiManager {
      * @param scene - The scene.
      * @param config - `xr.ai`.
      */
-    async enterXR(input: XRInputHandler, scene: Scene, config: XRAiConfig | undefined): Promise<void> {
+    private async enterXR(input: XRInputHandler, scene: Scene, config: XRAiConfig | undefined): Promise<void> {
         this.leaveXR();
         const generation = this.xrGeneration;
         const voice = this.voiceOptions;
@@ -500,17 +569,51 @@ export class AiManager {
                 };
             },
         });
+        void this.voiceSessionNow?.checkSupport();
     }
 
     /** Leave the immersive session: unbind, close a held microphone without sending, stop speaking. */
-    leaveXR(): void {
+    private leaveXR(): void {
         this.xrGeneration++;
         this.xrUnbind?.();
         this.xrUnbind = undefined;
         void this.voiceSession?.then((session) => {
             session.cancel();
             session.stopSpeech();
+            // Answers are spoken by default only in an immersive session.
+            void session.checkSupport();
         });
+    }
+
+    /**
+     * Hold talk while a key is held with the graph focused, leaving the mouse free to point.
+     * @param target - The graph's element; key events from the canvas reach it.
+     * @param key - The key, as `KeyboardEvent.key` names it.
+     */
+    private bindHoldKey(target: Element, key: string): void {
+        let held = false;
+        const down = (event: Event): void => {
+            const { key: pressed, repeat } = event as KeyboardEvent;
+            if (pressed === key && !repeat && !held) {
+                held = true;
+                event.preventDefault();
+                this.talk(true);
+            }
+        };
+        const up = (event: Event): void => {
+            if (held && (event.type === "focusout" || (event as KeyboardEvent).key === key)) {
+                held = false;
+                this.talk(false);
+            }
+        };
+        target.addEventListener("keydown", down);
+        target.addEventListener("keyup", up);
+        target.addEventListener("focusout", up);
+        this.unbindHoldKey = () => {
+            target.removeEventListener("keydown", down);
+            target.removeEventListener("keyup", up);
+            target.removeEventListener("focusout", up);
+        };
     }
 
     /**
@@ -916,6 +1019,9 @@ export class AiManager {
         if (this.provider?.name === provider) {
             this.provider.configure({ apiKey: key });
         }
+
+        // A key can make provider transcription or speech usable.
+        void this.voiceSessionNow?.checkSupport();
     }
 
     /**
@@ -1025,6 +1131,8 @@ export class AiManager {
         this.xrGeneration++;
         this.xrUnbind?.();
         this.xrUnbind = undefined;
+        this.unbindHoldKey?.();
+        this.unbindHoldKey = undefined;
         // The microphone closes and speech stops.
         void this.voiceSession?.then((session) => {
             session.dispose();

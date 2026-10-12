@@ -6211,6 +6211,8 @@ export class Graph implements GraphContext {
 
     // AI Manager instance (lazy-initialized)
     private aiManager: import("./ai/AiManager").AiManager | null = null;
+    /** The assistant's XR hooks, which the class keeps off its public surface. */
+    private aiXr: import("./ai/AiManager").AssistantXrHooks | null = null;
     /** Counts `enableAiControl` and `disableAiControl` calls: an enable a later call superseded does nothing. */
     private aiGeneration = 0;
 
@@ -6249,7 +6251,7 @@ export class Graph implements GraphContext {
         }
 
         // Dynamically import to avoid loading AI code when not needed
-        const { AiManager } = await import("./ai/AiManager");
+        const { AiManager, assistantXr } = await import("./ai/AiManager");
 
         // The in-browser provider loads asynchronously, and only when it is picked. Built before
         // the old assistant goes, so a missing package leaves the current one in place.
@@ -6268,6 +6270,8 @@ export class Graph implements GraphContext {
         this.aiManager?.dispose();
         const manager = new AiManager();
         this.aiManager = manager;
+        const xr = assistantXr(manager);
+        this.aiXr = xr;
         manager.init(this, { ...config, providerInstance });
         // With `history`, the saved conversation is open when this resolves. A call that supersedes
         // this one meanwhile disposes `manager` itself, and leaves its own in place.
@@ -6276,11 +6280,7 @@ export class Graph implements GraphContext {
         const xrCameraController = this.scene.metadata?.xrCameraController as
             import("./cameras/XRPivotCameraController").XRPivotCameraController | null | undefined;
         if (xrCameraController && this.aiManager === manager) {
-            await manager.enterXR(
-                xrCameraController.getInputHandler(),
-                this.scene,
-                this.graphContext.getConfig().xr?.ai,
-            );
+            await xr.enter(xrCameraController.getInputHandler(), this.scene, this.graphContext.getConfig().xr?.ai);
         }
     }
 
@@ -6297,6 +6297,7 @@ export class Graph implements GraphContext {
         if (this.aiManager) {
             this.aiManager.dispose();
             this.aiManager = null;
+            this.aiXr = null;
         }
     }
 
@@ -6906,7 +6907,7 @@ export class Graph implements GraphContext {
 
         // Inside the click that entered, before anything waits: a headset asks for the microphone
         // and lets speech start only from a click.
-        this.aiManager?.primeVoice();
+        this.aiXr?.prime();
         const previousCamera = this.camera.getActiveController()?.camera;
 
         if (mode === "immersive-vr") {
@@ -6943,8 +6944,8 @@ export class Graph implements GraphContext {
         this.scene.metadata.xrUpdateObserver = xrUpdateObserver;
 
         // The assistant's talk, approve and deny buttons, pointing and cards (`xr.ai`).
-        await this.aiManager
-            ?.enterXR(xrCameraController.getInputHandler(), this.scene, this.graphContext.getConfig().xr?.ai)
+        await this.aiXr
+            ?.enter(xrCameraController.getInputHandler(), this.scene, this.graphContext.getConfig().xr?.ai)
             .catch((error: unknown) => {
                 // The session runs on without the assistant's controls.
                 console.warn("[Graph] The assistant could not bind to the XR session:", error);
@@ -6961,7 +6962,7 @@ export class Graph implements GraphContext {
 
         this.immersiveSince = null;
         // Leaving XR closes a held microphone without sending, and stops speech.
-        this.aiManager?.leaveXR();
+        this.aiXr?.leave();
 
         // Clean up XR camera controller
         if (this.scene.metadata?.xrCameraController) {

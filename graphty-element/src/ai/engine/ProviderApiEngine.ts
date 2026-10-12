@@ -254,7 +254,14 @@ export class ProviderApiEngine implements AiEngine {
         }
 
         for (let attempt = 0, backoff = FIRST_RETRY_MS; ; attempt++, backoff *= 2) {
-            const done = await call(voice, settings);
+            let done: VoiceAttempt<T>;
+            try {
+                done = await call(voice, settings);
+            } catch (error) {
+                // The adapter codes its own failures; anything it threw is coded here, never rethrown.
+                return providerFailure(error, settings.provider, signal);
+            }
+
             if (done.type === "done" || done.retryable !== true || attempt >= MAX_RETRIES) {
                 return done;
             }

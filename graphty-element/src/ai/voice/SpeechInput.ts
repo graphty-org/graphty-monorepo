@@ -38,6 +38,11 @@ export interface SpeechInputOptions {
     readonly engine?: Pick<AiEngine, "transcribe">;
     /** Provider transcription: the model; absent, the provider's default. */
     readonly model?: string;
+    /**
+     * Provider transcription: the level (0 to 1, as `onLevel` reports it) a press must reach to be
+     * sent; a quieter press was heard as nothing. Absent, every press is sent.
+     */
+    readonly speechLevel?: number;
 }
 
 /** A running press. */
@@ -50,8 +55,12 @@ export interface SpeechInput {
     dispose(): void;
 }
 
-/** Recognizer errors that mean recognition does not work on this origin (Quest's constructor). */
-const RECOGNITION_BROKEN = new Set(["start-failed", "service-not-allowed", "network", "language-not-supported"]);
+/**
+ * Recognizer errors that mean recognition never works in this browser (Quest's constructor), so
+ * they are remembered for the origin. `network` (offline for a moment) fails only this press, and
+ * `language-not-supported` is remembered for that language only.
+ */
+const RECOGNITION_BROKEN = new Set(["start-failed", "service-not-allowed"]);
 
 /**
  * A press that cannot be carried.
@@ -72,17 +81,29 @@ function microphoneFailure(error: unknown): AiVoiceUnavailableReason {
     return name === "NotAllowedError" || name === "SecurityError" ? "permission-denied" : "no-microphone";
 }
 
+/** A microphone's meter: its loudest level so far, and how to stop it. */
+interface Meter {
+    /** The loudest level measured so far (0 to 1); undefined when the page cannot measure. */
+    peak(): number | undefined;
+    /** Stop measuring and close the audio graph (after a last measurement). */
+    stop(): void;
+}
+
+/** How often the loudest level is sampled, in milliseconds: animation frames pause in XR. */
+const PEAK_SAMPLE_MS = 50;
+
 /**
- * Report a stream's level once per animation frame.
- * ponytail: window animation frames pause in an immersive session, so XR gets no level; drive it
- * from the XR frame loop if an in-scene meter needs one.
+ * Report a stream's level once per animation frame, and keep its loudest level, sampled on a timer
+ * too, since window animation frames pause in an immersive session.
+ * ponytail: XR gets no level events (they ride animation frames); drive them from the XR frame loop
+ * if an in-scene meter needs one.
  * @param stream - The microphone.
  * @param onLevel - Called with 0 to 1.
- * @returns Stops reporting and closes the audio graph.
+ * @returns The meter.
  */
-function meter(stream: MediaStream, onLevel: (level: number) => void): () => void {
-    if (typeof AudioContext === "undefined" || typeof requestAnimationFrame === "undefined") {
-        return () => undefined;
+function meter(stream: MediaStream, onLevel: (level: number) => void): Meter {
+    if (typeof AudioContext === "undefined") {
+        return { peak: () => undefined, stop: () => undefined };
     }
 
     const context = new AudioContext();
@@ -91,8 +112,8 @@ function meter(stream: MediaStream, onLevel: (level: number) => void): () => voi
     context.createMediaStreamSource(stream).connect(analyser);
     context.resume().catch(() => undefined);
     const samples = new Float32Array(analyser.fftSize);
-    let frame = 0;
-    const tick = (): void => {
+    let loudest = 0;
+    const measure = (): number => {
         analyser.getFloatTimeDomainData(samples);
         let sum = 0;
         for (const sample of samples) {
@@ -100,13 +121,38 @@ function meter(stream: MediaStream, onLevel: (level: number) => void): () => voi
         }
 
         // RMS, doubled so ordinary speech reaches the upper half; clipped at 1.
-        onLevel(Math.min(1, Math.sqrt(sum / samples.length) * 2));
+        const level = Math.min(1, Math.sqrt(sum / samples.length) * 2);
+        loudest = Math.max(loudest, level);
+        return level;
+    };
+    const frames = typeof requestAnimationFrame === "function";
+    let frame = 0;
+    const tick = (): void => {
+        onLevel(measure());
         frame = requestAnimationFrame(tick);
     };
-    frame = requestAnimationFrame(tick);
-    return () => {
-        cancelAnimationFrame(frame);
-        context.close().catch(() => undefined);
+    if (frames) {
+        frame = requestAnimationFrame(tick);
+    }
+
+    const timer = setInterval(measure, PEAK_SAMPLE_MS);
+    let stopped = false;
+    return {
+        peak: () => loudest,
+        stop: () => {
+            if (stopped) {
+                return;
+            }
+
+            stopped = true;
+            measure();
+            clearInterval(timer);
+            if (frames) {
+                cancelAnimationFrame(frame);
+            }
+
+            context.close().catch(() => undefined);
+        },
     };
 }
 
@@ -123,13 +169,12 @@ export function startSpeechInput(
     handlers: SpeechInputHandlers,
 ): SpeechInput {
     let stream: MediaStream | undefined;
-    let stopMeter = (): void => undefined;
+    let level: Meter | undefined;
     let ended = false;
     let released = false;
 
     const closeMicrophone = (): void => {
-        stopMeter();
-        stopMeter = () => undefined;
+        level?.stop();
         for (const track of stream?.getTracks() ?? []) {
             track.stop();
         }
@@ -148,7 +193,13 @@ export function startSpeechInput(
         handlers.onEnd(result);
     };
 
-    const carrier = route === "browser" ? recognize(options, handlers, end) : record(options, end);
+    const carrier =
+        route === "browser"
+            ? recognize(options, handlers, end)
+            : record(options, end, () => {
+                  const peak = level?.peak();
+                  return peak === undefined || options.speechLevel === undefined || peak >= options.speechLevel;
+              });
     // End first, so a route's own end on being stopped is not reported as the outcome.
     const fail = (result: SpeechInputEnd): void => {
         end(result);
@@ -176,8 +227,8 @@ export function startSpeechInput(
                     closeMicrophone();
                     carrier.finish();
                 } else {
-                    stopMeter = meter(opened, (level) => {
-                        handlers.onLevel(level);
+                    level = meter(opened, (now) => {
+                        handlers.onLevel(now);
                     });
                     carrier.open(opened);
                 }
@@ -241,7 +292,7 @@ function recognize(
     let failure: SpeechInputEnd | undefined;
     const heard = (): string => [...finals, interim].filter(Boolean).join(" ");
     adapter.onInput((text, isFinal) => {
-        rememberRecognition("works");
+        rememberRecognition("works", options.language);
         if (isFinal) {
             finals.push(text.trim());
             interim = "";
@@ -255,6 +306,11 @@ function recognize(
         if (RECOGNITION_BROKEN.has(error)) {
             rememberRecognition("fails");
             failure = unavailable("no-recognition");
+        } else if (error === "language-not-supported") {
+            rememberRecognition("fails", options.language);
+            failure = unavailable("no-recognition");
+        } else if (error === "network") {
+            failure = unavailable("recognition-network");
         } else if (error === "not-allowed") {
             failure = unavailable("permission-denied");
         } else if (error === "audio-capture") {
@@ -288,12 +344,14 @@ function recognize(
 
 /**
  * Provider transcription: record the microphone while talk is held, then hand the clip to the
- * engine's `transcribe`.
+ * engine's `transcribe`. A press that never reached speech level is heard as nothing and not
+ * sent: a chat model asked to transcribe silence may write words that were never said.
  * @param options - Language, engine and model.
  * @param end - Ends the press.
+ * @param spoke - Whether the press reached speech level.
  * @returns The route.
  */
-function record(options: SpeechInputOptions, end: (result: SpeechInputEnd) => void): Carrier {
+function record(options: SpeechInputOptions, end: (result: SpeechInputEnd) => void, spoke: () => boolean): Carrier {
     const transcribe = options.engine?.transcribe?.bind(options.engine);
     if (transcribe === undefined) {
         return {
@@ -309,13 +367,18 @@ function record(options: SpeechInputOptions, end: (result: SpeechInputEnd) => vo
     let recorder: MediaRecorder | undefined;
     const send = async (): Promise<void> => {
         const audio = new Blob(chunks, { type: recorder?.mimeType });
-        if (audio.size === 0) {
+        if (audio.size === 0 || !spoke()) {
             end({ code: "AI_COMPLETED", params: {}, text: "" });
             return;
         }
 
-        const result = await transcribe(audio, { language: options.language, model: options.model }, abort.signal);
-        end(result.code === "AI_COMPLETED" ? { ...result, text: result.text.trim() } : { ...result, text: "" });
+        try {
+            const result = await transcribe(audio, { language: options.language, model: options.model }, abort.signal);
+            end(result.code === "AI_COMPLETED" ? { ...result, text: result.text.trim() } : { ...result, text: "" });
+        } catch {
+            // An engine that threw instead of coding its failure still ends the press.
+            end({ code: "AI_PROVIDER_ERROR", params: {}, text: "" });
+        }
     };
     return {
         open(stream) {

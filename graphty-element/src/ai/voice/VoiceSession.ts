@@ -5,7 +5,7 @@
  * @module ai/voice/VoiceSession
  */
 
-import type { AiResultCode, AiResultParams } from "../../catalog/ai";
+import { AI_VOICE_APPROVABLE_GATES, type AiResultCode, type AiResultParams } from "../../catalog/ai";
 import type { NodeId } from "../../catalog/types";
 import type { AiApprovalRequest, AiQuestionRequest } from "../../events";
 import type { AiApprovalAnswer, AiCommandOptions, ExecutionResult } from "../AiController";
@@ -19,7 +19,19 @@ import { readVoiceEnvironment, voiceLanguage } from "./support";
 
 /** The voice events a session emits. */
 export type VoiceEventType =
-    "ai-voice-start" | "ai-voice-transcript" | "ai-voice-end" | "ai-voice-level" | "ai-speech-start" | "ai-speech-end";
+    | "ai-voice-start"
+    | "ai-voice-transcript"
+    | "ai-voice-end"
+    | "ai-voice-level"
+    | "ai-speech-start"
+    | "ai-speech-end"
+    | "ai-voice-support-change";
+
+/** The longest a press listens by default, in seconds: a forgotten toggle does not record for ever. */
+export const DEFAULT_MAX_PRESS_SECONDS = 60;
+
+/** The level (0 to 1) a press on the provider route must reach to be sent, by default. */
+export const DEFAULT_SPEECH_LEVEL = 0.04;
 
 /** What a session needs of the assistant: the same calls a typed message and an answer use. */
 export interface VoiceController {
@@ -79,7 +91,16 @@ export class VoiceSession {
     private listening = false;
     /** Counts presses, so a press that ended before it started does nothing. */
     private press = 0;
+    /** Presses up to this number were cancelled: what they hear is never sent. */
+    private cancelledThrough = 0;
+    /** The press listening now. */
     private input: SpeechInput | undefined;
+    /** Every press not yet ended: listening, or still being transcribed. */
+    private readonly inputs = new Set<SpeechInput>();
+    /** Releases a press that ran past `maxPressSeconds`. */
+    private pressTimer: ReturnType<typeof setTimeout> | undefined;
+    /** The support last reported, to tell when it changed. */
+    private lastSupport: string | undefined;
     /** Stops recording what the pointer enters, while talk is held. */
     private stopPointing: (() => void) | undefined;
     private readonly speakers = new Map<"browser" | "provider", SpeechOutput>();
@@ -119,12 +140,38 @@ export class VoiceSession {
             this.stopPointing = this.host.onPointed?.((id) => {
                 pointing.enter(id);
             });
-            void this.listen(++this.press, pointing);
+            const press = ++this.press;
+            const seconds = this.host.options.maxPressSeconds ?? DEFAULT_MAX_PRESS_SECONDS;
+            if (Number.isFinite(seconds) && seconds > 0) {
+                this.pressTimer = setTimeout(() => {
+                    if (press === this.press) {
+                        this.release();
+                    }
+                }, seconds * 1000);
+            }
+
+            void this.listen(press, pointing);
         } else if (!down && this.listening) {
-            this.listening = false;
-            this.endPointing();
-            this.input?.stop();
+            this.release();
         }
+    }
+
+    /** Talk released (or held too long): the press finishes with what was heard. */
+    private release(): void {
+        if (!this.listening) {
+            return;
+        }
+
+        this.listening = false;
+        this.clearPressTimer();
+        this.endPointing();
+        this.input?.stop();
+    }
+
+    /** Stop the press's time limit. */
+    private clearPressTimer(): void {
+        clearTimeout(this.pressTimer);
+        this.pressTimer = undefined;
     }
 
     /** Stop speaking an answer: it ends with `AI_CANCELLED`. */
@@ -139,7 +186,26 @@ export class VoiceSession {
      * @returns Both directions.
      */
     async support(): Promise<AiVoiceSupport> {
-        return chooseVoice(this.host.options, await this.facts());
+        const support = chooseVoice(this.host.options, await this.facts());
+        this.lastSupport = JSON.stringify(support);
+        return support;
+    }
+
+    /**
+     * Read the support again and, when it differs from what was last reported, emit
+     * `ai-voice-support-change`: a press changed the permission or the recognition memory, a key
+     * was set, an immersive session began or ended.
+     */
+    async checkSupport(): Promise<void> {
+        if (this.disposed) {
+            return;
+        }
+
+        const before = this.lastSupport;
+        const support = await this.support();
+        if (!this.disposed && before !== undefined && this.lastSupport !== before) {
+            this.host.emit("ai-voice-support-change", { support });
+        }
     }
 
     /**
@@ -147,21 +213,29 @@ export class VoiceSession {
      * closes. Leaving XR does this.
      */
     cancel(): void {
-        // A press still choosing its path ends there.
-        this.press++;
+        // A press still choosing its path ends there, and an earlier one still being transcribed
+        // sends nothing.
+        this.cancelledThrough = ++this.press;
         this.listening = false;
+        this.clearPressTimer();
         this.endPointing();
-        const { input } = this;
         this.input = undefined;
-        input?.cancel();
+        for (const input of [...this.inputs]) {
+            input.cancel();
+        }
     }
 
     /** Close the microphone and stop speaking; later presses do nothing. */
     dispose(): void {
         this.disposed = true;
         this.listening = false;
+        this.clearPressTimer();
         this.endPointing();
-        this.input?.dispose();
+        for (const input of this.inputs) {
+            input.dispose();
+        }
+
+        this.inputs.clear();
         this.input = undefined;
         this.stopSpeech();
     }
@@ -199,6 +273,7 @@ export class VoiceSession {
         const path = chooseInput(this.host.options.input ?? "auto", facts);
         if (path.path !== "browser" && path.path !== "provider") {
             this.listening = false;
+            this.clearPressTimer();
             this.endPointing();
             this.host.emit("ai-voice-end", { reason: "error", code: path.code, params: path.params ?? {} });
             return;
@@ -206,13 +281,14 @@ export class VoiceSession {
 
         const transcriber = this.host.transcriber();
         this.host.emit("ai-voice-start", {});
-        this.input = startSpeechInput(
+        const input = startSpeechInput(
             path.path,
             {
                 language: this.language,
                 processLocally: facts.onDevice === "process-locally",
                 engine: transcriber.engine,
                 model: transcriber.model,
+                speechLevel: this.host.options.speechLevel ?? DEFAULT_SPEECH_LEVEL,
             },
             {
                 onTranscript: (transcript, isFinal) => {
@@ -222,13 +298,16 @@ export class VoiceSession {
                     this.host.emit("ai-voice-level", { level });
                 },
                 onEnd: (end) => {
+                    this.inputs.delete(input);
                     void this.heard(press, end, pointing);
                 },
             },
         );
+        this.inputs.add(input);
+        this.input = input;
         // Released while the path was being chosen.
         if (!this.listening) {
-            this.input.stop();
+            input.stop();
         }
     }
 
@@ -242,12 +321,18 @@ export class VoiceSession {
         if (press === this.press) {
             this.listening = false;
             this.input = undefined;
+            this.clearPressTimer();
             this.endPointing();
         }
 
-        const failed = end.code !== "AI_COMPLETED" && end.code !== "AI_CANCELLED";
-        this.host.emit("ai-voice-end", { reason: failed ? "error" : "user", code: end.code, params: end.params });
-        if (end.code !== "AI_COMPLETED" || end.text === "") {
+        // A press cancelled while it was still being transcribed sends nothing.
+        const cancelled = press <= this.cancelledThrough;
+        const code = cancelled && end.code === "AI_COMPLETED" ? "AI_CANCELLED" : end.code;
+        const failed = code !== "AI_COMPLETED" && code !== "AI_CANCELLED";
+        this.host.emit("ai-voice-end", { reason: failed ? "error" : "user", code, params: end.params });
+        // The press may have asked for the microphone or learned whether recognition works.
+        void this.checkSupport();
+        if (code !== "AI_COMPLETED" || end.text === "" || this.disposed) {
             return;
         }
 
@@ -272,6 +357,16 @@ export class VoiceSession {
         if (approval !== undefined) {
             const matches = (words: readonly string[]): boolean => words.some((word) => comparable(word) === said);
             if (matches(options.replies?.approve ?? ["yes"])) {
+                // A hold the reader must look at is approved on screen; it stays pending.
+                if (!(options.replies?.gates ?? AI_VOICE_APPROVABLE_GATES).includes(approval.gate)) {
+                    return Promise.resolve({
+                        success: false,
+                        message: "",
+                        code: "AI_CONFIRMATION_NEEDED",
+                        params: { gate: approval.gate, request: approval.id },
+                    });
+                }
+
                 return controller.resolveAiApproval(approval.id, { approve: true });
             }
 

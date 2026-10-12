@@ -1,7 +1,8 @@
 /**
- * @file Pointing while talking, for real: with a talk button held by Space, the real mouse moves
- * over two nodes, and the message the utterance sends is saved with both ids, in the order they
- * were pointed at, in its facts part. The recognizer is a fake that hears a fixed sentence; the
+ * @file Pointing while talking, for real: with talk held by Space on a talk button, or by the
+ * element's own `voice.holdKey` on the focused graph, the real mouse moves over two nodes, and the
+ * message the utterance sends is saved with both ids, in the order they were pointed at, in its
+ * facts part. The recognizer is a fake that hears a fixed sentence; the
  * microphone is Chromium's fake device (vitest.config.ts).
  */
 
@@ -13,7 +14,7 @@ import { userEvent } from "vitest/browser";
 import type { Graphty } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
 import { FakeRecognition } from "../../helpers/fake-speech";
-import { hover, nextFrame, type Point } from "../../helpers/real-input";
+import { click, hover, nextFrame, type Point } from "../../helpers/real-input";
 
 const HEARD = "color these red";
 
@@ -135,4 +136,39 @@ describe("pointing while talk is held", () => {
         assert.lengthOf(facts, 1, "one facts part, on the spoken message");
         assert.include(facts[0].split("\n"), 'Pointed at, in order: "b", "a".');
     });
+
+    it("voice.holdKey: a key held on the focused graph talks while the mouse points", async () => {
+        await element.enableAiControl({ provider: "mock", voice: { holdKey: "v" }, history: "memory" });
+        // One real click on empty canvas focuses the graph.
+        await click(element, { x: 200, y: 280 });
+        await userEvent.keyboard("{v>}");
+        await vi.waitFor(() => {
+            assert.lengthOf(recognizers, 1, "the key started a recognizer");
+        });
+        await moveTo(at("a"));
+        await moveTo({ x: 200, y: 280 });
+        await moveTo(at("b"));
+        await userEvent.keyboard("{/v}");
+        await vi.waitFor(() => {
+            assert.strictEqual(finished, 1, "the spoken message ended");
+        });
+
+        assert.deepStrictEqual(await savedFacts(), ['Pointed at, in order: "a", "b".']);
+    });
 });
+
+/**
+ * The pointing lines saved with the open conversation.
+ * @returns Each "Pointed at" line of its facts parts.
+ */
+async function savedFacts(): Promise<string[]> {
+    const id = element.getAiConversation()?.id;
+    assert.isDefined(id);
+    const saved = await element.exportAiConversation(id);
+    assert.isNotNull(saved);
+    return (JSON.parse(saved) as { messages: { parts?: { origin?: string; text?: string }[] }[] }).messages
+        .flatMap((message) => message.parts ?? [])
+        .filter((part) => part.origin === "graph-data")
+        .flatMap((part) => (part.text ?? "").split("\n"))
+        .filter((line) => line.startsWith("Pointed at"));
+}

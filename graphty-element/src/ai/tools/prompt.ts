@@ -119,26 +119,53 @@ export function factsBlock(session: GraphSession, profile: ToolProfile, pointing
         const cap = FACT_IDS_CAP[profile];
         if (pointing.pointed.length > 0) {
             // The most recent, since "this" is what the reader pointed at last.
-            lines.push(`Pointed at, in order: ${listIds(pointing.pointed.slice(-cap), pointing.pointed.length)}.`);
+            lines.push(
+                `Pointed at, in order: ${listIds(pointing.pointed.slice(-cap), pointing.pointed.length, "last", FACT_IDS_CHARS[profile])}.`,
+            );
         }
 
         if (pointing.selected.length > 0) {
-            lines.push(`Selected: ${listIds(pointing.selected.slice(0, cap), pointing.selected.length)}.`);
+            lines.push(
+                `Selected: ${listIds(pointing.selected.slice(0, cap), pointing.selected.length, "first", FACT_IDS_CHARS[profile])}.`,
+            );
         }
     }
 
     return lines.join("\n");
 }
 
+/** The most characters of ids one facts line lists: long ids (URIs, ontology terms) cost tokens. */
+export const FACT_IDS_CHARS: Readonly<Record<ToolProfile, number>> = { standard: 1_000, small: 500 };
+
 /**
- * Ids as a facts line writes them: quoted when text, cut to 40 characters.
+ * Ids as a facts line writes them: whole and quoted when text, since the model copies them into
+ * tool calls and a shortened id names nothing. Past `FACT_IDS_CHARS` the rest are counted, not listed.
  * @param ids - The ids listed.
  * @param total - How many there were, so a cut list says so.
+ * @param keep - Which end of the list to keep when it is too long: `"last"` for what was pointed
+ * at last, `"first"` for the first selected.
+ * @param budget - The most characters of ids listed.
  * @returns The list's text.
  */
-function listIds(ids: readonly NodeId[], total: number): string {
-    const shown = ids.map((id) => JSON.stringify(typeof id === "string" ? id.slice(0, 40) : id));
-    return `${shown.join(", ")}${total > ids.length ? ` (${String(total - ids.length)} more)` : ""}`;
+function listIds(ids: readonly NodeId[], total: number, keep: "first" | "last", budget: number): string {
+    const quoted = ids.map((id) => JSON.stringify(id));
+    const order = keep === "last" ? [...quoted].reverse() : quoted;
+    const shown: string[] = [];
+    let chars = 0;
+    for (const id of order) {
+        if (shown.length > 0 && chars + id.length > budget) {
+            break;
+        }
+
+        shown.push(id);
+        chars += id.length + 2;
+    }
+
+    if (keep === "last") {
+        shown.reverse();
+    }
+
+    return `${shown.join(", ")}${total > shown.length ? ` (${String(total - shown.length)} more)` : ""}`;
 }
 
 /** The most ids the facts block names, or reads to find a range. */

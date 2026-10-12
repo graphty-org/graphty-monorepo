@@ -47,7 +47,8 @@ const VOICES: Partial<Record<ProviderApiId, () => Promise<ProviderVoiceModule>>>
 
 /** What the chat model is asked when it transcribes: a model instruction, never shown to a reader. */
 const TRANSCRIBE_INSTRUCTION =
-    "Transcribe the speech in this audio clip exactly as spoken. Reply with the transcript only, with no other text.";
+    "Transcribe the speech in this audio clip exactly as spoken. Reply with the transcript only, with no other text. " +
+    "If the clip holds no speech, reply with nothing at all.";
 
 /**
  * graphty's recording fetch, cancelled by the call's signal too: the SDKs' audio calls do not
@@ -121,14 +122,14 @@ function audioFile(blob: Blob): File {
  * @param settings - The provider and key.
  * @param signal - The call's signal.
  * @param call - The call, with graphty's fetch.
- * @param refusedUnsent - What a throw before any request means, when the caller knows.
+ * @param refusedUnsent - What a throw before any request means, when the caller knows by then.
  * @returns Its value, or the coded error.
  */
 async function attempt<T>(
     settings: ProviderApiSettings,
     signal: AbortSignal,
     call: (fetch: typeof globalThis.fetch) => Promise<T>,
-    refusedUnsent?: TurnError,
+    refusedUnsent?: () => TurnError | undefined,
 ): Promise<VoiceAttempt<T>> {
     const record: ResponseRecord = { networkError: false };
     let sent = false;
@@ -148,8 +149,9 @@ async function attempt<T>(
 
         return { type: "done", value };
     } catch (error) {
-        if (refusedUnsent !== undefined && !sent && !signal.aborted) {
-            return refusedUnsent;
+        const refused = sent || signal.aborted ? undefined : refusedUnsent?.();
+        if (refused !== undefined) {
+            return refused;
         }
 
         return failure(error instanceof Error ? error.message : String(error), record, settings, signal);
@@ -170,24 +172,26 @@ async function transcribe(
     options: TranscribeOptions,
     signal: AbortSignal,
 ): Promise<VoiceAttempt<string>> {
-    const voice = await VOICES[settings.provider]?.();
-    const model = options.model ?? AI_VOICE_CAPABILITIES[settings.provider].transcription.model;
-    const transcription = voice?.transcription?.bind(voice);
-    if (transcription !== undefined && model !== undefined) {
-        return attempt(settings, signal, async (fetch) => {
+    // Every load is inside `attempt`, so a chunk that will not load ends with a code, not a throw.
+    return attempt(settings, signal, async (fetch) => {
+        const voice = await VOICES[settings.provider]?.();
+        const model = options.model ?? AI_VOICE_CAPABILITIES[settings.provider].transcription.model;
+        const transcription = voice?.transcription?.bind(voice);
+        if (transcription !== undefined && model !== undefined) {
             const result = await generateTranscription({
                 adapter: transcription(model, settings, fetch),
                 audio: audioFile(audio),
                 // OpenAI takes ISO 639-1, the BCP 47 tag's language.
                 ...(options.language !== undefined && { language: options.language.split("-")[0].toLowerCase() }),
                 abortSignal: signal,
+                // TanStack logs a failed call to the console; the result's code says it instead.
+                debug: false,
             });
             return result.text.trim();
-        });
-    }
+        }
 
-    const module = await PROVIDERS[settings.provider]();
-    return attempt(settings, signal, async (fetch) => {
+        // The chat model transcribes: `options.model` names that chat model, else the chat's own.
+        const module = await PROVIDERS[settings.provider]();
         const request = { system: "", messages: [], tools: [], toolMode: "none" } as const;
         const controller = new AbortController();
         const cancel = (): void => {
@@ -196,7 +200,7 @@ async function transcribe(
         signal.addEventListener("abort", cancel, { once: true });
         try {
             const { text } = await chat({
-                adapter: module.createAdapter(settings, fetch, request),
+                adapter: module.createAdapter({ ...settings, model: options.model ?? settings.model }, fetch, request),
                 messages: [
                     {
                         role: "user",
@@ -240,34 +244,47 @@ async function speak(
     options: SpeakOptions,
     signal: AbortSignal,
 ): Promise<VoiceAttempt<Blob>> {
-    const voice = await VOICES[settings.provider]?.();
-    const model = options.model ?? AI_VOICE_CAPABILITIES[settings.provider].speech.model;
     const { voiceName } = options;
-    const unavailable: TurnError = {
+    const unavailable = (reason: "no-provider-speech" | "unknown-voice"): TurnError => ({
         type: "error",
         code: "AI_VOICE_UNAVAILABLE",
-        params: { path: "output", reason: "no-provider-speech" },
-        cause: Object.assign(new Error("The provider has no such speech voice."), { name: "VoiceUnavailable" }),
-    };
-    if (voice === undefined || model === undefined) {
-        return unavailable;
+        params: { path: "output", reason },
+        cause: Object.assign(new Error(`The provider cannot speak: ${reason}.`), { name: "VoiceUnavailable" }),
+    });
+    const model = options.model ?? AI_VOICE_CAPABILITIES[settings.provider].speech.model;
+    if (model === undefined) {
+        return unavailable("no-provider-speech");
     }
 
-    return attempt(
+    let refusesUnknownVoices = false;
+    const spoken = await attempt(
         settings,
         signal,
         async (fetch) => {
+            const voice = await VOICES[settings.provider]?.();
+            if (voice === undefined) {
+                return undefined;
+            }
+
+            refusesUnknownVoices = voice.refusesUnknownVoices === true;
             const result = await generateSpeech({
                 adapter: voice.speech(model, settings, fetch),
                 text,
                 ...(voiceName !== undefined && { voice: voiceName }),
                 abortSignal: signal,
+                // TanStack logs a failed call to the console; the result's code says it instead.
+                debug: false,
             });
             return fromBase64(result.audio, result.contentType ?? "audio/mpeg");
         },
         // The adapter's throw before sending anything is its refusal of the name.
-        voiceName !== undefined && voice.refusesUnknownVoices === true ? unavailable : undefined,
+        () => (voiceName !== undefined && refusesUnknownVoices ? unavailable("unknown-voice") : undefined),
     );
+    if (spoken.type !== "done") {
+        return spoken;
+    }
+
+    return spoken.value === undefined ? unavailable("no-provider-speech") : { type: "done", value: spoken.value };
 }
 
 export const providerVoice: ProviderVoice = { transcribe, speak };

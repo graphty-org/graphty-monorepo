@@ -6,6 +6,7 @@
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
+import type { GraphSession } from "../../../session";
 import { AiController } from "../../../src/ai/AiController";
 import { CommandRegistry } from "../../../src/ai/commands";
 import type { CommandContext } from "../../../src/ai/commands/types";
@@ -62,6 +63,7 @@ describe("a spoken message carries what was pointed at", () => {
      * @returns The pieces.
      */
     async function harness(): Promise<{
+        session: GraphSession;
         engine: FakeEngine;
         controller: AiController;
         voice: VoiceSession;
@@ -108,6 +110,7 @@ describe("a spoken message carries what was pointed at", () => {
         };
 
         return {
+            session,
             engine,
             controller,
             voice,
@@ -162,5 +165,24 @@ describe("a spoken message carries what was pointed at", () => {
         const typed = factsOf(h.engine.requests[2]);
         assert.notInclude(typed, "Pointed at");
         assert.include(typed.split("\n"), "Selected: 1.");
+    });
+
+    it("names a long id whole, so the id the model copies from the facts is the node pointed at", async () => {
+        const h = await harness();
+        const long = "http://purl.obolibrary.org/obo/GO_0008150#biological_process";
+        assert.isAbove(long.length, 40);
+        await h.session.data.addNodes([{ id: long }]);
+        h.engine.push(textTurn("Done."));
+        await h.say("make this one red", () => {
+            h.point(long);
+        });
+
+        const line = factsOf(h.engine.requests[0])
+            .split("\n")
+            .find((text) => text.startsWith("Pointed at, in order: "));
+        assert.isDefined(line);
+        const copied = JSON.parse(line.slice("Pointed at, in order: ".length, -1)) as string;
+        assert.strictEqual(copied, long);
+        assert.exists(h.session.data.node(copied), "the copied id resolves to the node pointed at");
     });
 });

@@ -281,6 +281,26 @@ describe("talking in VR with the controllers", () => {
             await element.setViewMode("3d");
         });
 
+        test("with no card on screen, A answers nothing", async () => {
+            await mount({ input: "browser", output: "off" });
+            element.xr = { ...element.xr, ai: { ...element.xr?.ai, pendingControl: false } };
+            await enterVR();
+            const provider = element.getAiManager()?.getProvider() as MockLlmProvider;
+            provider.setResponse("add a node", {
+                text: "",
+                toolCalls: [{ id: "0", name: "edit_data", arguments: { action: "add_nodes", records: [{ id: "F" }] } }],
+            });
+            const held = await element.graph.aiCommand("add a node");
+            assert.strictEqual(held.code, "AI_CONFIRMATION_NEEDED");
+
+            await button("right", "a-button", true);
+            await button("right", "a-button", false);
+            await frames();
+            assert.lengthOf(element.getPendingAiApprovals(), 1, "A approved a change the reader could not see");
+            assert.notExists(element.graph.getSession().data.node("F"));
+            await element.setViewMode("3d");
+        });
+
         test("X denies it", async () => {
             await mount({ input: "browser", output: "off" });
             await enterVR();

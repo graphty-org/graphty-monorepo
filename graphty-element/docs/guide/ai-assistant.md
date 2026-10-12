@@ -803,11 +803,13 @@ sends it as a message, exactly as `aiCommand(text, { via: "voice" })` would: the
 approvals, questions and history, and the conversation records it with `via: "voice"`. Voice is
 never the only way in: anything a reader can say, they can type.
 
-Show the button only where speech can be heard:
+Show the button only where speech can be heard, and again whenever that changes (the reader
+allows or blocks the microphone, a key is set, VR starts or ends):
 
 ```typescript
-const support = await element.getAiVoiceSupport();
-talk.hidden = support.input.status === "unavailable";
+const show = (support) => (talk.hidden = support.input.status === "unavailable");
+show(await element.getAiVoiceSupport());
+element.addEventListener("ai-voice-support-change", (e) => show(e.detail.support));
 ```
 
 `getAiVoiceSupport()` returns `{ input, output }`, each `{ path, status, destination, code?,
@@ -823,16 +825,19 @@ params? }`:
 
 ### Options
 
-| Option          | Default                              | What it does                                                                                                                                                                                        |
-| --------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `input`         | `"auto"`                             | How speech is heard. `"auto"`: the browser's recognition where it works, else the provider's transcription, else `AI_VOICE_UNAVAILABLE`. `"browser"`, `"provider"` or `"off"` force one             |
-| `output`        | `"auto"`                             | How answers are spoken. `"auto"`: not at all on a flat page, and in VR or AR by the browser's speech, else the provider's. `"browser"`, `"provider"` or `"off"` force one                           |
-| `language`      | the page's (`navigator.language`)    | The language heard and spoken, a BCP 47 tag such as `"fr-FR"`                                                                                                                                       |
-| `voiceName`     | the provider's default               | The provider's voice, by the provider's own name for it (`"alloy"` on OpenAI, `"Kore"` on Google)                                                                                                   |
-| `push`          | `"hold"`                             | `"hold"`: the reader talks while `aiTalk(true)` holds. `"toggle"`: each `aiTalk(true)` starts or ends, for a reader who cannot hold a button                                                        |
-| `transcription` | the chat provider                    | `{ provider, model? }`: transcribe through another provider, with its key from `apiKeys`. Anthropic transcribes nothing itself, so an Anthropic page sets `transcription: { provider: "openai" }`   |
-| `replies`       | `{ approve: ["yes"], deny: ["no"] }` | What the reader says to answer a [held approval](#remember-the-conversation-and-ask-before-changing-the-graph), compared with case and punctuation ignored. Set your own words for another language |
-| `say`           | absent                               | `({ code, params }) => string \| undefined`: the words to speak for an outcome the model wrote no text for. Absent, such an outcome is not spoken                                                   |
+| Option            | Default                              | What it does                                                                                                                                                                                                                                                                 |
+| ----------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `input`           | `"auto"`                             | How speech is heard. `"auto"` (or `"on"`): the browser's recognition where it works, else the provider's transcription, else `AI_VOICE_UNAVAILABLE`. `"browser"`, `"provider"` or `"off"` force one; `"browser"` tries the browser's recognition even where it failed before |
+| `output`          | `"auto"`                             | How answers are spoken. `"auto"`: not at all on a flat page, and in VR or AR by the browser's speech, else the provider's. `"on"`: the same, on every page. `"browser"`, `"provider"` or `"off"` force one                                                                   |
+| `language`        | the page's (`navigator.language`)    | The language heard and spoken, a BCP 47 tag such as `"fr-FR"`                                                                                                                                                                                                                |
+| `voiceName`       | the provider's default               | The provider's voice, by the provider's own name for it (`"alloy"` on OpenAI, `"Kore"` on Google). A name the provider does not have ends with `AI_VOICE_UNAVAILABLE` `{ reason: "unknown-voice" }`                                                                          |
+| `push`            | `"hold"`                             | `"hold"`: the reader talks while `aiTalk(true)` holds. `"toggle"`: each `aiTalk(true)` starts or ends, for a reader who cannot hold a button                                                                                                                                 |
+| `holdKey`         | none                                 | A key (`KeyboardEvent.key`, such as `"v"`) that holds talk while held with the graph focused, so the mouse stays free to point. See [Pointing](#pointing-color-this)                                                                                                         |
+| `maxPressSeconds` | `60`                                 | The longest one press listens; past it the press ends as if released, so a forgotten toggle does not record for ever. `Infinity` for no limit                                                                                                                                |
+| `speechLevel`     | `0.04`                               | When the provider transcribes: the microphone level (0 to 1, as `ai-voice-level` reports it) a press must reach to be sent. A quieter press is heard as nothing, so silence never reaches a model that might write words nobody said. `0` sends every press                  |
+| `transcription`   | the chat provider                    | `{ provider, model? }`: transcribe through another provider, with its key from `apiKeys`. Anthropic transcribes nothing itself, so an Anthropic page sets `transcription: { provider: "openai" }`. On Google, whose chat model transcribes, `model` names that chat model    |
+| `replies`         | `{ approve: ["yes"], deny: ["no"] }` | What the reader says to answer a [held approval](#remember-the-conversation-and-ask-before-changing-the-graph), compared with case and punctuation ignored. The defaults are English whatever `language` is: set your own words for another language. `gates`: see below     |
+| `say`             | absent                               | `({ code, params }) => string \| undefined`: the words to speak for an outcome the model wrote no text for. Absent, such an outcome is not spoken                                                                                                                            |
 
 Which providers transcribe and speak, and which browsers and headsets recognize speech, is on
 [AI Provider Features](./ai-provider-features#voice).
@@ -855,30 +860,47 @@ await element.enableAiControl({
 ```
 
 **Answering by voice.** While an approval is held, saying one of `replies.approve` approves it and
-one of `replies.deny` denies it. While a [question](#questions) is open, saying one of its choices
-answers it. Anything else is a new message, which ends what was waiting, as a typed message does.
+one of `replies.deny` denies it. A spoken approve answers only the holds in `replies.gates`
+(default `AI_VOICE_APPROVABLE_GATES` from `@graphty/graphty-element/catalog`): a change asked for
+after the model read the web (`"web-content"`) or one that cannot be undone (`"irreversible"`) is
+approved on screen, where the reader can see it, because a web page can steer the model into
+asking the reader to "say yes". For those, "yes" changes nothing and the outcome is
+`AI_CONFIRMATION_NEEDED` `{ gate, request }`, which `say` can put into words. A spoken deny answers
+every hold. While a [question](#questions) is open, saying one of its choices answers it. Anything
+else is a new message, which ends what was waiting, as a typed message does.
 
 **Talking interrupts.** `aiTalk(true)` stops an answer being spoken, and so does
 `stopAiSpeech()`. `disableAiControl()` closes the microphone and stops speaking.
 
 ### Pointing: "color this"
 
-While talk is held, the element records the nodes the reader's mouse (or, in VR, the controller's
-ray) passes over, in order, and the nodes selected when the press began. The model is sent them
-with the message, so "color this one red" or "connect this to that" names the nodes the reader
-pointed at. Only ids are sent: the last 20 nodes pointed at and the first 20 selected (10 each
-with the small tool profile). A typed message carries no pointing.
+While talk is held, the element records the nodes the pointer passes over, in order, and the
+nodes selected when the press began. The model is sent them with the message, so "color this one
+red" or "connect this to that" names the nodes the reader pointed at. Only ids are sent, whole:
+the last 20 nodes pointed at and the first 20 selected (10 each with the small tool profile), and
+fewer when the ids are long. A typed message carries no pointing.
+
+To point with the mouse, talk must be held by something other than the mouse: while the mouse
+holds the talk button down, it cannot move over the graph. Hold talk with a key instead:
+
+- `voice.holdKey`: the element listens for that key itself while the graph is focused, so the
+  reader clicks the graph once, then holds the key, points and lets go.
+- Space on a focused talk button, as in the example above.
+
+In VR the controller's ray points while B or Y is held, and with hands the other hand's ray points
+while the wrist orb is pinched.
 
 ### Events
 
-| Event                 | `detail`                   | When                                                                                                                           |
-| --------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `ai-voice-start`      | `{}`                       | the microphone opened and listening began                                                                                      |
-| `ai-voice-transcript` | `{ transcript, isFinal }`  | what has been heard so far; the last one has `isFinal: true`                                                                   |
-| `ai-voice-level`      | `{ level }`                | how loud the microphone is, 0 to 1, at most once per animation frame while talk is held: draw a meter from it                  |
-| `ai-voice-end`        | `{ reason, code, params }` | the press ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`, or `AI_NOT_ENABLED` when the assistant has no `voice` |
-| `ai-speech-start`     | `{}`                       | an answer started being spoken                                                                                                 |
-| `ai-speech-end`       | `{ code, params }`         | it stopped: `AI_COMPLETED`, `AI_CANCELLED` (talk or `stopAiSpeech()` cut it off), `AI_VOICE_UNAVAILABLE`, or a provider's code |
+| Event                     | `detail`                   | When                                                                                                                                                                                                                                                                            |
+| ------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ai-voice-start`          | `{}`                       | the microphone opened and listening began                                                                                                                                                                                                                                       |
+| `ai-voice-transcript`     | `{ transcript, isFinal }`  | what has been heard so far; the last one has `isFinal: true`                                                                                                                                                                                                                    |
+| `ai-voice-level`          | `{ level }`                | how loud the microphone is, 0 to 1, at most once per animation frame while talk is held: draw a meter from it                                                                                                                                                                   |
+| `ai-voice-end`            | `{ reason, code, params }` | the press ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`, `AI_NOT_ENABLED` when the assistant has no `voice`, `AI_FAILED` when the voice code would not load, or the provider's code when its transcription failed (`AI_PROVIDER_ERROR`, `AI_KEY_REJECTED`, ...) |
+| `ai-voice-support-change` | `{ support }`              | what `getAiVoiceSupport()` would return changed: redraw the talk button from `support`                                                                                                                                                                                          |
+| `ai-speech-start`         | `{}`                       | an answer started being spoken                                                                                                                                                                                                                                                  |
+| `ai-speech-end`           | `{ code, params }`         | it stopped: `AI_COMPLETED`, `AI_CANCELLED` (talk or `stopAiSpeech()` cut it off), `AI_VOICE_UNAVAILABLE`, or a provider's code                                                                                                                                                  |
 
 ```typescript
 element.addEventListener("ai-voice-level", (e) => {
@@ -899,9 +921,11 @@ off in `xr.ai`:
 
 - **Talk**: hold B or Y on a Quest Touch controller, or, with hands, pinch and hold the microphone
   orb on the wrist (`pushToTalk`). The trigger and thumbsticks keep their usual jobs.
-- **Answer a held approval**: A approves and X denies (`pendingButtons`); or point at the
-  approve or deny control drawn in the scene and pull the trigger or pinch (`pendingControl`); or
-  say "yes" or "no".
+- **Answer a held approval**: A approves and X denies (`pendingButtons`) the change whose card is
+  drawn in the scene, and only that one: with `pendingControl: false` no card is drawn and A and X
+  do nothing. Or point at the approve or deny control and pull the trigger or pinch; or say "yes"
+  or "no" (see `replies.gates`). The card shows why the change was held (its gate code), what it
+  does (its preview) and each held command with its arguments, wrapped to the card.
 - **Questions**: one control per choice, drawn in the scene.
 - **The panel**: what was heard and the assistant's answer, drawn in the scene (`panel`).
 - **Speaking**: with `output: "auto"`, answers are spoken.
@@ -910,9 +934,11 @@ Entering VR or AR asks for the microphone and unlocks audio on that click, becau
 cannot ask once the reader is inside; the microphone closes again at once. Leaving VR or AR closes
 the microphone and stops speaking.
 
-The scene shows only data: the command's name from the catalog, its arguments, the model's
-question, choices and answer, and what the reader said, each with an icon. The words on the
-controls are yours, from `xr.ai.labels`, keyed by code; a code with no label shows its icon only:
+The scene shows only data: why a change was held and its preview, the command's name from the
+catalog, its arguments, the model's question, choices and answer, and what the reader said, each
+with an icon. The words on the controls are yours, from `xr.ai.labels`, keyed by code (and by the
+gate, such as `"web-content"`, and the preview's field names, such as `removeNodes`); a code with
+no label shows its icon only, and a gate or preview field with no label shows its code:
 
 ```typescript
 element.xr = {
@@ -936,9 +962,9 @@ An empty button list switches that binding off (`pushToTalk: { buttons: [] }`).
 
 ### Result codes voice adds
 
-| Code                   | When                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `AI_VOICE_UNAVAILABLE` | speech cannot be heard or spoken; `{ path, reason }`. `path` is `"input"` or `"output"`; `reason` is one of `AI_VOICE_UNAVAILABLE_REASONS`: `"no-recognition"`, `"no-microphone"`, `"permission-denied"`, `"insecure-context"` (the page is not HTTPS), `"no-provider-transcription"`, `"no-provider-speech"`, `"no-key"`, `"no-synthesis"`, `"playback-failed"`. More may be added in a minor release |
+| Code                   | When                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AI_VOICE_UNAVAILABLE` | speech cannot be heard or spoken; `{ path, reason }`. `path` is `"input"` or `"output"`; `reason` is one of `AI_VOICE_UNAVAILABLE_REASONS`: `"no-recognition"`, `"no-microphone"`, `"permission-denied"`, `"insecure-context"` (the page is not HTTPS), `"no-provider-transcription"`, `"no-provider-speech"`, `"no-key"`, `"no-synthesis"`, `"playback-failed"`, `"unknown-voice"` (the provider has no voice by that name), `"recognition-network"` (the browser's recognition service could not be reached; the next press tries again). More may be added in a minor release |
 
 The "Voice" story in Storybook shows a talk button on the mock provider. On a headset or a phone
 it uses the device's own speech, so it is also the page to check a device with.
@@ -990,7 +1016,13 @@ Voice adds these:
     - spoken answers: the browser's speech stays in the browser (often on the device); the
       provider's sends the answer's text to the provider.
 - **Nothing is recorded or kept.** The recording lives only until it is transcribed; the
-  conversation keeps the transcript, as it keeps typed text.
+  conversation keeps the transcript, as it keeps typed text. A press that never reached
+  `speechLevel` is not sent at all.
+- **One fact is kept per origin.** Whether the browser's recognition works is stored in
+  `localStorage` under `@graphty-ai-voice:recognition` (and, for a language the browser refused,
+  `@graphty-ai-voice:recognition:<language>`), so a browser whose recognition never works (Quest
+  Browser) is not tried on every press. Only "works" or "fails" is stored. `input: "browser"`
+  tries again, and a start that works replaces it.
 - **Content security policy.** The provider's speech is played from a `blob:` URL, so it needs
   `media-src blob:`; transcription and speech go to the provider's own host, already in
   `connect-src`.

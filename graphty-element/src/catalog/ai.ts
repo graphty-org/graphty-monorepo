@@ -348,7 +348,24 @@ export const AI_VOICE_UNAVAILABLE_REASONS = Object.freeze([
     "no-key",
     "no-synthesis",
     "playback-failed",
+    "unknown-voice",
+    "recognition-network",
 ] as const);
+
+/**
+ * The holds (`AiApprovalRequest.gate`) a spoken approve answers by default
+ * (`AiVoiceOptions.replies.gates`): those the reader asked for themselves. A change asked for after
+ * the model read the web (`"web-content"`), one that cannot be undone (`"irreversible"`) and any
+ * gate added later are approved where the request is shown, never by one spoken word.
+ */
+export const AI_VOICE_APPROVABLE_GATES: readonly string[] = Object.freeze([
+    "slow",
+    "large",
+    "replaces",
+    "network",
+    "policy",
+    "plan",
+]);
 
 /** One reason speech cannot be used; see {@link AI_VOICE_UNAVAILABLE_REASONS}. OPEN UNION. */
 export type AiVoiceUnavailableReason = (typeof AI_VOICE_UNAVAILABLE_REASONS)[number];

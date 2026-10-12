@@ -10,7 +10,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
 import { getSpeechRecognitionConstructor } from "../../../src/ai/input/VoiceInputAdapter";
 import { chooseInput, type VoiceFacts } from "../../../src/ai/voice/choose";
-import { type SpeechInputEnd, startSpeechInput } from "../../../src/ai/voice/SpeechInput";
+import { type SpeechInputEnd, type SpeechInputOptions, startSpeechInput } from "../../../src/ai/voice/SpeechInput";
 import {
     readVoiceEnvironment,
     recallRecognition,
@@ -38,7 +38,7 @@ interface Press {
  * @param engine - The engine for the provider route.
  * @returns The press and its reports.
  */
-function press(route: "browser" | "provider", engine?: FakeEngine): Press {
+function press(route: "browser" | "provider", engine?: FakeEngine, options: Partial<SpeechInputOptions> = {}): Press {
     const transcripts: [string, boolean][] = [];
     const levels: number[] = [];
     let resolveEnd: (end: SpeechInputEnd) => void = () => undefined;
@@ -48,7 +48,7 @@ function press(route: "browser" | "provider", engine?: FakeEngine): Press {
     });
     const started = startSpeechInput(
         route,
-        { language: "fr-FR", engine },
+        { language: "fr-FR", engine, ...options },
         {
             onTranscript: (text, isFinal) => transcripts.push([text, isFinal]),
             onLevel: (level) => levels.push(level),
@@ -147,6 +147,37 @@ describe("provider transcription", () => {
         assert.deepStrictEqual(await run.ended, { code: "AI_KEY_REJECTED", params: { provider: "openai" }, text: "" });
     });
 
+    it("a press that never reached speech level is heard as nothing and sends no clip", async () => {
+        const fake = installFakeSpeech();
+        const engine = transcriber("Yes.");
+        fake.setSample(0.005);
+        const quiet = press("provider", engine, { speechLevel: 0.04 });
+        await flushMicrotasks();
+        quiet.press.stop();
+        assert.deepStrictEqual(await quiet.ended, { code: "AI_COMPLETED", params: {}, text: "" });
+        assert.strictEqual(engine.voiceCalls.length, 0, "silence is never sent to be transcribed");
+
+        // The same press with speech in it is sent, with no animation frame run: the peak is sampled
+        // on a timer and at release, since frames pause in XR.
+        fake.setSample(0.25);
+        const spoken = press("provider", engine, { speechLevel: 0.04 });
+        await flushMicrotasks();
+        spoken.press.stop();
+        assert.strictEqual((await spoken.ended).text, "Yes.");
+        assert.strictEqual(engine.voiceCalls.length, 1);
+    });
+
+    it("an engine that throws instead of coding its failure still ends the press", async () => {
+        const fake = installFakeSpeech();
+        const engine = new FakeEngine();
+        engine.scriptVoice({ transcribe: () => Promise.reject(new Error("the voice chunk did not load")) });
+        const run = press("provider", engine);
+        await flushMicrotasks();
+        run.press.stop();
+        assert.deepStrictEqual(await run.ended, { code: "AI_PROVIDER_ERROR", params: {}, text: "" });
+        assert.strictEqual(fake.liveTracks(), 0);
+    });
+
     it("an engine that cannot transcribe: no-provider-transcription, microphone never opened", async () => {
         const fake = installFakeSpeech();
         const run = press("provider", new FakeEngine());
@@ -223,11 +254,11 @@ describe("browser recognition", () => {
         assert.strictEqual(fake.liveTracks(), 0);
     });
 
-    it("a network error remembers that recognition fails here; a refusal is not remembered", async () => {
+    it("only a browser that cannot recognize at all is remembered as failing, for the whole origin", async () => {
         const fake = installFakeSpeech();
         const broken = press("browser");
         await flushMicrotasks();
-        fake.recognizers[0]?.fail("network");
+        fake.recognizers[0]?.fail("service-not-allowed");
         assert.deepStrictEqual((await broken.ended).params, { path: "input", reason: "no-recognition" });
         assert.strictEqual(fake.liveTracks(), 0);
         assert.strictEqual(recallRecognition(), "fails");
@@ -238,6 +269,37 @@ describe("browser recognition", () => {
         fake.recognizers[1]?.fail("not-allowed");
         assert.deepStrictEqual((await refused.ended).params, { path: "input", reason: "permission-denied" });
         assert.isUndefined(recallRecognition());
+    });
+
+    it("a network error fails this press only: nothing is remembered", async () => {
+        const fake = installFakeSpeech();
+        const offline = press("browser");
+        await flushMicrotasks();
+        fake.recognizers[0]?.fail("network");
+        assert.deepStrictEqual((await offline.ended).params, { path: "input", reason: "recognition-network" });
+        assert.strictEqual(fake.liveTracks(), 0);
+        assert.isUndefined(recallRecognition("fr-FR"));
+        assert.strictEqual(fake.storage.size, 0);
+    });
+
+    it("an unsupported language is remembered for that language only, until a start in it works", async () => {
+        const fake = installFakeSpeech();
+        const unsupported = press("browser");
+        await flushMicrotasks();
+        fake.recognizers[0]?.fail("language-not-supported");
+        assert.deepStrictEqual((await unsupported.ended).params, { path: "input", reason: "no-recognition" });
+        assert.strictEqual(recallRecognition("fr-FR"), "fails");
+        assert.isUndefined(recallRecognition("de-DE"), "another language still tries the browser");
+        assert.isUndefined(recallRecognition());
+        assert.strictEqual((await readVoiceEnvironment("de-DE")).recognition, "untried");
+        assert.strictEqual((await readVoiceEnvironment("fr-FR")).recognition, "fails");
+
+        const retried = press("browser");
+        await flushMicrotasks();
+        fake.recognizers[1]?.hear("bonjour", true);
+        retried.press.stop();
+        assert.strictEqual((await retried.ended).text, "bonjour");
+        assert.strictEqual(recallRecognition("fr-FR"), "works");
     });
 });
 

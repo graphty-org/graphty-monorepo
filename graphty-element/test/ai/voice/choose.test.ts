@@ -25,7 +25,7 @@ const CHROME: VoiceFacts = {
 interface Row {
     name: string;
     facts?: Partial<VoiceFacts>;
-    mode?: "auto" | "browser" | "provider" | "off";
+    mode?: "auto" | "on" | "browser" | "provider" | "off";
     expected: { path: string; destination?: string; status?: string; reason?: string };
 }
 
@@ -107,10 +107,23 @@ describe("speech in", () => {
             expected: { path: "none", reason: "permission-denied" },
         },
         {
-            name: "browser asked, recognition failed",
+            name: "browser asked, a start failed before: tried again (the host's retry)",
             mode: "browser",
             facts: { recognition: "fails" },
+            expected: { path: "browser" },
+        },
+        {
+            name: "browser asked, no recognizer at all",
+            mode: "browser",
+            facts: { recognition: "none" },
             expected: { path: "none", reason: "no-recognition" },
+        },
+        { name: "on: as auto, the browser first", mode: "on", expected: { path: "browser" } },
+        {
+            name: "on, a start failed before: the provider",
+            mode: "on",
+            facts: { recognition: "fails" },
+            expected: { path: "provider" },
         },
         { name: "browser asked, recognition works", mode: "browser", expected: { path: "browser" } },
         { name: "provider asked: never the browser", mode: "provider", expected: { path: "provider" } },
@@ -167,6 +180,23 @@ describe("speech out", () => {
             expected: { path: "none", reason: "no-key" },
         },
         { name: "off in XR", mode: "off", facts: { immersive: true }, expected: { path: "none" } },
+        {
+            name: "on, on a flat page: the browser's synthesis",
+            mode: "on",
+            expected: { path: "browser", destination: "browser-vendor" },
+        },
+        {
+            name: "on, on a flat page without synthesis: provider speech",
+            mode: "on",
+            facts: { synthesis: false },
+            expected: { path: "provider", destination: "provider" },
+        },
+        {
+            name: "on, no synthesis, Anthropic",
+            mode: "on",
+            facts: { synthesis: false, speech: "unsupported" },
+            expected: { path: "none", reason: "no-provider-speech" },
+        },
     ];
     for (const row of rows) {
         it(row.name, () => {

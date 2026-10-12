@@ -1,9 +1,10 @@
 /**
  * The assistant's cards in an immersive session: approve and deny a held change, one control per
- * choice of a question, and the reader's words with the answer. A card draws only data -- the
- * catalog's `plainName` of each held call, its arguments as text, the model's question, choices and
- * answer, the reader's transcript -- an icon, and the host's `xr.ai.labels` for its code. The
- * element draws no words of its own. Reached only by `import()` with `voice`.
+ * choice of a question, and the reader's words with the answer. A card draws only data -- why a
+ * change was held (its gate code) and its preview, the catalog's `plainName` of each held call, its
+ * arguments as text, the model's question, choices and answer, the reader's transcript -- an icon,
+ * and the host's `xr.ai.labels` for each code. The element draws no words of its own. Reached
+ * only by `import()` with `voice`.
  * @module ai/voice/XrPendingControl
  */
 
@@ -39,8 +40,43 @@ export interface XrCard {
 /** The words the host gave, keyed by code. */
 export type XrLabels = Readonly<Record<string, string>>;
 
+/** The most characters a card line holds before it wraps (32 px sans-serif across the card). */
+export const CARD_LINE_CHARS = 48;
+/** The most lines one piece of data wraps to; past it the last line ends in "...". */
+export const CARD_MAX_WRAPPED_LINES = 6;
+
 /**
- * A card's lines: the host's label for its code, if any, then the data.
+ * Text wrapped to the card's width: at spaces where it can, mid-word where a word is longer than
+ * a line, and cut after `CARD_MAX_WRAPPED_LINES` lines.
+ * @param text - The text.
+ * @returns Its lines.
+ */
+export function wrap(text: string): string[] {
+    const out: string[] = [];
+    let rest = text.trim();
+    while (rest !== "" && out.length < CARD_MAX_WRAPPED_LINES) {
+        if (rest.length <= CARD_LINE_CHARS) {
+            out.push(rest);
+            rest = "";
+            break;
+        }
+
+        const space = rest.lastIndexOf(" ", CARD_LINE_CHARS);
+        const at = space > 0 ? space : CARD_LINE_CHARS;
+        out.push(rest.slice(0, at).trimEnd());
+        rest = rest.slice(at).trimStart();
+    }
+
+    if (rest !== "") {
+        const last = out.length - 1;
+        out[last] = `${out[last].slice(0, CARD_LINE_CHARS - 3)}...`;
+    }
+
+    return out;
+}
+
+/**
+ * A card's lines: the host's label for its code, if any, then the data, each wrapped.
  * @param labels - The host's words.
  * @param code - The card's code.
  * @param data - The data it shows.
@@ -48,11 +84,44 @@ export type XrLabels = Readonly<Record<string, string>>;
  */
 function lines(labels: XrLabels, code: string, data: readonly string[]): string[] {
     const label = labels[code];
-    return [...(label === undefined || label === "" ? [] : [label]), ...data.filter((line) => line !== "")];
+    return [...(label === undefined || label === "" ? [] : [label]), ...data.flatMap((line) => wrap(line))];
 }
 
 /**
- * The cards for a held change: what is held (each call's catalog name and its arguments), then
+ * A held change's preview as data lines, one per fact: the host's label for the fact's name (its
+ * field in `AiApprovalPreview`) when it gave one, else the name itself.
+ * @param request - The held change.
+ * @param labels - The host's words.
+ * @returns The lines.
+ */
+function previewLines(request: AiApprovalRequest, labels: XrLabels): string[] {
+    return Object.entries(request.preview).flatMap(([name, value]: [string, unknown]) => {
+        if (value === undefined) {
+            return [];
+        }
+
+        return [`${labels[name] ?? name}: ${factText(value)}`];
+    });
+}
+
+/**
+ * One preview fact as text: a list of nodes as ids with their labels, anything else as itself.
+ * @param value - The fact.
+ * @returns Its text.
+ */
+function factText(value: unknown): string {
+    if (Array.isArray(value)) {
+        return value
+            .map((entry: { id: string; label?: string }) => (entry.label ? `${entry.id} (${entry.label})` : entry.id))
+            .join(", ");
+    }
+
+    return typeof value === "string" || typeof value === "number" ? String(value) : JSON.stringify(value);
+}
+
+/**
+ * The cards for a held change: why it was held (the gate, in the host's words for that code when
+ * it gave them), its preview, what is held (each call's catalog name and its arguments), then
  * approve and deny.
  * @param request - The held change.
  * @param labels - The host's words.
@@ -64,10 +133,14 @@ export function approvalCards(
     labels: XrLabels,
     answer: (approve: boolean) => void,
 ): XrCard[] {
-    const held = request.calls.flatMap((call) => [
-        ASSISTANT_TOOLS.find((tool) => tool.name === call.tool)?.plainName ?? call.tool,
-        JSON.stringify(call.arguments),
-    ]);
+    const held = [
+        labels[request.gate] ?? request.gate,
+        ...previewLines(request, labels),
+        ...request.calls.flatMap((call) => [
+            ASSISTANT_TOOLS.find((tool) => tool.name === call.tool)?.plainName ?? call.tool,
+            JSON.stringify(call.arguments),
+        ]),
+    ];
     const code: AiResultCode = "AI_CONFIRMATION_NEEDED";
     return [
         { code, icon: "approval", lines: lines(labels, code, held) },
@@ -237,7 +310,7 @@ export function paintCard(ctx: CardCanvas, card: XrCard): void {
     ctx.textBaseline = "top";
     const left = ICON + 2 * PAD;
     card.lines.forEach((line, row) => {
-        // ponytail: a long line is squeezed to the card's width, not wrapped.
+        // The lines are wrapped already; the width only keeps an unusually wide glyph run inside.
         ctx.fillText(line, left, PAD + row * CARD_LINE_HEIGHT + 6, CARD_WIDTH - left - PAD);
     });
 }

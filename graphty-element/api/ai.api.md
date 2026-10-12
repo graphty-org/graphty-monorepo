@@ -42,7 +42,6 @@ import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
-import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector';
@@ -324,7 +323,6 @@ export class AiManager {
     clearHistory(): Promise<void>;
     deleteConversation(id: string): Promise<void>;
     dispose(): void;
-    enterXR(input: XRInputHandler, scene: Scene, config: XRAiConfig | undefined): Promise<void>;
     execute(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
     exportConversation(id: string): Promise<string | null>;
     getApiKeyManager(): ApiKeyManager;
@@ -340,14 +338,12 @@ export class AiManager {
     getStatus(): AiStatus;
     getVoiceSupport(): Promise<AiVoiceSupport>;
     init(graph: Graph, config: AiManagerConfig): void;
-    leaveXR(): void;
     listConversations(options?: {
         readonly allKeys?: boolean;
     }): Promise<readonly AiConversationSummary[]>;
     newConversation(): Promise<AiConversationSnapshot | null>;
     onStatusChange(callback: StatusChangeCallback): () => void;
     openConversation(id: string): Promise<AiConversationSnapshot | null>;
-    primeVoice(): void;
     ready(): Promise<void>;
     registerCommand(command: Parameters<CommandRegistry["register"]>[0]): void;
     resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;
@@ -509,28 +505,42 @@ export interface AiToolOptions {
 }
 
 // @public
+export interface AiVoiceEndEvent {
+    code?: AiResultCode;
+    params?: AiResultParams;
+    // (undocumented)
+    reason: "user" | "timeout" | "error";
+    // (undocumented)
+    type: "ai-voice-end";
+}
+
+// @public
 export interface AiVoiceLevelEvent {
     level: number;
     type: "ai-voice-level";
 }
 
 // @public
-export type AiVoiceMode = "auto" | "browser" | "provider" | "off";
+export type AiVoiceMode = "auto" | "on" | "browser" | "provider" | "off";
 
 // @public
 export interface AiVoiceOptions {
+    holdKey?: string;
     input?: AiVoiceMode;
     language?: string;
+    maxPressSeconds?: number;
     output?: AiVoiceMode;
     push?: "hold" | "toggle";
     replies?: {
         approve?: readonly string[];
         deny?: readonly string[];
+        gates?: readonly string[];
     };
     say?: (fact: {
         code: AiResultCode;
         params: AiResultParams;
     }) => string | undefined;
+    speechLevel?: number;
     transcription?: {
         provider: AiProviderId;
         model?: string;
@@ -548,9 +558,31 @@ export interface AiVoicePath {
 }
 
 // @public
+export interface AiVoiceStartEvent {
+    // (undocumented)
+    type: "ai-voice-start";
+}
+
+// @public
 export interface AiVoiceSupport {
     input: AiVoicePath;
     output: AiVoicePath;
+}
+
+// @public
+export interface AiVoiceSupportChangeEvent {
+    support: AiVoiceSupport;
+    type: "ai-voice-support-change";
+}
+
+// @public
+export interface AiVoiceTranscriptEvent {
+    // (undocumented)
+    isFinal: boolean;
+    // (undocumented)
+    transcript: string;
+    // (undocumented)
+    type: "ai-voice-transcript";
 }
 
 // @public

@@ -4074,7 +4074,8 @@ export class Graphty extends LitElement {
 
     /**
      * How speech would be carried in each direction now: the path, whether it is ready, why not,
-     * and where the audio goes. May start the browser's recognition once to find out.
+     * and where the audio goes. It reads what the page and the provider offer, and starts nothing;
+     * `ai-voice-support-change` says when the answer changes.
      * @returns Both directions; unavailable with `AI_NOT_ENABLED` without `voice`.
      * @since 4.0.0
      */

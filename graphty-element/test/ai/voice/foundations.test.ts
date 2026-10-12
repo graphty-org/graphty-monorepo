@@ -50,6 +50,8 @@ describe("the provider voice table", () => {
                 "no-key",
                 "no-synthesis",
                 "playback-failed",
+                "unknown-voice",
+                "recognition-network",
             ],
         );
     });

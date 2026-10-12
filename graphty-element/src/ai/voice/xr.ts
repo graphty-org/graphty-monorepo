@@ -1,6 +1,7 @@
 /**
  * Voice in an immersive session: B or Y (or the wrist orb) held to talk, A and X to approve and
- * deny, the rays' nodes as pointing, and the in-scene cards. Reached only by `import()` with
+ * deny the held change whose card is on screen (nothing when none is), the rays' nodes as
+ * pointing, and the in-scene cards. Reached only by `import()` with
  * `voice`, when a session starts; the priming on the Enter VR / AR click is `./prime`.
  * @module ai/voice/xr
  */
@@ -49,10 +50,11 @@ export function bindXrAssistant(
     host: XrAssistantHost,
 ): () => void {
     const labels = config?.labels ?? {};
-    const answerLast = (approve: boolean): void => {
-        const request = host.approvals().at(-1);
-        if (request !== undefined) {
-            host.resolve(request.id, approve);
+    // The held change whose card is on screen: the buttons answer it, and only it.
+    let shown: string | undefined;
+    const answerShown = (approve: boolean): void => {
+        if (shown !== undefined) {
+            host.resolve(shown, approve);
         }
     };
 
@@ -65,10 +67,10 @@ export function bindXrAssistant(
             host.talk(down);
         },
         approve: () => {
-            answerLast(true);
+            answerShown(true);
         },
         deny: () => {
-            answerLast(false);
+            answerShown(false);
         },
         pointed: (id) => {
             host.pointed(id);
@@ -84,8 +86,14 @@ export function bindXrAssistant(
         const redraw = (): void => {
             const approval = host.approvals().at(-1);
             const question = host.questions().at(-1);
+            shown = approval?.id;
             if (approval !== undefined) {
-                pending.show(approvalCards(approval, labels, answerLast));
+                // Each card answers the request it shows, even if another is held before it is pressed.
+                pending.show(
+                    approvalCards(approval, labels, (approve) => {
+                        host.resolve(approval.id, approve);
+                    }),
+                );
             } else if (question !== undefined) {
                 pending.show(
                     questionCards(question, labels, (choice) => {

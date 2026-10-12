@@ -391,6 +391,10 @@ export interface GraphtyElementJSXProps {
      */
     "onai-voice-start"?: (event: CustomEvent<EventOfType<"ai-voice-start">>) => void;
     /**
+     * How speech would be carried changed since `getAiVoiceSupport()` last said: a press asked for the microphone or learned whether the browser recognizes speech, a key was set, an immersive session began or ended. Redraw what depends on it from `support`.
+     */
+    "onai-voice-support-change"?: (event: CustomEvent<EventOfType<"ai-voice-support-change">>) => void;
+    /**
      * Emitted when voice transcript is available
      */
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;

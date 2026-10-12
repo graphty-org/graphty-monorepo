@@ -44,7 +44,6 @@ import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
-import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector';
@@ -96,6 +95,7 @@ export interface GraphtyElementJSXProps {
     "onai-voice-end"?: (event: CustomEvent<EventOfType<"ai-voice-end">>) => void;
     "onai-voice-level"?: (event: CustomEvent<EventOfType<"ai-voice-level">>) => void;
     "onai-voice-start"?: (event: CustomEvent<EventOfType<"ai-voice-start">>) => void;
+    "onai-voice-support-change"?: (event: CustomEvent<EventOfType<"ai-voice-support-change">>) => void;
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;
     // (undocumented)
     "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;

@@ -64,8 +64,10 @@ function unavailable(path: "input" | "output", reason: AiVoiceUnavailableReason)
 }
 
 /**
- * Speech to text. `"auto"`: browser recognition unless its first start failed on this origin,
- * on the device where it can be; else provider transcription; else `AI_VOICE_UNAVAILABLE`.
+ * Speech to text. `"auto"` (and `"on"`): browser recognition unless a start failed on this origin
+ * (or in this language), on the device where it can be; else provider transcription; else
+ * `AI_VOICE_UNAVAILABLE`. `"browser"` tries browser recognition even where a start failed, so a
+ * host can offer the reader a retry, and a start that works clears the memory.
  * @param mode - `AiVoiceOptions.input`.
  * @param facts - What the page and provider can do.
  * @returns The path a press of talk takes.
@@ -89,7 +91,10 @@ export function chooseInput(mode: AiVoiceMode, facts: VoiceFacts): AiVoicePath {
     }
 
     const status = facts.permission === "granted" ? "ready" : "needs-permission";
-    const recognizes = facts.recognition === "untried" || facts.recognition === "works";
+    const recognizes =
+        facts.recognition === "untried" ||
+        facts.recognition === "works" ||
+        (mode === "browser" && facts.recognition === "fails");
     if (mode !== "provider" && recognizes) {
         return { path: "browser", status, destination: facts.onDevice === "none" ? "browser-vendor" : "on-device" };
     }
@@ -107,7 +112,7 @@ export function chooseInput(mode: AiVoiceMode, facts: VoiceFacts): AiVoicePath {
 
 /**
  * Text to speech. `"auto"`: off on a flat page; in an immersive session the browser's
- * synthesis, else the provider's speech.
+ * synthesis, else the provider's speech. `"on"`: the same paths, on a flat page too.
  * @param mode - `AiVoiceOptions.output`.
  * @param facts - What the page and provider can do.
  * @returns The path an answer is spoken by.

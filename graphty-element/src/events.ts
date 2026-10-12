@@ -1,6 +1,7 @@
 import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 
 import type { AiTokenUsage } from "./ai/agents";
+import type { AiVoiceSupport } from "./ai/AiManager";
 import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
 import type { AiSource } from "./ai/conversation/snapshot";
@@ -738,6 +739,7 @@ export type AiEvent =
     | AiVoiceTranscriptEvent
     | AiVoiceEndEvent
     | AiVoiceLevelEvent
+    | AiVoiceSupportChangeEvent
     | AiSpeechStartEvent
     | AiSpeechEndEvent
     | AiApprovalRequestedEvent
@@ -814,12 +816,12 @@ export interface AiStreamToolResultEvent {
 }
 
 /** Emitted when voice input starts */
-interface AiVoiceStartEvent {
+export interface AiVoiceStartEvent {
     type: "ai-voice-start";
 }
 
 /** Emitted when voice transcript is available */
-interface AiVoiceTranscriptEvent {
+export interface AiVoiceTranscriptEvent {
     type: "ai-voice-transcript";
     transcript: string;
     isFinal: boolean;
@@ -1053,12 +1055,13 @@ export interface AiConversationChangedEvent {
 }
 
 /** Emitted when voice input ends */
-interface AiVoiceEndEvent {
+export interface AiVoiceEndEvent {
     type: "ai-voice-end";
     reason: "user" | "timeout" | "error";
     /**
-     * How a press of `aiTalk` ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE` or
-     * `AI_NOT_ENABLED`. Absent for `startVoiceInput`.
+     * How a press of `aiTalk` ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`,
+     * `AI_NOT_ENABLED`, `AI_FAILED` (the voice code would not load) or a provider's failure code
+     * from transcription (`AI_PROVIDER_ERROR`, `AI_KEY_REJECTED`, ...). Absent for `startVoiceInput`.
      */
     code?: AiResultCode;
     /** The facts behind `code` (`{ path, reason }` for `AI_VOICE_UNAVAILABLE`). */
@@ -1071,6 +1074,18 @@ export interface AiVoiceLevelEvent {
     type: "ai-voice-level";
     /** From 0 (silence) to 1. */
     level: number;
+}
+
+/**
+ * How speech would be carried changed since `getAiVoiceSupport()` last said: a press asked for
+ * the microphone or learned whether the browser recognizes speech, a key was set, an immersive
+ * session began or ended. Redraw what depends on it from `support`.
+ */
+export interface AiVoiceSupportChangeEvent {
+    /** The event's name. */
+    type: "ai-voice-support-change";
+    /** Both directions now, as `getAiVoiceSupport()` returns them. */
+    support: AiVoiceSupport;
 }
 
 /** The assistant started speaking an answer. */

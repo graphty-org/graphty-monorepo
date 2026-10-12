@@ -9,19 +9,23 @@ import type { AiVoiceOptions } from "../AiManager";
 import { getSpeechRecognitionConstructor } from "../input/VoiceInputAdapter";
 import type { VoiceEnvironment } from "./choose";
 
-/** The `localStorage` key holding whether browser recognition worked on this origin. */
+/**
+ * The `localStorage` key holding whether browser recognition worked on this origin; the same key
+ * with `:<language>` appended holds whether that language was refused.
+ */
 export const RECOGNITION_MEMORY_KEY = "@graphty-ai-voice:recognition";
 
-/** What the first start of browser recognition on this origin showed. */
+/** What a start of browser recognition on this origin showed. */
 export type RecognitionProbe = "works" | "fails";
 
 /**
- * What an earlier start of browser recognition on this origin showed.
- * @returns The remembered outcome, or undefined when none is, or storage cannot be read.
+ * Read one stored outcome.
+ * @param key - The key.
+ * @returns It, or undefined when none is, or storage cannot be read.
  */
-export function recallRecognition(): RecognitionProbe | undefined {
+function recall(key: string): RecognitionProbe | undefined {
     try {
-        const value = globalThis.localStorage.getItem(RECOGNITION_MEMORY_KEY);
+        const value = globalThis.localStorage.getItem(key);
         return value === "works" || value === "fails" ? value : undefined;
     } catch {
         // No storage (a private window, blocked site data): probe again.
@@ -30,12 +34,31 @@ export function recallRecognition(): RecognitionProbe | undefined {
 }
 
 /**
- * Remember what a start of browser recognition showed, for every later element on this origin.
- * @param outcome - Whether it worked.
+ * What an earlier start of browser recognition on this origin showed, for this language.
+ * @param language - The language heard; absent, the origin's memory only.
+ * @returns `"fails"` when recognition, or this language, was refused; else what the origin showed.
  */
-export function rememberRecognition(outcome: RecognitionProbe): void {
+export function recallRecognition(language?: string): RecognitionProbe | undefined {
+    const origin = recall(RECOGNITION_MEMORY_KEY);
+    const refused = language !== undefined && recall(`${RECOGNITION_MEMORY_KEY}:${language}`) === "fails";
+    return refused ? "fails" : origin;
+}
+
+/**
+ * Remember what a start of browser recognition showed, for every later element on this origin. A
+ * refusal for one language is kept for that language only; a start that worked clears it.
+ * @param outcome - Whether it worked.
+ * @param language - The language it was for; absent, the outcome is the origin's.
+ */
+export function rememberRecognition(outcome: RecognitionProbe, language?: string): void {
     try {
-        globalThis.localStorage.setItem(RECOGNITION_MEMORY_KEY, outcome);
+        if (outcome === "works" || language === undefined) {
+            globalThis.localStorage.setItem(RECOGNITION_MEMORY_KEY, outcome);
+        }
+
+        if (language !== undefined) {
+            globalThis.localStorage.setItem(`${RECOGNITION_MEMORY_KEY}:${language}`, outcome);
+        }
     } catch {
         // No storage: the next element probes again.
     }
@@ -104,7 +127,7 @@ export async function readVoiceEnvironment(language: string): Promise<VoiceEnvir
         secureContext: globalThis.isSecureContext,
         microphone: typeof nav?.mediaDevices?.getUserMedia === "function",
         permission: await microphonePermission(),
-        recognition: ctor === null ? "none" : (recallRecognition() ?? "untried"),
+        recognition: ctor === null ? "none" : (recallRecognition(language) ?? "untried"),
         onDevice,
         synthesis: synth !== undefined,
         synthesisLocal: synth?.getVoices().find((voice) => voice.default)?.localService === true,

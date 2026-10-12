@@ -8,17 +8,18 @@
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { GraphSession } from "../../../session";
-import { AiController, type AiControllerOptions } from "../../../src/ai/AiController";
-import type { AiVoiceOptions } from "../../../src/ai/AiManager";
+import { AiController, type AiControllerOptions, type ExecutionResult } from "../../../src/ai/AiController";
+import type { AiVoiceOptions, AiVoiceSupport } from "../../../src/ai/AiManager";
 import { CommandRegistry } from "../../../src/ai/commands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
 import { ENGINE_OVERRIDE } from "../../../src/ai/engine/load";
 import { installAssistantTools } from "../../../src/ai/tools/install";
 import { comparable, type VoiceEventType, VoiceSession } from "../../../src/ai/voice/VoiceSession";
-import type { AiEvent } from "../../../src/events";
+import { AI_VOICE_APPROVABLE_GATES } from "../../../src/catalog/ai";
+import type { AiApprovalRequest, AiEvent } from "../../../src/events";
 import { assistantSession, callsTurn, digest, textTurn } from "../../helpers/assistant";
-import { type FakeSpeech, flushMicrotasks, installFakeSpeech } from "../../helpers/fake-speech";
+import { type FakeSpeech, type FakeSpeechOptions, flushMicrotasks, installFakeSpeech } from "../../helpers/fake-speech";
 
 afterEach(() => {
     vi.unstubAllGlobals();
@@ -48,13 +49,15 @@ interface Harness {
  * Build the harness.
  * @param options - The assistant's `voice`.
  * @param controllerOptions - Approvals or questions.
+ * @param speech - How the fake page behaves.
  * @returns The harness.
  */
 async function harness(
     options: AiVoiceOptions = {},
     controllerOptions: Pick<AiControllerOptions, "approvals" | "questions"> = {},
+    speech: FakeSpeechOptions = {},
 ): Promise<Harness> {
-    const fake = installFakeSpeech();
+    const fake = installFakeSpeech(speech);
     const session = await assistantSession();
     const engine = new FakeEngine();
     const events: AiEvent[] = [];
@@ -382,5 +385,201 @@ describe("answering by voice", () => {
             .getConversation()
             ?.messages.flatMap((message) => (message.role === "reader" ? [message.text] : []));
         assert.deepStrictEqual(readers, ["color my team", "Blue"]);
+    });
+
+    it("a spoken approve answers only the gates the host allows; the rest stay pending, a deny still works", async () => {
+        const h = await holding({ replies: { gates: [] } });
+        const before = await digest(h.session);
+        const requests = h.engine.requests.length;
+        h.voice.talk(true);
+        await vi.waitFor(() => {
+            assert.lengthOf(h.fake.recognizers, 1);
+        });
+        h.fake.recognizers[0].hear("yes", true);
+        h.voice.talk(false);
+        await vi.waitFor(() => {
+            assert.lengthOf(of(h, "ai-voice-end"), 1);
+        });
+        await flushMicrotasks();
+        assert.lengthOf(h.controller.getPendingApprovals(), 1, "the hold is still waiting");
+        assert.strictEqual(await digest(h.session), before);
+        assert.strictEqual(h.engine.requests.length, requests, "nothing was sent for the yes");
+
+        h.engine.push(textTurn("Left as it was."));
+        await h.say("no");
+        await vi.waitFor(() => {
+            assert.lengthOf(h.controller.getPendingApprovals(), 0);
+        });
+        assert.strictEqual(await digest(h.session), before);
+    });
+});
+
+describe("holds a spoken word never approves", () => {
+    it("by default, a web-content or irreversible hold is not approved by yes, and the outcome says so", async () => {
+        assert.notInclude(AI_VOICE_APPROVABLE_GATES, "web-content");
+        assert.notInclude(AI_VOICE_APPROVABLE_GATES, "irreversible");
+        for (const gate of ["web-content", "irreversible"]) {
+            const fake = installFakeSpeech({ language: "en-US" });
+            const request: AiApprovalRequest = { id: `held-${gate}`, gate, calls: [], preview: {} };
+            const resolved: string[] = [];
+            const sent: string[] = [];
+            const outcomes: ExecutionResult[] = [];
+            const voice = new VoiceSession({
+                options: {},
+                controller: {
+                    execute: (input) => {
+                        sent.push(input);
+                        return Promise.resolve({ success: true, message: "" });
+                    },
+                    getPendingApprovals: () => [request],
+                    getPendingQuestions: () => [],
+                    resolveAiApproval: (id) => {
+                        resolved.push(id);
+                        return Promise.resolve({ success: true, message: "" });
+                    },
+                    answerQuestion: () => Promise.resolve({ success: true, message: "" }),
+                },
+                emit: () => undefined,
+                transcriber: () => ({ readiness: "unsupported" }),
+                speaker: () => ({ readiness: "unsupported" }),
+                immersive: () => false,
+                answered: (result) => outcomes.push(result),
+            });
+            voice.talk(true);
+            await vi.waitFor(() => {
+                assert.lengthOf(fake.recognizers, 1);
+            });
+            fake.recognizers[0].hear("Yes.", true);
+            voice.talk(false);
+            await vi.waitFor(() => {
+                assert.lengthOf(outcomes, 1);
+            });
+            assert.deepStrictEqual(resolved, [], `${gate}: yes approved nothing`);
+            assert.deepStrictEqual(sent, [], `${gate}: and sent no message that would supersede it`);
+            assert.strictEqual(outcomes[0].code, "AI_CONFIRMATION_NEEDED");
+            assert.deepStrictEqual(outcomes[0].params, { gate, request: request.id });
+            vi.unstubAllGlobals();
+        }
+    });
+});
+
+describe("a press's limits", () => {
+    it("a toggled press nobody ends is released after maxPressSeconds, and sends what it heard", async () => {
+        const h = await harness({ push: "toggle", maxPressSeconds: 30 });
+        h.engine.push(textTurn("Done."));
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            h.voice.talk(true);
+            await vi.waitFor(() => {
+                assert.lengthOf(h.fake.recognizers, 1);
+            });
+            h.fake.recognizers[0].hear("show the servers", true);
+            vi.advanceTimersByTime(29_000);
+            await flushMicrotasks();
+            assert.lengthOf(of(h, "ai-voice-end"), 0, "still listening before the limit");
+            vi.advanceTimersByTime(1_000);
+            await vi.waitFor(() => {
+                assert.strictEqual(h.engine.requests.length, 1, "released at the limit and sent");
+            });
+            assert.strictEqual(h.fake.liveTracks(), 0, "the microphone closed");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("cancel stops an earlier press still being transcribed: it sends nothing", async () => {
+        const fake = installFakeSpeech({ recognition: "absent" });
+        const session = await assistantSession();
+        const engine = new FakeEngine();
+        let finish: (text: string) => void = () => undefined;
+        const transcribing = new Promise<string>((resolve) => {
+            finish = resolve;
+        });
+        let calls = 0;
+        engine.scriptVoice({
+            transcribe: async (_audio, _options, signal) => {
+                calls++;
+                if (calls > 1) {
+                    return { code: "AI_COMPLETED", params: {}, text: "" };
+                }
+
+                const text = await transcribing;
+                return signal.aborted
+                    ? { code: "AI_CANCELLED", params: {} }
+                    : { code: "AI_COMPLETED", params: {}, text };
+            },
+        });
+        const sent: string[] = [];
+        const ends: unknown[] = [];
+        const voice = new VoiceSession({
+            options: { input: "provider" },
+            controller: {
+                execute: (input) => {
+                    sent.push(input);
+                    return Promise.resolve({ success: true, message: "" });
+                },
+                getPendingApprovals: () => [],
+                getPendingQuestions: () => [],
+                resolveAiApproval: () => Promise.resolve({ success: true, message: "" }),
+                answerQuestion: () => Promise.resolve({ success: true, message: "" }),
+            },
+            emit: (type, detail) => {
+                if (type === "ai-voice-end") {
+                    ends.push(detail.code);
+                }
+            },
+            transcriber: () => ({ readiness: "ready", engine }),
+            speaker: () => ({ readiness: "unsupported" }),
+            immersive: () => false,
+            selected: () => session.selection.nodes,
+        });
+        // The first press is released and is being transcribed when the second starts.
+        voice.talk(true);
+        await vi.waitFor(() => {
+            assert.lengthOf(fake.recorders, 1);
+        });
+        voice.talk(false);
+        await vi.waitFor(() => {
+            assert.strictEqual(calls, 1, "the first clip is being transcribed");
+        });
+        voice.talk(true);
+        await vi.waitFor(() => {
+            assert.lengthOf(fake.recorders, 2);
+        });
+        voice.cancel();
+        finish("delete every node");
+        await vi.waitFor(() => {
+            assert.lengthOf(ends, 2, "both presses ended");
+        });
+        await flushMicrotasks();
+        assert.deepStrictEqual(sent, [], "the cancelled press sent nothing");
+        assert.deepStrictEqual(ends, ["AI_CANCELLED", "AI_CANCELLED"]);
+    });
+});
+
+describe("support changes are reported", () => {
+    it("emits ai-voice-support-change when a press changes what getAiVoiceSupport would say", async () => {
+        const h = await harness({}, {}, { microphone: "prompt" });
+        const first = await h.voice.support();
+        assert.strictEqual(first.input.status, "needs-permission");
+        // The reader allows the microphone during the press.
+        // The fake's navigator is a plain object: its permission answer is replaced in place.
+        Object.assign(navigator, { permissions: { query: () => Promise.resolve({ state: "granted" }) } });
+        h.engine.push(textTurn("Five nodes."));
+        await h.say("how many nodes");
+        await vi.waitFor(() => {
+            assert.lengthOf(of(h, "ai-voice-support-change"), 1);
+        });
+        const [{ support }] = of(h, "ai-voice-support-change") as [{ support: AiVoiceSupport }];
+        assert.strictEqual(support.input.status, "ready");
+    });
+
+    it("emits nothing when nothing changed", async () => {
+        const h = await harness();
+        await h.voice.support();
+        h.engine.push(textTurn("Five nodes."));
+        await h.say("how many nodes");
+        await flushMicrotasks();
+        assert.lengthOf(of(h, "ai-voice-support-change"), 0);
     });
 });

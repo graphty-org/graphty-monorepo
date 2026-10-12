@@ -9,10 +9,13 @@ import { assert, describe, it } from "vitest";
 
 import {
     approvalCards,
+    CARD_LINE_CHARS,
+    CARD_MAX_WRAPPED_LINES,
     type CardCanvas,
     paintCard,
     panelCards,
     questionCards,
+    wrap,
     type XrCard,
 } from "../../../src/ai/voice/XrPendingControl";
 import type { AiApprovalRequest, AiQuestionRequest } from "../../../src/events";
@@ -45,6 +48,8 @@ const QUESTION: AiQuestionRequest = {
 
 /** The data a card may show: what the requests, the reader and the model wrote, and catalog names. */
 const DATA = [
+    // The gate, drawn as its code when the host gave no words for it.
+    "policy",
     "Edit data",
     JSON.stringify(APPROVAL.calls[0].arguments),
     "app_custom",
@@ -141,5 +146,54 @@ describe("the in-scene cards", () => {
         }
 
         assert.deepEqual(answers, [true, false, "circular", "grid"]);
+    });
+});
+
+describe("a held change's card shows why it was held and what it does", () => {
+    const WEB: AiApprovalRequest = {
+        id: "approval-web",
+        gate: "web-content",
+        calls: [
+            {
+                tool: "edit_data",
+                arguments: {
+                    action: "remove_nodes",
+                    where: "data.department == 'finance' or data.department == 'legal' or data.owner == 'nobody'",
+                },
+            },
+        ],
+        preview: { removeNodes: 12, ids: [{ id: "n1", label: "Ledger" }] },
+    };
+
+    it("draws the gate (in the host's words when given), the preview and the arguments, wrapped", () => {
+        const [held] = approvalCards(WEB, {}, () => undefined);
+        assert.strictEqual(held.lines[0], "web-content");
+        assert.include(held.lines, "removeNodes: 12");
+        assert.include(held.lines, "ids: n1 (Ledger)");
+        for (const line of held.lines) {
+            assert.isAtMost(line.length, CARD_LINE_CHARS, `"${line}" fits the card`);
+        }
+
+        // Nothing of the arguments is lost to wrapping.
+        const args = JSON.stringify(WEB.calls[0].arguments);
+        const at = held.lines.indexOf("Edit data") + 1;
+        assert.strictEqual(held.lines.slice(at).join(" ").replaceAll(" ", ""), args.replaceAll(" ", ""));
+
+        const [worded] = approvalCards(
+            WEB,
+            { "web-content": "label-web", removeNodes: "label-removes" },
+            () => undefined,
+        );
+        assert.strictEqual(worded.lines[0], "label-web");
+        assert.include(worded.lines, "label-removes: 12");
+    });
+
+    it("wraps at spaces, breaks a word longer than a line, and cuts a very long text", () => {
+        assert.deepEqual(wrap("short"), ["short"]);
+        const word = "x".repeat(CARD_LINE_CHARS + 5);
+        assert.deepEqual(wrap(word), ["x".repeat(CARD_LINE_CHARS), "xxxxx"]);
+        const long = wrap("word ".repeat(400));
+        assert.lengthOf(long, CARD_MAX_WRAPPED_LINES);
+        assert.isTrue(long.at(-1)?.endsWith("..."));
     });
 });

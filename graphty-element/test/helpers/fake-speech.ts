@@ -170,6 +170,12 @@ export interface FakeSpeech {
     pendingFrames(): number;
     /** End the utterance being spoken, as the synthesizer does when it finishes. */
     finishSpeaking(): void;
+    /**
+     * Set every microphone sample the analyser reads from now on (default 0.25, a level of 0.5,
+     * which is speech; 0 is silence).
+     * @param sample - The sample value.
+     */
+    setSample(sample: number): void;
 }
 
 /**
@@ -186,7 +192,7 @@ export function installFakeSpeech(options: FakeSpeechOptions = {}): FakeSpeech {
     const storage = new Map<string, string>();
     const frames = new Map<number, () => void>();
     let nextFrame = 1;
-    const counts = { microphoneOpens: 0, contextsClosed: 0 };
+    const counts = { microphoneOpens: 0, contextsClosed: 0, sample: 0.25 };
     const microphone = options.microphone ?? "granted";
 
     // In Node there is no window; the recognizer is read from one.
@@ -276,7 +282,7 @@ export function installFakeSpeech(options: FakeSpeechOptions = {}): FakeSpeech {
             createAnalyser(): unknown {
                 return {
                     fftSize: 2048,
-                    getFloatTimeDomainData: (samples: Float32Array) => samples.fill(0.25),
+                    getFloatTimeDomainData: (samples: Float32Array) => samples.fill(counts.sample),
                 };
             }
 
@@ -358,6 +364,9 @@ export function installFakeSpeech(options: FakeSpeechOptions = {}): FakeSpeech {
             const current = speaking;
             speaking = undefined;
             current?.onend?.();
+        },
+        setSample(sample) {
+            counts.sample = sample;
         },
     };
 }

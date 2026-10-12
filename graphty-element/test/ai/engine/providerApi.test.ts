@@ -825,7 +825,7 @@ describe("speech through Gemini", () => {
         const said = await engine.speak?.("Two hubs.", { voiceName: "Nova" }, new AbortController().signal);
         assert.deepStrictEqual(said, {
             code: "AI_VOICE_UNAVAILABLE",
-            params: { path: "output", reason: "no-provider-speech" },
+            params: { path: "output", reason: "unknown-voice" },
         });
         assert.strictEqual(requests.length, 0);
         const named = await engine.speak?.("Two hubs.", { voiceName: "Puck" }, new AbortController().signal);
@@ -855,11 +855,28 @@ describe.each(["openai", "google"] as const)("speech on %s: graphty's retries, c
 
         it("asks again after a 429 and succeeds: exactly two requests, the provider's wait honored", async () => {
             const { engine, failOnce, requests, waits } = providerApiFixture(provider);
+            const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
             failOnce(429, 250);
             const done = await call(engine, new AbortController().signal);
             assert.strictEqual(done?.code, "AI_COMPLETED");
             assert.strictEqual(requests.length, 2);
             assert.deepStrictEqual(waits, [250]);
+            // The failed first request is a code, never a line on the consumer's console.
+            assert.deepStrictEqual(logged.mock.calls, []);
+            logged.mockRestore();
+        });
+
+        it("codes a voice module that will not load, and never throws", async () => {
+            const { settings } = providerApiFixture(provider);
+            const broken = new ProviderApiEngine(() => settings, {
+                loadVoice: () =>
+                    Promise.resolve({
+                        transcribe: () => Promise.reject(new Error("chunk failed")),
+                        speak: () => Promise.reject(new Error("chunk failed")),
+                    }),
+            });
+            const done = await SPEECH_CALLS[kind](broken, new AbortController().signal);
+            assert.strictEqual(done?.code, "AI_PROVIDER_ERROR");
         });
 
         it("gives up after three 500s: exactly three requests, the status in the params", async () => {

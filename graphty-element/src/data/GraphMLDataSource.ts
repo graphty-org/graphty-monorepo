@@ -143,7 +143,7 @@ function readDirection(
 export class GraphMLDataSource extends DataSource {
     static readonly type = "graphml";
 
-    private config: GraphMLDataSourceConfig;
+    private readonly config: GraphMLDataSourceConfig;
 
     /**
      * Creates a new GraphMLDataSource instance.

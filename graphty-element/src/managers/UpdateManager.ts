@@ -226,9 +226,9 @@ export class UpdateManager implements Manager {
     private forceZoomToFit = false;
     /** Whether the outstanding request came from a consumer's `zoomToFit()`, not the element. */
     private explicitZoomToFit = false;
-    private config: Required<UpdateManagerConfig>;
+    private readonly config: Required<UpdateManagerConfig>;
     private layoutStepCount = 0;
-    private minLayoutStepsBeforeZoom = 10;
+    private readonly minLayoutStepsBeforeZoom = 10;
     private lastZoomStep = 0;
     private wasSettled = false;
 
@@ -285,12 +285,12 @@ export class UpdateManager implements Manager {
      * @param config - Optional configuration
      */
     constructor(
-        private eventManager: EventManager,
-        private statsManager: StatsManager,
-        private layoutManager: LayoutManager,
-        private dataManager: DataManager,
+        private readonly eventManager: EventManager,
+        private readonly statsManager: StatsManager,
+        private readonly layoutManager: LayoutManager,
+        private readonly dataManager: DataManager,
         private camera: CameraManager,
-        private graphContext: GraphContext,
+        private readonly graphContext: GraphContext,
         config: UpdateManagerConfig = {},
     ) {
         this.config = {

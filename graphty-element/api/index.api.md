@@ -1348,6 +1348,7 @@ export const EdgeStyle: z.ZodObject<{
         maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     }, z.core.$strict>>>;
+    visible: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>;
 
 // @public (undocumented)
@@ -3636,6 +3637,7 @@ export const NodeStyle: z.ZodObject<{
         maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     }, z.core.$strict>>>;
+    visible: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>;
 
 // @public (undocumented)

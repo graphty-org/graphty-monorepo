@@ -106,7 +106,9 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
         case "text":
             return "CHANNEL PROBE WORDS";
         case "boolean":
-            return true;
+            // The other state from the default: a switch that is on by default (`node.visible`)
+            // changes the picture only when it is turned off.
+            return descriptor.default !== true;
         case "enum": {
             const values = descriptor.values ?? [];
 

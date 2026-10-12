@@ -304,6 +304,31 @@ describe("the look of a node's tooltip, and the channel that carries it", () => 
         );
     });
 
+    it("is drawn at the size and in the panel colour the single-look channels write", async () => {
+        await graph.getSession().styles.add(WORDS_ONLY);
+        await settle();
+        await hoverAlpha();
+
+        const plain = tooltipSize();
+        assert.isNotNull(plain, "the words alone drew a tooltip");
+
+        await hoverNothing();
+        await graph.getSession().styles.add({
+            name: "the tooltip's own size and panel, one channel each",
+            selector: { match: "ids", nodes: ["alpha"] },
+            set: { "node.tooltipSize": BIG_TYPE, "node.tooltipBackground": PANEL },
+        });
+        await settle();
+        await hoverAlpha();
+
+        const big = tooltipSize();
+        const panel = panelColour();
+        assert.isNotNull(big, "a tooltip is still drawn once the size channel is written");
+        assert.isAbove(big.width, plain.width * GROWTH, "node.tooltipSize reached the canvas");
+        assert.isNotNull(panel, "a tooltip panel is drawn");
+        assert.isTrue(isColour(panel, PANEL), "node.tooltipBackground reached the canvas");
+    });
+
     it("rebuilds a tooltip already on screen when a layer changes how it looks", async () => {
         // The half of this that is easy to get wrong, and the reason the channel is `content`
         // rather than `mesh` in src/session/styles/intern.ts: a reader resting on a node while a

@@ -133,8 +133,10 @@ export interface BatchStep {
 // @public
 export type Binding = {
     value: ChannelValue;
+    combine?: CombineMode;
 } | {
     by: Path;
+    combine?: CombineMode;
     scale?: "linear" | "log" | "neglog10" | "sqrt" | "pow" | "bins" | "quantile" | "ordinal" | "passthrough" | (string & {});
     palette?: PaletteId;
     stops?: string[];
@@ -248,7 +250,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
+export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "node.visible" | "node.labelSize" | "node.labelColor" | "node.labelBackground" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelSize" | "edge.labelColor" | "edge.labelBackground" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextSize" | "edge.arrowTailTextColor" | "edge.arrowTailTextBackground";
 
 // @public
 export type ChannelAgreement = {
@@ -319,6 +321,9 @@ export interface ColumnRef {
 
 // @public
 export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId";
+
+// @public
+export type CombineMode = "replace" | "multiply" | "add";
 
 // @public
 export type CommandOutcome<C extends SessionCommand> = CommandOutcomeMap[C["op"]];

@@ -25,7 +25,7 @@ import {
     toColorValue,
 } from "../../../src/session/styles/channels";
 
-/** The thirty-five channels the element publishes, in the order the table declares them. */
+/** The fifty-two channels the element publishes, in the order the table declares them. */
 const DECLARED = [
     "node.color",
     "node.size",
@@ -62,6 +62,23 @@ const DECLARED = [
     "edge.animationSpeed",
     "edge.label",
     "edge.labelStyle",
+    "node.visible",
+    "node.labelSize",
+    "node.labelColor",
+    "node.labelBackground",
+    "node.tooltipSize",
+    "node.tooltipColor",
+    "node.tooltipBackground",
+    "edge.visible",
+    "edge.labelSize",
+    "edge.labelColor",
+    "edge.labelBackground",
+    "edge.arrowHeadTextSize",
+    "edge.arrowHeadTextColor",
+    "edge.arrowHeadTextBackground",
+    "edge.arrowTailTextSize",
+    "edge.arrowTailTextColor",
+    "edge.arrowTailTextBackground",
 ];
 
 describe("the channel set", () => {
@@ -88,9 +105,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into fourteen node channels and twenty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 14);
-        assert.strictEqual(channelsFor("edge").length, 21);
+    it("splits into twenty-one node channels and thirty-one edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 21);
+        assert.strictEqual(channelsFor("edge").length, 31);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -295,6 +312,12 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowTailTextStyle",
         "edge.label",
         "edge.labelStyle",
+        // A label, a caption or an edge label is drawn with no panel behind it until a style
+        // asks for one; a node tooltip has a white panel by default.
+        "node.labelBackground",
+        "edge.labelBackground",
+        "edge.arrowHeadTextBackground",
+        "edge.arrowTailTextBackground",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -380,7 +403,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the six that carry a colour, and the type says the same six", () => {
+    it("are the sixteen that carry a colour, and the type says the same sixteen", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.outline",
@@ -388,6 +411,16 @@ describe("colour channels", () => {
             "edge.color",
             "edge.arrowHeadColor",
             "edge.arrowTailColor",
+            "node.labelColor",
+            "node.labelBackground",
+            "node.tooltipColor",
+            "node.tooltipBackground",
+            "edge.labelColor",
+            "edge.labelBackground",
+            "edge.arrowHeadTextColor",
+            "edge.arrowHeadTextBackground",
+            "edge.arrowTailTextColor",
+            "edge.arrowTailTextBackground",
         ];
 
         assert.deepEqual([...COLOR_CHANNELS], fromTheType);

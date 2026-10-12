@@ -413,6 +413,18 @@ log`, the round folder and `tmp/<task>/` first.
   for the generic layer rules (commit 2242877542, `test/session/rule-text.test.ts`, 7 pass).
   Budget about 5 minutes for the test-slot queue on a single small file.
 
+- (2026-10-12) WORKED: committing one item out of files three agents were editing at once
+  (channels.ts, repaint.ts, Node.ts held my hunks beside the halo/band and effect-off ones). A
+  small hunk picker (`tmp/element-channels/hunks.py`: HEAD plus chosen `git diff -U0` hunks, mixed
+  hunks trimmed by hand) built my-only copies; `git archive HEAD graphty-element tsconfig.base.json
+tools vitest.* eslint.config.js compact-mantine/eslint` into a temp tree, the copies laid over
+  it, node_modules symlinked, gave a tree where tsc, eslint, the session and browser tests, the
+  build and `api:report` ran on exactly what the commit holds. Staged with `git hash-object -w` and
+  `git update-index --cacheinfo`. It caught two things the full worktree hid: the edge channel
+  count in the test assumed the band channels, and the combine checks lived in Layer.ts, a file
+  the item did not list. Data files the tests read (design/documents, studio tool files) are not
+  in such a tree: those failures are the tree's, not the change's.
+
 ## Sources
 
 - Digests in `design/ui/studio/digests/` (`tier1.md`, `decisions.md`, `study-rounds.md`,

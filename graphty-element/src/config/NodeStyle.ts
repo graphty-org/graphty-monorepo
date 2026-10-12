@@ -147,6 +147,12 @@ export const NodeStyle = z.strictObject({
         textColor: "#000000",
         backgroundColor: "#FFFFFF",
     }).optional(),
+    /**
+     * False stops drawing the node (its mesh and words) and nothing else: it stays in the graph,
+     * counted, laid out, selectable and measured. The `node.visible` channel writes it.
+     * @since 3.26.0
+     */
+    visible: z.boolean().optional(),
 });
 
 export type NodeStyleConfig = z.infer<typeof NodeStyle>;

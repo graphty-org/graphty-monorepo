@@ -50,6 +50,7 @@ import type {
     Binding,
     BindingOverflow,
     ChannelValue,
+    CombineMode,
     Encoding,
     GraphtyErrorCode,
     LayerId,
@@ -764,6 +765,41 @@ function checkChannel(
     return descriptor;
 }
 
+/** The combine modes a binding may name. */
+const COMBINE_MODES: readonly CombineMode[] = ["replace", "multiply", "add"];
+
+/**
+ * Check a binding's combine mode: one of the three, and only "replace" on a channel that is not a
+ * number, since only numbers multiply or add.
+ * @param descriptor - The channel it writes.
+ * @param binding - The binding.
+ * @param path - Where in the specification it sits.
+ * @param log - Where problems are collected.
+ */
+function checkCombine(descriptor: ChannelDescriptor, binding: Binding, path: string, log: ProblemLog): void {
+    const { combine } = binding;
+
+    if (combine === undefined || combine === "replace") {
+        return;
+    }
+
+    if (!COMBINE_MODES.includes(combine)) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `"${combine}" is not a combine mode.`,
+            path: `${path}.combine`,
+            candidates: COMBINE_MODES,
+        });
+    } else if (descriptor.accepts !== "number") {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `${descriptor.channel} is not a number, so it can only replace what lies beneath.`,
+            path: `${path}.combine`,
+            candidates: ["replace"],
+        });
+    }
+}
+
 /**
  * Check one encoded binding.
  * @param descriptor - The channel it writes.
@@ -781,7 +817,21 @@ function checkBinding(
     universal: boolean,
     log: ProblemLog,
 ): void {
+    checkCombine(descriptor, binding, path, log);
+
     if (!("by" in binding)) {
+        if (descriptor.accepts === "number" && (binding.combine === "multiply" || binding.combine === "add")) {
+            if (typeof binding.value !== "number" || !Number.isFinite(binding.value)) {
+                report(log, {
+                    code: "E_BAD_LAYER",
+                    message: `${descriptor.plainName} is multiplied or added by a number.`,
+                    path: `${path}.value`,
+                });
+            }
+
+            return;
+        }
+
         const problem = checkStaticValue(descriptor, binding.value, `${path}.value`);
 
         if (problem !== null) {

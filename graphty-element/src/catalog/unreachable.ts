@@ -378,6 +378,18 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
             "requires the typeface, the panel colour and the size a layer asked for to be the " +
             "ones drawn.",
     },
+    ...(["node.tooltipSize", "node.tooltipColor", "node.tooltipBackground"] as const).map(
+        (channel): UnpaintedChannel => ({
+            kind: "by-design",
+            channel,
+            reason:
+                "A NODE TOOLTIP IS DRAWN and this look reaches it, so this waiver is about the " +
+                "reading, as for `node.tooltipStyle` above: the tooltip is hover-only and this " +
+                "gate paints into a RESTING scene. `test/browser/node-tooltip-style-draws.test.ts` " +
+                "hovers a node with a real pointer and requires the size and the panel colour " +
+                "these channels write to be the ones drawn.",
+        }),
+    ),
 ];
 
 /**

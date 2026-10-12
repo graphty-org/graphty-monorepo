@@ -412,6 +412,7 @@ export type {
     Binding,
     BindingOverflow,
     Channel,
+    CombineMode,
     EdgeId,
     EdgeMember,
     EdgeReading,

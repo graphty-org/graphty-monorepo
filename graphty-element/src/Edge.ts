@@ -360,6 +360,9 @@ export class Edge {
      */
     private renderVisible = true;
 
+    /** Whether the style stack hid this edge (`edge.visible` false), which only stops drawing it. */
+    private styleHidden = false;
+
     /**
      * Whether this edge is in the session's selection.
      *
@@ -660,7 +663,7 @@ export class Edge {
         // below from putting an arrowhead back on screen for an edge the mask has taken off it:
         // placing a cap IS showing it -- the collapsed matrix the mask wrote is overwritten by
         // the placement -- and those branches run on any frame an endpoint moves.
-        if (!this.renderVisible) {
+        if (!this.isRenderVisible()) {
             return;
         }
 
@@ -785,6 +788,12 @@ export class Edge {
     private paintMarked(paint: EdgePaint): void {
         this.paintFrom(paint.meshKey, paint.style);
         this.paintHalo(paint.style);
+
+        const hidden = paint.style.visible === false;
+        if (hidden !== this.styleHidden) {
+            this.styleHidden = hidden;
+            this.applyRenderState();
+        }
     }
 
     /**
@@ -1194,7 +1203,7 @@ export class Edge {
      * @returns True when it is drawn.
      */
     isRenderVisible(): boolean {
-        return this.renderVisible;
+        return this.renderVisible && !this.styleHidden;
     }
 
     /**
@@ -1255,7 +1264,7 @@ export class Edge {
             return;
         }
 
-        const drawn = this.renderVisible;
+        const drawn = this.isRenderVisible();
 
         for (const slot of this.haloSlots) {
             this.haloBatch?.setDrawn(slot, drawn);

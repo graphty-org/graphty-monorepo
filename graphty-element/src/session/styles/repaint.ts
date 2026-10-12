@@ -58,7 +58,7 @@
 import type { Binding, Channel, GraphtyErrorCode, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
-import { asColorValue, channelDescriptor, type ChannelValues } from "./channels";
+import { asColorValue, type ChannelDescriptor, channelDescriptor, type ChannelValues } from "./channels";
 import { prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";
 import type {
@@ -786,6 +786,60 @@ interface PreparedChannel {
     readonly binding: PreparedBinding;
     /** Whether it reads a note, whose text is drawn as plain text. */
     readonly plainText: boolean;
+    /**
+     * How a number it writes meets what lies beneath, or null to write over it. Set only on a
+     * number channel whose binding asked for multiply or add.
+     */
+    readonly combine: Combine | null;
+}
+
+/** A number channel's combine mode, with what to combine with where nothing beneath painted. */
+interface Combine {
+    /** Multiply or add. */
+    readonly mode: "multiply" | "add";
+    /** The channel's own default, or the mode's identity when it states none. */
+    readonly fallback: number;
+    /** The smallest value the channel draws. */
+    readonly min: number;
+    /** The largest value the channel draws. */
+    readonly max: number;
+}
+
+/**
+ * Combine a number a layer painted with the number beneath it.
+ * @param combine - The mode and the channel's bounds.
+ * @param beneath - What the column holds, NaN where nothing painted.
+ * @param painted - What the layer painted.
+ * @returns The value to write, clamped to what the channel draws.
+ */
+function combined(combine: Combine, beneath: number, painted: number): number {
+    const base = Number.isNaN(beneath) ? combine.fallback : beneath;
+    const value = combine.mode === "multiply" ? base * painted : base + painted;
+
+    return Math.min(combine.max, Math.max(combine.min, value));
+}
+
+/**
+ * The combine a binding asks for, ready for the pass.
+ * @param descriptor - The channel.
+ * @param binding - The binding.
+ * @returns The combine, or null for a plain write.
+ */
+function combineOf(descriptor: ChannelDescriptor, binding: Binding): Combine | null {
+    const mode = binding.combine;
+
+    if (descriptor.accepts !== "number" || (mode !== "multiply" && mode !== "add")) {
+        return null;
+    }
+
+    const identity = mode === "multiply" ? 1 : 0;
+
+    return {
+        mode,
+        fallback: typeof descriptor.default === "number" ? descriptor.default : identity,
+        min: descriptor.min ?? Number.NEGATIVE_INFINITY,
+        max: descriptor.max ?? Number.POSITIVE_INFINITY,
+    };
 }
 
 /** One layer, ready to paint. */
@@ -1187,6 +1241,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 column: columnFor(store, channel),
                 path,
                 plainText: path !== null && isNotePath(path),
+                combine: combineOf(descriptor, binding),
                 binding: prepareBinding({
                     channel,
                     binding,
@@ -1473,8 +1528,15 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     // Undefined means this layer has nothing to say about this element, so what
                     // the layers below it painted stands. That is what stops an algorithm
                     // painting the elements it never measured.
-                    if (painted !== undefined) {
-                        writeColumn(channel.column, index, painted, channel.plainText);
+                    if (painted === undefined) {
+                        continue;
+                    }
+
+                    const { column, combine } = channel;
+                    if (combine !== null && column.kind === "number" && typeof painted === "number") {
+                        column.values[index] = combined(combine, column.values[index], painted);
+                    } else {
+                        writeColumn(column, index, painted, channel.plainText);
                     }
                 }
             }

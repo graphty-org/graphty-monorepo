@@ -14,7 +14,7 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
-import { asColorValue, CHANNEL_DESCRIPTORS, toColorValue } from "../session/styles/channels";
+import { asColorValue, CHANNEL_DESCRIPTORS, type ChannelDescriptor, toColorValue } from "../session/styles/channels";
 import type { SelectorTarget } from "../session/styles/predicate";
 import type { ElementPaint, ResolvedStyle } from "../session/styles/repaint";
 
@@ -334,9 +334,33 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
  * @returns The same entries, with the label styles last.
  */
 function inWriteOrder(resolved: ResolvedStyle): [string, unknown][] {
-    const last = (name: string): number => (CHANNEL_DESCRIPTORS[name as Channel]?.accepts === "labelStyle" ? 1 : 0);
+    return Object.entries(resolved).sort(([left], [right]) => writeRank(left) - writeRank(right));
+}
 
-    return Object.entries(resolved).sort(([left], [right]) => last(left) - last(right));
+/** Where each label style's block sits, such as `label` and `arrowHead.text`. */
+const LABEL_STYLE_BLOCKS = Object.values(CHANNEL_DESCRIPTORS)
+    .filter((descriptor) => descriptor.accepts === "labelStyle")
+    .map((descriptor) => `${descriptor.stylePath}.`);
+
+/**
+ * When one channel is written among the others: words first, then the label styles, then the
+ * single looks inside a label block (`node.labelSize`, `node.labelColor`, ...). A bound size is
+ * the more specific statement, so it wins over a size a label style names in the same stack.
+ * @param name - The channel.
+ * @returns 0, 1 or 2.
+ */
+function writeRank(name: string): number {
+    const descriptor = CHANNEL_DESCRIPTORS[name as Channel] as ChannelDescriptor | undefined;
+
+    if (descriptor === undefined || descriptor.accepts === "text") {
+        return 0;
+    }
+
+    if (descriptor.accepts === "labelStyle") {
+        return 1;
+    }
+
+    return LABEL_STYLE_BLOCKS.some((block) => descriptor.stylePath.startsWith(block)) ? 2 : 0;
 }
 
 /**

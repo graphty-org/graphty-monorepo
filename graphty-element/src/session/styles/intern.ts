@@ -144,6 +144,28 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowHeadTextStyle": "content",
     "edge.arrowTailText": "content",
     "edge.arrowTailTextStyle": "content",
+    // A text's size, colour and background are fields of the same rich-text block its style
+    // writes, rebuilt by the same content sync.
+    "node.labelSize": "content",
+    "node.labelColor": "content",
+    "node.labelBackground": "content",
+    "node.tooltipSize": "content",
+    "node.tooltipColor": "content",
+    "node.tooltipBackground": "content",
+    "edge.labelSize": "content",
+    "edge.labelColor": "content",
+    "edge.labelBackground": "content",
+    "edge.arrowHeadTextSize": "content",
+    "edge.arrowHeadTextColor": "content",
+    "edge.arrowHeadTextBackground": "content",
+    "edge.arrowTailTextSize": "content",
+    "edge.arrowTailTextColor": "content",
+    "edge.arrowTailTextBackground": "content",
+
+    // Whether the element is drawn at all: switched on the meshes it already has, never a
+    // different mesh (`Node.applyInstancePaint`, `Edge.paintMarked`).
+    "node.visible": "instance",
+    "edge.visible": "instance",
 });
 
 /**

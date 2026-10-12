@@ -248,6 +248,9 @@ export class Node {
      */
     private renderState: NodeRenderState = "visible";
 
+    /** Whether the style stack hid this node (`node.visible` false), which only stops drawing it. */
+    private styleHidden = false;
+
     /**
      * Whether this node is in the session's selection.
      *
@@ -622,6 +625,11 @@ export class Node {
         this.applyInstanceColor(color);
         NodeEffects.applyOutlineEffect(this.mesh, style.effect);
         NodeEffects.applyGlowEffect(this.mesh, style.effect);
+        const hidden = style.visible === false;
+        if (hidden !== this.styleHidden) {
+            this.styleHidden = hidden;
+            this.applyRenderState();
+        }
     }
 
     /**
@@ -918,7 +926,9 @@ export class Node {
      * @returns The render state.
      */
     getRenderState(): NodeRenderState {
-        return this.renderState;
+        // A node a style hides is drawn as a filtered-out one would be, minus the context point:
+        // it is still in the graph, so it is no one's context.
+        return this.styleHidden && this.renderState === "visible" ? "hidden" : this.renderState;
     }
 
     /**
@@ -979,7 +989,8 @@ export class Node {
             return;
         }
 
-        const drawn = this.renderState === "visible";
+        const state = this.getRenderState();
+        const drawn = state === "visible";
 
         if (!this.mesh.isDisposed()) {
             this.mesh.setEnabled(drawn);
@@ -1001,7 +1012,7 @@ export class Node {
             this.hideTooltip();
         }
 
-        this.showOverlay("context", this.renderState === "context");
+        this.showOverlay("context", state === "context");
         // A hidden node draws no halo: the selection is still the selection, but there is nothing
         // on screen for it to ring.
         this.showOverlay("halo", drawn && this.selected);
@@ -1030,7 +1041,7 @@ export class Node {
             return;
         }
 
-        this.showOverlay("halo", this.renderState === "visible" && this.selected);
+        this.showOverlay("halo", this.getRenderState() === "visible" && this.selected);
     }
 
     /**

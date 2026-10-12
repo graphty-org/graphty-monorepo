@@ -282,6 +282,23 @@ export interface ChannelValues {
     "edge.animationSpeed": number;
     "edge.label": string;
     "edge.labelStyle": LabelStyle;
+    "node.visible": boolean;
+    "node.labelSize": number;
+    "node.labelColor": ColorValue;
+    "node.labelBackground": ColorValue;
+    "node.tooltipSize": number;
+    "node.tooltipColor": ColorValue;
+    "node.tooltipBackground": ColorValue;
+    "edge.visible": boolean;
+    "edge.labelSize": number;
+    "edge.labelColor": ColorValue;
+    "edge.labelBackground": ColorValue;
+    "edge.arrowHeadTextSize": number;
+    "edge.arrowHeadTextColor": ColorValue;
+    "edge.arrowHeadTextBackground": ColorValue;
+    "edge.arrowTailTextSize": number;
+    "edge.arrowTailTextColor": ColorValue;
+    "edge.arrowTailTextBackground": ColorValue;
 }
 
 /**
@@ -292,7 +309,22 @@ export interface ChannelValues {
  * to the table by {@link COLOR_CHANNELS} and asserted in the tests, so the two cannot drift.
  */
 export type ColorChannel =
-    "node.color" | "node.outline" | "node.glow" | "edge.color" | "edge.arrowHeadColor" | "edge.arrowTailColor";
+    | "node.color"
+    | "node.outline"
+    | "node.glow"
+    | "edge.color"
+    | "edge.arrowHeadColor"
+    | "edge.arrowTailColor"
+    | "node.labelColor"
+    | "node.labelBackground"
+    | "node.tooltipColor"
+    | "node.tooltipBackground"
+    | "edge.labelColor"
+    | "edge.labelBackground"
+    | "edge.arrowHeadTextColor"
+    | "edge.arrowHeadTextBackground"
+    | "edge.arrowTailTextColor"
+    | "edge.arrowTailTextBackground";
 
 /** What a repaint reads for one channel. */
 export type PaintedValue<C extends Channel> = ChannelValues[C];
@@ -553,6 +585,127 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
     return Object.fromEntries(rows.map((row) => [row.channel, row])) as Record<ArrowEndChannel<End>, ChannelDescriptor>;
 }
+
+/**
+ * What hiding an element by style does and does not do, read by both `visible` channels.
+ *
+ * A style can take an element off the picture and nothing more. The element stays in the graph:
+ * it is counted, laid out, kept in the selection and measured by every run, unlike an element a
+ * visibility filter removes. Only its drawing (and so its picking) stops.
+ */
+const VISIBLE_CAVEAT =
+    "Hiding by style stops the drawing only: the element is still counted, laid out, selectable " +
+    "and measured, and a hidden element cannot be clicked because nothing is drawn to click. A " +
+    "visibility filter is what takes an element out of the graph on screen.";
+
+/**
+ * The three looks of one block of words that vary per element: size, text colour and background.
+ *
+ * The same three fields sit in the block's label style; these channels exist so a layer can bind
+ * them to a value (label size by degree), which a label style -- one shared bag of fields -- cannot.
+ * Written after the block's label style, so a bound size wins over a size the style names.
+ * @param base - The block's channel, such as `node.label` or `edge.arrowHeadText`.
+ * @param target - What the block belongs to.
+ * @param block - Where the block's style sits, such as `label` or `arrowHead.text`.
+ * @param plainName - The block's name a person reads, such as "Node Label".
+ * @param shortName - The same, once the target is said, in sentence case, such as "Label".
+ * @param caveat - The block's own caveat, when it has one.
+ * @param background - The panel the block is drawn on by default, when it has one (a tooltip's white).
+ * @returns The three descriptors.
+ */
+function textLookChannels<Base extends string>(
+    base: Base,
+    target: "node" | "edge",
+    block: string,
+    plainName: string,
+    shortName: string,
+    caveat?: string,
+    background?: string,
+): Record<`${Base}${"Size" | "Color" | "Background"}`, ChannelDescriptor> {
+    const shared = { target, group: "text" as const, renderable: true, ...(caveat === undefined ? {} : { caveat }) };
+    const rows: ChannelDescriptor[] = [
+        {
+            ...shared,
+            channel: `${base}Size` as Channel,
+            plainName: `${plainName} Size`,
+            shortName: `${shortName} size`,
+            default: 48,
+            accepts: "number",
+            min: 1,
+            stylePath: `${block}.fontSize`,
+        },
+        {
+            ...shared,
+            channel: `${base}Color` as Channel,
+            plainName: `${plainName} Text Colour`,
+            shortName: `${shortName} text color`,
+            default: "#000000",
+            accepts: "color",
+            stylePath: `${block}.textColor`,
+        },
+        {
+            ...shared,
+            channel: `${base}Background` as Channel,
+            plainName: `${plainName} Background`,
+            shortName: `${shortName} background`,
+            ...(background === undefined ? {} : { default: background }),
+            accepts: "color",
+            stylePath: `${block}.backgroundColor`,
+        },
+    ];
+
+    return Object.fromEntries(rows.map((row) => [row.channel, row])) as Record<
+        `${Base}${"Size" | "Color" | "Background"}`,
+        ChannelDescriptor
+    >;
+}
+
+/** The two `visible` channels and the bindable text looks, keyed by channel. */
+const LOOK_AND_VISIBILITY = {
+    "node.visible": {
+        channel: "node.visible",
+        target: "node",
+        plainName: "Node Visible",
+        shortName: "Shown",
+        group: "shape",
+        default: true,
+        accepts: "boolean",
+        stylePath: "visible",
+        renderable: true,
+        caveat: VISIBLE_CAVEAT,
+    } satisfies ChannelDescriptor,
+    ...textLookChannels("node.label", "node", "label", "Node Label", "Label"),
+    ...textLookChannels("node.tooltip", "node", "tooltip", "Node Tooltip", "Tooltip", NODE_TOOLTIP_CAVEAT, "#FFFFFF"),
+    "edge.visible": {
+        channel: "edge.visible",
+        target: "edge",
+        plainName: "Edge Visible",
+        shortName: "Shown",
+        group: "line",
+        default: true,
+        accepts: "boolean",
+        stylePath: "visible",
+        renderable: true,
+        caveat: VISIBLE_CAVEAT,
+    } satisfies ChannelDescriptor,
+    ...textLookChannels("edge.label", "edge", "label", "Edge Label", "Label"),
+    ...textLookChannels(
+        "edge.arrowHeadText",
+        "edge",
+        "arrowHead.text",
+        "Arrow Head Caption",
+        "Head caption",
+        ARROW_CAPTION_CAVEAT,
+    ),
+    ...textLookChannels(
+        "edge.arrowTailText",
+        "edge",
+        "arrowTail.text",
+        "Arrow Tail Caption",
+        "Tail caption",
+        ARROW_CAPTION_CAVEAT,
+    ),
+};
 
 /**
  * Every channel as declared, before the defaults the element's default styles state are read in.
@@ -831,6 +984,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "label",
         renderable: true,
     },
+    ...LOOK_AND_VISIBILITY,
 };
 
 /**

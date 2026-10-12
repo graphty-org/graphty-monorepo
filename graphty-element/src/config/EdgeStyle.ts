@@ -119,6 +119,12 @@ export const EdgeStyle = z.strictObject({
     arrowTail: ArrowStyle.optional(),
     line: LineStyle.optional(),
     label: RichTextStyle.prefault({ location: "top" }).optional(),
+    /**
+     * False stops drawing the edge (its line, caps and words) and nothing else: it stays in the
+     * graph, counted, selectable and measured. The `edge.visible` channel writes it.
+     * @since 3.26.0
+     */
+    visible: z.boolean().optional(),
     // effects: glow // https://playground.babylonjs.com/#H1LRZ3#35
 });
 

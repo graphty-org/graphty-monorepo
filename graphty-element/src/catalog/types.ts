@@ -554,7 +554,24 @@ export type Channel =
     | "edge.arrowTailTextStyle"
     | "edge.animationSpeed"
     | "edge.label"
-    | "edge.labelStyle";
+    | "edge.labelStyle"
+    | "node.visible"
+    | "node.labelSize"
+    | "node.labelColor"
+    | "node.labelBackground"
+    | "node.tooltipSize"
+    | "node.tooltipColor"
+    | "node.tooltipBackground"
+    | "edge.visible"
+    | "edge.labelSize"
+    | "edge.labelColor"
+    | "edge.labelBackground"
+    | "edge.arrowHeadTextSize"
+    | "edge.arrowHeadTextColor"
+    | "edge.arrowHeadTextBackground"
+    | "edge.arrowTailTextSize"
+    | "edge.arrowTailTextColor"
+    | "edge.arrowTailTextBackground";
 
 /**
  * The values the "edge.style" channel accepts.
@@ -620,11 +637,27 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  */
 export type BindingOverflow = "other" | "shape" | "extend";
 
+/**
+ * How a number a layer writes meets the number the layers beneath it painted. `"replace"` (the
+ * default) writes over it; `"multiply"` and `"add"` scale or offset it, so a layer that asks for
+ * twice the width doubles whatever width each element already had. Where nothing beneath painted
+ * the channel, its default is what is scaled; the result is clamped to what the channel draws.
+ * Only number channels take a mode other than `"replace"`.
+ * @since 3.26.0
+ */
+export type CombineMode = "replace" | "multiply" | "add";
+
 /** One channel's binding: a literal, or a declarative mapping from a value in the data. */
 export type Binding =
-    | { value: ChannelValue }
+    | {
+          value: ChannelValue;
+          /** How the value meets what lies beneath. See {@link CombineMode}. @since 3.26.0 */
+          combine?: CombineMode;
+      }
     | {
           by: Path;
+          /** How the value meets what lies beneath. See {@link CombineMode}. @since 3.26.0 */
+          combine?: CombineMode;
           scale?:
               | "linear"
               | "log"

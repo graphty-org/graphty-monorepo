@@ -27,6 +27,34 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: hide by style, label looks that vary, and combine on numbers
+
+**What.** All in graphty-element, additive.
+
+- Two new channels, `node.visible` and `edge.visible` (switches, shown by default). Written false,
+  the element is not drawn and cannot be clicked, yet it stays in the graph: counted by statistics,
+  laid out, reachable by the selection and measured by every run. Written to the new optional
+  `visible` field of the node and edge style.
+- Fifteen new channels for the looks of words: size, text color and background for node labels
+  (`node.labelSize`, `node.labelColor`, `node.labelBackground`), node tooltips (`node.tooltip*`),
+  edge labels (`edge.label*`) and both arrow captions (`edge.arrowHeadText*`,
+  `edge.arrowTailText*`). They write the same fields as the block's label style, but each can be
+  bound to a value (label size by degree), which a label style cannot. Written after the label
+  style, so a bound size wins over a size the style names.
+- An optional `combine` on a binding (`CombineMode`: `"replace"`, the default, `"multiply"`,
+  `"add"`). On a number channel, multiply and add scale or offset what the layers beneath painted
+  for each element (Selected's edge width "multiply 2" doubles each edge's width); where nothing
+  beneath painted, the channel's default is used, and the result is clamped to what the channel
+  draws. Any other channel refuses multiply and add with `E_BAD_LAYER`.
+
+**Why.** The unified style panel offers "hide" as an ordinary property, label looks as bindable
+properties like color and size, and Selected and Hovered as layers that emphasize what is beneath
+rather than overwrite it.
+
+**Not breaking.** New channel names, a new optional binding field and type, and new optional style
+fields. Code that switches over every `Channel` meets new members, as with every channel added
+before.
+
 ## 2026-10-12 -- Decided by the team: per-value entries that follow their groups (`styles.categories`, `styles.setValueEntry`)
 
 **What.** All in graphty-element, replacing the split built earlier the same day (never released).

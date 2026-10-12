@@ -943,7 +943,10 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
  * @throws A `GraphtyError` with code `E_BAD_LAYER` when the value is not one the channel carries.
  */
 function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding): PreparedBinding {
-    const value = authoredValue(descriptor, binding.value, `The value written to ${descriptor.channel}`);
+    const what = `The value written to ${descriptor.channel}`;
+    const value = isCombineFactor(descriptor, binding)
+        ? combineFactor(binding.value, what)
+        : authoredValue(descriptor, binding.value, what);
 
     return {
         channel: descriptor.channel,
@@ -962,6 +965,31 @@ function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding):
         paint: (): EncodedValue => value,
         paintIgnoringHidden: (): EncodedValue => value,
     };
+}
+
+/**
+ * Whether a binding's value is a factor or an offset rather than a value of its channel: a number
+ * channel written with combine "multiply" or "add".
+ * @param descriptor - The channel.
+ * @param binding - The binding.
+ * @returns True when the value is combined with what lies beneath rather than written.
+ */
+function isCombineFactor(descriptor: ChannelDescriptor, binding: Binding): boolean {
+    return descriptor.accepts === "number" && (binding.combine === "multiply" || binding.combine === "add");
+}
+
+/**
+ * Check a factor or an offset: any finite number, since the channel's bounds apply to the result.
+ * @param value - What the binding carried.
+ * @param what - What the value was for, so a refusal can name it.
+ * @returns The number.
+ */
+function combineFactor(value: ChannelValue, what: string): number {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw badBinding(`${what} is a number to multiply or add by.`, { value });
+    }
+
+    return value;
 }
 
 // ---------------------------------------------------------------------------------------------

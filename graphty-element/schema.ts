@@ -31,6 +31,7 @@ export type {
     BindingOverflow,
     Channel,
     ChannelValue,
+    CombineMode,
     EdgeId,
     EdgeLinePattern,
     EdgeMember,

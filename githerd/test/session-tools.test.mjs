@@ -474,6 +474,52 @@ describe("sessionToolSet", () => {
         expect(JSON.parse((await call(ctx, "githerd_claim", claim, { session: "o1" })).text).ok).toBe(true);
     });
 
+    it("lets a session at workers.maxActive take back a job it claimed or reported before (issue #1377)", async () => {
+        /** @type {Record<string, any>} */
+        const jobs = {};
+        for (const n of [1, 2, 3]) {
+            jobs[`issue-${n}`] = {
+                ...newJob({ kind: "issue", target: `#${n}`, id: `issue-${n}` }, NOW),
+                state: "working",
+                holder: { session: "o1" },
+            };
+        }
+        // Finished by o1, then put back in the queue after a missed status answer.
+        const back = newJob({ kind: "issue", target: "#888", id: "issue-888" }, NOW);
+        back.report = { outcome: "done", session: "o1" };
+        const fresh = newJob({ kind: "issue", target: "#889", id: "issue-889" }, NOW);
+        Object.assign(jobs, { "issue-888": back, "issue-889": fresh });
+        const { ctx } = setup({ jobs, trust: { login: "me" } }, { config: { repo: REPO, workers: { maxActive: 3 } } });
+        const next = JSON.parse((await call(ctx, "githerd_next", {}, { session: "o1" })).text);
+        const claim = (/** @type {string} */ job) => ({
+            job,
+            snapshotVersion: next.snapshot.version,
+            overlap: { decision: "independent", reason: "alone" },
+            plan: "finish it",
+        });
+        const refused = await call(ctx, "githerd_claim", claim("issue-889"), { session: "o1" });
+        expect(JSON.parse(refused.text).reason).toMatch(/you hold 3 active jobs/);
+        // Another session's report is not this one's to take back.
+        back.report.session = "o2";
+        expect(JSON.parse((await call(ctx, "githerd_claim", claim("issue-888"), { session: "o1" })).text).ok).toBe(
+            false,
+        );
+        back.report.session = "o1";
+        expect(JSON.parse((await call(ctx, "githerd_claim", claim("issue-888"), { session: "o1" })).text).ok).toBe(
+            true,
+        );
+        // A job whose last claim was the session's is its own too.
+        fresh.claim = { session: "o1", at: NOW.toISOString() };
+        const again = JSON.parse((await call(ctx, "githerd_next", {}, { session: "o1" })).text);
+        const r = await call(
+            ctx,
+            "githerd_claim",
+            { ...claim("issue-889"), snapshotVersion: again.snapshot.version },
+            { session: "o1" },
+        );
+        expect(JSON.parse(r.text)).toMatchObject({ ok: true });
+    });
+
     it("never offers a pull request another session claimed, and lists it as in use with why", async () => {
         const pr = Object.assign(newJob({ kind: "pr", target: "#9", id: "pr-9" }, NOW), { pr: 9 });
         const title = Object.assign(newJob({ kind: "title", target: "#9", id: "title-9" }, NOW), { pr: 9 });
@@ -737,6 +783,26 @@ describe("sessionToolSet", () => {
         expect(job.state).toBe("working");
         await call(ctx, "githerd_wait", { job: "pr-7", for: "merge", target: "#1520", reason: "needs #1520" });
         expect(job).toMatchObject({ state: "waiting", waitingFor: { merge: "1520", reason: "needs #1520" } });
+    });
+
+    it("refuses a checks wait whose checks already finished, so the job does not drop back to working (issue #1377)", async () => {
+        const job = heldJob("pr-7");
+        // Another session's draft: its summary check failed at once ("draft: CI not run").
+        const prs = { 739: { headRef: "feat/githerd", required: { "All Checks Pass": "FAILURE" } } };
+        const { ctx } = setup({ jobs: { "pr-7": job }, prs });
+        const r = await call(ctx, "githerd_wait", { job: "pr-7", for: "checks", target: "#739", reason: "on #739" });
+        expect(r.isError).toBe(true);
+        expect(JSON.parse(r.text).reason).toBe(
+            'already settled: checks on #739 finished: All Checks Pass FAILURE; to wait for it to merge, wait for "merge"',
+        );
+        expect(job.state).toBe("working");
+        // A wait on its merge holds the job in waiting.
+        await call(ctx, "githerd_wait", { job: "pr-7", for: "merge", target: "#739", reason: "on #739" });
+        expect(job).toMatchObject({ state: "waiting", waitingFor: { merge: "739" } });
+        // Checks still running: the wait is taken.
+        prs[739].required["All Checks Pass"] = "PENDING";
+        await call(ctx, "githerd_wait", { job: "pr-7", for: "checks", target: "#739", reason: "on #739" });
+        expect(job).toMatchObject({ state: "waiting", waitingFor: { checks: "#739" } });
     });
 
     it("refuses a wait on a settled job or one that closes a cycle", async () => {

@@ -778,7 +778,8 @@ export abstract class DataSource {
         this.graphChoice();
         for await (const chunk of this.sourceFetchData()) {
             // Filter out invalid nodes
-            const validNodes: AdHocData[] = [];
+            // Copied, never spread into push: a dialect read yields one chunk of every element.
+            const validNodes: AdHocData[] = this.nodeSchema ? [] : chunk.nodes.slice();
             if (this.nodeSchema) {
                 for (const n of chunk.nodes) {
                     const isValid = await this.dataValidator(this.nodeSchema, n);
@@ -787,12 +788,10 @@ export abstract class DataSource {
                     }
                     // Invalid nodes are logged to errorAggregator but skipped
                 }
-            } else {
-                validNodes.push(...chunk.nodes);
             }
 
             // Filter out invalid edges
-            const validEdges: AdHocData[] = [];
+            const validEdges: AdHocData[] = this.edgeSchema ? [] : chunk.edges.slice();
             if (this.edgeSchema) {
                 for (const e of chunk.edges) {
                     const isValid = await this.dataValidator(this.edgeSchema, e);
@@ -800,8 +799,6 @@ export abstract class DataSource {
                         validEdges.push(e);
                     }
                 }
-            } else {
-                validEdges.push(...chunk.edges);
             }
 
             // Only yield if we have data (or if we're not filtering)

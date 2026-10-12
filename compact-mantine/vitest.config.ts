@@ -122,6 +122,46 @@ const mouseUp: BrowserCommand<[]> = async (ctx) => {
     await ctx.page.mouse.up();
 };
 
+/** One node of Chromium's accessibility tree, reduced to what a screen reader announces. */
+interface AxNode {
+    /** The computed role. */
+    role: string;
+    /** The computed accessible name. */
+    name: string;
+    /** The computed accessible description. */
+    description: string;
+}
+
+/**
+ * Chromium's own accessibility tree of the test frame, read over the DevTools protocol: the role,
+ * name and description a screen reader is given, computed by the browser rather than by a
+ * JavaScript reimplementation of the accessible-name algorithm. Ignored nodes are left out.
+ * @param ctx - the browser command context
+ * @returns every node the browser exposes in the test frame
+ */
+const accessibilityTree: BrowserCommand<[]> = async (ctx): Promise<AxNode[]> => {
+    const frame = await ctx.frame();
+    const cdp = await ctx.page.context().newCDPSession(ctx.page);
+    try {
+        type FrameTree = { frame: { id: string; url: string }; childFrames?: FrameTree[] };
+        const find = (tree: FrameTree): string | undefined =>
+            tree.frame.url === frame.url()
+                ? tree.frame.id
+                : (tree.childFrames ?? []).map(find).find((id) => id !== undefined);
+        const { frameTree } = (await cdp.send("Page.getFrameTree")) as { frameTree: FrameTree };
+        const { nodes } = await cdp.send("Accessibility.getFullAXTree", { frameId: find(frameTree) });
+        return nodes
+            .filter((node) => !node.ignored)
+            .map((node) => ({
+                role: String(node.role?.value ?? ""),
+                name: String(node.name?.value ?? ""),
+                description: String(node.description?.value ?? ""),
+            }));
+    } finally {
+        await cdp.detach();
+    }
+};
+
 /**
  * Node-side helpers for the measurement harness (tests/harness) and tests/setup.browser.ts. Both
  * browser projects load that setup file, so both register the same commands.
@@ -134,6 +174,7 @@ const browserCommands = {
     mouseUp,
     touchDrag,
     emulateReducedMotion,
+    accessibilityTree,
 };
 
 export default defineConfig({

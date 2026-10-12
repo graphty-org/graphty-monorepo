@@ -357,8 +357,7 @@ export function PopoutManagerProvider({ children }: PopoutManagerProviderProps):
             // Collect all IDs to close (siblings and their descendants)
             const idsToClose: string[] = [];
             for (const siblingId of siblings) {
-                idsToClose.push(siblingId);
-                idsToClose.push(...findDescendantsInRegister(siblingId));
+                idsToClose.push(siblingId, ...findDescendantsInRegister(siblingId));
             }
 
             // Close siblings and descendants in depth-first order

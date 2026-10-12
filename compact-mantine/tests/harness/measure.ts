@@ -34,6 +34,7 @@ declare module "vitest/browser" {
         mouseUp: () => Promise<void>;
         touchDrag: (selector: string, dx: number) => Promise<void>;
         emulateReducedMotion: (reduce: boolean) => Promise<void>;
+        accessibilityTree: () => Promise<{ role: string; name: string; description: string }[]>;
     }
 }
 

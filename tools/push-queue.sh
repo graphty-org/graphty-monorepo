@@ -1,0 +1,123 @@
+#!/bin/bash
+# Run a command (normally `git push ...`, whose pre-push hook runs the full gate) in a
+# first-come-first-served queue that lets SLOTS of them run at once.
+#
+# Usage: tools/push-queue.sh git push origin HEAD:<branch>
+#        PUSH_QUEUE_PRIORITY=critical tools/push-queue.sh git push ...   (goes ahead of every normal push)
+#
+# Each waiter writes a ticket named by its rank, its arrival time and its pid; it runs once its
+# ticket is among the SLOTS oldest tickets whose process is still alive, critical ones first.
+# Tickets of dead processes are removed, so a killed push never blocks the queue. The tickets live
+# in the main checkout's tmp/push-queue, which every worktree of the repository shares; githerd's
+# board reads them (githerd/lib/proc.mjs pushQueueTickets).
+# Run from a private copy: bash reads a script from disk as it runs, so editing this file would
+# otherwise change the code of every push already waiting.
+if [ -z "${PUSH_QUEUE_COPY:-}" ]; then
+    copy=$(mktemp /tmp/push-queue.XXXXXX.sh) && cp "$0" "$copy" && PUSH_QUEUE_COPY=$copy exec bash "$copy" "$@"
+fi
+SLOTS=${PUSH_QUEUE_SLOTS:-3}
+main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+dir=${PUSH_QUEUE_DIR:-$main/tmp/push-queue}
+mkdir -p "$dir"
+rank=1; [ "${PUSH_QUEUE_PRIORITY:-}" = critical ] && rank=0
+ticket="$dir/$rank-$(date +%s%N)-$$"
+queued_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+echo "$PWD :: $*" > "$ticket"
+trap 'rm -f "$ticket" "$PUSH_QUEUE_COPY"' EXIT
+gate_log="$(dirname "$dir")/push-gate-logs/$(basename "$ticket").log"
+mkdir -p "$(dirname "$gate_log")" 2>/dev/null && find "$(dirname "$gate_log")" -name '*.log' -mtime +14 -delete 2>/dev/null
+
+# The gate's source-only checks (formatting, links, the CI workflow tests, the config and tool checks:
+# tools/prepush-source-checks.sh of the checkout being pushed), run while this push already holds its
+# place in the queue, so a slip fails in about a minute instead of after the wait for a slot. The
+# gate skips them later when the checkout has not changed since they passed. A checkout without the
+# script (a branch from before it existed) goes straight to the queue. Their output goes to the gate
+# log too, so a failure here is logged like a gate failure, and the push itself never runs.
+rc=0
+early="$(git rev-parse --show-toplevel 2>/dev/null)/tools/prepush-source-checks.sh"
+if [ "${1:-}" = git ] && [ -f "$early" ]; then
+    bash "$early" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
+    rc=$?
+    wait
+fi
+
+while [ "$rc" = 0 ]; do
+    live=()
+    # Order by rank (0 critical, 1 normal; a ticket from before ranks existed counts as 1), then by
+    # arrival time.
+    for t in $(ls "$dir" | awk -F- '{ if (NF == 2) print "1 " $1 " " $0; else print $1 " " $2 " " $0 }' | sort -k1,1n -k2,2n | awk '{print $3}'); do
+        pid=${t##*-}
+        if kill -0 "$pid" 2>/dev/null; then live+=("$t"); else rm -f "$dir/$t"; fi
+    done
+    for ((i = 0; i < ${#live[@]} && i < SLOTS; i++)); do
+        [ "${live[$i]}" = "$(basename "$ticket")" ] && break 2
+    done
+    sleep 10
+done
+started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+[ "$rc" = 0 ] || started_at=$queued_at
+
+# The push log, which githerd reads to learn whose pull request a branch is
+# (githerd/lib/owners.mjs): one JSON line per push, appended when it ends, with the pushed branch
+# and commit and the Claude Code session that launched it -- the first ancestor process with a
+# registry entry in ~/.claude/sessions (its procStart matching, so a reused pid is not mistaken for
+# it), or null. Append only; a missing jq skips the line, never the push.
+# ponytail: only the last refspec of a push is logged; one branch per push is the norm here.
+log=${PUSH_QUEUE_LOG:-$(dirname "$dir")/push-log.jsonl}
+branch=; sha=; session=
+args=("$@"); i=1
+if [ "${args[0]:-}" = git ]; then
+    while [ $i -lt ${#args[@]} ] && [ "${args[$i]}" != push ]; do i=$((i + 1)); done
+    pos=()
+    for a in "${args[@]:$((i + 1))}"; do case $a in -*) ;; *) pos+=("$a") ;; esac; done
+    if [ ${#pos[@]} -ge 2 ]; then
+        ref=${pos[${#pos[@]} - 1]}; src=${ref%%:*}; src=${src#+}; dst=${ref#*:}
+    else
+        src=HEAD; dst=$(git symbolic-ref --short -q HEAD)
+    fi
+    branch=${dst#refs/heads/}
+    sha=$(git rev-parse --verify -q "${src:-HEAD}^{commit}" 2>/dev/null)
+fi
+p=$$
+while [ "${p:-0}" -gt 1 ] && [ -r "/proc/$p/stat" ]; do
+    read -ra f <<<"$(sed 's/.*) //' "/proc/$p/stat")"
+    entry="${HOME:-}/.claude/sessions/$p.json"
+    if [ -f "$entry" ]; then
+        session=$(jq -c --arg s "${f[19]}" 'select((.procStart // $s | tostring) == $s and .sessionId != null)
+            | {sessionId, name}' "$entry" 2>/dev/null)
+        [ -n "$session" ] && break
+    fi
+    p=${f[1]}
+done
+# The gate's report, for githerd's pre-push statistics (githerd/lib/prepush.mjs): the command's
+# stdout and stderr (the gate prints on both) are each copied into tmp/push-gate-logs/<ticket>.log on
+# their way to where they went before; `wait` lets both copies finish before the log is read. The
+# log line then carries the queue times, the gate's [FAIL] and FAIL lines -- with the FAIL lines of
+# each failed shard's own log (tmp/prepush-tests/<shard>.log), whose printed tail can miss them --
+# and the top-level directories the push changes against its merge base with origin/master
+# (Markdown left out). Recording never fails or slows the push: each part that fails is left out of
+# the line. Logs older than 14 days are removed.
+if [ "$rc" = 0 ]; then
+    "$@" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
+    rc=$?
+fi
+finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+wait
+gate=$(sed 's/\x1b\[[0-9;]*m//g' "$gate_log" 2>/dev/null | grep -aE '\[FAIL\]|^ *FAIL |All pre-push checks passed|\[(remote )?rejected\]' \
+    | awk '{ print } /\[FAIL\] [^ ]+ \(exit .*; the end of .*:$/ {
+        f = $0; sub(/.*; the end of /, "", f); sub(/:$/, "", f)
+        while ((getline l < f) > 0) { gsub(/\033\[[0-9;]*m/, "", l); if (l ~ /^ *FAIL /) print l }
+        close(f) }' 2>/dev/null | head -200 | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null)
+changed=
+if [ -n "$sha" ] && base=$(git merge-base origin/master "$sha" 2>/dev/null); then
+    changed=$(git diff --name-only "$base" "$sha" 2>/dev/null | awk -F/ '!/\.md$/ { print (NF > 1 ? $1 "/" : $0) }' | sort -u \
+        | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null)
+fi
+jq -nc --arg at "$finished_at" --arg branch "$branch" --arg sha "$sha" --arg cwd "$PWD" \
+    --argjson exit "$rc" --argjson session "${session:-null}" --arg queuedAt "$queued_at" --arg startedAt "$started_at" \
+    --arg gateLog "$gate_log" --argjson gate "${gate:-null}" --argjson changed "${changed:-null}" \
+    '{at: $at, branch: (if $branch == "" then null else $branch end),
+      sha: (if $sha == "" then null else $sha end), exit: $exit, cwd: $cwd,
+      sessionId: $session.sessionId, name: $session.name,
+      queuedAt: $queuedAt, startedAt: $startedAt, gateLog: $gateLog, gate: $gate, changed: $changed}' >>"$log" 2>/dev/null
+exit $rc

@@ -598,12 +598,20 @@ export class NodeMesh {
         );
     }
 
-    private static createCapsule(_size: number, scene?: Scene): Mesh {
-        return MeshBuilder.CreateCapsule("capsule", {}, scene);
+    private static createCapsule(size: number, scene?: Scene): Mesh {
+        return MeshBuilder.CreateCapsule(
+            "capsule",
+            { height: size, radius: size * SHAPE_CONSTANTS.CAPSULE_RADIUS_MULTIPLIER },
+            scene,
+        );
     }
 
-    private static createTorus(_size: number, scene?: Scene): Mesh {
-        return MeshBuilder.CreateTorus("torus", {}, scene);
+    private static createTorus(size: number, scene?: Scene): Mesh {
+        return MeshBuilder.CreateTorus(
+            "torus",
+            { diameter: size, thickness: size * SHAPE_CONSTANTS.TORUS_THICKNESS_MULTIPLIER },
+            scene,
+        );
     }
 
     private static createTorusKnot(size: number, scene?: Scene): Mesh {

@@ -184,6 +184,10 @@ gpu-report.json
 # locally as design reference, never committed.
 design/ui/figma/
 
+# githerd's state (the shared daemon's in the main checkout, `githerd dev`'s in a worktree)
+/.githerd/
+/.githerd-dev/
+
 # The release scheduler Worker's local secrets (tools/release-scheduler/README.md)
 tools/release-scheduler/.dev.vars
 tools/release-scheduler/*.pem

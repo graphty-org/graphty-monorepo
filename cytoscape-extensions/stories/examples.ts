@@ -4,10 +4,17 @@
  * one piece. Each example is small, seeded or hand-built, and laid out so the result can be read.
  */
 
-import cytoscape, { type Collection, type Core, type ElementDefinition, type LayoutOptions } from "cytoscape";
+import cytoscape, {
+    type Collection,
+    type Core,
+    type EdgeCollection,
+    type ElementDefinition,
+    type LayoutOptions,
+} from "cytoscape";
 
-import { elementsOf, GENERATE, NO_GPU, type Outcome, SIZES } from "./demo.js";
-import { runAlgorithm } from "./run.js";
+import { ASYNC_ALGORITHM_NAMES, type Backend, type SearchResult } from "../src/index.js";
+import { colorByValue, elementsOf, GENERATE, NO_GPU, type Outcome, PALETTE, SIZES } from "./demo.js";
+import { plainReason, runAlgorithm } from "./run.js";
 
 const SEED = 42;
 
@@ -255,8 +262,9 @@ function cycleExample(): Example {
 }
 
 /**
- * The cycle check on each half of the cycle example, each half colored by its own result: green for no cycle, red
- * for a cycle.
+ * The cycle check on each half of the cycle example. The left half has no cycle and is drawn green. On the right,
+ * every node and arc that lies on a cycle is red: the strongly connected components of more than one node, which
+ * hold exactly the nodes and arcs on some cycle (here two cycles, both closed by the added arc j -> b).
  * @param cy - the core
  * @returns the outcome
  */
@@ -264,16 +272,31 @@ async function cycleCheck(cy: Core): Promise<Outcome> {
     await Promise.resolve();
     const left = cy.$(".L").graphtyHasCycle({ directed: true });
     const right = cy.$(".R").graphtyHasCycle({ directed: true });
-    const color = (has: boolean): string => (has ? "#e15759" : "#59a14f");
-    cy.$("node.L").data("color", color(left));
-    cy.$("node.R").data("color", color(right));
-    const says = (has: boolean): string => (has ? "has a cycle (red)" : "has no cycle (green)");
+    if (!left) {
+        cy.$("node.L").data("color", "#59a14f");
+    }
+    const loops = cy
+        .$(".R")
+        .graphtyStronglyConnectedComponents({ directed: true })
+        .filter((part) => part.length > 1);
+    for (const part of loops) {
+        part.data("color", "#e15759");
+        part.edgesTo(part).data("color", "#e15759");
+    }
+    const says = (has: boolean): string => (has ? "has a cycle" : "has no cycle");
     return {
         ran: "cpu",
         detail: NO_GPU,
-        note: `left: ${says(left)}; right, the same graph with one arc added (the curved one): ${says(right)}`,
+        note: `left: ${says(left)} (green); right, the same graph with one arc added (the curved one): ${says(right)}, its nodes and arcs on a cycle in red`,
     };
 }
+
+/** How each search walks, for the line above the tile. */
+const WALKS: Record<string, string> = {
+    breadthFirstSearch: "breadth-first",
+    directionOptimizedBfs: "breadth-first (direction-optimized)",
+    depthFirstSearch: "depth-first",
+};
 
 /** The examples, by algorithm name without "graphty". */
 export const EXAMPLES: Partial<Record<string, Example>> = {
@@ -296,17 +319,19 @@ export const EXAMPLES: Partial<Record<string, Example>> = {
         },
     },
 
+    // Traversal
+    breadthFirstSearch: traversal("breadthFirstSearch"),
+    directionOptimizedBfs: traversal("directionOptimizedBfs"),
+    depthFirstSearch: traversal("depthFirstSearch"),
+
     // Paths and trees
     dijkstra: roads("dijkstra"),
     bellmanFord: roads("bellmanFord"),
     bidirectionalDijkstra: roads("bidirectionalDijkstra"),
     aStar: roads("aStar"),
     allPairsShortestPath: roads("allPairsShortestPath"),
-    breadthFirstSearch: lattice(),
-    directionOptimizedBfs: lattice(),
-    depthFirstSearch: lattice(),
-    kruskalMST: roads("kruskalMST"),
-    primMST: roads("primMST"),
+    kruskalMST: spanning("kruskalMST"),
+    primMST: spanning("primMST"),
 
     // Communities
     labelPropagation: denser(),
@@ -500,19 +525,162 @@ function roads(algorithm: string): Example {
 }
 
 /**
- * An 8 x 8 grid at its own positions, searched from a corner: breadth-first depth grows in diagonal bands, a
- * depth-first search's in one long winding walk.
+ * Zachary's karate club twice, side by side and drawn alike, both searched from the instructor (node 0): on the left
+ * by `algorithm`, on the right by the other kind of search (depth-first beside a breadth-first one, breadth-first
+ * beside the depth-first one). Each node is numbered and colored by when its search reached it (darker = later), and
+ * the search tree's edges are blue: the breadth-first tree is a wide bush three edges deep, the depth-first one a
+ * long winding chain.
+ * @param algorithm - the search, without "graphty"
  * @returns the example
  */
-function lattice(): Example {
+function traversal(algorithm: string): Example {
+    const other = algorithm === "depthFirstSearch" ? "breadthFirstSearch" : "depthFirstSearch";
     return {
-        graph: "grid, 8 by 8, searched from a corner",
+        graph: `Zachary's karate club twice, both searched from the instructor (node 0): left ${WALKS[algorithm]}, right ${WALKS[other]}`,
         directed: false,
         load: async (cy) => {
-            await cy.graphtyGenerate("grid", { rows: 8, cols: 8, positions: true });
+            const tmp = cytoscape({ headless: true });
+            await tmp.graphtyDataset("karate");
+            const copy = (side: string): ElementDefinition[] =>
+                tmp.elements().map((e): ElementDefinition => {
+                    const data = { ...e.data(), id: side + e.id() } as Record<string, unknown>;
+                    if (e.isEdge()) {
+                        data.source = side + e.source().id();
+                        data.target = side + e.target().id();
+                    }
+                    return { group: e.isNode() ? "nodes" : "edges", data: data as never, classes: side };
+                });
+            tmp.destroy();
+            cy.add([...copy("L"), ...copy("R")]);
         },
-        place: async () => {
-            // the generator's own grid positions
+        place: async (cy) => {
+            await layOut(cy.$(".L"), { name: "graphty-kamada-kawai" });
+            const bb = cy.$(".L").boundingBox();
+            cy.$("node.R").positions((n) => {
+                const p = cy.getElementById(`L${n.id().slice(1)}`).position();
+                return { x: p.x + 1.3 * bb.w, y: p.y };
+            });
+        },
+        run: async (cy, { gpuMode, extra }) => {
+            const left = await search(cy, "L", algorithm, gpuMode, extra);
+            await search(cy, "R", other, "off", {});
+            const b = left.backend;
+            const note = `left: ${WALKS[algorithm]}, right: ${WALKS[other]}; each node numbered and colored by when its search reached it (darker = later), the search tree in blue`;
+            if (!b) {
+                return { ran: "cpu", detail: NO_GPU, note };
+            }
+            return { ran: b.ran, detail: b.ran === "gpu" ? b.device : plainReason(b.reason), note };
         },
     };
+}
+
+/**
+ * Runs one search on one copy from its node 0 (its `...Async` method when it has one, so it can go to the GPU),
+ * numbers and colors the nodes by visit order, and draws the search tree in blue.
+ * @param cy - the core
+ * @param side - the copy's class, "L" or "R"
+ * @param algorithm - the search, without "graphty"
+ * @param gpuMode - the backend control
+ * @param extra - more options
+ * @returns the result
+ */
+async function search(
+    cy: Core,
+    side: "L" | "R",
+    algorithm: string,
+    gpuMode: "auto" | "off" | "require",
+    extra: Record<string, unknown>,
+): Promise<SearchResult & { backend?: Backend }> {
+    const method = `graphty${algorithm.charAt(0).toUpperCase()}${algorithm.slice(1)}`;
+    const nodes = cy.$(`node.${side}`);
+    const root = cy.getElementById(`${side}0`);
+    const options = { root, ...extra };
+    const fns = cy.$(`.${side}`) as unknown as Record<string, (o: Record<string, unknown>) => unknown>;
+    let r: unknown;
+    if (ASYNC_ALGORITHM_NAMES.includes(`${method}Async`)) {
+        r = await fns[`${method}Async`]({ ...options, gpu: gpuMode });
+    } else if (gpuMode === "require") {
+        throw new Error(`${method} has no GPU implementation; pick auto or cpu`);
+    } else {
+        r = fns[method](options);
+    }
+    const result = r as SearchResult & { backend?: Backend };
+    const order = new Map(result.path.nodes().map((n, i) => [n.id(), i]));
+    colorByValue(cy, (id) => order.get(id), nodes);
+    cy.batch(() => {
+        nodes.forEach((n) => {
+            n.data("tag", String(order.get(n.id()) ?? ""));
+        });
+        root.data("mark", true);
+        result.path.edges().data("color", PALETTE[0]);
+    });
+    return result;
+}
+
+/**
+ * A minimum spanning tree on the roads example, each tree edge colored and numbered by the step its algorithm adds it
+ * (pale = early, dark red = late). Kruskal takes the shortest remaining edge anywhere that joins two separate trees,
+ * so its early edges are scattered over the map as a forest that merges; Prim grows one tree from the first node
+ * (blue), always by the shortest edge leaving it, so its steps darken outward. The steps follow each algorithm's
+ * documented rule over the tree's own edges, which gives the same order as over the whole graph.
+ * @param algorithm - "kruskalMST" or "primMST"
+ * @returns the example
+ */
+function spanning(algorithm: "kruskalMST" | "primMST"): Example {
+    const road = roads(algorithm);
+    return {
+        ...road,
+        run: async (cy, settings) => {
+            const out = await (road.run as NonNullable<Example["run"]>)(cy, settings);
+            const tree = cy.edges("[color]");
+            const step = algorithm === "kruskalMST" ? kruskalSteps(tree) : primSteps(cy, tree);
+            colorByValue(cy, (id) => step.get(id), cy.$("edge[color]"));
+            tree.forEach((e) => {
+                e.data("label", String((step.get(e.id()) ?? 0) + 1));
+            });
+            tree.addClass("step");
+            const start = cy.nodes()[0];
+            if (algorithm === "primMST") {
+                start.data({ mark: true, color: PALETTE[0] });
+            }
+            const how =
+                algorithm === "kruskalMST"
+                    ? "Kruskal adds the shortest remaining edge anywhere that joins two separate trees, so its first edges are scattered over the map and merge into one tree"
+                    : "Prim grows one tree from the blue node, always by the shortest edge leaving it, so its steps darken outward";
+            return {
+                ...out,
+                // the shared painter's "the tree in red" no longer holds: the tree is colored by step
+                note: `${(out.note ?? "").replace("the tree in red, ", "")}\nEach tree edge numbered and colored by the step it was added (pale = early, dark red = late). ${how}. Kruskal and Prim end with the same tree: every edge has a different length, so there is only one minimum spanning tree.`,
+            };
+        },
+    };
+}
+
+/**
+ * Kruskal's steps: it accepts the tree's edges shortest first.
+ * @param tree - the tree's edges
+ * @returns each edge's step, by id
+ */
+function kruskalSteps(tree: EdgeCollection): Map<string, number> {
+    const sorted = tree.toArray().sort((a, b) => (a.data("weight") as number) - (b.data("weight") as number));
+    return new Map(sorted.map((e, i) => [e.id(), i]));
+}
+
+/**
+ * Prim's steps from the first node: the shortest tree edge leaving the tree so far, each step.
+ * @param cy - the core
+ * @param tree - the tree's edges
+ * @returns each edge's step, by id
+ */
+function primSteps(cy: Core, tree: EdgeCollection): Map<string, number> {
+    const inTree = new Set([cy.nodes()[0].id()]);
+    const step = new Map<string, number>();
+    while (step.size < tree.length) {
+        const next = tree
+            .filter((e) => !step.has(e.id()) && inTree.has(e.source().id()) !== inTree.has(e.target().id()))
+            .min((e) => e.data("weight") as number).ele;
+        step.set(next.id(), step.size);
+        inTree.add(next.source().id()).add(next.target().id());
+    }
+    return step;
 }

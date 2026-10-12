@@ -835,7 +835,7 @@ export function GradientEditor({
                                         type="button"
                                         className="cm-paint-chit"
                                         data-testid="gradient-editor-stop-chit"
-                                        aria-label={labels.colorSwatch}
+                                        aria-label={labels.editColorStop(ordinal)}
                                         aria-pressed={isSelected}
                                         onClick={() => {
                                             setSelectedId(stop.id);
@@ -845,7 +845,7 @@ export function GradientEditor({
                                     </button>
                                     <StopHexField
                                         color={stop.color}
-                                        ariaLabel={labels.colorHexValue}
+                                        ariaLabel={labels.colorStopColor(ordinal)}
                                         onCommit={(color, event) => {
                                             stepStops(withStopColor(stop.id, color), event);
                                         }}

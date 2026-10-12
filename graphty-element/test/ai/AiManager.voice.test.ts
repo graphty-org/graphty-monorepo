@@ -23,6 +23,14 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
+/**
+ * The ceiling for a wait that crosses the first load of the provider's voice adapter (the
+ * TanStack chunk and the vendor SDK): measured at about 0.25 s alone and 1.25 s while the whole
+ * default suite runs, past `vi.waitFor`'s default of 1 s. Each wait still returns as soon as its
+ * condition holds.
+ */
+const COLD_LOAD = { timeout: 10_000 };
+
 /** What a manager's graph emitted, as `[type, detail]`. */
 type Emitted = [string, Record<string, unknown>][];
 
@@ -154,7 +162,7 @@ describe("transcription through another provider", () => {
 
         await vi.waitFor(() => {
             assert.strictEqual(chat.requests.length, 1);
-        });
+        }, COLD_LOAD);
         assert.isTrue(sent(chat).includes(TRANSCRIPT), "the command carries what was heard");
         assert.deepStrictEqual(
             requests.map((request) => [new URL(request.url).host, new URL(request.url).pathname]),

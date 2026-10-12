@@ -185,6 +185,15 @@ describe("graphtyExport with styles", () => {
         cy.destroy();
     });
 
+    it("says no styles were written when the core has styles disabled", async () => {
+        const cy = cytoscape({ headless: true, elements: [{ data: { id: "a" } }, { data: { id: "b" } }] });
+        const heard: LossNote[] = [];
+        await cy.graphtyExport("gexf", { styles: true, onLoss: (n) => heard.push(...n) });
+        const note = heard.find((n) => n.code === "W_STYLES_NOT_EXPORTED");
+        expect(note?.message).toContain("styleEnabled");
+        cy.destroy();
+    });
+
     it("writes the same file without styles, and says the stylesheet was not written", async () => {
         const plain = core({ elements: styled().elements().jsons() as never });
         const cy = styled();

@@ -350,7 +350,9 @@ the colors themselves are in the style slots). Every code is listed on graph-io'
 [codes page](https://graphty.app/docs/graph-io/guide/codes.html).
 
 Without `styles`, `graphtyExport` writes exactly what it always did, and `onLoss` hears
-`W_STYLES_NOT_EXPORTED` when the core has a stylesheet of its own.
+`W_STYLES_NOT_EXPORTED` when the core has a stylesheet of its own. A headless core created
+without `styleEnabled: true` has no styles to write: `styles: true` then writes the data alone,
+and `onLoss` hears `W_STYLES_NOT_EXPORTED` saying so.
 
 ## Without a core method
 

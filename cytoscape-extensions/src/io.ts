@@ -316,14 +316,26 @@ function flattened(extracted: ExtractedStyles): LossNote[] {
 }
 
 /**
- * W_STYLES_NOT_EXPORTED when the core has a stylesheet of its own (one a new core does not have).
+ * W_STYLES_NOT_EXPORTED when the core has a stylesheet of its own (one a new core does not have), or when styles were
+ * asked for and the core has none to give (a headless core without `styleEnabled`).
  * @param cy - the core
+ * @param asked - whether the export asked for the styles
  * @returns the note, or none
  */
-function notExported(cy: Core): LossNote[] {
+function notExported(cy: Core, asked: boolean): LossNote[] {
     const style = styleOf(cy);
     if (style === undefined) {
-        return [];
+        return asked
+            ? [
+                  {
+                      code: STYLE_ISSUE.NOT_EXPORTED,
+                      message:
+                          "no styles are written: the core has styles disabled; create it with { styleEnabled: true }",
+                      column: null,
+                      count: null,
+                  },
+              ]
+            : [];
     }
     const fresh = new (cy.constructor as new (options: object) => Core)({ headless: true, styleEnabled: true });
     const own = JSON.stringify(style.json()) !== JSON.stringify(styleOf(fresh)?.json());
@@ -376,7 +388,7 @@ export async function exportElements(
     };
     if (onLoss !== undefined) {
         const notes = [
-            ...(extracted === null ? notExported(coreOf(eles)) : flattened(extracted)),
+            ...(extracted === null ? notExported(coreOf(eles), styles === true) : flattened(extracted)),
             ...checkExport(snapshot, format, graphOptions).filter(lostForCytoscape),
         ];
         if (notes.length > 0) {

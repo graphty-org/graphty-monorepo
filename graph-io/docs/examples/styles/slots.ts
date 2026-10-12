@@ -22,7 +22,8 @@ const reader = defineLineFormat({
     // the third argument is the whole line, for a value with spaces in it ("rgb(0 128 0)")
     parseLine([kind, a = "", b = ""], graph, line) {
         if (kind === "node") {
-            graph.node(a, { color: line.trim().split(/\s+/).slice(2).join(" ") });
+            const color = line.trim().split(/\s+/).slice(2).join(" ");
+            graph.node(a, color === "" ? {} : { color });
         } else {
             graph.edge(a, b);
         }
@@ -35,9 +36,10 @@ registry.registerImporter({ ...reader, styles: () => ({ dialect: "css", node: { 
 type Options = CommonExportOptions & ExporterStyleOptions;
 const caps = capabilities({ multiEdges: true, selfLoops: true, edgeIds: "none", idCharset: "any" });
 function* lines(g: GraphSnapshot, options?: Options): Generator<string> {
-    const fill = options?.styles?.picture("node", "fill"); // each node's fill, or null where it has none
+    const fill = options?.styles?.picture("node", "fill"); // one value per node, null where it has none
     for (let i = 0; i < g.nodeCount; i++) {
-        yield `node ${String(g.ids.idOf(i))} ${String(fill?.[i] ?? "gray")}\n`;
+        const color = fill?.[i]; // a node with no fill is written with no color, not a made-up one
+        yield `node ${String(g.ids.idOf(i))}${color == null ? "" : ` ${String(color)}`}\n`;
     }
     for (let e = 0; e < g.edgeCount; e++) {
         yield `edge ${String(g.ids.idOf(g.edgeSource(e)))} ${String(g.ids.idOf(g.edgeTarget(e)))}\n`;

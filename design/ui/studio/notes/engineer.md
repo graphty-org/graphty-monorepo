@@ -11,6 +11,36 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **The style panel's element additions are documented, and the examples are
+  compiled against what npm ships.** Seven guide pages in `graphty-element/docs/guide/`
+  (`style-tree`, `style-rows-both-kinds`, `starting-rows`, `style-rules`, `binding-preview`,
+  `value-entries`, `colors-across-rows`), in the sidebar after "Counting What a Layer Paints";
+  `styling.md`'s folders section now points at them instead of repeating them. The test
+  `test/documentation/unified-styles-guides.test.ts` compiles every ```ts block of each page, as
+  printed, with the TypeScript compiler against `dist/index.d.ts` (a `paths` entry for
+  `@graphty/graphty-element`; `document.querySelector("graphty-element")` is typed by the published
+  tag map), then runs each page's first block on a headless session with a captured `console` and
+  checks the printed lines against the page's comments. Why: the owner's rule is that a public
+  API's canonical example compiles against the published types; the older guide tests only
+  compared text and re-ran a copy of the code. It caught a real type error in my first draft (an
+  `Array.concat` of two record shapes). It needs a build first (it says so), like the packaging
+  tests. Two lessons: prettier reflows code blocks in Markdown, so write examples that are already
+  under 120 columns or the "about 15 lines" grows; and `AsyncFunction` from
+  `Object.getPrototypeOf(run).constructor` keeps the `require-await` rule quiet.
+  The API reports were already current (a fresh build and `npm run api:report` changed nothing)
+  and hold no split name. Against master they are additive for the style work; the few lines that
+  are not (the `capabilities` type, `render(): unknown`, `WeightMeaning.meaning` gaining
+  `"capacity"`) came from earlier studio merges (XR availability, focus, weight meaning), not from
+  tier 3. Recorded under "decided by the team": the panel facts (`agreement` below a row,
+  `styles.preview`, `Binding.stops`), which had no entry. The crosswalk now matches decision 1.13:
+  Selection colors on folders and several rows, hand folders (Figma's own way, so the departure row
+  is gone and `interface-templates.md` no longer cites it), the style panel header without eye and
+  lock, "+" only on lists, Clear as the one return, several style rows edited together, and a new
+  departure with its fact for sticky Nodes and Edges titles. Left drifting, outside 1.13:
+  `glossary.md` 9 and `options-and-encodings.md` still describe three returns (Reset to made-with,
+  Reset to default, Clear), and the crosswalk's Overrides layer and Base style rows predate
+  Everything at the bottom.
+
 - (2026-10-12) **Every style has a home** (`style/coverage.ts`, test `style/__tests__/coverage.test.ts`).
   Three maps: every `Channel`, every `LabelStyle` field and every graph setting to the control that
   sets it (`{ place }`) or why it is not offered (`{ notOffered }`). The test walks the element's

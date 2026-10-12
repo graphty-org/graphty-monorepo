@@ -423,27 +423,13 @@ it.
 
 ## Folders, pins, locks and hiding
 
-`styles.tree()` reads your layers as rows of a tree, bottom first, the way a layers panel shows
-them. Flattening the tree gives exactly the order of `list()`, so moving a row moves what it
-paints:
-
-```typescript
-const styles = element.session.styles;
-
-const folder = await styles.addFolder("Annotations");
-await styles.moveRow(layer.id, { parent: folder.id }); // into the folder, at its top
-await styles.moveRow(folder.id, { parent: null, index: 0 }); // the folder, and its layers, to the bottom
-await styles.pinRow(floor.id, "bottom"); // stays below every layer added later
-await styles.hideRow(folder.id, true); // its layers paint nothing, and keep their places
-await styles.lockRow(layer.id, true); // update() now refuses it with E_LOCKED
-await styles.renameRow(folder.id, "Notes");
-await styles.deleteRow(folder.id); // the folder and every layer in it
-```
-
-A layer row's id is its layer's id; a folder has its own. A folder's eye and lock reach every row
-in it. The reader's lock is not `Layer.locked`, which marks the element's own layers. Each call is
-one undo step, and `toDocument()` saves the tree with the layers, so a saved project reopens with
-its folders, pins, locks and hidden rows.
+`styles.tree()` reads your layers as rows of a tree, the way a layers panel shows them: folders,
+pins, a reader's lock and hidden rows. The tree is the paint order. See
+[Folders, Pins and Locks](./style-tree.md), and for the rest of what a layers panel needs:
+[One Row for Nodes and Edges](./style-rows-both-kinds.md),
+[Everything, Selected and Hovered](./starting-rows.md), [Rules and Text Matching](./style-rules.md),
+[Previewing a Binding](./binding-preview.md), [One Color for One Value](./value-entries.md) and
+[Colors Across Rows](./colors-across-rows.md).
 
 ## The element's own layers
 

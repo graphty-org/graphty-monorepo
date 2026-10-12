@@ -45,6 +45,37 @@ selectors and bindings, and compute a median over a column.
 the counts anyway); `AttributeDescriptor.median` (data columns only, and it would cost every
 `attributes()` call a sort).
 
+## 2026-10-12 -- Decided by the team: what lies beneath a style row, a binding preview, and a binding's own colors
+
+**What.** Three additive pieces in graphty-element.
+
+- `styles.agreement(scope, channel, { below: rowId })`: a new optional argument. With it, the
+  answer is read from only the layers beneath that row of the style tree: the shared value and the
+  layer that paints it, or a breakdown by layer when they differ. Beneath the bottom row it is the
+  element's own floor. Without it, `agreement` answers as before.
+- `styles.preview(binding, { channel, bins? })`: for a binding not yet written, the histogram in
+  the scale's own space (so a log scale bins by decade) with each bar's count and what it paints,
+  the step bounds of a stepped scale, the domain, and the elements below or above a clamp, without
+  a value, or with a value the scale has no place for. New types `BindingPreview` and
+  `BindingPreviewBin`. It runs the preparation a repaint runs, so the written layer paints what
+  the preview showed. Nothing is written.
+- `Binding.stops`: a binding may carry its own colors in place of a named palette, saved with the
+  layer.
+
+**Why.** An empty field in the style panel shows what the layers beneath give (the Clear tooltip
+names the value and its layer), and the ramp and category popovers draw the binding's histogram
+and steps before the reader commits. Both are computations over the graph, so they are the
+element's; the app would otherwise rebuild the stack's resolution and the scales.
+
+**Not breaking.** A new optional argument whose absence keeps today's answer, a new method, two new
+types and a new optional field.
+
+**Documented** in graphty-element's guide, with the rest of the style panel's element additions:
+`style-tree.md`, `style-rows-both-kinds.md`, `starting-rows.md`, `style-rules.md`,
+`binding-preview.md`, `value-entries.md` and `colors-across-rows.md`. Every code block on those
+pages is compiled against the published declaration files, and the first one on each page is run,
+by `graphty-element/test/documentation/unified-styles-guides.test.ts`.
+
 ## 2026-10-12 -- Decided by the team: each step's count in a binding preview, and rules over a run's value
 
 **What.** Two changes in graphty-element. `BindingPreview.stepCounts` (optional reading, additive):

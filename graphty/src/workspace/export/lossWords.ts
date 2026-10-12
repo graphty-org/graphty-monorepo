@@ -8,7 +8,7 @@
  */
 
 import type { ExportLoss, ExportLossCode } from "@graphty/graphty-element";
-import type { FormatDescriptor } from "@graphty/graphty-element/catalog";
+import { CHANNEL_DESCRIPTORS, type FormatDescriptor } from "@graphty/graphty-element/catalog";
 
 /** A loss's params. */
 type Params = ExportLoss["params"];
@@ -59,10 +59,12 @@ function property(params: Params): string {
     if (typeof params.property !== "string") {
         return "styles";
     }
-    const name = params.property
-        .replace(/^graphty:/, "")
-        .replaceAll(/([a-z])([A-Z])/g, "$1 $2")
-        .toLowerCase();
+    const bare = params.property.replace(/^graphty:/, "");
+    // a property only graphty draws is its channel, whose catalog name already says node or edge
+    if (Object.hasOwn(CHANNEL_DESCRIPTORS, bare)) {
+        return CHANNEL_DESCRIPTORS[bare as keyof typeof CHANNEL_DESCRIPTORS].plainName.toLowerCase();
+    }
+    const name = bare.replaceAll(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
     const words = name === "fill" ? "fill color" : name;
     return typeof params.target === "string" ? `${params.target} ${words}` : words;
 }
@@ -166,6 +168,21 @@ export function lossWords(loss: ExportLoss): string {
  */
 export function isStyleLoss(loss: ExportLoss): boolean {
     return /^[EW]_STYLES?_/.test(loss.code);
+}
+
+/**
+ * The style losses the warning lists: all of them, less the rules not kept by a format that
+ * writes no styles at all, where the sentence after the list already says none come back.
+ * @param format - the format, from the element's catalog.
+ * @param losses - the export's style losses.
+ * @returns the losses to list.
+ */
+export function listedStyleLosses(
+    format: FormatDescriptor | undefined,
+    losses: readonly ExportLoss[],
+): readonly ExportLoss[] {
+    const none = (format?.styles?.write ?? "none") === "none";
+    return none ? losses.filter((loss) => loss.code !== "W_STYLE_RULES_NOT_KEPT") : losses;
 }
 
 /**

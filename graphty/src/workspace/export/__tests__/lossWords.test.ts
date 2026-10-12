@@ -3,7 +3,7 @@ import type { FormatDescriptor } from "@graphty/graphty-element/catalog";
 import { EXPORT_STYLE_LOSS_CODES } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { isStyleLoss, layersBackWords, lossWords } from "../lossWords";
+import { isStyleLoss, layersBackWords, listedStyleLosses, lossWords } from "../lossWords";
 
 /**
  * A loss as the element reports one.
@@ -82,11 +82,28 @@ describe("lossWords", () => {
             ),
             'The layer "ramp" is written as the node fill color it paints on 8 nodes, not as a layer: this format cannot hold its palette or scale',
         );
+        assert.strictEqual(
+            lossWords(loss("W_STYLE_NOT_WRITTEN", [], 8, { target: "node", property: "graphty:node.shape" })),
+            "Node shape on 8 nodes is not written",
+        );
+        assert.strictEqual(
+            lossWords(loss("W_STYLE_NOT_WRITTEN", [], 7, { target: "edge", property: "graphty:edge.arrowHeadSize" })),
+            "Arrow head size on 7 edges is not written",
+        );
         assert.strictEqual(lossWords(loss("W_STYLES_NOT_EXPORTED", [], 2)), "2 style layers are not written");
         assert.strictEqual(
             lossWords(loss("W_GRAPHTY_COLUMN_DROPPED", ["graphty.x"], 1)),
             '"graphty.x" is the app\'s own and is not written',
         );
+    });
+
+    it("lists no rules kept as values where the format writes no styles at all", () => {
+        const losses = [loss("W_STYLE_NOT_WRITTEN"), loss("W_STYLE_RULES_NOT_KEPT")];
+        assert.deepEqual(
+            listedStyleLosses(writing("none"), losses).map((l) => l.code),
+            ["W_STYLE_NOT_WRITTEN"],
+        );
+        assert.lengthOf(listedStyleLosses(writing("values"), losses), 2);
     });
 
     it("says whether the layers come back as layers", () => {

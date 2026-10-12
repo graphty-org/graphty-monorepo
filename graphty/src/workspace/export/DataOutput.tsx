@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type DataChoices, dataExportOptions, fileName, SAVED_LOCALLY } from "./choices";
-import { isStyleLoss, layersBackWords, lossWords } from "./lossWords";
+import { isStyleLoss, layersBackWords, listedStyleLosses, lossWords } from "./lossWords";
 
 /** How many lines of the file the preview shows. */
 const PREVIEW_LINES = 6;
@@ -198,7 +198,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                         title={`${format?.plainName ?? choices.format} does not keep all of the graph's styles`}
                     >
                         <ul className="ws-export-notes">
-                            {[...new Set(styleLosses.map(lossWords))].map((note) => (
+                            {[...new Set(listedStyleLosses(format, styleLosses).map(lossWords))].map((note) => (
                                 <li key={note}>{note}</li>
                             ))}
                         </ul>

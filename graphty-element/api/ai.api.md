@@ -42,6 +42,7 @@ import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
+import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector';
@@ -323,6 +324,7 @@ export class AiManager {
     clearHistory(): Promise<void>;
     deleteConversation(id: string): Promise<void>;
     dispose(): void;
+    enterXR(input: XRInputHandler, scene: Scene, config: XRAiConfig | undefined): Promise<void>;
     execute(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
     exportConversation(id: string): Promise<string | null>;
     getApiKeyManager(): ApiKeyManager;
@@ -338,12 +340,14 @@ export class AiManager {
     getStatus(): AiStatus;
     getVoiceSupport(): Promise<AiVoiceSupport>;
     init(graph: Graph, config: AiManagerConfig): void;
+    leaveXR(): void;
     listConversations(options?: {
         readonly allKeys?: boolean;
     }): Promise<readonly AiConversationSummary[]>;
     newConversation(): Promise<AiConversationSnapshot | null>;
     onStatusChange(callback: StatusChangeCallback): () => void;
     openConversation(id: string): Promise<AiConversationSnapshot | null>;
+    primeVoice(): void;
     ready(): Promise<void>;
     registerCommand(command: Parameters<CommandRegistry["register"]>[0]): void;
     resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;

@@ -2,6 +2,8 @@
 import "@babylonjs/core/Culling/ray";
 
 import {
+    type Mesh,
+    MeshBuilder,
     Quaternion,
     Ray,
     type Scene,
@@ -10,6 +12,8 @@ import {
     type WebXRInputSource,
 } from "@babylonjs/core";
 
+import type { NodeId } from "../catalog/types";
+import type { XRControllerButton } from "../config/XRConfig";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { NodeDragHandler } from "../NodeBehavior";
 import { isPinching, pinchStrength, thumbstickDeltas, twoHandGestureDelta } from "./InputUtils";
@@ -37,6 +41,40 @@ interface ControllerEntry {
     controller: WebXRInputSource;
     handedness: string;
 }
+
+/**
+ * What the assistant binds to an immersive session's input (`src/ai/voice/xr.ts`): which face
+ * buttons talk, approve and deny, whether the wrist microphone orb talks, and what each does.
+ */
+export interface XRAssistantInput {
+    readonly talkButtons: readonly XRControllerButton[];
+    readonly approveButtons: readonly XRControllerButton[];
+    readonly denyButtons: readonly XRControllerButton[];
+    readonly wristOrb: boolean;
+    /** Talk was pressed (true) or released. */
+    talk(down: boolean): void;
+    /** An approve button was pressed. */
+    approve(): void;
+    /** A deny button was pressed. */
+    deny(): void;
+    /** While talk is held, a controller's or a hand's ray entered a node. */
+    pointed(id: NodeId): void;
+}
+
+/** Where a Quest Touch face button sits in its controller's xr-standard gamepad. */
+const FACE_BUTTONS: Record<XRControllerButton, { hand: "left" | "right"; index: number }> = {
+    a: { hand: "right", index: 4 },
+    b: { hand: "right", index: 5 },
+    x: { hand: "left", index: 4 },
+    y: { hand: "left", index: 5 },
+};
+
+/** The orb's name, so a page or a test can find it. */
+export const XR_ASSISTANT_ORB = "graphty-xr-ai-orb";
+/** How far above the left wrist the orb floats, in metres. */
+const ORB_LIFT = 0.06;
+/** How close a pinch must start to the orb to take it, in metres. */
+const ORB_REACH = 0.06;
 
 /**
  * XRInputHandler processes XR controller and hand tracking input.
@@ -114,6 +152,15 @@ export class XRInputHandler {
     private readonly DRAG_THRESHOLD = 0.08; // 8cm - requires intentional movement to drag
     private dragStartHandPosition: Vector3 | null = null; // Position when drag started
     private dragThresholdExceeded = false; // True once user moves far enough to start actual drag
+
+    // The assistant: its bindings, the face buttons down last frame, whether talk is held, the
+    // hand whose pinch took the wrist orb, the orb, and the node each ray last entered.
+    private assistant: XRAssistantInput | null = null;
+    private facePressed = new Set<XRControllerButton>();
+    private talkHeld = false;
+    private orbClaimed = false;
+    private orb: Mesh | null = null;
+    private pointedBy = new Map<string, NodeId>();
 
     // Debug
     private frameCount = 0;
@@ -246,6 +293,22 @@ export class XRInputHandler {
         this.wasPinching = { left: false, right: false };
         this.handTrackingFeature = null;
         this.resetGestureState();
+        this.setAssistant(null);
+    }
+
+    /**
+     * Bind the assistant to this session's input, or unbind it (null). Unbinding sends no release:
+     * the assistant cancels a held talk itself when it leaves the session.
+     * @param input - The bindings, or null.
+     */
+    setAssistant(input: XRAssistantInput | null): void {
+        this.assistant = input;
+        this.facePressed.clear();
+        this.talkHeld = false;
+        this.orbClaimed = false;
+        this.pointedBy.clear();
+        this.orb?.dispose();
+        this.orb = null;
     }
 
     private setupController(controller: WebXRInputSource): void {
@@ -448,6 +511,12 @@ export class XRInputHandler {
 
         // Update hand states before processing interactions
         this.updateHandStates();
+        this.processAssistant();
+
+        // While talk is held the hands point; the trigger and pinches start no drag or gesture.
+        if (this.talkHeld) {
+            return;
+        }
 
         // Process node interaction first (single-hand picking/dragging)
         // This must happen before gesture processing
@@ -457,6 +526,153 @@ export class XRInputHandler {
         // Two-hand gestures are for view manipulation, not while dragging nodes
         if (!this.isDraggingNode) {
             this.processHandGesturesInternal();
+        }
+    }
+
+    /**
+     * The assistant's input: face buttons talk, approve and deny; a pinch that starts at the wrist
+     * orb talks until it ends; while talking, each ray reports the node it enters.
+     */
+    private processAssistant(): void {
+        const { assistant } = this;
+        if (assistant === null) {
+            return;
+        }
+
+        const pressed = this.readFaceButtons();
+        const rising = (buttons: readonly XRControllerButton[]): boolean =>
+            buttons.some((button) => pressed.has(button) && !this.facePressed.has(button));
+        if (rising(assistant.approveButtons)) {
+            assistant.approve();
+        }
+
+        if (rising(assistant.denyButtons)) {
+            assistant.deny();
+        }
+
+        this.facePressed = pressed;
+
+        const orb = assistant.wristOrb ? this.placeOrb() : null;
+        if (!this.wasPinching.right) {
+            this.orbClaimed = false;
+        } else if (!this.orbClaimed && orb !== null && !(this.isDraggingNode && this.dragHand === "right")) {
+            // A pinch that has not taken a node takes the orb once it closes on it: the joints can
+            // reach the pinched pose a frame after the pinch starts.
+            // ponytail: the orb is on the left wrist and taken by the right hand; mirror it for
+            // left-handed readers when someone asks.
+            const tip = this.pinchPoint("right");
+            this.orbClaimed = tip !== null && Vector3.Distance(tip, orb.getAbsolutePosition()) < ORB_REACH;
+        }
+
+        if (this.orbClaimed) {
+            // The orb's pinch is the orb's: it starts no drag and no two-hand gesture.
+            this.rightHand = null;
+        }
+
+        const talking = this.orbClaimed || assistant.talkButtons.some((button) => pressed.has(button));
+        if (talking !== this.talkHeld) {
+            this.talkHeld = talking;
+            this.pointedBy.clear();
+            assistant.talk(talking);
+        }
+
+        if (talking) {
+            this.reportPointed(assistant);
+        }
+    }
+
+    /**
+     * The face buttons down now, on the controllers (not hands) connected.
+     * @returns The buttons.
+     */
+    private readFaceButtons(): Set<XRControllerButton> {
+        const pressed = new Set<XRControllerButton>();
+        for (const controller of this.xr.input.controllers) {
+            const { gamepad, handedness, hand } = controller.inputSource;
+            if (gamepad === undefined || hand !== undefined) {
+                continue;
+            }
+
+            for (const [button, place] of Object.entries(FACE_BUTTONS) as [
+                XRControllerButton,
+                (typeof FACE_BUTTONS)[XRControllerButton],
+            ][]) {
+                if (place.hand === handedness && gamepad.buttons[place.index]?.pressed) {
+                    pressed.add(button);
+                }
+            }
+        }
+
+        return pressed;
+    }
+
+    /**
+     * A tracked hand's joint, in world space.
+     * @param handedness - Which hand.
+     * @param joint - The joint's WebXR name.
+     * @returns Its position, or null when the hand or joint is not tracked.
+     */
+    private joint(handedness: "left" | "right", joint: string): Vector3 | null {
+        const feature = this.handTrackingFeature as {
+            getHandByHandedness?: (h: string) => {
+                getJointMesh: (name: string) => { position: Vector3; getAbsolutePosition?: () => Vector3 } | null;
+            } | null;
+        } | null;
+        const mesh = feature?.getHandByHandedness?.(handedness)?.getJointMesh(joint) ?? null;
+        const position = mesh === null ? null : (mesh.getAbsolutePosition?.() ?? mesh.position);
+        return position !== null && Number.isFinite(position.x) ? position : null;
+    }
+
+    /**
+     * Where a hand pinches: between its thumb and index tips.
+     * @param handedness - Which hand.
+     * @returns The point, or null without hand tracking.
+     */
+    private pinchPoint(handedness: "left" | "right"): Vector3 | null {
+        const thumb = this.joint(handedness, "thumb-tip");
+        const index = this.joint(handedness, "index-finger-tip");
+        return thumb === null || index === null ? null : Vector3.Center(thumb, index);
+    }
+
+    /**
+     * Put the microphone orb above the left wrist, made on first use.
+     * @returns The orb, or null while the left hand is not tracked.
+     */
+    private placeOrb(): Mesh | null {
+        const wrist = this.joint("left", "wrist");
+        if (wrist === null) {
+            this.orb?.setEnabled(false);
+            return null;
+        }
+
+        if (this.orb === null) {
+            this.orb = MeshBuilder.CreateSphere(XR_ASSISTANT_ORB, { diameter: 0.04 }, this.scene);
+            this.orb.isPickable = false;
+        }
+
+        this.orb.setEnabled(true);
+        this.orb.position.copyFrom(wrist).addInPlaceFromFloats(0, ORB_LIFT, 0);
+        this.orb.computeWorldMatrix(true);
+        // Larger while it is held, so the reader sees it is listening.
+        this.orb.scaling.setAll(this.orbClaimed ? 1.5 : 1);
+        return this.orb;
+    }
+
+    /**
+     * Report the node each ray points at, when it changes.
+     * @param assistant - The bindings.
+     */
+    private reportPointed(assistant: XRAssistantInput): void {
+        const ray = new Ray(Vector3.Zero(), Vector3.Forward(), 100);
+        for (const controller of this.xr.input.controllers) {
+            controller.getWorldPointerRayToRef(ray);
+            const pick = this.scene.pickWithRay(ray, (mesh) => mesh.isPickable && mesh.isEnabled());
+            const id = (pick?.pickedMesh?.metadata as { graphNode?: { id?: NodeId } } | null | undefined)?.graphNode
+                ?.id;
+            if (id !== undefined && this.pointedBy.get(controller.uniqueId) !== id) {
+                this.pointedBy.set(controller.uniqueId, id);
+                assistant.pointed(id);
+            }
         }
     }
 

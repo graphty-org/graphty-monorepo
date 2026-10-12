@@ -91,6 +91,7 @@ const XR_BROWSER_TESTS = [
     "test/browser/xr-session.test.ts",
     "test/browser/XRUIManager.test.ts",
     "test/browser/NodeBehavior-xr-compatibility.test.ts",
+    "test/interactions/xr/xr-voice.test.ts",
 ];
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
@@ -638,6 +639,8 @@ export default defineConfig({
                     setupFiles: ["./test/setup.ts"],
                     include: ["test/interactions/**/*.test.ts"],
                     exclude: [
+                        // The XR voice test runs real immersive sessions: see the "xr" project
+                        ...XR_BROWSER_TESTS,
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",
                         "**/*~",

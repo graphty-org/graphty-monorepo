@@ -6272,6 +6272,16 @@ export class Graph implements GraphContext {
         // With `history`, the saved conversation is open when this resolves. A call that supersedes
         // this one meanwhile disposes `manager` itself, and leaves its own in place.
         await manager.ready();
+        // Enabled inside an immersive session: bind to it now.
+        const xrCameraController = this.scene.metadata?.xrCameraController as
+            import("./cameras/XRPivotCameraController").XRPivotCameraController | null | undefined;
+        if (xrCameraController && this.aiManager === manager) {
+            await manager.enterXR(
+                xrCameraController.getInputHandler(),
+                this.scene,
+                this.graphContext.getConfig().xr?.ai,
+            );
+        }
     }
 
     /**
@@ -6894,6 +6904,9 @@ export class Graph implements GraphContext {
             throw new Error("XR is not initialized");
         }
 
+        // Inside the click that entered, before anything waits: a headset asks for the microphone
+        // and lets speech start only from a click.
+        this.aiManager?.primeVoice();
         const previousCamera = this.camera.getActiveController()?.camera;
 
         if (mode === "immersive-vr") {
@@ -6928,6 +6941,14 @@ export class Graph implements GraphContext {
         // Store for cleanup
         this.scene.metadata.xrCameraController = xrCameraController;
         this.scene.metadata.xrUpdateObserver = xrUpdateObserver;
+
+        // The assistant's talk, approve and deny buttons, pointing and cards (`xr.ai`).
+        await this.aiManager
+            ?.enterXR(xrCameraController.getInputHandler(), this.scene, this.graphContext.getConfig().xr?.ai)
+            .catch((error: unknown) => {
+                // The session runs on without the assistant's controls.
+                console.warn("[Graph] The assistant could not bind to the XR session:", error);
+            });
     }
 
     /**
@@ -6939,6 +6960,8 @@ export class Graph implements GraphContext {
         }
 
         this.immersiveSince = null;
+        // Leaving XR closes a held microphone without sending, and stops speech.
+        this.aiManager?.leaveXR();
 
         // Clean up XR camera controller
         if (this.scene.metadata?.xrCameraController) {

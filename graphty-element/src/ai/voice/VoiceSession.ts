@@ -55,6 +55,8 @@ export interface VoiceHost {
      * @returns A function that stops listening.
      */
     onPointed?(listener: (id: NodeId) => void): () => void;
+    /** A spoken message's outcome, before it is spoken. */
+    answered?(result: ExecutionResult): void;
 }
 
 /**
@@ -138,6 +140,20 @@ export class VoiceSession {
      */
     async support(): Promise<AiVoiceSupport> {
         return chooseVoice(this.host.options, await this.facts());
+    }
+
+    /**
+     * End a held talk without sending it: the press ends with `AI_CANCELLED` and the microphone
+     * closes. Leaving XR does this.
+     */
+    cancel(): void {
+        // A press still choosing its path ends there.
+        this.press++;
+        this.listening = false;
+        this.endPointing();
+        const { input } = this;
+        this.input = undefined;
+        input?.cancel();
     }
 
     /** Close the microphone and stop speaking; later presses do nothing. */
@@ -236,6 +252,7 @@ export class VoiceSession {
         }
 
         const result = await this.route(end.text, pointing);
+        this.host.answered?.(result);
         if (!this.disposed) {
             await this.speak(result);
         }

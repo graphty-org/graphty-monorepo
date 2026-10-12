@@ -84,6 +84,7 @@ export type {
     ViewMode,
     // XR configuration types
     XRAiConfig,
+    XRAiControlCode,
     XRConfig,
     XRControllerButton,
     XRInputConfig,

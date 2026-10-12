@@ -17,6 +17,7 @@ export type { ViewMode } from "./ViewMode";
 export { DEFAULT_VIEW_MODE, isViewMode, VIEW_MODE_VALUES } from "./ViewMode";
 export type {
     XRAiConfig,
+    XRAiControlCode,
     XRConfig,
     XRControllerButton,
     XRInputConfig,

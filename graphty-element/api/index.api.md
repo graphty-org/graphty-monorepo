@@ -4575,6 +4575,9 @@ export interface XRAiConfig {
 }
 
 // @public
+export type XRAiControlCode = "XR_APPROVE" | "XR_DENY" | "XR_TRANSCRIPT" | (string & {});
+
+// @public
 export interface XrCapability {
     readonly ar: boolean;
     readonly vr: boolean;

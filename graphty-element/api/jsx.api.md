@@ -44,6 +44,7 @@ import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
+import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector';

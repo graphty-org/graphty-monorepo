@@ -4,8 +4,10 @@
  * @module ai/AiManager
  */
 
+import type { Scene } from "@babylonjs/core";
 import debounce from "lodash/debounce.js";
 
+import type { XRInputHandler } from "../cameras/XRInputHandler";
 import {
     AI_PROVIDER_IDS,
     type AiCapabilities,
@@ -17,6 +19,8 @@ import {
     type AiVoiceReadiness,
     type AiVoiceRoute,
 } from "../catalog/ai";
+import type { NodeId } from "../catalog/types";
+import type { XRAiConfig } from "../config/XRConfig";
 import type { AiApprovalRequest, AiQuestionRequest, NodeHoverEvent } from "../events";
 import type { Graph } from "../Graph";
 import type { AiAgentsSetting, AiToolOptions } from "./agents";
@@ -43,6 +47,7 @@ import { checkAgents } from "./roles";
 import { SchemaManager } from "./schema";
 import { installAssistantTools } from "./tools/install";
 import type { AssistantGateLimits } from "./tools/types";
+import type * as VoicePrime from "./voice/prime";
 import type { ProviderSpeech, VoiceSession } from "./voice/VoiceSession";
 
 /** Default debounce delay for schema updates in milliseconds */
@@ -302,8 +307,21 @@ export class AiManager {
     private voiceOptions: AiVoiceOptions | undefined;
     /** Push-to-talk, loaded on the first press or support read: `src/ai/voice/` is its own chunk. */
     private voiceSession: Promise<VoiceSession> | undefined;
+    /** The session, once loaded. */
+    private voiceSessionNow: VoiceSession | undefined;
     /** `apiKeys`, for a transcription provider other than the chat's. */
     private voiceKeys: AiManagerConfig["apiKeys"];
+    /** The priming, loaded with `voice` so the Enter VR / AR click can prime at once. */
+    private voicePrime: typeof VoicePrime | undefined;
+    private voicePrimeLoad: Promise<void> | undefined;
+    /** Unbinds the assistant from the immersive session it is bound to. */
+    private xrUnbind: (() => void) | undefined;
+    /** Counts binds and unbinds: a bind a later call superseded does nothing. */
+    private xrGeneration = 0;
+    /** Who hears what an XR ray points at while talk is held. */
+    private readonly xrPointed = new Set<(id: NodeId) => void>();
+    /** Who hears a spoken message's outcome. */
+    private readonly voiceAnswered = new Set<(result: ExecutionResult) => void>();
 
     /**
      * Creates a new AiManager instance.
@@ -406,7 +424,93 @@ export class AiManager {
 
         this.voiceOptions = config.voice;
         this.voiceKeys = config.apiKeys;
+        if (config.voice !== undefined) {
+            this.voicePrimeLoad = import("./voice/prime").then(
+                (module) => {
+                    this.voicePrime = module;
+                },
+                () => undefined,
+            );
+        }
+
         this.initialized = true;
+    }
+
+    /**
+     * Prime speech for an immersive session, inside the click that enters it: ask for the
+     * microphone (and close it at once), unlock speech synthesis and audio. Nothing without `voice`.
+     */
+    primeVoice(): void {
+        if (this.voiceOptions !== undefined) {
+            this.voicePrime?.primeVoice(this.voiceOptions);
+        }
+    }
+
+    /**
+     * Bind the assistant to an immersive session's input and scene: talk, approve and deny buttons,
+     * the wrist orb, ray pointing and the in-scene cards (`xr.ai`). Nothing without `voice`.
+     * @param input - The session's input handler.
+     * @param scene - The scene.
+     * @param config - `xr.ai`.
+     */
+    async enterXR(input: XRInputHandler, scene: Scene, config: XRAiConfig | undefined): Promise<void> {
+        this.leaveXR();
+        const generation = this.xrGeneration;
+        const voice = this.voiceOptions;
+        const { graph } = this;
+        if (voice === undefined || graph === null) {
+            return;
+        }
+
+        // The session is loaded first, so a press subscribes to pointing before the next frame.
+        const [{ bindXrAssistant }] = await Promise.all([import("./voice/xr"), this.voice(voice)]);
+        if (generation !== this.xrGeneration || this.voiceOptions !== voice) {
+            return;
+        }
+
+        this.xrUnbind = bindXrAssistant(input, scene, config, {
+            talk: (down) => {
+                this.talk(down);
+            },
+            pointed: (id) => {
+                for (const listener of this.xrPointed) {
+                    listener(id);
+                }
+            },
+            approvals: () => this.getPendingAiApprovals(),
+            questions: () => this.getPendingQuestions(),
+            resolve: (id, approve) => {
+                void this.resolveAiApproval(id, { approve });
+            },
+            answer: (id, choice) => {
+                void this.answerQuestion(id, choice);
+            },
+            on: (type, listener) => {
+                const id = graph.eventManager.addListener(type, (event) => {
+                    listener(event as unknown as Record<string, unknown>);
+                });
+                return () => {
+                    graph.eventManager.removeListener(id);
+                };
+            },
+            onAnswer: (listener) => {
+                this.voiceAnswered.add(listener);
+                return () => {
+                    this.voiceAnswered.delete(listener);
+                };
+            },
+        });
+    }
+
+    /** Leave the immersive session: unbind, close a held microphone without sending, stop speaking. */
+    leaveXR(): void {
+        this.xrGeneration++;
+        this.xrUnbind?.();
+        this.xrUnbind = undefined;
+        void this.voiceSession?.then((session) => {
+            session.cancel();
+            session.stopSpeech();
+        });
     }
 
     /**
@@ -417,33 +521,44 @@ export class AiManager {
     private voice(voice: AiVoiceOptions): Promise<VoiceSession> {
         const { graph, controller } = this;
         if (this.voiceSession === undefined && graph !== null && controller !== null) {
-            this.voiceSession = import("./voice/VoiceSession").then(
-                ({ VoiceSession }) =>
-                    new VoiceSession({
-                        options: voice,
-                        controller,
-                        emit: (type, detail) => {
-                            graph.eventManager.emit(type, detail);
-                        },
-                        transcriber: () => this.transcriber(voice),
-                        speaker: () => {
-                            const engine = this.provider === null ? undefined : engineFor(this.provider);
-                            return engine?.speak === undefined
-                                ? { readiness: "unsupported" }
-                                : { readiness: "ready", engine };
-                        },
-                        immersive: () => (graph.getXRSessionManager()?.getActiveMode() ?? null) !== null,
-                        selected: () => graph.getSession().selection.nodes,
-                        onPointed: (listener) => {
-                            const id = graph.eventManager.addListener("node-hover", (event) => {
-                                listener((event as NodeHoverEvent).node.id);
-                            });
-                            return () => {
-                                graph.eventManager.removeListener(id);
-                            };
-                        },
-                    }),
-            );
+            this.voiceSession = import("./voice/VoiceSession").then(({ VoiceSession }) => {
+                const session = new VoiceSession({
+                    options: voice,
+                    controller,
+                    emit: (type, detail) => {
+                        graph.eventManager.emit(type, detail);
+                    },
+                    transcriber: () => this.transcriber(voice),
+                    speaker: () => {
+                        const engine = this.provider === null ? undefined : engineFor(this.provider);
+                        return engine?.speak === undefined
+                            ? { readiness: "unsupported" }
+                            : { readiness: "ready", engine };
+                    },
+                    immersive: () => (graph.getXRSessionManager()?.getActiveMode() ?? null) !== null,
+                    selected: () => graph.getSession().selection.nodes,
+                    onPointed: (listener) => {
+                        const id = graph.eventManager.addListener("node-hover", (event) => {
+                            listener((event as NodeHoverEvent).node.id);
+                        });
+                        this.xrPointed.add(listener);
+                        return () => {
+                            graph.eventManager.removeListener(id);
+                            this.xrPointed.delete(listener);
+                        };
+                    },
+                    answered: (result) => {
+                        for (const listener of this.voiceAnswered) {
+                            listener(result);
+                        }
+                    },
+                });
+                if (!this.disposed) {
+                    this.voiceSessionNow = session;
+                }
+
+                return session;
+            });
         }
 
         return this.voiceSession ?? Promise.reject(new Error("AI Manager not initialized"));
@@ -636,6 +751,12 @@ export class AiManager {
             return;
         }
 
+        // Once loaded, at once: what the reader points at in the same frame belongs to this press.
+        if (this.voiceSessionNow !== undefined) {
+            this.voiceSessionNow.talk(down);
+            return;
+        }
+
         // In order: a release right after a press reaches the session after the press.
         const { graph } = this;
         this.voice(voice).then(
@@ -712,7 +833,7 @@ export class AiManager {
      * @returns When ready.
      */
     async ready(): Promise<void> {
-        await this.controller?.ready();
+        await Promise.all([this.controller?.ready(), this.voicePrimeLoad]);
     }
 
     /**
@@ -901,11 +1022,15 @@ export class AiManager {
 
         this.disposed = true;
         this.initialized = false;
+        this.xrGeneration++;
+        this.xrUnbind?.();
+        this.xrUnbind = undefined;
         // The microphone closes and speech stops.
         void this.voiceSession?.then((session) => {
             session.dispose();
         });
         this.voiceSession = undefined;
+        this.voiceSessionNow = undefined;
         this.voiceOptions = undefined;
 
         // Cancel any pending debounced updates

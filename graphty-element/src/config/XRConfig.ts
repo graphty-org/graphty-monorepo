@@ -124,6 +124,14 @@ export interface XRTeleportationConfig {
 export type XRControllerButton = "a" | "b" | "x" | "y";
 
 /**
+ * The codes of the controls the assistant draws in an immersive session, which `XRAiConfig.labels`
+ * may give words to: approve and deny a held change, and the reader's own words as heard. The
+ * cards that show a held change, a question or an answer are keyed by their result code
+ * (`AI_CONFIRMATION_NEEDED`, `AI_QUESTION_ASKED`, the answer's code). OPEN UNION.
+ */
+export type XRAiControlCode = "XR_APPROVE" | "XR_DENY" | "XR_TRANSCRIPT" | (string & {}); // NOSONAR(S4335): the open-union idiom
+
+/**
  * The assistant in an immersive session (with `AiManagerConfig.voice`). Every part is on by
  * default; an empty button list switches that binding off. Never the trigger or the thumbsticks.
  */
@@ -147,8 +155,9 @@ export interface XRAiConfig {
     /** Draw the transcript and the answer in the scene. @default true */
     panel?: boolean;
     /**
-     * The words drawn in the scene, keyed by code (a result code, or a control's own code). A code
-     * with no label is drawn as its icon only: the element draws no words of its own.
+     * The words drawn in the scene, keyed by code (a result code, or a control's own code:
+     * {@link XRAiControlCode}). A code with no label is drawn as its icon only: the element draws
+     * no words of its own, only the reader's and the model's text and catalog names.
      * @default {}
      */
     labels?: Readonly<Record<string, string>>;

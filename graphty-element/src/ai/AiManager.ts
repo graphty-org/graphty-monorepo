@@ -32,6 +32,7 @@ import {
     type AiControllerOptions,
     type AiHistoryOptions,
     type ExecutionResult,
+    liveFacts,
 } from "./AiController";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import { CommandRegistry } from "./commands";
@@ -702,8 +703,13 @@ export class AiManager {
             readiness,
             customBaseUrl: ready.customBaseUrl,
             ...(openLive === undefined ? {} : { engine: { openLive } }),
-            // ponytail: no instructions or tools yet; they come with live messages through the loop.
-            session: () => ({ instructions: "", tools: [] }),
+            session: async () =>
+                (await (this.controller === null ? undefined : liveFacts(this.controller))?.session()) ?? {
+                    instructions: "",
+                    tools: [],
+                },
+            readerContext: (pointing) =>
+                (this.controller === null ? undefined : liveFacts(this.controller))?.readerContext(pointing) ?? "",
         };
     }
 

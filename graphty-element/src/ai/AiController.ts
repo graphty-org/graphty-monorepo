@@ -29,6 +29,7 @@ import type { CommandContext, CommandResult } from "./commands/types";
 import {
     type ConversationStore,
     type ConversationStoreChange,
+    DEFAULT_HISTORY_BUDGET_TOKENS,
     openConversationStore,
     STORE_OVERRIDE,
 } from "./conversation/Conversation";
@@ -48,7 +49,7 @@ import {
     waitingQuestions,
 } from "./conversation/snapshot";
 import { ENGINE_OVERRIDE, engineFor } from "./engine/load";
-import type { AiEngine, SavedMessage } from "./engine/types";
+import type { AiEngine, SavedMessage, ToolSpec } from "./engine/types";
 import type { LlmProvider } from "./providers/types";
 import { checkAgents } from "./roles";
 import {
@@ -353,6 +354,41 @@ interface MessageRun {
     readonly plan?: (onUsage: (usage: TokenUsage) => void) => Promise<PlanSteps | undefined>;
     /** For a continuation: a helper's held batch, decided, which the helper continues with. */
     readonly resume?: { readonly callId: string; readonly decided: DecidedBatch };
+    /** The message's own engine (a live connection's turns); absent, the controller's. */
+    readonly live?: LiveMessage;
+}
+
+/**
+ * Run one message on a given engine: `execute(input, { [LIVE_MESSAGE]: ... })`. Internal: no entry
+ * point exports it, so it is not part of `AiCommandOptions`.
+ */
+export const LIVE_MESSAGE: unique symbol = Symbol("graphty.ai.live-message");
+
+/** A message spoken on a live connection, whose turns that connection answers. */
+export interface LiveMessage {
+    readonly engine: AiEngine;
+    /** What the reader said, heard after the message started without it; "" while unheard. */
+    readonly heard: () => string;
+}
+
+/** What a live connection opens with, and what its `reader_context` tool reads. */
+export interface LiveFacts {
+    /** The instructions (system prompt, facts, the conversation's history window) and the fixed tools. */
+    session(): Promise<{ readonly instructions: string; readonly tools: readonly ToolSpec[] }>;
+    /** The facts block now, with what the reader pointed at. */
+    readerContext(pointing?: AiPointing): string;
+}
+
+/** Each controller's live facts, kept off its public members. */
+const liveFactsOf = new WeakMap<AiController, LiveFacts>();
+
+/**
+ * A controller's live facts.
+ * @param controller - The controller.
+ * @returns Its facts.
+ */
+export function liveFacts(controller: AiController): LiveFacts | undefined {
+    return liveFactsOf.get(controller);
 }
 
 /**
@@ -361,6 +397,21 @@ interface MessageRun {
  */
 function settled(): undefined {
     return undefined;
+}
+
+/**
+ * A reader message with the words heard in place of its empty spoken text.
+ * @param message - The reader message.
+ * @param text - The words.
+ * @returns The message.
+ */
+function withReaderText(message: SavedMessage, text: string): SavedMessage {
+    return {
+        ...message,
+        parts: message.parts.map((part) =>
+            part.type === "text" && part.origin === "reader" && part.text === "" ? { ...part, text } : part,
+        ),
+    };
 }
 
 /**
@@ -661,6 +712,10 @@ export class AiController {
         this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history);
         // Every turn waits for the saved conversation.
         this.queue = this.opened;
+        liveFactsOf.set(this, {
+            session: () => this.liveSession(),
+            readerContext: (pointing) => factsBlock(this.graph.getSession(), this.profile, pointing),
+        });
 
         // Subscribe to status changes to emit events
         this.statusManager.subscribe((status) => {
@@ -900,6 +955,7 @@ export class AiController {
             abortController,
             conversation: (session) => this.startConversation(input, session, options.via, options.pointing),
             conversationId: this.current?.id,
+            live: (options as AiCommandOptions & { [LIVE_MESSAGE]?: LiveMessage })[LIVE_MESSAGE],
             ...(this.router === "model" || this.roles.length === 0
                 ? {}
                 : { plan: (onUsage) => this.planFor(input, planned, abortController.signal, onUsage) }),
@@ -946,7 +1002,9 @@ export class AiController {
             conversation = run.conversation(session);
             base = conversation.messages.length;
             const running = conversation;
-            if (decided === undefined && answer === undefined && resume === undefined) {
+            // A spoken message not heard yet is saved when it ends, with the words heard by then.
+            const unheard = run.live !== undefined && input === "";
+            if (decided === undefined && answer === undefined && resume === undefined && !unheard) {
                 // The reader's words are saved as the message starts, so a transcript shows them at once.
                 await this.saveInto(run.conversationId, running.messages);
             }
@@ -969,7 +1027,7 @@ export class AiController {
                 };
                 result = await runConversation({
                     conversation: running,
-                    engine: this.engine,
+                    engine: run.live?.engine ?? this.engine,
                     tools: this.commandRegistry,
                     graph: this.graph,
                     session,
@@ -1061,6 +1119,12 @@ export class AiController {
             if (routed !== NO_USAGE) {
                 // The classifier's turn is the message's too.
                 result = { ...result, usage: addUsage(result.usage ?? NO_USAGE, routed) };
+            }
+
+            // A spoken message that started before its transcript arrived keeps the words heard since.
+            const heard = run.live?.heard();
+            if (heard) {
+                running.messages[base - 1] = withReaderText(running.messages[base - 1], heard);
             }
 
             // Saved again when the message ends: never per streamed piece of text.
@@ -1832,6 +1896,42 @@ export class AiController {
         return {
             system,
             messages: [...this.earlierMessages(), { id: this.firstMessageId(), role: "user", parts: [said] }],
+        };
+    }
+
+    /**
+     * What a live connection opens with: the instructions, the facts and the conversation so far,
+     * and a fixed set of tools (the always-loaded ones, `call` for the rest, `reader_context`, and
+     * the loop's own that are switched on), since a mid-session change restarts some providers' sessions.
+     * @returns The instructions and the tools.
+     */
+    private async liveSession(): Promise<{ readonly instructions: string; readonly tools: readonly ToolSpec[] }> {
+        const session = this.graph.getSession();
+        if (hasAssistantTools(this.commandRegistry)) {
+            installAssistantTools(this.commandRegistry, session);
+        }
+
+        const [live, questions, program, delegation] = await Promise.all([
+            import("./voice/liveTurns"),
+            this.asks ? import("./questions") : undefined,
+            this.inPageCode ? import("./tools/runCode") : undefined,
+            this.roles.length === 0
+                ? undefined
+                : this.delegationModule().then(({ delegation: make }) => make(this.delegationOptions())),
+        ]);
+        return {
+            instructions: live.liveInstructions(
+                this.systemPrompt(),
+                factsBlock(session, this.profile),
+                this.earlierMessages(),
+                this.history?.budgetTokens ?? DEFAULT_HISTORY_BUDGET_TOKENS[this.profile],
+            ),
+            tools: [
+                ...live.liveTools(this.commandRegistry, this.profile),
+                ...(delegation === undefined ? [] : [delegation.tool]),
+                ...(questions === undefined ? [] : [questions.ASK_READER_TOOL]),
+                ...(program === undefined ? [] : [program.RUN_CODE_TOOL]),
+            ],
         };
     }
 

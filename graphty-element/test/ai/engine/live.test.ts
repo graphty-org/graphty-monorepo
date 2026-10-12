@@ -481,6 +481,24 @@ describe("Gemini live (WebSocket)", () => {
         assert.deepEqual(responses, ["g1", "g2"]);
     });
 
+    it("the end of the generation that held the calls is not a second response", async () => {
+        installNetwork();
+        const transport = installFakeLiveTransport();
+        const { events } = await open("google");
+        const socket = transport.sockets[0];
+        socket.receive({ toolCall: { functionCalls: [{ id: "g1", name: "reader_context", args: {} }] } });
+        await settle();
+        // Gemini ends the generation the call came in, with nothing more in it (seen on gemini-3.8-live).
+        socket.receive({ usageMetadata: { promptTokenCount: 40, responseTokenCount: 6, totalTokenCount: 46 } });
+        socket.receive({ serverContent: { turnComplete: true } });
+        socket.receive({ serverContent: { outputTranscription: { text: "Done." } } });
+        socket.receive({ serverContent: { turnComplete: true } });
+        assert.deepEqual(
+            events.map((event) => event.type),
+            ["tool-calls", "response-end", "usage", "answer-text", "response-end"],
+        );
+    });
+
     it("reports a socket the provider closed, and a go-away, as closed with their codes", async () => {
         installNetwork();
         let transport = installFakeLiveTransport();

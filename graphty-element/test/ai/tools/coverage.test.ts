@@ -41,6 +41,7 @@ import { installAssistantTools } from "../../../src/ai/tools/install";
 import { assistantReach } from "../../../src/ai/tools/reach";
 import { buildToolset, type CheckedCall, isAssistantTool } from "../../../src/ai/tools/toolset";
 import { ToolRefusal } from "../../../src/ai/tools/types";
+import { liveTools } from "../../../src/ai/voice/liveTurns";
 import { clearRegisteredCamerasForTesting } from "../../../src/catalog/cameraRegistry";
 import { clearRegisteredFormatsForTesting } from "../../../src/catalog/formatRegistry";
 import { clearRegisteredLayoutsForTesting } from "../../../src/catalog/layoutRegistry";
@@ -222,6 +223,35 @@ describe("the coverage test fails when it should", () => {
             ],
         });
         assert.isTrue(problems.some((problem) => problem.includes("root LayoutEngine lists no members")));
+    });
+});
+
+describe("a live connection reaches every tool", () => {
+    /**
+     * The tools a live declaration leaves unreachable: those it does not declare, unless it declares `call`.
+     * @param declared - The names it declares.
+     * @param registry - Every tool.
+     * @returns The names it cannot reach.
+     */
+    function unreachable(declared: readonly string[], registry: CommandRegistry): string[] {
+        return declared.includes("call") ? [] : registry.getNames().filter((name) => !declared.includes(name));
+    }
+
+    it("declares call beside the always-loaded tools, so every on-demand tool is one call away", () => {
+        const registry = new CommandRegistry();
+        installAssistantTools(registry, createGraphSession());
+        const declared = liveTools(registry, "standard").map((tool) => tool.name);
+        assert.deepStrictEqual(unreachable(declared, registry), []);
+        assert.include(declared, "call");
+    });
+
+    it("fails when the live set drops call", () => {
+        const registry = new CommandRegistry();
+        installAssistantTools(registry, createGraphSession());
+        const declared = liveTools(registry, "standard")
+            .map((tool) => tool.name)
+            .filter((name) => name !== "call");
+        assert.includeMembers(unreachable(declared, registry), ["sets", "notes", "import_data", "capture"]);
     });
 });
 

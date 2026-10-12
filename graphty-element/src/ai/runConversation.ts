@@ -400,7 +400,7 @@ export function latestStepOf(session: GraphSession, message: string): HistorySte
  * @param command - The command.
  * @returns The tool.
  */
-function toolSpec(command: GraphCommand): ToolSpec {
+export function toolSpec(command: GraphCommand): ToolSpec {
     let jsonSchema: JsonSchema | undefined;
     return {
         name: command.name,

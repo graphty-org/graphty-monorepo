@@ -79,7 +79,8 @@ function harness(options: AiVoiceOptions = {}, live?: Partial<ProviderLiveSpeech
             readiness: "ready",
             customBaseUrl: false,
             engine: engine as Required<Pick<FakeEngine, "openLive">>,
-            session: () => ({ instructions: "", tools: [] }),
+            session: () => Promise.resolve({ instructions: "", tools: [] }),
+            readerContext: () => "",
             ...live,
         }),
     });

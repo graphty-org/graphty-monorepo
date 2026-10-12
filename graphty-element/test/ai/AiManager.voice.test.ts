@@ -7,14 +7,16 @@
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
+import type { GraphSession } from "../../session";
 import { type AiManagerConfig, createAiManager, NO_VOICE_SUPPORT } from "../../src/ai/AiManager";
-import { FakeEngine } from "../../src/ai/engine/FakeEngine";
+import { FakeEngine, type FakeLiveConnection } from "../../src/ai/engine/FakeEngine";
 import { registerProviderApiEngine } from "../../src/ai/engine/load";
 import { createProvider } from "../../src/ai/providers";
 import type { Graph } from "../../src/Graph";
-import { assistantSession, textTurn } from "../helpers/assistant";
+import { assistantSession, SMALL_GRAPH, textTurn } from "../helpers/assistant";
 import { type FakeSpeech, flushMicrotasks, installFakeSpeech } from "../helpers/fake-speech";
 import { HOSTS, KEYS, providerApiFixture, TRANSCRIPT } from "./engine/providerApiFixtures";
+import { redNodes } from "./llm-regression/red";
 
 // The key store's encryption library reads a browser global at load; no case persists a key.
 vi.mock("encrypt-storage", () => ({ EncryptStorage: vi.fn() }));
@@ -45,7 +47,7 @@ async function manager(
     config: Omit<AiManagerConfig, "provider">,
     provider: "anthropic" | "mock" = "mock",
     scripted = true,
-): Promise<{ ai: ReturnType<typeof createAiManager>; chat: FakeEngine; emitted: Emitted }> {
+): Promise<{ ai: ReturnType<typeof createAiManager>; chat: FakeEngine; emitted: Emitted; session: GraphSession }> {
     const session = await assistantSession();
     const emitted: Emitted = [];
     const graph = {
@@ -68,7 +70,7 @@ async function manager(
 
     const ai = createAiManager();
     ai.init(graph, { ...config, provider, providerInstance: instance });
-    return { ai, chat, emitted };
+    return { ai, chat, emitted, session };
 }
 
 /**
@@ -226,5 +228,109 @@ describe("live voice", () => {
         await vi.waitFor(() => {
             assert.isTrue(chat.liveConnections[0].closed);
         });
+    });
+
+    /** A key the page gave, which no saved record may hold. */
+    const KEY = "sk-live-voice-test-key-0123456789";
+
+    /** A style call that paints c red. */
+    const PAINT_C = {
+        id: "c1",
+        name: "style",
+        arguments: { action: "add", ids: ["c"], values: { "node.color": "red" } },
+    };
+
+    /**
+     * Press talk on a live connection, release, and have the provider hear "make c red" and call style.
+     * @param ai - The manager.
+     * @param chat - The chat engine, which opens the connection.
+     * @returns The connection.
+     */
+    async function sayMakeCRed(ai: ReturnType<typeof createAiManager>, chat: FakeEngine): Promise<FakeLiveConnection> {
+        ai.talk(true);
+        await vi.waitFor(() => {
+            assert.deepStrictEqual(chat.liveConnections[0]?.captures, [true], "the press is live");
+        });
+        ai.talk(false);
+        const [connection] = chat.liveConnections;
+        connection.emit({ type: "reader-transcript", text: "make c red", final: true });
+        connection.emit({ type: "tool-calls", calls: [PAINT_C] });
+        connection.emit({ type: "response-end" });
+        await vi.waitFor(() => {
+            assert.lengthOf(connection.sentResults, 1, "the call's result went back");
+        });
+        return connection;
+    }
+
+    it("'make c red' runs through the assistant: one voice message, c red, one undo, no key saved", async () => {
+        installFakeSpeech();
+        vi.stubGlobal("AudioWorkletNode", function AudioWorkletNode() {});
+        const { ai, chat, session } = await manager({
+            voice: { mode: "live" },
+            history: "memory",
+            apiKeys: { openai: KEY },
+        });
+        chat.scriptLive();
+        const connection = await sayMakeCRed(ai, chat);
+        connection.emit({ type: "answer-text", delta: "Done." });
+        connection.emit({ type: "response-end" });
+        const controller = ai.getController();
+        await vi.waitFor(() => {
+            assert.isTrue(
+                controller?.getConversation()?.messages.some((m) => m.role === "assistant" && m.text === "Done."),
+            );
+        });
+
+        assert.deepStrictEqual(redNodes(session, SMALL_GRAPH.nodes as { id: string }[]), ["c"]);
+        const reader = controller?.getConversation()?.messages.filter((m) => m.role === "reader");
+        assert.deepStrictEqual(
+            reader?.map((m) => (m.role === "reader" ? [m.text, m.via] : [])),
+            [["make c red", "voice"]],
+        );
+        assert.include(
+            connection.options.tools.map((tool) => tool.name),
+            "reader_context",
+        );
+        assert.lengthOf(chat.requests, 0, "no turn ran turn by turn");
+        const exported = (await controller?.exportConversation(controller.getConversation()?.id ?? "")) ?? "";
+        assert.notInclude(exported, KEY);
+        await session.undo();
+        assert.deepStrictEqual(redNodes(session, SMALL_GRAPH.nodes as { id: string }[]), []);
+    });
+
+    it("a held batch hands off: the connection closes, and the next press says 'yes' turn by turn", async () => {
+        const fake = installFakeSpeech();
+        vi.stubGlobal("AudioWorkletNode", function AudioWorkletNode() {});
+        const { ai, chat, session, emitted } = await manager({
+            voice: { mode: "live" },
+            history: "memory",
+            approvals: { ask: ["style"] },
+        });
+        chat.scriptLive();
+        const connection = await sayMakeCRed(ai, chat);
+        assert.strictEqual(
+            connection.sentResults[0][0].code,
+            "AI_CONFIRMATION_NEEDED",
+            "the provider gets the held code",
+        );
+        connection.emit({ type: "answer-text", delta: "Shall I?" });
+        connection.emit({ type: "response-end" });
+        await vi.waitFor(() => {
+            assert.isTrue(connection.closed, "the connection closed after that response");
+        });
+        assert.lengthOf(ai.getController()?.getPendingApprovals() ?? [], 1);
+
+        chat.push(textTurn("Painted."));
+        ai.talk(true);
+        await vi.waitFor(() => {
+            assert.strictEqual(fake.recognizers.length, 1, "the next press is turn by turn");
+        });
+        fake.recognizers[0].hear("yes", true);
+        ai.talk(false);
+        await vi.waitFor(() => {
+            assert.deepStrictEqual(redNodes(session, SMALL_GRAPH.nodes as { id: string }[]), ["c"]);
+        });
+        assert.lengthOf(chat.liveConnections, 1, "no second connection while something was pending");
+        assert.deepStrictEqual(of(emitted, "ai-voice-start").at(-1), { mode: "turns" });
     });
 });

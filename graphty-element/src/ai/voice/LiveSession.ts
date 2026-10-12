@@ -10,6 +10,7 @@
 
 import type { AiResultCode, AiResultParams } from "../../catalog/ai";
 import type { LiveConnection, LiveEvent, LiveOpened } from "../engine/types";
+import type { LiveTurnEngine } from "./liveTurns";
 import type { VoiceEventType } from "./VoiceSession";
 
 /**
@@ -25,6 +26,8 @@ export interface LiveHost {
     emit(type: VoiceEventType, detail: Record<string, unknown>): void;
     /** The held press ended without a release: the connection closed under it. */
     ended(code: AiResultCode, params: AiResultParams): void;
+    /** The engine that runs what is said on a new connection as messages; absent, none. */
+    attach?(connection: LiveConnection): Pick<LiveTurnEngine, "press" | "closed">;
 }
 
 /** One assistant's live connection. */
@@ -39,6 +42,8 @@ export class LiveSession {
     private speaking = false;
     private frame = 0;
     private idle: ReturnType<typeof setTimeout> | undefined;
+    /** The messages of the open connection. */
+    private messages: Pick<LiveTurnEngine, "press" | "closed"> | undefined;
 
     /**
      * A live conversation, not yet open.
@@ -86,6 +91,7 @@ export class LiveSession {
         this.stopListening = opened.connection.on((event) => {
             this.event(event);
         });
+        this.messages = this.host.attach?.(opened.connection);
         this.touch();
         return opened;
     }
@@ -98,6 +104,7 @@ export class LiveSession {
 
         this.held = true;
         clearTimeout(this.idle);
+        this.messages?.press();
         this.connection.capture(true);
         this.levels();
     }
@@ -131,13 +138,19 @@ export class LiveSession {
         this.abort = undefined;
         this.opening = undefined;
         const { connection } = this;
-        this.drop();
+        this.drop("AI_CANCELLED", {});
         connection?.close();
     }
 
-    /** Forget the connection, ending what it carried. */
-    private drop(): void {
+    /**
+     * Forget the connection, ending what it carried.
+     * @param code - Why it closed.
+     * @param params - The facts behind `code`.
+     */
+    private drop(code: AiResultCode, params: AiResultParams): void {
         clearTimeout(this.idle);
+        this.messages?.closed(code, params);
+        this.messages = undefined;
         this.stopListening?.();
         this.stopListening = undefined;
         this.connection = undefined;
@@ -181,7 +194,7 @@ export class LiveSession {
                 const { held } = this;
                 this.held = false;
                 this.stopLevels();
-                this.drop();
+                this.drop(event.code, event.params);
                 if (held) {
                     this.host.ended(event.code, event.params);
                 }

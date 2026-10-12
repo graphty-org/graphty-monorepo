@@ -8,9 +8,10 @@
 import { AI_VOICE_APPROVABLE_GATES, type AiProviderId, type AiResultCode, type AiResultParams } from "../../catalog/ai";
 import type { NodeId } from "../../catalog/types";
 import type { AiApprovalRequest, AiQuestionRequest } from "../../events";
-import type { AiApprovalAnswer, AiCommandOptions, ExecutionResult } from "../AiController";
+import { type AiApprovalAnswer, type AiCommandOptions, type ExecutionResult, LIVE_MESSAGE } from "../AiController";
 import type { AiVoiceOptions, AiVoicePath, AiVoiceSupport } from "../AiManager";
-import type { AiEngine, LiveOpened, LiveOptions } from "../engine/types";
+import type { AiEngine, LiveConnection, LiveOpened, LiveOptions } from "../engine/types";
+import type { AiPointing } from "../tools/prompt";
 import {
     chooseInput,
     chooseLive,
@@ -67,7 +68,9 @@ export interface ProviderLiveSpeech {
     readonly customBaseUrl: boolean;
     readonly engine?: Required<Pick<AiEngine, "openLive">>;
     /** The instructions and tools a connection opens with. */
-    session(): Pick<LiveOptions, "instructions" | "tools">;
+    session(): Promise<Pick<LiveOptions, "instructions" | "tools">>;
+    /** What `reader_context` reads: the facts now, with what the reader pointed at. */
+    readerContext(pointing?: AiPointing): string;
 }
 
 /** What the assistant gives a session. */
@@ -132,6 +135,8 @@ export class VoiceSession {
     private liveNow: LiveSession | undefined;
     /** The press held now is on the live connection. */
     private livePress = false;
+    /** What the reader pointed at in the last live press. */
+    private livePointing: PointingRecord | undefined;
     private disposed = false;
 
     /**
@@ -369,6 +374,7 @@ export class VoiceSession {
         }
 
         this.livePress = true;
+        this.livePointing = pointing;
         this.host.emit("ai-voice-start", { mode: "live" });
         if (this.listening) {
             live.hold();
@@ -402,20 +408,53 @@ export class VoiceSession {
      * @returns It.
      */
     private liveSession(): Promise<LiveSession> {
-        this.live ??= import("./LiveSession").then(({ LiveSession: Live }) => {
-            const live = new Live({
-                open: (signal) => this.openLive(signal),
-                emit: (type, detail) => {
-                    this.host.emit(type, detail);
-                },
-                ended: (code, params) => {
-                    this.endLive(code, params);
-                },
-            });
-            this.liveNow = live;
-            return live;
-        });
+        this.live ??= Promise.all([import("./LiveSession"), import("./liveTurns")]).then(
+            ([{ LiveSession: Live }, turns]) => {
+                const live = new Live({
+                    open: (signal) => this.openLive(signal),
+                    emit: (type, detail) => {
+                        this.host.emit(type, detail);
+                    },
+                    ended: (code, params) => {
+                        this.endLive(code, params);
+                    },
+                    attach: (connection) => this.liveMessages(connection, turns.LiveTurnEngine),
+                });
+                this.liveNow = live;
+                return live;
+            },
+        );
         return this.live;
+    }
+
+    /**
+     * Run what is said on a connection as messages, through the assistant's own loop.
+     * @param connection - The connection.
+     * @param Engine - The live engine's class.
+     * @returns The engine.
+     */
+    private liveMessages(
+        connection: LiveConnection,
+        Engine: typeof import("./liveTurns").LiveTurnEngine,
+    ): InstanceType<typeof import("./liveTurns").LiveTurnEngine> {
+        const live = this.host.liveEngine?.();
+        const engine: InstanceType<typeof Engine> = new Engine(connection, live?.provider ?? "mock", {
+            run: (text, pointing, heard) =>
+                this.host.controller.execute(text, {
+                    via: "voice",
+                    ...(pointing === undefined ? {} : { pointing }),
+                    [LIVE_MESSAGE]: { engine, heard },
+                } as AiCommandOptions),
+            pointing: () => this.livePointing?.facts(),
+            readerContext: (pointing) => live?.readerContext(pointing) ?? "",
+            close: () => {
+                this.liveNow?.close();
+            },
+            answered: (result) => {
+                this.host.answered?.(result);
+            },
+        });
+        return engine;
     }
 
     /**
@@ -423,13 +462,10 @@ export class VoiceSession {
      * @param signal - Cancels the opening.
      * @returns The connection, or the code it failed with.
      */
-    private openLive(signal: AbortSignal): Promise<LiveOpened> {
+    private async openLive(signal: AbortSignal): Promise<LiveOpened> {
         const live = this.host.liveEngine?.();
         if (live?.engine === undefined) {
-            return Promise.resolve({
-                code: "AI_VOICE_UNAVAILABLE",
-                params: { path: "input", reason: "no-provider-live" },
-            });
+            return { code: "AI_VOICE_UNAVAILABLE", params: { path: "input", reason: "no-provider-live" } };
         }
 
         const { liveModel, voiceName } = this.host.options;
@@ -438,7 +474,7 @@ export class VoiceSession {
                 ...(liveModel === undefined ? {} : { model: liveModel }),
                 ...(voiceName === undefined ? {} : { voice: voiceName }),
                 language: this.language,
-                ...live.session(),
+                ...(await live.session()),
             },
             signal,
         );

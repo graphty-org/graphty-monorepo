@@ -23,6 +23,7 @@ import { installAssistantTools } from "../../../src/ai/tools/install";
 import { factsBlock } from "../../../src/ai/tools/prompt";
 import { RUN_CODE_TOOL } from "../../../src/ai/tools/runCode";
 import { isAssistantTool } from "../../../src/ai/tools/toolset";
+import { liveTools, READER_CONTEXT } from "../../../src/ai/voice/liveTurns";
 import { clearRegisteredLayoutsForTesting } from "../../../src/catalog/layoutRegistry";
 import { clearRegisteredAlgorithmsForTesting } from "../../../src/catalog/registry";
 import { assistantSession } from "../../helpers/assistant";
@@ -190,6 +191,45 @@ describe("the always-loaded tools fit a model's budget", () => {
         assert.isFalse(enumNames, "past forty names, a string the catalog validates");
         assert.isAtMost(tokens, 5000);
         assert.isAtMost(declared("small").tokens, 1500);
+    });
+});
+
+describe("a live connection's fixed declaration fits the same budget", () => {
+    afterEach(() => {
+        clearRegisteredAlgorithmsForTesting();
+        clearRegisteredLayoutsForTesting();
+    });
+
+    /**
+     * The tokens a live connection declares, with questions, helpers (web tools on) and in-page code.
+     * @param profile - The profile.
+     * @returns The tool names and the estimated tokens.
+     */
+    function live(profile: "standard" | "small"): { tools: string[]; tokens: number } {
+        const registry = new CommandRegistry();
+        installAssistantTools(registry, createGraphSession());
+        const tools = [...liveTools(registry, profile), WEB_DELEGATE_TOOL, ASK_READER_TOOL, RUN_CODE_TOOL];
+        const chars = tools.reduce(
+            (sum, tool) => sum + tool.name.length + tool.description.length + JSON.stringify(tool.jsonSchema).length,
+            0,
+        );
+        return { tools: tools.map((tool) => tool.name), tokens: Math.ceil(chars / CHARS_PER_TOKEN) };
+    }
+
+    it("the always-loaded tools, call and reader_context stay within 5,000 tokens in the standard profile", () => {
+        const { tools, tokens } = live("standard");
+        assert.includeMembers(tools, ["call", READER_CONTEXT, "style", "delegate", "ask_reader", "run_code"]);
+        assert.lengthOf(tools, 16);
+        assert.isAtMost(tokens, 5000);
+    });
+
+    it("stays within 1,500 tokens in the small profile, which already declares call", () => {
+        const { tools, tokens } = live("small");
+        assert.lengthOf(
+            tools.filter((name) => name === "call"),
+            1,
+        );
+        assert.isAtMost(tokens, 1500);
     });
 });
 

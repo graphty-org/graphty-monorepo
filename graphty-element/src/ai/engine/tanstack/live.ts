@@ -177,6 +177,8 @@ function wrap(connection: RealtimeConnection, provider: string, cumulative: bool
     let answered = "";
     let calls: LiveToolCall[] = [];
     let flushQueued = false;
+    /** Gemini's calls ended a response of their own: the end of their generation that follows is not another. */
+    let callsEnded = false;
 
     const emit = (event: LiveEvent): void => {
         for (const listener of [...listeners]) {
@@ -243,11 +245,18 @@ function wrap(connection: RealtimeConnection, provider: string, cumulative: bool
                     flushQueued = false;
                     if (calls.length > 0) {
                         responseEnd();
+                        callsEnded = true;
                     }
                 });
             }
         }),
-        connection.on("message_complete", responseEnd),
+        connection.on("message_complete", () => {
+            const empty = callsEnded && heard === "" && answered === "" && calls.length === 0;
+            callsEnded = false;
+            if (!empty) {
+                responseEnd();
+            }
+        }),
         connection.on("mode_change", ({ mode }) => {
             if (mode === "speaking" && !speaking) {
                 speaking = true;

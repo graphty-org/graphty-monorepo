@@ -576,6 +576,8 @@ export class LlmRegressionTestHarness {
     ): Promise<{ result: ExecutionResult; toolCalls: CapturedToolCall[] }> {
         this.engine.clearCaptured();
         const result = await this.controller.resolveAiApproval(id, answer);
+        // The continuation's turns and tokens are the message's too.
+        this.writeTranscript(`[approval ${id}: ${answer.approve ? "approve" : "deny"}]`, 0, result);
         return { result, toolCalls: [...this.engine.capturedToolCalls] };
     }
 
@@ -591,6 +593,7 @@ export class LlmRegressionTestHarness {
     ): Promise<{ result: ExecutionResult; toolCalls: CapturedToolCall[] }> {
         this.engine.clearCaptured();
         const result = await this.controller.answerQuestion(id, answer);
+        this.writeTranscript(`[answer ${id}: ${[answer].flat().join(", ")}]`, 0, result);
         return { result, toolCalls: [...this.engine.capturedToolCalls] };
     }
 
@@ -625,8 +628,9 @@ export class LlmRegressionTestHarness {
 
     /**
      * Append one attempt of one prompt to the JSONL transcript `LLM_REGRESSION_TRANSCRIPT` names, so
-     * two runs (two engines, two commits) can be compared case by case. Off when it is unset.
-     * @param prompt - The prompt.
+     * two runs (two engines, two commits) can be compared case by case. Off when it is unset. A
+     * message continued by an approval or an answer is a line of its own, its prompt in brackets.
+     * @param prompt - The prompt, or what continued the message.
      * @param attempt - The harness's attempt, from 0.
      * @param result - What the controller returned.
      */

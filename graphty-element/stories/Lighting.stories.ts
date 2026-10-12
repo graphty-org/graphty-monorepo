@@ -265,11 +265,12 @@ async function litFrom(canvasElement: HTMLElement, story: string, want: Lighting
 /** What each mode is for, and how to set it, for the story descriptions. */
 const MODE_TEXT: Record<Lighting, string> = {
     studio:
-        "Studio, the default 3D look: a key light, a soft fill and a rim in each node's own color, so round " +
-        "shapes read as round and nothing is washed out to white. It is what every graph starts with; to set " +
+        "Studio, the default 3D look: a light that follows the camera, a soft fill with a light ground and a " +
+        "rim in each node's own color, so no side of a node goes dark from any angle and nothing is washed " +
+        "out to white. It is what every graph starts with; to set " +
         'it explicitly, `<graphty-element lighting="studio">` or `element.lighting = "studio"`.',
     headlight:
-        "Headlight: one light from beside the camera and a soft fill. A face is never brighter than its style " +
+        "Headlight: the studio lights without the rim -- one light from beside the camera and a soft fill. A face is never brighter than its style " +
         "color, so light colors stay true while the shapes still read in 3D. " +
         '`<graphty-element lighting="headlight">` or `element.lighting = "headlight"`.',
     matte:
@@ -320,7 +321,7 @@ function modeFrom(mode: Lighting, view: View): Story {
 }
 
 /**
- * Studio, the default: a key light from above the camera, a soft fill and a rim in each node's own
+ * Studio, the default: a light that follows the camera, a soft fill and a rim in each node's own
  * colour.
  */
 export const StudioFront: Story = modeFrom("studio", "Front");

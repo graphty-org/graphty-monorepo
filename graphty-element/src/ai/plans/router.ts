@@ -11,7 +11,7 @@ import type { AiAgentRole, AiPlan } from "../agents";
 import { compactSchema, toolJsonSchema } from "../engine/jsonSchema";
 import { providerFailure } from "../engine/LlmProviderEngine";
 import type { AiEngine, JsonSchema, TurnRequest } from "../engine/types";
-import { TurnFailed } from "../runConversation";
+import { type TokenUsage, TurnFailed } from "../runConversation";
 
 /** The classifier's one tool. */
 export const ROUTE = "route";
@@ -58,6 +58,7 @@ Call route with every helper the request needs, in the order they should work; o
  * @param roles - The helpers it may pick.
  * @param engine - The engine the turn runs on.
  * @param signal - Ends the turn when the message is cancelled.
+ * @param onUsage - Told the tokens the turn used, which are the message's.
  * @returns A one-step plan of the helpers picked, or undefined when the model picked none.
  * @throws {TurnFailed} When the turn failed or was cancelled.
  */
@@ -66,14 +67,16 @@ export async function classify(
     roles: readonly AiAgentRole[],
     engine: AiEngine,
     signal: AbortSignal,
+    onUsage: (usage: TokenUsage) => void = () => undefined,
 ): Promise<AiPlan | undefined> {
     const { request, schema } = routeRequest(input, roles);
     let pick: { agents: string[]; order?: "parallel" | "sequence" } | undefined;
-    // ponytail: the classifier's tokens are not added to the message's; add when a host budgets them.
     for await (const event of engine.turn(request, signal)) {
         if (event.type === "tool-call" && event.name === ROUTE && pick === undefined) {
             const parsed = schema.safeParse(event.arguments);
             pick = parsed.success ? parsed.data : undefined;
+        } else if (event.type === "usage") {
+            onUsage({ inputTokens: event.inputTokens, outputTokens: event.outputTokens });
         } else if (event.type === "error") {
             throw new TurnFailed(event);
         } else if (event.type === "finish") {

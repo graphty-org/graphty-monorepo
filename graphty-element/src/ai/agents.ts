@@ -5,17 +5,38 @@
 
 import type { AiProviderId, AiResultParams } from "../catalog/ai";
 
+/** Tokens a model used, as its provider reported them; zero when it reports none. */
+export interface AiTokenUsage {
+    /** Tokens sent to the model. */
+    readonly inputTokens: number;
+    /** Tokens the model wrote. */
+    readonly outputTokens: number;
+}
+
 /** One helper the assistant may hand a task to. */
 export interface AiAgentRole {
-    /** The helper's name, unique among the roles; the model names it when it delegates. */
+    /**
+     * The helper's name, unique among the roles; the model names it when it delegates. At most
+     * `MAX_AGENT_NAME_LENGTH` characters.
+     */
     readonly name: string;
-    /** What the helper is for, in the model's language: the main model reads it to choose a helper. */
+    /**
+     * What the helper is for, in the model's language: the main model reads it to choose a helper.
+     * At most `MAX_AGENT_PURPOSE_LENGTH` characters.
+     */
     readonly purpose: string;
-    /** The assistant tools and consumer commands the helper may call, by name; it gets no others. */
+    /**
+     * The assistant's own tools the helper may call, by name (`ASSISTANT_TOOLS` with a profile);
+     * it gets no others.
+     */
     readonly commands: readonly string[];
     /** The provider it runs on, when not the assistant's own. */
     readonly provider?: AiProviderId;
-    /** The model it runs on, when not its provider's configured one. */
+    /**
+     * The model it runs on, when not its provider's configured one. Without `provider`, it applies
+     * only when the assistant runs on one of the element's remote providers (not `"webllm"`, not a
+     * `providerInstance` of your own): `enableAiControl` rejects it otherwise.
+     */
     readonly model?: string;
 }
 
@@ -42,6 +63,21 @@ export interface AiPlan {
 export type AiRouter = "model" | "classifier" | ((input: string) => AiPlan);
 
 /**
+ * The most helpers one model turn, or one step of a plan, starts; the turn's further `delegate`
+ * calls do not run (`AI_TOOL_NOT_RUN` with `reason: "limit"`).
+ */
+export const MAX_HELPERS_PER_TURN = 4;
+
+/** The most helpers `AiManagerConfig.agents` may name. */
+export const MAX_AGENTS = 8;
+
+/** The longest a helper's `purpose` may be, in characters: every main turn's instructions carry them all. */
+export const MAX_AGENT_PURPOSE_LENGTH = 200;
+
+/** The longest a helper's `name` may be, in characters: every main turn's tools name them all. */
+export const MAX_AGENT_NAME_LENGTH = 20;
+
+/**
  * The helpers of `AiManagerConfig.agents`: the roles alone, or the roles with how a message is
  * handed to them. The main model is offered a `delegate` tool naming the roles, and hands each a
  * task as it chooses; with a `"classifier"` or function `router`, the plan's steps run first.
@@ -53,7 +89,10 @@ export type AiAgentsSetting =
           readonly roles: readonly AiAgentRole[];
           /** How a message is handed to them. Default `"model"`. */
           readonly router?: AiRouter;
-          /** The model the `"classifier"` router's one turn runs on, on the assistant's provider; its own when absent. */
+          /**
+           * The model the `"classifier"` router's one turn runs on, on the assistant's provider; its
+           * own when absent. As a role's `model`: only on the element's remote providers.
+           */
           readonly classifierModel?: string;
           /**
            * Ask the reader before every hand-off to a helper (`ai-approval-requested` with gate
@@ -74,7 +113,7 @@ export function rolesOf(setting: AiAgentsSetting): readonly AiAgentRole[] {
 
 /**
  * The assistant's configuration names something it cannot use: an unknown command or helper, a
- * duplicate or reserved name, an empty purpose. `enableAiControl` rejects with it and builds
+ * duplicate or reserved name, an empty or too long purpose, too many helpers. `enableAiControl` rejects with it and builds
  * nothing. `message` is the code, for a log; read `code` and `params`.
  */
 export class AiConfigError extends Error {

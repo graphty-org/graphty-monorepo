@@ -1513,8 +1513,8 @@ function assistantPage(
         helpers.append(item);
     });
     element.addEventListener("ai-agent-end", (e) => {
-        const { agent, code, params } = e.detail;
-        const tokens = Number(params.inputTokens ?? 0) + Number(params.outputTokens ?? 0);
+        const { agent, code, usage } = e.detail;
+        const tokens = usage.inputTokens + usage.outputTokens;
         const item = document.createElement("li");
         item.textContent = `${agent} ended ${code}, ${String(tokens)} tokens`;
         helpers.append(item);

@@ -372,9 +372,10 @@ A role (`AiAgentRole`, from `@graphty/graphty-element/ai`) is
 `{ name, purpose, commands, provider?, model? }`:
 
 - **`name`**: unique among the roles; the model names the helper by it. `"main"` and `"reader"` are
-  reserved.
+  reserved. At most 20 characters (`MAX_AGENT_NAME_LENGTH`).
 - **`purpose`**: what the helper is for, in the model's language. The main model reads it to choose
-  a helper, and the helper reads it as its instructions.
+  a helper, and the helper reads it as its instructions. At most 200 characters
+  (`MAX_AGENT_PURPOSE_LENGTH`): every main turn carries every helper's purpose.
 - **`commands`**: the assistant's own tools the helper may call, by name: `catalog`, `query`,
   `select`, `run_algorithm`, `results`, `style`, `filter`, `layout`, `view`, `edit_data`, `undo`,
   `sets`, `notes`, `import_data`, `export_graph`, `project`, `capture`, `immersive` (the
@@ -383,7 +384,9 @@ A role (`AiAgentRole`, from `@graphty/graphty-element/ai`) is
 - **`provider`** and **`model`**: a helper runs on the assistant's own provider and model unless
   you name others. `provider` is `"openai"`, `"anthropic"` or `"google"` (a helper cannot run on
   the in-browser model or the mock); `model` alone keeps the assistant's provider with another
-  model. A helper on a provider of its own takes its key from `apiKeys`:
+  model, which works only when the assistant runs on `"openai"`, `"anthropic"` or `"google"`: on
+  `"webllm"`, the mock or a `providerInstance` of your own, name a `provider` too. A helper on a
+  provider of its own takes its key from `apiKeys`:
 
 ```typescript
 await element.enableAiControl({
@@ -400,15 +403,19 @@ key at all resolves `AI_KEY_MISSING` with `{ provider }` before anything is sent
 ### A configuration that cannot run
 
 `enableAiControl` checks the roles before it builds anything, and rejects with an `AiConfigError`
-when one cannot run. Read its `code` (always `"AI_CONFIG_INVALID"`) and `params`
-(`{ agent, field, reason }`):
+when one cannot run; so do `AiManager.init` and `new AiController`. Read its `code` (always
+`"AI_CONFIG_INVALID"`) and `params` (`{ agent, field, reason }`, and `limit` for a reason that
+names one):
 
-| `field`      | `reason`                                                  |
-| ------------ | --------------------------------------------------------- |
-| `"name"`     | `"empty"`, `"reserved"` (`main`, `reader`), `"duplicate"` |
-| `"purpose"`  | `"empty"`                                                 |
-| `"commands"` | `"unknown-command"`, with the name in `params.command`    |
-| `"provider"` | `"unsupported"` (`"webllm"` or `"mock"`)                  |
+| `field`             | `reason`                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------- |
+| `"agents"`          | `"too-many"`: more than 8 roles (no `agent`)                                                   |
+| `"name"`            | `"empty"`, `"too-long"`, `"reserved"` (`main`, `reader`), `"duplicate"`                        |
+| `"purpose"`         | `"empty"`, `"too-long"`                                                                        |
+| `"commands"`        | `"unknown-command"`, with the name in `params.command`                                         |
+| `"provider"`        | `"unsupported"` (`"webllm"` or `"mock"`)                                                       |
+| `"model"`           | `"unsupported"`: `model` without `provider` while the assistant runs on no remote built-in one |
+| `"classifierModel"` | `"unsupported"`: the same, for the classifier (no `agent`)                                     |
 
 ```typescript
 import { AiConfigError } from "@graphty/graphty-element/ai";
@@ -425,18 +432,28 @@ try {
 ### What helpers may do
 
 - **The main model decides.** With `agents` set, the main model is offered a `delegate` tool
-  naming the roles. It hands a helper a task in its own words; the helper works on a conversation of
-  its own and answers, and its answer is what the main model reads next.
+  naming the roles, and its instructions list each role's purpose. It hands a helper a task in its
+  own words; the helper works on a conversation of its own and answers, and its answer is what the
+  main model reads next.
+- **At most 4 at once.** One turn starts at most 4 helpers (`MAX_HELPERS_PER_TURN`); its further
+  hand-offs do not run, and the main model reads `AI_TOOL_NOT_RUN` with `reason: "limit"` for each.
 - **Helpers that run at once only read.** Several hand-offs in one turn run at the same time, and
-  while they do, a batch of a helper's calls that would change the graph is refused whole with
-  `AI_TOOL_DENIED_BY_POLICY` and `reason: "parallel-helper"`; the graph is left alone and the helper
-  hears why. A helper that runs alone, or in a `"sequence"` step, may change the graph. Give a
-  helper that is meant to run beside others only reading tools, such as `query`.
-- **One message, one undo step.** What a helper changes joins the message's undo step, with what
-  the main model changed.
+  while they do, a batch of a helper's calls that does more than read (a change to the graph, an
+  undo, a selection, the view) is refused whole with `AI_TOOL_DENIED_BY_POLICY` and
+  `reason: "parallel-helper"`; the graph is left alone and the helper hears why. A helper that runs
+  alone, or in a `"sequence"` step, may change the graph. Give a helper that is meant to run beside
+  others only reading tools, such as `query`. One that fails outright stops the others with it.
+- **One message, one undo step, all or nothing.** What a helper changes joins the message's undo
+  step, with what the main model changed. A helper whose last change failed takes the whole message
+  back with it, as the main model's would: the message resolves `AI_TOOL_FAILED`.
 - **The same approvals.** Your `approvals` setting and the built-in limits hold a helper's calls as
   they hold the main model's. The `ai-approval-requested` request then has `agent` set to the
-  helper's name, and resolving it continues the helper, then the message.
+  helper's name, and resolving it continues the helper, then the message. A hand-off is judged too,
+  as a call of `delegate` that only reads, with `{ agent, task }` as its arguments: `"deny"` refuses
+  it (`AI_TOOL_DENIED_BY_POLICY`) and `"ask"` holds it (`gate: "policy"`).
+- **What earlier helpers said is data.** A helper later in a sequence or a plan is told what the
+  ones before it answered beside its task, marked as data as the graph's facts are, so an
+  instruction an earlier helper read in a node's label or a fetched page does not become one.
 - **Helpers neither hand on nor ask.** A helper cannot delegate further and cannot ask the reader a
   question; one that needs the reader says so in its answer, and the main model asks.
 - **Cancel stops them.** `cancelAiCommand()` stops running helpers with the message.
@@ -467,9 +484,11 @@ const plan: AiPlan = {
 - **Steps run in order**, each helper given the reader's request and what the helpers before it
   answered. A step's helpers run at once (`"parallel"`, the default; reading only) or one after
   another (`"sequence"`).
-- **At most 8 steps** run; the rest are dropped.
+- **At most 8 steps** run, of at most 4 helpers each; the rest are dropped.
 - **A plan naming a helper that is not a role** resolves the message `AI_CONFIG_INVALID` with
-  `{ agent, field: "router", reason: "unknown-agent" }`, and nothing is sent.
+  `{ agent, field: "router", reason: "unknown-agent" }`, and nothing is sent. A router function that
+  throws resolves it with `{ field: "router", reason: "threw" }`, and one that returns something
+  other than a plan with `{ field: "router", reason: "invalid-plan" }`.
 - After the plan, the main model still has `delegate` and may hand on more.
 
 **`confirmPlans: true`** asks the reader before every hand-off. Each is an ordinary approval
@@ -479,10 +498,16 @@ const plan: AiPlan = {
 
 ### Cost
 
-`ai-agent-start` carries `{ agent, task }`. `ai-agent-end` carries `{ agent, code, params }`:
-how the helper ended, and in `params` the tokens it used, `inputTokens` and `outputTokens`, as its
-provider reported them. When a helper ran, the message's own result adds the helpers' totals to its
-`params` too.
+`ai-agent-start` carries `{ agent, task, after? }`: `task` as the main model or the plan wrote it,
+and `after`, for a helper later in a sequence or a plan, who answered before it and how they ended
+(`[{ agent, code }]`). `ai-agent-end` carries `{ agent, code, params, usage }`: how the helper ended,
+the facts behind the code, and in `usage` the tokens it used, `{ inputTokens, outputTokens }`, as
+its provider reported them.
+
+A message's result (`ExecutionResult`) carries `usage` too: every token the message used, the main
+model's turns, the `"classifier"` router's turn and every helper's, as the providers reported them
+(zero for a provider that reports none). It is absent on a message that ended before a model was
+asked.
 
 In the conversation (`getAiConversation()`), a helper's words and calls are assistant messages with
 `agent` set to its name; the main model's hand-off is its call `delegate`.

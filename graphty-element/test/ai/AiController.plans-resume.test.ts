@@ -17,6 +17,7 @@ import type { TurnRequest } from "../../src/ai/engine/types";
 import type { AiApprovalRequest, AiPendingResolvedEvent } from "../../src/events";
 import { assistantSession } from "../helpers/assistant";
 import {
+    answersOf,
     COUNTER,
     delegate,
     type Driver,
@@ -196,9 +197,36 @@ describe.each([
         ]);
         const counter = harness.driver.requests[1];
         assert.include(counter.system, COUNTER.purpose);
-        const task = counter.messages[0].parts.at(-1);
-        assert.include(task?.type === "text" ? task.text : "", "Colored a and b.");
+        assert.include(answersOf(counter), "Colored a and b.");
         assert.deepStrictEqual(harness.controller.getConversation()?.pending, [], "the plan step ended too");
+    });
+
+    it("drops a helper's request whose helper conversation the record lost, and never runs it as the main's", async () => {
+        const { json, request } = await heldRecord(driver, [STYLIST]);
+        // The record lost the helper's conversation (merged from another tab, or trimmed).
+        const read = readConversation(json);
+        assert.isTrue(read.ok);
+        const lost = read.ok
+            ? writeConversation({
+                  ...read.record,
+                  messages: read.record.messages.map((message) => ({
+                      ...message,
+                      parts: message.parts.filter((part) => part.type !== "agent-ref"),
+                  })),
+              })
+            : json;
+        const harness = await reopened(lost, driver, [STYLIST]);
+        const layers = harness.session.styles.list().length;
+
+        assert.deepStrictEqual(harness.controller.getPendingApprovals(), []);
+        const result = await harness.controller.resolveAiApproval(request, { approve: true });
+
+        assert.strictEqual(result.code, "AI_APPROVAL_STALE");
+        assert.deepInclude(result.params, { reason: "expired" });
+        assert.strictEqual(harness.session.styles.list().length, layers, "the helper's held write did not run");
+        assert.lengthOf(harness.driver.requests, 0);
+        await harness.controller.ready();
+        assert.deepStrictEqual(harness.controller.getConversation()?.pending, [], "and it left the record");
     });
 
     it("gives the helper AI_APPROVAL_STALE when the graph changed, and its answer still reaches the main", async () => {

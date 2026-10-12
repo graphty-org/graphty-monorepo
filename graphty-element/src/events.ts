@@ -1,5 +1,6 @@
 import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 
+import type { AiTokenUsage } from "./ai/agents";
 import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
 import type { AiResultCode, AiResultParams } from "./catalog/ai";
@@ -899,6 +900,11 @@ export interface AiAgentStartEvent {
     agent: string;
     /** The task it was handed, as the main model or the plan wrote it. */
     task: string;
+    /**
+     * The helpers before it in a sequence or a plan, and how each ended: it was told their answers
+     * beside its task. Absent when there were none.
+     */
+    after?: readonly { readonly agent: string; readonly code: AiResultCode }[];
 }
 
 /** A helper finished its task. */
@@ -909,8 +915,10 @@ export interface AiAgentEndEvent {
     agent: string;
     /** How it ended, as an AI command's result code. */
     code: AiResultCode;
-    /** The facts behind `code`, with the tokens it used (`inputTokens`, `outputTokens`). */
+    /** The facts behind `code`. */
     params: AiResultParams;
+    /** The tokens the helper used. */
+    usage: AiTokenUsage;
 }
 
 /**

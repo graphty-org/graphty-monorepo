@@ -213,7 +213,8 @@ export interface MessageState {
      */
     readonly policy?: (call: AiToolCallFacts) => AiApprovalVerdict;
     /**
-     * Set while a helper runs beside others (`"parallel-helper"`): every write call is refused
+     * Set while a helper runs beside others (`"parallel-helper"`): every call that does not only
+     * read (a write, an undo or redo, a selection, the view, cancelling a run) is refused
      * (`AI_TOOL_DENIED_BY_POLICY` with this as `reason`), before the policy is asked.
      */
     readonly readOnly?: "parallel-helper";
@@ -221,8 +222,11 @@ export interface MessageState {
     readonly id: string;
     /** Runs the assistant started in this conversation, which it may cancel without asking. */
     readonly runs: Set<string>;
-    /** Undo or redo calls made in this message (at most one). */
-    undoCalls: number;
+    /**
+     * Undo or redo calls made in this message (at most one): one counter, shared by every copy of
+     * the state (each helper running beside others gets one), so the limit is the message's.
+     */
+    readonly undo: { calls: number };
     /** The message's running totals of what its writes did. */
     readonly totals: { removeNodes: number; removeEdges: number; changedValues: number };
 }

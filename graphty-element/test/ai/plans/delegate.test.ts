@@ -62,6 +62,11 @@ describe("helpers are offered only when configured", () => {
             properties: { agent: { enum: string[] } };
         };
         assert.deepStrictEqual(declared.properties.agent.enum, ["counter", "stylist"]);
+        // The purposes are the instructions', so the tool is the same size however many helpers.
+        const { system } = harness.driver.requests[0];
+        assert.include(system, `- counter: ${COUNTER.purpose}`);
+        assert.include(system, `- stylist: ${STYLIST.purpose}`);
+        assert.notInclude(tools.find((tool) => tool.name === "delegate")?.description, COUNTER.purpose);
     });
 });
 
@@ -156,7 +161,7 @@ describe.each([
         assert.strictEqual(session.styles.list().length, layers);
     });
 
-    it("sums the helper's tokens into ai-agent-end and the message's result", async () => {
+    it("reports the helper's tokens on ai-agent-end, and the message's own and its helpers' on the result", async () => {
         const session = await assistantSession();
         const harness = new Harness(session, driver(), { agents: [COUNTER] });
         harness.driver.push(
@@ -169,9 +174,25 @@ describe.each([
         const result = await harness.controller.execute("count");
 
         const end = harness.events.find((event): event is AiAgentEndEvent => event.type === "ai-agent-end");
-        assert.deepInclude(end?.params, { inputTokens: 50, outputTokens: 7 });
+        assert.deepStrictEqual(end?.usage, { inputTokens: 50, outputTokens: 7 });
         assert.strictEqual(end?.code, "AI_COMPLETED");
-        assert.deepInclude(result.params, { inputTokens: 50, outputTokens: 7 });
+        assert.notProperty(end?.params, "inputTokens", "a cost is not a fact of the code");
+        // The main model's 100 + 10, and the helper's 50 + 7.
+        assert.deepStrictEqual(result.usage, { inputTokens: 150, outputTokens: 17 });
+        assert.notProperty(result.params, "inputTokens");
+    });
+
+    it("reports the main model's tokens on a message with no helper", async () => {
+        const session = await assistantSession();
+        const harness = new Harness(session, driver(), { agents: [COUNTER] });
+        harness.driver.push(
+            { calls: [COUNT], usage: { input: 40, output: 5 } },
+            { text: "Two.", usage: { input: 60, output: 2 } },
+        );
+
+        const result = await harness.controller.execute("count");
+
+        assert.deepStrictEqual(result.usage, { inputTokens: 100, outputTokens: 7 });
     });
 
     it("saves the helper's conversation, and the snapshot shows its answer under its name", async () => {

@@ -34,7 +34,7 @@ export async function twoHelpers(myKey: string, log: HTMLElement): Promise<Execu
         log.textContent = `${e.detail.agent} started: ${e.detail.task}`;
     });
     element.addEventListener("ai-agent-end", (e) => {
-        const used = Number(e.detail.params.inputTokens ?? 0) + Number(e.detail.params.outputTokens ?? 0);
+        const used = e.detail.usage.inputTokens + e.detail.usage.outputTokens;
         log.textContent = `${e.detail.agent} ended ${e.detail.code} after ${String(used)} tokens`;
     });
 

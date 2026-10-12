@@ -1,12 +1,19 @@
 /**
  * @file Checking the helpers a host configures (`AiManagerConfig.agents`) before anything is built:
- * `enableAiControl` rejects a configuration that cannot run with an `AiConfigError` naming the
- * helper, the field and why. Loaded with `import()` only when `agents` is set.
+ * `enableAiControl`, `AiManager.init` and `new AiController` reject a configuration that cannot run
+ * with an `AiConfigError` naming the helper, the field and why.
  */
 
-import { AI_PROVIDER_DESCRIPTORS } from "../../catalog/ai";
-import { ASSISTANT_TOOLS } from "../../catalog/assistant";
-import { type AiAgentsSetting, AiConfigError, rolesOf } from "../agents";
+import { AI_PROVIDER_DESCRIPTORS } from "../catalog/ai";
+import { ASSISTANT_TOOLS } from "../catalog/assistant";
+import {
+    type AiAgentsSetting,
+    AiConfigError,
+    MAX_AGENT_NAME_LENGTH,
+    MAX_AGENT_PURPOSE_LENGTH,
+    MAX_AGENTS,
+    rolesOf,
+} from "./agents";
 
 /** Names a helper may not take: the main conversation and the reader. */
 const RESERVED_NAMES: ReadonlySet<string> = new Set(["main", "reader"]);
@@ -28,21 +35,36 @@ const HELPER_PROVIDERS: ReadonlySet<string> = new Set(
 /**
  * Check a helper configuration.
  * @param setting - The helpers.
- * @param commands - The commands a helper may name besides the assistant's own tools.
- * @throws {AiConfigError} On an empty, duplicate or reserved name, an empty purpose, an unknown
- *   command, or a provider a helper cannot run on.
+ * @param main - The assistant's own provider, by name, when known: a role's `model` alone (or the
+ *   classifier's) needs a second instance of it, which only the element's remote providers have.
+ * @throws {AiConfigError} On too many helpers, an empty, too long, duplicate or reserved name, an
+ *   empty or too long purpose, an unknown command, a provider a helper cannot run on, or a model of its own
+ *   on a provider the element cannot build a second of.
  */
-export function checkAgents(setting: AiAgentsSetting, commands: Iterable<string> = []): void {
-    const known = new Set([...KNOWN_COMMANDS, ...commands]);
+export function checkAgents(setting: AiAgentsSetting, main?: string): void {
+    const roles = rolesOf(setting);
+    if (roles.length > MAX_AGENTS) {
+        throw new AiConfigError({ field: "agents", reason: "too-many", limit: MAX_AGENTS });
+    }
+
+    const ownModel = main === undefined || HELPER_PROVIDERS.has(main);
+    if (!ownModel && "roles" in setting && setting.router === "classifier" && setting.classifierModel !== undefined) {
+        throw new AiConfigError({ field: "classifierModel", reason: "unsupported" });
+    }
+
     const seen = new Set<string>();
-    for (const role of rolesOf(setting)) {
+    for (const role of roles) {
         const agent = role.name;
-        const fail = (field: string, reason: string, extra: Record<string, string> = {}): never => {
+        const fail = (field: string, reason: string, extra: Record<string, string | number> = {}): never => {
             throw new AiConfigError({ agent, field, reason, ...extra });
         };
 
         if (agent.trim() === "") {
             fail("name", "empty");
+        }
+
+        if (agent.length > MAX_AGENT_NAME_LENGTH) {
+            fail("name", "too-long", { limit: MAX_AGENT_NAME_LENGTH });
         }
 
         if (RESERVED_NAMES.has(agent)) {
@@ -58,13 +80,21 @@ export function checkAgents(setting: AiAgentsSetting, commands: Iterable<string>
             fail("purpose", "empty");
         }
 
-        const unknown = role.commands.find((command) => !known.has(command));
+        if (role.purpose.length > MAX_AGENT_PURPOSE_LENGTH) {
+            fail("purpose", "too-long", { limit: MAX_AGENT_PURPOSE_LENGTH });
+        }
+
+        const unknown = role.commands.find((command) => !KNOWN_COMMANDS.has(command));
         if (unknown !== undefined) {
             fail("commands", "unknown-command", { command: unknown });
         }
 
         if (role.provider !== undefined && !HELPER_PROVIDERS.has(role.provider)) {
             fail("provider", "unsupported");
+        }
+
+        if (role.provider === undefined && role.model !== undefined && !ownModel) {
+            fail("model", "unsupported");
         }
     }
 }

@@ -28,11 +28,11 @@ function stepFact(step: HistoryStep): { code: string; params: unknown; mine: boo
  * @param message - The message.
  */
 function once(message: MessageState): void {
-    if (message.undoCalls > 0) {
+    if (message.undo.calls > 0) {
         throw new ToolRefusal("AI_UNDO_NOT_ALONE", { reason: "one undo or redo per message" });
     }
 
-    message.undoCalls++;
+    message.undo.calls++;
 }
 
 /** The `undo` tool. */

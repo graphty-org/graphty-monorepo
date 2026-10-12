@@ -57,6 +57,7 @@ export interface AiAgentEndEvent {
     code: AiResultCode;
     params: AiResultParams;
     type: "ai-agent-end";
+    usage: AiTokenUsage;
 }
 
 // @public
@@ -78,6 +79,10 @@ export type AiAgentsSetting = readonly AiAgentRole[] | {
 
 // @public
 export interface AiAgentStartEvent {
+    after?: readonly {
+        readonly agent: string;
+        readonly code: AiResultCode;
+    }[];
     agent: string;
     task: string;
     type: "ai-agent-start";
@@ -410,6 +415,12 @@ export class AiStatusManager {
 }
 
 // @public
+export interface AiTokenUsage {
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+}
+
+// @public
 export interface AiToolCallFacts {
     readonly action?: string;
     readonly arguments: Readonly<Record<string, unknown>>;
@@ -532,6 +543,7 @@ export interface ExecutionResult extends CommandResult {
     code?: AiResultCode;
     llmText?: string;
     params?: AiResultParams;
+    usage?: AiTokenUsage;
 }
 
 // @public @deprecated
@@ -617,6 +629,18 @@ export interface LlmResponse {
         completionTokens: number;
     };
 }
+
+// @public
+export const MAX_AGENT_NAME_LENGTH = 20;
+
+// @public
+export const MAX_AGENT_PURPOSE_LENGTH = 200;
+
+// @public
+export const MAX_AGENTS = 8;
+
+// @public
+export const MAX_HELPERS_PER_TURN = 4;
 
 // @public
 export interface Message {

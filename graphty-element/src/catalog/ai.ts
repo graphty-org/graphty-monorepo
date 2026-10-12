@@ -252,11 +252,13 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *   for a question that takes one). `{ request }`: nothing continued and the question stays open;
  *   its choices are in `getPendingAiQuestions()`.
  * - `AI_CONFIG_INVALID` -- the assistant's configuration names something it cannot use (the
- *   code of an `AiConfigError` from `enableAiControl`), or a router's plan names an unknown
- *   helper; nothing was sent. `{ agent, field, reason }`: the helper, the field
- *   (`"name"`, `"purpose"`, `"commands"`, `"provider"`, `"router"`) and why (`"unknown-command"`,
- *   `"unknown-agent"`, `"duplicate"`, `"reserved"`, `"empty"`, `"unsupported"`), and for an
- *   unknown command, `command`.
+ *   code of an `AiConfigError` from `enableAiControl`), or a function router threw, returned no
+ *   plan or a plan naming an unknown helper; nothing was sent. `{ agent, field, reason }`: the
+ *   helper (absent for a setting of no one helper), the field (`"agents"`, `"name"`, `"purpose"`,
+ *   `"commands"`, `"provider"`, `"model"`, `"classifierModel"`, `"router"`) and why
+ *   (`"unknown-command"`, `"unknown-agent"`, `"duplicate"`, `"reserved"`, `"empty"`,
+ *   `"too-long"`, `"too-many"`, `"unsupported"`, `"threw"`, `"invalid-plan"`), for an unknown
+ *   command, `command`, and for a reason past a limit, `limit`.
  * - `AI_ROLLBACK_PARTIAL` -- taking the message back stopped at someone else's step. `{ steps }`.
  * - `AI_APPROVAL_STALE` -- a held change was not run because its request ended without a
  *   decision. `{ request, reason }`: `"graph-changed"` (answered after the graph changed; the
@@ -265,13 +267,15 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_APPROVAL_DENIED` -- the reader declined a held change; the model is told and answers.
  *   `{ request }`.
  * - `AI_TOOL_DENIED_BY_POLICY` -- the host's approval policy refused a call, so none of its batch
- *   ran. `{ tool }`, and `reason: "parallel-helper"` for a write a helper tried while other helpers
- *   ran beside it (helpers that run at once may only read).
+ *   ran. `{ tool }`, and `reason: "parallel-helper"` for a call that does more than read a helper
+ *   tried while other helpers ran beside it (helpers that run at once may only read).
  * - `AI_FAILED` -- anything else went wrong while the command ran.
  *
  * Carried by saved conversations and the conversation events rather than ending a command:
  * - `AI_TOOL_NOT_RUN` -- a saved tool result: the call did not run, because an earlier call in its
- *   batch failed or the batch was taken back. `{ tool }`.
+ *   batch failed or the batch was taken back. `{ tool }`, and `reason`: `"held"` when a held batch
+ *   of its turn kept it from running, `"limit"` for a hand-off past the turn's
+ *   `MAX_HELPERS_PER_TURN`.
  * - `AI_HISTORY_UNAVAILABLE` -- saved history cannot be used. `{ reason }`: `"invalid-record"`
  *   for a saved conversation that is not a valid record (it is skipped, never thrown);
  *   `"storage-unavailable"` when the browser's storage cannot open, and history is kept in memory;

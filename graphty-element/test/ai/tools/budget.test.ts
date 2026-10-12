@@ -10,12 +10,14 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import { defineAlgorithm, defineLayout } from "../../../extend";
 import { createGraphSession } from "../../../session";
+import { MAX_AGENT_NAME_LENGTH, MAX_AGENT_PURPOSE_LENGTH, MAX_AGENTS } from "../../../src/ai/agents";
 import { CommandRegistry } from "../../../src/ai/commands";
 import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
 import type { ToolSpec } from "../../../src/ai/engine/types";
 import { delegation } from "../../../src/ai/plans/delegate";
 import { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
-import { ASK_READER_TOOL, turnTools } from "../../../src/ai/runConversation";
+import { ASK_READER_TOOL } from "../../../src/ai/questions";
+import { turnTools } from "../../../src/ai/runConversation";
 import { installAssistantTools } from "../../../src/ai/tools/install";
 import { isAssistantTool } from "../../../src/ai/tools/toolset";
 import { clearRegisteredLayoutsForTesting } from "../../../src/catalog/layoutRegistry";
@@ -35,23 +37,36 @@ const DELEGATE_TOOL = delegation({
     keyFor: () => undefined,
 }).tool;
 
+/** The `delegate` tool for the most helpers a host may name, each with the longest name and purpose. */
+const LARGEST_DELEGATE_TOOL = delegation({
+    roles: Array.from({ length: MAX_AGENTS }, (_, at) => ({
+        name: String(at).padEnd(MAX_AGENT_NAME_LENGTH, "h"),
+        purpose: "p".repeat(MAX_AGENT_PURPOSE_LENGTH),
+        commands: ["query"],
+    })),
+    engine: new FakeEngine(),
+    provider: new MockLlmProvider(),
+    keyFor: () => undefined,
+}).tool;
+
 /**
  * The tokens one profile's first turn declares.
  * @param profile - The profile.
  * @param questions - Whether `ask_reader` is offered.
- * @param helpers - Whether `delegate` is offered, for two helpers.
+ * @param helpers - Whether `delegate` is offered: for two helpers, or for the most a host may name.
  * @returns The tool count and the estimated tokens.
  */
 function declared(
     profile: "standard" | "small",
     questions = false,
-    helpers = false,
+    helpers: false | true | "largest" = false,
 ): { tools: string[]; tokens: number; enumNames: boolean } {
     const registry = new CommandRegistry();
     installAssistantTools(registry, createGraphSession());
     const offered = turnTools(registry, profile, []);
     // The loop's own tools, when helpers or questions are switched on.
-    const loopTools: ToolSpec[] = [...(helpers ? [DELEGATE_TOOL] : []), ...(questions ? [ASK_READER_TOOL] : [])];
+    const delegate = { largest: [LARGEST_DELEGATE_TOOL], true: [DELEGATE_TOOL], false: [] }[String(helpers)] ?? [];
+    const loopTools: ToolSpec[] = [...delegate, ...(questions ? [ASK_READER_TOOL] : [])];
     let chars = 0;
     for (const tool of loopTools) {
         chars += tool.name.length + tool.description.length + JSON.stringify(tool.jsonSchema).length;
@@ -111,6 +126,11 @@ describe("the always-loaded tools fit a model's budget", () => {
         const small = declared("small", true, true);
         assert.lengthOf(small.tools, 6);
         assert.isAtMost(small.tokens, 1500);
+    });
+
+    it("stays within both budgets with the most helpers, their names and purposes the longest, and questions on", () => {
+        assert.isAtMost(declared("standard", true, "largest").tokens, 5000);
+        assert.isAtMost(declared("small", true, "largest").tokens, 1500);
     });
 
     it("stays within budget with 100 algorithms and 30 layouts registered, their names a validated string", () => {

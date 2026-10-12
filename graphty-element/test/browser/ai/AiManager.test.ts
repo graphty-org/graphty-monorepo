@@ -5,6 +5,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
+import { AiConfigError } from "../../../src/ai/agents";
 import { AiManager } from "../../../src/ai/AiManager";
 import type { Graph } from "../../../src/Graph";
 import { createMockGraphContext } from "../../helpers/mock-graph-context";
@@ -34,6 +35,17 @@ describe("AiManager", () => {
         it("initializes with mock provider", () => {
             const status = manager.getStatus();
             assert.strictEqual(status.state, "ready");
+        });
+
+        it("rejects helpers that cannot run before building anything, as enableAiControl does", () => {
+            const another = new AiManager();
+            assert.throws(() => {
+                another.init(mockGraph, {
+                    provider: "mock",
+                    agents: [{ name: "counter", purpose: "Count nodes.", commands: ["paint"] }],
+                });
+            }, AiConfigError);
+            assert.deepStrictEqual(another.getRegisteredCommands(), [], "nothing was registered");
         });
 
         it("can be initialized with different providers", () => {

@@ -12,8 +12,7 @@
  * so it works on every engine.
  */
 
-import { z } from "zod";
-
+import type { AiResultCode } from "../catalog/ai";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession, HistoryStepId } from "../session/types";
 import type { AiPlan } from "./agents";
@@ -21,7 +20,7 @@ import type { ExecutionResult } from "./AiController";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, GraphCommand } from "./commands/types";
 import { DEFAULT_HISTORY_BUDGET_TOKENS, historyWindow } from "./conversation/Conversation";
-import { compactSchema, toolJsonSchema } from "./engine/jsonSchema";
+import { toolJsonSchema } from "./engine/jsonSchema";
 import { providerFailure } from "./engine/LlmProviderEngine";
 import type {
     AiEngine,
@@ -75,12 +74,6 @@ export const RESULT_CAP: Readonly<Record<ToolProfile, number>> = { standard: 800
 /** The loop's own tool for a question to the reader, offered only when questions are switched on. */
 export const ASK_READER = "ask_reader";
 
-const askReaderSchema = z.strictObject({
-    question: z.string().min(1),
-    choices: z.array(z.string().min(1)).min(2).max(10),
-    multiple: z.boolean().optional(),
-});
-
 /** A question the model asked, its arguments checked. */
 export interface AskedQuestion {
     /** The `ask_reader` call. */
@@ -90,17 +83,12 @@ export interface AskedQuestion {
     readonly multiple: boolean;
 }
 
-// Compact, as the generated tools' are, and open: every tool turn declares it, within the standard
-// profile's 5,000 tokens. The strict check still refuses an unknown field.
-const { additionalProperties: _open, ...askReaderJson } = compactSchema(toolJsonSchema(askReaderSchema)) as JsonSchema;
-
-/** `ask_reader` as a tool the model may call. Its description is for the model only. */
-export const ASK_READER_TOOL: ToolSpec = {
-    name: ASK_READER,
-    description: "Ask me to pick from 2-10 choices when my request is unclear. Call it last.",
-    schema: askReaderSchema,
-    jsonSchema: askReaderJson,
-};
+/** The `ask_reader` tool and how a call of it is checked: the questions module's, loaded when needed. */
+export interface QuestionTool {
+    readonly tool: ToolSpec;
+    /** A call of the tool, checked: the question, or undefined when its arguments do not fit. */
+    readonly parse: (call: ToolCallRequest) => AskedQuestion | undefined;
+}
 
 /** The loop's own tool for handing a task to a helper, offered only when helpers are configured. */
 export const DELEGATE = "delegate";
@@ -109,6 +97,27 @@ export const DELEGATE = "delegate";
 export interface TokenUsage {
     readonly inputTokens: number;
     readonly outputTokens: number;
+}
+
+/** No tokens. */
+export const NO_USAGE: TokenUsage = Object.freeze({ inputTokens: 0, outputTokens: 0 });
+
+/**
+ * Two counts of tokens, summed.
+ * @param a - One.
+ * @param b - The other.
+ * @returns Their sum.
+ */
+export function addUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
+    return { inputTokens: a.inputTokens + b.inputTokens, outputTokens: a.outputTokens + b.outputTokens };
+}
+
+/** What an earlier helper of the message answered, which a later one is told. */
+export interface HelperAnswer {
+    readonly agent: string;
+    readonly code: AiResultCode;
+    /** Its result, as the model reads it. */
+    readonly content: string;
 }
 
 /**
@@ -125,6 +134,8 @@ export interface Delegation {
      * @param state - The message's state.
      * @param sequence - Run them one after another, each told what the ones before it answered,
      *     rather than at once and read-only.
+     * @param prior - What earlier helpers answered, which each is told; for a plan's step, the
+     *     plan's earlier hand-offs when absent.
      * @returns The parts the calls' tool message gets (each call's result and its helper's
      *     conversation), and the tokens the helpers used.
      */
@@ -133,7 +144,7 @@ export interface Delegation {
         parent: ConversationRun,
         state: MessageState,
         sequence?: boolean,
-        prior?: readonly string[],
+        prior?: readonly HelperAnswer[],
     ): Promise<DelegatedRun>;
     /**
      * Continue a helper whose batch was held, with the reader's decision, until it answers; then
@@ -175,12 +186,11 @@ export interface PlannedStep {
 /** A router's plan, which the loop runs as `delegate` calls of graphty's own before the model's turns. */
 export interface PlanSteps {
     /**
-     * The next step, its tasks told what the steps before it answered.
-     * @param conversation - The conversation so far.
+     * The next step.
      * @param newId - Makes a call's id.
      * @returns The step, or undefined once the plan is done.
      */
-    next(conversation: Conversation, newId: () => string): PlannedStep | undefined;
+    next(newId: () => string): PlannedStep | undefined;
     /** Whether the step `next` returned last runs one after another (false once the plan is done). */
     readonly sequence: boolean;
     /**
@@ -247,11 +257,13 @@ export interface ConversationRun {
      */
     readonly newId?: () => string;
     /**
-     * Store a question the model asked (`ask_reader`), which the loop offers only when this is set.
-     * The conversation then ends in the call, whose result the reader's answer adds.
+     * Store a question the model asked (`ask_reader`), which the loop offers only when this and
+     * `questions` are set. The conversation then ends in the call, whose result the reader's answer adds.
      * @returns The question's id, once it is saved and the host told.
      */
     readonly ask?: (question: AskedQuestion, messageId: string) => Promise<string>;
+    /** The `ask_reader` tool, with `ask`. */
+    readonly questions?: QuestionTool;
     /** The reader's answer to a question, which the run starts with: the result of its call. */
     readonly answer?: ReaderAnswer;
     /** Helpers the model may hand tasks to; the loop offers `delegate` only when this is set. */
@@ -538,8 +550,8 @@ interface MessageTally {
     decision?: Outcome;
     /** The question the message asked, which it now waits on. */
     asked?: string;
-    /** The tokens the message's helpers used, once one ran. */
-    helpers?: TokenUsage;
+    /** The tokens the message used: its own model turns and its helpers'. */
+    usage: TokenUsage;
 }
 
 /**
@@ -549,6 +561,16 @@ interface MessageTally {
  * @returns Combined execution result
  */
 function combineResults(tally: MessageTally, llmText?: string): ExecutionResult {
+    return { ...combined(tally, llmText), usage: tally.usage };
+}
+
+/**
+ * The message's result, but for its tokens.
+ * @param tally - What the batches did.
+ * @param llmText - Optional text from the model
+ * @returns Combined execution result
+ */
+function combined(tally: MessageTally, llmText?: string): ExecutionResult {
     const { results, failure, held, asked } = tally;
     if (asked !== undefined) {
         return {
@@ -611,6 +633,7 @@ function combineResults(tally: MessageTally, llmText?: string): ExecutionResult 
  * @param run - The loop's run.
  * @param request - The turn.
  * @param earlier - The text of the message's earlier turns, for the accumulated text.
+ * @param onUsage - Told each usage the turn reports.
  * @returns The turn's text and calls.
  * @throws {TurnFailed} When the turn ends with an error, ends without a `finish` (a dropped
  *   stream: its calls may be cut short, so none runs), or finishes after the message was cancelled.
@@ -619,6 +642,7 @@ async function modelTurn(
     run: ConversationRun,
     request: TurnRequest,
     earlier: readonly string[],
+    onUsage: (usage: TokenUsage) => void,
 ): Promise<{ text: string; calls: ToolCallRequest[] }> {
     const { engine, sink, abort } = run;
     let text = "";
@@ -638,7 +662,7 @@ async function modelTurn(
                 ...(event.providerState && { providerState: event.providerState }),
             });
         } else if (event.type === "usage") {
-            run.onUsage?.({ inputTokens: event.inputTokens, outputTokens: event.outputTokens });
+            onUsage({ inputTokens: event.inputTokens, outputTokens: event.outputTokens });
         } else if (event.type === "error") {
             throw new TurnFailed(event);
         } else if (event.type === "finish") {
@@ -939,10 +963,7 @@ async function applyDelegated(
     added: SavedMessage | undefined,
     newId: () => string,
 ): Promise<boolean> {
-    tally.helpers = {
-        inputTokens: (tally.helpers?.inputTokens ?? 0) + ran.usage.inputTokens,
-        outputTokens: (tally.helpers?.outputTokens ?? 0) + ran.usage.outputTokens,
-    };
+    tally.usage = addUsage(tally.usage, ran.usage);
     addParts(run, ran.parts, added, newId);
     if (ran.held === undefined) {
         return false;
@@ -979,12 +1000,14 @@ function addParts(
 const NO_BATCH: BatchOutcome = { results: [], writes: false };
 
 /**
- * Hold hand-offs to helpers for the reader's approval (`confirmDelegates`).
+ * Hold hand-offs to helpers for the reader's approval: `confirmDelegates` (gate `"plan"`), or the
+ * host's policy asked (gate `"policy"`).
  * @param run - The loop's run.
  * @param calls - The `delegate` calls.
  * @param state - The message's state.
  * @param tally - The message's tally, which records the hold.
  * @param messageId - The assistant message holding the calls.
+ * @param gate - Why they are held.
  */
 async function holdDelegates(
     run: ConversationRun,
@@ -992,10 +1015,45 @@ async function holdDelegates(
     state: MessageState,
     tally: MessageTally,
     messageId: string,
+    gate: "plan" | "policy",
 ): Promise<void> {
-    const held: HeldBatch = { gate: "plan", preview: {}, calls, totals: { ...state.totals } };
+    const held: HeldBatch = { gate, preview: {}, calls, totals: { ...state.totals } };
     tally.held = { request: await run.hold?.(held, messageId), gate: held.gate };
 }
+
+/**
+ * The host's approval policy on hand-offs to helpers, judged as a read-only call of `delegate`
+ * with its arguments: any `deny` refuses them all, any `ask` (or anything but a verdict, or a
+ * policy that throws) holds them. Without a policy, they run.
+ * @param state - The message's state, with the policy.
+ * @param calls - The `delegate` calls.
+ * @returns The verdict.
+ */
+function delegateVerdict(state: MessageState, calls: readonly ToolCallRequest[]): "allow" | "deny" | "ask" {
+    const { policy } = state;
+    if (policy === undefined) {
+        return "allow";
+    }
+
+    const verdicts = calls.map((call) => {
+        try {
+            return policy({ command: DELEGATE, arguments: call.arguments, effect: "read" });
+        } catch {
+            return "deny";
+        }
+    });
+    if (verdicts.includes("deny")) {
+        return "deny";
+    }
+
+    return verdicts.every((verdict) => verdict === "allow") ? "allow" : "ask";
+}
+
+/** The outcome of hand-offs the host's policy refused. */
+const DELEGATE_DENIED: Outcome = { code: "AI_TOOL_DENIED_BY_POLICY", params: {} };
+
+/** The outcome of a turn's calls that a hold before them kept from running. */
+const NOT_RUN_HELD: Outcome = { code: "AI_TOOL_NOT_RUN", params: { reason: "held" } };
 
 /**
  * Run the loop for one message: ask the model, then run the tools it calls, each batch in a short
@@ -1009,11 +1067,14 @@ async function holdDelegates(
 export async function runConversation(run: ConversationRun): Promise<ExecutionResult> {
     const { conversation, tools, sink } = run;
     const profile = run.profile ?? "standard";
+    // Questions, when both the store and the tool are there.
+    const asks =
+        run.ask === undefined || run.questions === undefined ? undefined : { ...run.questions, store: run.ask };
     const state: MessageState = run.state ?? {
         id: run.message,
         gate: DEFAULT_ASSISTANT_GATE_LIMITS,
         runs: new Set(),
-        undoCalls: 0,
+        undo: { calls: 0 },
         totals: { removeNodes: 0, removeEdges: 0, changedValues: 0 },
     };
 
@@ -1030,12 +1091,16 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
     // Every tool result goes back to the model, which then calls more tools or answers. A model
     // that looks before it acts -- query, then view on what it found -- gets to act; asked only
     // once, it would stop after looking and the person would get nothing.
-    const tally: MessageTally = { results: [], committed: 0 };
+    const tally: MessageTally = { results: [], committed: 0, usage: NO_USAGE };
     const texts: string[] = [];
     const newId = run.newId ?? ((): string => `m${String(conversation.messages.length + 1)}`);
     const cap = RESULT_CAP[profile];
     // The held batch's results, shown to the model for its answer only: the decision adds the real ones.
     let heldResults: SavedMessage | undefined;
+    const report = (used: TokenUsage): void => {
+        tally.usage = addUsage(tally.usage, used);
+        run.onUsage?.(used);
+    };
     const resultOf = (threw: BatchOutcome): ExecutionResult => {
         tally.results.push(...threw.results.filter((result): result is CallResult => result !== undefined));
         tally.failure ??= threw.failure;
@@ -1063,7 +1128,10 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
 
     if (run.decided !== undefined) {
         const { calls, outcome } = run.decided;
-        const callsMessage = conversation.messages.at(-1)?.id ?? "";
+        // The assistant message holding the calls: the turn's calls a hold kept from running may
+        // be answered after it.
+        const callsMessage =
+            [...conversation.messages].reverse().find((message) => message.role === "assistant")?.id ?? "";
         if (outcome === undefined && calls.every((call) => call.name === DELEGATE)) {
             // An approved hand-off: the helpers run, as the step that held them said.
             sink.status.startExecuting();
@@ -1094,14 +1162,24 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
     // A router's plan runs first, as hand-offs of graphty's own, step by step; a denied step ends it.
     // A step held for approval ends the message there: its calls wait on the reader, not the model.
     if (!stopped && run.decided?.outcome === undefined && run.delegation !== undefined) {
-        for (
-            let step = run.plan?.next(conversation, newId);
-            step !== undefined;
-            step = run.plan?.next(conversation, newId)
-        ) {
+        for (let step = run.plan?.next(newId); step !== undefined; step = run.plan?.next(newId)) {
             const callsMessage = appendCalls(conversation, "", step.calls, newId, "graphty");
-            if (run.confirmDelegates === true) {
-                await holdDelegates(run, step.calls, state, tally, callsMessage);
+            const verdict = delegateVerdict(state, step.calls);
+            if (verdict === "deny") {
+                // The plan ends there; the model reads why and answers.
+                addParts(run, closingResults(step.calls, DELEGATE_DENIED, "").parts, undefined, newId);
+                break;
+            }
+
+            if (run.confirmDelegates === true || verdict === "ask") {
+                await holdDelegates(
+                    run,
+                    step.calls,
+                    state,
+                    tally,
+                    callsMessage,
+                    run.confirmDelegates === true ? "plan" : "policy",
+                );
                 stopped = true;
                 break;
             }
@@ -1136,11 +1214,12 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
                 tools: [
                     ...offered.map(toolSpec),
                     ...(run.delegation === undefined ? [] : [run.delegation.tool]),
-                    ...(run.ask === undefined ? [] : [ASK_READER_TOOL]),
+                    ...(asks === undefined ? [] : [asks.tool]),
                 ],
                 toolMode: answerOnly ? "none" : "auto",
             },
             texts,
+            report,
         );
 
         logger.debug("Response", {
@@ -1175,7 +1254,7 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
 
         // A question ends the batch: the calls before it run first, and none after it. `delegate`
         // calls run after the batch commits, outside any transaction.
-        const at = run.ask === undefined ? -1 : calls.findIndex((call) => call.name === ASK_READER);
+        const at = asks === undefined ? -1 : calls.findIndex((call) => call.name === ASK_READER);
         const upTo = at === -1 ? calls : calls.slice(0, at);
         const delegated = run.delegation === undefined ? [] : upTo.filter((call) => call.name === DELEGATE);
         const before = delegated.length === 0 ? upTo : upTo.filter((call) => call.name !== DELEGATE);
@@ -1190,6 +1269,14 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
             before.length === 0 ? { results: [], writes: false } : await runBatch(run, before, state, resultOf);
         await tallyBatch(tally, batch, run, callsMessage);
         const added = before.length === 0 ? undefined : appendResults(conversation, before, batch, cap, newId);
+        // The turn's calls a hold keeps from running: answered so, apart from the held results the
+        // decision replaces, so the model reads why they did not run.
+        const unrun = (calls: readonly (ToolCallRequest | undefined)[]): void => {
+            const kept = calls.filter((call): call is ToolCallRequest => call !== undefined);
+            if (kept.length > 0) {
+                conversation.messages.push(closingResults(kept, NOT_RUN_HELD, newId()));
+            }
+        };
         if (batch.held !== undefined) {
             // Held: the question is not asked, the helpers do not run, and the model reads it.
             heldResults = added;
@@ -1197,38 +1284,35 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
                 break;
             }
 
+            unrun([...delegated, asking]);
             continue;
         }
 
-        if (delegated.length > 0 && run.confirmDelegates === true && batch.failure === undefined) {
+        const verdict =
+            delegated.length > 0 && batch.failure === undefined ? delegateVerdict(state, delegated) : "allow";
+        if (verdict === "deny") {
+            addParts(run, closingResults(delegated, DELEGATE_DENIED, "").parts, added, newId);
+        } else if (
+            delegated.length > 0 &&
+            batch.failure === undefined &&
+            (run.confirmDelegates === true || verdict === "ask")
+        ) {
             // Held: the model reads that they wait on the reader, as for any held batch.
-            await holdDelegates(run, delegated, state, tally, callsMessage);
-            heldResults = closingResults(
-                delegated,
-                { code: "AI_CONFIRMATION_NEEDED", params: { gate: "plan" } },
-                newId(),
-            );
+            const gate = run.confirmDelegates === true ? "plan" : "policy";
+            await holdDelegates(run, delegated, state, tally, callsMessage, gate);
+            heldResults = closingResults(delegated, { code: "AI_CONFIRMATION_NEEDED", params: { gate } }, newId());
             conversation.messages.push(heldResults);
+            unrun([asking]);
             continue;
-        }
-
-        if (delegated.length > 0 && (await runDelegated(run, delegated, batch, state, tally, added, newId))) {
+        } else if (delegated.length > 0 && (await runDelegated(run, delegated, batch, state, tally, added, newId))) {
             // A helper's batch waits on the reader: so does the message, and no question is asked.
             break;
         }
 
-        if (asking !== undefined && run.ask !== undefined && batch.failure === undefined) {
-            const parsed = askReaderSchema.safeParse(asking.arguments);
-            if (parsed.success && asking.invalidArguments !== true) {
-                tally.asked = await run.ask(
-                    {
-                        call: asking,
-                        question: parsed.data.question,
-                        choices: parsed.data.choices,
-                        multiple: parsed.data.multiple ?? false,
-                    },
-                    callsMessage,
-                );
+        if (asking !== undefined && asks !== undefined && batch.failure === undefined) {
+            const question = asks.parse(asking);
+            if (question !== undefined) {
+                tally.asked = await asks.store(question, callsMessage);
                 break;
             }
 
@@ -1239,11 +1323,6 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
     let result = combineResults(tally, joinTexts(texts));
     if (tally.decision !== undefined) {
         result = { ...result, success: tally.decision.code !== "AI_APPROVAL_STALE", ...tally.decision };
-    }
-
-    if (tally.helpers !== undefined) {
-        // What the message's helpers cost, beside the main conversation's own facts.
-        result = { ...result, params: { ...result.params, ...tally.helpers } };
     }
 
     if (tally.pending !== undefined && tally.held === undefined && tally.asked === undefined && tally.committed > 0) {

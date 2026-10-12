@@ -164,6 +164,19 @@ export function delegate(agent: string, task: string): { tool: string; args: Rec
 }
 
 /**
+ * What a helper was told earlier helpers answered: a graph-data part of its first message, apart
+ * from its task, so what they quoted stays data.
+ * @param request - The helper's first request.
+ * @returns The text, or "" when it was told none.
+ */
+export function answersOf(request: TurnRequest): string {
+    const part = request.messages[0].parts.find(
+        (each) => each.type === "text" && each.origin === "graph-data" && each.text.startsWith("What the helpers"),
+    );
+    return part?.type === "text" ? part.text : "";
+}
+
+/**
  * The tool results a request's last message carries.
  * @param request - The request.
  * @returns Each result's code and parsed content.

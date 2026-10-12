@@ -419,7 +419,7 @@ function deniedBatch(
  * The host's approval policy on a batch whose structure passed, before any call runs: any `deny`
  * refuses the whole batch, any `ask` holds it (gate `"policy"`). A policy that throws, or answers
  * anything but the three verdicts, refuses or asks: it fails closed. A read-only message (a helper
- * running beside others) refuses any write first.
+ * running beside others) refuses any call that does not only read first.
  * @param batch - The batch.
  * @param ready - Its calls.
  * @param writes - Whether any call writes.
@@ -428,7 +428,8 @@ function deniedBatch(
 function judge(batch: ToolBatch, ready: readonly PreparedCall[], writes: boolean): BatchOutcome | undefined {
     const { policy, approved, readOnly } = batch.message;
     if (readOnly !== undefined) {
-        const at = ready.findIndex((call) => callFacts(call).effect === "write");
+        // Only a read: an exempt call (an undo, a selection, the view) changes what the others read.
+        const at = ready.findIndex((call) => callFacts(call).effect !== "read");
         if (at !== -1) {
             return deniedBatch(batch, ready, at, { reason: readOnly });
         }

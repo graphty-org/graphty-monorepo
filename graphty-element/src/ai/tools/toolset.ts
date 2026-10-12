@@ -279,7 +279,7 @@ export class AssistantTool implements GraphCommand {
                     id: "direct",
                     gate: false,
                     runs: new Set(),
-                    undoCalls: 0,
+                    undo: { calls: 0 },
                     totals: { removeNodes: 0, removeEdges: 0, changedValues: 0 },
                 },
                 host: { emit: () => undefined, readerText: "" },

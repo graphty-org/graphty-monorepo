@@ -401,4 +401,21 @@ describe("a question in the saved conversation", () => {
             .flatMap((part) => (part.type === "tool-result" ? [part.code] : []));
         assert.deepStrictEqual(results, ["AI_TOOL_INVALID_ARGUMENTS"]);
     });
+
+    it("refuses a question whose choices repeat: an answer by value could not tell them apart", async () => {
+        const session = await assistantSession();
+        const harness = new Harness(session, fakeDriver(), { questions: true });
+        harness.driver.push(
+            { calls: [{ tool: "ask_reader", args: { question: "Which?", choices: ["red", "red", "blue"] } }] },
+            { text: "ok" },
+        );
+
+        await harness.controller.execute("color my team");
+
+        assert.lengthOf(asked(harness.events), 0);
+        const results = harness.driver.requests[1].messages
+            .flatMap((message) => message.parts)
+            .flatMap((part) => (part.type === "tool-result" ? [part.code] : []));
+        assert.deepStrictEqual(results, ["AI_TOOL_INVALID_ARGUMENTS"]);
+    });
 });

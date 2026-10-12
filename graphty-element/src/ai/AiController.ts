@@ -13,7 +13,14 @@ import {
 import type { AiApprovalRequest, AiEvent, AiQuestionRequest } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession } from "../session/types";
-import { type AiAgentRole, type AiAgentsSetting, type AiPlan, type AiRouter, rolesOf } from "./agents";
+import {
+    type AiAgentRole,
+    type AiAgentsSetting,
+    type AiPlan,
+    type AiRouter,
+    type AiTokenUsage,
+    rolesOf,
+} from "./agents";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, CommandResult } from "./commands/types";
@@ -41,7 +48,9 @@ import {
 import { ENGINE_OVERRIDE, engineFor } from "./engine/load";
 import type { AiEngine, SavedMessage } from "./engine/types";
 import type { LlmProvider } from "./providers/types";
+import { checkAgents } from "./roles";
 import {
+    addUsage,
     ASK_READER,
     type AskedQuestion,
     closingResults,
@@ -50,8 +59,10 @@ import {
     DELEGATE,
     type Delegation,
     MessageRolledBack,
+    NO_USAGE,
     type PlanSteps,
     runConversation,
+    type TokenUsage,
     TurnFailed,
 } from "./runConversation";
 import { toSafeError } from "./safeError";
@@ -188,6 +199,26 @@ function waitingCalls(pending: OpenPending): readonly ToolCallRequest[] {
 }
 
 /**
+ * Whether a function router returned a plan the loop can run: steps of helper names.
+ * @param plan - What it returned.
+ * @returns True for a plan.
+ */
+function isPlan(plan: unknown): plan is AiPlan {
+    const { steps } = (plan ?? {}) as { steps?: unknown };
+    return (
+        Array.isArray(steps) &&
+        steps.every((step: unknown) => {
+            const { agents, order } = (step ?? {}) as { agents?: unknown; order?: unknown };
+            return (
+                Array.isArray(agents) &&
+                agents.every((agent) => typeof agent === "string") &&
+                (order === undefined || order === "parallel" || order === "sequence")
+            );
+        })
+    );
+}
+
+/**
  * The `delegate` call a helper's saved message answers.
  * @param messages - The main conversation.
  * @param messageId - A message of the helper's conversation.
@@ -201,22 +232,6 @@ function helperCallOf(messages: readonly SavedMessage[], messageId: string): str
     }
 
     return undefined;
-}
-
-/**
- * The choices an answer picks, when they are among the question's.
- * @param request - The question.
- * @param answer - The answer: one choice, or several for a question that takes several.
- * @returns The choices, or undefined when the answer is not one of them.
- */
-function pickedChoices(request: AiQuestionRequest, answer: string | readonly string[]): string[] | undefined {
-    const values = typeof answer === "string" ? [answer] : [...answer];
-    const valid =
-        values.length > 0 &&
-        (request.multiple || values.length === 1) &&
-        new Set(values).size === values.length &&
-        values.every((value) => request.choices.includes(value));
-    return valid ? values : undefined;
 }
 
 /** The graph a request was held against, as its saved entry records it. */
@@ -314,8 +329,11 @@ interface MessageRun {
     readonly request?: string;
     /** For an answered question: its call, and the choices the reader picked. */
     readonly answer?: { readonly call: ToolCallRequest; readonly values: readonly string[] };
-    /** A router's plan, run before the model's turns: made when the message runs (a classifier's turn). */
-    readonly plan?: () => Promise<PlanSteps | undefined>;
+    /**
+     * A router's plan, run before the model's turns: made when the message runs (a classifier's
+     * turn, whose tokens it reports).
+     */
+    readonly plan?: (onUsage: (usage: TokenUsage) => void) => Promise<PlanSteps | undefined>;
     /** For a continuation: a helper's held batch, decided, which the helper continues with. */
     readonly resume?: { readonly callId: string; readonly decided: DecidedBatch };
 }
@@ -465,6 +483,11 @@ export interface ExecutionResult extends CommandResult {
     code?: AiResultCode;
     /** The facts behind the code (a provider id, a tool name, an HTTP status); empty when there are none. */
     params?: AiResultParams;
+    /**
+     * The tokens the message used, as the providers reported them: the main model's turns, the
+     * `"classifier"` router's turn and every helper's. Absent when it ended before a model was asked.
+     */
+    usage?: AiTokenUsage;
 }
 
 /**
@@ -532,6 +555,11 @@ export class AiController {
      * @param options - Configuration options for the controller
      */
     constructor(options: AiControllerOptions) {
+        // Helpers that cannot run are rejected before anything is built.
+        if (options.agents !== undefined) {
+            checkAgents(options.agents, options.provider.name);
+        }
+
         // The regression harness's recording decorator comes in under an internal option.
         this.engine =
             (options as AiControllerOptions & { [ENGINE_OVERRIDE]?: AiEngine })[ENGINE_OVERRIDE] ??
@@ -616,36 +644,69 @@ export class AiController {
                 return UNKNOWN_CONVERSATION;
             }
 
-            // A helper's provider with no key fails the message before anything is sent.
-            const missing =
-                this.roles.length === 0
-                    ? undefined
-                    : (await this.delegationModule()).missingKey({
-                          ...this.delegationOptions(),
-                          roles: [...this.roles, ...this.classifierRoles()],
-                      });
-            if (missing !== undefined) {
-                this.running.delete(abortController);
-                return { success: false, message: "", code: "AI_KEY_MISSING", params: { provider: missing } };
-            }
+            let planned: AiPlan | undefined;
+            try {
+                const refused = await this.refuseBeforeSending(input);
+                if ("result" in refused) {
+                    this.running.delete(abortController);
+                    return refused.result;
+                }
 
-            // A function router's plan is the host's: one naming no helper fails before anything is sent.
-            const { router } = this;
-            const planned = typeof router === "function" && this.roles.length > 0 ? router(input) : undefined;
-            const unknown =
-                planned === undefined ? undefined : (await import("./plans/plan")).unknownAgent(planned, this.roles);
-            if (unknown !== undefined) {
+                ({ planned } = refused);
+            } catch {
+                // A part of the assistant that would not load: nothing was sent.
                 this.running.delete(abortController);
-                return {
-                    success: false,
-                    message: "",
-                    code: "AI_CONFIG_INVALID",
-                    params: { agent: unknown, field: "router", reason: "unknown-agent" },
-                };
+                return { success: false, message: "", code: "AI_FAILED", params: {} };
             }
 
             return this.executeNow(input, abortController, options.via, planned);
         });
+    }
+
+    /**
+     * What fails a new message before anything is sent: a helper's provider with no key, or a
+     * function router that throws, returns no plan it could run, or names no helper.
+     * @param input - The reader's request.
+     * @returns The failure, or the function router's plan to run.
+     */
+    private async refuseBeforeSending(
+        input: string,
+    ): Promise<{ readonly result: ExecutionResult } | { readonly planned: AiPlan | undefined }> {
+        const fail = (code: AiResultCode, params: AiResultParams): { result: ExecutionResult } => ({
+            result: { success: false, message: "", code, params },
+        });
+        const missing =
+            this.roles.length === 0
+                ? undefined
+                : (await this.delegationModule()).missingKey({
+                      ...this.delegationOptions(),
+                      roles: [...this.roles, ...this.classifierRoles()],
+                  });
+        if (missing !== undefined) {
+            return fail("AI_KEY_MISSING", { provider: missing });
+        }
+
+        // A function router's plan is the host's: one it cannot make, or one naming no helper, fails.
+        const { router } = this;
+        if (typeof router !== "function" || this.roles.length === 0) {
+            return { planned: undefined };
+        }
+
+        let planned: unknown;
+        try {
+            planned = router(input);
+        } catch {
+            return fail("AI_CONFIG_INVALID", { field: "router", reason: "threw" });
+        }
+
+        if (!isPlan(planned)) {
+            return fail("AI_CONFIG_INVALID", { field: "router", reason: "invalid-plan" });
+        }
+
+        const unknown = (await import("./plans/plan")).unknownAgent(planned, this.roles);
+        return unknown === undefined
+            ? { planned }
+            : fail("AI_CONFIG_INVALID", { agent: unknown, field: "router", reason: "unknown-agent" });
     }
 
     /**
@@ -671,12 +732,14 @@ export class AiController {
      * @param input - The reader's request.
      * @param planned - The function router's plan, already checked.
      * @param signal - The message's abort signal, for the classifier's turn.
+     * @param onUsage - Told the classifier's tokens, which are the message's.
      * @returns The plan's steps, or undefined when helpers are left to the main model.
      */
     private async planFor(
         input: string,
         planned: AiPlan | undefined,
         signal: AbortSignal,
+        onUsage: (usage: TokenUsage) => void,
     ): Promise<PlanSteps | undefined> {
         let plan = planned;
         if (this.router === "classifier") {
@@ -685,7 +748,7 @@ export class AiController {
             const { engine, own } =
                 role === undefined ? { engine: this.engine, own: false } : engineOf(role, this.delegationOptions());
             try {
-                plan = await classify(input, this.roles, engine, signal);
+                plan = await classify(input, this.roles, engine, signal, onUsage);
             } finally {
                 if (own) {
                     engine.dispose();
@@ -746,7 +809,7 @@ export class AiController {
             conversationId: this.current?.id,
             ...(this.router === "model" || this.roles.length === 0
                 ? {}
-                : { plan: () => this.planFor(input, planned, abortController.signal) }),
+                : { plan: (onUsage) => this.planFor(input, planned, abortController.signal, onUsage) }),
         });
     }
 
@@ -795,7 +858,12 @@ export class AiController {
                 await this.saveInto(run.conversationId, running.messages);
             }
 
-            const plan = await run.plan?.();
+            let routed = NO_USAGE;
+            // The question tool, from its own module, only when questions are on.
+            const questions = this.asks ? await import("./questions") : undefined;
+            const plan = await run.plan?.((used) => {
+                routed = addUsage(routed, used);
+            });
 
             // A message taken back is not kept, so the conversation never holds changes the graph does not.
             let keep = true;
@@ -820,7 +888,7 @@ export class AiController {
                         gate: this.gate,
                         ...(this.policy === undefined ? {} : { policy: this.policy }),
                         runs: this.assistantRuns,
-                        undoCalls: 0,
+                        undo: { calls: 0 },
                         totals: { ...(run.totals ?? { removeNodes: 0, removeEdges: 0, changedValues: 0 }) },
                     },
                     host: {
@@ -842,6 +910,9 @@ export class AiController {
                         }),
                     ...(decided === undefined ? {} : { decided }),
                     ...(resume === undefined ? {} : { resume }),
+                    ...(questions === undefined
+                        ? {}
+                        : { questions: { tool: questions.ASK_READER_TOOL, parse: questions.askedQuestion } }),
                     ...(this.asks
                         ? {
                               ask: (question: AskedQuestion, messageId: string) =>
@@ -887,6 +958,11 @@ export class AiController {
                 if (this.cancelled.has(abortController)) {
                     result = { ...result, code: "AI_CANCELLED", params: {} };
                 }
+            }
+
+            if (routed !== NO_USAGE) {
+                // The classifier's turn is the message's too.
+                result = { ...result, usage: addUsage(result.usage ?? NO_USAGE, routed) };
             }
 
             // Saved again when the message ends: never per streamed piece of text.
@@ -1193,7 +1269,23 @@ export class AiController {
      * @param record - The conversation.
      */
     private reopenPending(record: ConversationRecord): void {
-        const reopened = waitingApprovals(record).map((entry) => this.reopenOne(record, entry));
+        const orphans = new Set<string>();
+        const reopened = waitingApprovals(record).flatMap((entry) => {
+            const pending = this.reopenOne(record, entry);
+            if (pending === undefined) {
+                orphans.add(entry.id);
+            }
+
+            return pending === undefined ? [] : [pending];
+        });
+        if (orphans.size > 0) {
+            // A helper's request whose helper is not in the record cannot run as that helper, and
+            // never as the main message: it is dropped, and answering it is AI_APPROVAL_STALE.
+            void this.enqueue(() =>
+                this.saveInto(record.id, [], (entries) => entries.filter((entry) => !orphans.has(entry.id))),
+            );
+        }
+
         const asked = waitingQuestions(record).map((entry) => this.reopenQuestion(record, entry));
         if (reopened.length + asked.length === 0) {
             return;
@@ -1248,11 +1340,16 @@ export class AiController {
      * One saved request, open again.
      * @param record - Its conversation.
      * @param entry - The request.
-     * @returns The open request.
+     * @returns The open request, or undefined for a helper's whose conversation the record does
+     *     not hold (merged from another tab, or trimmed).
      */
-    private reopenOne(record: ConversationRecord, entry: SavedApproval): PendingApproval {
+    private reopenOne(record: ConversationRecord, entry: SavedApproval): PendingApproval | undefined {
         const messages = [...record.messages];
         const callId = entry.agent === undefined ? undefined : helperCallOf(messages, entry.messageId);
+        if (entry.agent !== undefined && callId === undefined) {
+            return undefined;
+        }
+
         const planStep = record.pending.find(
             (other) => other.kind === "plan-step" && other.messageId === entry.messageId && other.claim === null,
         );
@@ -1540,7 +1637,7 @@ export class AiController {
             return expired;
         }
 
-        const values = pickedChoices(pending.request, answer);
+        const values = (await import("./questions")).pickedChoices(pending.request, answer);
         if (values === undefined) {
             return { success: false, message: "", code: "AI_ANSWER_INVALID", params: { request: id } };
         }
@@ -1641,11 +1738,7 @@ export class AiController {
             const consumer = this.commandRegistry
                 .getAll()
                 .filter((command) => !isAssistantTool(command) && (command.load ?? "always") === "always");
-            const instructions = assistantInstructions(this.profile, consumer);
-            // Helpers: the main model is told to use them, or it does everything itself.
-            return this.roles.length === 0
-                ? instructions
-                : `${instructions}\nYou have helpers (delegate): hand each part of a request that a helper's purpose covers to that helper, then answer from what they report.`;
+            return assistantInstructions(this.profile, consumer) + this.helpersInstructions();
         }
 
         const commands = this.commandRegistry.getAll();
@@ -1657,7 +1750,19 @@ export class AiController {
 Available commands:
 ${commandDescriptions}
 ${schemaSection}
-When the user asks you to perform an action, use the appropriate tool. If no tool is needed, respond conversationally.`;
+When the user asks you to perform an action, use the appropriate tool. If no tool is needed, respond conversationally.${this.helpersInstructions()}`;
+    }
+
+    /**
+     * The helpers, as the main model is told of them: their purposes live here, not in the
+     * `delegate` tool, so the tools every turn declares stay the same size however many there are.
+     * @returns The lines, each after a line break, or "" without helpers.
+     */
+    private helpersInstructions(): string {
+        // Helpers: the main model is told to use them, or it does everything itself.
+        return this.roles.length === 0
+            ? ""
+            : `\nYou have helpers (delegate): hand each part of a request that a helper's purpose covers to that helper, then answer from what they report. The helpers:\n${this.roles.map((role) => `- ${role.name}: ${role.purpose}`).join("\n")}`;
     }
 
     /**

@@ -11,9 +11,19 @@ import { assert, describe, it } from "vitest";
 import type { AiPlan } from "../../../src/ai/agents";
 import type { TurnRequest } from "../../../src/ai/engine/types";
 import { MAX_ASSISTANT_TOOL_TURNS } from "../../../src/ai/runConversation";
-import type { AiApprovalRequest } from "../../../src/events";
+import type { AiAgentStartEvent, AiApprovalRequest } from "../../../src/events";
 import { assistantSession } from "../../helpers/assistant";
-import { COUNTER, delegate, fakeDriver, Harness, lastResults, mockDriver, STYLE_RED, STYLIST } from "./driver";
+import {
+    answersOf,
+    COUNTER,
+    delegate,
+    fakeDriver,
+    Harness,
+    lastResults,
+    mockDriver,
+    STYLE_RED,
+    STYLIST,
+} from "./driver";
 
 /**
  * The text of a helper's task: the last part of its first message.
@@ -47,7 +57,7 @@ describe.each([
     ["the scripted engine", fakeDriver],
     ["LlmProviderEngine over MockLlmProvider", mockDriver],
 ])("a function router's plan on %s", (_name, driver) => {
-    it("runs step 2 after step 1, with step 1's answer in its task", async () => {
+    it("runs step 2 after step 1, told step 1's answer as data beside its task", async () => {
         const session = await assistantSession();
         const harness = new Harness(session, driver(), {
             agents: planned({ steps: [{ agents: ["counter"] }, { agents: ["stylist"] }] }),
@@ -72,9 +82,18 @@ describe.each([
         const [counter, stylist] = harness.driver.requests;
         assert.include(counter.system, COUNTER.purpose);
         assert.include(stylist.system, STYLIST.purpose);
-        assert.include(taskOf(stylist), "color the red team");
-        assert.include(taskOf(stylist), "The red team is a and b.");
-        assert.notInclude(taskOf(counter), "reported");
+        assert.strictEqual(taskOf(stylist), "color the red team");
+        assert.include(answersOf(stylist), "The red team is a and b.");
+        assert.strictEqual(answersOf(counter), "");
+        // The event carries the task as written, and who answered before, by code: never their words.
+        const starts = harness.events.filter((event): event is AiAgentStartEvent => event.type === "ai-agent-start");
+        assert.deepStrictEqual(
+            starts.map((start) => [start.task, start.after]),
+            [
+                ["color the red team", undefined],
+                ["color the red team", [{ agent: "counter", code: "AI_COMPLETED" }]],
+            ],
+        );
     });
 
     it("cuts a plan of nine steps to the limit", async () => {
@@ -88,6 +107,40 @@ describe.each([
         const starts = harness.agentEvents().filter((event) => event.startsWith("ai-agent-start"));
         assert.lengthOf(starts, MAX_ASSISTANT_TOOL_TURNS);
     });
+
+    it.each([
+        [
+            "throws",
+            () => {
+                throw new Error("the host's router failed");
+            },
+            "threw",
+        ],
+        ["returns no plan", () => undefined, "invalid-plan"],
+        ["returns steps that are not lists of helpers", () => ({ steps: [{ agents: "counter" }] }), "invalid-plan"],
+    ])(
+        "a function router that %s resolves AI_CONFIG_INVALID, sends nothing, and the next message runs",
+        async (_case, router, reason) => {
+            const session = await assistantSession();
+            let calls = 0;
+            const harness = new Harness(session, driver(), {
+                agents: {
+                    roles: [COUNTER],
+                    router: () => (++calls === 1 ? (router() as unknown as AiPlan) : { steps: [] }),
+                },
+            });
+
+            const result = await harness.controller.execute("count");
+
+            assert.strictEqual(result.code, "AI_CONFIG_INVALID", JSON.stringify(result));
+            assert.deepStrictEqual(result.params, { field: "router", reason });
+            assert.lengthOf(harness.driver.requests, 0);
+            // The message ended: nothing is left running to cancel, and the next one goes through.
+            harness.driver.push({ text: "Two." });
+            const next = await harness.controller.execute("count again");
+            assert.strictEqual(next.llmText, "Two.");
+        },
+    );
 
     it("a plan naming an unknown helper resolves AI_CONFIG_INVALID and sends nothing", async () => {
         const session = await assistantSession();
@@ -156,7 +209,7 @@ describe.each([
         assert.deepStrictEqual(harness.agentEvents(), ["ai-agent-start:counter", "ai-agent-end:counter"]);
         const request = approvals(harness)[1];
         assert.strictEqual(request.calls[0].arguments.agent, "stylist");
-        assert.include(String(request.calls[0].arguments.task), "a and b.");
+        assert.strictEqual(request.calls[0].arguments.task, "color the red team", "the reader's request alone");
     });
 
     it("a denial reaches the main model as AI_APPROVAL_DENIED, and no helper runs", async () => {

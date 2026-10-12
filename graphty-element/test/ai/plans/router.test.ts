@@ -10,7 +10,7 @@ import { assert, describe, it } from "vitest";
 import type { TurnRequest } from "../../../src/ai/engine/types";
 import { turnTools } from "../../../src/ai/runConversation";
 import { assistantSession } from "../../helpers/assistant";
-import { COUNT, COUNTER, fakeDriver, Harness, lastResults, mockDriver, STYLE_RED, STYLIST } from "./driver";
+import { answersOf, COUNT, COUNTER, fakeDriver, Harness, lastResults, mockDriver, STYLE_RED, STYLIST } from "./driver";
 
 /**
  * The text of a helper's task: the last part of its first message.
@@ -85,9 +85,24 @@ describe.each([
             "ai-agent-end:stylist",
         ]);
         const stylist = harness.driver.requests[2];
-        assert.include(taskOf(stylist), "The red team is a and b.");
+        assert.include(answersOf(stylist), "The red team is a and b.");
+        assert.strictEqual(taskOf(stylist), "find the red team and color it red");
         // One helper at a time may write.
         assert.strictEqual(session.styles.list().length, layers + 1);
+    });
+
+    it("counts the classifier's turn in the message's tokens", async () => {
+        const session = await assistantSession();
+        const harness = new Harness(session, driver(), { agents: { roles: [COUNTER], router: "classifier" } });
+        harness.driver.push(
+            { calls: [{ tool: "route", args: { agents: ["counter"] } }], usage: { input: 30, output: 3 } },
+            { text: "2.", usage: { input: 20, output: 2 } },
+            { text: "Two.", usage: { input: 100, output: 1 } },
+        );
+
+        const result = await harness.controller.execute("count");
+
+        assert.deepStrictEqual(result.usage, { inputTokens: 150, outputTokens: 6 });
     });
 
     it("no pick leaves the message to the main model alone", async () => {

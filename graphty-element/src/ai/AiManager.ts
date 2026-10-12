@@ -27,6 +27,7 @@ import type { AiConversationSnapshot, AiConversationSummary } from "./conversati
 import { ApiKeyManager } from "./keys";
 import { createProvider, type ProviderType } from "./providers";
 import type { LlmProvider } from "./providers/types";
+import { checkAgents } from "./roles";
 import { SchemaManager } from "./schema";
 import { installAssistantTools } from "./tools/install";
 import type { AssistantGateLimits } from "./tools/types";
@@ -211,6 +212,11 @@ export class AiManager {
     init(graph: Graph, config: AiManagerConfig): void {
         if (this.initialized) {
             return;
+        }
+
+        // Helpers that cannot run are rejected before anything is built.
+        if (config.agents !== undefined) {
+            checkAgents(config.agents, config.providerInstance?.name ?? config.provider);
         }
 
         this.graph = graph;

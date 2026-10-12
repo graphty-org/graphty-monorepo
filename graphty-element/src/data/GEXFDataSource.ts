@@ -165,8 +165,14 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles
 
         for (const column of bounds) {
             const text = texts.get(column.meta.name);
+            const value = column.value(row) as number;
+            // A slice with only one bound stores the other as an infinity: leave it out, as spells do.
+            if (text === undefined && !Number.isFinite(value)) {
+                continue;
+            }
+
             out[column.meta.role as string] = timeText(
-                column.value(row) as number,
+                value,
                 text === undefined ? null : (text.value(row) as string),
                 timeFormat,
             );

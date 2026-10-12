@@ -176,7 +176,7 @@ Every change is named where you can see it and can be taken back.
 
 1. Make a change (e.g. color by PageRank). A green note appears beside the hand that did it for
    2 s: "Colored by PageRank -- Undo". (It is a note, not a button.)
-2. Above the graph, a strip shows **Undo: <step>**, **Redo**, and your last five steps.
+2. Above the graph, a strip shows **Undo: (the step)**, **Redo**, and your last five steps.
 3. Tap Undo to undo the last step. Tap an older step to undo back to and including it.
 
 Selecting is never a step: it is not listed and not undone. Moving the graph is not a step either.
@@ -209,7 +209,7 @@ Turn to another card:
 
 Use a card: tap or poke its buttons with your dominant hand.
 
-- **Analyze**: "Run <result>" reveals a result.
+- **Analyze**: "Run PageRank" (one per result) reveals a result.
 - **Style**: "Color by X", "Size by X", or nothing.
 - **Filter**: "Take the sieve" (needs Physical tools on) and "Remove filter".
 - **Selection**: "Grow 1 hop" (one node selected), "Hide selected", "Clear selection", "Show hidden".
@@ -336,7 +336,7 @@ Slab:
 
 ### Example: color cycle (controllers only)
 
-The template module. A chip above the graph reads "A: color by <next>". Press **A** on the right
+The template module. A chip above the graph reads "A: color by" and the next result. Press **A** on the right
 controller to cycle the coloring: PageRank, Degree, Betweenness, Community. Undo names each step.
 
 ### Voice chips
@@ -463,5 +463,5 @@ landing page's preset list after a reload.
    wrist menu or gear panel (Framework tab). An id such as "F3" appears near the step panel. It
    saves the last 10 seconds of input.
 2. Note the **session id** (landing page, or the gear panel title bar).
-3. Report "session <id>, F3: <what you expected and what happened>", with the preset and whether you
+3. Report "session (id), F3: what I expected, what happened", with the preset and whether you
    used hands or controllers.

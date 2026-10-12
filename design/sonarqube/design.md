@@ -371,7 +371,11 @@ revision, from `api/project_analyses/search`), it:
    main checkout);
 2. runs `pnpm install --frozen-lockfile` and the nx build (cached), so type-aware rules resolve
    cross-package types the same way the gate's scans do, with both tokens removed from their
-   environment;
+   environment, CI's heap (`NODE_OPTIONS=--max-old-space-size=8192`, checked against ci.yml by
+   `tools/sonar/sonar-baseline.test.mjs`) and core files off (`ulimit -c 0`). If the move, the
+   install or the build fails, the first failed pass of a streak opens one issue, "SonarQube
+   baseline: the build of master fails" (its number kept in `<git common dir>/sonar/prepare-alert`),
+   and the next pass that builds closes it;
 3. downloads that run's `coverage-*` artifacts (`gh run download <run id>`), lifts each shard
    group's members out of their `coverage-group-*` artifact as `coverage.yml` does, and merges them
    with `tools/merge-coverage.sh --ci --artifacts`, which writes the repository-relative

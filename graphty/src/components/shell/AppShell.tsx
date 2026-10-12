@@ -3920,6 +3920,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                 ? undefined
                                 : speechDestinationText(aiManager.voiceSupport).join(" ") || undefined
                         }
+                        voiceMode={aiManager.voiceMode}
                         onListeningChange={aiManager.talk}
                         onSend={(text) => {
                             void aiManager.execute(text);

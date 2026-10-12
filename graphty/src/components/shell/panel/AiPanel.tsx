@@ -27,6 +27,8 @@ const SEND_LABEL = "Send";
  * coined here.
  */
 const STOP_LISTENING_LABEL = "Stop listening";
+/** How a press reached the model, in the app's words (the microphone's tooltip). */
+const VOICE_MODE_WORDS = { live: "Live conversation", turns: "Turn by turn" } as const;
 
 /** The verb 6.8's never list keeps in words, in every form. */
 const CANCEL_LABEL = "Cancel";
@@ -113,6 +115,8 @@ export interface AiPanelProps {
     readonly listening?: boolean;
     /** Where speech goes, in the app's words; the microphone's tooltip says it. */
     readonly speechDestination?: string;
+    /** How the last press reached the model (`ai-voice-start`'s `mode`); the microphone's tooltip says it. */
+    readonly voiceMode?: "turns" | "live" | null;
     /** Sends the console's text. */
     readonly onSend?: (text: string) => void;
     /** Cancels the in-flight message. */
@@ -165,6 +169,7 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
         speechAvailable = false,
         listening = false,
         speechDestination,
+        voiceMode,
         onSend,
         onCancel,
         onRetry,
@@ -194,8 +199,13 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
             held.current = false;
         }, 0);
     };
-    const microphoneTitle =
-        speechDestination === undefined ? STOP_LISTENING_LABEL : `${STOP_LISTENING_LABEL}. ${speechDestination}`;
+    const microphoneTitle = [
+        STOP_LISTENING_LABEL,
+        voiceMode === null || voiceMode === undefined ? undefined : VOICE_MODE_WORDS[voiceMode],
+        speechDestination,
+    ]
+        .filter((part) => part !== undefined)
+        .join(". ");
 
     const askChip = keyChipFor("focusAssistant");
     const askTooltip = askChip === null ? ASK_LABEL : `${ASK_LABEL} (${askChip})`;

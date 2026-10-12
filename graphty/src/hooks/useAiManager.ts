@@ -25,6 +25,7 @@ import {
     AI_IN_PAGE_CODE,
     AI_SPEAK_ANSWERS,
     AI_TRANSCRIPTION,
+    AI_VOICE_MODE,
     AI_WEB_FETCH,
     AI_WEB_SEARCH,
     readPreference,
@@ -69,11 +70,22 @@ function toolOptions(switches: AiToolSwitches): AiToolOptions {
     return { ...Object.fromEntries(on.map((entry) => [entry.name, true])), webContentWrites: "ask" };
 }
 
-/** The reader's voice settings: when answers are spoken, and who transcribes for a provider that cannot. */
+/**
+ * The reader's voice settings: when answers are spoken, who transcribes for a provider that cannot,
+ * and whether a press talks turn by turn or live.
+ */
 export interface AiVoiceSettings {
     readonly speakAnswers: (typeof AI_SPEAK_ANSWERS.values)[number];
     readonly transcription: (typeof AI_TRANSCRIPTION.values)[number];
+    readonly mode: (typeof AI_VOICE_MODE.values)[number];
 }
+
+/** Where each voice setting is saved. */
+const VOICE_PREFERENCES = {
+    speakAnswers: AI_SPEAK_ANSWERS,
+    transcription: AI_TRANSCRIPTION,
+    mode: AI_VOICE_MODE,
+} as const;
 
 /** The element's `output` for each speak-answers choice. */
 const SPEAK_OUTPUT: Readonly<Record<AiVoiceSettings["speakAnswers"], AiVoiceOptions["output"]>> = {
@@ -95,11 +107,26 @@ export function needsTranscriptionProvider(provider: ProviderType): boolean {
 }
 
 /**
+ * Whether the reader can choose a live conversation: graphty-element reports one it can run, or
+ * one held back only because answers are not spoken (the Speak answers choice just above).
+ * @param support - Where speech goes now, as graphty-element reports it.
+ * @returns True to offer the choice.
+ */
+export function offersLiveChoice(support: AiVoiceSupport | null | undefined): boolean {
+    const live = support?.live;
+    return live !== undefined && (live.status !== "unavailable" || live.params?.reason === "output-off");
+}
+
+/**
  * The reader's saved voice settings.
  * @returns Each, at its default unless the reader chose another.
  */
 function readVoiceSettings(): AiVoiceSettings {
-    return { speakAnswers: readPreference(AI_SPEAK_ANSWERS), transcription: readPreference(AI_TRANSCRIPTION) };
+    return {
+        speakAnswers: readPreference(AI_SPEAK_ANSWERS),
+        transcription: readPreference(AI_TRANSCRIPTION),
+        mode: readPreference(AI_VOICE_MODE),
+    };
 }
 
 /**
@@ -114,7 +141,7 @@ function voiceOptions(
     provider: ProviderType,
     getKey: ((provider: ProviderType) => string | undefined) | undefined,
 ): { voice: AiVoiceOptions; apiKeys?: Partial<Record<AiProviderId, string>> } {
-    const voice: AiVoiceOptions = { output: SPEAK_OUTPUT[settings.speakAnswers], say: aiSay };
+    const voice: AiVoiceOptions = { output: SPEAK_OUTPUT[settings.speakAnswers], mode: settings.mode, say: aiSay };
     const other = settings.transcription;
     if (other === "none" || other === provider || !needsTranscriptionProvider(provider)) {
         return { voice };
@@ -194,8 +221,10 @@ interface UseAiManagerResult {
     listening: boolean;
     /** Hold talk (true) or let go (false): the element's `aiTalk`. */
     talk: (down: boolean) => void;
-    /** Why the last utterance could not be heard, when it could not. */
+    /** Why the last utterance could not be heard, or why a press asked to be live ran turn by turn. */
     voiceNotice: AiHistoryNotice | null;
+    /** How the last press reached the model, as the element reported it on `ai-voice-start`. */
+    voiceMode: "turns" | "live" | null;
 }
 
 /**
@@ -226,6 +255,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
     const [voiceSupport, setVoiceSupport] = useState<AiVoiceSupport | null>(null);
     const [listening, setListening] = useState(false);
     const [voiceNotice, setVoiceNotice] = useState<AiHistoryNotice | null>(null);
+    const [voiceMode, setVoiceMode] = useState<"turns" | "live" | null>(null);
     // The tools already noticed for this provider: the element reports a left-out tool again
     // after every enable, and a switch turned on enables it again.
     const noticed = useRef(new Set<string>());
@@ -285,8 +315,13 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             }
         };
 
-        const onVoiceStart = (): void => {
-            setVoiceNotice(null);
+        const onVoiceStart = (event: {
+            detail: { mode?: "turns" | "live"; code?: AiResultCode; params?: AiResultParams };
+        }): void => {
+            const { mode, code, params } = event.detail;
+            // Live asked for but run turn by turn carries the code that says why.
+            setVoiceNotice(code === undefined ? null : { code, params: params ?? {} });
+            setVoiceMode(mode ?? null);
             setListening(true);
         };
         const onVoiceSupportChange = (event: { detail: { support: AiVoiceSupport } }): void => {
@@ -373,11 +408,12 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             setEnabled(null);
             setVoiceSupport(null);
             setListening(false);
+            setVoiceMode(null);
         };
     }, [element, currentProvider, getKey, toolSwitches, voiceSettings]);
 
     const setVoiceSetting = useCallback(<K extends keyof AiVoiceSettings>(name: K, value: AiVoiceSettings[K]): void => {
-        writePreference<string>(name === "speakAnswers" ? AI_SPEAK_ANSWERS : AI_TRANSCRIPTION, value);
+        writePreference<string>(VOICE_PREFERENCES[name], value);
         setVoiceSettings((current) => ({ ...current, [name]: value }));
     }, []);
 
@@ -483,6 +519,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
         listening,
         talk,
         voiceNotice,
+        voiceMode,
     };
 }
 

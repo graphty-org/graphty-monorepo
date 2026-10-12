@@ -8,7 +8,8 @@
  * program in the page, and a change asked for after the assistant read the web is held with the
  * app's web-content wording; the web sources show under the answer as links. Holding the microphone
  * with the real mouse, or with Space, sends what a fake recognizer heard as one spoken message, and
- * with no way to hear speech the microphone is not drawn.
+ * with no way to hear speech the microphone is not drawn. A reader who saved a live conversation
+ * still talks turn by turn on the mock provider, which has none, and is not offered the choice.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -21,7 +22,7 @@ import { cdp, userEvent } from "vitest/browser";
 
 import { useAiManager } from "../../../../hooks/useAiManager";
 import { render, screen, waitFor, within } from "../../../../test/test-utils";
-import { AiToolSettings } from "../../../ai/AiProviderSettings";
+import { AiToolSettings, AiVoiceSettingsBlock } from "../../../ai/AiProviderSettings";
 import { aiTranscript } from "../../../ai/aiResultText";
 import { ShellProvider } from "../../ShellContext";
 import { AiPanel } from "../AiPanel";
@@ -101,12 +102,19 @@ function Assistant({ element }: { readonly element: ElementUnderTest }): React.J
     return (
         <div data-testid="assistant" data-ready={String(ai.isReady)}>
             <AiToolSettings tools={ai.toolSwitches} onToolChange={ai.setToolSwitch} capabilities={ai.capabilities} />
+            <AiVoiceSettingsBlock
+                voice={ai.voiceSettings}
+                onVoiceChange={ai.setVoiceSetting}
+                provider="mock"
+                support={ai.voiceSupport}
+            />
             <AiPanel
                 messages={aiTranscript(ai)}
                 providerConfigured
                 isProcessing={ai.isProcessing}
                 speechAvailable={ai.voiceSupport !== null && ai.voiceSupport.input.status !== "unavailable"}
                 listening={ai.listening}
+                voiceMode={ai.voiceMode}
                 onListeningChange={ai.talk}
                 onSend={(text) => {
                     void ai.execute(text);
@@ -250,7 +258,12 @@ async function answerOps(element: ElementUnderTest, card: HTMLElement): Promise<
 
 afterEach(async () => {
     // The reader's tool switches are saved in this browser: each test starts with them off.
-    for (const key of ["graphty.ai.webSearch.v1", "graphty.ai.webFetch.v1", "graphty.ai.inPageCode.v1"]) {
+    for (const key of [
+        "graphty.ai.webSearch.v1",
+        "graphty.ai.webFetch.v1",
+        "graphty.ai.inPageCode.v1",
+        "graphty.ai.voiceMode.v1",
+    ]) {
         localStorage.removeItem(key);
     }
 
@@ -466,6 +479,8 @@ const HEARD = "how many nodes are there";
  */
 async function mouse(target: Element, type: "mousePressed" | "mouseReleased"): Promise<void> {
     const session = cdp() as unknown as { send: (method: string, params: Record<string, unknown>) => Promise<unknown> };
+    // A pointer reaches only what is on screen, as the reader's would.
+    target.scrollIntoView({ block: "center" });
     const rect = target.getBoundingClientRect();
     // The test page is an iframe of the runner's page, possibly scaled to fit it.
     const frame = window.frameElement;
@@ -575,6 +590,29 @@ describe("talking to the assistant", () => {
             await mouse(mic, "mouseReleased");
 
             await sentOnceAsSpoken();
+        });
+
+        it("a reader who saved live still talks turn by turn on a provider with no live conversation", async () => {
+            localStorage.setItem("graphty.ai.voiceMode.v1", "live");
+            const element = await talkingAssistant("talk-live-asked");
+            const mic = await screen.findByTestId("ai-microphone", {}, { timeout: TIMEOUT_MS });
+            const support = await element.getAiVoiceSupport();
+            assert.strictEqual(support.live?.params?.reason, "no-provider-live");
+            // The voice settings drew with the element's answer, without the live choice.
+            await screen.findByTestId("ai-speech-destination", {}, { timeout: TIMEOUT_MS });
+            assert.isNull(screen.queryByTestId("ai-voice-mode"));
+
+            await mouse(mic, "mousePressed");
+            await waitFor(() => {
+                assert.strictEqual(mic.getAttribute("aria-pressed"), "true", "listening while held");
+            });
+            assert.include(mic.getAttribute("title") ?? "", "Turn by turn");
+            await mouse(mic, "mouseReleased");
+
+            await sentOnceAsSpoken();
+            within(screen.getByTestId("ai-transcript")).getByText(
+                "Your provider has no live conversation, so you talk turn by turn.",
+            );
         });
 
         it("holding Space on the microphone sends one spoken message", async () => {

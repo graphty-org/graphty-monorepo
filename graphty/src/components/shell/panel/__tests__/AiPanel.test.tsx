@@ -219,6 +219,18 @@ describe("AiPanel", () => {
             );
         });
 
+        it("says whether the last press talked live or turn by turn", () => {
+            const { unmount } = renderPanel({ speechAvailable: true, voiceMode: "live", speechDestination: "Heard." });
+            expect(screen.getByTestId("ai-microphone")).toHaveAttribute(
+                "title",
+                "Stop listening. Live conversation. Heard.",
+            );
+
+            unmount();
+            renderPanel({ speechAvailable: true, voiceMode: "turns" });
+            expect(screen.getByTestId("ai-microphone")).toHaveAttribute("title", "Stop listening. Turn by turn");
+        });
+
         it("toggles on a click with no hold, for keyboard and switch users", async () => {
             const onListeningChange = vi.fn();
             const { rerender } = renderPanel({ speechAvailable: true, onListeningChange });

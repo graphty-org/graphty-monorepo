@@ -39,6 +39,7 @@ import {
     type AiToolSwitches,
     type AiVoiceSettings,
     needsTranscriptionProvider,
+    offersLiveChoice,
 } from "../../hooks/useAiManager";
 import { getCreateProvider, type ProviderType } from "../../types/ai";
 import { PanelOutlineButton } from "../shell/panel/panelButtons";
@@ -208,9 +209,15 @@ const SPEAK_CHOICES: readonly { value: AiVoiceSettings["speakAnswers"]; label: s
     { value: "always", label: "Always" },
 ];
 
+/** The conversation choices, in the app's words. */
+const MODE_CHOICES: readonly { value: AiVoiceSettings["mode"]; label: string }[] = [
+    { value: "turns", label: "Turn by turn" },
+    { value: "live", label: "Live" },
+];
+
 /**
- * The assistant's voice: when answers are spoken, and, for a provider that cannot turn speech
- * into text, which provider does it instead.
+ * The assistant's voice: when answers are spoken, for a provider that cannot turn speech into
+ * text which provider does it instead, and, where graphty-element can hold one, a live conversation.
  * @param props - The settings and what to call on a change.
  * @param props.voice - The reader's choices.
  * @param props.onVoiceChange - Changes one.
@@ -261,6 +268,18 @@ export function AiVoiceSettingsBlock({
                         onVoiceChange("speakAnswers", event.currentTarget.value as AiVoiceSettings["speakAnswers"]);
                     }}
                 />
+                {offersLiveChoice(support) && (
+                    <NativeSelect
+                        label="Conversation"
+                        title="Live talks with your provider as you speak and hears you interrupt it. Turn by turn sends what you said when you let go."
+                        data-testid="ai-voice-mode"
+                        value={voice.mode}
+                        data={MODE_CHOICES.map((choice) => ({ ...choice }))}
+                        onChange={(event) => {
+                            onVoiceChange("mode", event.currentTarget.value as AiVoiceSettings["mode"]);
+                        }}
+                    />
+                )}
                 {provider !== null && needsTranscriptionProvider(provider) && (
                     <NativeSelect
                         label="Turn speech into text with"

@@ -84,6 +84,16 @@ export const AI_SPEAK_ANSWERS = {
 } as const;
 
 /**
+ * How a press of the microphone talks to the assistant (Settings > AI providers): turn by turn, or
+ * a live conversation where the provider has one. Turn by turn until the reader chooses live.
+ */
+export const AI_VOICE_MODE = {
+    key: "graphty.ai.voiceMode.v1",
+    values: ["turns", "live"],
+    fallback: "turns",
+} as const;
+
+/**
  * The provider that turns the reader's speech into text when the chat provider cannot
  * (Settings > AI providers); `none` leaves it to the browser alone.
  */

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { offersLiveChoice } from "../../../hooks/useAiManager";
 import { fireEvent, render, screen, waitFor } from "../../../test/test-utils";
 import type { ProviderType } from "../../../types/ai";
 import { AiProviderSettings, type AiProviderSettingsProps } from "../AiProviderSettings";
@@ -358,7 +359,7 @@ describe("AiProviderSettings", () => {
     });
 
     describe("voice", () => {
-        const voice = { speakAnswers: "off", transcription: "none" } as const;
+        const voice = { speakAnswers: "off", transcription: "none", mode: "turns" } as const;
 
         it("draws speak-answers off, and reports a change", async () => {
             const onVoiceChange = vi.fn();
@@ -368,6 +369,54 @@ describe("AiProviderSettings", () => {
             expect(select).toHaveValue("off");
             await userEvent.selectOptions(select, "In VR and AR only");
             expect(onVoiceChange).toHaveBeenCalledWith("speakAnswers", "vr");
+        });
+
+        it("offers a live conversation, turn by turn until chosen, where the element can hold one", async () => {
+            const onVoiceChange = vi.fn();
+            const ready = { path: "provider", status: "ready", destination: "provider" } as const;
+            const voiceSupport = { input: ready, output: ready, live: ready };
+            render(
+                <AiProviderSettings {...keyStore({ voice, onVoiceChange, voiceSupport, defaultProvider: "openai" })} />,
+            );
+
+            const select = screen.getByLabelText("Conversation");
+            expect(select).toHaveValue("turns");
+            await userEvent.selectOptions(select, "Live");
+            expect(onVoiceChange).toHaveBeenCalledWith("mode", "live");
+        });
+
+        it("offers live when only unspoken answers hold it back, and hides it for any other reason", () => {
+            const ready = { path: "provider", status: "ready", destination: "provider" } as const;
+            const held = (reason: string) =>
+                ({
+                    input: ready,
+                    output: ready,
+                    live: {
+                        path: "none",
+                        status: "unavailable",
+                        code: "AI_VOICE_UNAVAILABLE",
+                        params: { path: "input", reason },
+                        destination: "none",
+                    },
+                }) as const;
+            expect(offersLiveChoice(held("output-off"))).toBe(true);
+            expect(offersLiveChoice(held("no-provider-live"))).toBe(false);
+            expect(offersLiveChoice(held("no-live-transport"))).toBe(false);
+            expect(offersLiveChoice({ input: ready, output: ready })).toBe(false);
+            expect(offersLiveChoice(null)).toBe(false);
+
+            render(
+                <AiProviderSettings
+                    {...keyStore({
+                        voice,
+                        onVoiceChange: vi.fn(),
+                        voiceSupport: held("no-provider-live"),
+                        defaultProvider: "anthropic",
+                    })}
+                />,
+            );
+            expect(screen.getByTestId("ai-voice-settings")).toBeInTheDocument();
+            expect(screen.queryByTestId("ai-voice-mode")).not.toBeInTheDocument();
         });
 
         it("offers a transcription provider only when the chat provider has none", async () => {

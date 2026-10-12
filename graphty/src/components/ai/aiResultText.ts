@@ -71,6 +71,13 @@ const REASON_WORDS: Partial<Record<AiResultCode, Readonly<Record<string, string>
         "unknown-voice": "Your provider has no voice by that name, so answers are shown as text.",
         "recognition-network":
             "Speech could not reach the browser's recognition service. Check the connection, or type.",
+        // Live asked for but held back: the press runs turn by turn (`ai-voice-start` says so).
+        "no-provider-live": "Your provider has no live conversation, so you talk turn by turn.",
+        "live-custom-base-url":
+            "A live conversation cannot go through a custom provider address, so you talk turn by turn.",
+        "no-live-transport": "This browser cannot hold a live conversation, so you talk turn by turn.",
+        "output-off":
+            "A live conversation speaks its answers. Turn on Speak answers in Settings to talk live; until then you talk turn by turn.",
     },
     // A spoken "yes" leaves these holds waiting: they are approved on screen.
     AI_CONFIRMATION_NEEDED: {

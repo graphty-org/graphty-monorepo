@@ -53,6 +53,7 @@ describe("useAiManager", () => {
         localStorage.removeItem("graphty.ai.webFetch.v1");
         localStorage.removeItem("graphty.ai.inPageCode.v1");
         localStorage.removeItem("graphty.ai.speakAnswers.v1");
+        localStorage.removeItem("graphty.ai.voiceMode.v1");
         localStorage.removeItem("graphty.ai.transcription.v1");
     });
 
@@ -108,7 +109,7 @@ describe("useAiManager", () => {
             history: "browser",
             questions: true,
             tools: { webContentWrites: "ask" },
-            voice: { output: "off", say: aiSay },
+            voice: { output: "off", mode: "turns", say: aiSay },
         });
     });
 
@@ -131,7 +132,7 @@ describe("useAiManager", () => {
                 history: "browser",
                 questions: true,
                 tools: { webContentWrites: "ask" },
-                voice: { output: "off", say: aiSay },
+                voice: { output: "off", mode: "turns", say: aiSay },
             });
         });
 
@@ -151,7 +152,7 @@ describe("useAiManager", () => {
                     history: "browser",
                     questions: true,
                     tools: { webContentWrites: "ask" },
-                    voice: { output: "off", say: aiSay },
+                    voice: { output: "off", mode: "turns", say: aiSay },
                 });
             });
         });
@@ -729,10 +730,54 @@ describe("useAiManager", () => {
             });
             await waitFor(() => {
                 expect(mockDoors.enableAiControl).toHaveBeenLastCalledWith(
-                    expect.objectContaining({ voice: { output: "auto", say: aiSay } }),
+                    expect.objectContaining({ voice: { output: "auto", mode: "turns", say: aiSay } }),
                 );
             });
             expect(localStorage.getItem("graphty.ai.speakAnswers.v1")).toBe("vr");
+        });
+
+        it("talks turn by turn until the reader chooses live, saves it and passes it as the mode", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            expect(result.current.voiceSettings.mode).toBe("turns");
+            expect(mockDoors.enableAiControl.mock.calls[0][0]).toHaveProperty("voice.mode", "turns");
+
+            act(() => {
+                result.current.setVoiceSetting("mode", "live");
+            });
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl.mock.lastCall?.[0]).toHaveProperty("voice.mode", "live");
+            });
+            expect(localStorage.getItem("graphty.ai.voiceMode.v1")).toBe("live");
+        });
+
+        it("follows how a press reached the model, and says why live ran turn by turn", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "anthropic" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            const reason = { path: "input", reason: "no-provider-live" };
+            act(() => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-voice-start", {
+                        detail: { mode: "turns", code: "AI_VOICE_UNAVAILABLE", params: reason },
+                    }),
+                );
+            });
+            expect(result.current.voiceMode).toBe("turns");
+            expect(result.current.voiceNotice).toEqual({ code: "AI_VOICE_UNAVAILABLE", params: reason });
+
+            act(() => {
+                events.dispatchEvent(new CustomEvent("ai-voice-start", { detail: { mode: "live" } }));
+            });
+            expect(result.current.voiceMode).toBe("live");
+            expect(result.current.voiceNotice).toBeNull();
         });
 
         it("reads a saved choice back", async () => {
@@ -754,7 +799,7 @@ describe("useAiManager", () => {
             await waitFor(() => {
                 expect(mockDoors.enableAiControl).toHaveBeenCalledWith(
                     expect.objectContaining({
-                        voice: { output: "off", say: aiSay, transcription: { provider: "openai" } },
+                        voice: { output: "off", mode: "turns", say: aiSay, transcription: { provider: "openai" } },
                         apiKeys: { openai: "key-openai" },
                     }),
                 );
@@ -770,7 +815,7 @@ describe("useAiManager", () => {
                 expect(mockDoors.enableAiControl).toHaveBeenCalled();
             });
             const config = mockDoors.enableAiControl.mock.calls[0][0] as Record<string, unknown>;
-            expect(config.voice).toEqual({ output: "off", say: aiSay });
+            expect(config.voice).toEqual({ output: "off", mode: "turns", say: aiSay });
             expect(config).not.toHaveProperty("apiKeys");
         });
 

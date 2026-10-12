@@ -108,6 +108,22 @@ habit. So a finding on a changed line does not block when master already has it:
   hash against the issues API's `hash` on a sample of master's issues). A hotspot reviewed as
   FIXED or ACKNOWLEDGED does not match: it came back, and it blocks.
 
+- **A line edited in place** (a fix of one rule on a line that also carries another, older
+  finding): the hash changes, so the old finding would look new. A finding also matches a master
+  finding with the same rule that points at the same code (the text of its `textRange`, which both
+  APIs report), on the line the diff maps it to line for line: the line sits in a hunk that
+  replaced exactly as many lines as it removed, at the same offset, and master's line hash equals
+  the merge base's text at that line (so master's analysis, which may be of a later commit,
+  numbers it the same way). Because the flagged code is unchanged, a hotspot reviewed SAFE keeps
+  its review; one whose code changed blocks. This does not apply to a vulnerability, which matches
+  only by its line hash.
+- **One master finding per finding.** Each master finding vouches for at most one local finding, so
+  a rule that appears more often than master had it blocks the extra occurrences. Findings on
+  unchanged lines claim their master finding first, so a copy of a line with an old finding is a new
+  occurrence and blocks.
+- **A decision already made on master** counts as master having the finding: an issue accepted or
+  marked a false positive there, like a hotspot reviewed SAFE.
+
 A wrapped line (prettier splitting one line into three) changes the hash and still blocks; the
 author can fix the issue or use a `NOSONAR` comment. With no `graphty-monorepo` analysis, nothing
 matches and every finding on a changed line blocks, as the strict reading of "a changed line is

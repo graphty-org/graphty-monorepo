@@ -116,22 +116,35 @@ export function factsBlock(session: GraphSession, profile: ToolProfile, pointing
     }
 
     if (pointing !== undefined) {
-        const cap = FACT_IDS_CAP[profile];
-        if (pointing.pointed.length > 0) {
-            // The most recent, since "this" is what the reader pointed at last.
-            lines.push(
-                `Pointed at, in order: ${listIds(pointing.pointed.slice(-cap), pointing.pointed.length, "last", FACT_IDS_CHARS[profile])}.`,
-            );
-        }
-
-        if (pointing.selected.length > 0) {
-            lines.push(
-                `Selected: ${listIds(pointing.selected.slice(0, cap), pointing.selected.length, "first", FACT_IDS_CHARS[profile])}.`,
-            );
-        }
+        lines.push(...pointingLines(pointing, profile));
     }
 
     return lines.join("\n");
+}
+
+/**
+ * The facts lines for what the reader pointed at while talking.
+ * @param pointing - What was pointed at and selected.
+ * @param profile - The tool profile, which caps the ids listed.
+ * @returns The lines, none when nothing was pointed at or selected.
+ */
+function pointingLines(pointing: AiPointing, profile: ToolProfile): string[] {
+    const cap = FACT_IDS_CAP[profile];
+    const lines: string[] = [];
+    if (pointing.pointed.length > 0) {
+        // The most recent, since "this" is what the reader pointed at last.
+        lines.push(
+            `Pointed at, in order: ${listIds(pointing.pointed.slice(-cap), pointing.pointed.length, "last", FACT_IDS_CHARS[profile])}.`,
+        );
+    }
+
+    if (pointing.selected.length > 0) {
+        lines.push(
+            `Selected: ${listIds(pointing.selected.slice(0, cap), pointing.selected.length, "first", FACT_IDS_CHARS[profile])}.`,
+        );
+    }
+
+    return lines;
 }
 
 /** The most characters of ids one facts line lists: long ids (URIs, ontology terms) cost tokens. */
@@ -165,7 +178,8 @@ function listIds(ids: readonly NodeId[], total: number, keep: "first" | "last", 
         shown.reverse();
     }
 
-    return `${shown.join(", ")}${total > shown.length ? ` (${String(total - shown.length)} more)` : ""}`;
+    const more = total > shown.length ? ` (${String(total - shown.length)} more)` : "";
+    return `${shown.join(", ")}${more}`;
 }
 
 /** The most ids the facts block names, or reads to find a range. */

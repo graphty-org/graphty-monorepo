@@ -51,6 +51,35 @@ function unavailable(reason: AiVoiceUnavailableReason): SpeechOutputEnd {
 }
 
 /**
+ * Play spoken audio, ending with `AI_COMPLETED` when it finishes or `playback-failed` when it cannot play.
+ * @param blob - The audio.
+ * @param done - Ends the speech.
+ * @param onStart - Called once playback starts.
+ * @returns The playing element and its object URL, for the caller to stop and revoke.
+ */
+function play(
+    blob: Blob,
+    done: (end: SpeechOutputEnd) => void,
+    onStart?: () => void,
+): { audio: HTMLAudioElement; url: string } {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.onended = () => {
+        done(COMPLETED);
+    };
+    audio.onerror = () => {
+        done(unavailable("playback-failed"));
+    };
+    audio.play().then(
+        () => onStart?.(),
+        () => {
+            done(unavailable("playback-failed"));
+        },
+    );
+    return { audio, url };
+}
+
+/**
  * A speaker over one route.
  * @param route - `"browser"` synthesis or `"provider"` speech.
  * @param options - Language, and the engine for the provider route.
@@ -142,20 +171,7 @@ export function createSpeechOutput(route: "browser" | "provider", options: Speec
                             return;
                         }
 
-                        url = URL.createObjectURL(spoken.audio);
-                        audio = new Audio(url);
-                        audio.onended = () => {
-                            done(COMPLETED);
-                        };
-                        audio.onerror = () => {
-                            done(unavailable("playback-failed"));
-                        };
-                        audio.play().then(
-                            () => onStart?.(),
-                            () => {
-                                done(unavailable("playback-failed"));
-                            },
-                        );
+                        ({ audio, url } = play(spoken.audio, done, onStart));
                     });
                 return () => {
                     abort.abort();

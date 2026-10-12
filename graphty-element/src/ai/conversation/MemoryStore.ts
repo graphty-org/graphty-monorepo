@@ -139,7 +139,7 @@ export function claimEntry(
     claimant: string,
 ): ConversationRecord | undefined {
     const entry = stored?.pending.find((item) => item.id === pendingId);
-    if (stored === undefined || entry === undefined || entry.claim !== null) {
+    if (stored === undefined || entry?.claim !== null) {
         return undefined;
     }
 

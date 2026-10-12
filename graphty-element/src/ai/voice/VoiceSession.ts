@@ -268,7 +268,9 @@ export class VoiceSession {
         this.clearPressTimer();
         this.endPointing();
         this.input = undefined;
-        for (const input of [...this.inputs]) {
+        // A copy: cancel() removes the input from the set.
+        const inputs = [...this.inputs];
+        for (const input of inputs) {
             input.cancel();
         }
 

@@ -79,7 +79,7 @@ async function toBase64(blob: Blob): Promise<string> {
     const bytes = new Uint8Array(await blob.arrayBuffer());
     let binary = "";
     for (let at = 0; at < bytes.length; at += 0x8000) {
-        binary += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
+        binary += String.fromCodePoint(...bytes.subarray(at, at + 0x8000));
     }
 
     return btoa(binary);
@@ -92,7 +92,7 @@ async function toBase64(blob: Blob): Promise<string> {
  * @returns The audio.
  */
 function fromBase64(base64: string, type: string): Blob {
-    return new Blob([Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))], { type });
+    return new Blob([Uint8Array.from(atob(base64), (c) => c.codePointAt(0) ?? 0)], { type });
 }
 
 /**

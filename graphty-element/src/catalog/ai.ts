@@ -231,7 +231,7 @@ export const AI_HOSTED_TOOL_CAPABILITIES: Readonly<Record<AiProviderId, AiToolCa
  * test/ai/engine/tanstack/capabilities.test.ts checks this against those lists. First match wins.
  */
 const NO_WEB_TOOLS: readonly (readonly [AiProviderId, RegExp])[] = [
-    ["openai", /^(?:gpt-3\.5|gpt-4(?:-turbo)?(?:$|-\d)|o1(?:$|-)|computer-use|codex-)|codex|audio|search-preview/],
+    ["openai", /(?:^(?:gpt-3\.5|gpt-4(?:-turbo)?(?:$|-\d)|o1(?:$|-)|computer-use|codex-))|codex|audio|search-preview/],
     ["openai", /^gpt-(?:5\.6|6)-[a-z]+-pro(?:$|-)/],
     ["anthropic", /^claude-opus-5-fast/],
 ];

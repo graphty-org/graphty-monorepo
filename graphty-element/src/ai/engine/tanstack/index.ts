@@ -437,9 +437,11 @@ function hostedSources(metadata: Record<string, unknown>): HostedToolSource[] {
     }
 
     if (isObject(result)) {
-        return result.type === "web_fetch_result"
-            ? source(result, isObject(result.content) ? result.content.title : undefined)
-            : [];
+        if (result.type !== "web_fetch_result") {
+            return [];
+        }
+
+        return source(result, isObject(result.content) ? result.content.title : undefined);
     }
 
     return Array.isArray(metadata.sources) ? metadata.sources.flatMap((item) => source(item)) : [];

@@ -550,75 +550,113 @@ export class LiveTurnEngine implements AiEngine {
      * @yields The response as turn events.
      */
     async *turn(request: TurnRequest, signal: AbortSignal): AsyncIterable<TurnEvent> {
-        if (this.outstanding.length > 0) {
-            const results = new Map<string, LiveToolResult>();
-            for (const part of request.messages.flatMap((message) => message.parts)) {
-                if (part.type === "tool-result") {
-                    results.set(part.callId, part);
-                }
-            }
-
-            this.send(this.outstanding.flatMap((call) => results.get(call.id) ?? []));
-        }
-
+        this.answerOutstanding(request);
         for (;;) {
             const event = await this.next(signal);
             if (event === undefined) {
                 return;
             }
 
-            switch (event.type) {
-                case "answer-text":
-                    yield { type: "text", delta: event.delta };
-                    break;
-                case "usage":
-                    yield event;
-                    break;
-                case "tool-calls":
-                    for (const call of event.calls) {
-                        if (call.name === READER_CONTEXT) {
-                            this.own.push(
-                                result(call.id, "AI_COMPLETED", {}, this.host.readerContext(this.reading?.pointing)),
-                            );
-                        } else {
-                            this.outstanding.push(call);
-                            yield { type: "tool-call", ...call };
-                        }
-                    }
-
-                    break;
-                case "response-end":
-                    if (this.outstanding.length > 0) {
-                        yield { type: "finish", reason: "tool-calls" };
-                        return;
-                    }
-
-                    if (this.own.length > 0) {
-                        // Only reader_context was called: the model goes on once it reads it.
-                        this.send([]);
-                        break;
-                    }
-
-                    this.read();
-                    yield { type: "finish", reason: "stop" };
-                    return;
-                case "interrupted":
-                    // Cut off: the answer is kept as far as it was heard.
-                    this.read();
-                    yield { type: "finish", reason: "stop" };
-                    return;
-                case "closed":
-                    yield {
-                        type: "error",
-                        code: event.code,
-                        params: event.params,
-                        cause: new Error("The live connection closed."),
-                    };
-                    return;
-                default:
-                    break;
+            const step = this.eventStep(event);
+            yield* step.events;
+            if (step.done) {
+                return;
             }
         }
+    }
+
+    /**
+     * Send the results of the last turn's calls, when it made any.
+     * @param request - The turn, whose messages hold the results.
+     */
+    private answerOutstanding(request: TurnRequest): void {
+        if (this.outstanding.length === 0) {
+            return;
+        }
+
+        const results = new Map<string, LiveToolResult>();
+        for (const part of request.messages.flatMap((message) => message.parts)) {
+            if (part.type === "tool-result") {
+                results.set(part.callId, part);
+            }
+        }
+
+        this.send(this.outstanding.flatMap((call) => results.get(call.id) ?? []));
+    }
+
+    /**
+     * What one response event yields, and whether the turn ends with it.
+     * @param event - The event.
+     * @returns The turn events, and whether the turn is done.
+     */
+    private eventStep(event: LiveEvent): { events: TurnEvent[]; done: boolean } {
+        switch (event.type) {
+            case "answer-text":
+                return { events: [{ type: "text", delta: event.delta }], done: false };
+            case "usage":
+                return { events: [event], done: false };
+            case "tool-calls":
+                return { events: this.takeCalls(event.calls), done: false };
+            case "response-end":
+                return this.responseEnd();
+            case "interrupted":
+                // Cut off: the answer is kept as far as it was heard.
+                this.read();
+                return { events: [{ type: "finish", reason: "stop" }], done: true };
+            case "closed":
+                return {
+                    events: [
+                        {
+                            type: "error",
+                            code: event.code,
+                            params: event.params,
+                            cause: new Error("The live connection closed."),
+                        },
+                    ],
+                    done: true,
+                };
+            default:
+                return { events: [], done: false };
+        }
+    }
+
+    /**
+     * The model's calls: reader_context is answered here, every other call goes to the loop.
+     * @param calls - The calls.
+     * @returns The tool-call events for the loop.
+     */
+    private takeCalls(calls: readonly LiveToolCall[]): TurnEvent[] {
+        const events: TurnEvent[] = [];
+        for (const call of calls) {
+            if (call.name === READER_CONTEXT) {
+                this.own.push(result(call.id, "AI_COMPLETED", {}, this.host.readerContext(this.reading?.pointing)));
+            } else {
+                this.outstanding.push(call);
+                events.push({ type: "tool-call", ...call });
+            }
+        }
+
+        return events;
+    }
+
+    /**
+     * The end of one response: a turn of calls ends for the loop to run them; one that only read
+     * reader_context goes on once the model reads it; an answer ends the message's reading.
+     * @returns The turn events, and whether the turn is done.
+     */
+    private responseEnd(): { events: TurnEvent[]; done: boolean } {
+        if (this.outstanding.length > 0) {
+            return { events: [{ type: "finish", reason: "tool-calls" }], done: true };
+        }
+
+        if (this.own.length > 0) {
+            // Only reader_context was called: the model goes on once it reads it.
+            this.send([]);
+            return { events: [], done: false };
+        }
+
+        this.read();
+        return { events: [{ type: "finish", reason: "stop" }], done: true };
     }
 
     /** The message reading now read its last response: the next press's message may start. */

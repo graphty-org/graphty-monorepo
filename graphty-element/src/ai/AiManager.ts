@@ -596,7 +596,7 @@ export class AiManager {
                 };
             },
         });
-        void this.voiceSessionNow?.checkSupport();
+        void this.voiceSessionNow?.checkSupport(); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
     }
 
     /** Leave the immersive session: unbind, close a held microphone without sending, stop speaking. */
@@ -604,7 +604,7 @@ export class AiManager {
         this.xrGeneration++;
         this.xrUnbind?.();
         this.xrUnbind = undefined;
-        void this.voiceSession?.then((session) => {
+        this.withVoice((session) => {
             session.cancel();
             session.stopSpeech();
             // Answers are spoken by default only in an immersive session.
@@ -935,9 +935,17 @@ export class AiManager {
         );
     }
 
+    /**
+     * Act on the voice session once it has loaded; nothing when voice never loaded.
+     * @param act - What to do with it.
+     */
+    private withVoice(act: (session: VoiceSession) => void): void {
+        void this.voiceSession?.then(act); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
+    }
+
     /** Stop speaking an answer (`ai-speech-end` `{ code: "AI_CANCELLED" }`); nothing speaks without `voice`. */
     stopSpeech(): void {
-        void this.voiceSession?.then((session) => {
+        this.withVoice((session) => {
             session.stopSpeech();
         });
     }
@@ -947,7 +955,7 @@ export class AiManager {
      * `AI_CANCELLED`, and the next press opens another. Does nothing when none is open.
      */
     endLive(): void {
-        void this.voiceSession?.then((session) => {
+        this.withVoice((session) => {
             session.endLiveConversation();
         });
     }
@@ -1091,7 +1099,7 @@ export class AiManager {
         }
 
         // A key can make provider transcription or speech usable.
-        void this.voiceSessionNow?.checkSupport();
+        void this.voiceSessionNow?.checkSupport(); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
     }
 
     /**
@@ -1204,7 +1212,7 @@ export class AiManager {
         this.unbindHoldKey?.();
         this.unbindHoldKey = undefined;
         // The microphone closes and speech stops.
-        void this.voiceSession?.then((session) => {
+        this.withVoice((session) => {
             session.dispose();
         });
         this.voiceSession = undefined;

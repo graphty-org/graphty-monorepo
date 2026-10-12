@@ -58,6 +58,7 @@ import {
     type AskedQuestion,
     closingResults,
     type Conversation,
+    type ConversationRun,
     type DecidedBatch,
     DELEGATE,
     type Delegation,
@@ -722,7 +723,7 @@ export class AiController {
         this.storeOverride = (options as AiControllerOptions & { [STORE_OVERRIDE]?: ConversationStore })[
             STORE_OVERRIDE
         ];
-        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history);
+        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history); // NOSONAR(S7059): the store opens at construction on purpose; openHistory never rejects and ready() awaits it
         // Every turn waits for the saved conversation.
         this.queue = this.opened;
         liveFactsOf.set(this, {
@@ -1051,98 +1052,16 @@ export class AiController {
             let keep = true;
             let result: ExecutionResult;
             try {
-                const emit = (event: AiEvent): void => {
-                    this.emitAiEvent(event);
-                };
-                result = await runConversation({
-                    conversation: running,
-                    engine: run.live?.engine ?? this.engine,
-                    tools: this.commandRegistry,
-                    graph: this.graph,
-                    session,
-                    label: input,
-                    message,
-                    abort: abortController,
-                    sink: { emit, status: this.statusManager },
-                    profile: this.profile,
-                    state: {
-                        id: message,
-                        gate: this.gate,
-                        ...(this.policy === undefined ? {} : { policy: this.policy }),
-                        webContentWrites: this.webContentWrites,
-                        runs: this.assistantRuns,
-                        undo: { calls: 0 },
-                        hostedUses: {},
-                        totals: { ...(run.totals ?? { removeNodes: 0, removeEdges: 0, changedValues: 0 }) },
-                    },
-                    host: {
-                        emit,
-                        readerText: input,
-                        ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
-                    },
-                    hold: (held, messageId, helper) =>
-                        this.hold({
-                            held,
-                            message,
-                            label: input,
-                            session,
-                            conversation: running,
-                            messageId,
-                            conversationId: run.conversationId,
-                            ...(plan === undefined ? {} : { plan }),
-                            ...(helper === undefined ? {} : { helper }),
-                        }),
-                    ...(decided === undefined ? {} : { decided }),
-                    ...(resume === undefined ? {} : { resume }),
-                    ...(questions === undefined
-                        ? {}
-                        : { questions: { tool: questions.ASK_READER_TOOL, parse: questions.askedQuestion } }),
-                    ...(this.asks
-                        ? {
-                              ask: (question: AskedQuestion, messageId: string) =>
-                                  this.ask({
-                                      question,
-                                      message,
-                                      label: input,
-                                      session,
-                                      conversation: running,
-                                      messageId,
-                                      conversationId: run.conversationId,
-                                  }),
-                          }
-                        : {}),
-                    ...(answer === undefined ? {} : { answer: { callId: answer.call.id, values: answer.values } }),
-                    ...(delegation === undefined ? {} : { delegation }),
-                    ...(program === undefined ? {} : { code: { tool: program.RUN_CODE_TOOL, run: program.runCode } }),
-                    ...(plan === undefined ? {} : { plan }),
-                    ...(this.confirmPlans ? { confirmDelegates: true } : {}),
-                    newId: () => this.newMessageId(running),
-                    ...(this.history?.budgetTokens === undefined
-                        ? {}
-                        : { historyBudgetTokens: this.history.budgetTokens }),
-                });
+                result = await runConversation(
+                    this.conversationRun(run, { session, running, delegation, questions, program, plan }),
+                );
             } catch (error) {
-                // A tool threw, the message was cancelled or undone, or the model failed: what the
-                // message's earlier batches recorded is taken back, as one transaction's rollback was.
                 // The message's own revert is no undo by the reader: stop watching first, so it
                 // does not read as one and hide why the message failed.
                 stopWatching();
                 stopWatching = (): void => undefined;
-                const remaining = await revertMessage(session, message);
-                if (!(error instanceof MessageRolledBack)) {
-                    throw error;
-                }
-
+                result = await this.rolledBack(error, session, run);
                 keep = false;
-
-                ({ result } = error);
-                if (remaining > 0) {
-                    result = { ...result, code: "AI_ROLLBACK_PARTIAL", params: { ...result.params, steps: remaining } };
-                }
-                // The batch's rollback aborts the message too, so only a cancel overrides the tool's code.
-                if (this.cancelled.has(abortController)) {
-                    result = { ...result, code: "AI_CANCELLED", params: {} };
-                }
             }
 
             if (routed !== NO_USAGE) {
@@ -1150,68 +1069,218 @@ export class AiController {
                 result = { ...result, usage: addUsage(result.usage ?? NO_USAGE, routed) };
             }
 
-            this.heardSoFar(run, running, base);
-            // Saved again when the message ends: never per streamed piece of text.
-            if (keep) {
-                await this.saveInto(run.conversationId, running.messages);
-            } else {
-                await this.saveUnkept(run, running, base, result);
-            }
-
-            this.hearLater(run, running, base);
-
-            if (run.request !== undefined) {
-                result = { ...result, params: { request: run.request, ...result.params } };
-            }
-
-            // Complete
-            this.statusManager.complete();
-
-            // Emit complete event
-            this.emitAiEvent({
-                type: "ai-command-complete",
-                result,
-                duration: Date.now() - startTime,
-            });
-
-            return result;
+            return await this.endMessage(run, running, base, { result, keep, startTime });
         } catch (error) {
-            // Any provider's error, a consumer's own included, may carry the prompt and the
-            // response; only its name, message and stack go on.
-            const original = error instanceof TurnFailed ? error.failure.cause : error;
-            const errorObj = toSafeError(original);
-            const errorMessage = errorObj.message;
-
-            this.lastError = errorObj;
-
-            this.statusManager.setError(errorObj, true);
-
-            // Emit error event
-            this.emitAiEvent({
-                type: "ai-command-error",
-                error: errorObj,
-                input,
-                canRetry: true,
-            });
-
-            const { code, params } = this.failureOutcome(error, abortController);
-            const failed: ExecutionResult = {
-                success: false,
-                message: `Error: ${errorMessage}`,
-                code,
-                params: run.request === undefined ? params : { request: run.request, ...params },
-            };
-            if (conversation !== undefined) {
-                this.heardSoFar(run, conversation, base);
-                await this.saveUnkept(run, conversation, base, failed);
-                this.hearLater(run, conversation, base);
-            }
-
-            return failed;
+            return await this.failMessage(run, error, conversation, base);
         } finally {
             stopWatching();
             this.running.delete(abortController);
         }
+    }
+
+    /**
+     * The loop's run of one message: its conversation, engine, tools and state, and the
+     * controller's settings that shape it.
+     * @param run - The message.
+     * @param parts - What the message loaded: its session and conversation, and the modules on.
+     * @param parts.session - The session.
+     * @param parts.running - The message's conversation.
+     * @param parts.delegation - Its helpers, when there are any.
+     * @param parts.questions - The question tool's module, when questions are on.
+     * @param parts.program - The in-page code module, when it is on.
+     * @param parts.plan - A router's plan, when there is one.
+     * @returns The run.
+     */
+    private conversationRun(
+        run: MessageRun,
+        parts: {
+            session: GraphSession;
+            running: Conversation;
+            delegation: Delegation | undefined;
+            questions: typeof import("./questions") | undefined;
+            program: typeof import("./tools/runCode") | undefined;
+            plan: PlanSteps | undefined;
+        },
+    ): ConversationRun {
+        const { input, message, abortController, decided, answer, resume } = run;
+        const { session, running, delegation, questions, program, plan } = parts;
+        const emit = (event: AiEvent): void => {
+            this.emitAiEvent(event);
+        };
+        const saved = { message, label: input, session, conversation: running, conversationId: run.conversationId };
+        return {
+            conversation: running,
+            engine: run.live?.engine ?? this.engine,
+            tools: this.commandRegistry,
+            graph: this.graph,
+            session,
+            label: input,
+            message,
+            abort: abortController,
+            sink: { emit, status: this.statusManager },
+            profile: this.profile,
+            state: {
+                id: message,
+                gate: this.gate,
+                ...(this.policy === undefined ? {} : { policy: this.policy }),
+                webContentWrites: this.webContentWrites,
+                runs: this.assistantRuns,
+                undo: { calls: 0 },
+                hostedUses: {},
+                totals: { ...(run.totals ?? { removeNodes: 0, removeEdges: 0, changedValues: 0 }) },
+            },
+            host: {
+                emit,
+                readerText: input,
+                ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
+            },
+            hold: (held, messageId, helper) =>
+                this.hold({
+                    held,
+                    ...saved,
+                    messageId,
+                    ...(plan === undefined ? {} : { plan }),
+                    ...(helper === undefined ? {} : { helper }),
+                }),
+            ...(decided === undefined ? {} : { decided }),
+            ...(resume === undefined ? {} : { resume }),
+            ...(questions === undefined
+                ? {}
+                : { questions: { tool: questions.ASK_READER_TOOL, parse: questions.askedQuestion } }),
+            ...(this.asks
+                ? {
+                      ask: (question: AskedQuestion, messageId: string) => this.ask({ question, ...saved, messageId }),
+                  }
+                : {}),
+            ...(answer === undefined ? {} : { answer: { callId: answer.call.id, values: answer.values } }),
+            ...(delegation === undefined ? {} : { delegation }),
+            ...(program === undefined ? {} : { code: { tool: program.RUN_CODE_TOOL, run: program.runCode } }),
+            ...(plan === undefined ? {} : { plan }),
+            ...(this.confirmPlans ? { confirmDelegates: true } : {}),
+            newId: () => this.newMessageId(running),
+            ...(this.history?.budgetTokens === undefined ? {} : { historyBudgetTokens: this.history.budgetTokens }),
+        };
+    }
+
+    /**
+     * A tool threw, the message was cancelled or undone, or the model failed: what the message's
+     * earlier batches recorded is taken back, as one transaction's rollback was.
+     * @param error - What the loop threw.
+     * @param session - The session.
+     * @param run - The message.
+     * @returns The result of a message taken back.
+     * @throws The error, unless the loop rolled the message back itself.
+     */
+    private async rolledBack(error: unknown, session: GraphSession, run: MessageRun): Promise<ExecutionResult> {
+        const remaining = await revertMessage(session, run.message);
+        if (!(error instanceof MessageRolledBack)) {
+            throw error;
+        }
+
+        let { result } = error;
+        if (remaining > 0) {
+            result = { ...result, code: "AI_ROLLBACK_PARTIAL", params: { ...result.params, steps: remaining } };
+        }
+        // The batch's rollback aborts the message too, so only a cancel overrides the tool's code.
+        if (this.cancelled.has(run.abortController)) {
+            result = { ...result, code: "AI_CANCELLED", params: {} };
+        }
+
+        return result;
+    }
+
+    /**
+     * A message that ended: saved (or saved as not kept), named after the request it answers,
+     * and reported.
+     * @param run - The message.
+     * @param running - Its conversation.
+     * @param base - How many messages it had once the run's own reader message was added.
+     * @param ended - How it ended.
+     * @param ended.result - Its result.
+     * @param ended.keep - Whether its changes stay.
+     * @param ended.startTime - When it started.
+     * @returns Its result.
+     */
+    private async endMessage(
+        run: MessageRun,
+        running: Conversation,
+        base: number,
+        ended: { result: ExecutionResult; keep: boolean; startTime: number },
+    ): Promise<ExecutionResult> {
+        let { result } = ended;
+        this.heardSoFar(run, running, base);
+        // Saved again when the message ends: never per streamed piece of text.
+        if (ended.keep) {
+            await this.saveInto(run.conversationId, running.messages);
+        } else {
+            await this.saveUnkept(run, running, base, result);
+        }
+
+        this.hearLater(run, running, base);
+
+        if (run.request !== undefined) {
+            result = { ...result, params: { request: run.request, ...result.params } };
+        }
+
+        // Complete
+        this.statusManager.complete();
+
+        // Emit complete event
+        this.emitAiEvent({
+            type: "ai-command-complete",
+            result,
+            duration: Date.now() - ended.startTime,
+        });
+
+        return result;
+    }
+
+    /**
+     * A message that failed: reported, coded, and saved as not kept.
+     * @param run - The message.
+     * @param error - Why it failed.
+     * @param conversation - Its conversation, when it got one.
+     * @param base - How many messages it had once the run's own reader message was added.
+     * @returns Its failed result.
+     */
+    private async failMessage(
+        run: MessageRun,
+        error: unknown,
+        conversation: Conversation | undefined,
+        base: number,
+    ): Promise<ExecutionResult> {
+        // Any provider's error, a consumer's own included, may carry the prompt and the
+        // response; only its name, message and stack go on.
+        const original = error instanceof TurnFailed ? error.failure.cause : error;
+        const errorObj = toSafeError(original);
+        const errorMessage = errorObj.message;
+
+        this.lastError = errorObj;
+
+        this.statusManager.setError(errorObj, true);
+
+        // Emit error event
+        this.emitAiEvent({
+            type: "ai-command-error",
+            error: errorObj,
+            input: run.input,
+            canRetry: true,
+        });
+
+        const { code, params } = this.failureOutcome(error, run.abortController);
+        const failed: ExecutionResult = {
+            success: false,
+            message: `Error: ${errorMessage}`,
+            code,
+            params: run.request === undefined ? params : { request: run.request, ...params },
+        };
+        if (conversation !== undefined) {
+            this.heardSoFar(run, conversation, base);
+            await this.saveUnkept(run, conversation, base, failed);
+            this.hearLater(run, conversation, base);
+        }
+
+        return failed;
     }
 
     /**
@@ -1282,7 +1351,9 @@ export class AiController {
 
     /** Tell an open live connection it no longer knows the conversation. */
     private liveStale(): void {
-        for (const listener of [...this.liveWatchers]) {
+        // A copy: a listener may unsubscribe while it is told.
+        const listeners = [...this.liveWatchers];
+        for (const listener of listeners) {
             listener();
         }
     }
@@ -2071,7 +2142,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         const helpers =
             this.roles.length === 0
                 ? ""
-                : `\nYou have helpers (delegate): hand each part of a request that a helper's purpose covers to that helper, then answer from what they report. The helpers:\n${this.roles.map((role) => `- ${role.name}: ${role.purpose}`).join("\n")}`;
+                : `\nYou have helpers (delegate): hand each part of a request that a helper's purpose covers to that helper, then answer from what they report. The helpers:\n${this.roles.map(roleLine).join("\n")}`;
         // Only with web tools: the default prompt stays as it was.
         return this.hosted.size === 0
             ? helpers
@@ -2516,4 +2587,13 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         this.engine.dispose();
         this.statusManager.reset();
     }
+}
+
+/**
+ * A helper as the main model's instructions list it.
+ * @param role - The helper.
+ * @returns Its line.
+ */
+function roleLine(role: AiAgentRole): string {
+    return `- ${role.name}: ${role.purpose}`;
 }

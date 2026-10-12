@@ -41,6 +41,57 @@ export function toolActions(tool: ToolDefinition): JsonObject[] {
 }
 
 /**
+ * Describe one algorithm.
+ * @param tx - The session.
+ * @param catalog - The catalog.
+ * @param name - The algorithm's name.
+ * @param missing - Refuses an unknown name.
+ * @returns What the model reads, and the tool it loads.
+ */
+async function describeAlgorithm(
+    tx: TransactionScope,
+    catalog: CatalogSources["catalog"],
+    name: string,
+    missing: (names: readonly string[]) => never,
+): Promise<{ data: JsonObject; tool: string }> {
+    if (catalog.legacyAlgorithms.includes(name)) {
+        // Registered with no descriptor: nothing is known of it but its address.
+        return { tool: "run_algorithm", data: { name, described: false, example: { name } } };
+    }
+
+    const entry =
+        catalog.algorithms.find((each) => each.key === name) ??
+        missing([...catalog.algorithms.map((each) => each.key), ...catalog.legacyAlgorithms]);
+    const options = await tx.catalog.optionsFor(entry.key);
+    const estimate = tx.estimate({ op: "algo.run", algorithm: entry.key });
+    return {
+        tool: "run_algorithm",
+        data: {
+            name: entry.key,
+            plainName: entry.plainName,
+            description: entry.description,
+            category: entry.category,
+            shape: entry.shape,
+            options: optionsJsonSchema(
+                options.map((option) => ({
+                    ...option,
+                    values: option.type === "node-id" || option.type === "node-set" ? undefined : option.values,
+                })),
+            ),
+            results: entry.fields.map((field) => ({ field: field.name, kind: field.kind, type: field.type })),
+            requires: toJson(entry.requires ?? {}),
+            approximable: entry.approximable !== undefined,
+            estimate: {
+                seconds: toJson(estimate.seconds),
+                available: estimate.available,
+                costClass: estimate.costClass,
+            },
+            example: { name: entry.key },
+        },
+    };
+}
+
+/**
  * Describe one entry.
  * @param tx - The session.
  * @param sources - The catalog and the tools.
@@ -61,41 +112,7 @@ async function describe(
 
     switch (kind) {
         case "algorithm": {
-            if (catalog.legacyAlgorithms.includes(name)) {
-                // Registered with no descriptor: nothing is known of it but its address.
-                return { tool: "run_algorithm", data: { name, described: false, example: { name } } };
-            }
-
-            const entry =
-                catalog.algorithms.find((each) => each.key === name) ??
-                missing([...catalog.algorithms.map((each) => each.key), ...catalog.legacyAlgorithms]);
-            const options = await tx.catalog.optionsFor(entry.key);
-            const estimate = tx.estimate({ op: "algo.run", algorithm: entry.key });
-            return {
-                tool: "run_algorithm",
-                data: {
-                    name: entry.key,
-                    plainName: entry.plainName,
-                    description: entry.description,
-                    category: entry.category,
-                    shape: entry.shape,
-                    options: optionsJsonSchema(
-                        options.map((option) => ({
-                            ...option,
-                            values: option.type === "node-id" || option.type === "node-set" ? undefined : option.values,
-                        })),
-                    ),
-                    results: entry.fields.map((field) => ({ field: field.name, kind: field.kind, type: field.type })),
-                    requires: toJson(entry.requires ?? {}),
-                    approximable: entry.approximable !== undefined,
-                    estimate: {
-                        seconds: toJson(estimate.seconds),
-                        available: estimate.available,
-                        costClass: estimate.costClass,
-                    },
-                    example: { name: entry.key },
-                },
-            };
+            return describeAlgorithm(tx, catalog, name, missing);
         }
 
         case "layout": {

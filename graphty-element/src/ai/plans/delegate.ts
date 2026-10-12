@@ -161,7 +161,8 @@ function kept(messages: readonly SavedMessage[]): SavedMessage[] {
  * @returns The text.
  */
 function answersText(answers: readonly HelperAnswer[]): string {
-    return `What the helpers before you reported:\n${answers.map((answer) => `${answer.agent}: ${answer.content}`).join("\n")}`;
+    const lines = answers.map((answer) => `${answer.agent}: ${answer.content}`);
+    return `What the helpers before you reported:\n${lines.join("\n")}`;
 }
 
 /**
@@ -325,34 +326,51 @@ function helperConversation(
     return { system: helperSystem(role, tools, parent, hosted), messages: [first] };
 }
 
+/** One helper's hand-off: who, the call, the task and the conversation it works on. */
+interface HelperTask {
+    readonly role: AiAgentRole;
+    /** The `delegate` call. */
+    readonly call: ToolCallRequest;
+    readonly task: string;
+    /** Its conversation: new, or saved at a hold and continued. */
+    readonly conversation: Conversation;
+    /** The reader's decision on its held batch, which a continued helper starts with. */
+    readonly decided?: DecidedBatch;
+    /** What earlier helpers answered, which it was told. */
+    readonly after?: readonly HelperAnswer[];
+}
+
+/** A helper's token usage, added to as its turns report. */
+interface UsageCounter {
+    inputTokens: number;
+    outputTokens: number;
+}
+
+/** How a helper's conversation ended: its outcome, and the batch held for the reader, if any. */
+interface HelperOutcome {
+    outcome: { code: AiResultCode; params: AiResultParams; answer?: string };
+    held?: HeldHelper;
+}
+
 /**
  * Run one helper on its task, on a conversation of its own, until it answers or a batch of its
  * is held for the reader.
- * @param role - The helper.
- * @param call - The `delegate` call.
- * @param task - The task.
- * @param conversation - Its conversation: new, or saved at a hold and continued.
+ * @param helper - The helper, its call, task and conversation.
  * @param parent - The main run, whose message, session and abort it shares.
  * @param state - The message's state; read-only when helpers run beside each other.
  * @param options - The engines and keys.
- * @param decided - The reader's decision on its held batch, which a continued helper starts with.
- * @param after - What earlier helpers answered, which it was told.
  * @returns The call's result and the helper's conversation since `conversation` was handed in.
  * @throws When the message was cancelled or undone while it ran.
  * @throws {MessageRolledBack} When a tool threw, or its last write batch failed: the message's
  *   writes are taken back, the helper's with the main's.
  */
 async function runHelper(
-    role: AiAgentRole,
-    call: ToolCallRequest,
-    task: string,
-    conversation: Conversation,
+    helper: HelperTask,
     parent: ConversationRun,
     state: MessageState,
     options: DelegationOptions,
-    decided?: DecidedBatch,
-    after: readonly HelperAnswer[] = [],
 ): Promise<HelperRun> {
+    const { role, call, task, conversation, decided, after = [] } = helper;
     const { sink } = parent;
     sink.emit({
         type: "ai-agent-start",
@@ -361,83 +379,16 @@ async function runHelper(
         ...(after.length === 0 ? {} : { after: after.map(({ agent, code }) => ({ agent, code })) }),
     });
     const from = decided === undefined ? 0 : conversation.messages.length;
-    const tools = helperTools(role, parent);
     const hostedTools = options.hosted?.get(role.name) ?? [];
-    const usage = { inputTokens: 0, outputTokens: 0 };
-    let held: HeldHelper | undefined;
-    let built: { engine: AiEngine; own: boolean } | undefined;
-    let outcome: { code: AiResultCode; params: AiResultParams; answer?: string };
-    try {
-        built = engineOf(role, options);
-        const result = await runConversation({
-            conversation,
-            engine: built.engine,
-            tools,
-            allTools: true,
-            graph: parent.graph,
-            session: parent.session,
-            label: parent.label,
-            message: parent.message,
-            abort: parent.abort,
-            sink,
-            state,
-            // The helper stops at a hold; the main run saves it and asks the reader.
-            hold: (batch, messageId) => {
-                held = { held: batch, messageId, agent: role.name, callId: call.id };
-                return Promise.resolve(undefined);
-            },
-            endAtHold: true,
-            ...(hostedTools.length === 0 ? {} : { hostedTools }),
-            ...(decided === undefined ? {} : { decided }),
-            ...(parent.profile === undefined ? {} : { profile: parent.profile }),
-            ...(parent.host === undefined ? {} : { host: parent.host }),
-            ...(parent.newId === undefined ? {} : { newId: parent.newId }),
-            onUsage: (used) => {
-                usage.inputTokens += used.inputTokens;
-                usage.outputTokens += used.outputTokens;
-            },
-        });
-        outcome = {
-            code: result.code ?? "AI_COMPLETED",
-            params: result.params ?? {},
-            ...(result.llmText === undefined ? {} : { answer: result.llmText }),
-        };
-    } catch (error) {
-        // A cancel or an undo ends the whole message, helpers and all.
-        if (parent.abort.signal.aborted) {
-            sink.emit({ type: "ai-agent-end", agent: role.name, code: "AI_CANCELLED", params: {}, usage });
-            throw error;
-        }
-
-        if (error instanceof MessageRolledBack) {
-            // All or nothing: the helper's writes go with the message's, as the main's own would.
-            const { code = "AI_TOOL_FAILED", params = {} } = error.result;
-            sink.emit({ type: "ai-agent-end", agent: role.name, code, params, usage });
-            throw error;
-        }
-
-        if (error instanceof TurnFailed) {
-            outcome = { code: error.failure.code, params: error.failure.params };
-        } else if (built === undefined) {
-            // Its own provider could not be built: the call fails, coded, and the message goes on.
-            outcome = { code: "AI_PROVIDER_ERROR", params: { provider: ownProvider(role, options.provider) ?? "" } };
-        } else {
-            throw error;
-        }
-    } finally {
-        if (built?.own === true) {
-            built.engine.dispose();
-        }
-    }
+    const usage: UsageCounter = { inputTokens: 0, outputTokens: 0 };
+    const { outcome, held } = await runHelperLoop(helper, parent, state, options, usage);
 
     const ran = conversation.messages.slice(from);
     // The web tools it was offered that never ran: the model answered from memory. Reported, as
     // the reader asked for the web and got no source.
     const uses = ran.flatMap((message) => message.parts).filter((part) => part.type === "hosted-tool").length;
     if (hostedTools.length > 0 && uses === 0 && held === undefined) {
-        for (const { tool } of turnHostedTools(hostedTools, parent.host?.readerText ?? parent.label, {})) {
-            sink.emit({ type: "ai-hosted-tool-result", tool, status: "not-used", sources: [] });
-        }
+        reportNotUsed(hostedTools, parent);
     }
 
     const facts = hostedTools.length === 0 ? outcome.params : { ...outcome.params, hostedToolUses: uses };
@@ -478,6 +429,129 @@ async function runHelper(
             ref,
         ],
     };
+}
+
+/**
+ * Report each web tool a helper was offered and never used: it answered from memory.
+ * @param hostedTools - The web tools it had.
+ * @param parent - The main run, whose sink reports.
+ */
+function reportNotUsed(hostedTools: readonly HostedToolSetting[], parent: ConversationRun): void {
+    for (const { tool } of turnHostedTools(hostedTools, parent.host?.readerText ?? parent.label, {})) {
+        parent.sink.emit({ type: "ai-hosted-tool-result", tool, status: "not-used", sources: [] });
+    }
+}
+
+/**
+ * Run a helper's own conversation loop, on its own engine when it names one.
+ * @param helper - The helper, its call, task and conversation.
+ * @param parent - The main run.
+ * @param state - The message's state.
+ * @param options - The engines and keys.
+ * @param usage - Its token usage, added to as it runs.
+ * @returns How it ended.
+ * @throws As `runHelper` does.
+ */
+async function runHelperLoop(
+    helper: HelperTask,
+    parent: ConversationRun,
+    state: MessageState,
+    options: DelegationOptions,
+    usage: UsageCounter,
+): Promise<HelperOutcome> {
+    const { role, call, conversation, decided } = helper;
+    const hostedTools = options.hosted?.get(role.name) ?? [];
+    let held: HeldHelper | undefined;
+    let built: { engine: AiEngine; own: boolean } | undefined;
+    try {
+        built = engineOf(role, options);
+        const result = await runConversation({
+            conversation,
+            engine: built.engine,
+            tools: helperTools(role, parent),
+            allTools: true,
+            graph: parent.graph,
+            session: parent.session,
+            label: parent.label,
+            message: parent.message,
+            abort: parent.abort,
+            sink: parent.sink,
+            state,
+            // The helper stops at a hold; the main run saves it and asks the reader.
+            hold: (batch, messageId) => {
+                held = { held: batch, messageId, agent: role.name, callId: call.id };
+                return Promise.resolve(undefined);
+            },
+            endAtHold: true,
+            ...(hostedTools.length === 0 ? {} : { hostedTools }),
+            ...(decided === undefined ? {} : { decided }),
+            ...(parent.profile === undefined ? {} : { profile: parent.profile }),
+            ...(parent.host === undefined ? {} : { host: parent.host }),
+            ...(parent.newId === undefined ? {} : { newId: parent.newId }),
+            onUsage: (used) => {
+                usage.inputTokens += used.inputTokens;
+                usage.outputTokens += used.outputTokens;
+            },
+        });
+        const outcome = {
+            code: result.code ?? "AI_COMPLETED",
+            params: result.params ?? {},
+            ...(result.llmText === undefined ? {} : { answer: result.llmText }),
+        };
+        return held === undefined ? { outcome } : { outcome, held };
+    } catch (error) {
+        return { outcome: helperFailure(error, role, parent, options, built !== undefined, usage) };
+    } finally {
+        if (built?.own === true) {
+            built.engine.dispose();
+        }
+    }
+}
+
+/**
+ * What a helper's failure means: a cancel, an undo or a rollback ends the whole message (thrown
+ * on); a failed turn, or an own provider that could not be built, is the call's coded outcome.
+ * @param error - What it threw.
+ * @param role - The helper.
+ * @param parent - The main run.
+ * @param options - The engines and keys.
+ * @param built - Whether its engine was built.
+ * @param usage - Its token usage so far.
+ * @returns The call's outcome.
+ * @throws The error, when it ends the message.
+ */
+function helperFailure(
+    error: unknown,
+    role: AiAgentRole,
+    parent: ConversationRun,
+    options: DelegationOptions,
+    built: boolean,
+    usage: UsageCounter,
+): HelperOutcome["outcome"] {
+    const { sink } = parent;
+    // A cancel or an undo ends the whole message, helpers and all.
+    if (parent.abort.signal.aborted) {
+        sink.emit({ type: "ai-agent-end", agent: role.name, code: "AI_CANCELLED", params: {}, usage });
+        throw error;
+    }
+
+    if (error instanceof MessageRolledBack) {
+        // All or nothing: the helper's writes go with the message's, as the main's own would.
+        const { code = "AI_TOOL_FAILED", params = {} } = error.result;
+        sink.emit({ type: "ai-agent-end", agent: role.name, code, params, usage });
+        throw error;
+    }
+
+    if (error instanceof TurnFailed) {
+        return { code: error.failure.code, params: error.failure.params };
+    }
+
+    if (!built) {
+        // Its own provider could not be built: the call fails, coded, and the message goes on.
+        return { code: "AI_PROVIDER_ERROR", params: { provider: ownProvider(role, options.provider) ?? "" } };
+    }
+
+    throw error;
 }
 
 /**
@@ -623,22 +697,23 @@ export function delegation(options: DelegationOptions): Delegation {
             const role = options.roles.find((candidate) => candidate.name === parsed.data.agent) as AiAgentRole;
             const { task } = parsed.data;
             return runHelper(
-                role,
-                call,
-                task,
-                helperConversation(
+                {
                     role,
                     call,
                     task,
-                    answers,
-                    within,
-                    (options.hosted?.get(role.name) ?? []).length > 0,
-                ),
+                    conversation: helperConversation(
+                        role,
+                        call,
+                        task,
+                        answers,
+                        within,
+                        (options.hosted?.get(role.name) ?? []).length > 0,
+                    ),
+                    after: answers,
+                },
                 within,
                 shared,
                 options,
-                undefined,
-                answers,
             );
         };
 
@@ -702,17 +777,19 @@ export function delegation(options: DelegationOptions): Delegation {
             // ponytail: a helper held beside others in a parallel step continues with the message's
             // own state, so it may write; only a slow-run gate or an ask on a read holds one.
             const continued = await runHelper(
-                role,
-                call,
-                task ?? "",
                 {
-                    system: helperSystem(role, tools, parent, (options.hosted?.get(role.name) ?? []).length > 0),
-                    messages,
+                    role,
+                    call,
+                    task: task ?? "",
+                    conversation: {
+                        system: helperSystem(role, tools, parent, (options.hosted?.get(role.name) ?? []).length > 0),
+                        messages,
+                    },
+                    decided,
                 },
                 parent,
                 state,
                 options,
-                decided,
             );
             if (continued.held !== undefined || continued.paused !== undefined) {
                 return continued;

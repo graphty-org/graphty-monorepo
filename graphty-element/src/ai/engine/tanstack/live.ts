@@ -187,7 +187,9 @@ function wrap(connection: RealtimeConnection, provider: string, cumulative: bool
     let callsEnded = false;
 
     const emit = (event: LiveEvent): void => {
-        for (const listener of [...listeners]) {
+        // A copy: a listener may unsubscribe while it is told.
+        const told = [...listeners];
+        for (const listener of told) {
             listener(event);
         }
     };

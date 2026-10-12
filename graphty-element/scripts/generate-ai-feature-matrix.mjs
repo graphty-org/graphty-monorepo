@@ -167,8 +167,8 @@ if (isMain) {
     let catalog;
     try {
         catalog = await import(pathToFileURL(resolve(packageRoot, "dist/catalog.js")).href);
-    } catch (cause) {
-        throw new Error("Cannot read dist/catalog.js. Run `npm run build` before this script.", { cause });
+    } catch (error_) {
+        throw new Error("Cannot read dist/catalog.js. Run `npm run build` before this script.", { cause: error_ });
     }
 
     const page = renderAiFeatureMatrix(

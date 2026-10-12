@@ -121,7 +121,9 @@ export class FakeLiveConnection implements LiveConnection {
             return;
         }
 
-        for (const listener of [...this.listeners]) {
+        // A copy: a listener may unsubscribe while it is told.
+        const listeners = [...this.listeners];
+        for (const listener of listeners) {
             listener(event);
         }
 

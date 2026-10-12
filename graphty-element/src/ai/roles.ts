@@ -7,6 +7,7 @@
 import { AI_PROVIDER_DESCRIPTORS } from "../catalog/ai";
 import { ASSISTANT_TOOLS } from "../catalog/assistant";
 import {
+    type AiAgentRole,
     type AiAgentsSetting,
     AiConfigError,
     MAX_AGENT_NAME_LENGTH,
@@ -64,58 +65,90 @@ export function checkAgents(setting: AiAgentsSetting, main?: string): void {
 
     const seen = new Set<string>();
     for (const role of roles) {
-        const agent = role.name;
         const fail = (field: string, reason: string, extra: Record<string, string | number> = {}): never => {
-            throw new AiConfigError({ agent, field, reason, ...extra });
+            throw new AiConfigError({ agent: role.name, field, reason, ...extra });
         };
+        checkName(role.name, seen, fail);
+        seen.add(role.name);
+        checkPurposeAndCommands(role, fail);
+        checkProvider(role, main, ownModel, fail);
+    }
+}
 
-        if (agent.trim() === "") {
-            fail("name", "empty");
-        }
+/** Throws the `AiConfigError` of one helper's field. */
+type Fail = (field: string, reason: string, extra?: Record<string, string | number>) => never;
 
-        if (agent.length > MAX_AGENT_NAME_LENGTH) {
-            fail("name", "too-long", { limit: MAX_AGENT_NAME_LENGTH });
-        }
+/**
+ * Check a helper's name: not empty, not too long, not reserved, not taken.
+ * @param agent - The name.
+ * @param seen - The names of the helpers before it.
+ * @param fail - Throws for the field.
+ */
+function checkName(agent: string, seen: ReadonlySet<string>, fail: Fail): void {
+    if (agent.trim() === "") {
+        fail("name", "empty");
+    }
 
-        if (RESERVED_NAMES.has(agent)) {
-            fail("name", "reserved");
-        }
+    if (agent.length > MAX_AGENT_NAME_LENGTH) {
+        fail("name", "too-long", { limit: MAX_AGENT_NAME_LENGTH });
+    }
 
-        if (seen.has(agent)) {
-            fail("name", "duplicate");
-        }
+    if (RESERVED_NAMES.has(agent)) {
+        fail("name", "reserved");
+    }
 
-        seen.add(agent);
-        if (role.purpose.trim() === "") {
-            fail("purpose", "empty");
-        }
+    if (seen.has(agent)) {
+        fail("name", "duplicate");
+    }
+}
 
-        if (role.purpose.length > MAX_AGENT_PURPOSE_LENGTH) {
-            fail("purpose", "too-long", { limit: MAX_AGENT_PURPOSE_LENGTH });
-        }
+/**
+ * Check a helper's purpose (not empty, not too long) and that it names only known commands.
+ * @param role - The helper.
+ * @param fail - Throws for the field.
+ */
+function checkPurposeAndCommands(role: AiAgentRole, fail: Fail): void {
+    if (role.purpose.trim() === "") {
+        fail("purpose", "empty");
+    }
 
-        const unknown = role.commands.find((command) => !KNOWN_COMMANDS.has(command));
-        if (unknown !== undefined) {
-            fail("commands", "unknown-command", { command: unknown });
-        }
+    if (role.purpose.length > MAX_AGENT_PURPOSE_LENGTH) {
+        fail("purpose", "too-long", { limit: MAX_AGENT_PURPOSE_LENGTH });
+    }
 
-        if (role.provider !== undefined && !HELPER_PROVIDERS.has(role.provider)) {
-            fail("provider", "unsupported");
-        }
+    const unknown = role.commands.find((command) => !KNOWN_COMMANDS.has(command));
+    if (unknown !== undefined) {
+        fail("commands", "unknown-command", { command: unknown });
+    }
+}
 
-        if (role.provider === undefined && role.model !== undefined && !ownModel) {
-            fail("model", "unsupported");
-        }
+/**
+ * Check where a helper runs: a provider it can run on, a model of its own only where a second
+ * instance can be built, and web tools only beside reading commands, on a provider that allows them.
+ * @param role - The helper.
+ * @param main - The assistant's own provider, when known.
+ * @param ownModel - Whether a role may name a model of its own on the assistant's provider.
+ * @param fail - Throws for the field.
+ */
+function checkProvider(role: AiAgentRole, main: string | undefined, ownModel: boolean, fail: Fail): void {
+    if (role.provider !== undefined && !HELPER_PROVIDERS.has(role.provider)) {
+        fail("provider", "unsupported");
+    }
 
-        if (asksWebTools(role.tools)) {
-            if (role.commands.some((command) => !READ_ONLY_TOOLS.has(command))) {
-                fail("tools", "web-tools-with-writes");
-            }
+    if (role.provider === undefined && role.model !== undefined && !ownModel) {
+        fail("model", "unsupported");
+    }
 
-            const provider = role.provider ?? main;
-            if (role.commands.length > 0 && provider !== undefined && !hostedToolLimits(provider).withFunctionTools) {
-                fail("tools", "unsupported");
-            }
-        }
+    if (!asksWebTools(role.tools)) {
+        return;
+    }
+
+    if (role.commands.some((command) => !READ_ONLY_TOOLS.has(command))) {
+        fail("tools", "web-tools-with-writes");
+    }
+
+    const provider = role.provider ?? main;
+    if (role.commands.length > 0 && provider !== undefined && !hostedToolLimits(provider).withFunctionTools) {
+        fail("tools", "unsupported");
     }
 }

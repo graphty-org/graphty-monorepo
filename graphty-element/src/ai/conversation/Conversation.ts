@@ -151,12 +151,14 @@ export function historyWindow(messages: readonly SavedMessage[], budgetTokens: n
     );
 
     const exchanges: SavedMessage[][] = [];
+    let current: SavedMessage[] | undefined;
     for (const message of shown) {
-        if (message.role === "user" || exchanges.length === 0) {
-            exchanges.push([]);
+        if (message.role === "user" || current === undefined) {
+            current = [];
+            exchanges.push(current);
         }
 
-        exchanges[exchanges.length - 1].push(message);
+        current.push(message);
     }
 
     const budgetChars = budgetTokens * 4;

@@ -160,7 +160,7 @@ export class XRInputHandler {
     private talkHeld = false;
     private orbClaimed = false;
     private orb: Mesh | null = null;
-    private pointedBy = new Map<string, NodeId>();
+    private readonly pointedBy = new Map<string, NodeId>();
 
     // Debug
     private frameCount = 0;

@@ -144,6 +144,35 @@ export function capabilitiesOf(
 }
 
 /**
+ * One web tool as the provider and model can use it as asked, or undefined when they cannot. A
+ * search limited to some domains on a provider whose search has no domain filter (Google) cannot.
+ * @param tool - The tool.
+ * @param settings - How it was asked for.
+ * @param capabilities - What the provider and model can use.
+ * @returns The tool as offered, or undefined.
+ */
+function webToolSetting(
+    tool: EngineHostedTool,
+    settings: AiHostedToolOptions,
+    capabilities: AiCapabilities,
+): HostedToolSetting | undefined {
+    const { maxUses, allowedDomains } = settings;
+    const unfiltered =
+        tool === "web-search" &&
+        allowedDomains !== undefined &&
+        !hostedToolLimits(capabilities.provider).searchDomainFilter;
+    if (capabilities.tools[tool] !== "available" || unfiltered) {
+        return undefined;
+    }
+
+    return {
+        tool,
+        ...(maxUses === undefined ? {} : { maxUses }),
+        ...(allowedDomains === undefined ? {} : { allowedDomains }),
+    };
+}
+
+/**
  * The web tools a configuration asks for, each kept when the provider and model can use it as
  * asked, else left out and reported. A search limited to some domains on a provider whose search
  * has no domain filter (Google) cannot be used as asked.
@@ -160,23 +189,16 @@ export function resolveTools(options: AiToolOptions | undefined, capabilities: A
             continue;
         }
 
-        const { maxUses, allowedDomains, required = false }: AiHostedToolOptions = asked === true ? {} : asked;
-        const unfiltered =
-            tool === "web-search" &&
-            allowedDomains !== undefined &&
-            !hostedToolLimits(capabilities.provider).searchDomainFilter;
-        if (capabilities.tools[tool] === "available" && !unfiltered) {
-            offered.push({
-                tool,
-                ...(maxUses === undefined ? {} : { maxUses }),
-                ...(allowedDomains === undefined ? {} : { allowedDomains }),
-            });
-        } else {
+        const settings: AiHostedToolOptions = asked === true ? {} : asked;
+        const setting = webToolSetting(tool, settings, capabilities);
+        if (setting === undefined) {
             unavailable.push({
                 tool,
                 params: { provider: capabilities.provider, model: capabilities.model, tool },
-                required,
+                required: settings.required ?? false,
             });
+        } else {
+            offered.push(setting);
         }
     }
 

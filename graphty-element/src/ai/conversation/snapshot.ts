@@ -124,23 +124,55 @@ function snapshotMessages(
     messages: readonly SavedMessage[],
     pending: readonly SavedPending[] = [],
 ): AiConversationMessage[] {
-    const outcomes = new Map<string, { code: AiResultCode; params: AiResultParams }>();
+    const outcomes = callOutcomes(messages, pending);
+    const helperSources = helperSourcesOf(messages);
+    return messages.flatMap((message): AiConversationMessage[] => {
+        switch (message.role) {
+            case "tool":
+                return toolEntries(message);
+            case "user":
+                return readerEntry(message);
+            case "assistant":
+                return assistantEntry(message, outcomes, helperSources);
+            default:
+                return [];
+        }
+    });
+}
+
+/** A call's outcome, as a reader sees it. */
+type CallOutcome = { code: AiResultCode; params: AiResultParams };
+
+/**
+ * Each call's outcome: its tool result, or `AI_QUESTION_ASKED` for a question still waiting.
+ * @param messages - The saved messages.
+ * @param pending - The record's waiting entries.
+ * @returns The outcomes, by call id.
+ */
+function callOutcomes(messages: readonly SavedMessage[], pending: readonly SavedPending[]): Map<string, CallOutcome> {
+    const outcomes = new Map<string, CallOutcome>();
     for (const entry of pending) {
         if (entry.kind === "question") {
             outcomes.set(entry.callId, { code: "AI_QUESTION_ASKED", params: { request: entry.id } });
         }
     }
 
-    for (const message of messages) {
-        for (const part of message.parts) {
-            if (part.type === "tool-result") {
-                outcomes.set(part.callId, { code: part.code as AiResultCode, params: { ...part.params } });
-            }
+    for (const part of messages.flatMap((message) => message.parts)) {
+        if (part.type === "tool-result") {
+            outcomes.set(part.callId, { code: part.code as AiResultCode, params: { ...part.params } });
         }
     }
 
-    // The pages each helper's tools found, by the `delegate` call it answers: the delegating
-    // message's sources too.
+    return outcomes;
+}
+
+/**
+ * The pages each helper's tools found, by the `delegate` call it answers: the delegating
+ * message's sources too.
+ * @param messages - The saved messages.
+ * @returns The sources, by call id.
+ */
+function helperSourcesOf(messages: readonly SavedMessage[]): Map<string, AiSource[]> {
     const helperSources = new Map<string, AiSource[]>();
     for (const part of messages.flatMap((message) => message.parts)) {
         if (part.type === "agent-ref") {
@@ -151,72 +183,91 @@ function snapshotMessages(
         }
     }
 
-    const out: AiConversationMessage[] = [];
-    for (const message of messages) {
-        if (message.role === "tool") {
-            for (const part of message.parts) {
-                if (part.type === "agent-ref") {
-                    // A helper's words and calls, under its name.
-                    for (const said of snapshotMessages(part.messages)) {
-                        if (said.role === "assistant") {
-                            out.push({ ...said, agent: part.agent });
-                        }
-                    }
-                } else if (part.type === "tool-result" && part.origin === "reader") {
-                    out.push({
-                        id: message.id,
-                        role: "reader",
-                        text: answerValues(part.content).join("\n"),
-                        via: "text",
-                    });
-                }
-            }
-        } else if (message.role === "user") {
-            const said = message.parts.filter((part) => part.type === "text" && part.origin === "reader");
-            if (said.length > 0) {
-                out.push({
-                    id: message.id,
-                    role: "reader",
-                    text: said.map((part) => (part.type === "text" ? part.text : "")).join("\n"),
-                    via: said.some((part) => part.type === "text" && part.via === "voice") ? "voice" : "text",
-                });
-            }
-        } else if (message.role === "assistant") {
-            const text = message.parts
-                .flatMap((part) => (part.type === "text" && part.origin === "model" ? [part.text] : []))
-                .join("\n");
-            const calls = message.parts.flatMap((part): AiCallRecord[] =>
-                part.type === "tool-call"
-                    ? [
-                          {
-                              command: part.command,
-                              arguments: part.arguments,
-                              ...(outcomes.get(part.callId) ?? {
-                                  code: "AI_TOOL_NOT_RUN",
-                                  params: { tool: part.command },
-                              }),
-                          },
-                      ]
-                    : [],
+    return helperSources;
+}
+
+/**
+ * A tool message as the reader sees it: a helper's words and calls under its name, and a
+ * reader's answer to a question as the reader's message.
+ * @param message - The tool message.
+ * @returns Its entries.
+ */
+function toolEntries(message: SavedMessage): AiConversationMessage[] {
+    return message.parts.flatMap((part): AiConversationMessage[] => {
+        if (part.type === "agent-ref") {
+            return snapshotMessages(part.messages).flatMap((said) =>
+                said.role === "assistant" ? [{ ...said, agent: part.agent }] : [],
             );
-            const sources = [
-                ...sourcesOf(message.parts),
-                ...message.parts.flatMap((part) =>
-                    part.type === "tool-call" ? (helperSources.get(part.callId) ?? []) : [],
-                ),
-            ];
-            const ended = message.parts.find((part) => part.type === "outcome");
-            const outcome =
-                ended?.type === "outcome"
-                    ? { outcome: { code: ended.code as AiResultCode, params: { ...ended.params } } }
-                    : {};
-            if (text !== "" || calls.length > 0 || sources.length > 0 || ended !== undefined) {
-                out.push({ id: message.id, role: "assistant", text, calls, sources, ...outcome });
-            }
         }
+
+        if (part.type === "tool-result" && part.origin === "reader") {
+            return [{ id: message.id, role: "reader", text: answerValues(part.content).join("\n"), via: "text" }];
+        }
+
+        return [];
+    });
+}
+
+/**
+ * A user message as the reader sees it: what the reader said, none when it held only facts.
+ * @param message - The user message.
+ * @returns Its entry, or none.
+ */
+function readerEntry(message: SavedMessage): AiConversationMessage[] {
+    const said = message.parts.flatMap((part) => (part.type === "text" && part.origin === "reader" ? [part] : []));
+    if (said.length === 0) {
+        return [];
     }
 
-    return out;
+    return [
+        {
+            id: message.id,
+            role: "reader",
+            text: said.map((part) => part.text).join("\n"),
+            via: said.some((part) => part.via === "voice") ? "voice" : "text",
+        },
+    ];
+}
+
+/**
+ * An assistant message as the reader sees it: the model's words, its calls with their outcomes,
+ * the pages its and its helpers' tools found, and how it ended when it failed.
+ * @param message - The assistant message.
+ * @param outcomes - Each call's outcome.
+ * @param helperSources - The pages each helper found, by its call.
+ * @returns Its entry, or none when it holds nothing a reader sees.
+ */
+function assistantEntry(
+    message: SavedMessage,
+    outcomes: ReadonlyMap<string, CallOutcome>,
+    helperSources: ReadonlyMap<string, AiSource[]>,
+): AiConversationMessage[] {
+    const text = message.parts
+        .flatMap((part) => (part.type === "text" && part.origin === "model" ? [part.text] : []))
+        .join("\n");
+    const calls = message.parts.flatMap((part): AiCallRecord[] =>
+        part.type === "tool-call"
+            ? [
+                  {
+                      command: part.command,
+                      arguments: part.arguments,
+                      ...(outcomes.get(part.callId) ?? { code: "AI_TOOL_NOT_RUN", params: { tool: part.command } }),
+                  },
+              ]
+            : [],
+    );
+    const sources = [
+        ...sourcesOf(message.parts),
+        ...message.parts.flatMap((part) => (part.type === "tool-call" ? (helperSources.get(part.callId) ?? []) : [])),
+    ];
+    const ended = message.parts.find((part) => part.type === "outcome");
+    const outcome =
+        ended?.type === "outcome" ? { outcome: { code: ended.code as AiResultCode, params: { ...ended.params } } } : {};
+    if (text === "" && calls.length === 0 && sources.length === 0 && ended === undefined) {
+        return [];
+    }
+
+    return [{ id: message.id, role: "assistant", text, calls, sources, ...outcome }];
 }
 
 /**

@@ -18,7 +18,7 @@
 # To run manually: pnpm run prepush:fast
 
 # The gate's scripts are the ones beside this hook; the checkout being pushed is the working
-# directory git runs the hook in. They are the same checkout unless the push queue (tmp/push-queue.sh)
+# directory git runs the hook in. They are the same checkout unless the push queue (tools/push-queue.sh)
 # pointed core.hooksPath at the gate's live copy, .worktrees/gate-live, so every branch is checked by
 # the current gate (CLAUDE.md, "Where a change takes effect").
 GATE_DIR="$(cd "$(dirname "$0")/.." && pwd)"

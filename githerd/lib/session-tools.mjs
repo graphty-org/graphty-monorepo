@@ -18,6 +18,7 @@ import * as board from "./board.mjs";
 import { githerdDone, namesIssue, numberOf } from "./done.mjs";
 import { taskOutputPath } from "./hook.mjs";
 import { atActiveCap, markMine, setOffersPaused } from "./asks.mjs";
+import { waitNews } from "./advance.mjs";
 import { askOwner, recordOwner } from "./owner.mjs";
 import { jobText } from "./job-text.mjs";
 import { isMasterFix } from "./master-fix.mjs";
@@ -56,6 +57,16 @@ const WAIT_KEYS = /** @type {Record<string, string>} */ ({
     local: "local",
     merge: "merge",
 });
+
+/**
+ * Whether a queued job is one the session already worked, so taking it back is no new work: its
+ * last claim or its done report is the session's (issue #1377: a finished job put back in the queue
+ * after a missed status answer).
+ * @param {any} job the queued job
+ * @param {string} session the claiming session
+ * @returns {boolean} whether it is a re-claim
+ */
+const reclaim = (job, session) => job.claim?.session === session || job.report?.session === session;
 
 /**
  * Why a job's being in use refuses a claim, or null: the session's own pull request (it last pushed
@@ -320,8 +331,9 @@ export function sessionToolSet(ctx) {
                     text: JSON.stringify({ ok: false, reason: `${args.job} is in use: ${inUse}` }),
                     isError: true,
                 };
-            // A githerd worker holds its one job; an owner session is capped at workers.maxActive.
-            const full = queued && !client.job && atActiveCap(state, session, ctx.config);
+            // A githerd worker holds its one job; an owner session is capped at workers.maxActive,
+            // except to take back a job it already worked (issue #1377).
+            const full = queued && !client.job && !reclaim(queued, session) && atActiveCap(state, session, ctx.config);
             if (full) return { text: JSON.stringify({ ok: false, reason: full }), isError: true };
             const refused = waitRefusal(state, args, ctx.config);
             if (refused) return { text: JSON.stringify({ ok: false, reason: refused }), isError: true };
@@ -377,6 +389,16 @@ export function sessionToolSet(ctx) {
                             `use githerd_push; for checks or a merge, wait for "checks" or "merge"`,
                     );
                 }
+            }
+            // A wait that is settled already would end at the next poll and leave the job working
+            // (issue #1377: a checks wait on a draft whose checks had all reported).
+            const settled = waitNews(state, { ...job, state: "waiting", stateSince: now.toISOString(), waitingFor });
+            if (settled) {
+                const hint = args.for === "checks" ? `; to wait for it to merge, wait for "merge"` : "";
+                return {
+                    text: JSON.stringify({ ok: false, reason: `already settled: ${settled}${hint}` }),
+                    isError: true,
+                };
             }
             if (job.state === "waiting") board.move(job, "working", now, { reason: "the holder declared a new wait" });
             // ponytail: only a job wait is checked for being settled; checks, lanes and releases are

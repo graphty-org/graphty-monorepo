@@ -85,8 +85,8 @@ export class InputManager implements Manager {
      * @param config - Input manager configuration options
      */
     constructor(
-        private context: ManagerContext,
-        private config: InputManagerConfig = {},
+        private readonly context: ManagerContext,
+        private readonly config: InputManagerConfig = {},
     ) {
         // Create appropriate input system based on config
         this.inputSystem = this.config.useMockInput

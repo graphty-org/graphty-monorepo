@@ -928,7 +928,7 @@ export function estimateCost(input: CostInput): CostEstimate {
         notes.push(`sampled at ${group(sample)} of ${group(nodes)} nodes`);
     }
 
-    if (scope !== undefined && scope.exact === false) {
+    if (scope?.exact === false) {
         notes.push("sizes scaled from the whole graph rather than counted");
     }
 
@@ -1006,7 +1006,7 @@ function modelFromRates(
         }
     }
 
-    const probed = calibration !== undefined && calibration.basis === "probe";
+    const probed = calibration?.basis === "probe";
     const rates = calibration?.rates ?? DEFAULT_COST_RATES;
     const rate = rateFor(costClass, rates);
 

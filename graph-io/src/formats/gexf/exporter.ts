@@ -659,8 +659,7 @@ function collectTemporalTables(
         const end = table.get(TEMPORAL_COLUMNS.end);
         const value = table.get(TEMPORAL_COLUMNS.value);
         if (
-            element === null ||
-            element.dtype !== "u32" ||
+            element?.dtype !== "u32" ||
             start === null ||
             !isNumericScalar(start) ||
             end === null ||
@@ -1195,7 +1194,7 @@ function uniqueId(preferred: string, name: string, used: Set<string>): string {
  * @returns the text
  */
 function timeText(column: Column, companion: Column | null, row: number, timeFormat: TimeFormat | null): string {
-    if (companion !== null && companion.isSet(row)) {
+    if (companion?.isSet(row)) {
         return companion.value(row) as string;
     }
     return formatTimeValue(column.value(row) as number, timeFormat);
@@ -1212,11 +1211,11 @@ function lifetimeAttrs(roles: RoleColumns, row: number, plan: ExportPlan): strin
     let out = "";
     const { timeFormat, version } = plan;
     let bits = 0;
-    if (version === "1.2" && roles.open !== null && roles.open.isSet(row)) {
+    if (version === "1.2" && roles.open?.isSet(row)) {
         bits = roles.open.value(row) as number;
     }
     const write = (name: string, column: Column | null, open: boolean): void => {
-        if (column === null || !column.isSet(row)) {
+        if (!column?.isSet(row)) {
             return;
         }
         const value = column.value(row) as number;
@@ -1228,7 +1227,7 @@ function lifetimeAttrs(roles: RoleColumns, row: number, plan: ExportPlan): strin
         // time-type) and replace `start` / `end`
         out += ` ${open ? `${name}open` : name}="${escapeXmlAttribute(text)}"`;
     };
-    if (roles.timestamp !== null && roles.timestamp.isSet(row)) {
+    if (roles.timestamp?.isSet(row)) {
         if (version === "1.3" && plan.timeRepresentation === "timestamp") {
             write("timestamp", roles.timestamp, false);
         } else {
@@ -1239,7 +1238,7 @@ function lifetimeAttrs(roles: RoleColumns, row: number, plan: ExportPlan): strin
         write("start", roles.start, (bits & OPEN_START) !== 0);
         write("end", roles.end, (bits & OPEN_END) !== 0);
     }
-    if (version === "1.3" && roles.timestamps !== null && roles.timestamps.isSet(row)) {
+    if (version === "1.3" && roles.timestamps?.isSet(row)) {
         const items = listItems(roles.timestamps, row).map((t) => formatTimeValue(t as number, timeFormat));
         out += ` timestamps="${escapeXmlAttribute(`<[${items.join(", ")}]>`)}"`;
     }
@@ -1258,17 +1257,14 @@ function lifetimeAttrs(roles: RoleColumns, row: number, plan: ExportPlan): strin
  */
 function spellsElement(roles: RoleColumns, row: number, plan: ExportPlan, indent: string): string {
     const pairs: (readonly [number, number, number])[] = [];
-    if (roles.spells !== null && roles.spells.isSet(row)) {
-        const open =
-            plan.version === "1.2" && roles.spellsOpen !== null && roles.spellsOpen.isSet(row)
-                ? listItems(roles.spellsOpen, row)
-                : [];
+    if (roles.spells?.isSet(row)) {
+        const open = plan.version === "1.2" && roles.spellsOpen?.isSet(row) ? listItems(roles.spellsOpen, row) : [];
         listItems(roles.spells, row).forEach((pair, i) => {
             const [s, e] = Array.from(pair as ArrayLike<number>);
             pairs.push([s, e, (open[i] as number | undefined) ?? 0]);
         });
     }
-    if (plan.version === "1.2" && roles.timestamps !== null && roles.timestamps.isSet(row)) {
+    if (plan.version === "1.2" && roles.timestamps?.isSet(row)) {
         for (const t of listItems(roles.timestamps, row)) {
             pairs.push([t as number, t as number, 0]);
         }
@@ -1304,9 +1300,9 @@ function attvaluesElement(attrs: readonly AttributeSpec[], row: number, plan: Ex
     let out = "";
     for (const spec of attrs) {
         const { column } = spec;
-        if (column !== null && column.isSet(row)) {
+        if (column?.isSet(row)) {
             let text: string | null;
-            if (spec.companion !== null && spec.companion.isSet(row)) {
+            if (spec.companion?.isSet(row)) {
                 text = spec.companion.value(row) as string;
             } else {
                 text = spec.format(cellValue(column, row));
@@ -1328,7 +1324,7 @@ function attvaluesElement(attrs: readonly AttributeSpec[], row: number, plan: Ex
                 continue;
             }
             let text: string | null;
-            if (table.valueText !== null && table.valueText.isSet(r)) {
+            if (table.valueText?.isSet(r)) {
                 text = table.valueText.value(r) as string;
             } else {
                 text = table.format(cellValue(table.value, r));
@@ -1357,7 +1353,7 @@ function timedAttrs(table: TemporalTable, r: number, plan: ExportPlan): string {
         return ` timestamp="${escapeXmlAttribute(timeText(table.start, table.startText, r, plan.timeFormat))}"`;
     }
     let bits = 0;
-    if (plan.version === "1.2" && table.open !== null && table.open.isSet(r)) {
+    if (plan.version === "1.2" && table.open?.isSet(r)) {
         bits = table.open.value(r) as number;
     }
     if (Number.isFinite(start)) {
@@ -1447,7 +1443,7 @@ function listItems(column: Column, row: number): readonly unknown[] {
 function vizElements(roles: RoleColumns, row: number, indent: string, writeZ: boolean): string {
     let out = "";
     const { color } = roles;
-    if (color !== null && color.isSet(row)) {
+    if (color?.isSet(row)) {
         const lanes = Array.from(color.value(row) as ArrayLike<number>);
         const scale = color.dtype === "u8" ? 1 : 255;
         const channel = (v: number): string => String(Math.max(0, Math.min(255, Math.round(v * scale))));
@@ -1461,7 +1457,7 @@ function vizElements(roles: RoleColumns, row: number, indent: string, writeZ: bo
         out += `${indent}<viz:color${attrs}/>\n`;
     }
     const { position } = roles;
-    if (position !== null && position.isSet(row)) {
+    if (position?.isSet(row)) {
         const lanes = Array.from(position.value(row) as ArrayLike<number>);
         const fmt = position.dtype === "f32" ? formatF32 : formatF64;
         let attrs = ` x="${fmt(lanes[0])}" y="${fmt(lanes[1])}"`;
@@ -1474,16 +1470,16 @@ function vizElements(roles: RoleColumns, row: number, indent: string, writeZ: bo
         ["size", roles.size],
         ["thickness", roles.thickness],
     ] as const) {
-        if (column !== null && column.isSet(row)) {
+        if (column?.isSet(row)) {
             const value = column.value(row) as number;
             const text = column.dtype === "f32" ? formatF32(value) : formatF64(value);
             out += `${indent}<viz:${name} value="${escapeXmlAttribute(text)}"/>\n`;
         }
     }
     const { shape } = roles;
-    if (shape !== null && shape.isSet(row)) {
+    if (shape?.isSet(row)) {
         let attrs = ` value="${escapeXmlAttribute(String(shape.value(row)))}"`;
-        if (roles.shapeUri !== null && roles.shapeUri.isSet(row)) {
+        if (roles.shapeUri?.isSet(row)) {
             attrs += ` uri="${escapeXmlAttribute(roles.shapeUri.value(row) as string)}"`;
         }
         out += `${indent}<viz:shape${attrs}/>\n`;
@@ -1580,15 +1576,15 @@ function* writeGexf(
     yield `    <nodes count="${snapshot.nodeCount}">\n`;
     for (let i = 0; i < snapshot.nodeCount; i++) {
         let attrs = ` id="${idText(i)}"`;
-        if (nodeRoles.label !== null && nodeRoles.label.isSet(i)) {
+        if (nodeRoles.label?.isSet(i)) {
             attrs += ` label="${escapeXmlAttribute(String(nodeRoles.label.value(i)))}"`;
         }
-        if (nodeRoles.parent !== null && nodeRoles.parent.isSet(i)) {
+        if (nodeRoles.parent?.isSet(i)) {
             attrs += ` pid="${idText(nodeRoles.parent.value(i) as number)}"`;
         }
         attrs += lifetimeAttrs(nodeRoles, i, plan);
         let body = attvaluesElement(plan.nodeAttrs, i, plan, "        ");
-        if (nodeRoles.parents !== null && nodeRoles.parents.isSet(i)) {
+        if (nodeRoles.parents?.isSet(i)) {
             const parents = listItems(nodeRoles.parents, i) as readonly number[];
             if (parents.length > 0) {
                 body += "        <parents>\n";
@@ -1624,7 +1620,7 @@ function* writeGexf(
             continue;
         }
         let attrs = "";
-        if (edgeRoles.id !== null && edgeRoles.id.isSet(e)) {
+        if (edgeRoles.id?.isSet(e)) {
             attrs += ` id="${escapeXmlAttribute(String(edgeRoles.id.value(e)))}"`;
         } else if (version === "1.2") {
             attrs += ` id="e${e}"`;
@@ -1637,10 +1633,10 @@ function* writeGexf(
         if (weight !== null) {
             attrs += ` weight="${weight}"`;
         }
-        if (edgeRoles.label !== null && edgeRoles.label.isSet(e)) {
+        if (edgeRoles.label?.isSet(e)) {
             attrs += ` label="${escapeXmlAttribute(String(edgeRoles.label.value(e)))}"`;
         }
-        if (version === "1.3" && edgeRoles.kind !== null && edgeRoles.kind.isSet(e)) {
+        if (version === "1.3" && edgeRoles.kind?.isSet(e)) {
             attrs += ` kind="${escapeXmlAttribute(String(edgeRoles.kind.value(e)))}"`;
         }
         attrs += lifetimeAttrs(edgeRoles, e, plan);

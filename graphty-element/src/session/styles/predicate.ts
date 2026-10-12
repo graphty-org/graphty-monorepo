@@ -41,6 +41,7 @@
 import { maskTest, type U32 } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, Query, Scope } from "../../catalog/types";
+import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 
 // ---------------------------------------------------------------------------------------------
@@ -114,6 +115,22 @@ export interface SelectorSource {
      * @returns The id at that row.
      */
     readonly edgeIdOf?: (index: number) => EdgeId;
+    /**
+     * The dense index of the node an id names, read the way `session.data.node()` reads it: the
+     * exact id, else the other spelling of an integer id (`nodeIdSpelling.ts`).
+     *
+     * Absent, an `ids` selector on a node layer matches exact ids only, and nothing reports ids
+     * that name no node.
+     * @param id - The id as the layer named it.
+     * @returns The index, or undefined when no node answers to it.
+     */
+    readonly nodeIndex?: (id: NodeId) => number | undefined;
+    /**
+     * The dense index of the edge an id names. See {@link nodeIndex}.
+     * @param id - The id as the layer named it.
+     * @returns The index, or undefined when no edge answers to it.
+     */
+    readonly edgeIndex?: (id: EdgeId) => number | undefined;
     /**
      * The dense indices that carry a value for one column, ascending, when the source can list
      * them without a walk over every element. A session answers it for a run's column.
@@ -193,6 +210,12 @@ export interface ElementColumns {
      * @returns The id at that row.
      */
     readonly idOf: ((index: number) => NodeId | EdgeId) | null;
+    /**
+     * The index an id names, by the shared id spelling rule, or null when this session cannot say.
+     * @param id - The id as a layer named it.
+     * @returns The index, or undefined when nothing answers to it.
+     */
+    readonly indexOf: ((id: NodeId | EdgeId) => number | undefined) | null;
 }
 
 /**
@@ -206,11 +229,20 @@ export function columnsFor(source: SelectorSource, target: SelectorTarget): Elem
     const value = isNode ? source.nodeValue : source.edgeValue;
     const suppliedHas = isNode ? source.nodeHas : source.edgeHas;
     const suppliedIdOf = isNode ? source.nodeIdOf : source.edgeIdOf;
+    const { nodeIndex, edgeIndex } = source;
+    let indexOf: ElementColumns["indexOf"] = null;
+    if (isNode && nodeIndex !== undefined) {
+        indexOf = (id) => nodeIndex(id);
+    } else if (!isNode && edgeIndex !== undefined) {
+        // An edge id is text, but the number 17 names edge "17" too (nodeIdSpelling.ts).
+        indexOf = (id) => edgeIndex(id as EdgeId);
+    }
 
     return {
         value,
         has: suppliedHas ?? ((index, path): boolean => isPresent(value(index, path))),
         idOf: suppliedIdOf ?? null,
+        indexOf,
     };
 }
 
@@ -1185,6 +1217,11 @@ export function hasPredicate(columns: ElementColumns, path: Path): ElementPredic
 /**
  * The predicate for `{match:"ids"}`: a set membership test against the ids the layer named.
  *
+ * An id is resolved the way `session.data.node()` resolves it: the exact id first, and the other
+ * spelling of an integer id (`"1"` for node `1`) only when the graph holds no element under the
+ * exact one. So `["1"]` paints node `1` on a graph loaded from karate.gml, and on a graph holding
+ * both `1` and `"1"` it paints `"1"` alone.
+ *
  * The id is read per element rather than the ids being resolved to dense indices once, so that
  * the predicate survives a freeze that remaps the index space instead of painting whichever
  * elements moved into the remembered rows.
@@ -1206,7 +1243,24 @@ export function idsPredicate(columns: ElementColumns, ids: ReadonlySet<EdgeId | 
         });
     }
 
-    return (index): boolean => ids.has(idOf(index));
+    const { indexOf } = columns;
+    // Only a named id that has another spelling can match a row by that other spelling, so a
+    // layer naming none of them keeps the plain membership test.
+    if (indexOf === null || ![...ids].some((id) => otherIdSpelling(id) !== undefined)) {
+        return (index): boolean => ids.has(idOf(index));
+    }
+
+    return (index): boolean => {
+        const id = idOf(index);
+        if (ids.has(id)) {
+            return true;
+        }
+
+        // The row's id under its other spelling was named: it is this row's only when the graph
+        // holds no element under that spelling exactly, which is what the lookup answers.
+        const other = otherIdSpelling(id);
+        return other !== undefined && ids.has(other) && indexOf(other) === index;
+    };
 }
 
 /**

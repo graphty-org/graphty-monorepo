@@ -212,7 +212,9 @@ status running
 STEP="finding the affected projects"
 status running
 mapfile -t ALL < <(jq -r '.projects | keys[]' "$WT/visual-review.config.json")
-if AFFECTED="$(cd "$WT" && bounded pnpm exec nx show projects --affected --base="$MERGE^1" --head="$MERGE" --json 2>> "$LOG")"; then
+# An exit 0 with no JSON array is nx cut short (a pnpm older than 10.29.1 reports a signal as 0): capture all.
+if AFFECTED="$(cd "$WT" && bounded pnpm exec nx show projects --affected --base="$MERGE^1" --head="$MERGE" --json 2>> "$LOG")" &&
+    [[ "$AFFECTED" == "["* ]]; then
     mapfile -t PROJECTS < <(jq -r --argjson all "$(printf '%s\n' "${ALL[@]}" | jq -R . | jq -s .)" \
         '.[] | select(. as $p | $all | index($p))' <<< "$AFFECTED")
 elif [[ $? -eq 124 ]]; then

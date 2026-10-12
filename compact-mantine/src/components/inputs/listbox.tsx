@@ -359,7 +359,7 @@ export function ensureListboxKeyboard(): void {
             return;
         }
         closedTrigger = null;
-        window.setTimeout(() => {
+        globalThis.setTimeout(() => {
             const list = openSelectList(input);
             if (!list || !(input instanceof HTMLInputElement) || input.hasAttribute("aria-activedescendant")) {
                 return;

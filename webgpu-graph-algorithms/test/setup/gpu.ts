@@ -153,18 +153,30 @@ export function requireGpu(t: TestContext): void {
  * A FRESH adapter and device (raised limits) with NO context around them; registered for destroy() in afterAll.
  * The default feature list drops subgroups under GRAPHTY_GPU_NO_SUBGROUPS=1, as createContext does.
  */
-export async function acquireRaw(
-    options: {
-        readonly limits?: LimitPolicy | undefined;
-        readonly optionalFeatures?: readonly GPUFeatureName[] | undefined;
-    } = {},
-): Promise<{
+export async function acquireRaw(options: RawOptions = {}): Promise<RawDevice> {
+    return rawDevice(dawn().gpu, options);
+}
+
+/** acquireRaw() on Dawn's `backend=null` adapter (see acquireNullBackend): for tests that never read a result back. */
+export async function acquireRawNullBackend(options: RawOptions = {}): Promise<RawDevice> {
+    return rawDevice(await nullGpu(), options);
+}
+
+/** Options of acquireRaw() / acquireRawNullBackend(). */
+interface RawOptions {
+    readonly limits?: LimitPolicy | undefined;
+    readonly optionalFeatures?: readonly GPUFeatureName[] | undefined;
+}
+
+/** What acquireRaw() / acquireRawNullBackend() return. */
+interface RawDevice {
     readonly gpu: GPU;
     readonly adapter: GPUAdapter;
     readonly device: GPUDevice;
     readonly info: GPUAdapterInfo;
-}> {
-    const { gpu } = dawn();
+}
+
+async function rawDevice(gpu: GPU, options: RawOptions): Promise<RawDevice> {
     const adapter = await gpu.requestAdapter();
     if (adapter === null) {
         throw new Error("E_NO_ADAPTER: requestAdapter() returned null in acquireRaw()");
@@ -213,11 +225,16 @@ export function acquire(options: AcquireOptions = {}): Promise<GpuContext> {
  * a fresh adapter per call; disposed, like the handle, in afterAll.
  */
 export async function acquireNullBackend(options: AcquireOptions = {}): Promise<GpuContext> {
+    return createContext(await nullGpu(), options, "acquire-null-backend");
+}
+
+/** The worker's null-backend GPU, created on first use; dawn() first, so the policy applies as for a real device. */
+async function nullGpu(): Promise<GPU> {
     dawn();
     if (nullHandle === null) {
         nullHandle = await createNodeGpu({ backend: "null", installGlobals: false });
     }
-    return createContext(nullHandle.gpu, options, "acquire-null-backend");
+    return nullHandle.gpu;
 }
 
 /** Appends the keys collected so far to GRAPHTY_PIPELINE_KEY_LOG/keys-<pid>.jsonl (one JSON string per line). */

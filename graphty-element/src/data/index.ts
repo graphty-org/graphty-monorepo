@@ -6,7 +6,6 @@ import type { FormatDescriptor } from "../catalog/types";
 import { CSVDataSource } from "./CSVDataSource";
 import { DataSource } from "./DataSource";
 import { DOTDataSource } from "./DOTDataSource";
-import { ErrorAggregator } from "./ErrorAggregator";
 import { GEXFDataSource } from "./GEXFDataSource";
 import { GMLDataSource } from "./GMLDataSource";
 import { GraphMLDataSource } from "./GraphMLDataSource";
@@ -67,5 +66,5 @@ DataSource.register(
     }),
 );
 
-export { ErrorAggregator };
 export type { DataLoadingError, ErrorSummary } from "./ErrorAggregator";
+export { ErrorAggregator } from "./ErrorAggregator";

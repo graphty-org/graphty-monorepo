@@ -344,7 +344,7 @@ frame-count-independent, and it is shared by the tests and the stories -- write 
 `GRAPHTY_BROWSER_GPU` picks the Chromium flag set the `browser` project launches with --
 `swiftshader` for a workstation or a plain runner, `nvidia` for the GPU lane's card (add
 `GRAPHTY_EGL_LIB_DIR` when the driver's libEGL is not where Chromium looks). Unset, Chromium
-launches with no flags and sees no WebGPU at all, which is what the five CI shards do and why
+launches with no GPU flags and sees no WebGPU at all, which is what the five CI shards do and why
 `test/browser/webgpu-layout.test.ts` skips itself there.
 
 ## Common Pitfalls

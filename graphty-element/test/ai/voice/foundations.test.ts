@@ -48,6 +48,8 @@ describe("the provider voice table", () => {
                 "no-provider-transcription",
                 "no-provider-speech",
                 "no-key",
+                "no-synthesis",
+                "playback-failed",
             ],
         );
     });

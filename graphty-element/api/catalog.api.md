@@ -44,7 +44,7 @@ export const AI_TOOL_CAUSE_CODES: readonly ["AI_OK", "AI_UNKNOWN_ACTION", "AI_AR
 export const AI_VOICE_CAPABILITIES: Readonly<Record<AiProviderId, AiProviderVoice>>;
 
 // @public
-export const AI_VOICE_UNAVAILABLE_REASONS: readonly ["no-recognition", "no-microphone", "permission-denied", "insecure-context", "no-provider-transcription", "no-provider-speech", "no-key"];
+export const AI_VOICE_UNAVAILABLE_REASONS: readonly ["no-recognition", "no-microphone", "permission-denied", "insecure-context", "no-provider-transcription", "no-provider-speech", "no-key", "no-synthesis", "playback-failed"];
 
 // @public
 export interface AiCapabilities {

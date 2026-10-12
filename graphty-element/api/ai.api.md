@@ -706,6 +706,7 @@ export interface InputOptions {
     continuous?: boolean;
     interimResults?: boolean;
     language?: string;
+    processLocally?: boolean;
 }
 
 // @public
@@ -996,9 +997,11 @@ export type VercelProviderType = Exclude<AiProviderId, "webllm" | "mock">;
 export class VoiceInputAdapter implements InputAdapter {
     constructor();
     dispose(): void;
+    end(): void;
     get isActive(): boolean;
     get isSupported(): boolean;
     onActiveChange(callback: VoiceActiveCallback): void;
+    onError(callback: (error: string) => void): void;
     onInput(callback: InputCallback): void;
     onStart(callback: VoiceStartCallback): void;
     start(options?: InputOptions): void;

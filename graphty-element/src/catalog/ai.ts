@@ -346,6 +346,8 @@ export const AI_VOICE_UNAVAILABLE_REASONS = Object.freeze([
     "no-provider-transcription",
     "no-provider-speech",
     "no-key",
+    "no-synthesis",
+    "playback-failed",
 ] as const);
 
 /** One reason speech cannot be used; see {@link AI_VOICE_UNAVAILABLE_REASONS}. OPEN UNION. */

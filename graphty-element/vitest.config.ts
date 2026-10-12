@@ -124,7 +124,7 @@ const OWN_ENTRY_POINTS = {
  * on macOS and Windows only). `test/config/vitest-config-loads-with-ci-gpu-values.test.ts` loads
  * this file under each of those values so the next one is caught on Linux.
  *
- * With GRAPHTY_BROWSER_GPU unset the project launches with NO flags, which is what the five CI
+ * With GRAPHTY_BROWSER_GPU unset the project launches with NO GPU flags, which is what the five CI
  * shards do and why they see no WebGPU at all: the element's browser tests run against the fake
  * accelerator, and only `test/browser/webgpu-layout.test.ts` asks for a real one.
  */
@@ -185,6 +185,17 @@ function browserLaunchEnv(): Record<string, string> | undefined {
     return env;
 }
 
+/**
+ * Chromium's fake microphone (a tone), the microphone prompt answered yes, and audio allowed to
+ * play without a gesture, for the voice tests (`test/browser/ai/voice-paths.test.ts`). They touch
+ * nothing but media, and every launch of the `browser` project carries them.
+ */
+const MEDIA_FLAGS = [
+    "--use-fake-device-for-media-stream",
+    "--use-fake-ui-for-media-stream",
+    "--autoplay-policy=no-user-gesture-required",
+];
+
 /** One Playwright Chromium entry for a browser project's `instances`. */
 interface ChromiumInstance {
     /** The browser to launch. */
@@ -199,7 +210,7 @@ interface ChromiumInstance {
  */
 function browserInstance(): ChromiumInstance {
     if (browserGpu === "") {
-        return { browser: "chromium" };
+        return { browser: "chromium", provider: playwright({ launchOptions: { args: [...MEDIA_FLAGS] } }) };
     }
 
     const args = BROWSER_GPU_FLAGS[browserGpu];
@@ -215,7 +226,11 @@ function browserInstance(): ChromiumInstance {
     return {
         browser: "chromium",
         provider: playwright({
-            launchOptions: { args: [...args], channel: BROWSER_GPU_CHANNEL[browserGpu], env: browserLaunchEnv() },
+            launchOptions: {
+                args: [...args, ...MEDIA_FLAGS],
+                channel: BROWSER_GPU_CHANNEL[browserGpu],
+                env: browserLaunchEnv(),
+            },
         }),
     };
 }

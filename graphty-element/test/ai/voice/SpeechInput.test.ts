@@ -8,6 +8,7 @@
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
+import { getSpeechRecognitionConstructor } from "../../../src/ai/input/VoiceInputAdapter";
 import { chooseInput, type VoiceFacts } from "../../../src/ai/voice/choose";
 import { type SpeechInputEnd, startSpeechInput } from "../../../src/ai/voice/SpeechInput";
 import {
@@ -290,6 +291,20 @@ describe("the probe, remembered per origin", () => {
         assert.strictEqual(bare.onDevice, "none");
         assert.strictEqual(bare.recognition, "none");
         assert.isFalse(bare.microphone);
+    });
+
+    it("never asks Headless Chrome for on-device recognition, which closes the page", async () => {
+        installFakeSpeech({
+            onDevice: "available",
+            userAgent:
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        });
+        const available = vi.spyOn(
+            getSpeechRecognitionConstructor() as unknown as { available: () => Promise<string> },
+            "available",
+        );
+        assert.strictEqual((await readVoiceEnvironment("en-US")).onDevice, "none");
+        assert.strictEqual(available.mock.calls.length, 0);
     });
 
     it("hears the page's language unless voice.language says otherwise", () => {

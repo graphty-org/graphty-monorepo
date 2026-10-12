@@ -90,8 +90,12 @@ export async function readVoiceEnvironment(language: string): Promise<VoiceEnvir
     const ctor = getSpeechRecognitionConstructor();
     // WebKit without Chrome (Safari, visionOS, every iOS browser) recognizes on the device.
     const webkit = /AppleWebKit/.test(nav?.userAgent ?? "") && !/Chrome\//.test(nav?.userAgent ?? "");
+    // Headless Chrome has no on-device recognizer, and asking it (`available` with
+    // `processLocally: true`) closes the page in a frame and never answers at the top level
+    // (measured on HeadlessChrome 153): every test harness and screenshot run would die there.
+    const headless = /HeadlessChrome\//.test(nav?.userAgent ?? "");
     let onDevice: VoiceEnvironment["onDevice"] = "none";
-    if (ctor !== null) {
+    if (ctor !== null && !headless) {
         onDevice = webkit ? "always" : await processLocally(language);
     }
 

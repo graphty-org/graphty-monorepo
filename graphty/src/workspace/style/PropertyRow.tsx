@@ -601,7 +601,10 @@ function BoundValue({
                             write({ binding: next });
                         }}
                         onSource={bind}
-                        onDetach={detach}
+                        onFix={(value) => {
+                            setOpen(false);
+                            write({ value });
+                        }}
                     />
                 </Popout.Content>
             </Popout.Panel>

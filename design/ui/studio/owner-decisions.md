@@ -27,6 +27,26 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: each step's count in a binding preview, and rules over a run's value
+
+**What.** Two changes in graphty-element. `BindingPreview.stepCounts` (optional reading, additive):
+for a stepped scale, how many elements each step paints, lowest step first, a value on a cut counted
+in the step above it, as the scale itself places it; empty for a scale that is not stepped. And a
+fix: a `range` or `categories` rule leaf over a run's value (`results.louvain.group`) now reads that
+value the way a style binding does. Before, it read only the data records, so a hand layer whose
+rule said "community is 3" matched nothing while the binding beside it painted five nodes.
+
+**Why.** The binding popover lists a stepped ramp's steps with their counts and offers "New layer for
+<value>" and "New layer for <step>". Counting elements is the element's job, and a layer made from a
+community must hold that community.
+
+**Alternatives.** Summing the preview's bars in the app (the bars are cut by the data's units, not
+at the steps, so a quantile step would be miscounted, and the app would be computing over the graph).
+
+**Known limit.** "New layer for <step>" writes a `range` rule, which includes both of its ends, while
+the scale puts a value on a cut in the step above; a value exactly on a cut is in both layers. An
+exclusive upper end on a range leaf would close it (additive).
+
 ## 2026-10-12 -- Decided by the team: the Which elements editor, and a layer's kind waits on the element
 
 **What.** A layer's Which elements is now its rule as a sentence with the element's count ("50 of

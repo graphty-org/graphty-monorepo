@@ -489,7 +489,7 @@ describe("the Style tab's rows on the real element", () => {
         });
     });
 
-    it("Palette, Reverse and Values from write the binding; Detach puts the element's default back", async () => {
+    it("Palette and Reverse write the binding; Fix at puts one value back", async () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
@@ -497,16 +497,16 @@ describe("the Style tab's rows on the real element", () => {
         await userEvent.click(await within(styleTab()).findByRole("button", { name: /^code,/ }));
         const popover = await screen.findByRole("group", { name: "Color binding" });
         const binding = (): Record<string, unknown> => readerLayers(session)[0]?.encode?.["node.color"] ?? {};
-        await userEvent.click(within(popover).getByRole("combobox", { name: "Palette" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Shades of blue" }));
+        await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
+        await userEvent.click(await screen.findByRole("option", { name: /^Shades of blue/ }));
         await waitFor(() => {
             assert.equal(binding().palette, "blues");
         });
-        await userEvent.click(within(popover).getByRole("checkbox", { name: "Reverse" }));
+        await userEvent.click(within(popover).getByRole("button", { name: "Reverse palette" }));
         await waitFor(() => {
             assert.equal(binding().reverse, true);
         });
-        await userEvent.click(within(popover).getByRole("button", { name: "Detach" }));
+        await userEvent.click(within(popover).getByRole("button", { name: /^Fix at / }));
         await waitFor(() => {
             assert.isUndefined(readerLayers(session)[0]?.encode?.["node.color"]);
             assert.isDefined(readerLayers(session)[0]?.set?.["node.color"], "a fixed value again");

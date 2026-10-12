@@ -29,6 +29,40 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   judge. Failing, not mine: `frame/__tests__/undoWords.real-element.test.tsx` cannot find a
   treeitem named "Selection", and the app's tsc on `historyWords.ts` and `inspector/words.ts`.
 
+- (2026-10-12) **The binding popovers are built** (`style/BindingPopover.tsx`, test
+  `BindingPopover.real-element.test.tsx`). One component, two bodies chosen by the element's own
+  preview: `preview.domain === null` is categories, else a ramp. Ramp: compact-mantine `RampEditor`
+  fed by `styles.preview` (bars painted for colors, plain for numbers), domain handles write
+  `domain` and drop `clamp` (the element takes one or the other), "Fit to the data" clears the
+  domain, "Clamp outliers" writes percentiles [2, 98] with two percentile fields, and the brackets
+  sit at the clamped domain's ends with the preview's below/above counts. A stepped scale (Equal
+  bins, Equal counts) gets a Steps number and a list of steps with `preview.stepCounts` and "New
+  layer for <step>" (a `range` rule). Categories: palette select with strips, rows from
+  `styles.categories` (chit = `CompactColorInput` or a number field writing `styles.setValueEntry`,
+  name, count, the minus "Back to the palette: <v>", the eye through `styles.setValueHidden`, a
+  menu with "New layer for <v>"), a search past 8 rows, and "More values than colors" (overflow).
+  Both: No value, Combine (numbers), and "Fix at <value>" -- the value is the element's own
+  one-bin preview (or the largest group's paint), written as a literal; the pill's own detach still
+  writes the starting value. Why one-bin preview and not `resolveToStatic`: the button must name
+  the value before it is pressed, and the preview is the element's answer for it.
+  "New layer for <v>" adds a layer `{ above: layerId }` whose rule is a `categories` leaf on the
+  binding's path, starting with `set` = what that value paints now: the element refuses a layer
+  that writes nothing, and this changes nothing on the canvas until the reader edits it.
+  Element fixes it needed: `BindingPreview.stepCounts` (additive) and rule leaves over a run's value
+  (`results.louvain.group` matched nothing: `valueSourceOf` in `GraphSession.ts` read only records;
+  it now reads `results.` paths through the style selector source). The element's own
+  value-entries test only checked that a hand rule FOLLOWED community 3, never that it matched
+  anything; it now counts.
+  NOT built: "values not listed (Skip or Paint)" -- no binding field for it in the element
+  (additive later); Other's share as a number; shape and pattern schemes (the scheme select is
+  colors only); handle words with percentiles (`describe` says the value only); a clamp dragged on
+  the bars (clamps are percentiles, the axis spans the clamped domain, so the brackets are drawn
+  without a drag handler -- they still render as sliders that do nothing). The axis spans the
+  domain, not the data: widening past the data is typed, not dragged. A range rule includes both
+  ends while a step does not, so a value on a cut is in two step layers.
+  Seen failing at HEAD, not mine: `door-surface.test.ts` ("SelectionApi.layerSelector" not
+  classified), and the app's tsc on history words and channel controls.
+
 - (2026-10-12) **The value picker is built** (`style/ValuePicker.tsx`, replacing `FromDataList.tsx`;
   test `ValuePicker.real-element.test.tsx`). Still compact-mantine's `QuickActions` (search focused
   on open, arrows and Enter, flat results while searching), now with its second line: each row

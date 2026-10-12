@@ -174,7 +174,7 @@ export const Palette: Story = styleStory(async (canvasElement) => {
     await userEvent.click(await body().findByRole("option", { name: "dept" }));
     await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^dept,/ }));
     const popover = await body().findByRole("group", { name: "Color binding" });
-    await userEvent.click(within(popover).getByRole("combobox", { name: "Palette" }));
+    await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
 });
 
 /** A binding whose attribute is not in the data: the line says it reads nothing (`#/style-pickers/binding-unknown-path`). */

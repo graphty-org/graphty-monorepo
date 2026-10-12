@@ -58,6 +58,9 @@ import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
 import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
@@ -657,6 +660,7 @@ export abstract class DataSource {
         extractionFailed: (path: string, error: string) => string;
     };
     protected fetchWithRetry(url: string, retries?: number, timeout?: number): Promise<Response>;
+    // @internal
     fileStyles(options?: {
         readonly toolDefaults?: boolean;
         readonly signal?: AbortSignal;

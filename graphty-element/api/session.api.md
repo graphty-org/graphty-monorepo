@@ -790,7 +790,7 @@ export type FileStyleNoteCode = StyleNoteCode | FileStyleTranslationCode;
 
 // @public
 export function fileStyleOf(layer: {
-    readonly userData?: Readonly<Record<string, unknown>>;
+    readonly fileStyle?: unknown;
 }): FileStyleOrigin | null;
 
 // @public
@@ -1593,6 +1593,7 @@ export type JournalId = string;
 export interface Layer {
     readonly enabled: boolean;
     readonly encode?: Encoding;
+    readonly fileStyle?: FileStyleOrigin;
     readonly id: LayerId;
     readonly kind: LayerKind;
     readonly locked: boolean;
@@ -1650,6 +1651,7 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
+    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)

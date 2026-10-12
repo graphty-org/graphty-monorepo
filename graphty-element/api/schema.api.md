@@ -4,6 +4,9 @@
 
 ```ts
 
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import { z } from 'zod/v4';
 
 // @public
@@ -657,6 +660,41 @@ export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
 // @public
 export type Encoding = Partial<Record<Channel, Binding>>;
 
+// @public
+export type FileStyleMappingKind = "passthrough" | "discrete" | "continuous";
+
+// @public
+export interface FileStyleMeaning {
+    readonly name: string;
+    readonly value: string | number | boolean;
+}
+
+// @public
+export interface FileStyleOrigin {
+    readonly classes?: number;
+    readonly column?: Path;
+    readonly distinctValues?: number;
+    readonly elements?: number;
+    readonly entries?: number;
+    readonly format: string;
+    readonly importId: string;
+    readonly mapping?: FileStyleMappingKind;
+    readonly meanings?: readonly FileStyleMeaning[];
+    readonly origin: FileStyleRuleOrigin;
+    readonly reason?: FileStyleReason;
+    readonly role: FileStyleRole;
+    readonly ruleId: string;
+}
+
+// @public
+export type FileStyleReason = StyleRuleReason;
+
+// @public
+export type FileStyleRole = StyleRuleRole;
+
+// @public
+export type FileStyleRuleOrigin = StyleRuleOrigin;
+
 // @public @deprecated
 export type Filter = RuleTree;
 
@@ -813,6 +851,7 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
+    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)

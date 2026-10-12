@@ -5,6 +5,9 @@
 ```ts
 
 import { GraphListing } from '@graphty/graph-io';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import { z } from 'zod/v4';
 
 // @public
@@ -1013,6 +1016,7 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
+    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)

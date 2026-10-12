@@ -63,6 +63,9 @@ import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
@@ -476,6 +479,7 @@ export abstract class DataSource {
         extractionFailed: (path: string, error: string) => string;
     };
     protected fetchWithRetry(url: string, retries?: number, timeout?: number): Promise<Response>;
+    // @internal
     fileStyles(options?: {
         readonly toolDefaults?: boolean;
         readonly signal?: AbortSignal;
@@ -766,14 +770,6 @@ export interface FieldDescriptor {
     type: "number" | "integer" | "boolean" | "string" | "table";
     // (undocumented)
     unit?: string;
-}
-
-// @public
-export interface FileStylesRead {
-    readonly extracted: ExtractedStyles;
-    readonly format: string;
-    readonly path: ReaderColumnPath;
-    readonly snapshot: GraphSnapshot;
 }
 
 // @public
@@ -1791,9 +1787,6 @@ export interface Progress {
     readonly phase: string;
     readonly total: number | null;
 }
-
-// @public
-export type ReaderColumnPath = (kind: "node" | "edge", column: string) => readonly string[] | null;
 
 // @public
 export function registerAccelerator(registration: AcceleratorRegistration, options?: RegisterAcceleratorOptions): void;

@@ -81,6 +81,28 @@ export interface RowContext {
     readonly beneath: (channel: Channel) => BeneathValue;
     /** The colors the document already uses, offered in the color picker. */
     readonly documentColors: readonly string[];
+    /** Several rows edited together: what they share, and writes that reach every one of them. */
+    readonly many?: ManyRows;
+}
+
+/** Several rows edited as one (tier3 design, section 2.2): each write reaches every row, one undo step. */
+export interface ManyRows {
+    /** The line every row writes alike, or undefined when none writes it or they differ. */
+    readonly line: (channel: Channel) => Line | undefined;
+    /** Writes one value or binding to every row. */
+    readonly write: (channel: Channel, write: LiteralWrite | { readonly binding: DataBinding }) => Promise<unknown>;
+    /** Takes the channel off every row. */
+    readonly clear: (channel: Channel) => Promise<unknown>;
+}
+
+/**
+ * What a row writes for a channel: the line several rows share, or the row's own topmost.
+ * @param ctx - the row.
+ * @param channel - the channel.
+ * @returns the line, or undefined.
+ */
+function lineIn(ctx: RowContext, channel: Channel): Line | undefined {
+    return ctx.many === undefined ? lineOf(ctx.layers, channel) : ctx.many.line(channel);
 }
 
 /**
@@ -143,14 +165,18 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
     const { store } = useWorkspace();
     const box = useRef<HTMLDivElement>(null);
     const tipId = useId();
-    const { session, row, side, layers, fresh } = ctx;
+    const { session, row, side, fresh } = ctx;
     const { channel } = descriptor;
-    const line = lineOf(layers, channel);
+    const line = lineIn(ctx, channel);
     // A line on a locked layer (the element's own base layers) is beneath, not this row's to clear.
     const own = line !== undefined && !line.layer.locked ? line : undefined;
     const beneath = ctx.beneath(channel);
     const setWords = own === undefined ? undefined : setWordsOf(session, descriptor, own);
-    const stateName = fieldStateName(channel, setWords, own === undefined ? beneath.words : undefined);
+    const mixed = beneath.words !== undefined && "mixed" in beneath.words ? beneath.words.mixed : undefined;
+    const stateName =
+        ctx.many !== undefined && own === undefined && mixed !== undefined
+            ? `${fieldName(channel)}, mixed: ${mixed.join(", ")}`
+            : fieldStateName(channel, setWords, own === undefined ? beneath.words : undefined);
     let placeholder: string | undefined;
     if (beneath.words !== undefined) {
         placeholder = "mixed" in beneath.words ? "Mixed" : beneath.words.value;
@@ -159,7 +185,10 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
         store.set({ notice: { message: `${channelWord(channel)} could not be changed` } });
     };
     const write = (next: LiteralWrite | { binding: DataBinding }): void => {
-        writeLine(session, row, side, channel, next, fresh).catch(fail);
+        (ctx.many === undefined
+            ? writeLine(session, row, side, channel, next, fresh)
+            : ctx.many.write(channel, next)
+        ).catch(fail);
     };
     const writeValue = (value: ChannelValue): void => {
         write(own?.combine === undefined ? { value } : { value, combine: own.combine });
@@ -170,7 +199,7 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
         }
         // Focus goes to the field before its minus goes away, so it never falls to the page.
         firstControl(box.current)?.focus();
-        removeLine(session, own.layer, channel).catch(fail);
+        (ctx.many === undefined ? removeLine(session, own.layer, channel) : ctx.many.clear(channel)).catch(fail);
     };
     const bind = (choice: DataChoice): void => {
         const proposal = propose(session, choice, channel);
@@ -224,15 +253,7 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
                     width="100%"
                     color={hex ?? undefined}
                     defaultColor={hexOf(beneath.value) ?? hexOf(descriptor.default) ?? "#000000"}
-                    // Nothing beneath sets it, so the element draws it in the color it follows.
-                    emptyText={
-                        descriptor.follows !== undefined &&
-                        beneath.words !== undefined &&
-                        "from" in beneath.words &&
-                        beneath.words.from === undefined
-                            ? followsWords(descriptor.follows)
-                            : undefined
-                    }
+                    emptyText={emptyColorWords(descriptor, beneath.words)}
                     showOpacity={false}
                     showReset={false}
                     swatches={ctx.documentColors}
@@ -357,6 +378,22 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
             </div>
         </div>
     );
+}
+
+/**
+ * What an empty color field says: "Mixed" when the elements beneath differ, the color it follows
+ * when nothing beneath sets it (an arrowhead's "Line color"), else nothing (the swatch shows).
+ * @param descriptor - the channel.
+ * @param beneath - what lies beneath, in words.
+ * @returns the words, or undefined.
+ */
+function emptyColorWords(descriptor: ChannelDescriptor, beneath: Beneath | undefined): string | undefined {
+    if (beneath !== undefined && "mixed" in beneath) {
+        return "Mixed";
+    }
+    return descriptor.follows !== undefined && beneath !== undefined && beneath.from === undefined
+        ? followsWords(descriptor.follows)
+        : undefined;
 }
 
 /**
@@ -577,7 +614,7 @@ export function PropertyRow({ ctx, spec, descriptors }: Readonly<PropertyRowProp
     const fields = describe(spec.fields);
     const settings = describe(spec.settings);
     const written = settings.filter((d) => {
-        const line = lineOf(ctx.layers, d.channel);
+        const line = lineIn(ctx, d.channel);
         return line !== undefined && !line.layer.locked;
     });
     return (
@@ -628,15 +665,17 @@ function RowSettings({
     const title = `${spec.title} settings`;
     const numbers = fields.filter((d) => d.accepts === "number");
     const combine = (d: ChannelDescriptor, mode: CombineMode): void => {
-        const line = lineOf(ctx.layers, d.channel);
+        const line = lineIn(ctx, d.channel);
         if (line?.value === undefined) {
             return;
         }
-        writeLine(ctx.session, ctx.row, ctx.side, d.channel, { value: line.value, combine: mode }, ctx.fresh).catch(
-            () => {
-                store.set({ notice: { message: `${channelWord(d.channel)} could not be changed` } });
-            },
-        );
+        const next = { value: line.value, combine: mode };
+        (ctx.many === undefined
+            ? writeLine(ctx.session, ctx.row, ctx.side, d.channel, next, ctx.fresh)
+            : ctx.many.write(d.channel, next)
+        ).catch(() => {
+            store.set({ notice: { message: `${channelWord(d.channel)} could not be changed` } });
+        });
     };
     return (
         <Popout opened={open} onOpenChange={setOpen}>
@@ -657,7 +696,7 @@ function RowSettings({
                             <Field key={d.channel} ctx={ctx} descriptor={d} />
                         ))}
                         {numbers.map((d) => {
-                            const line = lineOf(ctx.layers, d.channel);
+                            const line = lineIn(ctx, d.channel);
                             const set = line !== undefined && !line.layer.locked && line.binding === undefined;
                             return (
                                 <StyleSelect

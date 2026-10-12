@@ -9,12 +9,13 @@
  * marked in the layer's `userData` so the row keeps finding it.
  */
 
-import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, CombineMode, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
 import type { ColumnRef, GraphSession, Layer } from "@graphty/graphty-element/session";
 
 import { runName } from "../runWords";
-import { channelWord, resultWord } from "./words";
+import type { BeneathValue } from "./PropertyRow";
+import { type Beneath, channelWord, resultWord, valueWords } from "./words";
 
 /** Which side of the Style tab: nodes or edges. */
 export type Target = "node" | "edge";
@@ -124,7 +125,7 @@ export function setBeneath(session: GraphSession, ids: readonly LayerId[], chann
  * @param keys - the keys to drop.
  * @returns the rest, or undefined.
  */
-function without<T>(
+export function without<T>(
     record: Partial<Record<Channel, T>> | undefined,
     ...keys: Channel[]
 ): Partial<Record<Channel, T>> | undefined {
@@ -204,6 +205,8 @@ export interface NewLayer {
     readonly name: string;
     readonly selector: Layer["selector"];
     readonly userData?: Record<string, unknown>;
+    /** Whether the first edit adds a row painting nodes AND edges (`styles.addRow`), not one layer. */
+    readonly both?: boolean;
 }
 
 /** The reader's Everything layer, which the Everything row's first edit adds. */
@@ -378,17 +381,17 @@ export async function writeLine(
     const apply = async (styles: GraphSession["styles"]): Promise<LayerId> => {
         if (own === undefined && fresh !== undefined) {
             const base = layers.at(-1) ?? topmostRow(session);
-            const added = await styles.add(
-                {
-                    name: fresh.name,
-                    target,
-                    selector: home ?? fresh.selector,
-                    ...(set === undefined && Object.keys(look).length === 0 ? {} : { set: { ...look, ...set } }),
-                    ...(encode === undefined ? {} : { encode }),
-                    ...(fresh.userData === undefined ? {} : { userData: fresh.userData }),
-                },
-                base === undefined ? undefined : { above: base.id },
-            );
+            const spec = {
+                name: fresh.name,
+                selector: home ?? fresh.selector,
+                ...(set === undefined && Object.keys(look).length === 0 ? {} : { set: { ...look, ...set } }),
+                ...(encode === undefined ? {} : { encode }),
+                ...(fresh.userData === undefined ? {} : { userData: fresh.userData }),
+            };
+            const at = base === undefined ? undefined : { above: base.id };
+            const added = fresh.both
+                ? await styles.addRow({ ...spec, target: "both" }, at)
+                : await styles.add({ ...spec, target }, at);
             await strip(styles);
             return added.id;
         }
@@ -639,4 +642,56 @@ export function sharesBeneath(session: GraphSession, layers: readonly Layer[], c
             .filter((share) => share.value !== undefined)
             .map((share) => ({ value: share.value, name: nameOf(share.layerId) }));
     });
+}
+
+/**
+ * What the layers beneath a row give each channel, from graphty-element's own answer
+ * (`styles.agreement` below the row): one value and the layer that paints it, the layers when the
+ * value differs, or the channel's default when nothing beneath paints it.
+ * @param session - the element's session.
+ * @param below - the tree row the answer reads beneath, or undefined for the stack as it is.
+ * @returns a reader by channel.
+ */
+export function beneathOf(session: GraphSession, below: string | undefined): (channel: Channel) => BeneathValue {
+    // ponytail: read over the whole graph, not the row's own elements -- the element publishes no
+    // scope for "what a layer matches" yet (owed with "Select what it paints"); one pass per panel
+    // render over every element, fine at Les Miserables' size.
+    let agreement: ReturnType<GraphSession["styles"]["agreement"]>;
+    try {
+        agreement = session.styles.agreement("graph", undefined, below === undefined ? undefined : { below });
+    } catch {
+        agreement = session.styles.agreement("graph");
+    }
+    const nameOf = (id: string): string => session.styles.get(id)?.name ?? id;
+    const descriptorOf = (channel: Channel): ChannelDescriptor | undefined =>
+        channelsFor(channel.startsWith("node.") ? "node" : "edge").find((d) => d.channel === channel);
+    return (channel) => {
+        const descriptor = descriptorOf(channel);
+        const entry = agreement.channels.find((c) => c.channel === channel);
+        if (descriptor === undefined) {
+            return {};
+        }
+        if (entry === undefined) {
+            return descriptor.default === undefined
+                ? {}
+                : {
+                      value: descriptor.default,
+                      words: { value: valueWords(descriptor, descriptor.default), from: undefined },
+                  };
+        }
+        if (entry.state === "agree") {
+            return {
+                value: entry.value,
+                words: { value: valueWords(descriptor, entry.value), from: nameOf(entry.layerId) },
+            };
+        }
+        const values = new Set(entry.breakdown.map((share) => JSON.stringify(share.value)));
+        const layers = [...new Set(entry.breakdown.map((share) => nameOf(share.layerId)))];
+        // One value from several layers is still that value; only differing values are "Mixed".
+        const words: Beneath =
+            values.size === 1
+                ? { value: valueWords(descriptor, entry.breakdown[0].value), from: layers.join(" and ") }
+                : { mixed: layers.slice(0, 3) };
+        return values.size === 1 ? { value: entry.breakdown[0].value, words } : { words };
+    };
 }

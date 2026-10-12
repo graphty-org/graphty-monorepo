@@ -17,13 +17,15 @@ import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { rowName, rowsHeading, runRowKind } from "../graph-place/rows";
-import { DraftPanel, FolderRowPanel, LayerRowPanel, RowsPanel } from "../graph-place/StyleTree";
+import { LayerRowPanel } from "../graph-place/StyleTree";
 import { LayoutGroup } from "../layout/LayoutForm";
 import { notesAbout } from "../notes/words";
 import { runName } from "../runWords";
 import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { GroupStyle, SelectionRowStyle, SelectionStyle, StylePanel } from "../style/StylePanel";
+import { FolderPanel } from "../style/FolderPanel";
+import { MultiRowPanel } from "../style/MultiRowPanel";
+import { DraftPanel, GroupStyle, SelectionRowStyle, SelectionStyle, StylePanel } from "../style/StylePanel";
 import { AttributeValues, CanvasSection, EverythingValues, Overview } from "./GraphValues";
 import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
@@ -490,11 +492,11 @@ function bodyOf(
             // Keyed by the row, so the side and an empty line are dropped when another opens.
             return { only: <LayerRowPanel key={resolved.layer} id={resolved.layer} /> };
         case "folder-row":
-            return { only: <FolderRowPanel id={resolved.row} /> };
+            return { only: <FolderPanel key={resolved.row} id={resolved.row} /> };
         case "rows":
-            return { only: <RowsPanel ids={resolved.rows} /> };
+            return { only: <MultiRowPanel ids={resolved.rows} /> };
         case "draft-row":
-            return { only: <DraftPanel paints={resolved.paints} /> };
+            return { only: <DraftPanel key={resolved.paints ?? ""} paints={resolved.paints} /> };
         case "filter-step":
             // Keyed by the step, so opening another step starts from its own fields.
             return { only: <FilterStepEditor key={resolved.step} id={resolved.step} /> };

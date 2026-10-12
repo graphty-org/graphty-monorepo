@@ -1,20 +1,22 @@
 import "./style.css";
 
-import { ComboInput, CompactColorInput, ControlSection, FieldRow } from "@graphty/compact-mantine";
+import { ComboInput, CompactColorInput, ControlSection, FieldRow, SegmentedControl } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
-import { type Channel, DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
+import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { findTreeRow, isHidden, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
+import type { DraftPaints } from "../inspector/inspected";
 import { edgeName } from "../inspector/words";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { Effects } from "./Effects";
 import { LabelSection } from "./LabelSection";
-import { type BeneathValue, Field, PropertyRow, type RowContext } from "./PropertyRow";
+import { Field, PropertyRow, type RowContext } from "./PropertyRow";
 import {
+    beneathOf,
     colorBlockOf,
     EVERYTHING_LAYER,
     everythingRow,
@@ -32,7 +34,7 @@ import {
 import { focusLineNext, openListNext, useFocusLine } from "./useFocusLine";
 import { useStyleVersion } from "./useStyleVersion";
 import { WhichElements } from "./WhichElements";
-import { type Beneath, channelWord, CORE_ROWS, LISTS, type ListSpec, valueWords } from "./words";
+import { channelWord, CORE_ROWS, LISTS, type ListSpec } from "./words";
 
 /**
  * The row the Style tab edits when the caller names none, read from `inspected` as the inspector
@@ -85,58 +87,6 @@ function documentColors(session: GraphSession): string[] {
         }
     }
     return [...colors];
-}
-
-/**
- * What the layers beneath a row give each channel, from graphty-element's own answer
- * (`styles.agreement` below the row): one value and the layer that paints it, the layers when the
- * value differs, or the channel's default when nothing beneath paints it.
- * @param session - the element's session.
- * @param below - the tree row the answer reads beneath, or undefined for the stack as it is.
- * @returns a reader by channel.
- */
-function beneathOf(session: GraphSession, below: string | undefined): (channel: Channel) => BeneathValue {
-    // ponytail: read over the whole graph, not the row's own elements -- the element publishes no
-    // scope for "what a layer matches" yet (owed with "Select what it paints"); one pass per panel
-    // render over every element, fine at Les Miserables' size.
-    let agreement: ReturnType<GraphSession["styles"]["agreement"]>;
-    try {
-        agreement = session.styles.agreement("graph", undefined, below === undefined ? undefined : { below });
-    } catch {
-        agreement = session.styles.agreement("graph");
-    }
-    const nameOf = (id: string): string => session.styles.get(id)?.name ?? id;
-    const descriptorOf = (channel: Channel): ChannelDescriptor | undefined =>
-        channelsFor(channel.startsWith("node.") ? "node" : "edge").find((d) => d.channel === channel);
-    return (channel) => {
-        const descriptor = descriptorOf(channel);
-        const entry = agreement.channels.find((c) => c.channel === channel);
-        if (descriptor === undefined) {
-            return {};
-        }
-        if (entry === undefined) {
-            return descriptor.default === undefined
-                ? {}
-                : {
-                      value: descriptor.default,
-                      words: { value: valueWords(descriptor, descriptor.default), from: undefined },
-                  };
-        }
-        if (entry.state === "agree") {
-            return {
-                value: entry.value,
-                words: { value: valueWords(descriptor, entry.value), from: nameOf(entry.layerId) },
-            };
-        }
-        const values = new Set(entry.breakdown.map((share) => JSON.stringify(share.value)));
-        const layers = [...new Set(entry.breakdown.map((share) => nameOf(share.layerId)))];
-        // One value from several layers is still that value; only differing values are "Mixed".
-        const words: Beneath =
-            values.size === 1
-                ? { value: valueWords(descriptor, entry.breakdown[0].value), from: layers.join(" and ") }
-                : { mixed: layers.slice(0, 3) };
-        return values.size === 1 ? { value: entry.breakdown[0].value, words } : { words };
-    };
 }
 
 /** Props for StylePanel. */
@@ -221,7 +171,7 @@ function TreeRowPanel({ session, rowId }: Readonly<{ session: GraphSession; rowI
  * @param props.children - the words
  * @returns The line
  */
-function StateLine({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
+export function StateLine({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
     return (
         <Text size="xs" c="dimmed" px="md" py={4}>
             {children}
@@ -240,15 +190,18 @@ function StateLine({ children }: Readonly<{ children: React.ReactNode }>): React
  * @param props.fresh - the layer the row's first edit adds; left out, the row adds none
  * @param props.below - the tree row whose beneath the placeholders read
  * @param props.head - what the tab shows above the groups (a layer's Which elements)
+ * @param props.many - for several rows edited together, per kind: what they share and how a
+ *   write reaches each; the groups then hold the core properties only
  * @returns The tab
  */
-function RowStyle({
+export function RowStyle({
     session,
     row,
     sides: offered = ["node", "edge"],
     fresh,
     below,
     head,
+    many,
 }: Readonly<{
     session: GraphSession;
     row: readonly LayerId[];
@@ -256,6 +209,7 @@ function RowStyle({
     fresh?: NewLayer;
     below?: string;
     head?: React.ReactNode;
+    many?: (side: Target) => Pick<RowContext, "many" | "beneath">;
 }>): React.JSX.Element {
     const scope = useFocusLine<HTMLDivElement>();
     const sides = offered.filter((t) => fresh !== undefined || rowLayers(session, row, t).length > 0);
@@ -275,6 +229,7 @@ function RowStyle({
                     fresh,
                     beneath,
                     documentColors: colors,
+                    ...many?.(side),
                 };
                 const descriptors = channelsFor(side);
                 return (
@@ -288,8 +243,12 @@ function RowStyle({
                                 {CORE_ROWS[side].map((spec) => (
                                     <PropertyRow key={spec.id} ctx={ctx} spec={spec} descriptors={descriptors} />
                                 ))}
-                                <LabelSection target={side} row={row} layers={ctx.layers} fresh={fresh} />
-                                {LISTS[side].map((list) =>
+                                {/* ponytail: several rows show no label or lists yet ("Click + to replace
+                                    mixed content"); each would need its own several-row write. */}
+                                {many === undefined && (
+                                    <LabelSection target={side} row={row} layers={ctx.layers} fresh={fresh} />
+                                )}
+                                {(many === undefined ? LISTS[side] : []).map((list) =>
                                     list.id === "effects" ? (
                                         <Effects key={list.id} ctx={ctx} />
                                     ) : (
@@ -658,6 +617,88 @@ export function GroupStyle({
                     }
                 }}
             />
+        </Stack>
+    );
+}
+
+/** The kind choice's three answers. */
+const PAINTS_CHOICES = [
+    { value: "node", label: "Nodes" },
+    { value: "edge", label: "Edges" },
+    { value: "both", label: "Both" },
+];
+
+/** The name a new layer is written with. */
+const DRAFT_NAME = "New layer";
+
+/**
+ * The new layer's panel before it is written (tier3 design, section 2.2): Which elements open,
+ * with focus on the kind choice, and no groups until a kind is chosen; then that kind's groups.
+ * Nothing reaches the element until a value is set, and that first write adds the layer (a row on
+ * both kinds for Both) and opens it as its own row. Escape, or opening anything else, abandons
+ * the draft and leaves nothing behind.
+ * @param props - Component props
+ * @param props.paints - what it paints, once chosen
+ * @returns The panel
+ */
+export function DraftPanel({ paints }: Readonly<{ paints: DraftPaints | undefined }>): React.JSX.Element | null {
+    const { session, element, store } = useWorkspace();
+    useStyleVersion(session, element);
+    const box = useRef<HTMLDivElement>(null);
+    const [before] = useState(() => new Set(session?.styles.list().map((layer) => layer.id)));
+    useEffect(() => {
+        (box.current?.querySelector<HTMLInputElement>("input:checked") ?? box.current?.querySelector("input"))?.focus();
+    }, []);
+    // The first write added the layer: from here on it is a row like any other.
+    const added = session?.styles
+        .list()
+        .find((layer) => !before.has(layer.id) && layer.source.by === "user" && layer.name === DRAFT_NAME);
+    const addedRow = added === undefined ? undefined : (added.row ?? added.id);
+    useEffect(() => {
+        if (addedRow !== undefined) {
+            store.set({ inspected: { kind: "layer-row", id: addedRow } });
+        }
+    }, [addedRow, store]);
+    if (session === null) {
+        return null;
+    }
+    return (
+        <Stack
+            ref={box}
+            gap={0}
+            onKeyDown={(event) => {
+                if (event.key === "Escape" && !event.defaultPrevented) {
+                    event.stopPropagation();
+                    store.set({ inspected: null });
+                }
+            }}
+        >
+            <Stack gap={6} p={8}>
+                <Text size="xs" fw={600}>
+                    Which elements
+                </Text>
+                <SegmentedControl
+                    size="xs"
+                    aria-label="Which elements"
+                    value={paints ?? ""}
+                    data={PAINTS_CHOICES}
+                    onChange={(value) => {
+                        store.set({ inspected: { kind: "draft-row", id: value } });
+                    }}
+                />
+                <Text size="xs" c="dimmed">
+                    Nothing is added until a property is set
+                </Text>
+            </Stack>
+            {paints !== undefined && (
+                <RowStyle
+                    key={paints}
+                    session={session}
+                    row={[]}
+                    sides={paints === "both" ? ["node", "edge"] : [paints]}
+                    fresh={{ name: DRAFT_NAME, selector: { match: "everything" }, both: paints === "both" }}
+                />
+            )}
         </Stack>
     );
 }

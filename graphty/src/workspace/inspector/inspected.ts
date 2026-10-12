@@ -28,7 +28,7 @@ import type { WorkspaceState } from "../state/store";
  * - `folder-row`: a folder of the style tree; the id is the folder's id.
  * - `rows`: several rows of the style tree selected together; the id is their ids as a JSON array.
  * - `draft-row`: the new layer "+" adds, not written yet; the id is what it paints (`node`,
- *   `edge` or `both`), `node` when absent. Opening anything else abandons it.
+ *   `edge` or `both`), absent until the reader chooses. Opening anything else abandons it.
  * - `attribute`: an attribute from the Data place; the id is its path, such as `data.age`.
  * - `filter-step`: the filter step editor; the id is the step's id, `new`, or
  *   `new:<node|edge>:<path>` for a new step on that attribute.
@@ -79,7 +79,7 @@ export type Resolved =
     | { readonly kind: "layer-row"; readonly layer: string }
     | { readonly kind: "folder-row"; readonly row: string }
     | { readonly kind: "rows"; readonly rows: readonly string[] }
-    | { readonly kind: "draft-row"; readonly paints: DraftPaints }
+    | { readonly kind: "draft-row"; readonly paints: DraftPaints | undefined }
     | { readonly kind: "attribute"; readonly path: string }
     | { readonly kind: "filter-step"; readonly step: string }
     | { readonly kind: "source"; readonly row: string };
@@ -213,7 +213,10 @@ function fromRow(inspected: WorkspaceState["inspected"]): Resolved | undefined {
         case "draft-row":
             return {
                 kind: "draft-row",
-                paints: inspected.id === "edge" || inspected.id === "both" ? inspected.id : "node",
+                paints:
+                    inspected.id === "node" || inspected.id === "edge" || inspected.id === "both"
+                        ? inspected.id
+                        : undefined,
             };
         case "attribute":
             if (inspected.id !== undefined) {

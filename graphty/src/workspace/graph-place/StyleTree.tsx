@@ -1,16 +1,14 @@
-import { SegmentedControl, ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mantine";
+import { ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import type { GraphSession, StyleRow } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useEffect, useRef } from "react";
+import React from "react";
 
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
-import type { DraftPaints } from "../inspector/inspected";
 import { matchesKey } from "../keys/keys";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StylePanel } from "../style/StylePanel";
-import { useStyleVersion } from "../style/useStyleVersion";
 import { orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
 import { count, findTreeRow, isHidden, layerCount, placeOf } from "./rows";
@@ -421,143 +419,4 @@ function Footer({ session, store }: Readonly<{ session: GraphSession; store: Wor
  */
 export function LayerRowPanel({ id }: Readonly<{ id: string }>): React.JSX.Element {
     return <StylePanel rowId={id} />;
-}
-
-/**
- * A row the tree no longer holds (an undo took it away).
- * @returns One gray line
- */
-function RowGone(): React.JSX.Element {
-    return <StateLine>This row is gone</StateLine>;
-}
-
-/**
- * A quiet line at the top of a panel.
- * @param props - Component props
- * @param props.children - the words
- * @returns The line
- */
-function StateLine({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
-    return (
-        <Text size="xs" c="dimmed" px="md" py={4}>
-            {children}
-        </Text>
-    );
-}
-
-/**
- * Rows listed in a panel, top first, each opening itself on a click.
- * @param props - Component props
- * @param props.rows - the rows, top first
- * @returns The list
- */
-function RowList({ rows }: Readonly<{ rows: readonly StyleRow[] }>): React.JSX.Element {
-    const { session, store } = useWorkspace();
-    return (
-        <Stack gap={0} py={4} role="list">
-            {rows.map((row) => {
-                const Glyph = row.kind === "folder" ? GLYPHS.folder : GLYPHS.layer;
-                return (
-                    <UnstyledButton
-                        key={row.id}
-                        role="listitem"
-                        className="ws-style-tree-foot-row cm-focus-inside"
-                        onClick={() => {
-                            openRows(store, session?.styles.tree() ?? [], [row.id]);
-                        }}
-                    >
-                        <Glyph size={14} aria-hidden /> {row.name}
-                    </UnstyledButton>
-                );
-            })}
-        </Stack>
-    );
-}
-
-/**
- * A folder's panel: its rows in paint order, top first.
- * @param props - Component props
- * @param props.id - the folder's id
- * @returns The panel
- */
-export function FolderRowPanel({ id }: Readonly<{ id: string }>): React.JSX.Element | null {
-    const { session, element } = useWorkspace();
-    useStyleVersion(session, element);
-    const found = session === null ? undefined : findTreeRow(session.styles.tree(), id);
-    if (found === undefined) {
-        return <RowGone />;
-    }
-    if (found.row.children.length === 0) {
-        return <StateLine>Empty: drag rows onto the folder to put them in it</StateLine>;
-    }
-    return <RowList rows={[...found.row.children].reverse()} />;
-}
-
-/**
- * The panel of several rows selected together: the rows, top first.
- * @param props - Component props
- * @param props.ids - the rows' ids
- * @returns The panel
- */
-export function RowsPanel({ ids }: Readonly<{ ids: readonly string[] }>): React.JSX.Element | null {
-    const { session, element } = useWorkspace();
-    useStyleVersion(session, element);
-    if (session === null) {
-        return null;
-    }
-    const tree = session.styles.tree();
-    const rows = ids.flatMap((id) => findTreeRow(tree, id)?.row ?? []);
-    return <RowList rows={rows} />;
-}
-
-/** The kind choice's three answers. */
-const PAINTS_CHOICES = [
-    { value: "node", label: "Nodes" },
-    { value: "edge", label: "Edges" },
-    { value: "both", label: "Both" },
-];
-
-/**
- * The new layer's panel before it is written: Which elements, with focus on the kind choice.
- * Nothing reaches the element until a value is set; Escape, or opening anything else, abandons
- * it and leaves nothing behind.
- * @param props - Component props
- * @param props.paints - what it paints so far
- * @returns The panel
- */
-export function DraftPanel({ paints }: Readonly<{ paints: DraftPaints }>): React.JSX.Element {
-    const { store } = useWorkspace();
-    const box = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        box.current?.querySelector<HTMLInputElement>("input:checked")?.focus();
-    }, []);
-    return (
-        <Stack
-            ref={box}
-            gap={6}
-            p={8}
-            onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                    event.stopPropagation();
-                    store.set({ inspected: null });
-                }
-            }}
-        >
-            <Text size="xs" fw={600}>
-                Which elements
-            </Text>
-            <SegmentedControl
-                size="xs"
-                aria-label="Which elements"
-                value={paints}
-                data={PAINTS_CHOICES}
-                onChange={(value) => {
-                    store.set({ inspected: { kind: "draft-row", id: value } });
-                }}
-            />
-            <Text size="xs" c="dimmed">
-                Nothing is added until a property is set
-            </Text>
-        </Stack>
-    );
 }

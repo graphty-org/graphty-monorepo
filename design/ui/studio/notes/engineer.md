@@ -11,6 +11,35 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Folders, several rows at once, and the draft are built** (`style/FolderPanel.tsx`,
+  `style/MultiRowPanel.tsx`, `style/SelectionColors.tsx`, the draft in `StylePanel.tsx`; test
+  `style/__tests__/RowKinds.real-element.test.tsx`). The old one-line panels in `StyleTree.tsx` are
+  gone. A folder's panel lists its rows top first, each with its eye, a click opening the row, then
+  Selection colors. Selection colors read `styles.colors(rowIds)` and write
+  `styles.replaceColor(rowIds, from, to)`: up to three chits and "+N", a click expands to one row
+  per color naming its layers top first; the element skips locked layers and makes it one undo
+  step. Several rows reuse the Style tab's own groups through a new optional `RowContext.many`
+  (`line`, `write`, `clear`): `Field` and the settings' combine read and write through it, so there
+  is no second field component. A write is one `session.transaction` of `tx.styles.update` on each
+  row's topmost unlocked layer of that kind; a locked row (or one in a locked folder) is left out of
+  both the reading and the write and named in "Locked, left unchanged: ...". Groups shown are the
+  kinds every writable layer row has; folders among the selection add only their colors. "Mixed"
+  is the placeholder when the rows differ or some leave it unset; the accessible name says
+  "<field>, mixed: <rows>". A color field now shows "Mixed" through `CompactColorInput.emptyText`
+  whenever what lies beneath is mixed (single rows too), which the design's table asks for.
+  The draft's id is absent until a kind is chosen, so it shows no groups; then a `RowStyle` with a
+  `fresh` "New layer" over everything for that kind. `NewLayer.both` makes the first write
+  `styles.addRow({ target: "both" })`, so Both is one row. The draft watches for a new user layer
+  named "New layer" that was not there when it opened, and opens it as a layer row. `beneathOf`
+  moved to `row.ts` (react-refresh refuses a non-component export from a component file).
+  Not built (ponytail): the label and the lists under several rows ("Click + to replace mixed
+  content"), Selection colors with their own alpha (the picker edits six hex digits), and a
+  draft whose Which elements is more than the kind choice. Seen during the run: vitest browser
+  imports failing ("Failed to fetch dynamically imported module") while other agents' runs
+  re-optimized the shared deps; a rerun passes. Another agent's uncommitted `PropertyRow.tsx`
+  edits (the value picker) sat in the same file, so the commit staged a blob of HEAD plus my
+  hunks only.
+
 - (2026-10-12) **Effects lists are built; the arrow ends are the core "ends" row** (`style/Effects.tsx`,
   test `Effects.real-element.test.tsx`, mounted by `StylePanel` for the list with id `effects`).
   "+" or the empty title opens a menu with a glyph per effect (new `GLYPHS` outline, glow, halo,

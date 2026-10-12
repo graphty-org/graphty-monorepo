@@ -84,6 +84,11 @@ values. Pass `directed: true` for a format whose edges are directed, `comment` f
 comment marker (or `null` for none), and `sniff` to recognize your files by their content
 ([Detection](#detection) explains how).
 
+`parseLine` also gets the whole line as its third argument, for a value that holds spaces (a
+`rgb(0 128 0)` color, a quoted name). The importer `defineLineFormat()` returns is an ordinary
+`GraphImporter`: spread it into a new object to add members, such as the `styles` member of
+[Reading styles](#reading-styles) (`{ ...importer, styles: () => ... }`).
+
 `parseLine` sees one line at a time. A format whose lines mean different things in different parts
 of the file (a node section, then an edge section) needs the full importer that the rest of this
 page builds, as does a format that is not line based.
@@ -1675,12 +1680,108 @@ capabilities); otherwise `checkExport()` also returns `W_STYLE_RULES_NOT_KEPT`.
   above), `"native"` (your exporter writes `options.styles.block` itself, somewhere other programs
   skip) or `"none"`.
 
-An exporter that lists properties receives `options.styles` (type its options as
-`Opts & ExporterStyleOptions`) when the caller passed styles: `picture(target, property)` gives
-each element's value of one property to write into the format's slots, `block` the
-`graphty.styles` JSON, `tags` the per-element values by attribute name, and `rules` the styles
-themselves, for a format with a style language of its own. Report a value written as the nearest
-one the format allows with a `W_STYLE_APPROXIMATED` note from `check()`.
+An exporter that lists properties receives `options.styles` when the caller passed styles. Type
+its options as `CommonExportOptions & ExporterStyleOptions` (plus your own options, if it has any),
+so the same options also go to `resolveExportOptions()` in `check()`. `options.styles` holds:
+
+- `picture(target, property)`: each element's value of one property, by node or edge index, in
+  graph-io's spelling (a color is `#rrggbb`), or `null` where the element has none. This is what
+  your format writes into its own slots.
+- `block`: the `graphty.styles` JSON, for a `"native"` block.
+- `tags`: the per-element values by attribute name, for a `"native"` block.
+- `rules`: the styles themselves, for a format with a style language of its own.
+
+Here a line format writes each node's fill into its own color slot:
+
+<!-- generated:begin example:styles/slots -->
+
+```ts
+import {
+    capabilities,
+    checkCapabilities,
+    checkExport,
+    type CommonExportOptions,
+    defineLineFormat,
+    encodeChunks,
+    type ExporterStyleOptions,
+    exportGraphToString,
+    type GraphExporter,
+    type GraphSnapshot,
+    importGraph,
+    joinText,
+    registry,
+    resolveExportOptions,
+} from "@graphty/graph-io";
+
+// "colors": lines "node <id> <css color>" and "edge <source> <target>"
+const reader = defineLineFormat({
+    format: "colors",
+    extensions: [".colors"],
+    // the third argument is the whole line, for a value with spaces in it ("rgb(0 128 0)")
+    parseLine([kind, a = "", b = ""], graph, line) {
+        if (kind === "node") {
+            graph.node(a, { color: line.trim().split(/\s+/).slice(2).join(" ") });
+        } else {
+            graph.edge(a, b);
+        }
+    },
+});
+// a line format's importer takes a styles member like any other importer
+registry.registerImporter({ ...reader, styles: () => ({ dialect: "css", node: { fill: { data: "color" } } }) });
+
+// the exporter's options: graph-io's common ones plus the styles the caller passed
+type Options = CommonExportOptions & ExporterStyleOptions;
+const caps = capabilities({ multiEdges: true, selfLoops: true, edgeIds: "none", idCharset: "any" });
+function* lines(g: GraphSnapshot, options?: Options): Generator<string> {
+    const fill = options?.styles?.picture("node", "fill"); // each node's fill, or null where it has none
+    for (let i = 0; i < g.nodeCount; i++) {
+        yield `node ${String(g.ids.idOf(i))} ${String(fill?.[i] ?? "gray")}\n`;
+    }
+    for (let e = 0; e < g.edgeCount; e++) {
+        yield `edge ${String(g.ids.idOf(g.edgeSource(e)))} ${String(g.ids.idOf(g.edgeTarget(e)))}\n`;
+    }
+}
+const writer: GraphExporter<Options> = {
+    format: "colors",
+    extensions: [".colors"],
+    mimeTypes: [],
+    capabilities: caps,
+    check: (g, options) => checkCapabilities(g, caps, resolveExportOptions(options), { attributes: false }),
+    export: (g, options) => encodeChunks(lines(g, options)),
+    exportToString: (g, options) => joinText(lines(g, options)),
+    // node fill goes into the format's own slot; there is nowhere to keep the rules for graphty
+    styles: { capabilities: { node: ["fill"], edge: [], block: "none" } },
+};
+registry.registerExporter(writer);
+
+const { snapshot, styles } = await importGraph("node a red\nnode b rgb(0 128 0)\nedge a b\n", {
+    format: "colors",
+    styles: true,
+});
+console.log(await exportGraphToString(snapshot, "colors", { styles }));
+console.log(checkExport(snapshot, "colors", { styles }).map((n) => n.code));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:styles/slots -->
+
+```text
+node a #ff0000
+node b #008000
+edge a b
+
+[ 'W_COLUMN_DROPPED', 'W_STYLE_RULES_NOT_KEPT' ]
+```
+
+<!-- generated:end -->
+
+`W_STYLE_RULES_NOT_KEPT` says the rules ("fill by color") do not survive, only each node's color:
+the format has nowhere to keep them (`block: "none"`). `W_COLUMN_DROPPED` names the `color` column:
+the file holds each node's fill as graph-io spells it (`#ff0000`), not the column's own text
+(`red`). A format that writes a column's own values lists it in the checker's `writtenColumns`
+([Checking what a save loses](#checking-what-a-save-loses)) and gets no such note. Report a value
+written as the nearest one the format allows with a `W_STYLE_APPROXIMATED` note from `check()`.
 
 An exporter without a `styles` member loses every style, and `checkExport()` says so with
 `W_STYLE_NOT_WRITTEN` and `W_STYLE_RULES_NOT_KEPT` notes.

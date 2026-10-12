@@ -254,3 +254,5 @@ exports[`documentation examples > styles/kept runs 1`] = `[]`;
 exports[`documentation examples > styles/read runs 1`] = `[]`;
 
 exports[`documentation examples > styles/save runs 1`] = `[]`;
+
+exports[`documentation examples > styles/slots runs 1`] = `[]`;

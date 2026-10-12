@@ -207,7 +207,7 @@ const PUBLISHED: ReadonlySet<string> = new Set(
 );
 
 /** The examples that show a format plugin's simple path: they import nothing a reader would not have. */
-const SIMPLE_PATHS = ["styles/importer.ts", "styles/exporter.ts"];
+const SIMPLE_PATHS = ["styles/importer.ts", "styles/exporter.ts", "styles/slots.ts"];
 
 /**
  * The module specifiers an example imports.

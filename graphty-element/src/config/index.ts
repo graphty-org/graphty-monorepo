@@ -7,6 +7,8 @@ export type { NodeIdType } from "./GraphBehavior";
 export { GraphBehaviorOpts } from "./GraphBehavior";
 export type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "./GraphStyle";
 export { DEFAULT_SELECTION_STYLE, GraphBackground, GraphSelectionStyleOpts } from "./GraphStyle";
+export type { Lighting } from "./Lighting";
+export { DEFAULT_LIGHTING, isLighting, LIGHTING_VALUES } from "./Lighting";
 export type { NodeStyleConfig } from "./NodeStyle";
 export { defaultNodeStyle, NodeShapes, NodeStyle } from "./NodeStyle";
 export type { RichTextStyleType } from "./RichTextStyle";

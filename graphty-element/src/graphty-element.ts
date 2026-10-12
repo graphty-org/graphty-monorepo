@@ -13,6 +13,7 @@ import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
+import { DEFAULT_LIGHTING, type Lighting } from "./config/Lighting";
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
 import {
@@ -2252,6 +2253,54 @@ export class Graphty extends LitElement {
         const oldValue = this.autoFrame;
         this.#graph.setAutoFrame(value);
         this.requestUpdate("autoFrame", oldValue);
+    }
+
+    /**
+     * How the 3D nodes are lit.
+     * @remarks
+     * - `"studio"` (the default): a key light from above the camera, a soft fill, and a rim that
+     *   lifts each node's own color toward its edge. Round shapes read as round, and no pixel is
+     *   lifted to white: the brightest is about 1.13 times the style color's lightness.
+     * - `"headlight"`: one light from beside the camera and a soft fill. Never brighter than the
+     *   style color.
+     * - `"matte"`: one soft light from above, no highlight. A lit face is exactly the style color
+     *   at most; shapes read flatter and darker than `"studio"`.
+     * - `"flat"`: unlit. Every pixel of a node is exactly its style color, with a thin dark
+     *   outline.
+     *
+     * 2D view is always drawn flat. Switching takes effect on the next frame. A preference of
+     * this view, not part of the project: switching it records no undo step and is not saved in a
+     * project file. A value that is not one of the four is reported and ignored.
+     * @since 3.25.0
+     * @example
+     * ```html
+     * <graphty-element lighting="flat"></graphty-element>
+     * ```
+     * ```typescript
+     * element.lighting = "matte";
+     * ```
+     * @returns The lighting in effect
+     */
+    @property({ attribute: "lighting" })
+    get lighting(): Lighting {
+        return this.#graph.getLighting();
+    }
+    /**
+     * Sets how the 3D nodes are lit.
+     */
+    set lighting(value: Lighting) {
+        const oldValue = this.lighting;
+
+        try {
+            // A removed attribute arrives as null, and means the default.
+            this.#graph.setLighting(value ?? DEFAULT_LIGHTING);
+        } catch (error: unknown) {
+            console.error("<graphty-element>: the lighting was refused. Keeping the one already set.", error);
+
+            return;
+        }
+
+        this.requestUpdate("lighting", oldValue);
     }
 
     /**

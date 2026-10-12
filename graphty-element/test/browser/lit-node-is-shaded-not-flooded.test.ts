@@ -41,7 +41,7 @@
  * material by hand, which is the one thing nothing in this package is allowed to do -- so the
  * standing gate is the ceiling below.
  *
- * SINCE THE LIGHT WENT MATTE. The scene's light now has no specular and an intensity of 0.8, so
+ * UNDER THE MATTE LIGHTING, which this file pins. The scene's light then has no specular and an intensity of 0.8, so
  * under it the light term tops out at 0.8 + 0.2 = 1.0 and never reaches the clamp: the face turned
  * to the light is exactly the colour, and a pale colour no longer washes to white. Under that
  * light the plugin and the stock shader draw the same picture, so this file now pins the picture
@@ -165,6 +165,9 @@ async function mountOneNode(viewMode: "2d" | "3d"): Promise<{ container: HTMLEle
     // The opening view mode, written where `init()` reads it, rather than a switch afterwards:
     // there is nothing on screen yet to switch.
     openIn(graph, { viewMode });
+    // The numbers below are the matte lighting's; the default lighting is measured in
+    // lit-node-keeps-its-color.test.ts.
+    graph.setLighting("matte");
     await graph.init();
     await graph.addNodes(NODES);
 

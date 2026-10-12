@@ -43,6 +43,7 @@ The Web Component exposes these properties for declarative configuration:
 | `autoFrame`              | `auto-frame`               | `boolean`                      | Frame the graph after each load and layout change. On by default; `auto-frame="false"` leaves the camera where it is. `zoomToFit()` frames either way |
 | `labelDeclutter`         | `label-declutter`          | `boolean`                      | Hide a node label that would overlap another until the reader zooms in. Off by default; a view preference, not saved in a project                     |
 | `renderOnDemand`         | `render-on-demand`         | `boolean`                      | Draw a frame only when the picture can have changed; a still graph is not redrawn. Off by default; a view preference, not saved in a project          |
+| `lighting`               | `lighting`                 | `Lighting`                     | How 3D nodes are lit: `"studio"` (default), `"headlight"`, `"matte"` or `"flat"`. Switchable at runtime; a view preference, not saved in a project    |
 
 What nodes and edges look like is not a property: it is the layer stack on `element.session.styles`.
 See the [styling guide](../guide/styling).

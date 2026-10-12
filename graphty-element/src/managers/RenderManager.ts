@@ -1,10 +1,12 @@
 import {
     Color3,
     Color4,
+    DirectionalLight,
     Engine,
     EngineStore,
     HemisphericLight,
     Logger,
+    Material,
     PhotoDome,
     Quaternion,
     Scene,
@@ -21,6 +23,8 @@ import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
 import type { GraphBackgroundConfig } from "../config/GraphStyle";
+import { DEFAULT_LIGHTING, type Lighting } from "../config/Lighting";
+import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
 import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
@@ -268,6 +272,25 @@ const READER_INPUT_EVENTS = [
 ] as const;
 
 /**
+ * The lights of each {@link Lighting}: the hemispheric fill's intensity and ground color (its sky
+ * is white, toward +x+y), and the key light's intensity and direction in camera space.
+ *
+ * - studio: fill 0.45 and key 0.55 from above-right of the camera, plus the node rim (NodeLighting).
+ *   Measured: no pixel clipped to white, brightest 1.13x the style lightness, median 0.88x, sphere
+ *   lightness spread 0.282.
+ * - headlight: fill 0.4 with a lighter ground, and a 0.45 light from just beside the camera.
+ *   Brightest 0.99x the style lightness, median 0.88x, spread 0.226.
+ * - matte: fill 0.8 alone. Brightest 1.00x, median 0.81x, spread 0.179.
+ * - flat: nodes are unlit (NodeLighting); the fill stays for anything else lit in the scene.
+ */
+const LIGHTS: Record<Lighting, { fill: number; ground: number; key: number; keyDirection: Vector3 }> = {
+    studio: { fill: 0.45, ground: 0.35, key: 0.55, keyDirection: new Vector3(0.6, -0.6, 1) },
+    headlight: { fill: 0.4, ground: 0.65, key: 0.45, keyDirection: new Vector3(0.25, -0.3, 1) },
+    matte: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },
+    flat: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },
+};
+
+/**
  * Manages Babylon.js scene, engine, and render loop
  */
 export class RenderManager implements Manager {
@@ -301,6 +324,12 @@ export class RenderManager implements Manager {
         observers: [] as readonly unknown[],
         contents: [] as unknown[],
     };
+    /** The hemispheric fill light; see {@link applyLighting}. */
+    private readonly hemi: HemisphericLight;
+    /** The key (or head) light, a directional light that turns with the camera. */
+    private readonly key: DirectionalLight;
+    /** The key light's direction in camera space (x right, y up, z forward). */
+    private readonly keyInCameraSpace = new Vector3(0, 0, 1);
     /** Whether the last frame drawn left the camera, size or background other than the one before. */
     private lastFrameMoved = true;
     private readonly owe = (): void => {
@@ -394,14 +423,22 @@ export class RenderManager implements Manager {
         // Setup cameras
         this.setupCameras();
 
-        // Setup lighting with ground color for fill from below
-        const light = new HemisphericLight("light", new Vector3(1, 1, 0), this.scene);
-        light.groundColor = new Color3(0.35, 0.35, 0.35);
-        // Matte: no specular anywhere, and the full-facing diffuse (0.8) plus the node material's
-        // 0.2 emissive floor tops out at exactly the style color, so a pale color never clamps to
-        // white and a lit face always reads as the color it was styled.
-        light.specular = Color3.Black();
-        light.intensity = 0.8;
+        // Two lights at most, neither with any specular, so nothing a light adds is ever white: a
+        // hemispheric fill from above, and a key that keeps its place relative to the camera.
+        this.hemi = new HemisphericLight("light", new Vector3(1, 1, 0), this.scene);
+        this.hemi.specular = Color3.Black();
+        this.key = new DirectionalLight("key-light", new Vector3(0, 0, 1), this.scene);
+        this.key.specular = Color3.Black();
+        this.scene.onBeforeRenderObservable.add(() => {
+            const camera = this.scene.activeCamera;
+            if (camera) {
+                this.key.direction = Vector3.TransformNormal(
+                    this.keyInCameraSpace,
+                    camera.getWorldMatrix(),
+                ).normalize();
+            }
+        });
+        this.applyLighting(DEFAULT_LIGHTING);
 
         // Set background color
         const backgroundColor = this.config.backgroundColor ?? DEFAULT_BACKGROUND_COLOR;
@@ -847,6 +884,55 @@ export class RenderManager implements Manager {
         this.dome?.dome.dispose();
         this.dome = null;
         this.setBackgroundColor(background.color ?? DEFAULT_BACKGROUND_COLOR);
+    }
+
+    /**
+     * Light the scene's 3D nodes one of the {@link Lighting} ways. Takes effect on the next frame,
+     * for the nodes on screen and every node built afterwards.
+     *
+     * The numbers are the ones measured in `stories/experiments/NodeLighting.stories.ts` (25
+     * shapes x 4 colors x 12 rotations). Node materials are frozen, and a frozen material keeps the
+     * shader it compiled -- which lights it counts, whether it has a rim -- so every frozen material
+     * is thawed, recompiled on the next frame and frozen again after it.
+     * @param lighting - The lighting.
+     */
+    applyLighting(lighting: Lighting): void {
+        const { hemi, key, scene } = this;
+        const light = LIGHTS[lighting];
+        hemi.intensity = light.fill;
+        hemi.groundColor = new Color3(light.ground, light.ground, light.ground);
+        key.setEnabled(light.key > 0);
+        key.intensity = light.key;
+        this.keyInCameraSpace.copyFrom(light.keyDirection);
+
+        scene.metadata = { ...(scene.metadata as Record<string, unknown> | null), lighting };
+
+        const thawed: Material[] = [];
+        for (const material of scene.materials) {
+            if (material.isFrozen) {
+                material.unfreeze();
+                thawed.push(material);
+            }
+
+            if (isNodeMaterial(material)) {
+                lightNodeMaterial(material, lighting);
+                for (const mesh of material.getBindedMeshes()) {
+                    outlineNodeMesh(mesh, lighting);
+                }
+            }
+
+            material.markAsDirty(Material.AllDirtyFlag);
+        }
+
+        if (thawed.length > 0) {
+            scene.onAfterRenderObservable.addOnce(() => {
+                for (const material of thawed) {
+                    material.freeze();
+                }
+            });
+        }
+
+        this.requestFrame();
     }
 
     /**

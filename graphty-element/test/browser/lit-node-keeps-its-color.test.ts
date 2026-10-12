@@ -1,26 +1,26 @@
 /**
- * @file A lit 3D surface stays the color it was styled, at every angle, however pale the color.
+ * @file A lit 3D surface stays the color it was styled, at every angle, however pale the color,
+ * under each of the element's lightings, and a lighting switched at runtime takes effect.
  *
- * A 3D node's lit color is `clamp(light * color + 0.2 * color)` plus whatever specular the light
- * adds. The scene's one light is matte (no specular) and its intensity is 0.8, so the face turned
- * straight at it comes out at exactly the style color and nothing comes out brighter. Two ways
- * that breaks, and the color each one shows up on:
+ * Measured in OKLCH, on every pixel that belongs to a node or a cap. Two ways a light breaks a
+ * color, and the color each one shows up on:
  *
- * - a light brighter than 0.8 lifts the full-facing face past 1.0 times the color, so a PALE
- *   color clamps channel by channel toward white and its hue slides (yellow goes white-yellow);
+ * - a light brighter than the color lifts a PALE color channel by channel toward white, and its
+ *   hue slides (yellow goes white-yellow);
  * - a specular light adds white on top, so even a MID color like a plain blue gets a white glint
- *   on every shiny face and on the round arrow caps.
+ *   on every shiny face.
  *
- * Measured in OKLCH, on every pixel that belongs to a node or a cap: the hue stays within 10
- * degrees of the style color's, the lightness never rises past the style color's own plus 0.02,
- * and the chroma relative to lightness (C / L, which a shadow keeps and white wash destroys) stays
- * within 15% of the style color's. Shapes with flat faces (tetrahedron, box) are used because each
- * face is lit evenly and a face turned toward the light is where the clamp shows.
+ * The default, "studio" (a key light and a fill, neither with specular, and a rim in the node's
+ * own color), lifts a lit face a little past the style color -- 1.13 times its lightness at most
+ * in the lighting experiment -- and never to white. "headlight" and "matte" top out at the style
+ * color, and "flat" draws exactly it. Shapes with flat faces (tetrahedron, box) are used because
+ * each face is lit evenly and a face turned toward the light is where a clamp shows.
  */
 
 import Color from "colorjs.io";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
+import { DEFAULT_LIGHTING, type Lighting, LIGHTING_VALUES } from "../../src/config/Lighting";
 import { OKABE_ITO_COLORS } from "../../src/config/palettes/categorical";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { type Frame, readFrame } from "../helpers/paint-assertions";
@@ -41,6 +41,19 @@ const PITCH = (50 * Math.PI) / 180;
 const HUE_TOLERANCE_DEG = 10;
 const RELATIVE_CHROMA_TOLERANCE = 0.15;
 const LIGHTNESS_HEADROOM = 0.02;
+
+/**
+ * The relative chroma tolerance under the studio lighting, which lifts a lit face past the style
+ * color: a saturated blue made lighter loses chroma relative to lightness inside sRGB (measured
+ * 0.20 for the mid blue) without any white in it, which the white-pixel count rules out on its own.
+ */
+const STUDIO_RELATIVE_CHROMA_TOLERANCE = 0.25;
+
+/** How far past the style color's lightness the studio lighting may lift a lit face. */
+const STUDIO_MAX_LIGHTNESS_RATIO = 1.15;
+
+/** A pixel with every channel above this has been lifted to white. */
+const WHITE = 240;
 
 /** Pixels below this chroma are the gray page, gray edges or anti-aliased silhouette. */
 const MIN_CHROMA = 0.04;
@@ -88,6 +101,10 @@ interface Reading {
     worstHue: number;
     worstRelativeChroma: number;
     brightest: number;
+    /** Pixels with every channel above {@link WHITE}. */
+    white: number;
+    /** Lightness spread (95th minus 5th percentile): how much depth the shading gives. */
+    spread: number;
 }
 
 /**
@@ -103,8 +120,11 @@ interface Reading {
 function readAgainst(frame: Frame, style: Lch): Reading {
     const { width, height } = frame;
     const lch: Lch[] = [];
+    const isWhite: boolean[] = [];
     for (let at = 0; at < frame.pixels.length; at += 4) {
-        lch.push(oklchOf([frame.pixels[at], frame.pixels[at + 1], frame.pixels[at + 2]]));
+        const rgb = [frame.pixels[at], frame.pixels[at + 1], frame.pixels[at + 2]] as const;
+        lch.push(oklchOf(rgb));
+        isWhite.push(rgb.every((channel) => channel > WHITE));
     }
     const colored = (x: number, y: number): boolean =>
         x >= 0 && y >= 0 && x < width && y < height && lch[y * width + x].c >= MIN_CHROMA;
@@ -125,6 +145,8 @@ function readAgainst(frame: Frame, style: Lch): Reading {
     let worstHue = 0;
     let worstRelativeChroma = 0;
     let brightest = 0;
+    let white = 0;
+    const lightness: number[] = [];
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -137,10 +159,17 @@ function readAgainst(frame: Frame, style: Lch): Reading {
             worstHue = Math.max(worstHue, hueDistance(px.h, style.h));
             worstRelativeChroma = Math.max(worstRelativeChroma, Math.abs(px.c / px.l / styleRatio - 1));
             brightest = Math.max(brightest, px.l);
+            lightness.push(px.l);
+            if (isWhite[y * width + x]) {
+                white++;
+            }
         }
     }
 
-    return { pixels, worstHue, worstRelativeChroma, brightest };
+    lightness.sort((a, b) => a - b);
+    const at = (q: number): number => lightness[Math.floor((lightness.length - 1) * q)] ?? 0;
+
+    return { pixels, worstHue, worstRelativeChroma, brightest, white, spread: at(0.95) - at(0.05) };
 }
 
 /**
@@ -199,8 +228,23 @@ async function mount(color: string): Promise<{ container: HTMLElement; graph: Gr
     const position = state.position ?? { x: 0, y: 0, z: 1 };
     const radius = Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z);
     await graph.setCameraState({ alpha: YAW, beta: Math.PI / 2 - PITCH, radius, target });
+    await nextFrameDrawn(graph);
 
     return { container, graph, frame: await readFrame(graph) };
+}
+
+/**
+ * Wait until the scene has recompiled whatever the last change dirtied and drawn a frame with it.
+ * A frame the element already calls stable is not redrawn by `readFrame` on its own.
+ * @param graph - The graph.
+ */
+async function nextFrameDrawn(graph: Graph): Promise<void> {
+    await graph.scene.whenReadyAsync();
+    await new Promise<void>((resolve) => {
+        graph.scene.onAfterRenderObservable.addOnce(() => {
+            resolve();
+        });
+    });
 }
 
 for (const [name, color] of [
@@ -211,42 +255,108 @@ for (const [name, color] of [
         const style = oklchOf(color);
         let container: HTMLElement;
         let graph: Graph;
-        let reading: Reading;
+        const readings = new Map<Lighting | "default", Reading>();
 
         // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         beforeAll(async () => {
             let frame: Frame;
             ({ container, graph, frame } = await mount(color));
-            reading = readAgainst(frame, style);
-        }, CASE_TIMEOUT_MS * 2);
+            readings.set("default", readAgainst(frame, style));
+            // Switched at runtime, one after another on the same graph, and back to the default
+            // last: each reading is only right if the switch before it took effect.
+            for (const lighting of ["matte", "headlight", "flat", "studio"] as const) {
+                graph.setLighting(lighting);
+                await nextFrameDrawn(graph);
+                readings.set(lighting, readAgainst(await readFrame(graph), style));
+            }
+        }, CASE_TIMEOUT_MS * 4);
 
         afterAll(() => {
             graph.dispose();
             container.remove();
         });
 
-        it("draws the nodes and the cap", () => {
-            assert.isAbove(reading.pixels, 500, `Nothing on the canvas is ${color}.`);
+        const reading = (lighting: Lighting | "default"): Reading => {
+            const found = readings.get(lighting);
+            assert.isDefined(found, `no frame was read under ${lighting}`);
+            return found;
+        };
+
+        it("is lit studio by default", () => {
+            assert.strictEqual(graph.getLighting(), DEFAULT_LIGHTING);
+            assert.strictEqual(DEFAULT_LIGHTING, "studio");
         });
 
-        it("keeps the style color's hue", () => {
-            assert.isAtMost(reading.worstHue, HUE_TOLERANCE_DEG, `A lit pixel's hue moved off ${color}.`);
+        for (const lighting of ["default", ...LIGHTING_VALUES] as const) {
+            describe(`under ${lighting}`, () => {
+                it("draws the nodes and the cap, in the style color's hue", () => {
+                    const r = reading(lighting);
+                    assert.isAbove(r.pixels, 500, `Nothing on the canvas is ${color}.`);
+                    assert.isAtMost(r.worstHue, HUE_TOLERANCE_DEG, `A lit pixel's hue moved off ${color}.`);
+                });
+
+                it("never lifts a pixel to white", () => {
+                    const r = reading(lighting);
+                    assert.strictEqual(r.white, 0, `${String(r.white)} pixels of ${color} were lifted to white.`);
+                    const studio = lighting === "default" || lighting === "studio";
+                    assert.isAtMost(
+                        r.worstRelativeChroma,
+                        studio ? STUDIO_RELATIVE_CHROMA_TOLERANCE : RELATIVE_CHROMA_TOLERANCE,
+                        `A lit pixel lost the saturation of ${color}: white was added on top of it.`,
+                    );
+                });
+            });
+        }
+
+        for (const lighting of ["default", "studio"] as const) {
+            it(`under ${lighting}, lifts a lit face at most ${String(STUDIO_MAX_LIGHTNESS_RATIO)} times the style lightness`, () => {
+                const r = reading(lighting);
+                assert.isAtMost(r.brightest, style.l * STUDIO_MAX_LIGHTNESS_RATIO, `A lit pixel is too bright.`);
+            });
+        }
+
+        for (const lighting of ["matte", "headlight"] as const) {
+            it(`under ${lighting}, is never lit brighter than the style color itself`, () => {
+                assert.isAtMost(
+                    reading(lighting).brightest,
+                    style.l + LIGHTNESS_HEADROOM,
+                    `A lit pixel is brighter than ${color}: the light clamps it toward white.`,
+                );
+            });
+        }
+
+        it("under flat, draws every pixel in exactly the style color", () => {
+            const r = reading("flat");
+            assert.isAtMost(r.spread, 0.01, "A flat node is shaded.");
+            assert.closeTo(r.brightest, style.l, 0.01, `A flat node is not ${color}.`);
         });
 
-        it("is never washed toward white", () => {
-            assert.isAtMost(
-                reading.worstRelativeChroma,
-                RELATIVE_CHROMA_TOLERANCE,
-                `A lit pixel lost the saturation of ${color}: white was added on top of it.`,
-            );
+        it("under studio, shades with more depth than matte", () => {
+            assert.isAbove(reading("studio").spread, reading("matte").spread, "Studio is no rounder than matte.");
         });
 
-        it("is never lit brighter than the style color itself", () => {
-            assert.isAtMost(
-                reading.brightest,
-                style.l + LIGHTNESS_HEADROOM,
-                `A lit pixel is brighter than ${color}: the light clamps it toward white.`,
-            );
+        it("switching back at runtime gives the same picture as the default", () => {
+            assert.closeTo(reading("studio").brightest, reading("default").brightest, 0.01);
+            assert.closeTo(reading("studio").spread, reading("default").spread, 0.01);
         });
     });
 }
+
+describe("lighting values", () => {
+    it("refuses a value that is not a lighting, keeping the one in effect", async () => {
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const graph = new Graph(container);
+        await graph.init();
+        try {
+            graph.setLighting("matte");
+            assert.throws(() => {
+                graph.setLighting("shiny" as Lighting);
+            });
+            assert.strictEqual(graph.getLighting(), "matte");
+        } finally {
+            graph.dispose();
+            container.remove();
+        }
+    });
+});

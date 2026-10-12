@@ -150,6 +150,10 @@ export interface GraphtyElementJSXProps {
      */
     autoFrame?: Graphty["autoFrame"];
     /**
+     * Sets how the 3D nodes are lit.
+     */
+    lighting?: Graphty["lighting"];
+    /**
      * Sets the view insets.
      */
     viewInsets?: Graphty["viewInsets"];

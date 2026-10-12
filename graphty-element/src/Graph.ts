@@ -117,6 +117,7 @@ import {
     type XRConfig,
 } from "./config";
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
+import { DEFAULT_LIGHTING, isLighting, type Lighting, LIGHTING_VALUES } from "./config/Lighting";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
@@ -400,6 +401,8 @@ export class Graph implements GraphContext {
     #cameraPlaced = false;
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
     #autoFrame = true;
+    /** How the 3D nodes are lit; see {@link setLighting}. */
+    #lighting: Lighting = DEFAULT_LIGHTING;
     /** Margins of the canvas something else covers, in CSS pixels; see {@link setViewInsets}. */
     #viewInsets: Required<ViewInsets> = fullInsets(undefined);
     skybox?: string;
@@ -1497,6 +1500,7 @@ export class Graph implements GraphContext {
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
         this.camera.setViewInsets(this.#viewInsets);
+        this.renderManager.applyLighting(this.#lighting);
         this.scene.clearColor = background;
         this.statsManager.initializeBabylonInstrumentation(this.scene, this.engine);
         this.updateManager.rebindScene(this.camera);
@@ -3788,6 +3792,36 @@ export class Graph implements GraphContext {
         if (!on) {
             this.updateManager.stopAutoZoomToFit();
         }
+    }
+
+    /**
+     * How the 3D nodes are lit; see {@link setLighting}.
+     * @returns The lighting.
+     */
+    getLighting(): Lighting {
+        return this.#lighting;
+    }
+
+    /**
+     * Light the 3D nodes one of the {@link Lighting} ways: "studio" (the default), "headlight",
+     * "matte" or "flat". Takes effect on the next frame, for every node on screen and every node
+     * drawn after. 2D view is always drawn flat. A preference of the view, not saved in a project
+     * file.
+     * @param lighting - The lighting.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` when the value is not a lighting.
+     */
+    setLighting(lighting: Lighting): void {
+        if (!isLighting(lighting)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `lighting must be one of ${LIGHTING_VALUES.join(", ")}, not ${String(lighting)}`,
+                source: "view",
+                details: { name: "lighting", value: lighting },
+            });
+        }
+
+        this.#lighting = lighting;
+        this.renderManager.applyLighting(lighting);
     }
 
     /**

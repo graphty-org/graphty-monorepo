@@ -690,6 +690,9 @@ export interface DataSourceChunk {
 }
 
 // @public
+export const DEFAULT_LIGHTING: Lighting;
+
+// @public
 export const DEFAULT_VIEW_MODE: ViewMode;
 
 // @public (undocumented)
@@ -1615,6 +1618,7 @@ export class Graph implements GraphContext {
     getLayoutBehavior(): GraphBehaviorConfig | undefined;
     getLayoutManager(): LayoutManager;
     getLayoutScope(): Scope | undefined;
+    getLighting(): Lighting;
     getMeshCache(): MeshCache;
     getNode(nodeId: string | number): Node_2 | undefined;
     getNodeCount(): number;
@@ -1747,6 +1751,7 @@ export class Graph implements GraphContext {
     setLayout(type: string, opts?: object, options?: SetLayoutOptions): Promise<void>;
     setLayoutBehavior(behavior: GraphBehaviorConfig): void;
     setLayoutScope(scope: ScopeInput | undefined): Promise<void>;
+    setLighting(lighting: Lighting): void;
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setRenderer(request: RendererRequest): void;
     setRenderSettings(_settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
@@ -2082,6 +2087,8 @@ export class Graphty extends LitElement {
     set layoutConfig(value: Record<string, unknown> | undefined);
     get layoutScope(): Scope | undefined;
     set layoutScope(value: ScopeInput | undefined);
+    get lighting(): Lighting;
+    set lighting(value: Lighting);
     listenerCount(): number;
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
@@ -2847,6 +2854,9 @@ export function isGraphtyError(value: unknown): value is GraphtyError;
 export function isGraphtyErrorCode(value: unknown): value is GraphtyErrorCode;
 
 // @public
+export function isLighting(value: unknown): value is Lighting;
+
+// @public
 export function isViewMode(value: string): value is ViewMode;
 
 // @public
@@ -2978,6 +2988,12 @@ export class LayoutManager implements Manager {
     updatePositions(nodes: Node_2[]): Promise<void>;
     updateStyles(styles: Styles): void;
 }
+
+// @public
+export type Lighting = (typeof LIGHTING_VALUES)[number];
+
+// @public
+export const LIGHTING_VALUES: readonly ["studio", "headlight", "matte", "flat"];
 
 // @public
 export interface Limits {
@@ -4036,6 +4052,7 @@ export interface RendererStatus {
 export class RenderManager implements Manager {
     constructor(canvas: HTMLCanvasElement, eventManager: EventManager, config?: RenderManagerConfig);
     applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void;
+    applyLighting(lighting: Lighting): void;
     // (undocumented)
     camera: CameraManager;
     dispose(): void;

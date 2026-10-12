@@ -78,6 +78,8 @@ export type {
     // What the graph is drawn against, as `element.background` takes it
     GraphBackgroundConfig,
     ImageData,
+    // How the 3D nodes are lit, as `element.lighting` takes it
+    Lighting,
     NodeStyleConfig,
     RichTextStyleType,
     // View mode types
@@ -99,6 +101,7 @@ export type { PartialXRConfig } from "./src/config/xr-config-schema";
 // Style configuration values and helpers
 export {
     colorToHex,
+    DEFAULT_LIGHTING,
     DEFAULT_VIEW_MODE,
     defaultEdgeStyle,
     defaultNodeStyle,
@@ -106,7 +109,9 @@ export {
     defaultXRConfig,
     EdgeStyle,
     GraphBackground,
+    isLighting,
     isViewMode,
+    LIGHTING_VALUES,
     NodeShapes,
     NodeStyle,
     RichTextStyle,

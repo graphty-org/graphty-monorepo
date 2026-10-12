@@ -71,6 +71,9 @@ export function colorDifference(hex1: string, hex2: string): number;
 export function colorToHex(s: string): string | undefined;
 
 // @public
+export const DEFAULT_LIGHTING: Lighting;
+
+// @public
 export const DEFAULT_SELECTION_STYLE: GraphSelectionStyleConfig;
 
 // @public
@@ -698,6 +701,9 @@ export const INFERNO_COLORS: readonly ["#000004", "#1b0c41", "#4a0c6b", "#781c6d
 export function interpolatePalette(value: number | null | undefined, colors: readonly string[], missingColor?: string): string;
 
 // @public
+export function isLighting(value: unknown): value is Lighting;
+
+// @public
 export function isPaletteSafe(colors: string[], threshold?: number): {
     protanopia: boolean;
     deuteranopia: boolean;
@@ -816,6 +822,12 @@ export interface LayerSpec {
     // (undocumented)
     userData?: Record<string, unknown>;
 }
+
+// @public
+export type Lighting = (typeof LIGHTING_VALUES)[number];
+
+// @public
+export const LIGHTING_VALUES: readonly ["studio", "headlight", "matte", "flat"];
 
 // @public
 export const MISSING_DATA_COLOR = "#ff00ff";

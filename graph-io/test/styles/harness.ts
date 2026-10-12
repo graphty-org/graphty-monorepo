@@ -29,7 +29,7 @@ import {
     type StyleValue,
     toolDefaults,
     writeStyleBlock,
-} from "../../src/styles/index.js";
+} from "../../src/styles/internal.js";
 import { readStyleValues } from "../../src/styles/io/generic.js";
 import { heldEdgeRows } from "../../src/styles/plan/features.js";
 import { isShortPredicate, matches, refSource, resolveRules, within } from "../../src/styles/plan/resolve.js";

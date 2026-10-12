@@ -22,7 +22,7 @@ import {
     type StyleProperty,
     type StyleRule,
     type StyleTarget,
-} from "../../../src/styles/index.js";
+} from "../../../src/styles/internal.js";
 import { editPajekVertexFill, replacePajekBlock } from "../../styles/formats/pajek.js";
 
 const registry = createRegistry();

@@ -7,7 +7,7 @@
 
 import { jsonExporter, jsonImporter } from "../../../src/formats/json/index.js";
 import { createRegistry, type FormatRegistry } from "../../../src/registry.js";
-import { type ExporterStyleOptions, STYLE_BLOCK_NAME } from "../../../src/styles/index.js";
+import { type ExporterStyleOptions, STYLE_BLOCK_NAME } from "../../../src/styles/internal.js";
 import type { GraphExporter, GraphImporter } from "../../../src/types.js";
 import { registerStyleFormat, type StyleInput } from "../harness.js";
 import { rolesInputs } from "./roles.js";

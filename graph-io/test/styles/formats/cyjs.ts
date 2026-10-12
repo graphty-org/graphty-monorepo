@@ -7,7 +7,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { jsonImporter } from "../../../src/formats/json/index.js";
 import { createRegistry } from "../../../src/registry.js";
-import { cytoscapeJsStyles } from "../../../src/styles/index.js";
+import { cytoscapeJsStyles } from "../../../src/styles/internal.js";
 import type { GraphImporter } from "../../../src/types.js";
 import { importForStyles, type LoadedGraph, registerStyleFormat } from "../harness.js";
 

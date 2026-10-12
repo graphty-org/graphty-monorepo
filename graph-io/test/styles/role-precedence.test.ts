@@ -19,7 +19,7 @@ import {
     styleFingerprint,
     type StyleProperty,
     type StyleTarget,
-} from "../../src/styles/index.js";
+} from "../../src/styles/internal.js";
 import { roleGraph } from "./hand-made.js";
 import { importForStyles, styleTruth } from "./harness.js";
 

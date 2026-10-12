@@ -9,7 +9,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { STYLE_BLOCK_NAME } from "../../../src/styles/index.js";
+import { STYLE_BLOCK_NAME } from "../../../src/styles/internal.js";
 import {
     corpusFiles,
     fileInput,

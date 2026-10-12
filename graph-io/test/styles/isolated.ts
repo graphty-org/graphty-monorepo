@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
-import { extractStyles } from "../../src/styles/index.js";
+import { extractStyles } from "../../src/styles/internal.js";
 import { checkInput, fileInput, readCorpusFile, roundTrip, styleFormats, type StyleResult } from "./harness.js";
 import { resultsTable } from "./results.js";
 

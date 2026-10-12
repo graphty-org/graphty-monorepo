@@ -6,7 +6,7 @@
 
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 
-import { type ExtractedStyles, featuresOf, styleFingerprint, type StyleRule } from "../../src/styles/index.js";
+import { type ExtractedStyles, featuresOf, styleFingerprint, type StyleRule } from "../../src/styles/internal.js";
 import type { GraphImporter } from "../../src/types.js";
 import type { LoadedGraph } from "./harness.js";
 

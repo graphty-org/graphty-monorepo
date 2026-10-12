@@ -16,7 +16,7 @@ import {
     TOOL_DEFAULTS,
     type ToolDefaults,
     toolDefaults,
-} from "../../src/styles/index.js";
+} from "../../src/styles/internal.js";
 
 /** Every module URL Node resolves while importing `entry` in a fresh process. */
 function modulesLoadedBy(entry: string): string[] {
@@ -67,6 +67,31 @@ describe("the styles entry", () => {
             expect(built.STYLE_ISSUE).toEqual(STYLE_ISSUE);
         },
     );
+});
+
+describe("the published style surface", () => {
+    it("is what a consumer or a format author uses, never the engine behind it", async () => {
+        const published = await import("../../src/styles/index.js");
+        expect(Object.keys(published).sort()).toEqual([
+            "CYTOSCAPE_IMPORT_KEY",
+            "MAX_STYLE_BLOCK_LENGTH",
+            "MAX_STYLE_RULES",
+            "STYLE_BLOCK_NAME",
+            "STYLE_ENUMS",
+            "STYLE_ISSUE",
+            "STYLE_PROPERTIES",
+            "TOOL_DEFAULTS",
+            "extractStyles",
+            "featuresOf",
+            "isStyleValue",
+            "planStyles",
+            "readCytoscapeStyles",
+            "resolveStyles",
+            "styleFingerprint",
+            "toCytoscapeStylesheet",
+            "toolDefaults",
+        ]);
+    });
 });
 
 describe("STYLE_ISSUE", () => {

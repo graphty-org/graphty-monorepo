@@ -21,7 +21,7 @@ import {
     styleFingerprint,
     type StyleProperty,
     writeStyleBlock,
-} from "../../src/styles/index.js";
+} from "../../src/styles/internal.js";
 import { handMade } from "./hand-made.js";
 import {
     corpusFiles,

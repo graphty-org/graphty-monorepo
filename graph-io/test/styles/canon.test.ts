@@ -20,7 +20,7 @@ import {
     styleLengthUnit,
     type StyleNoteCode,
     StyleNotes,
-} from "../../src/styles/index.js";
+} from "../../src/styles/internal.js";
 
 /** A fresh site for one value. */
 function site(element?: number): CanonSite & { notes: StyleNotes; budget: StyleBudget } {

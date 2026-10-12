@@ -20,16 +20,16 @@ import {
     planStyles,
     readCytoscapeStyles,
     resolveStyles,
+    STYLE_ISSUE,
     STYLE_PROPERTIES,
     StyleBudget,
-    STYLE_ISSUE,
     styleFingerprint,
     StyleNotes,
     type StyleProperty,
     type StyleTarget,
     type StyleValue,
     toCytoscapeStylesheet,
-} from "../../src/styles/index.js";
+} from "../../src/styles/internal.js";
 
 const CORPUS = resolve(import.meta.dirname, "../corpus/styles/cyjs");
 

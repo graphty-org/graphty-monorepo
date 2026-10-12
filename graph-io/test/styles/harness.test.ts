@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { extractStyles, type StyleRule } from "../../src/styles/index.js";
+import { extractStyles, type StyleRule } from "../../src/styles/internal.js";
 import { editJsonNodeFill } from "./formats/json.js";
 import {
     checkInput,

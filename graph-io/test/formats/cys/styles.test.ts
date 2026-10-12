@@ -15,7 +15,7 @@ import { cysImporter } from "../../../src/formats/cys/index.js";
 import type { SessionStyleSource } from "../../../src/formats/cys/styles.js";
 import { cellAtt } from "../../../src/formats/cys/tables.js";
 import { createRegistry } from "../../../src/registry.js";
-import { type ExtractedStyles, resolveStyles, type StyleRule } from "../../../src/styles/index.js";
+import { type ExtractedStyles, resolveStyles, type StyleRule } from "../../../src/styles/internal.js";
 import { changeSessionEntry } from "../../styles/formats/cytoscape-xml.js";
 
 const registry = createRegistry();

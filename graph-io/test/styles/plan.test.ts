@@ -21,7 +21,7 @@ import {
     type StyleValue,
     type StyleValues,
     toolDefaults,
-} from "../../src/styles/index.js";
+} from "../../src/styles/internal.js";
 import { isShortPredicate } from "../../src/styles/plan/resolve.js";
 
 /** A seeded generator, so every run tests the same inputs. */

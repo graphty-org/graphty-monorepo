@@ -20,7 +20,7 @@ import {
     resolveStyles,
     styleFingerprint,
     type StyleRule,
-} from "../../../src/styles/index.js";
+} from "../../../src/styles/internal.js";
 import { editGmlNodeFill, replaceGmlBlock } from "../../styles/formats/gml.js";
 
 const registry = createRegistry();

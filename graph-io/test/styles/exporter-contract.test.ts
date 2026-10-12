@@ -20,7 +20,7 @@ import {
     type StyleProperty,
     type StyleRule,
     styleTag,
-} from "../../src/styles/index.js";
+} from "../../src/styles/internal.js";
 import type { GraphExporter, LossNote } from "../../src/types.js";
 
 /**

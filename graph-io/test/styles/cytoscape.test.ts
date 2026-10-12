@@ -35,7 +35,7 @@ import {
     type StyleTarget,
     type StyleValue,
     typedKey,
-} from "../../src/styles/index.js";
+} from "../../src/styles/internal.js";
 
 const FIXTURES = resolve(import.meta.dirname, "../conformance/fixtures");
 

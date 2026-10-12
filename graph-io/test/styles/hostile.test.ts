@@ -21,7 +21,7 @@ import {
     StyleBudget,
     StyleNotes,
     type StyleTarget,
-} from "../../src/styles/index.js";
+} from "../../src/styles/internal.js";
 import { type GraphImporter, ImportError } from "../../src/types.js";
 import { loadCyjs } from "./formats/cyjs.js";
 import { checkStyles, importForStyles, type LoadedGraph, styleTruth } from "./harness.js";

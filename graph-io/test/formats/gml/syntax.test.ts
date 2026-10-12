@@ -249,8 +249,8 @@ describe("keys", () => {
 
 describe("the OGDF creator check", () => {
     it("finishes on a long comment banner of '#' characters", () => {
-        const banner = "#".repeat(200) + "\n" + "# ".repeat(150) + "\n";
-        const tokens = tokenizeGml(banner + "graph [ node [ id 1 ] ]");
+        const banner = `${"#".repeat(200)}\n${"# ".repeat(150)}\n`;
+        const tokens = tokenizeGml(`${banner}graph [ node [ id 1 ] ]`);
         expect(tokens.backslashEscapes).toBe(false);
     });
 

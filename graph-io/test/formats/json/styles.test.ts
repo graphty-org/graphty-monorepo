@@ -21,7 +21,7 @@ import {
     type StyleProperty,
     type StyleRule,
     type StyleTarget,
-} from "../../../src/styles/index.js";
+} from "../../../src/styles/internal.js";
 import { editJsonNodeFill, replaceJsonBlock } from "../../styles/formats/json.js";
 
 const registry = createRegistry();

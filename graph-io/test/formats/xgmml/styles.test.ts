@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import { XML_NESTING_CODE } from "../../../src/common/codes.js";
 import { createRegistry } from "../../../src/registry.js";
-import { type ExtractedStyles, resolveStyles, type StyleRule } from "../../../src/styles/index.js";
+import { type ExtractedStyles, resolveStyles, type StyleRule } from "../../../src/styles/internal.js";
 import { ImportError } from "../../../src/types.js";
 
 const registry = createRegistry();

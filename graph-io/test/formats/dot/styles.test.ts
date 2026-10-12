@@ -23,7 +23,7 @@ import {
     type StyleProperty,
     type StyleRule,
     type StyleTarget,
-} from "../../../src/styles/index.js";
+} from "../../../src/styles/internal.js";
 import { editDotNodeFill, replaceDotBlock } from "../../styles/formats/dot.js";
 
 const registry = createRegistry();

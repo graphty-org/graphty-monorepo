@@ -11,7 +11,7 @@ import { basename, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../../src/registry.js";
-import { type ExtractedStyles, resolveStyles, type StyleRule, type StyleValue } from "../../../src/styles/index.js";
+import { type ExtractedStyles, resolveStyles, type StyleRule, type StyleValue } from "../../../src/styles/internal.js";
 import { importForStyles, styleTruth } from "../../styles/harness.js";
 
 const registry = createRegistry();

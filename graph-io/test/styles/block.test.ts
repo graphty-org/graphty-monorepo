@@ -20,10 +20,12 @@ import {
     planStyles,
     resolveStyles,
     STYLE_BLOCK_NAME,
+    STYLE_ISSUE,
     styleFingerprint,
     styleTag,
     writeStyleBlock,
-} from "../../src/styles/index.js";
+} from "../../src/styles/internal.js";
+import { styleBlockLosses } from "../../src/styles/io/block.js";
 
 /**
  * A graph of six nodes in two groups with a weight per edge.
@@ -268,4 +270,71 @@ describe("an opaque color another program wrote over a translucent one graphty w
             ).toEqual([]);
         },
     );
+});
+
+describe("a block graphty writes that its reader would refuse", () => {
+    /**
+     * A graph whose fill is its node column `name`, passed through, and the styles that say so.
+     * @param name - the column's name
+     * @returns the graph and its styles
+     */
+    function passthrough(name: string): { snapshot: GraphSnapshot; styles: ExtractedStyles } {
+        const b = new GraphBuilder({ directed: false });
+        const col = b.declareNodeColumn({ name, dtype: "string" });
+        for (let i = 0; i < 4; i++) {
+            b.addNode(`n${String(i)}`);
+            b.setNodeValue(col, i, i < 2 ? "#ff0000" : "#0000ff");
+        }
+        const snapshot = b.freeze();
+        const base = styled(graph());
+        return {
+            snapshot,
+            styles: {
+                ...base,
+                styles: {
+                    ...base.styles,
+                    rules: [
+                        {
+                            id: "node.fill",
+                            target: "node",
+                            role: "passthrough",
+                            origin: "file",
+                            where: { all: true },
+                            map: { fill: { kind: "passthrough", by: { data: name } } },
+                        },
+                    ],
+                },
+                columns: { node: new Map(), edge: new Map() },
+                fingerprint: styleFingerprint(snapshot),
+            },
+        };
+    }
+
+    it("reads back a rule over a column named like a prototype key", () => {
+        const { snapshot, styles } = passthrough("constructor");
+        const text = writeStyleBlock(styles, { snapshot });
+        const parsed = parseStyleBlock(text, styleFingerprint(snapshot));
+        expect(parsed.ok).toBe(true);
+        expect(styleBlockLosses(text, 1)).toEqual([]);
+        const registry = createRegistry();
+        expect(registry.checkExport(snapshot, "graphml", { styles }).filter((l) => l.code.includes("STYLE"))).toEqual(
+            [],
+        );
+    });
+
+    it("warns, before writing, that a rule over a 300-character column name will not read back", () => {
+        const { snapshot, styles } = passthrough("x".repeat(300));
+        const text = writeStyleBlock(styles, { snapshot });
+        expect(parseStyleBlock(text, styleFingerprint(snapshot)).ok).toBe(false);
+        const losses = createRegistry().checkExport(snapshot, "graphml", { styles });
+        expect(losses.filter((l) => l.code === STYLE_ISSUE.RULES_NOT_KEPT)).toHaveLength(1);
+    });
+
+    it("warns that a block longer than the reader reads is not kept", () => {
+        const [loss] = styleBlockLosses("x".repeat(MAX_STYLE_BLOCK_LENGTH + 1), 3, "size");
+        expect(loss.code).toBe(STYLE_ISSUE.RULES_NOT_KEPT);
+        expect(loss.count).toBe(3);
+        expect(loss.message).toContain("TOO_LARGE");
+        expect(styleBlockLosses("{}", 3, "size")).toEqual([]);
+    });
 });

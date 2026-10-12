@@ -23,7 +23,7 @@ import {
     importGraph,
     registry,
 } from "../../src/registry.js";
-import { featuresOf, planStyles, resolveStyles, styleFingerprint } from "../../src/styles/index.js";
+import { featuresOf, planStyles, resolveStyles, styleFingerprint } from "../../src/styles/internal.js";
 import type { StyleReadContext } from "../../src/styles/types.js";
 import { type GraphImporter, ImportError, type ImportInput } from "../../src/types.js";
 import { digestFormat } from "./no-styles-digest.js";

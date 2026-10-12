@@ -19,10 +19,11 @@
  * prs.mjs) and the owner has not rejected the images, and to merge when every required check passed.
  */
 
+import { closingRefs } from "./merged.mjs";
 import { pushedBranches } from "./owners.mjs";
 import { failingRequired, prOf } from "./queue.mjs";
 
-/** @typedef {{branch: string | null, cwd: string, session: string | null}} PushTicket */
+/** @typedef {{branch: string | null, cwd: string, session: string | null, closes?: number[]}} PushTicket */
 
 /**
  * The push queue's tickets with their branch and session.
@@ -42,6 +43,19 @@ export function attributeTickets(tickets, { sessions, procs }) {
         }
         return { branch: pushedBranches(t.command)[0] ?? null, cwd: t.cwd, session };
     });
+}
+
+/**
+ * Adds to each ticket the issues its unpushed commits close (`Fixes #12` in a message), so an
+ * issue whose fix waits in the push queue is not handed to a second session before its pull
+ * request opens (issue #2085 was).
+ * @param {PushTicket[]} tickets the tickets
+ * @param {(cwd: string) => Promise<string>} messages the messages of a worktree's commits that are
+ *   not on the default branch, "" when they cannot be read
+ * @returns {Promise<PushTicket[]>} the tickets with `closes`
+ */
+export async function ticketCloses(tickets, messages) {
+    return Promise.all(tickets.map(async (t) => ({ ...t, closes: closingRefs(await messages(t.cwd)) })));
 }
 
 /**

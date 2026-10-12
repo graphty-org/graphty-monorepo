@@ -72,6 +72,19 @@ export function explicitRefs(text) {
 }
 
 /**
+ * The issues a text closes with a closing keyword (`fixes #12`, `Closes: #12`), as GitHub reads a
+ * pull request's description; `Refs #12` and `Part of #12` are left out.
+ * @param {string} text the commit message, or a title and body
+ * @returns {number[]} the issue numbers, ascending, without duplicates
+ */
+export function closingRefs(text) {
+    const nums = [...text.matchAll(EXPLICIT)]
+        .filter((m) => /^(close[sd]?|fix(es|ed)?|resolve[sd]?)$/i.test(m[1]))
+        .map((m) => Number(m[2]));
+    return [...new Set(nums)].sort((a, b) => a - b);
+}
+
+/**
  * The issues a pull request's title and body reference explicitly that it does not close (design
  * 5.1, the row "Fixed elsewhere but still open"). Numbers that are not open issues are dropped
  * when the refresh job is made.

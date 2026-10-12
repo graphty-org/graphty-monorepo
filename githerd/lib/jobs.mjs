@@ -70,6 +70,7 @@ import {
     prWork,
     readyIssues,
     SKIP,
+    workedOn,
 } from "./queue.mjs";
 import { promotionsDue, utcDay } from "./advisory.mjs";
 import { touches } from "./prs.mjs";
@@ -675,14 +676,25 @@ function endChangedDeferrals(state) {
 }
 
 /**
- * Cancels each issue job whose issue closed; a re-land or a promotion is not an issue's own job.
+ * Cancels each issue job whose issue closed, and each queued one nobody holds whose issue another
+ * session already fixes (an open pull request or a queued push, `workedOn`): offering it would
+ * have two sessions fix it at once. That one is withdrawn, so it is made again if the fix goes away.
+ * A re-land or a promotion is not an issue's own job.
  * @param {any} state the daemon state
  * @param {(job: any, reason: string) => void} cancel cancels a job whose cause ended
  */
 function cancelClosedIssueJobs(state, cancel) {
     for (const job of Object.values(state.jobs)) {
         if (job.kind !== "issue" || job.facts?.scope === "reland" || job.facts?.scope === "promote") continue;
-        if (state.issues?.byNumber?.[String(job.target).slice(1)]?.state === "closed") cancel(job, "the issue closed");
+        const n = Number(String(job.target).slice(1));
+        if (state.issues?.byNumber?.[n]?.state === "closed") cancel(job, "the issue closed");
+        else if (job.state === "queued" && !job.holder) {
+            const fix = workedOn(state, n);
+            if (fix) {
+                cancel(job, `${fix} already fixes #${n}`);
+                job.facts = { ...job.facts, withdrawn: true };
+            }
+        }
     }
 }
 

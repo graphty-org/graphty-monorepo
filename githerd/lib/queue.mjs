@@ -91,6 +91,20 @@ function openPrFor(state, number) {
 }
 
 /**
+ * What already works on an issue, or null: an open pull request (`openPrFor`), or a push waiting in
+ * the machine's push queue whose commits close it (`state.pushTickets`, waits.mjs).
+ * @param {any} state the daemon state
+ * @param {number} number the issue
+ * @returns {string | null} what, as "#12" or "a queued push of <branch>"
+ */
+export function workedOn(state, number) {
+    const pr = openPrFor(state, number);
+    if (pr !== null) return `#${pr}`;
+    const ticket = (state.pushTickets ?? []).find((/** @type {any} */ t) => t.closes?.includes(number));
+    return ticket ? `a queued push of ${ticket.branch ?? ticket.cwd}` : null;
+}
+
+/**
  * "41 days old", from a creation time.
  * @param {Date} now the current time
  * @param {string | null | undefined} iso the creation time
@@ -343,7 +357,7 @@ export function readyIssues(state, config, now) {
         if (!issueReady(state, issue, labels, config)) continue;
         const sortable = { number: Number(n), createdAt: issue.createdAt ?? null, next: ownerLabel(issue, NEXT) };
         if (missingLabelKinds(labels, config).length) triage.push(sortable);
-        else if (openPrFor(state, Number(n)) === null) {
+        else if (workedOn(state, Number(n)) === null) {
             const rank = rankIssue(issue, config, now);
             const typeTier = issueTypes(config).indexOf(rank.type ?? "");
             const referenced = masterRefs(state, Number(n)).length > 0;

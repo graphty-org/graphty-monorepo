@@ -862,6 +862,26 @@ describe("syncJobs: issues", () => {
         expect(sync(state).cancelled).toEqual([{ job: "issue-2", reason: "the issue closed" }]);
     });
 
+    it("withdraws a queued issue job whose fix waits in the push queue, and makes it again when the push goes", () => {
+        // 2026-10-12 (#2085): a session filed #2085 and queued its fix; githerd queued the issue,
+        // offered it while the push waited 90 minutes for a gate slot, and a second session fixed it.
+        const state = base();
+        issue(state, 2085, LABELED);
+        expect(sync(state).created).toEqual(["issue-2085"]);
+        state.pushTickets = [{ branch: "fix/a", cwd: "/r/.worktrees/fix-a", session: "s1", closes: [2085] }];
+        expect(sync(state).cancelled).toEqual([
+            { job: "issue-2085", reason: "a queued push of fix/a already fixes #2085" },
+        ]);
+        expect(sync(state).created).toEqual([]);
+        state.pushTickets = [];
+        expect(sync(state).created).toEqual(["issue-2085"]);
+        // A held job is its holder's: the push may be that session's own.
+        move(state.jobs["issue-2085"], "starting", NOW);
+        state.jobs["issue-2085"].holder = { session: "s1" };
+        state.pushTickets = [{ branch: "fix/a", cwd: "/r/.worktrees/fix-a", session: "s1", closes: [2085] }];
+        expect(sync(state).cancelled).toEqual([]);
+    });
+
     it("never makes a job of a tracking issue, and says why", () => {
         // 2026-10-08 (#1570): #1183 "SonarQube burn-down" lists its stages as other issues, has no
         // work of its own and must stay open, yet sat queued all day and was offered again and again.

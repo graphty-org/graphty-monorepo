@@ -158,7 +158,7 @@ import {
     readPushLog,
     scanTranscripts,
 } from "./owners.mjs";
-import { attributeTickets, mergeTarget, mergeWhat } from "./waits.mjs";
+import { attributeTickets, mergeTarget, mergeWhat, ticketCloses } from "./waits.mjs";
 import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
 import { advanceProposals, closedTargets, veto } from "./proposals.mjs";
 import {
@@ -2138,7 +2138,17 @@ export async function startDaemon({
         state.prInferred = inferOwners(state.prs ?? {}, { ...facts, disowned: state.prDisowned ?? {} });
         state.prActivity = prActivity(state.prs ?? {}, facts);
         // Which held jobs only wait to push (waits.mjs): the push queue's tickets, by branch and session.
-        state.pushTickets = attributeTickets(liveTickets(root), facts);
+        // ...and the issues their commits close, which no other session is offered meanwhile (queue.mjs).
+        const base = `origin/${state.master?.branch ?? "master"}`;
+        state.pushTickets = await ticketCloses(attributeTickets(liveTickets(root), facts), async (cwd) => {
+            // ponytail: reads the worktree's HEAD; a ticket pushing another ref names its issues late, at its PR
+            const r = await git(["log", "--format=%B", `${base}..HEAD`], {
+                cwd,
+                env: { ...env, GIT_TERMINAL_PROMPT: "0" },
+                timeoutMs: GIT_TIMEOUT_MS,
+            }).catch(() => ({ code: 1, stdout: "" }));
+            return r.code === 0 ? r.stdout : "";
+        });
         const lines = await askStep(state, {
             now: t,
             acting: writeMode("workers") === "acting",

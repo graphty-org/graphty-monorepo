@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { attributeTickets } from "../lib/waits.mjs";
+import { attributeTickets, ticketCloses } from "../lib/waits.mjs";
 
 describe("attributeTickets", () => {
     it("names each ticket's pushed branch and the session its process runs under", () => {
@@ -20,6 +20,20 @@ describe("attributeTickets", () => {
         expect(attributeTickets(tickets, facts)).toEqual([
             { branch: "feat/a", cwd: "/r/.worktrees/feat-a", session: "s1" },
             { branch: null, cwd: "/r/.worktrees/feat-b", session: null },
+        ]);
+    });
+});
+
+describe("ticketCloses", () => {
+    it("names the issues each ticket's commits close, not the ones they only reference", async () => {
+        const tickets = [
+            { branch: "fix/a", cwd: "/a", session: "s1" },
+            { branch: "fix/b", cwd: "/b", session: null },
+        ];
+        const messages = { "/a": "fix: x\n\nFixes #2085\nRefs #2062\n\nfeat: y\n\nCloses: #12\n", "/b": "" };
+        expect(await ticketCloses(tickets, async (cwd) => messages[cwd])).toEqual([
+            { branch: "fix/a", cwd: "/a", session: "s1", closes: [12, 2085] },
+            { branch: "fix/b", cwd: "/b", session: null, closes: [] },
         ]);
     });
 });

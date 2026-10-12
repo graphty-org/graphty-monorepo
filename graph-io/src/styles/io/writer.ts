@@ -464,6 +464,7 @@ function pairNotes(
  * @param tags.node - node values by attribute name
  * @param tags.edge - edge values by attribute name
  * @param block - the block's text
+ * @param rules - the rules written, which keep a style value column of an earlier write they read as data
  * @returns the snapshot to write (the same object when nothing changes)
  */
 function styledSnapshot(

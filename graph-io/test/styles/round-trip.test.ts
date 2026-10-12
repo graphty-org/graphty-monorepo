@@ -262,7 +262,7 @@ describe("what keeps styles across formats", () => {
     });
 });
 
-describe("a file graphty wrote whose block was set aside", async () => {
+describe("a file graphty wrote whose block was set aside", () => {
     const json = registered.find((f) => f.name === "json") ?? { name: "json" };
     const files = [
         "json/generated/graphology-tamper-node-added.json",

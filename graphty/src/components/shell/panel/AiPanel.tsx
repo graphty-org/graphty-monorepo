@@ -3,6 +3,7 @@ import type { AiApprovalRequest, AiQuestionRequest, AiVoiceConversationMode } fr
 import { ActionIcon, Box, Button, Group, Paper, Text, Textarea } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
+import { keyed } from "../../../utils/text";
 import { AiMessageBubble, type ChatMessage } from "../../ai/AiMessageBubble";
 import { approvalLines } from "../../ai/aiResultText";
 import { keyChipFor } from "../bindings";
@@ -261,8 +262,8 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
                             <Text size="sm" fw={600}>
                                 {APPROVAL_TITLE}
                             </Text>
-                            {approvalLines(request).map((line, index) => (
-                                <Text key={index} size="sm" c={PANEL_INK.CHROME} style={{ overflowWrap: "anywhere" }}>
+                            {keyed(approvalLines(request), (line) => line).map(({ key, item: line }) => (
+                                <Text key={key} size="sm" c={PANEL_INK.CHROME} style={{ overflowWrap: "anywhere" }}>
                                     {line}
                                 </Text>
                             ))}

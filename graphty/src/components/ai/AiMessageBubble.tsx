@@ -2,6 +2,8 @@ import { ActionIcon, Anchor, Box, Group, Paper, Text, Tooltip } from "@mantine/c
 import { AlertCircle, RefreshCw } from "lucide-react";
 import React from "react";
 
+import { keyed } from "../../utils/text";
+
 /** Chat message structure */
 export interface ChatMessage {
     id: string;
@@ -41,10 +43,10 @@ function webAddress(url: string): URL | undefined {
 function SourceList({ sources }: { readonly sources: NonNullable<ChatMessage["sources"]> }): React.JSX.Element {
     return (
         <Box component="ul" aria-label="Sources" data-testid="ai-message-sources" m={0} mt={2} pl="md">
-            {sources.map((source, index) => {
+            {keyed(sources, (source) => source.url).map(({ key, item: source }) => {
                 const address = webAddress(source.url);
                 return (
-                    <Text component="li" key={index} size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
+                    <Text component="li" key={key} size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
                         {address === undefined ? (
                             (source.title ?? source.url)
                         ) : (

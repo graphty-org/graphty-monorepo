@@ -336,7 +336,7 @@ const TOOL_WORDS: Readonly<Record<AiToolSwitch, { readonly label: string; readon
 };
 
 /** Why a switch is off-limits, by what graphty-element reported about the tool. */
-const UNAVAILABLE_WORDS: Readonly<Partial<Record<AiCapabilityStatus | (string & {}), string>>> = {
+const UNAVAILABLE_WORDS: Readonly<Partial<Record<string, string>>> = {
     unsupported: "Not available with your current provider.",
     "results-not-returned": "Your current provider does not share what this finds, so it cannot be used.",
 };

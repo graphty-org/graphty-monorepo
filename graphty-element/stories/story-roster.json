@@ -4,6 +4,7 @@
         "AI Control::Approvals",
         "AI Control::Default",
         "AI Control::Helpers",
+        "AI Control::LiveVoice",
         "AI Control::Question",
         "AI Control::RememberedConversation",
         "AI Control::RunCode",

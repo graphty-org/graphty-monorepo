@@ -1375,6 +1375,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getCapabilities: READ,
             talk: INPUT,
             stopSpeech: INPUT,
+            endLive: INPUT,
             getVoiceSupport: INPUT,
             listConversations: READ,
             openConversation: ASSISTANT,

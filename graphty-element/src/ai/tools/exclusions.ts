@@ -736,6 +736,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "answerQuestion",
             "talk",
             "stopSpeech",
+            "endLive",
             "getVoiceSupport",
             "openConversation",
             "newConversation",

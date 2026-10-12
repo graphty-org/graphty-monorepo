@@ -3,9 +3,11 @@
  * vitest run finished AND the reports it asks for were written (issue #2116).
  */
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { copyFileSync, mkdtempSync, mkdirSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
 import { SHARDS } from "./ci-test-matrix.mjs";
@@ -78,6 +80,39 @@ describe("what each CI shard command is expected to produce", () => {
             utimesSync(blob, 1000, 1000);
             assert.match(checkShard(shard, 0, SUMMARY, root, 2_000_000).cause, /no report written/);
             assert.deepEqual(checkShard(shard, 0, SUMMARY, root, 0), { pass: true });
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("tools/run-tests.sh", () => {
+    // Issue #2197: the shard log lived in /tmp, another process removed it while the shard ran, and
+    // the verdict failed a passing shard with ENOENT. The fake shard below empties TMPDIR mid-run.
+    it("keeps the shard log in the checkout's tmp/, so emptying TMPDIR mid-run cannot fail the shard", () => {
+        const here = dirname(fileURLToPath(import.meta.url));
+        const root = mkdtempSync(join(tmpdir(), "run-tests-"));
+        try {
+            mkdirSync(join(root, "tools"));
+            for (const f of ["run-tests.sh", "shard-verdict.mjs"]) copyFileSync(join(here, f), join(root, "tools", f));
+            const command = [
+                'rm -rf "$TMPDIR"/* "$TMPDIR"/.[!.]*',
+                "ls -d tmp/run-tests/fake.*/output.log",
+                "printf ' Test Files  1 passed (1)\\n'",
+            ].join("; ");
+            writeFileSync(
+                join(root, "tools/ci-test-matrix.mjs"),
+                `export const SHARDS = [{ shard: "fake", "test-command": ${JSON.stringify(command)} }];\n`,
+            );
+            const temp = join(root, "system-tmp");
+            mkdirSync(temp);
+            const r = spawnSync("bash", [join(root, "tools/run-tests.sh"), "fake"], {
+                encoding: "utf8",
+                env: { ...process.env, TMPDIR: temp },
+            });
+            assert.equal(r.status, 0, r.stdout + r.stderr);
+            assert.match(r.stdout, /^tmp\/run-tests\/fake\.[^/]+\/output\.log$/m);
+            assert.deepEqual(readdirSync(join(root, "tmp/run-tests")), [], "the run removes its own log");
         } finally {
             rmSync(root, { recursive: true, force: true });
         }

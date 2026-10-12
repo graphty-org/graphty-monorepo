@@ -469,14 +469,11 @@ export function insightCandidates(shape: InsightsGraphShape): readonly InsightCa
             candidates.push(narrowViewCard());
         }
 
-        candidates.push(componentCard());
-        candidates.push(degreeCard());
-
         // Spec 7.3: "Between the threshold and 1M nodes Find groups may appear as a
         // fourth card only when its label-propagation estimate is under 60 s." The gate
-        // below refuses it outright when the element said nothing about it, so pushing it
-        // here is safe.
-        candidates.push(communityCard());
+        // below refuses it outright when the element said nothing about it, so pushing the
+        // community card here is safe.
+        candidates.push(componentCard(), degreeCard(), communityCard());
     } else {
         // Rule 1.
         if (shape.validationIssueTypeCount > 0) {

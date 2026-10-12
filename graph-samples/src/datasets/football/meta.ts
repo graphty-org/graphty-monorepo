@@ -16,5 +16,5 @@ export const footballMeta: DatasetMeta = {
     weighted: false,
     attributes: { label: "string: the team", conference: "dict: the team's 2000 conference (ground truth)" },
     groundTruth: "conference",
-    showcases: ["community detection scored against the conferences", "spring layout coloured by conference"],
+    showcases: ["community detection scored against the conferences", "spring layout colored by conference"],
 };

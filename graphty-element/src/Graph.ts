@@ -375,7 +375,7 @@ export class Graph implements GraphContext {
     private wasSettled = false; // Track previous settlement state
     /** How many loads `addDataFromSource` has started; the last one's id. */
     private loadCount = 0;
-    private resizeHandler = (): void => {
+    private readonly resizeHandler = (): void => {
         this.engine.resize();
         // If we've already zoomed to fit, re-zoom after resize to ensure content still fits
         // if (this.updateManager.zoomToFitCompleted) {
@@ -424,7 +424,7 @@ export class Graph implements GraphContext {
     /** Told the node label counts once the view is still and they changed. */
     readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
-    private lifecycleManager: LifecycleManager;
+    private readonly lifecycleManager: LifecycleManager;
     /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
     private readonly managers: Map<string, Manager>;
     /** Whether input is mocked, kept so the input manager can be rebuilt on the renderer chosen at init. */
@@ -435,11 +435,11 @@ export class Graph implements GraphContext {
     #rendererStatus: RendererStatus | null = null;
     /** Set when {@link Graph.init} starts opening the renderer; from then on the request is fixed. */
     #rendererChosen = false;
-    private dataManager: DataManager;
-    private layoutManager: LayoutManager;
-    private statsManager: StatsManager;
-    private updateManager: UpdateManager;
-    private algorithmManager: AlgorithmManager;
+    private readonly dataManager: DataManager;
+    private readonly layoutManager: LayoutManager;
+    private readonly statsManager: StatsManager;
+    private readonly updateManager: UpdateManager;
+    private readonly algorithmManager: AlgorithmManager;
     private inputManager: InputManager;
     /** While an immersive session is active: its mode and when it started, stamped on steps. */
     private immersiveSince: string | null = null;
@@ -459,7 +459,7 @@ export class Graph implements GraphContext {
         this.updateManager.frameIsStable && (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
-    private selectionManager: SelectionManager;
+    private readonly selectionManager: SelectionManager;
 
     /**
      * What the session's style stack resolved for each element, and which stack owns the paint.

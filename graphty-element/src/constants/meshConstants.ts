@@ -5,6 +5,10 @@ export const SHAPE_CONSTANTS = {
     TORUSKNOT_TUBE_MULTIPLIER: 0.2,
     TORUSKNOT_RADIAL_SEGMENTS: 128,
     ICOSPHERE_RADIUS_MULTIPLIER: 0.75,
+    // A capsule is `size` tall (caps included) and `size / 2` wide; a torus ring is `size` across
+    // its centre line and `size / 2` thick. At size 1 these are Babylon's own defaults.
+    CAPSULE_RADIUS_MULTIPLIER: 0.25,
+    TORUS_THICKNESS_MULTIPLIER: 0.5,
 } as const;
 
 export enum PolyhedronType {

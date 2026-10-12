@@ -311,8 +311,8 @@ export async function runLayoutExactBenchmarks(ctx: GpuContext): Promise<BenchRe
                 },
                 { device: ctx.device, items: pairs, unit: "pairs" },
             );
-            results.push(wall);
             results.push(
+                wall,
                 reportedRow(
                     LAYOUT_EXACT_GROUP,
                     `ms/iteration (${source}) n=${rung.nodes} [${rung.label}]`,

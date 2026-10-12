@@ -4322,6 +4322,8 @@ export const SHAPE_CONSTANTS: {
     readonly TORUSKNOT_TUBE_MULTIPLIER: 0.2;
     readonly TORUSKNOT_RADIAL_SEGMENTS: 128;
     readonly ICOSPHERE_RADIUS_MULTIPLIER: 0.75;
+    readonly CAPSULE_RADIUS_MULTIPLIER: 0.25;
+    readonly TORUS_THICKNESS_MULTIPLIER: 0.5;
 };
 
 // @public (undocumented)

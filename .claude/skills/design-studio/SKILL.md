@@ -259,7 +259,10 @@ Each rule below exists because breaking it cost a run.
 - **Land with the fewest pull requests.** Every pull request costs a screenshot review, a CI run and
   queue time; the studio branch lands as one.
 - **Commits must really run the hooks.** Agents skip only the interactive `prepare-commit-msg`, by
-  copying the WHOLE `.husky/` folder to a temp dir, deleting its `prepare-commit-msg` and passing
-  `-c core.hooksPath=<tmp>/_`. Husky's `.husky/_/h` runs the hook script one folder above itself,
+  copying the WHOLE `.husky/` folder to a fixed path of their own under the worktree's
+  `tmp/<task>/hooks`, deleting its `prepare-commit-msg` and passing
+  `-c core.hooksPath=<that path>/_`. Never `mktemp` it into `/tmp` and never find it again with
+  `ls -t /tmp/tmp.*`: the newest `/tmp/tmp.*` is often another process's file, and on 2026-10-12
+  a studio agent deleted a pre-push gate's shard log that way and failed a passing gate (#2197). Husky's `.husky/_/h` runs the hook script one folder above itself,
   so the older recipe (copy only `.husky/_`) skipped the secret scan, formatting and commit-message
   checks without a word on every studio commit until 2026-10-08.

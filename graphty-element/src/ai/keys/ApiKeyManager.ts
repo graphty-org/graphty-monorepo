@@ -120,7 +120,7 @@ interface DerivedKey {
  * more; the first save replaces them.
  */
 export class ApiKeyManager {
-    private keys = new Map<ProviderType, string>();
+    private readonly keys = new Map<ProviderType, string>();
     private defaultProvider: ProviderType | null = null;
     private persistenceConfig: Required<PersistenceConfig> | null = null;
     private readonly storage: StorageType;

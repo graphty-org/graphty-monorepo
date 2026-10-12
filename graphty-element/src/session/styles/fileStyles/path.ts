@@ -107,7 +107,15 @@ export function parseFileStylePath(path: Path): FileStylePathParts | undefined {
  * @returns The namespace.
  */
 export function fileStyleNamespace(format: string, taken: ReadonlySet<string>): string {
-    const base = format.toLowerCase().replaceAll(/[^a-z0-9_-]/g, "-");
+    // A format id of any spelling (a registered reader's own) becomes a valid namespace: no
+    // leading `_` or `-`, at most 56 characters so a `-N` suffix still fits in 64, `file` when
+    // nothing is left.
+    const base =
+        format
+            .toLowerCase()
+            .replaceAll(/[^a-z0-9_-]/g, "-")
+            .replace(/^[_-]+/, "")
+            .slice(0, 56) || "file";
     if (!taken.has(base)) {
         return base;
     }

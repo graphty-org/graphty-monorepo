@@ -45,6 +45,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `styles.tree()` plus addFolder, renameRow, moveRow, pinRow, lockRow, hideRow, deleteRow; error
   `E_LOCKED`; saved as `StyleDocument.tree`. The app's panel reads rows from it and never orders
   layers itself. Not yet exercised in a browser or by the renderer twin of the history fixtures.
+  (2026-10-12, rechecked) Only two row kinds, layer and folder; split children are ordinary
+  layers under a folder, so no "split parent" row exists. `styles-tree.test.ts` stays green (7)
+  with the split-to-values rename in flight; a run mid-rename fails on a missing `./split`
+  import, which is the other agent's half-built state, not a tree defect -- wait and rerun.
 - (2026-10-12) **Split by value is built in the element** (`styles.split`, `unsplit`,
   `setSplitOverride`, `splitChildren`; `session/styles/split.ts`). A child's override is the
   parent binding's `map` entry, so palettes reach every other child and unsplit is free; a re-run of

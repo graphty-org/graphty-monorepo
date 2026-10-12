@@ -84,8 +84,6 @@ interface FormatStatics {
 
 type DataSourceClass = (new (opts: object) => DataSource) & FormatStatics;
 
-/** The JSON dialects whose styles are kept under the dialect's own name rather than `json`. */
-const JSON_DIALECTS: ReadonlySet<string> = new Set(["cytoscape-js", "graphology", "vis"]);
 // Shared with every other copy of graphty-element on the page, so a plugin registered through one
 // reaches them all.
 const dataSourceRegistry = new SharedImplementationMap<DataSourceClass>("format");
@@ -733,8 +731,10 @@ export abstract class DataSource {
      * pays nothing.
      *
      * Every reader built on a graph-io importer answers it, the element's own and those made with
-     * {@link DataSource.fromImporter} alike, by calling the importer's `styles()`. A reader that
-     * parses a file itself overrides it to say what styles it read, or leaves it answering null.
+     * {@link DataSource.fromImporter} alike, by calling the importer's `styles()`; a reader that
+     * parses a file itself answers null. Not an extension point: a format gets styles by being
+     * read with a graph-io importer.
+     * @internal
      * @param options - Whether the defaults of the program that wrote the file are added (true
      *     by default), and a cancel signal.
      * @param options.toolDefaults - Whether the writing program's defaults are added.
@@ -764,7 +764,8 @@ export abstract class DataSource {
             extracted,
             snapshot: imported.snapshot,
             path: (kind, column) => held.path(kind, column),
-            format: format === "json" && dialect !== null && JSON_DIALECTS.has(dialect) ? dialect : format,
+            // A JSON dialect graph-io names (it names none for plain JSON) keeps its styles under its own name.
+            format: format === "json" && dialect !== null ? dialect : format,
         };
     }
 

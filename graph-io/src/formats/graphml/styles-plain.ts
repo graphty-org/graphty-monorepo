@@ -154,7 +154,13 @@ export function graphmlStyles(snapshot: GraphSnapshot, context: StyleReadContext
     }
     if (hasRgb(snapshot.nodes)) {
         const gephi = readGephi(snapshot, notes, context);
-        const { rules, columns } = gephiRules(snapshot, gephi.node.fill, gephi.edge.color, context.budget);
+        const { rules, columns } = gephiRules(
+            snapshot,
+            gephi.node.fill,
+            gephi.edge.color,
+            context.budget,
+            gephi.edge.width,
+        );
         const used = (table: GraphSnapshot["nodes"]): string[] => GEPHI_COLUMNS.filter((c) => table.has(c));
         return {
             canonical: true,

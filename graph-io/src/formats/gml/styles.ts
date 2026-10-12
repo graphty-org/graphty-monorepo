@@ -615,7 +615,7 @@ export function gmlStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
     }
     const gephi =
         writer.tool === "gephi"
-            ? gephiRules(snapshot, values.node.fill, values.edge.color, context.budget)
+            ? gephiRules(snapshot, values.node.fill, values.edge.color, context.budget, values.edge.width)
             : { rules: [], columns: new Map<string, StyleColumn>() };
     return {
         canonical: true,

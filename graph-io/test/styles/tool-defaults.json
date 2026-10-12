@@ -220,6 +220,9 @@
                 "kind": "colorFromSourceNode"
             },
             {
+                "kind": "widthFromWeight"
+            },
+            {
                 "kind": "targetArrowOnDirected",
                 "arrow": "triangle"
             }

@@ -42,6 +42,7 @@ const REASONS: Readonly<Record<Named<FileStyleReason>, true>> = {
     STYLE_CLASS: true,
     LAYER_CAP: true,
     SOURCE_NODE_COLOR: true,
+    EDGE_WEIGHT: true,
     NODE_NAME: true,
     FUNCTION: true,
     BUDGET: true,

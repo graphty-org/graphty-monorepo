@@ -230,6 +230,13 @@ import itself sets node size and label colors.
 | Edge labels         | hidden; Preview Arial plain 10, original color                                                                                                                                                                       | `VizConfig.java:114`; `DefaultPreset.java:76-77, 105`                                                                                                                                   |
 | Background          | `#FFFFFF` (Overview dark theme: rgb 52,55,57)                                                                                                                                                                        | `VizConfig.java:111-112`; `DefaultPreset.java:63`                                                                                                                                       |
 
+How graph-io applies this: an edge with no thickness in the file is drawn as thick as its weight
+(1 for an edge with no weight), a derived default like the source-node color. An edge whose file gives
+it a `viz:thickness` keeps that thickness. Gephi's importer does not read `viz:thickness`, but the
+GEXF specification defines it and the other programs that draw GEXF files (sigma.js, gexf-js) draw
+it, and it is the only place a file states a thickness on purpose; drawing the weight there instead
+would throw that statement away.
+
 ## 7. vis-network (vis JSON)
 
 Version 10.1.2 (npm; local `src/vis-network.esm.js`, the `peer/esm` build). Node defaults at

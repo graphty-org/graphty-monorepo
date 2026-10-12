@@ -49,6 +49,12 @@ export type ToolDerivedDefault =
           readonly source: string;
       }
     | {
+          /** An edge with no width of its own is drawn as thick as its weight (1 for an edge with no weight). */
+          readonly kind: "widthFromWeight";
+          /** Where the default is stated. */
+          readonly source: string;
+      }
+    | {
           /** A directed edge gets an arrow at its target end; an undirected edge keeps the constant default. */
           readonly kind: "targetArrowOnDirected";
           /** The arrow. */
@@ -332,6 +338,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     {
                         kind: "colorFromSourceNode",
                         source: `${GEPHI} VizConfig.java line 119 (EdgeColorMode.SOURCE)`,
+                    },
+                    {
+                        kind: "widthFromWeight",
+                        source: `${GEPHI} VizConfig.java lines 136, 144-145; DefaultPreset.java lines 67, 73`,
                     },
                     {
                         kind: "targetArrowOnDirected",

@@ -70,6 +70,7 @@ export const STYLE_REASON_WORDS: Readonly<Record<string, string>> = {
     STYLE_CLASS: "grouped by the styles elements share",
     LAYER_CAP: "combined to keep the number of layers small",
     SOURCE_NODE_COLOR: "each edge takes its source node's color, as the program draws it",
+    EDGE_WEIGHT: "each edge is as thick as its weight, as the program draws it",
     NODE_NAME: "each node without a label shows its name, as the program draws it",
     FUNCTION: "the file computes them with a function",
     BUDGET: "they took too long to explain",

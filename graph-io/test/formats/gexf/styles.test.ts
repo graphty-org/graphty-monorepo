@@ -101,6 +101,16 @@ describe("GEXF styles: reading", () => {
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["none", "none"]);
     });
 
+    it("draws an edge with no thickness as thick as its weight, as Gephi does, and one with a thickness with it", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes><node id="a"/><node id="b"/></nodes>
+            <edges><edge source="a" target="b" weight="3"/><edge source="b" target="a"/>
+            <edge source="a" target="a" weight="5"><viz:thickness value="2"/></edge></edges></graph></gexf>`,
+        );
+        expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([3, 1, 2]);
+        expect(styles.styles.rules.find((r) => r.facts?.reason === "EDGE_WEIGHT")).toMatchObject({ origin: "tool" });
+    });
+
     it("leaves out every Gephi default, the derived ones too, with toolDefaults: false", async () => {
         const { styles } = await load(
             `<gexf version="1.3"><graph defaultedgetype="directed"><nodes><node id="a"/><node id="b"/></nodes>

@@ -1231,10 +1231,10 @@ export async function startDaemon({
             if (detail.files.includes("nx.json")) detail.nxReleaseChanged = await nxReleaseChanged(node);
         }
         if (config.ownerGate) {
-            const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
-            const failing = contexts.filter(
+            // The newest run of each check only: a draft-event run's "CI not run" failure beside the
+            // ready run's made two failures, so the gate's steps were never read again (#2144).
+            const failing = newestCheckRuns(node).filter(
                 (c) =>
-                    c.__typename === "CheckRun" &&
                     config.requiredChecks.includes(c.name) &&
                     c.status === "COMPLETED" &&
                     !["SUCCESS", "NEUTRAL", "SKIPPED"].includes(c.conclusion),

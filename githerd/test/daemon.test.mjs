@@ -1989,6 +1989,21 @@ describe("the poll loop", () => {
         expect(gh.writes()).toEqual([]);
     });
 
+    it("reads the gate's steps from the newest run when an older draft run also failed", async () => {
+        writeConfig({
+            requiredChecks: ["All Checks Pass"],
+            ownerGate: { steps: ["^Check visual changes were accepted$"], rejectMarker: "visual-review-rejects" },
+        });
+        const pr = gatedPr();
+        const ready = pr.commits.nodes[0].commit.statusCheckRollup.contexts.nodes[0];
+        pr.commits.nodes[0].commit.statusCheckRollup.contexts.nodes.unshift({ ...ready, databaseId: 554 });
+        scene.prs = [pr];
+        scene.job = { 554: { steps: [{ name: "Check all jobs passed", conclusion: "failure" }] } };
+        const daemon = await start();
+        await poll(daemon);
+        expect(daemon.state.prs["7"]).toMatchObject({ ownerGate: true, gateJob: 555 });
+    });
+
     it("takes the reject marker from the owner's comments only", async () => {
         writeConfig({
             requiredChecks: ["All Checks Pass"],

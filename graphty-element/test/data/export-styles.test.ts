@@ -251,6 +251,20 @@ describe("what an export cannot keep", () => {
         session.dispose();
     });
 
+    it("reports nothing lost for a graph drawn only by the element's own base layers", async () => {
+        const session = await chain();
+        for (const format of ["csv", "gexf", "graphml", "pajek"]) {
+            const result = exportSession(session, format, { styles: true });
+            assert.deepEqual(
+                result.losses.filter((loss) => loss.code.startsWith("W_STYLE")).map((loss) => loss.code),
+                [],
+                format,
+            );
+        }
+
+        session.dispose();
+    });
+
     it("leaves the drawn style columns out when styles are written", async () => {
         const session = await styled();
         const view = {

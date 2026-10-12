@@ -52,7 +52,7 @@ import {
     type XGMML_LOSS,
     xgmmlExporter,
 } from "@graphty/graph-io";
-import { type ExtractedStyles, STYLE_ISSUE } from "@graphty/graph-io/styles";
+import { type ExtractedStyles, STYLE_ISSUE, type StyleRule } from "@graphty/graph-io/styles";
 
 import { formatDescriptor, NEO4J_WRITER_OPTIONS } from "../catalog/formats";
 import { resolveOptionValues } from "../catalog/options";
@@ -851,6 +851,39 @@ function lossOf(note: ElementLossNote): ExportLoss {
 }
 
 /**
+ * The style losses of an export, less those about the element's own base layers: loading the file
+ * into graphty draws the same base again, so a property only they paint is not lost, and their
+ * rules are not rules a reader made.
+ * @param checked - The notes graph-io gave.
+ * @param styles - The styles written.
+ * @returns The notes that name something lost.
+ */
+function withoutBaseLosses(checked: readonly LossNote[], styles: ExtractedStyles): LossNote[] {
+    const isBase = (rule: StyleRule): boolean =>
+        styles.styles.source.tool === "graphty" && rule.role === "defaults" && rule.origin === "tool";
+    const writes = (rule: StyleRule, property: string): boolean =>
+        Object.hasOwn(rule.set ?? {}, property) || Object.hasOwn(rule.map ?? {}, property);
+    const baseOnly = (target: string, property: string): boolean => {
+        const writers = styles.styles.rules.filter((rule) => rule.target === target && writes(rule, property));
+        return writers.length > 0 && writers.every(isBase);
+    };
+    const baseRules = styles.styles.rules.filter(isBase).length;
+    const out: LossNote[] = [];
+    for (const note of checked) {
+        if (note.code === STYLE_ISSUE.RULES_NOT_KEPT && note.count !== null) {
+            const count = note.count - baseRules;
+            if (count > 0) {
+                out.push(Object.freeze({ ...note, count }));
+            }
+        } else if (note.style === undefined || !baseOnly(note.style.target, note.style.property)) {
+            out.push(note);
+        }
+    }
+
+    return out;
+}
+
+/**
  * Check a snapshot with a chosen writer and hand back the result.
  * @param writer - The writer.
  * @param snapshot - What to write.
@@ -881,7 +914,10 @@ function writeWith(
         throw writerFailure(error, format);
     }
 
-    const lossNotes = Object.freeze([...notes, ...checked]);
+    const lossNotes = Object.freeze([
+        ...notes,
+        ...(styles === undefined ? checked : withoutBaseLosses(checked, styles)),
+    ]);
     return {
         format,
         losses: Object.freeze(lossNotes.map(lossOf)),

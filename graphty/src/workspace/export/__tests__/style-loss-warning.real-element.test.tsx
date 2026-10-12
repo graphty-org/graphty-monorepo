@@ -172,4 +172,41 @@ describe("Export warns before the graph's styles are lost", () => {
             assert.strictEqual(options?.styles, true);
         }
     });
+
+    it("saves CSV and GEXF of a graph with no layers of its own at once, with no warning", async () => {
+        const saved = catchDownloads();
+        render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
+        let session: GraphSession | undefined;
+        await waitFor(
+            () => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.addNodes(NODES);
+        await session.data.addEdges(EDGES);
+
+        const dialog = await openData();
+        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await screen.findByText("Exported untitled_nodes.csv", {}, { timeout: TIMEOUT_MS });
+        assert.isNull(screen.queryByRole("alertdialog"));
+
+        const again = await openData();
+        await userEvent.click(within(again).getByLabelText("Format"));
+        await userEvent.click(await screen.findByRole("option", { name: /^GEXF/ }));
+        await waitFor(() => {
+            assert.include(within(again).getByLabelText("Preview of the exported data").textContent, "<gexf");
+        });
+        await userEvent.click(within(again).getByRole("button", { name: "Export" }));
+        await screen.findByText("Exported untitled_graph.gexf", {}, { timeout: TIMEOUT_MS });
+        assert.isNull(screen.queryByRole("alertdialog"));
+        assert.deepEqual(
+            saved.map(({ name }) => name),
+            ["untitled_nodes.csv", "untitled_graph.gexf"],
+        );
+    });
 });

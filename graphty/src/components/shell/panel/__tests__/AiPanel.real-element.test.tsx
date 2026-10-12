@@ -435,7 +435,7 @@ describe("the AI panel on the real element", () => {
         const card = await screen.findByRole("group", { name: "Approve this change?" }, { timeout: TIMEOUT_MS });
         assert.include(
             card.textContent,
-            "The assistant read web content in this conversation. Approve only a change you asked for.",
+            "The assistant read web content in this conversation. Approve only what you asked for.",
         );
         assert.strictEqual(second.session.status.counts.nodes, 3, "nothing ran before the approval");
 

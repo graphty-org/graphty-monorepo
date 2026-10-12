@@ -47,22 +47,15 @@ function readToolSwitches(): AiToolSwitches {
 }
 
 /**
- * The `tools` option for the switches that are on.
+ * The `tools` option: the switches that are on, and a change the model makes after reading the web
+ * waits for the reader's approval (also in a conversation that read it before a switch went off).
  * @param switches - The reader's choices.
- * @returns The option, or undefined when every switch is off (the element's own default).
+ * @returns The option.
  */
-function toolOptions(switches: AiToolSwitches): AiToolOptions | undefined {
+function toolOptions(switches: AiToolSwitches): AiToolOptions {
     const on = AI_TOOL_SWITCHES.filter((entry) => switches[entry.name]);
-    return on.length === 0 ? undefined : Object.fromEntries(on.map((entry) => [entry.name, true]));
+    return { ...Object.fromEntries(on.map((entry) => [entry.name, true])), webContentWrites: "ask" };
 }
-
-/**
- * The app's approval setting: it asks the reader about nothing itself. A policy (one that allows
- * every call) rather than `"none"` is what makes the element hold a change the model makes after
- * reading the web for the reader's approval, instead of refusing it.
- * @returns "allow".
- */
-const ALLOW_EVERY_CALL = (): "allow" => "allow";
 
 /** What the element answered, or why the hook could not ask it. */
 export type AiCommandOutcome = ExecutionResult & { readonly error?: Error };
@@ -151,8 +144,15 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
     const [toolSwitches, setToolSwitches] = useState<AiToolSwitches>(readToolSwitches);
     const [capabilities, setCapabilities] = useState<AiCapabilities | null>(null);
     const [capabilityNotices, setCapabilityNotices] = useState<readonly AiHistoryNotice[]>([]);
-    // The tools already noticed: the element reports a left-out tool again after every enable.
+    // The tools already noticed for this provider: the element reports a left-out tool again
+    // after every enable, and a switch turned on enables it again.
     const noticed = useRef(new Set<string>());
+
+    // Another provider lacks other tools: what was noticed about the last one no longer holds.
+    useEffect(() => {
+        noticed.current.clear();
+        setCapabilityNotices([]);
+    }, [currentProvider]);
 
     // Sync currentProvider with defaultProvider when it changes
     // This is needed because useState only uses defaultProvider as initial value
@@ -209,16 +209,16 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
                     apiKey: getKey?.(provider),
                     history: "browser",
                     questions: true,
-                    approvals: { policy: ALLOW_EVERY_CALL },
-                    ...(tools === undefined ? {} : { tools }),
+                    tools,
                 });
             } catch (err) {
                 console.error("[useAiManager] Failed to enable the assistant:", err);
                 return;
             }
 
+            // Switched off, or switched on again, while it settled: the element has already let a
+            // later call decide, and nothing here is wired to this one.
             if (cancelled) {
-                target.disableAiControl();
                 return;
             }
 

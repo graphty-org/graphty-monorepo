@@ -98,7 +98,7 @@ describe("useAiManager", () => {
             apiKey: undefined,
             history: "browser",
             questions: true,
-            approvals: { policy: expect.any(Function) },
+            tools: { webContentWrites: "ask" },
         });
     });
 
@@ -120,7 +120,7 @@ describe("useAiManager", () => {
                 apiKey: "test-api-key",
                 history: "browser",
                 questions: true,
-                approvals: { policy: expect.any(Function) },
+                tools: { webContentWrites: "ask" },
             });
         });
 
@@ -139,7 +139,7 @@ describe("useAiManager", () => {
                     apiKey: undefined,
                     history: "browser",
                     questions: true,
-                    approvals: { policy: expect.any(Function) },
+                    tools: { webContentWrites: "ask" },
                 });
             });
         });
@@ -539,7 +539,7 @@ describe("useAiManager", () => {
     });
 
     describe("the optional tools", () => {
-        it("starts with every tool off and passes no tools to the element", async () => {
+        it("starts with every tool off, and asks the reader about a change after web content", async () => {
             const { useAiManager } = await import("../useAiManager");
             const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
 
@@ -547,7 +547,7 @@ describe("useAiManager", () => {
                 expect(result.current.isReady).toBe(true);
             });
             expect(result.current.toolSwitches).toEqual({ webSearch: false, webFetch: false, inPageCode: false });
-            expect(mockDoors.enableAiControl.mock.calls[0][0]).not.toHaveProperty("tools");
+            expect(mockDoors.enableAiControl.mock.calls[0][0]).toHaveProperty("tools", { webContentWrites: "ask" });
         });
 
         it("saves a switch, and switches the assistant on again with that tool", async () => {
@@ -563,7 +563,7 @@ describe("useAiManager", () => {
 
             await waitFor(() => {
                 expect(mockDoors.enableAiControl).toHaveBeenLastCalledWith(
-                    expect.objectContaining({ tools: { inPageCode: true } }),
+                    expect.objectContaining({ tools: { inPageCode: true, webContentWrites: "ask" } }),
                 );
             });
             expect(localStorage.getItem("graphty.ai.inPageCode.v1")).toBe("on");
@@ -577,7 +577,7 @@ describe("useAiManager", () => {
 
             await waitFor(() => {
                 expect(mockDoors.enableAiControl).toHaveBeenCalledWith(
-                    expect.objectContaining({ tools: { webSearch: true } }),
+                    expect.objectContaining({ tools: { webSearch: true, webContentWrites: "ask" } }),
                 );
             });
         });
@@ -626,6 +626,78 @@ describe("useAiManager", () => {
                     params: { provider: "mock", model: "mock", tool: "web-search" },
                 },
             ]);
+        });
+
+        it("notices a tool the next provider also lacks, after the reader switches provider", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            const unavailable = (provider: string): void => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-capability-unavailable", {
+                        detail: {
+                            tool: "web-fetch",
+                            code: "AI_HOSTED_TOOL_UNSUPPORTED",
+                            params: { provider, model: "m", tool: "web-fetch" },
+                        },
+                    }),
+                );
+            };
+            act(() => {
+                unavailable("mock");
+            });
+
+            act(() => {
+                result.current.setProvider("openai");
+            });
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenLastCalledWith(
+                    expect.objectContaining({ provider: "openai" }),
+                );
+            });
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            act(() => {
+                unavailable("openai");
+            });
+
+            expect(result.current.capabilityNotices).toEqual([
+                { code: "AI_HOSTED_TOOL_UNSUPPORTED", params: { provider: "openai", model: "m", tool: "web-fetch" } },
+            ]);
+        });
+
+        it("a switch flipped while the assistant is still switching on never switches the newer one off", async () => {
+            let settleFirst = (): void => undefined;
+            const first = new Promise<void>((resolve) => {
+                settleFirst = resolve;
+            });
+            mockDoors.enableAiControl.mockImplementationOnce(() => first);
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenCalledTimes(1);
+            });
+
+            act(() => {
+                result.current.setToolSwitch("webSearch", true);
+            });
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            const offs = mockDoors.disableAiControl.mock.calls.length;
+
+            // The hook awaits `first` before this test does, so its continuation has run once this
+            // await returns.
+            await act(async () => {
+                settleFirst();
+                await first;
+            });
+
+            expect(mockDoors.disableAiControl.mock.calls.length).toBe(offs);
+            expect(result.current.isReady).toBe(true);
         });
     });
 });

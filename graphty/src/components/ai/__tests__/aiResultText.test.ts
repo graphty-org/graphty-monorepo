@@ -37,7 +37,7 @@ describe("aiResultText", () => {
         const failed = (code: AiResultCode, params: AiResultParams): string =>
             aiResultText({ success: false, message: "", code, params });
         expect(failed("AI_PROVIDER_PAUSED", { provider: "anthropic" })).toBe(
-            "The provider paused before it finished. Send the message again to let it go on.",
+            "The provider kept pausing its web search, so it did not finish. Sending the message again starts the search over.",
         );
         expect(failed("AI_HOSTED_TOOL_UNSUPPORTED", { provider: "mock", model: "m", tool: "web-search" })).toBe(
             "This provider cannot search the web, so the assistant works without web search.",
@@ -136,6 +136,34 @@ describe("aiTranscript", () => {
         ]);
     });
 
+    it("says when a research hand-off answered without searching the web", () => {
+        const delegate = (hostedToolUses: number): AiConversationSnapshot => ({
+            ...conversation,
+            messages: [
+                {
+                    id: "m1",
+                    role: "assistant",
+                    text: "",
+                    sources: [],
+                    calls: [
+                        {
+                            command: "delegate",
+                            arguments: { agent: "research" },
+                            code: "AI_COMPLETED",
+                            params: { agent: "research", toolCalls: 0, hostedToolUses },
+                        },
+                    ],
+                },
+            ],
+        });
+        expect(aiTranscript({ conversation: delegate(0), historyNotice: null })[0].content).toBe(
+            'delegate {"agent":"research"}: Done, without searching or reading the web: the answer is from the model\'s own knowledge.',
+        );
+        expect(aiTranscript({ conversation: delegate(2), historyNotice: null })[0].content).toBe(
+            'delegate {"agent":"research"}: Done.',
+        );
+    });
+
     it("skips a role it does not know", () => {
         const newer = {
             ...conversation,
@@ -194,7 +222,7 @@ describe("approvalLines", () => {
             preview: { removeNodes: 1 },
         } as unknown as AiApprovalRequest;
         expect(approvalLines(request)).toEqual([
-            "The assistant read web content in this conversation. Approve only a change you asked for.",
+            "The assistant read web content in this conversation. Approve only what you asked for.",
             'edit_data {"action":"remove_nodes","ids":["e"]}',
             "Removes 1 node.",
         ]);

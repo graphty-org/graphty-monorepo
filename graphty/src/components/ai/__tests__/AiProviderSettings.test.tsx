@@ -318,6 +318,8 @@ describe("AiProviderSettings", () => {
             }
             expect(screen.getByText(/may charge for each search/)).toBeInTheDocument();
             expect(screen.getByText(/can only read the graph/)).toBeInTheDocument();
+            // What a program computes reaches the provider as a tool result: the words never say it stays here.
+            expect(screen.getByText(/What they compute is sent to your AI provider/)).toBeInTheDocument();
 
             await userEvent.click(screen.getByRole("switch", { name: /^Run code/ }));
 

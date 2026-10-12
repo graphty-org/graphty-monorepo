@@ -205,7 +205,8 @@ const TOOL_WORDS: Readonly<Record<AiToolSwitch, { readonly label: string; readon
         label: "Run code",
         description:
             "The assistant may write small programs and run them in this page to work out answers. " +
-            "They can only read the graph, never change it, and nothing they compute leaves this page.",
+            "They can only read the graph, never change it. What they compute is sent to your AI provider, " +
+            "like anything else the assistant reads.",
     },
 };
 

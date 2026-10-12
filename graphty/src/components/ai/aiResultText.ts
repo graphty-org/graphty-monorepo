@@ -31,7 +31,8 @@ const WORDS: Partial<Record<AiResultCode, string>> = {
     AI_ANSWER_INVALID: "That answer is not one of the choices.",
     AI_CONFIG_INVALID: "The assistant's settings name something it cannot use, so nothing was sent.",
     AI_HOSTED_TOOL_UNSUPPORTED: "This provider cannot use that tool, so the assistant works without it.",
-    AI_PROVIDER_PAUSED: "The provider paused before it finished. Send the message again to let it go on.",
+    AI_PROVIDER_PAUSED:
+        "The provider kept pausing its web search, so it did not finish. Sending the message again starts the search over.",
 };
 
 /** Words for a code whose `reason` (or else `tool`) param says more, keyed by code and then that param. */
@@ -110,7 +111,10 @@ function callRecordText(call: AiCallRecord, waiting: boolean): string {
     if (waiting) {
         outcome = WORDS.AI_CONFIRMATION_NEEDED ?? "";
     } else if (call.code === "AI_COMPLETED") {
-        outcome = "Done.";
+        outcome =
+            call.params.hostedToolUses === 0
+                ? "Done, without searching or reading the web: the answer is from the model's own knowledge."
+                : "Done.";
     } else {
         outcome = aiCodeText(call.code, call.params) ?? "Failed.";
     }
@@ -131,7 +135,7 @@ export function approvalLines(request: AiApprovalRequest): string[] {
     }
 
     if (request.gate === "web-content") {
-        lines.unshift("The assistant read web content in this conversation. Approve only a change you asked for.");
+        lines.unshift("The assistant read web content in this conversation. Approve only what you asked for.");
     }
 
     if (request.agent !== undefined) {

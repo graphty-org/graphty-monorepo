@@ -4,17 +4,70 @@ import type {
     AiConversationSnapshot,
     AiQuestionRequest,
     AiStatus,
+    AiToolOptions,
     ExecutionResult,
 } from "@graphty/graphty-element/ai";
-import type { AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
-import { useCallback, useEffect, useState } from "react";
+import type { AiCapabilities, AiHostedToolId, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ProviderType } from "../types/ai";
+import {
+    AI_IN_PAGE_CODE,
+    AI_WEB_FETCH,
+    AI_WEB_SEARCH,
+    readPreference,
+    writePreference,
+} from "../workspace/settings/preferences";
+
+/** The assistant's optional tools the reader switches on in Settings, by their `tools` option name. */
+export type AiToolSwitch = "webSearch" | "webFetch" | "inPageCode";
+
+/** Which of the optional tools the reader switched on. */
+export type AiToolSwitches = Readonly<Record<AiToolSwitch, boolean>>;
+
+/** Each switch: where the reader's choice is kept, and the element's id for the tool. */
+export const AI_TOOL_SWITCHES: readonly {
+    readonly name: AiToolSwitch;
+    readonly tool: AiHostedToolId;
+    readonly preference: typeof AI_WEB_SEARCH | typeof AI_WEB_FETCH | typeof AI_IN_PAGE_CODE;
+}[] = [
+    { name: "webSearch", tool: "web-search", preference: AI_WEB_SEARCH },
+    { name: "webFetch", tool: "web-fetch", preference: AI_WEB_FETCH },
+    { name: "inPageCode", tool: "in-page-code", preference: AI_IN_PAGE_CODE },
+];
+
+/**
+ * The reader's saved choices.
+ * @returns Each switch, off unless the reader turned it on.
+ */
+function readToolSwitches(): AiToolSwitches {
+    return Object.fromEntries(
+        AI_TOOL_SWITCHES.map((entry) => [entry.name, readPreference(entry.preference) === "on"]),
+    ) as AiToolSwitches;
+}
+
+/**
+ * The `tools` option for the switches that are on.
+ * @param switches - The reader's choices.
+ * @returns The option, or undefined when every switch is off (the element's own default).
+ */
+function toolOptions(switches: AiToolSwitches): AiToolOptions | undefined {
+    const on = AI_TOOL_SWITCHES.filter((entry) => switches[entry.name]);
+    return on.length === 0 ? undefined : Object.fromEntries(on.map((entry) => [entry.name, true]));
+}
+
+/**
+ * The app's approval setting: it asks the reader about nothing itself. A policy (one that allows
+ * every call) rather than `"none"` is what makes the element hold a change the model makes after
+ * reading the web for the reader's approval, instead of refusing it.
+ * @returns "allow".
+ */
+const ALLOW_EVERY_CALL = (): "allow" => "allow";
 
 /** What the element answered, or why the hook could not ask it. */
 export type AiCommandOutcome = ExecutionResult & { readonly error?: Error };
 
-/** A store failure the element reported with `ai-conversation-changed`. */
+/** A store failure the element reported with `ai-conversation-changed`, or a tool it left out. */
 export interface AiHistoryNotice {
     readonly code: AiResultCode;
     readonly params: AiResultParams;
@@ -64,6 +117,14 @@ interface UseAiManagerResult {
     newConversation: () => Promise<void>;
     /** Delete every saved conversation of this assistant. */
     clearHistory: () => Promise<void>;
+    /** Which optional tools the reader switched on; saved in this browser. */
+    toolSwitches: AiToolSwitches;
+    /** Switch an optional tool on or off; the assistant is switched on again with it. */
+    setToolSwitch: (name: AiToolSwitch, on: boolean) => void;
+    /** What the provider and model can use, as the element reports it; null until the assistant is on. */
+    capabilities: AiCapabilities | null;
+    /** The tools the element left out because the provider cannot use them; each once. */
+    capabilityNotices: readonly AiHistoryNotice[];
 }
 
 /**
@@ -87,6 +148,11 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
     const [approvals, setApprovals] = useState<readonly AiApprovalRequest[]>([]);
     const [questions, setQuestions] = useState<readonly AiQuestionRequest[]>([]);
     const [historyNotice, setHistoryNotice] = useState<AiHistoryNotice | null>(null);
+    const [toolSwitches, setToolSwitches] = useState<AiToolSwitches>(readToolSwitches);
+    const [capabilities, setCapabilities] = useState<AiCapabilities | null>(null);
+    const [capabilityNotices, setCapabilityNotices] = useState<readonly AiHistoryNotice[]>([]);
+    // The tools already noticed: the element reports a left-out tool again after every enable.
+    const noticed = useRef(new Set<string>());
 
     // Sync currentProvider with defaultProvider when it changes
     // This is needed because useState only uses defaultProvider as initial value
@@ -103,6 +169,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             setConversation(null);
             setApprovals([]);
             setQuestions([]);
+            setCapabilities(null);
 
             return undefined;
         }
@@ -125,6 +192,15 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
 
             read();
         };
+        const onCapabilityUnavailable = (event: {
+            detail: { tool: AiHostedToolId; code: AiResultCode; params: AiResultParams };
+        }): void => {
+            const { tool, code, params } = event.detail;
+            if (!cancelled && !noticed.current.has(tool)) {
+                noticed.current.add(tool);
+                setCapabilityNotices((current) => [...current, { code, params }]);
+            }
+        };
 
         async function enable(target: GraphtyElement, provider: ProviderType): Promise<void> {
             try {
@@ -133,6 +209,8 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
                     apiKey: getKey?.(provider),
                     history: "browser",
                     questions: true,
+                    approvals: { policy: ALLOW_EVERY_CALL },
+                    ...(tools === undefined ? {} : { tools }),
                 });
             } catch (err) {
                 console.error("[useAiManager] Failed to enable the assistant:", err);
@@ -160,10 +238,13 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             target.addEventListener("ai-approval-requested", read);
             target.addEventListener("ai-question-asked", read);
             target.addEventListener("ai-pending-resolved", read);
+            target.addEventListener("ai-capability-unavailable", onCapabilityUnavailable);
             read();
+            setCapabilities(target.getAiCapabilities());
             setEnabled(target);
         }
 
+        const tools = toolOptions(toolSwitches);
         void enable(element, currentProvider);
 
         return () => {
@@ -173,10 +254,20 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             element.removeEventListener("ai-approval-requested", read);
             element.removeEventListener("ai-question-asked", read);
             element.removeEventListener("ai-pending-resolved", read);
+            element.removeEventListener("ai-capability-unavailable", onCapabilityUnavailable);
             element.disableAiControl();
             setEnabled(null);
         };
-    }, [element, currentProvider, getKey]);
+    }, [element, currentProvider, getKey, toolSwitches]);
+
+    const setToolSwitch = useCallback((name: AiToolSwitch, on: boolean) => {
+        const entry = AI_TOOL_SWITCHES.find((candidate) => candidate.name === name);
+        if (entry !== undefined) {
+            writePreference(entry.preference, on ? "on" : "off");
+        }
+
+        setToolSwitches((current) => ({ ...current, [name]: on }));
+    }, []);
 
     const setProvider = useCallback((provider: ProviderType) => {
         // Just update state - useEffect will handle re-initialization
@@ -254,6 +345,10 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
         answerQuestion,
         newConversation,
         clearHistory,
+        toolSwitches,
+        setToolSwitch,
+        capabilities,
+        capabilityNotices,
     };
 }
 

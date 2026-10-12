@@ -5,6 +5,7 @@ import type {
     AiQuestionRequest,
     AiStatus,
 } from "@graphty/graphty-element/ai";
+import type { AiCapabilities } from "@graphty/graphty-element/catalog";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,6 +24,7 @@ const mockDoors = {
     newAiConversation: vi.fn().mockResolvedValue(null),
     clearAiHistory: vi.fn().mockResolvedValue(undefined),
     enableAiControl: vi.fn().mockResolvedValue(undefined),
+    getAiCapabilities: vi.fn((): AiCapabilities | null => null),
     disableAiControl: vi.fn(),
     onAiStatusChange: vi.fn((callback: (status: AiStatus) => void) => {
         mockStatusCallback.mockImplementation(callback);
@@ -39,6 +41,10 @@ describe("useAiManager", () => {
         mockDoors.getAiConversation.mockReturnValue(null);
         mockDoors.getPendingAiApprovals.mockReturnValue([]);
         mockDoors.getPendingAiQuestions.mockReturnValue([]);
+        mockDoors.getAiCapabilities.mockReturnValue(null);
+        localStorage.removeItem("graphty.ai.webSearch.v1");
+        localStorage.removeItem("graphty.ai.webFetch.v1");
+        localStorage.removeItem("graphty.ai.inPageCode.v1");
     });
 
     afterEach(() => {
@@ -92,6 +98,7 @@ describe("useAiManager", () => {
             apiKey: undefined,
             history: "browser",
             questions: true,
+            approvals: { policy: expect.any(Function) },
         });
     });
 
@@ -113,6 +120,7 @@ describe("useAiManager", () => {
                 apiKey: "test-api-key",
                 history: "browser",
                 questions: true,
+                approvals: { policy: expect.any(Function) },
             });
         });
 
@@ -131,6 +139,7 @@ describe("useAiManager", () => {
                     apiKey: undefined,
                     history: "browser",
                     questions: true,
+                    approvals: { policy: expect.any(Function) },
                 });
             });
         });
@@ -526,6 +535,97 @@ describe("useAiManager", () => {
             // The transcript, the failed message included, is the element's conversation alone.
             expect(Object.keys(result.current)).not.toContain("failure");
             expect(Object.keys(result.current)).not.toContain("pendingInput");
+        });
+    });
+
+    describe("the optional tools", () => {
+        it("starts with every tool off and passes no tools to the element", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            expect(result.current.toolSwitches).toEqual({ webSearch: false, webFetch: false, inPageCode: false });
+            expect(mockDoors.enableAiControl.mock.calls[0][0]).not.toHaveProperty("tools");
+        });
+
+        it("saves a switch, and switches the assistant on again with that tool", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            act(() => {
+                result.current.setToolSwitch("inPageCode", true);
+            });
+
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenLastCalledWith(
+                    expect.objectContaining({ tools: { inPageCode: true } }),
+                );
+            });
+            expect(localStorage.getItem("graphty.ai.inPageCode.v1")).toBe("on");
+            expect(result.current.toolSwitches.inPageCode).toBe(true);
+        });
+
+        it("reads the reader's saved switches", async () => {
+            localStorage.setItem("graphty.ai.webSearch.v1", "on");
+            const { useAiManager } = await import("../useAiManager");
+            renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenCalledWith(
+                    expect.objectContaining({ tools: { webSearch: true } }),
+                );
+            });
+        });
+
+        it("reports what the element says the provider can use", async () => {
+            const capabilities: AiCapabilities = {
+                provider: "mock",
+                model: "mock",
+                tools: { "web-search": "unsupported", "web-fetch": "unsupported", "in-page-code": "available" },
+            };
+            mockDoors.getAiCapabilities.mockReturnValue(capabilities);
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+
+            await waitFor(() => {
+                expect(result.current.capabilities).toEqual(capabilities);
+            });
+        });
+
+        it("notices each tool the element left out once, however often it says so", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            const unavailable = (): void => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-capability-unavailable", {
+                        detail: {
+                            tool: "web-search",
+                            code: "AI_HOSTED_TOOL_UNSUPPORTED",
+                            params: { provider: "mock", model: "mock", tool: "web-search" },
+                        },
+                    }),
+                );
+            };
+            act(() => {
+                unavailable();
+                unavailable();
+            });
+
+            expect(result.current.capabilityNotices).toEqual([
+                {
+                    code: "AI_HOSTED_TOOL_UNSUPPORTED",
+                    params: { provider: "mock", model: "mock", tool: "web-search" },
+                },
+            ]);
         });
     });
 });

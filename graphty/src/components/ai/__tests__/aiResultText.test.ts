@@ -1,7 +1,8 @@
-import type { AiConversationSnapshot } from "@graphty/graphty-element/ai";
+import type { AiApprovalRequest, AiConversationSnapshot } from "@graphty/graphty-element/ai";
+import type { AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
 import { describe, expect, it } from "vitest";
 
-import { aiResultText, aiTranscript } from "../aiResultText";
+import { aiResultText, aiTranscript, approvalLines } from "../aiResultText";
 
 describe("aiResultText", () => {
     it("shows the answer of a completed command", () => {
@@ -32,6 +33,32 @@ describe("aiResultText", () => {
         ).toBe("The assistant's settings name something it cannot use, so nothing was sent.");
     });
 
+    it("has words for web tools, a paused provider and the two new refusals", () => {
+        const failed = (code: AiResultCode, params: AiResultParams): string =>
+            aiResultText({ success: false, message: "", code, params });
+        expect(failed("AI_PROVIDER_PAUSED", { provider: "anthropic" })).toBe(
+            "The provider paused before it finished. Send the message again to let it go on.",
+        );
+        expect(failed("AI_HOSTED_TOOL_UNSUPPORTED", { provider: "mock", model: "m", tool: "web-search" })).toBe(
+            "This provider cannot search the web, so the assistant works without web search.",
+        );
+        expect(failed("AI_HOSTED_TOOL_UNSUPPORTED", { provider: "mock", model: "m", tool: "web-fetch" })).toBe(
+            "This provider cannot read web pages, so the assistant works without them.",
+        );
+        expect(failed("AI_HOSTED_TOOL_UNSUPPORTED", { provider: "mock", model: "m", tool: "in-page-code" })).toBe(
+            "Code cannot run in this page, so the assistant works without it.",
+        );
+        expect(failed("AI_TOOL_DENIED_BY_POLICY", { tool: "edit_data", reason: "web-content" })).toBe(
+            "The assistant read web content in this conversation, so it may not change the graph on its own. Nothing was changed.",
+        );
+        expect(failed("AI_TOOL_DENIED_BY_POLICY", { tool: "edit_data", reason: "in-page-code" })).toBe(
+            "Code the assistant runs may only read the graph, so nothing was changed.",
+        );
+        expect(failed("AI_TOOL_DENIED_BY_POLICY", { tool: "edit_data" })).toBe(
+            "That change is not allowed here, so nothing was changed.",
+        );
+    });
+
     it("falls back to the general text for a result with no code", () => {
         expect(aiResultText({ success: false, message: "x" })).toBe("The assistant could not answer.");
         expect(aiResultText({ success: true, message: "Laid out." })).toBe("Laid out.");
@@ -57,6 +84,7 @@ describe("aiTranscript", () => {
                 role: "assistant",
                 text: "",
                 calls: [],
+                sources: [],
                 outcome: { code: "AI_KEY_MISSING", params: { provider: "openai" } },
             },
             { id: "m3", role: "reader", text: "try again", via: "voice" },
@@ -81,11 +109,12 @@ describe("aiTranscript", () => {
         const asked: AiConversationSnapshot = {
             ...conversation,
             messages: [
-                { id: "m1", role: "assistant", text: "3 nodes", calls: [], agent: "counter" },
+                { id: "m1", role: "assistant", text: "3 nodes", calls: [], sources: [], agent: "counter" },
                 {
                     id: "m2",
                     role: "assistant",
                     text: "",
+                    sources: [],
                     calls: [
                         {
                             command: "ask_reader",
@@ -113,5 +142,61 @@ describe("aiTranscript", () => {
             messages: [...conversation.messages, { id: "m4", role: "helper" }],
         } as unknown as AiConversationSnapshot;
         expect(aiTranscript({ conversation: newer, historyNotice: null })).toHaveLength(3);
+    });
+
+    it("lists an answer's sources under it, and words each tool the element left out once", () => {
+        const searched: AiConversationSnapshot = {
+            ...conversation,
+            messages: [
+                {
+                    id: "m1",
+                    role: "assistant",
+                    text: "Paris",
+                    calls: [],
+                    sources: [{ tool: "web-search", url: "https://example.org/fr", title: "France" }],
+                },
+            ],
+        };
+        expect(
+            aiTranscript({
+                conversation: searched,
+                historyNotice: null,
+                capabilityNotices: [
+                    {
+                        code: "AI_HOSTED_TOOL_UNSUPPORTED",
+                        params: { provider: "mock", model: "m", tool: "web-search" },
+                    },
+                ],
+            }),
+        ).toEqual([
+            {
+                id: "m1",
+                role: "assistant",
+                content: "Paris",
+                sources: [{ tool: "web-search", url: "https://example.org/fr", title: "France" }],
+            },
+            {
+                id: "capability-notice-0",
+                role: "system",
+                content: "This provider cannot search the web, so the assistant works without web search.",
+            },
+        ]);
+    });
+});
+
+describe("approvalLines", () => {
+    it("says a change held after the assistant read the web is one to check", () => {
+        const request = {
+            id: "a1",
+            messageId: "m1",
+            gate: "web-content",
+            calls: [{ tool: "edit_data", arguments: { action: "remove_nodes", ids: ["e"] } }],
+            preview: { removeNodes: 1 },
+        } as unknown as AiApprovalRequest;
+        expect(approvalLines(request)).toEqual([
+            "The assistant read web content in this conversation. Approve only a change you asked for.",
+            'edit_data {"action":"remove_nodes","ids":["e"]}',
+            "Removes 1 node.",
+        ]);
     });
 });

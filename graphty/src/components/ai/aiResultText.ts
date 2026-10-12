@@ -30,10 +30,22 @@ const WORDS: Partial<Record<AiResultCode, string>> = {
     AI_QUESTION_ASKED: "The assistant asked you a question.",
     AI_ANSWER_INVALID: "That answer is not one of the choices.",
     AI_CONFIG_INVALID: "The assistant's settings name something it cannot use, so nothing was sent.",
+    AI_HOSTED_TOOL_UNSUPPORTED: "This provider cannot use that tool, so the assistant works without it.",
+    AI_PROVIDER_PAUSED: "The provider paused before it finished. Send the message again to let it go on.",
 };
 
-/** Words for a code whose `reason` param says more, keyed by code and then reason. */
+/** Words for a code whose `reason` (or else `tool`) param says more, keyed by code and then that param. */
 const REASON_WORDS: Partial<Record<AiResultCode, Readonly<Record<string, string>>>> = {
+    AI_TOOL_DENIED_BY_POLICY: {
+        "web-content":
+            "The assistant read web content in this conversation, so it may not change the graph on its own. Nothing was changed.",
+        "in-page-code": "Code the assistant runs may only read the graph, so nothing was changed.",
+    },
+    AI_HOSTED_TOOL_UNSUPPORTED: {
+        "web-search": "This provider cannot search the web, so the assistant works without web search.",
+        "web-fetch": "This provider cannot read web pages, so the assistant works without them.",
+        "in-page-code": "Code cannot run in this page, so the assistant works without it.",
+    },
     AI_APPROVAL_STALE: {
         "graph-changed": "The graph changed after the change was proposed, so it did not run.",
         expired: "That request is no longer open.",
@@ -54,7 +66,7 @@ const REASON_WORDS: Partial<Record<AiResultCode, Readonly<Record<string, string>
  * @returns The words, or undefined for a code the app has none for.
  */
 export function aiCodeText(code: AiResultCode, params: AiResultParams | undefined): string | undefined {
-    const reason = params?.reason;
+    const reason = params?.reason ?? params?.tool;
     return (typeof reason === "string" ? REASON_WORDS[code]?.[reason] : undefined) ?? WORDS[code];
 }
 
@@ -118,6 +130,10 @@ export function approvalLines(request: AiApprovalRequest): string[] {
         lines.unshift("The assistant wants to hand this work to a helper.");
     }
 
+    if (request.gate === "web-content") {
+        lines.unshift("The assistant read web content in this conversation. Approve only a change you asked for.");
+    }
+
     if (request.agent !== undefined) {
         lines.unshift(`Asked by the helper ${request.agent}.`);
     }
@@ -164,6 +180,8 @@ export function approvalLines(request: AiApprovalRequest): string[] {
 export interface AiTranscriptSource {
     readonly conversation: AiConversationSnapshot | null;
     readonly historyNotice: { readonly code: AiResultCode; readonly params: AiResultParams } | null;
+    /** The tools the element left out, each noticed once. */
+    readonly capabilityNotices?: readonly { readonly code: AiResultCode; readonly params: AiResultParams }[];
 }
 
 /**
@@ -196,8 +214,17 @@ export function aiTranscript(source: AiTranscriptSource): ChatMessage[] {
                 content: lines.filter((line) => line !== "").join("\n"),
                 ...(message.agent === undefined ? {} : { agent: message.agent }),
                 ...(message.outcome === undefined ? {} : { isError: true }),
+                ...(message.sources.length === 0 ? {} : { sources: message.sources }),
             },
         ];
+    });
+
+    (source.capabilityNotices ?? []).forEach((notice, index) => {
+        messages.push({
+            id: `capability-notice-${String(index)}`,
+            role: "system",
+            content: aiCodeText(notice.code, notice.params) ?? "",
+        });
     });
 
     if (source.historyNotice !== null) {

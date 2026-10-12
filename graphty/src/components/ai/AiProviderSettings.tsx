@@ -23,10 +23,16 @@
  */
 
 import { PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
-import { aiProviderDescriptor, checkApiKeyShape } from "@graphty/graphty-element/catalog";
-import { Box, Button, Checkbox, NativeSelect, PasswordInput } from "@mantine/core";
+import {
+    type AiCapabilities,
+    type AiCapabilityStatus,
+    aiProviderDescriptor,
+    checkApiKeyShape,
+} from "@graphty/graphty-element/catalog";
+import { Box, Button, Checkbox, NativeSelect, PasswordInput, Switch } from "@mantine/core";
 import React, { useCallback, useState } from "react";
 
+import { AI_TOOL_SWITCHES, type AiToolSwitch, type AiToolSwitches } from "../../hooks/useAiManager";
 import { getCreateProvider, type ProviderType } from "../../types/ai";
 import { PanelOutlineButton } from "../shell/panel/panelButtons";
 
@@ -173,6 +179,129 @@ export interface AiProviderSettingsProps {
     readonly onEnablePersistence: (encryptionKey?: string) => void;
     /** Stops remembering keys. */
     readonly onDisablePersistence: (clearStorage?: boolean) => void;
+    /** Which of the assistant's optional tools are on. The tool switches draw only with `onToolChange`. */
+    readonly tools?: AiToolSwitches;
+    /** Switches an optional tool on or off. */
+    readonly onToolChange?: (name: AiToolSwitch, on: boolean) => void;
+    /** What the current provider can use, as graphty-element reports it; null until the assistant is on. */
+    readonly toolCapabilities?: AiCapabilities | null;
+}
+
+/** The app's words for each optional tool: its name, and what it costs the reader. */
+const TOOL_WORDS: Readonly<Record<AiToolSwitch, { readonly label: string; readonly description: string }>> = {
+    webSearch: {
+        label: "Search the web",
+        description:
+            "The assistant may search the web through your provider, which may charge for each search. " +
+            "The model writes the searches, so they can include names from your graph.",
+    },
+    webFetch: {
+        label: "Read web pages",
+        description:
+            "The assistant may read a web page whose address you put in your message. " +
+            "Your provider fetches the page and may charge for it.",
+    },
+    inPageCode: {
+        label: "Run code",
+        description:
+            "The assistant may write small programs and run them in this page to work out answers. " +
+            "They can only read the graph, never change it, and nothing they compute leaves this page.",
+    },
+};
+
+/** Why a switch is off-limits, by what graphty-element reported about the tool. */
+const UNAVAILABLE_WORDS: Readonly<Partial<Record<AiCapabilityStatus | (string & {}), string>>> = {
+    unsupported: "Not available with your current provider.",
+    "results-not-returned": "Your current provider does not share what this finds, so it cannot be used.",
+};
+
+/** Why a switch is off-limits when it is not known whether the provider offers the tool. */
+const UNKNOWN_WORDS = "It is not known whether your current provider offers this, so it cannot be used.";
+
+/**
+ * Why a tool cannot be switched on, in the app's words.
+ * @param status - What graphty-element reported, or undefined before the assistant is on.
+ * @returns The reason, or undefined when the switch is usable.
+ */
+function unavailableReason(status: AiCapabilityStatus | undefined): string | undefined {
+    if (status === undefined || status === "available") {
+        return undefined;
+    }
+
+    return UNAVAILABLE_WORDS[status] ?? UNKNOWN_WORDS;
+}
+
+/**
+ * The assistant's optional tools: one switch each, off until the reader turns it on. A tool the
+ * current provider cannot use is drawn switched off and disabled, with the reason under it.
+ * @param props - The switches' state and what to call on a change.
+ * @param props.tools - Which are on.
+ * @param props.onToolChange - Switches one.
+ * @param props.capabilities - What the current provider can use.
+ * @returns The block.
+ */
+export function AiToolSettings({
+    tools,
+    onToolChange,
+    capabilities,
+}: {
+    readonly tools: AiToolSwitches;
+    readonly onToolChange: (name: AiToolSwitch, on: boolean) => void;
+    readonly capabilities?: AiCapabilities | null;
+}): React.JSX.Element {
+    return (
+        <Box style={{ display: "flex", flexDirection: "column", maxWidth: PANE_COLUMN }} data-testid="ai-tool-settings">
+            <Box style={{ height: 1, background: PANEL_INK.DIVIDER }} />
+            <Box
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    height: PANEL_GRID.SECTION_HEADER,
+                    fontSize: NAME_FONT_SIZE,
+                    fontWeight: 500,
+                    lineHeight: 1.2,
+                    color: PANEL_INK.VALUE,
+                }}
+            >
+                Assistant tools
+            </Box>
+            <Box style={{ display: "flex", flexDirection: "column", gap: PANEL_GRID.TRAIL_GAP }}>
+                {AI_TOOL_SWITCHES.map(({ name, tool }) => {
+                    const reason = unavailableReason(capabilities?.tools[tool]);
+                    return (
+                        <Box key={name}>
+                            <Switch
+                                label={TOOL_WORDS[name].label}
+                                description={TOOL_WORDS[name].description}
+                                checked={reason === undefined && tools[name]}
+                                disabled={reason !== undefined}
+                                data-testid={`ai-tool-${name}`}
+                                styles={{
+                                    label: { fontSize: READING_FONT_SIZE, color: PANEL_INK.VALUE },
+                                    description: { fontSize: READING_FONT_SIZE, color: PANEL_INK.PROSE },
+                                }}
+                                onChange={(event) => {
+                                    onToolChange(name, event.currentTarget.checked);
+                                }}
+                            />
+                            {reason !== undefined && (
+                                <Box
+                                    component="span"
+                                    data-testid={`ai-tool-${name}-reason`}
+                                    style={{ fontSize: READING_FONT_SIZE, color: PANEL_INK.WARNING }}
+                                >
+                                    {reason}
+                                </Box>
+                            )}
+                        </Box>
+                    );
+                })}
+                <Box component="span" style={{ fontSize: READING_FONT_SIZE, lineHeight: 1.4, color: PANEL_INK.PROSE }}>
+                    After the assistant reads the web, every change it makes to the graph waits for your approval.
+                </Box>
+            </Box>
+        </Box>
+    );
 }
 
 /**
@@ -242,6 +371,9 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
         isPersistenceEnabled,
         onEnablePersistence,
         onDisablePersistence,
+        tools,
+        onToolChange,
+        toolCapabilities,
     } = props;
 
     /* The row that is open. One at a time, like the nav it sits inside: the form is
@@ -681,6 +813,10 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
                     );
                 })}
             </Box>
+
+            {tools !== undefined && onToolChange !== undefined && (
+                <AiToolSettings tools={tools} onToolChange={onToolChange} capabilities={toolCapabilities} />
+            )}
 
             {/* Key storage. */}
             <Box style={{ display: "flex", flexDirection: "column", maxWidth: PANE_COLUMN }}>

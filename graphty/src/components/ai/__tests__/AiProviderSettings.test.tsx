@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { fireEvent, render, screen, waitFor } from "../../../test/test-utils";
 import type { ProviderType } from "../../../types/ai";
@@ -296,6 +297,61 @@ describe("AiProviderSettings", () => {
             fireEvent.change(screen.getByTestId("ai-default-provider"), { target: { value: "" } });
 
             expect(onDefaultProviderChange).toHaveBeenCalledWith(null);
+        });
+    });
+
+    describe("the assistant's tools", () => {
+        const OFF = { webSearch: false, webFetch: false, inPageCode: false } as const;
+
+        it("draws no tool switches without a place to send a change", () => {
+            render(<AiProviderSettings {...keyStore()} />);
+
+            expect(screen.queryByTestId("ai-tool-settings")).not.toBeInTheDocument();
+        });
+
+        it("draws the three switches off, with their own words, and reports a click", async () => {
+            const onToolChange = vi.fn();
+            render(<AiProviderSettings {...keyStore({ tools: OFF, onToolChange })} />);
+
+            for (const name of [/^Search the web/, /^Read web pages/, /^Run code/]) {
+                expect(screen.getByRole("switch", { name })).not.toBeChecked();
+            }
+            expect(screen.getByText(/may charge for each search/)).toBeInTheDocument();
+            expect(screen.getByText(/can only read the graph/)).toBeInTheDocument();
+
+            await userEvent.click(screen.getByRole("switch", { name: /^Run code/ }));
+
+            expect(onToolChange).toHaveBeenCalledWith("inPageCode", true);
+        });
+
+        it("draws a tool the provider cannot use disabled and off, with the reason", () => {
+            render(
+                <AiProviderSettings
+                    {...keyStore({
+                        tools: { ...OFF, webSearch: true },
+                        onToolChange: vi.fn(),
+                        toolCapabilities: {
+                            provider: "google",
+                            model: "gemini-3.8-flash",
+                            tools: {
+                                "web-search": "unsupported",
+                                "web-fetch": "results-not-returned",
+                                "in-page-code": "available",
+                            },
+                        },
+                    })}
+                />,
+            );
+
+            const search = screen.getByRole("switch", { name: /^Search the web/ });
+            expect(search).toBeDisabled();
+            expect(search).not.toBeChecked();
+            expect(screen.getByTestId("ai-tool-webSearch-reason")).toHaveTextContent(
+                "Not available with your current provider.",
+            );
+            expect(screen.getByRole("switch", { name: /^Read web pages/ })).toBeDisabled();
+            expect(screen.getByTestId("ai-tool-webFetch-reason")).toHaveTextContent("does not share what this finds");
+            expect(screen.getByRole("switch", { name: /^Run code/ })).toBeEnabled();
         });
     });
 });

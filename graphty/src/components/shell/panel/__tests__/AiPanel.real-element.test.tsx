@@ -4,7 +4,9 @@
  * Approve runs it and Deny leaves the graph alone, and an element mounted again on the same
  * browser database brings the transcript and a still-pending approval back. A question the model
  * asks shows as a card with one button per choice; clicking one continues the message, and the
- * question, too, comes back on an element mounted again.
+ * question, too, comes back on an element mounted again. Switching on Run code lets the model run a
+ * program in the page, and a change asked for after the assistant read the web is held with the
+ * app's web-content wording; the web sources show under the answer as links.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -17,6 +19,7 @@ import { userEvent } from "vitest/browser";
 
 import { useAiManager } from "../../../../hooks/useAiManager";
 import { render, screen, waitFor, within } from "../../../../test/test-utils";
+import { AiToolSettings } from "../../../ai/AiProviderSettings";
 import { aiTranscript } from "../../../ai/aiResultText";
 import { ShellProvider } from "../../ShellContext";
 import { AiPanel } from "../AiPanel";
@@ -39,6 +42,49 @@ const ASK_QUESTION = "color my favorite department";
 /** The model's question. */
 const QUESTION = "Which department is your favorite?";
 
+/** What the reader asks; the mock provider answers it with a program. */
+const ASK_CODE = "count the nodes with code";
+
+/** The program the model writes: the node count, read through the query tool. */
+const COUNT_PROGRAM = `const seen = await tools.query({ action: "overview" });
+return seen.data.nodes;`;
+
+/** What the reader asks after the research answer; the mock provider answers it with a removal. */
+const ASK_REMOVE = "remove node b";
+
+/** A saved conversation in the published `graphty-ai-conversation` format, as far as these tests edit it. */
+interface SavedRecord {
+    readonly messages: { readonly role: string; readonly parts: Record<string, unknown>[] }[];
+}
+
+/**
+ * Saves a conversation record where the element keeps them: its default IndexedDB database
+ * ("graphty-ai", documented), store "conversations", keyed by the record's id.
+ * @param record - The record, in the published format.
+ */
+async function saveRecord(record: SavedRecord): Promise<void> {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("graphty-ai");
+        request.onsuccess = () => {
+            resolve(request.result);
+        };
+        request.onerror = () => {
+            reject(request.error ?? new Error("IndexedDB open failed"));
+        };
+    });
+    await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction("conversations", "readwrite");
+        transaction.objectStore("conversations").put(record);
+        transaction.oncomplete = () => {
+            resolve();
+        };
+        transaction.onerror = () => {
+            reject(transaction.error ?? new Error("IndexedDB write failed"));
+        };
+    });
+    db.close();
+}
+
 const mounted: ElementUnderTest[] = [];
 
 /**
@@ -51,40 +97,43 @@ function Assistant({ element }: { readonly element: ElementUnderTest }): React.J
     const ai = useAiManager({ element, defaultProvider: "mock" });
 
     return (
-        <AiPanel
-            messages={aiTranscript(ai)}
-            providerConfigured
-            isProcessing={ai.isProcessing}
-            onSend={(text) => {
-                void ai.execute(text);
-            }}
-            approvals={ai.approvals}
-            onApprove={(id) => {
-                void ai.resolveApproval(id, true);
-            }}
-            onDeny={(id) => {
-                void ai.resolveApproval(id, false);
-            }}
-            questions={ai.questions}
-            onAnswer={(id, answer) => {
-                void ai.answerQuestion(id, answer);
-            }}
-            // Offered once the assistant is on: before that there is no conversation to act on.
-            onNewConversation={
-                ai.isReady
-                    ? () => {
-                          void ai.newConversation();
-                      }
-                    : undefined
-            }
-            onClearHistory={
-                ai.isReady
-                    ? () => {
-                          void ai.clearHistory();
-                      }
-                    : undefined
-            }
-        />
+        <div data-testid="assistant" data-ready={String(ai.isReady)}>
+            <AiToolSettings tools={ai.toolSwitches} onToolChange={ai.setToolSwitch} capabilities={ai.capabilities} />
+            <AiPanel
+                messages={aiTranscript(ai)}
+                providerConfigured
+                isProcessing={ai.isProcessing}
+                onSend={(text) => {
+                    void ai.execute(text);
+                }}
+                approvals={ai.approvals}
+                onApprove={(id) => {
+                    void ai.resolveApproval(id, true);
+                }}
+                onDeny={(id) => {
+                    void ai.resolveApproval(id, false);
+                }}
+                questions={ai.questions}
+                onAnswer={(id, answer) => {
+                    void ai.answerQuestion(id, answer);
+                }}
+                // Offered once the assistant is on: before that there is no conversation to act on.
+                onNewConversation={
+                    ai.isReady
+                        ? () => {
+                              void ai.newConversation();
+                          }
+                        : undefined
+                }
+                onClearHistory={
+                    ai.isReady
+                        ? () => {
+                              void ai.clearHistory();
+                          }
+                        : undefined
+                }
+            />
+        </div>
     );
 }
 
@@ -195,6 +244,11 @@ async function answerOps(element: ElementUnderTest, card: HTMLElement): Promise<
 }
 
 afterEach(async () => {
+    // The reader's tool switches are saved in this browser: each test starts with them off.
+    for (const key of ["graphty.ai.webSearch.v1", "graphty.ai.webFetch.v1", "graphty.ai.inPageCode.v1"]) {
+        localStorage.removeItem(key);
+    }
+
     for (const element of mounted.splice(0)) {
         await element.getAiManager()?.clearHistory();
         element.disableAiControl();
@@ -292,5 +346,106 @@ describe("the AI panel on the real element", () => {
         const card = await screen.findByRole("group", { name: "The assistant asks" }, { timeout: TIMEOUT_MS });
         assert.include(card.textContent, QUESTION);
         await answerOps(second, card);
+    });
+
+    it("runs the model's program in the page once the reader switches on Run code", async () => {
+        const element = await placeElement(`ai-run-code-${crypto.randomUUID()}`);
+        await renderAssistant(element);
+        const before = element.getAiManager();
+
+        const runCode = screen.getByRole("switch", { name: /^Run code/ });
+        assert.isFalse((runCode as HTMLInputElement).checked, "off until the reader turns it on");
+        await userEvent.click(runCode);
+
+        // The assistant is switched on again with the tool: a new assistant, ready.
+        await waitFor(
+            () => {
+                assert.notStrictEqual(element.getAiManager(), before);
+                assert.isDefined(element.getAiManager()?.getProvider());
+                assert.strictEqual(screen.getByTestId("assistant").dataset.ready, "true");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.strictEqual(element.getAiCapabilities()?.tools["in-page-code"], "available");
+        const provider = element.getAiManager()?.getProvider() as MockLlmProvider;
+        provider.setResponse(ASK_CODE, {
+            text: "I counted the nodes with code.",
+            toolCalls: [{ id: "code1", name: "run_code", arguments: { code: COUNT_PROGRAM } }],
+        });
+
+        await userEvent.fill(screen.getByRole("textbox", { name: "Ask the assistant" }), ASK_CODE);
+        await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+        const transcript = screen.getByTestId("ai-transcript");
+        await within(transcript).findByText(
+            (text) =>
+                text.includes("I counted the nodes with code.") &&
+                text.includes("run_code") &&
+                text.includes(": Done."),
+            {},
+            { timeout: TIMEOUT_MS },
+        );
+        // The program really ran: the model was sent the graph's own node count.
+        const sent = provider
+            .getCallHistory()
+            .flatMap((call) => call.messages)
+            .find((message) => message.role === "tool")?.content;
+        assert.include(sent, `"value":${String(element.session.status.counts.nodes)}`);
+    });
+
+    it("holds a change asked for after the assistant read the web, with the web-content wording", async () => {
+        const id = `ai-web-content-${crypto.randomUUID()}`;
+        const first = await placeElement(id);
+        const unmount = await renderAssistant(first);
+        await userEvent.fill(screen.getByRole("textbox", { name: "Ask the assistant" }), "hello");
+        await userEvent.click(screen.getByRole("button", { name: "Send" }));
+        await screen.findByText("This is a mock response.", {}, { timeout: TIMEOUT_MS });
+
+        // A scripted research answer: the saved conversation, as a provider that searched the web
+        // would have left it (a hosted web search with its source), in the published format.
+        const conversationId = first.getAiConversation()?.id ?? "";
+        const record = JSON.parse((await first.exportAiConversation(conversationId)) ?? "{}") as SavedRecord;
+        const answer = [...record.messages].reverse().find((message) => message.role === "assistant");
+        answer?.parts.push({
+            type: "hosted-tool",
+            origin: "web",
+            tool: "web-search",
+            status: "done",
+            sources: [{ url: "https://example.org/fr", title: "French cities" }],
+        });
+        unmount();
+        first.disableAiControl();
+        first.remove();
+        await saveRecord(record);
+
+        const second = await placeElement(id);
+        await renderAssistant(second);
+        const source = await screen.findByRole("link", { name: "French cities" }, { timeout: TIMEOUT_MS });
+        assert.strictEqual(source.getAttribute("href"), "https://example.org/fr");
+        assert.strictEqual(source.getAttribute("rel"), "noopener noreferrer");
+        assert.strictEqual(source.getAttribute("target"), "_blank");
+
+        (second.getAiManager()?.getProvider() as MockLlmProvider).setResponse(ASK_REMOVE, {
+            text: "",
+            toolCalls: [{ id: "rm", name: "edit_data", arguments: { action: "remove_nodes", ids: ["b"] } }],
+        });
+        await userEvent.fill(screen.getByRole("textbox", { name: "Ask the assistant" }), ASK_REMOVE);
+        await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+        const card = await screen.findByRole("group", { name: "Approve this change?" }, { timeout: TIMEOUT_MS });
+        assert.include(
+            card.textContent,
+            "The assistant read web content in this conversation. Approve only a change you asked for.",
+        );
+        assert.strictEqual(second.session.status.counts.nodes, 3, "nothing ran before the approval");
+
+        await userEvent.click(within(card).getByRole("button", { name: "Deny" }));
+        await waitFor(
+            () => {
+                assert.isNull(screen.queryByRole("group", { name: "Approve this change?" }));
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.strictEqual(second.session.status.counts.nodes, 3);
     });
 });

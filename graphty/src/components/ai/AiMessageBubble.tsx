@@ -1,4 +1,4 @@
-import { ActionIcon, Box, Group, Paper, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Anchor, Box, Group, Paper, Text, Tooltip } from "@mantine/core";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import React from "react";
 
@@ -12,6 +12,49 @@ export interface ChatMessage {
     isError?: boolean;
     /** The helper that said it, when a helper did; drawn as a label above the message. */
     agent?: string;
+    /** The web pages the answer drew on, drawn as links under it. */
+    sources?: readonly { readonly url: string; readonly title?: string }[];
+}
+
+/**
+ * A source's address, when it is one a link may open: http or https only.
+ * @param url - The address the provider reported.
+ * @returns The parsed address, or undefined for anything else (a `javascript:` URL, garbage).
+ */
+function webAddress(url: string): URL | undefined {
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * The sources under an answer: a link per web address, plain text for anything else.
+ * @param props - The sources.
+ * @param props.sources - The sources, in order.
+ * @returns The list.
+ */
+function SourceList({ sources }: { readonly sources: NonNullable<ChatMessage["sources"]> }): React.JSX.Element {
+    return (
+        <Box component="ul" aria-label="Sources" data-testid="ai-message-sources" m={0} mt={2} pl="md">
+            {sources.map((source, index) => {
+                const address = webAddress(source.url);
+                return (
+                    <Text component="li" key={index} size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
+                        {address === undefined ? (
+                            (source.title ?? source.url)
+                        ) : (
+                            <Anchor href={address.href} target="_blank" rel="noopener noreferrer" size="xs">
+                                {source.title ?? address.host}
+                            </Anchor>
+                        )}
+                    </Text>
+                );
+            })}
+        </Box>
+    );
 }
 
 interface AiMessageBubbleProps {
@@ -98,6 +141,7 @@ export function AiMessageBubble({ message, onRetry }: AiMessageBubbleProps): Rea
                     </Text>
                 )}
             </Paper>
+            {message.sources !== undefined && message.sources.length > 0 && <SourceList sources={message.sources} />}
             {message.timestamp !== undefined && (
                 <Text size="xs" c="dimmed" mt={2} ta={isUser ? "right" : "left"}>
                     {new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}

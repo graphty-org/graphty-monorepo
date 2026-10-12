@@ -51,3 +51,24 @@ export function writePreference<T extends string>(preference: Preference<T>, val
         // Storage blocked: the choice holds for this page view only.
     }
 }
+
+/** The assistant may search the web (Settings > AI providers). Off until the reader turns it on. */
+export const AI_WEB_SEARCH = {
+    key: "graphty.ai.webSearch.v1",
+    values: ["off", "on"],
+    fallback: "off",
+} as const;
+
+/** The assistant may read web pages (Settings > AI providers). */
+export const AI_WEB_FETCH = {
+    key: "graphty.ai.webFetch.v1",
+    values: ["off", "on"],
+    fallback: "off",
+} as const;
+
+/** The assistant may run code in this page (Settings > AI providers). */
+export const AI_IN_PAGE_CODE = {
+    key: "graphty.ai.inPageCode.v1",
+    values: ["off", "on"],
+    fallback: "off",
+} as const;

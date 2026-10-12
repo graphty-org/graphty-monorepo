@@ -1,3 +1,13 @@
+## 0.9.20 (2026-10-12)
+
+### 🩹 Fixes
+
+- **compact-mantine:** document an empty section as its 40px header and rule ([8a7d8fcbc](https://github.com/graphty-org/graphty-monorepo/commit/8a7d8fcbc))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.19 (2026-10-12)
 
 ### 🩹 Fixes

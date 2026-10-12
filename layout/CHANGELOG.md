@@ -1,3 +1,13 @@
+## 2.4.3 (2026-10-12)
+
+### 🩹 Fixes
+
+- **layout:** draw the 3D stories on demand instead of in an endless frame loop ([#2114](https://github.com/graphty-org/graphty-monorepo/issues/2114))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.4.2 (2026-10-12)
 
 ### 🩹 Fixes

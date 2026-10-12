@@ -1235,7 +1235,13 @@ export type GraphtyWarningCode =
 * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
 * `"edge"`, and `params.ids` the ids as the layer named them.
 */
-| "W_UNKNOWN_ID";
+| "W_UNKNOWN_ID"
+/**
+* A style layer writes a colour with an alpha (`#rrggbbaa`, `rgba()`) to a channel that cannot
+* draw it translucent, so the colour is drawn opaque. `params.channel` is the channel and
+* `params.path` where in the layer the colour sits. Today only `node.outline` cannot.
+*/
+| "W_ALPHA_IGNORED";
 
 // @public
 export interface HighlightSpec {

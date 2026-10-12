@@ -2,6 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import {
     backgroundRefusal,
+    dataExportOptions,
     DEFAULT_IMAGE,
     fileName,
     IMAGE_PRESETS,
@@ -50,5 +51,10 @@ describe("the Export dialog's choices", () => {
         assert.equal(fileName("Les Miserables", "Front", "png"), "les-miserables_front.png");
         assert.equal(fileName("  ", "nodes", "csv"), "untitled_nodes.csv");
         assert.equal(slug("Current view!"), "current-view");
+    });
+
+    it("asks every data export for the graph's styles", () => {
+        assert.deepEqual(dataExportOptions({ format: "csv", table: "edges" }), { styles: true, table: "edges" });
+        assert.deepEqual(dataExportOptions({ format: "graphml", table: "nodes" }), { styles: true });
     });
 });

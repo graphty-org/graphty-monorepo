@@ -101,6 +101,9 @@ describe("Export: save a picture and the numbers (task T13)", () => {
             assert.include(within(again).getByLabelText("Preview of the exported data").textContent, header);
         });
         await userEvent.click(within(again).getByRole("button", { name: "Export" }));
+        // Degree's colors are style layers a CSV file cannot hold: the dialog asks first.
+        const warning = await within(again).findByRole("alertdialog");
+        await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
         await screen.findByText("Exported untitled_nodes.csv");
         const table = saved.find(({ name }) => name === "untitled_nodes.csv");
         assert.isDefined(table, "the table was saved");

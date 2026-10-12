@@ -32,6 +32,16 @@ export interface DataChoices {
     readonly table: "nodes" | "edges";
 }
 
+/**
+ * The options for one data export, for the preview and the save alike: always with the graph's
+ * styles, so every format that can hold them gets them and the losses name what it cannot.
+ * @param choices - the data choices.
+ * @returns the `exportGraph` options.
+ */
+export function dataExportOptions(choices: DataChoices): Readonly<Record<string, unknown>> {
+    return choices.format === "csv" ? { styles: true, table: choices.table } : { styles: true };
+}
+
 /** One image preset (tier1-design.md section T13). */
 interface ImagePreset {
     readonly id: string;

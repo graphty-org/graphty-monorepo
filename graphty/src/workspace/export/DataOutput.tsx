@@ -1,11 +1,11 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { ExportResult } from "@graphty/graphty-element";
-import { Alert, Button, Input, Select, Text } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import type { ExportLoss, ExportResult } from "@graphty/graphty-element";
+import { Alert, Button, Group, Input, Select, Text } from "@mantine/core";
+import React, { useEffect, useRef, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { type DataChoices, fileName, SAVED_LOCALLY } from "./choices";
-import { lossWords } from "./lossWords";
+import { type DataChoices, dataExportOptions, fileName, SAVED_LOCALLY } from "./choices";
+import { isStyleLoss, layersBackWords, lossWords } from "./lossWords";
 
 /** How many lines of the file the preview shows. */
 const PREVIEW_LINES = 6;
@@ -71,13 +71,15 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
     const [preview, setPreview] = useState<{ lines: string; notes: readonly string[] } | null>(null);
     const [failure, setFailure] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    /** The style losses of the export the reader asked to save, until they save anyway or choose again. */
+    const [styleLosses, setStyleLosses] = useState<readonly ExportLoss[] | null>(null);
+    const formatField = useRef<HTMLInputElement>(null);
 
     const formats = (session?.catalog.formats() ?? [])
         .filter((format) => format.canExport)
         .sort((a, b) => Number(b.id === "csv") - Number(a.id === "csv"));
     const format = formats.find((entry) => entry.id === choices.format);
     const csv = choices.format === "csv";
-    const options = csv ? { table: choices.table } : {};
     const extension = format?.extensions[0]?.replace(/^\./, "") ?? choices.format;
     const name = fileName(project, csv ? choices.table : "graph", extension);
 
@@ -87,8 +89,9 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         }
         let live = true;
         setPreview(null);
+        setStyleLosses(null);
         element
-            .exportGraph(choices.format, csv ? { table: choices.table } : {})
+            .exportGraph(choices.format, dataExportOptions(choices))
             .then(async (result) => {
                 const lines = await firstLines(result);
                 if (live) {
@@ -104,15 +107,26 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         return () => {
             live = false;
         };
-    }, [element, choices.format, choices.table, csv]);
+    }, [element, choices]);
 
-    const save = async (): Promise<void> => {
+    /**
+     * Writes the file and hands it over; first, unless the reader already said to save anyway,
+     * stops at a warning when the format loses part of the styles.
+     * @param anyway - the reader saw the warning and chose to save.
+     */
+    const save = async (anyway = false): Promise<void> => {
         if (element === null) {
             return;
         }
         setBusy(true);
         try {
-            const result = await element.exportGraph(choices.format, options);
+            const result = await element.exportGraph(choices.format, dataExportOptions(choices));
+            const lost = result.losses.filter(isStyleLoss);
+            if (!anyway && lost.length > 0) {
+                setStyleLosses(lost);
+                return;
+            }
+            setStyleLosses(null);
             download(await result.text(), name, format?.mimeTypes[0] ?? "text/plain");
             onDone(`Exported ${name}`);
         } catch (error) {
@@ -141,8 +155,15 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                 </div>
                 <div className="ws-export-fields">
                     <Select
+                        ref={formatField}
                         label="Format"
-                        data={formats.map((entry) => ({ value: entry.id, label: entry.plainName }))}
+                        data={formats.map((entry) => ({
+                            value: entry.id,
+                            label:
+                                entry.styles?.write === "rules"
+                                    ? `${entry.plainName} (keeps style layers)`
+                                    : entry.plainName,
+                        }))}
                         value={choices.format}
                         allowDeselect={false}
                         onChange={(id) => {
@@ -170,7 +191,36 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                         {failure}
                     </Alert>
                 ) : null}
-                {failure === null && preview !== null && preview.notes.length > 0 ? (
+                {failure === null && styleLosses !== null ? (
+                    <Alert
+                        color="orange"
+                        role="alertdialog"
+                        title={`${format?.plainName ?? choices.format} does not keep all of the graph's styles`}
+                    >
+                        <ul className="ws-export-notes">
+                            {[...new Set(styleLosses.map(lossWords))].map((note) => (
+                                <li key={note}>{note}</li>
+                            ))}
+                        </ul>
+                        <Text size="sm">{layersBackWords(format, styleLosses)}</Text>
+                        <Group gap="xs" mt="xs">
+                            <Button size="xs" disabled={busy} onClick={() => void save(true)}>
+                                Save anyway
+                            </Button>
+                            <Button
+                                size="xs"
+                                variant="default"
+                                onClick={() => {
+                                    setStyleLosses(null);
+                                    formatField.current?.focus();
+                                }}
+                            >
+                                Choose another format
+                            </Button>
+                        </Group>
+                    </Alert>
+                ) : null}
+                {failure === null && styleLosses === null && preview !== null && preview.notes.length > 0 ? (
                     <Alert
                         color="yellow"
                         role="note"

@@ -41,7 +41,7 @@
  *    shard's report to .coverage-parts/<shard> (COVERAGE_DIR), not into one coverage/ directory each
  *    run would empty under the others. In both packages COVERAGE_DIR otherwise only switches off
  *    thresholds that a --project run already switches off.
- * Each
+ * A shard passes only when it exits 0 AND its log shows a finished vitest run (tools/shard-verdict.mjs). Each
  * shard's output goes to tmp/prepush-tests/<shard>.log; the first failure stops the others and
  * prints the end of its log. The failed shard's whole log is also copied to
  * <main checkout>/tmp/push-gate-logs/<time>-<pid>-<shard>.log, which the next push does not overwrite. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, not counting
@@ -55,6 +55,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-inputs.mjs";
+import { checkShard } from "./shard-verdict.mjs";
 
 // The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
 // another checkout, else this file's own. Its own CI matrix decides the shards, as CI's run on it will.
@@ -343,40 +344,39 @@ async function main() {
         const t0 = Date.now();
         running.set(shard.shard, child);
         child.on("close", (code) => {
-            running.delete(shard.shard);
             const secs = Math.round((Date.now() - t0) / 1000);
-            if (failed) {
-                // Once stopAll ran, the last shard to close ends the stage: nothing else is left to.
-                if (stopping && running.size === 0) {
-                    finish();
+            // The verdict reads the whole log, so only once the log stream has finished (end() never calls
+            // back on a log stream destroyed before it finished). The shard counts as running until then,
+            // so no other shard's close ends the stage before this one's verdict.
+            const settle = () => {
+                running.delete(shard.shard);
+                if (failed) {
+                    // Once stopAll ran, the last shard to settle ends the stage: nothing else is left to.
+                    if (stopping && running.size === 0) {
+                        finish();
+                    }
+                    return;
                 }
-                return;
-            }
-            if (code === 0) {
-                warmed.add(family(shard));
-                // The pass is recorded from the whole log, so only once the log stream has finished.
-                const report = () =>
-                    console.log(`  [PASS] ${shard.shard} (${secs}s)${passes.record(shard, readFileSync(log, "utf8"))}`);
-                if (out.destroyed) {
-                    report();
-                } else {
-                    out.end(report);
+                const text = existsSync(log) ? readFileSync(log, "utf8") : "";
+                // Exit 0 alone is not a pass: a pnpm older than 10.29.1 reports a killed run as 0
+                // (tools/shard-verdict.mjs).
+                const verdict = checkShard(shard, code, text, ROOT, t0);
+                if (verdict.pass) {
+                    warmed.add(family(shard));
+                    console.log(`  [PASS] ${shard.shard} (${secs}s)${passes.record(shard, text)}`);
+                    next();
+                    return;
                 }
-                next();
-                return;
-            }
-            failed = shard.shard;
-            process.exitCode = 1;
-            console.log(`  [FAIL] ${shard.shard} (exit ${code}, ${secs}s); the end of ${log}:`);
-            const tail = () => {
-                console.log(readFileSync(log, "utf8").split("\n").slice(-80).join("\n"));
+                failed = shard.shard;
+                process.exitCode = 1;
+                console.log(`  [FAIL] ${shard.shard} (${verdict.cause}, ${secs}s); the end of ${log}:`);
+                console.log(text.split("\n").slice(-80).join("\n"));
                 stopAll();
             };
-            // end() never calls back on a log stream destroyed before it finished.
             if (out.destroyed) {
-                tail();
+                settle();
             } else {
-                out.end(tail);
+                out.end(settle);
             }
         });
     };

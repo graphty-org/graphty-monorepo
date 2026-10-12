@@ -297,6 +297,13 @@ export interface CodedFact<Code extends string = string> {
 export type CodedFactParam = string | number | boolean | null | readonly (string | number | boolean | null)[];
 
 // @public
+export interface ColorWrite {
+    readonly channel: Channel;
+    readonly layer: LayerId;
+    readonly value?: string | number | boolean;
+}
+
+// @public
 export interface ColumnEncodingSpec extends EncodingOptions {
     readonly column: ColumnRef;
 }
@@ -3709,6 +3716,12 @@ export interface StyleChange {
 }
 
 // @public
+export interface StyleColor {
+    readonly color: string;
+    readonly writes: readonly ColorWrite[];
+}
+
+// @public
 export interface StyleContribution {
     readonly layerId: LayerId;
     readonly name: string;
@@ -3794,6 +3807,7 @@ export interface StylesApi {
     }): StyleAgreement;
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
     categories(id: LayerId, channel: Channel): readonly ValueCategory[];
+    colors(rowIds: readonly StyleRowId[]): readonly StyleColor[];
     counts(id: LayerId): StyleCounts;
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
@@ -3818,6 +3832,7 @@ export interface StylesApi {
     remove(id: LayerId, options?: RunOptions): Run<void>;
     removeBySource(predicate: (source: LayerSource) => boolean, options?: RunOptions): Run<readonly LayerId[]>;
     renameRow(id: StyleRowId, name: string, options?: RunOptions): Run<StyleRow>;
+    replaceColor(rowIds: readonly StyleRowId[], from: string, to: string, options?: RunOptions): Run<readonly Layer[]>;
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
     setDefaultPalettes(palettes: DefaultPalettes, options?: {
         readonly reapply?: boolean;

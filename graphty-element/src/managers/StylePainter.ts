@@ -14,7 +14,13 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
-import { asColorValue, CHANNEL_DESCRIPTORS, type ChannelDescriptor, toColorValue } from "../session/styles/channels";
+import {
+    asColorValue,
+    CHANNEL_DESCRIPTORS,
+    type ChannelDescriptor,
+    EFFECT_OFF,
+    toColorValue,
+} from "../session/styles/channels";
 import type { SelectorTarget } from "../session/styles/predicate";
 import type { ElementPaint, ResolvedStyle } from "../session/styles/repaint";
 
@@ -294,6 +300,13 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
     }
 
     const color = asColorValue(value);
+
+    // An effect written off draws nothing: its colour is left unwritten, so the renderer has
+    // nothing to switch it on with, whatever a layer beneath wrote.
+    if (color?.hex === EFFECT_OFF) {
+        return;
+    }
+
     setAtPath(bag, descriptor.stylePath, color === null ? value : color.hex);
 
     if (descriptor.accepts === "text") {

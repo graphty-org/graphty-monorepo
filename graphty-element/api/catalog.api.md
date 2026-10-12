@@ -296,6 +296,7 @@ export interface ChannelDescriptor {
     readonly group: ChannelGroup;
     readonly max?: number;
     readonly min?: number;
+    readonly off?: string | number;
     readonly plainName: string;
     readonly renderable: boolean;
     readonly shortName: string;

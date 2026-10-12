@@ -32,6 +32,14 @@ import type { LayerSpec } from "../../catalog/types";
 import type { SessionCommand } from "../planning";
 import type { ImportSource } from "./data";
 
+/** A layer writing one fixed colour, for the colour replacement door. */
+const DOOR_RED: LayerSpec = {
+    name: "door red",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.color": "#ff0000" },
+};
+
 /** How the doors tests call a door. */
 export type DoorCall =
     | {
@@ -569,6 +577,28 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ op: "style.patch", action: "writeRow", id: "no-such-layer", write: { name: "renamed" } }],
     ),
     parts: READ,
+    colors: READ,
+    // One fixed colour written by a layer the call sets up; the swap is one update of it.
+    replaceColor: {
+        kind: "dispatches",
+        op: "style.patch",
+        call: {
+            kind: "call",
+            args: [["door-red_1"], "#FF0000", "#00ff00"],
+            around: async (target) => {
+                await (target as { add(spec: LayerSpec): PromiseLike<unknown> }).add(DOOR_RED);
+                return () => Promise.resolve();
+            },
+        },
+        expect: [
+            {
+                op: "style.patch",
+                action: "update",
+                id: "door-red_1",
+                patch: { set: { "node.color": "#00ff00" } },
+            },
+        ],
+    },
     encode: calls(
         [{ run: "no-such-run", field: "value", channel: "node.color" }],
         [{ op: "style.encode", spec: { run: "no-such-run", field: "value", channel: "node.color" } }],

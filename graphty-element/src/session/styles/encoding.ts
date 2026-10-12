@@ -71,6 +71,7 @@ import {
     type ChannelValues,
     type ColorValue,
     type NodeShapeValue,
+    OFF_COLOR,
     toColorValue,
 } from "./channels";
 import type { LegendFact } from "./legend";
@@ -891,7 +892,8 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
 
     switch (accepts) {
         case "color":
-            return requireColor(value, what);
+            // An effect written off carries the one off colour, which the painter draws as nothing.
+            return descriptor.off !== undefined && value === descriptor.off ? OFF_COLOR : requireColor(value, what);
         case "number": {
             if (typeof value !== "number" || !Number.isFinite(value)) {
                 throw wrongKind("a number");
@@ -1166,7 +1168,12 @@ function colorOverrides(
     }
 
     for (const [name, value] of Object.entries(binding.map ?? {})) {
-        overrides.set(name, requireColor(value, `The colour "${name}" is mapped to on ${descriptor.channel}`));
+        overrides.set(
+            name,
+            descriptor.off !== undefined && value === descriptor.off
+                ? OFF_COLOR
+                : requireColor(value, `The colour "${name}" is mapped to on ${descriptor.channel}`),
+        );
     }
 
     return overrides.size === 0 ? null : overrides;

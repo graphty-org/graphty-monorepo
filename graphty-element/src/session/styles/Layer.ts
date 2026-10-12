@@ -622,6 +622,11 @@ function problemFrom(error: unknown, path: string): LayerProblem {
  * @returns The problem, or null when the value is one the channel takes.
  */
 function checkStaticValue(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
+    // An effect's off value is a value of the channel, whatever kind it otherwise takes.
+    if (descriptor.off !== undefined && value === descriptor.off) {
+        return null;
+    }
+
     switch (descriptor.accepts) {
         case "color":
             return toColorValue(asColorInput(value)) === null

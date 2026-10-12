@@ -126,7 +126,8 @@ import { sealedSet } from "../sealed";
 import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { beneathAuthored } from "./autoApply";
-import { channelDescriptor, isChannel } from "./channels";
+import { channelDescriptor, isChannel, toColorValue } from "./channels";
+import { colorsOf, replaceColorPatch, type StyleColor } from "./colors";
 import {
     type BindingPreview,
     type PreparedBinding,
@@ -407,6 +408,28 @@ export interface StylesApi {
      * @returns The row, or undefined when the stack holds no such layer.
      */
     parts(id: LayerId): RowParts | undefined;
+    /**
+     * The fixed colours some rows of the tree write: set values, literal bindings and value-table
+     * (`map`) entries, never a palette's or a ramp's. Two spellings of one colour are one entry.
+     * @param rowIds - Rows of {@link StylesApi.tree}: a layer row (both parts of a two-kind row),
+     *     or a folder (every layer in it).
+     * @returns One entry per colour, with every layer and channel writing it, in paint order.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` for an id the tree does not hold.
+     * @since 3.26.0
+     */
+    colors(rowIds: readonly StyleRowId[]): readonly StyleColor[];
+    /**
+     * Write one colour in place of another wherever {@link StylesApi.colors} finds it under the
+     * same rows, as one undoable step. A layer the reader locked is left as it is.
+     * @param rowIds - The rows, as {@link StylesApi.colors} takes them.
+     * @param from - The colour replaced, in any spelling.
+     * @param to - The colour written.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the layers changed, and rejects with `E_UNKNOWN_LAYER`,
+     *     or `E_BAD_COMMAND` when `from` or `to` is not a colour.
+     * @since 3.26.0
+     */
+    replaceColor(rowIds: readonly StyleRowId[], from: string, to: string, options?: RunOptions): Run<readonly Layer[]>;
     /**
      * Paint a run's measurement onto a channel. The one path an analysis layer takes.
      *
@@ -1105,6 +1128,11 @@ const HALVES: readonly SelectorTarget[] = Object.freeze(["node", "edge"]);
  */
 type StyleVerb = "encode" | "highlight" | "resolve" | "template" | RepaintReason;
 
+/** Style commands worked out when the edit runs and recorded together as one step. */
+interface StyleBatch {
+    readonly batch: () => readonly StyleCommand[];
+}
+
 /** Nothing qualifies a style edit's work: it is exact, it reads no weights, it samples nothing. */
 const EDIT_CAVEATS: Caveats = Object.freeze({
     direction: "as-loaded",
@@ -1733,6 +1761,33 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * The layers some rows of the tree hold: both parts of a two-kind row, every layer in a folder.
+     * @param ids - The rows.
+     * @returns The layers, bottom first, once each.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the tree holds no such row.
+     */
+    const layersUnder = (ids: readonly StyleRowId[]): Layer[] => {
+        const stack = current();
+        const rows = rowsOf(stack);
+        const wanted = new Set<LayerId>();
+        for (const id of ids) {
+            const found = findRow(rows, id);
+            if (found === undefined) {
+                throw unknownRow(id, rows);
+            }
+
+            const keys = found.row.kind === "folder" ? layerIdsOf(found.row.children ?? []) : [found.row.id];
+            for (const key of keys) {
+                for (const part of rowParts(stack, key)) {
+                    wanted.add(part.layer.id);
+                }
+            }
+        }
+
+        return stack.filter((entry) => wanted.has(entry.layer.id)).map((entry) => entry.layer);
+    };
+
+    /**
      * The stack as it paints, cut beneath one row of the tree: every layer under it, the
      * element's own layers there included.
      * @param id - The row.
@@ -1988,7 +2043,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const edit = <T>(
         verb: StyleVerb,
         label: string,
-        command: StyleCommand | ((state: ProjectState) => StyleCommand),
+        command: StyleCommand | ((state: ProjectState) => StyleCommand) | StyleBatch,
         options: RunOptions,
     ): Run<T> => {
         edits++;
@@ -2034,6 +2089,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                         source: "style",
                         details: { op: `styles.${verb}` },
                     });
+                }
+
+                if ("batch" in command) {
+                    // Several layers written as one step: a transaction, joining the caller's own
+                    // when there is one, since the dispatcher routes it there.
+                    const members = command.batch();
+                    const outcomes = await dispatcher.transaction(label, async (scope) => {
+                        const each: EditOutcome<unknown>[] = [];
+                        for (const member of members) {
+                            each.push((await scope.dispatch(member)) as EditOutcome<unknown>);
+                        }
+
+                        return each;
+                    });
+                    await Promise.all(outcomes.map((outcome) => outcome.painted));
+
+                    return { result: outcomes.map((outcome) => outcome.result) as T };
                 }
 
                 const outcome = (await dispatcher.dispatch(command)) as EditOutcome<T>;
@@ -3219,6 +3291,39 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         parts(id: LayerId): RowParts | undefined {
             return rowOf(rowParts(current(), id));
+        },
+
+        colors(rowIds: readonly StyleRowId[]): readonly StyleColor[] {
+            return colorsOf(layersUnder(rowIds));
+        },
+
+        replaceColor(
+            rowIds: readonly StyleRowId[],
+            from: string,
+            to: string,
+            options: RunOptions = {},
+        ): Run<readonly Layer[]> {
+            const batch = (): StyleCommand[] => {
+                const before = toColorValue(from);
+                if (before === null || toColorValue(to) === null) {
+                    throw badCommand(`"${before === null ? from : to}" is not a colour.`, { from, to });
+                }
+
+                const rows = rowsOf(current());
+                const commands: StyleCommand[] = [];
+                for (const layer of layersUnder(rowIds)) {
+                    const patch = lockedByReader(rows, layer.row ?? layer.id)
+                        ? null
+                        : replaceColorPatch(layer, before.hex, to);
+                    if (patch !== null) {
+                        commands.push({ op: "style.patch", action: "update", id: layer.id, patch });
+                    }
+                }
+
+                return commands;
+            };
+
+            return edit<readonly Layer[]>("update", `Replace ${from} with ${to}`, { batch }, options);
         },
 
         encode(spec: EncodingSpec | ColumnEncodingSpec, options: RunOptions = {}): Run<Layer> {

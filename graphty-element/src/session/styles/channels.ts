@@ -391,6 +391,14 @@ export interface ChannelDescriptor {
      * implementer. The same field name as `OptionDescriptor.unsupportedReason`.
      */
     readonly unsupportedReason?: string;
+    /**
+     * The value that draws nothing, on an effect that is off until a layer switches it on: the
+     * outline's and the glow's `"none"`, the animation's 0. Written by a layer, it covers what the
+     * layers beneath write for that channel, as `LabelStyle.enabled: false` does for a label.
+     * Absent on a channel with no such value.
+     * @since 3.26.0
+     */
+    readonly off?: string | number;
 }
 
 /**
@@ -398,6 +406,16 @@ export interface ChannelDescriptor {
  * and text; an edge's in line, arrows and text.
  */
 export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
+
+/** What an effect colour channel takes to draw nothing: see {@link ChannelDescriptor.off}. */
+export const EFFECT_OFF = "none";
+
+/**
+ * The value a repaint carries for an effect written off: a colour whose hex is "none", known by
+ * identity, so the painter writes nothing for it and no real colour (not even a transparent
+ * black) is ever mistaken for it.
+ */
+export const OFF_COLOR: ColorValue = Object.freeze({ r: 0, g: 0, b: 0, a: 0, hex: EFFECT_OFF });
 
 /** The colour an outline is drawn in when a style switches one on without naming a colour. */
 export const DEFAULT_OUTLINE_COLOR = "#FFFF00";
@@ -811,6 +829,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         default: DEFAULT_OUTLINE_COLOR,
         accepts: "color",
         stylePath: "effect.outline.color",
+        off: EFFECT_OFF,
         renderable: true,
         caveat: NODE_OUTLINE_CAVEAT,
     },
@@ -824,6 +843,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         default: DEFAULT_GLOW_COLOR,
         accepts: "color",
         stylePath: "effect.glow.color",
+        off: EFFECT_OFF,
         renderable: true,
     },
     "node.glowStrength": {
@@ -961,6 +981,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "number",
         min: 0,
         stylePath: "line.animationSpeed",
+        off: 0,
         renderable: true,
         caveat: EDGE_ANIMATION_CAVEAT,
     },

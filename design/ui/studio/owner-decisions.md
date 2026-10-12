@@ -27,6 +27,32 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: colors across rows (`styles.colors`, `styles.replaceColor`) and an off value for effects
+
+**What.** All in graphty-element, additive.
+
+- `styles.colors(rowIds)` lists the fixed colors some rows of the style tree write: set values,
+  literal bindings and value-table (`map`) entries, never a palette's or a ramp's. A layer row
+  counts both its node and edge parts; a folder counts every layer in it. Two spellings of one
+  color (`#d55e00`, `#D55E00`) are one entry (`StyleColor`: the color as `#rrggbb`, and each
+  `ColorWrite` naming the layer, the channel and, for a table entry, its value). An unknown row is
+  `E_UNKNOWN_LAYER`.
+- `styles.replaceColor(rowIds, from, to)` writes `to` wherever those rows write `from`, as one
+  undo step, and resolves with the layers it changed. A layer the reader locked is left as it is;
+  rows outside the ids are never touched. A `from` or `to` that is not a color is `E_BAD_COMMAND`.
+- `ChannelDescriptor.off`: the value that draws nothing on an effect that is off until a layer
+  switches it on. `"none"` for `node.outline` and `node.glow`, `0` for `edge.animationSpeed`.
+  Written by a layer, it covers what the layers beneath write, as `LabelStyle.enabled: false`
+  does for a label. The halo and band channels of the Selected row take the same field when they
+  land.
+
+**Why.** The panel's Selection colors on a folder or on several selected rows lists the colors
+those rows write and edits one in exactly those layers; an Effects entry's eye has to cover an
+effect a layer beneath writes, which an empty field (not set here) cannot do.
+
+**Not breaking.** Two new methods, two new types and a new optional descriptor field. `"none"` was
+refused on these channels before, so no layer that loaded before changes meaning.
+
 ## 2026-10-12 -- Decided by the team: hide by style, label looks that vary, and combine on numbers
 
 **What.** All in graphty-element, additive.

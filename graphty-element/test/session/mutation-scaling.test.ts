@@ -490,6 +490,17 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "StylesApi.replaceColor",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.replaceColor([id], RED, "#00ff00");
+                await session.styles.settled();
+            };
+        },
+    },
+    {
         method: "StylesApi.deleteRow",
         growth: "linear",
         prepare: async (session) => {

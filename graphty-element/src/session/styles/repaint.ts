@@ -58,7 +58,7 @@
 import type { Binding, Channel, GraphtyErrorCode, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
-import { asColorValue, type ChannelDescriptor, channelDescriptor, type ChannelValues } from "./channels";
+import { asColorValue, type ChannelDescriptor, channelDescriptor, type ChannelValues, EFFECT_OFF } from "./channels";
 import { prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";
 import type {
@@ -724,7 +724,8 @@ function pushMeshValue(meshes: StyleInterner<ResolvedStyle>, column: ChannelColu
 
     const color = asColorValue(value);
 
-    if (color === null) {
+    // An effect written off draws what an unpainted one draws, so it keys the same mesh.
+    if (color === null || color.hex === EFFECT_OFF) {
         meshes.pushAbsent();
 
         return;

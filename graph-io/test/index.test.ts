@@ -111,6 +111,8 @@ const VALUE_EXPORTS = [
     "oboImporter",
     "PAJEK_ISSUE",
     "PAJEK_LOSS",
+    "PAJEK_STYLE_CAPABILITIES",
+    "PAJEK_STYLE_COMMENT",
     "pajekExporter",
     "pajekImporter",
     "XGMML_ISSUE",

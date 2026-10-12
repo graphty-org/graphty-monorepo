@@ -389,8 +389,13 @@ function cssColor(text: string): { hex: StyleColor; alpha: number } | null {
     return hexColor(text, false) ?? cssFunction(text);
 }
 
+/** One of Pajek's decimal color channels in `RGB(1,0.8,0)`: 0..1, no spaces (Pajek 6.02 manual p. 76). */
+const PAJEK_CHANNEL = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
+
 /**
- * Pajek's color names: the dvips names as written, `GrayNN` (NN percent black) and `RGBrrggbb`.
+ * Pajek's color names: the dvips names as written, `GrayNN` (NN percent black), `RGBrrggbb`, `RGB(r,g,b)` with
+ * channels 0..1, `CMYKccmmyykk` and `CMYK(c,m,y,k)` (CMYK converted as dvips converts its names: each channel is
+ * 1 - min(1, c + k)).
  * @param text - the value, trimmed
  * @returns the color, or null
  */
@@ -405,7 +410,32 @@ function pajekColor(text: string): { hex: StyleColor; alpha: number } | null {
         return { hex: rgbHex(v, v, v), alpha: 1 };
     }
     const rgb = /^RGB([0-9A-Fa-f]{6})$/.exec(text);
-    return rgb === null ? hexColor(text, false) : { hex: `#${rgb[1].toLowerCase()}`, alpha: 1 };
+    if (rgb !== null) {
+        return { hex: `#${rgb[1].toLowerCase()}`, alpha: 1 };
+    }
+    const cmyk = /^CMYK([0-9A-Fa-f]{8})$/.exec(text);
+    let parts: number[] | null = null;
+    let model = "";
+    if (cmyk === null) {
+        const fn = /^(RGB|CMYK)\(([^()]*)\)$/.exec(text);
+        const channels = fn === null ? [] : fn[2].split(",");
+        if (fn !== null && channels.every((c) => PAJEK_CHANNEL.test(c))) {
+            model = fn[1];
+            parts = channels.map(Number);
+        }
+    } else {
+        model = "CMYK";
+        parts = [0, 2, 4, 6].map((i) => Number.parseInt(cmyk[1].slice(i, i + 2), 16) / 255);
+    }
+    if (parts === null || parts.some((p) => p > 1) || parts.length !== (model === "RGB" ? 3 : 4)) {
+        return hexColor(text, false);
+    }
+    if (model === "RGB") {
+        return { hex: rgbHex(parts[0] * 255, parts[1] * 255, parts[2] * 255), alpha: 1 };
+    }
+    const [c, m, y, k] = parts;
+    const ch = (v: number): number => 255 * (1 - Math.min(1, v + k));
+    return { hex: rgbHex(ch(c), ch(m), ch(y)), alpha: 1 };
 }
 
 /**

@@ -946,6 +946,7 @@ const STYLE_SLOTS: Readonly<Record<string, RegExp>> = {
     graphml: /(<y:[A-Za-z.]+\b[^>]*?\b(?:color|width|height|type|fontSize|textColor|hasColor|lineType)=)"[^"]*"/g,
     xgmml: /(<graphics\b[^>]*?\b(?:fill|outline|w|h|type|width)=)"[^"]*"/g,
     dot: /(\b(?:color|fillcolor|fontcolor|penwidth|shape|style|fontsize|width|height|arrowhead)\s*=\s*)"[^"]*"/g,
+    pajek: /([ \t](?:ic|bc|bw|lc|fos|x_fact|y_fact|c|w|p)[ \t]+)(?:"[^"\n]*"|[^\s"]+)/g,
 };
 
 /**
@@ -975,7 +976,7 @@ export function mutants(
     for (const c of name) {
         seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
     }
-    const xml = format !== "dot";
+    const xml = format !== "dot" && format !== "pajek";
     const out: { value: string; bytes: Uint8Array }[] = [];
     for (let k = 0; k < count; k++) {
         const value = HOSTILE_VALUES[(seed + k * 7) % HOSTILE_VALUES.length];

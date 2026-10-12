@@ -356,6 +356,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_PAJEK_LABEL_GAINED"></a>`W_PAJEK_LABEL_GAINED`: A vertex line with coordinates, a shape or parameters needs a label: the id text is written and reads back as a label. Save: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_LABEL_MERGED"></a>`W_PAJEK_LABEL_MERGED`: Two vertices share a label under nodeIdFrom "label" and became one node. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_MATRIX_EXTRA"></a>`W_PAJEK_MATRIX_EXTRA`: `*Matrix` rows longer than the column count; the extra values are ignored. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_NAN_VALUE"></a>`W_PAJEK_NAN_VALUE`: A line whose value is `NaN`; the line is kept without a value. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_NEGATIVE_LIST_ENTRY"></a>`W_PAJEK_NEGATIVE_LIST_ENTRY`: A negative vertex number in an adjacency list, read as its absolute value. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_NONFINITE_AS_TEXT"></a>`W_PAJEK_NONFINITE_AS_TEXT`: NaN or an infinity is written as the text Infinity or NaN, which reads back as text. Save: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_NO_LINES"></a>`W_PAJEK_NO_LINES`: The file declares vertices but no line section. Import: [pajek](./formats/pajek.md).
@@ -367,6 +368,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_PAJEK_REFERENCE_RANGE"></a>`W_PAJEK_REFERENCE_RANGE`: A character reference beyond U+10FFFF in a label; kept as written. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_RELATION_RENAMED"></a>`W_PAJEK_RELATION_RENAMED`: A relation number given a second name by a later `*Arcs :k "name"` header. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_SHAPE_AS_PARAMETER"></a>`W_PAJEK_SHAPE_AS_PARAMETER`: A `shape` attribute whose value is not one of Pajek's shape names is written as a parameter, and reads back as a plain text attribute. Save: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_TRAILING_VALUE"></a>`W_PAJEK_TRAILING_VALUE`: A number alone at the end of a row, after its parameters (Pajek writes a trailing `0`); it is ignored. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_TWO_MODE_LINE"></a>`W_PAJEK_TWO_MODE_LINE`: A line of a two-mode network whose endpoints are both in one mode. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_UNSUPPORTED_SECTION"></a>`W_PAJEK_UNSUPPORTED_SECTION`: A project-file section (`*Events`, `*Permutation`, ...) the importer does not read; its lines are skipped. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_VERTEX_COUNT"></a>`W_PAJEK_VERTEX_COUNT`: Fewer vertex lines than `*Vertices` declares, which the Pajek manual allows (vertices without a line have no label). Import: [pajek](./formats/pajek.md).

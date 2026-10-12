@@ -206,6 +206,8 @@ The codes this format's import report can hold. They are also exported as `PAJEK
 - `W_PAJEK_RELATION_RENAMED` (warning): A relation number given a second name by a later `*Arcs :k "name"` header.
 - `W_PAJEK_NEGATIVE_LIST_ENTRY` (warning): A negative vertex number in an adjacency list, read as its absolute value.
 - `W_PRECISION` (warning): An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.
+- `W_PAJEK_TRAILING_VALUE` (warning): A number alone at the end of a row, after its parameters (Pajek writes a trailing `0`); it is ignored.
+- `W_PAJEK_NAN_VALUE` (warning): A line whose value is `NaN`; the line is kept without a value.
 
 Like every format, it can also record the codes for unreadable input and for elements the graph refuses: [`E_EMPTY_INPUT`](../codes.md#E_EMPTY_INPUT), [`E_TOO_LARGE`](../codes.md#E_TOO_LARGE), [`W_ENCODING_CONFLICT`](../codes.md#W_ENCODING_CONFLICT), [`W_CONTROL_CHARACTER`](../codes.md#W_CONTROL_CHARACTER), [`E_FOREIGN_FORMAT`](../codes.md#E_FOREIGN_FORMAT), [`W_ISSUES_SUPPRESSED`](../codes.md#W_ISSUES_SUPPRESSED), [`E_INVALID_ID`](../codes.md#E_INVALID_ID), [`E_INVALID_WEIGHT`](../codes.md#E_INVALID_WEIGHT), [`E_DUPLICATE_EDGE`](../codes.md#E_DUPLICATE_EDGE), [`E_SELF_LOOP`](../codes.md#E_SELF_LOOP), [`E_DUPLICATE_EDGE_ID`](../codes.md#E_DUPLICATE_EDGE_ID).
 

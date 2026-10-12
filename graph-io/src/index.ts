@@ -219,6 +219,8 @@ export {
 export {
     PAJEK_ISSUE,
     PAJEK_LOSS,
+    PAJEK_STYLE_CAPABILITIES,
+    PAJEK_STYLE_COMMENT,
     pajekExporter,
     type PajekExportOptions,
     pajekImporter,

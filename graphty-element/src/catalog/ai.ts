@@ -226,16 +226,31 @@ export const AI_HOSTED_TOOL_CAPABILITIES: Readonly<Record<AiProviderId, AiToolCa
 });
 
 /**
- * Whether a provider and model can use a tool, as {@link AI_HOSTED_TOOL_CAPABILITIES} lists it. A
- * model the table does not list has its provider's status.
+ * The models whose provider runs no web search for them (audio, codex, search-preview and o1
+ * models, the oldest chat models, some pro and fast tiers), as each provider's model list says;
+ * test/ai/engine/tanstack/capabilities.test.ts checks this against those lists. First match wins.
+ */
+const NO_WEB_TOOLS: readonly (readonly [AiProviderId, RegExp])[] = [
+    ["openai", /^(?:gpt-3\.5|gpt-4(?:-turbo)?(?:$|-\d)|o1(?:$|-)|computer-use|codex-)|codex|audio|search-preview/],
+    ["openai", /^gpt-(?:5\.6|6)-[a-z]+-pro(?:$|-)/],
+    ["anthropic", /^claude-opus-5-fast/],
+];
+
+/**
+ * Whether a provider and model can use a tool, as {@link AI_HOSTED_TOOL_CAPABILITIES} lists it,
+ * except for a model the provider runs no web tool for. A model no list names has its provider's
+ * status.
  * @param provider - The provider.
  * @param model - The model id.
  * @param tool - The tool.
  * @returns Its status.
  */
 export function aiHostedToolStatus(provider: AiProviderId, model: string, tool: AiHostedToolId): AiCapabilityStatus {
-    // ponytail: every listed model has its provider's tools; per-model rows when one differs.
-    return AI_HOSTED_TOOL_CAPABILITIES[provider][tool];
+    const status = AI_HOSTED_TOOL_CAPABILITIES[provider][tool];
+    const web = tool === "web-search" || tool === "web-fetch";
+    return web && status === "available" && NO_WEB_TOOLS.some(([p, pattern]) => p === provider && pattern.test(model))
+        ? "unsupported"
+        : status;
 }
 
 /** Why a key does not have the shape of its provider's keys. */

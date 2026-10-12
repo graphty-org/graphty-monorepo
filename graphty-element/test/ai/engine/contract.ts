@@ -14,6 +14,7 @@ import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
 import { LlmProviderEngine } from "../../../src/ai/engine/LlmProviderEngine";
 import type {
     AiEngine,
+    EngineHostedTool,
     ProviderState,
     SavedMessage,
     ToolSpec,
@@ -509,6 +510,19 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
             for (const status of Object.values(hostedTools)) {
                 assert.include(["available", "unsupported"], status);
             }
+        });
+
+        it("takes a turn with each tool it offers the provider to run, in one request, and ends it", async () => {
+            const { engine, reply, seen } = make();
+            reply({ text: "ok" });
+            const { hostedTools } = engine.capabilities("not-a-listed-model");
+            const offered = (Object.keys(hostedTools) as EngineHostedTool[]).filter(
+                (tool) => hostedTools[tool] === "available",
+            );
+            const out = await events(engine, request({ hostedTools: offered.map((tool) => ({ tool })) }));
+            assert.deepStrictEqual(out.at(-1), { type: "finish", reason: "stop" });
+            assert.notOk(out.some((e) => e.type === "tool-call" || e.type === "hosted-tool"));
+            assert.strictEqual(seen().length, 1);
         });
 
         it("takes a model id no table lists", async () => {

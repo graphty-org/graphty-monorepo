@@ -4,6 +4,7 @@
  * on the first turn. The retry schedule is graphty's: the adapter turns off every lower layer's.
  */
 
+import { aiHostedToolStatus } from "../../catalog/ai";
 import { API_KEY_MISSING_ERROR } from "../safeError";
 import { providerFailure } from "./LlmProviderEngine";
 import { loadProviderApiTurn } from "./load";
@@ -11,7 +12,6 @@ import {
     type AiEngine,
     type EngineCapabilities,
     type EngineOutcome,
-    NO_HOSTED_TOOLS,
     type ProviderApiSettings,
     type ProviderApiTurn,
     type TurnError,
@@ -95,12 +95,19 @@ export class ProviderApiEngine implements AiEngine {
     }
 
     /**
-     * What the provider can do with a model: every built-in provider calls tools. The adapter does
-     * not offer the provider's own tools yet.
+     * What the provider can do with a model: every built-in provider calls tools, and the adapter
+     * offers each of the provider's own tools that the catalog lists as available for the model.
+     * @param model - The model id.
      * @returns Its capabilities.
      */
-    capabilities(): EngineCapabilities {
-        return { toolCalls: "available", hostedTools: NO_HOSTED_TOOLS };
+    capabilities(model: string): EngineCapabilities {
+        const { provider } = this.settings();
+        const status = (tool: "web-search" | "web-fetch"): "available" | "unsupported" =>
+            aiHostedToolStatus(provider, model, tool) === "available" ? "available" : "unsupported";
+        return {
+            toolCalls: "available",
+            hostedTools: { "web-search": status("web-search"), "web-fetch": status("web-fetch") },
+        };
     }
 
     /**

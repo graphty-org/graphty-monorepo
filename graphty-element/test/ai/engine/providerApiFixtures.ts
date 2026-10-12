@@ -13,8 +13,28 @@ import { ProviderApiEngine, type ProviderApiEngineOptions } from "../../../src/a
 import type { ProviderApiId, ProviderApiSettings } from "../../../src/ai/engine/types";
 import type { EngineFixture } from "./contract";
 
+/** A page a provider-run tool found or read. */
+interface HostedPage {
+    url: string;
+    title?: string;
+}
+
+/**
+ * One tool the provider ran before answering: a search and the pages it found (every provider), a
+ * fetch of one page (Anthropic), or Anthropic's error block with its `error_code`.
+ */
+interface HostedAnswer {
+    tool: "search" | "fetch";
+    pages?: HostedPage[];
+    error?: string;
+}
+
 /** One scripted answer. */
 interface Answer {
+    /** Tools the provider ran in the turn, before the text. */
+    hosted?: HostedAnswer[];
+    /** Anthropic stopped the turn to continue it later (`pause_turn`). */
+    paused?: boolean;
     text?: string;
     /** A call's arguments as an object, or as the raw text the model wrote (OpenAI and Anthropic). */
     toolCalls?: { id: string; name: string; arguments: Record<string, unknown> | string; signature?: string }[];
@@ -84,13 +104,29 @@ function anthropicStopReason(answer: Answer): string {
         return "max_tokens";
     }
 
+    if (answer.paused) {
+        return "pause_turn";
+    }
+
     return answer.toolCalls?.length ? "tool_use" : "end_turn";
 }
 
 /** Each provider's streaming answer, in its own wire format. */
 const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
     openai: (answer) => {
+        const pages = (answer.hosted ?? []).flatMap((hosted) => hosted.pages ?? []);
+        const searches = (answer.hosted ?? []).map((hosted, index) => ({
+            id: `ws_${index}`,
+            type: "web_search_call" as const,
+            status: "completed",
+            action: {
+                type: "search",
+                query: "the query",
+                sources: (hosted.pages ?? []).map(({ url }) => ({ type: "url", url })),
+            },
+        }));
         const items = [
+            ...searches,
             ...(answer.text
                 ? [
                       {
@@ -98,7 +134,19 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
                           type: "message" as const,
                           status: "completed",
                           role: "assistant",
-                          content: [{ type: "output_text", text: answer.text, annotations: [] }],
+                          content: [
+                              {
+                                  type: "output_text",
+                                  text: answer.text,
+                                  annotations: pages.map(({ url, title }) => ({
+                                      type: "url_citation",
+                                      url,
+                                      title,
+                                      start_index: 0,
+                                      end_index: 1,
+                                  })),
+                              },
+                          ],
                       },
                   ]
                 : []),
@@ -119,8 +167,18 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
         ];
         return sse([
             event("response.created", { response: { ...response, status: "in_progress", output: [] } }),
-            ...items.flatMap((item, index) =>
-                item.type === "message"
+            ...items.flatMap((item, index) => {
+                if (item.type === "web_search_call") {
+                    return [
+                        event("response.output_item.added", {
+                            output_index: index,
+                            item: { ...item, status: "in_progress" },
+                        }),
+                        event("response.output_item.done", { output_index: index, item }),
+                    ];
+                }
+
+                return item.type === "message"
                     ? [
                           event("response.output_item.added", {
                               output_index: index,
@@ -132,6 +190,15 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
                               content_index: 0,
                               delta: answer.text,
                           }),
+                          ...item.content[0].annotations.map((annotation, annotationIndex) =>
+                              event("response.output_text.annotation.added", {
+                                  item_id: item.id,
+                                  output_index: index,
+                                  content_index: 0,
+                                  annotation_index: annotationIndex,
+                                  annotation,
+                              }),
+                          ),
                           event("response.output_item.done", { output_index: index, item }),
                       ]
                     : [
@@ -150,8 +217,8 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
                               arguments: item.arguments,
                           }),
                           event("response.output_item.done", { output_index: index, item }),
-                      ],
-            ),
+                      ];
+            }),
             event(answer.cutOff ? "response.incomplete" : "response.completed", {
                 response: {
                     ...response,
@@ -168,6 +235,67 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
         ]);
     },
     anthropic: (answer) => {
+        const hosted = (answer.hosted ?? []).flatMap((call, index): [string, unknown][] => {
+            const id = `srvtoolu_${index}`;
+            const name = call.tool === "search" ? "web_search" : "web_fetch";
+            const input = call.tool === "search" ? { query: "the query" } : { url: call.pages?.[0]?.url };
+            const resultType = `${name}_tool_result`;
+            let content: unknown;
+            if (call.error !== undefined) {
+                content = { type: `${resultType}_error`, error_code: call.error };
+            } else if (call.tool === "search") {
+                content = (call.pages ?? []).map(({ url, title }) => ({
+                    type: "web_search_result",
+                    url,
+                    title,
+                    encrypted_content: "ZW5j",
+                    page_age: null,
+                }));
+            } else {
+                const [page] = call.pages ?? [];
+                content = {
+                    type: "web_fetch_result",
+                    url: page.url,
+                    content: {
+                        type: "document",
+                        source: { type: "text", media_type: "text/plain", data: "The page." },
+                        title: page.title,
+                    },
+                    retrieved_at: "2026-10-11T00:00:00Z",
+                };
+            }
+
+            const at = index * 2;
+            return [
+                [
+                    "content_block_start",
+                    {
+                        type: "content_block_start",
+                        index: at,
+                        content_block: { type: "server_tool_use", id, name, input: {} },
+                    },
+                ],
+                [
+                    "content_block_delta",
+                    {
+                        type: "content_block_delta",
+                        index: at,
+                        delta: { type: "input_json_delta", partial_json: JSON.stringify(input) },
+                    },
+                ],
+                ["content_block_stop", { type: "content_block_stop", index: at }],
+                [
+                    "content_block_start",
+                    {
+                        type: "content_block_start",
+                        index: at + 1,
+                        content_block: { type: resultType, tool_use_id: id, content },
+                    },
+                ],
+                ["content_block_stop", { type: "content_block_stop", index: at + 1 }],
+            ];
+        });
+        const first = (answer.hosted ?? []).length * 2;
         const blocks = [
             ...(answer.text ? [{ type: "text" as const, text: answer.text }] : []),
             ...(answer.toolCalls ?? []).map((call) => ({
@@ -194,8 +322,10 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
                     },
                 },
             ],
-            ...blocks.flatMap((block, index): [string, unknown][] =>
-                block.type === "text"
+            ...hosted,
+            ...blocks.flatMap((block, at): [string, unknown][] => {
+                const index = first + at;
+                return block.type === "text"
                     ? [
                           [
                               "content_block_start",
@@ -221,8 +351,8 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
                               },
                           ],
                           ["content_block_stop", { type: "content_block_stop", index }],
-                      ],
-            ),
+                      ];
+            }),
             [
                 "message_delta",
                 {
@@ -252,6 +382,14 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
                                 ],
                             },
                             finishReason: answer.cutOff ? "MAX_TOKENS" : "STOP",
+                            ...(answer.hosted && {
+                                groundingMetadata: {
+                                    webSearchQueries: ["the query"],
+                                    groundingChunks: answer.hosted.flatMap((hosted) =>
+                                        (hosted.pages ?? []).map(({ url, title }) => ({ web: { uri: url, title } })),
+                                    ),
+                                },
+                            }),
                             index: 0,
                         },
                     ],

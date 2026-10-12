@@ -3,9 +3,44 @@
  */
 
 import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { webFetchTool, webSearchTool } from "@tanstack/ai-anthropic/tools";
 
-import type { ProviderApiSettings } from "../types";
+import type { HostedToolRequest, ProviderApiSettings } from "../types";
 import type { ProviderModule } from "./index";
+
+/** The beta web fetch needs, which TanStack does not add (UPSTREAM.md). */
+const WEB_FETCH_BETA = "web-fetch-2025-09-10";
+
+/**
+ * graphty's fetch, adding the web fetch beta to the `anthropic-beta` header the SDK sends.
+ * @param fetch - graphty's fetch.
+ * @returns The fetch.
+ */
+function withWebFetchBeta(fetch: typeof globalThis.fetch): typeof globalThis.fetch {
+    return (input, init) => {
+        const headers = new Headers(init?.headers);
+        const betas = (headers.get("anthropic-beta") ?? "")
+            .split(",")
+            .map((beta) => beta.trim())
+            .filter((beta) => beta !== "");
+        headers.set("anthropic-beta", [...new Set([...betas, WEB_FETCH_BETA])].join(","));
+        return fetch(input, { ...init, headers });
+    };
+}
+
+/**
+ * A hosted tool's limits, under Anthropic's names.
+ * @param request - The request.
+ * @param request.allowedDomains - The only hosts it may reach.
+ * @param request.maxUses - Its cap on uses in the turn.
+ * @returns `allowed_domains` and `max_uses`, where set.
+ */
+function limits({ allowedDomains, maxUses }: HostedToolRequest): { allowed_domains?: string[]; max_uses?: number } {
+    return {
+        ...(allowedDomains && { allowed_domains: [...allowedDomains] }),
+        ...(maxUses !== undefined && { max_uses: maxUses }),
+    };
+}
 
 /**
  * Each model family's output limit, first match wins: the AI SDK 5's table, which the API's limits
@@ -61,14 +96,23 @@ function endpoint(
 }
 
 export const anthropic: ProviderModule = {
-    createAdapter: (settings, fetch) =>
+    createAdapter: (settings, fetch, request) =>
         // Any model id the consumer names is passed on, the dated default among them.
         createAnthropicChat(settings.model as Parameters<typeof createAnthropicChat>[0], settings.apiKey ?? "", {
-            ...endpoint(settings, fetch),
+            ...endpoint(
+                settings,
+                request.hostedTools?.some(({ tool }) => tool === "web-fetch") ? withWebFetchBeta(fetch) : fetch,
+            ),
             maxRetries: 0,
             // Also sends the anthropic-dangerous-direct-browser-access header the API asks a page for.
             dangerouslyAllowBrowser: true,
         }),
+    hostedTools: (requests) =>
+        requests.map((request) =>
+            request.tool === "web-search"
+                ? webSearchTool({ name: "web_search", type: "web_search_20250305", ...limits(request) })
+                : webFetchTool(limits(request)),
+        ),
     modelOptions: (request, settings) => ({
         ...(request.tools.length > 0 && { tool_choice: { type: request.toolMode } }),
         max_tokens: request.maxOutputTokens ?? settings.maxTokens ?? maxOutputTokens(settings.model),

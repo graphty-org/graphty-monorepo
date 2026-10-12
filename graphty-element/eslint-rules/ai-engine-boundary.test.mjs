@@ -86,6 +86,11 @@ describe("refused", () => {
             "src/ai/tools/families/data.ts",
             'import { getQuickJS } from "quickjs-emscripten";',
         ],
+        [
+            "a provider tool graphty does not offer",
+            "src/ai/engine/tanstack/openai.ts",
+            'import { codeInterpreterTool } from "@tanstack/ai-openai/tools";',
+        ],
         ["the AI SDK in the adapter", "src/ai/engine/tanstack/openai.ts", 'import { generateText } from "ai";'],
         ["a vendor SDK outside the adapter", "src/ai/providers/VercelAiProvider.ts", 'import OpenAI from "openai";'],
         ["a zod subpath (the root's rule, kept)", "src/ai/engine/types.ts", 'import { z } from "zod/v4";'],
@@ -113,6 +118,15 @@ describe("allowed", () => {
                 'import { createOpenaiChat, type OpenAITextConfig } from "@tanstack/ai-openai";',
                 'import OpenAI from "openai";',
                 'import { other } from "./mapping.js";',
+            ].join("\n"),
+        ],
+        [
+            "the provider tools graphty offers: web search and web fetch",
+            "src/ai/engine/tanstack/anthropic.ts",
+            [
+                'import { webSearchTool } from "@tanstack/ai-openai/tools";',
+                'import { webFetchTool, webSearchTool as search } from "@tanstack/ai-anthropic/tools";',
+                'import { googleSearchTool } from "@tanstack/ai-gemini/tools";',
             ].join("\n"),
         ],
         [

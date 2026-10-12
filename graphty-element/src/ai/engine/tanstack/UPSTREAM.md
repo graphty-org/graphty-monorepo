@@ -4,6 +4,20 @@ What graphty-element works around in the packages this folder builds in, and wha
 upstream. Each entry names the workaround in this repository, so it can be deleted when upstream
 fixes the cause.
 
+## Web search and web fetch: `@tanstack/ai-anthropic` 0.21.1
+
+- **Web fetch is sent without its beta header.** `webFetchTool()` declares `web_fetch_20250910`,
+  which the Messages API accepts only with `anthropic-beta: web-fetch-2025-09-10`;
+  `computeAnthropicBetas` (adapters/text.js) adds betas for files, thinking, context management,
+  MCP and code execution, never for web fetch. Workaround: `withWebFetchBeta()` in `anthropic.ts`
+  adds it to the request through graphty's fetch when the turn offers web fetch. To report: add
+  the beta in `computeAnthropicBetas` when a `web_fetch` provider tool is present.
+- **`pause_turn` is reported as a plain stop.** The stream's `message_delta` maps every stop
+  reason other than `tool_use` and `max_tokens` to `RUN_FINISHED` with finish reason `stop`, so a
+  turn the API paused during a long server-tool run looks finished. Workaround: `ChunkReader` in
+  `index.ts` finishes a turn that had a provider-run tool and ends with no text and no call as
+  `"paused"`. To report: pass `pause_turn` through as its own finish reason.
+
 ## In-page code: `@tanstack/ai-isolate-quickjs` 0.3.2 over `quickjs-emscripten` 0.31.0
 
 `program.ts` uses Code Mode's QuickJS driver (`createQuickJSIsolateDriver`) and `stripTypeScript`
@@ -27,4 +41,4 @@ directly. The driver builds for browsers with Vite and with webpack
 - **`stripTypeScript` brings all of sucrase**, most of the 372 kB chunk, and its
   code-generation strings, which `tools/check-published-deps.mjs` exempts (`TEXT_NOT_IMPORTS`).
 
-None of these is filed yet.
+None of the issues in this file is filed upstream yet.

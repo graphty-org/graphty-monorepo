@@ -9,7 +9,8 @@
  *   src/ai/engine/tanstack/ and test/ai/engine/tanstack/.
  * - Inside the adapter, TanStack is imported by name only: `chat`, `generateTranscription`,
  *   `generateSpeech`, the adapter factories, and message and event types (the `EventType` enum
- *   among them), and for in-page code `createQuickJSIsolateDriver` and `stripTypeScript` (never
+ *   among them), the provider tools `webSearchTool`, `webFetchTool` and `googleSearchTool` from
+ *   the `/tools` subpaths, and for in-page code `createQuickJSIsolateDriver` and `stripTypeScript` (never
  *   `createCodeModeTool`). Middleware, agents,
  *   persistence and every other TanStack package are refused, so the loop, policies and plans stay
  *   graphty code.
@@ -112,6 +113,12 @@ function rules({ allow = [], loader = false, anyImport = true, named = false }, 
                 message,
             },
             {
+                // The provider's own tools graphty offers: web search and web fetch.
+                regex: String.raw`^@tanstack\/ai-(?:openai|anthropic|gemini)\/tools$`,
+                allowImportNamePattern: String.raw`^(?:webSearchTool|webFetchTool|googleSearchTool)$`,
+                message,
+            },
+            {
                 // In-page code: the QuickJS driver and the TypeScript stripper only. createCodeModeTool
                 // writes a stub of every tool into its description, past the assistant's tool budget.
                 regex: String.raw`^@tanstack\/ai-code-mode$`,
@@ -124,7 +131,7 @@ function rules({ allow = [], loader = false, anyImport = true, named = false }, 
                 message,
             },
             {
-                regex: String.raw`^@tanstack\/(?!ai$|ai-openai$|ai-anthropic$|ai-gemini$|ai-code-mode$|ai-isolate-quickjs$)`,
+                regex: String.raw`^@tanstack\/(?!ai$|ai-(?:openai|anthropic|gemini)(?:\/tools)?$|ai-code-mode$|ai-isolate-quickjs$)`,
                 message,
             },
         );

@@ -13,6 +13,9 @@ import { chat, EventType, type ModelMessage, type StreamChunk } from "@tanstack/
 
 import { providerFailure } from "../LlmProviderEngine";
 import {
+    type EngineHostedTool,
+    type HostedToolRequest,
+    type HostedToolSource,
     type ProviderApiSettings,
     type ProviderState,
     type SavedMessage,
@@ -20,19 +23,37 @@ import {
     toolResultText,
     type TurnError,
     type TurnEvent,
+    type TurnFinishCode,
     type TurnRequest,
 } from "../types";
 
 /** Marks the provider state this engine wrote. */
 const ENGINE = "provider-api";
 
+/** A tool as `chat()` takes it, a provider's own tool among them. */
+type ChatTool = NonNullable<Parameters<typeof chat>[0]["tools"]>[number];
+
 /** What one provider's module supplies: its adapter, its options, and its round-trip data. */
 export interface ProviderModule {
     /**
      * The provider's TanStack adapter, with the reader's key, the consumer's base URL, no retries,
      * and graphty's fetch.
+     * @param settings - The provider, key, model and base URL.
+     * @param fetch - graphty's fetch.
+     * @param request - The turn, whose hosted tools may need a header.
      */
-    createAdapter(settings: ProviderApiSettings, fetch: typeof globalThis.fetch): Parameters<typeof chat>[0]["adapter"];
+    createAdapter(
+        settings: ProviderApiSettings,
+        fetch: typeof globalThis.fetch,
+        request: TurnRequest,
+    ): Parameters<typeof chat>[0]["adapter"];
+    /**
+     * The provider's own tools for the turn's hosted tool requests, as TanStack's provider tools; a
+     * request the provider cannot honor in full is left out.
+     */
+    hostedTools(requests: readonly HostedToolRequest[]): ChatTool[];
+    /** A turn with a hosted tool declares no function tools (Gemini cannot mix the two). */
+    readonly hostedOnly?: boolean;
     /** The turn's tool mode, output limit and temperature, under this provider's own option names. */
     modelOptions(request: TurnRequest, settings: ProviderApiSettings): Record<string, unknown>;
     /**
@@ -331,12 +352,69 @@ function isCutShort(chunk: RunError): boolean {
     );
 }
 
+/** TanStack's name of each provider tool graphty offers, as graphty's hosted tool. */
+const HOSTED_TOOL_IDS: Readonly<Record<string, EngineHostedTool>> = {
+    web_search: "web-search",
+    google_search: "web-search",
+    web_fetch: "web-fetch",
+};
+
+/**
+ * A source's URL, when it is one a reader may follow: http or https.
+ * @param url - What the provider gave.
+ * @returns The URL, or undefined.
+ */
+function webUrl(url: unknown): string | undefined {
+    if (typeof url !== "string" || !URL.canParse(url)) {
+        return undefined;
+    }
+
+    const { protocol } = new URL(url);
+    return protocol === "http:" || protocol === "https:" ? url : undefined;
+}
+
+/**
+ * A source from a provider's `{ url, title }`.
+ * @param item - The item.
+ * @param title - Its title, when the provider keeps it elsewhere.
+ * @returns The source, or none for an item with no http or https URL.
+ */
+function source(item: unknown, title?: unknown): HostedToolSource[] {
+    const url = isObject(item) ? webUrl(item.url) : undefined;
+    const name = title ?? (isObject(item) ? item.title : undefined);
+    return url === undefined ? [] : [{ url, ...(typeof name === "string" && name !== "" && { title: name }) }];
+}
+
+/**
+ * The pages a provider-run tool found or read: OpenAI and Gemini put normalized `sources` on the
+ * call; Anthropic hands the raw result block, a list of `web_search_result`s, a
+ * `web_fetch_result`, or an error block.
+ * @param metadata - The call's metadata.
+ * @returns The sources; none for an error or a result with nothing readable.
+ */
+function hostedSources(metadata: Record<string, unknown>): HostedToolSource[] {
+    const result = isObject(metadata.anthropic) ? metadata.anthropic.result : undefined;
+    if (Array.isArray(result)) {
+        return result.flatMap((item) => (isObject(item) && item.type === "web_search_result" ? source(item) : []));
+    }
+
+    if (isObject(result)) {
+        return result.type === "web_fetch_result"
+            ? source(result, isObject(result.content) ? result.content.title : undefined)
+            : [];
+    }
+
+    return Array.isArray(metadata.sources) ? metadata.sources.flatMap((item) => source(item)) : [];
+}
+
 /** Reads one turn's TanStack chunks as turn events: each tool call as it completes, then the end. */
 class ChunkReader {
     /** Whether the turn has ended, with a finish or an error. */
     done = false;
     private readonly pending = new Map<string, PendingCall>();
     private calls = 0;
+    private hosted = 0;
+    private wrote = false;
 
     /**
      * A reader for one turn.
@@ -358,9 +436,15 @@ class ChunkReader {
     read(chunk: StreamChunk): TurnEvent[] {
         switch (chunk.type) {
             case EventType.TEXT_MESSAGE_CONTENT:
+                this.wrote ||= chunk.delta !== "";
                 return [{ type: "text", delta: chunk.delta }];
             case EventType.TOOL_CALL_START: {
                 const { tanstack: _tanstack, ...metadata } = (chunk.metadata ?? {}) as Record<string, unknown>;
+                // A call the provider ran itself, its result already in: never one for the loop to run.
+                if (metadata.providerExecuted === true) {
+                    return this.hostedResult(chunk.toolCallName, metadata);
+                }
+
                 this.pending.set(chunk.toolCallId, {
                     name: chunk.toolCallName,
                     args: "",
@@ -392,6 +476,23 @@ class ChunkReader {
             default:
                 return [];
         }
+    }
+
+    /**
+     * A tool the provider ran: its sources, or `result-unavailable` for an error or nothing readable.
+     * @param name - TanStack's name of the tool.
+     * @param metadata - The call's metadata, which carries the result.
+     * @returns Its event, or none for a provider tool graphty never offers.
+     */
+    private hostedResult(name: string, metadata: Record<string, unknown>): TurnEvent[] {
+        const tool = Object.hasOwn(HOSTED_TOOL_IDS, name) ? HOSTED_TOOL_IDS[name] : undefined;
+        if (tool === undefined) {
+            return [];
+        }
+
+        this.hosted++;
+        const sources = hostedSources(metadata);
+        return [{ type: "hosted-tool", tool, status: sources.length > 0 ? "done" : "result-unavailable", sources }];
     }
 
     /**
@@ -442,8 +543,21 @@ class ChunkReader {
             events.push({ type: "usage", inputTokens: usage.promptTokens, outputTokens: usage.completionTokens });
         }
 
-        events.push({ type: "finish", reason: this.calls > 0 ? "tool-calls" : "stop" });
+        events.push({ type: "finish", reason: this.finishReason() });
         return events;
+    }
+
+    /**
+     * Why the turn finished. A turn that used a provider's tool and ends with no text and no call
+     * was paused by the provider: TanStack reports Anthropic's `pause_turn` as a plain stop.
+     * @returns The reason.
+     */
+    private finishReason(): TurnFinishCode {
+        if (this.calls > 0) {
+            return "tool-calls";
+        }
+
+        return this.hosted > 0 && !this.wrote ? "paused" : "stop";
     }
 }
 
@@ -472,16 +586,22 @@ export async function* providerApiTurn(
         }
 
         const module = await PROVIDERS[settings.provider]();
+        const hosted = module.hostedTools(request.hostedTools ?? []);
+        // A provider that cannot mix its own tools with function tools gets only its own.
+        const turn = module.hostedOnly === true && hosted.length > 0 ? { ...request, tools: [] } : request;
         const stream = chat({
-            adapter: module.createAdapter(settings, recordingFetch(response)),
-            messages: toModelMessages(request.messages, settings, module),
-            ...(request.system !== "" && { systemPrompts: [request.system] }),
-            tools: request.tools.map(({ name, description, jsonSchema }) => ({
-                name,
-                description,
-                inputSchema: { ...jsonSchema },
-            })),
-            modelOptions: module.modelOptions(request, settings),
+            adapter: module.createAdapter(settings, recordingFetch(response), turn),
+            messages: toModelMessages(turn.messages, settings, module),
+            ...(turn.system !== "" && { systemPrompts: [turn.system] }),
+            tools: [
+                ...turn.tools.map(({ name, description, jsonSchema }) => ({
+                    name,
+                    description,
+                    inputSchema: { ...jsonSchema },
+                })),
+                ...hosted,
+            ],
+            modelOptions: module.modelOptions(turn, settings),
             abortController: controller,
             debug: false,
         }) as AsyncIterable<StreamChunk>;

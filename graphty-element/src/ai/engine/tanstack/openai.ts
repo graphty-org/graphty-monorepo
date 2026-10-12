@@ -3,6 +3,7 @@
  */
 
 import { createOpenaiChat } from "@tanstack/ai-openai";
+import { webSearchTool } from "@tanstack/ai-openai/tools";
 
 import type { ProviderModule } from "./index";
 
@@ -17,8 +18,24 @@ export const openai: ProviderModule = {
             dangerouslyAllowBrowser: true,
             fetch,
         }),
+    // No per-tool use cap: the loop counts uses.
+    hostedTools: (requests) =>
+        requests.flatMap(({ tool, allowedDomains }) =>
+            tool === "web-search"
+                ? [
+                      webSearchTool({
+                          type: "web_search",
+                          ...(allowedDomains && { filters: { allowed_domains: [...allowedDomains] } }),
+                      }),
+                  ]
+                : [],
+        ),
     modelOptions: (request, settings) => ({
         ...(request.tools.length > 0 && { tool_choice: request.toolMode }),
+        // A search's own result list, not only the pages the answer cites.
+        ...(request.hostedTools?.some(({ tool }) => tool === "web-search") && {
+            include: ["web_search_call.action.sources"],
+        }),
         ...(request.maxOutputTokens !== undefined || settings.maxTokens !== undefined
             ? { max_output_tokens: request.maxOutputTokens ?? settings.maxTokens }
             : {}),

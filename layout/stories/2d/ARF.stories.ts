@@ -86,8 +86,10 @@ function createARFStory(args: ARFArgs): HTMLElement {
         isApplied = true;
 
         // Animate to final positions
-        updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250);
-        updateStatus(statusPanel, "ARF layout applied! Attractive and repulsive forces balanced.");
+        // The status says "applied" once the last frame is drawn; the play function waits on it
+        void updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250).then(() =>
+            updateStatus(statusPanel, "ARF layout applied! Attractive and repulsive forces balanced."),
+        );
     }
 
     /**

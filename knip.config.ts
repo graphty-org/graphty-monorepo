@@ -233,7 +233,8 @@ const config: KnipConfig = {
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
                 // nothing externalises it), so each is a devDependency that production source imports.
                 // TanStack AI is built into the AI engine's own chunks the same way, imported only by
-                // src/ai/engine/tanstack/ (design/ai/tanstack-ai-harness-design.md, section 3.2).
+                // src/ai/engine/tanstack/ (design/ai/tanstack-ai-harness-design.md, section 3.2), and so
+                // is the in-page code sandbox (TanStack Code Mode's QuickJS driver and its WebAssembly).
                 // Only `lint:knip:prod` would report them, as unlisted.
                 ...(production
                     ? [
@@ -244,6 +245,9 @@ const config: KnipConfig = {
                           "@tanstack/ai-anthropic",
                           "@tanstack/ai-gemini",
                           "@tanstack/ai-openai",
+                          "@tanstack/ai-code-mode",
+                          "@tanstack/ai-isolate-quickjs",
+                          "@jitl/quickjs-wasmfile-release-sync",
                       ]
                     : []),
                 // Storybook addons

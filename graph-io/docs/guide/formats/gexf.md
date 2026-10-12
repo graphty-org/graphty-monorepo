@@ -223,7 +223,33 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | no                                |
 | [`positions`](./index.md#positions)             | yes                               |
 | [`viz`](./index.md#viz)                         | yes                               |
-| [`styles`](./index.md#styles)                   | none                              |
+| [`styles`](./index.md#styles)                   | 10 properties, rules kept         |
+
+<!-- generated:end -->
+
+## Styles
+
+With `styles: true`, graph-io reads Gephi's `viz` elements as styles: `viz:color` (its alpha
+becomes the fill's opacity), `viz:size`, `viz:shape` and an image shape's URI on nodes, and
+`viz:color`, `viz:thickness` and `viz:shape` on edges. Sizes are Gephi's relative factors, so
+`units.length` is `"relative"`. Gephi's defaults are always added: black discs of size 10 for what
+the file leaves out, no labels, an arrow at the target of directed edges, and an edge with no color
+of its own takes its source node's color.
+
+A save with styles writes the `viz` elements, and the rules for graphty as an element of graphty's
+own XML namespace inside `<meta>`, which Gephi skips. A shape GEXF does not have is written as the
+nearest one it has (`W_STYLE_APPROXIMATED`). See [Styles](../styles.md).
+
+<!-- generated:begin styles:gexf -->
+
+|                                     |                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Node properties written             | `fill`, `fillOpacity`, `width`, `height`, `shape`, `image`                                                                                                                                                                                                                                                                                                                                                                                    |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Graph properties written            | none                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `borderColor`, `labelColor`, `opacity`, `borderWidth`, `labelSize`, `borderStyle`, `label`, `tooltip`, `labelFont`, `labelWeight`, `labelItalic`, `labelPosition`, `visible`; edge: `sourceArrowColor`, `targetArrowColor`, `labelColor`, `labelSize`, `arrowSize`, `sourceArrow`, `targetArrow`, `curved`, `label`, `tooltip`, `labelFont`, `labelWeight`, `labelItalic`, `sourceLabel`, `targetLabel`, `visible`; graph: `background` |
 
 <!-- generated:end -->
 

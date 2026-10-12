@@ -33,6 +33,7 @@ export {
     usePopoutManager,
     usePopoutRegion,
 } from "./components/popout";
+export { RampEditor } from "./components/RampEditor";
 export { ScrollArea, type ScrollAreaProps } from "./components/ScrollArea";
 export { SegmentedControl } from "./components/SegmentedControl";
 export { StyleNumberInput } from "./components/StyleNumberInput";
@@ -247,6 +248,11 @@ export type {
     PopoutRegionProps,
     PopoutTriggerProps,
     ProseBlockProps,
+    RampEditorBin,
+    RampEditorHandle,
+    RampEditorLabels,
+    RampEditorPalette,
+    RampEditorProps,
     RampRowProps,
     RankChipProps,
     SparklineRowProps,

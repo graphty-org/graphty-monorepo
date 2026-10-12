@@ -65,7 +65,7 @@ function clampPercent(n: number): number {
 }
 
 /** Props for the internal UnitField. */
-interface UnitFieldProps {
+export interface UnitFieldProps {
     value: number;
     format: (value: number) => string;
     /** Snap a committed value into range (and wrap an angle). */
@@ -95,7 +95,7 @@ interface UnitFieldProps {
  * @param props.testId - test id
  * @returns the field
  */
-function UnitField({
+export function UnitField({
     value,
     format,
     normalize,
@@ -326,7 +326,7 @@ export interface GradientEditorProps {
  * a second caller needs it.
  * @returns the glyph
  */
-function SwapGlyph(): React.JSX.Element {
+export function SwapGlyph(): React.JSX.Element {
     return (
         <svg
             width={16}

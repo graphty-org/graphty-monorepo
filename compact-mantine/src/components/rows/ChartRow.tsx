@@ -58,6 +58,12 @@ const BASELINE_HEIGHT = 1;
 const AXIS_ROW_HEIGHT = 16;
 
 /**
+ * How far above a histogram row's bottom its drawing ends: the axis line and the gap over it. A
+ * control laid over the bars (the ramp editor) stops this far from the bottom.
+ */
+export const HISTOGRAM_AXIS_INSET = AXIS_ROW_HEIGHT + CHART_GAP;
+
+/**
  * The gap between two bars of a histogram.
  */
 const BAR_GAP = 2;
@@ -146,6 +152,11 @@ export interface HistogramBin {
     count: number;
     /** Draws this bar in the accent color, for the bin the reader has selected or the one being explained. */
     highlighted?: boolean;
+    /**
+     * A CSS color to paint this bar, such as what a color mapping gives the values in it, so the
+     * chart is also a picture of the mapping. `highlighted` wins over it.
+     */
+    paint?: string;
 }
 
 /**
@@ -662,7 +673,7 @@ export function HistogramRow({
                                         minWidth: 0,
                                         height: `${String(share)}%`,
                                         minHeight: count > 0 ? MIN_BAR_HEIGHT : 0,
-                                        background: highlighted ? PANEL_INK.ACCENT : MARK_INK,
+                                        background: highlighted ? PANEL_INK.ACCENT : (bin.paint ?? MARK_INK),
                                         borderRadius: BAR_RADIUS,
                                     }}
                                 />

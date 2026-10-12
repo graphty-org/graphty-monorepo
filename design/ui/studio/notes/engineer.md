@@ -11,6 +11,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **The ramp editor is built in compact-mantine** (`RampEditor`, story
+  `Components/Color/RampEditor`). It wraps `HistogramRow` (bars now take `paint`) and lays the
+  handles over it, so the table of values and the named image come free. Handles snap to the
+  caller's bin edges: pointer x rounds to the nearest edge index, arrows step to the next edge,
+  Home/End are the first and last edge. Why edges and no interpolation: the element's
+  `styles.preview` bins are equal stretches of the scale's own space, so equal-width bars ARE the
+  scale's axis and any value the editor reports is one the element produced; no scale in the
+  control. Scale and palette use StyleSelect's set/unset model (`scale` undefined shows
+  `defaultScale`, no reset); a controlled `value` always shows a reset that did nothing. Real
+  pointer drags in compact-mantine: `userEvent.hover(el, { position })` plus `commands.mouseDown`
+  / `mouseUp` (CompactColorInput's test). Owed to the app: feed it from `styles.preview` with a
+  preview over the data's whole extent for the axis, and the real domain for the paints. Not
+  built: a size ramp drawn as sizes (bars are painted only), and a Smooth / Steps toggle (the
+  scale select carries stepped scales).
 - (2026-10-12) **Starting rows and run placement are built in the element** (commit "starting
   rows for Everything, Selected and Hovered"). Project settings `startingRows` and `runPlacement`
   (config keys, so the app turns them on with `config.set` inside the baseline window and they save

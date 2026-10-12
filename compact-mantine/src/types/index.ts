@@ -64,6 +64,13 @@ export type { ControlSectionProps } from "../components/ControlSection";
 export type { ControlSubGroupProps } from "../components/ControlSubGroup";
 export type { GradientEditorProps } from "../components/GradientEditor";
 export type { InfoCircleProps } from "../components/InfoCircle";
+export type {
+    RampEditorBin,
+    RampEditorHandle,
+    RampEditorLabels,
+    RampEditorPalette,
+    RampEditorProps,
+} from "../components/RampEditor";
 export type { StyleNumberInputProps } from "../components/StyleNumberInput";
 export type { StyleSelectOption, StyleSelectProps } from "../components/StyleSelect";
 export type { ToggleWithContentProps } from "../components/ToggleWithContent";

@@ -27,6 +27,25 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: a ramp editor in compact-mantine (`RampEditor`), and painted histogram bars
+
+**What.** A new compact-mantine control, `RampEditor`, with its types (`RampEditorProps`,
+`RampEditorBin`, `RampEditorPalette`, `RampEditorHandle`, `RampEditorLabels`), and an optional
+`paint` color on `HistogramBin`, so a `HistogramRow` bar can be drawn in the color its values get.
+The editor draws the value's histogram with each bar painted, handles under the bars for the
+ramp's two ends and a midpoint, clamp brackets over the bars with each tail's count, step lines,
+a scale select, a palette select with Reverse, a no-value chit and typed fields. It computes no
+scale: the caller passes bins, paints and counts (graphty-element's `styles.preview`), a handle
+lands on a bin edge, and `describe` gives each handle's spoken value. Scale and palette follow
+the "empty means not set here" model: undefined shows the default and offers no reset. All
+additive.
+
+**Why.** Section 1.6 of the tier 3 design: every feature of the old degree control, made visible
+on the data's own axis, in the shared library so the app writes no bespoke control.
+
+**Alternatives.** `GradientEditor` as is (its stops sit on a color axis, not the data); text
+fields alone (complete but read rather than seen).
+
 ## 2026-10-12 -- Decided by the team: pictures for shapes, arrows and line patterns, and named label looks
 
 **What.** All in graphty-element's `./catalog`, additive.

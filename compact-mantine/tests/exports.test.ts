@@ -99,6 +99,11 @@ import type {
     QuickAction,
     QuickActionsProps,
     RailButtonProps,
+    RampEditorBin,
+    RampEditorHandle,
+    RampEditorLabels,
+    RampEditorPalette,
+    RampEditorProps,
     RampRowProps,
     RankChipProps,
     ResizeHandleBounds,
@@ -236,6 +241,11 @@ type PublicTypeSurface = {
     quickAction: QuickAction;
     quickActions: QuickActionsProps;
     railButton: RailButtonProps;
+    rampEditor: RampEditorProps;
+    rampEditorBin: RampEditorBin;
+    rampEditorHandle: RampEditorHandle;
+    rampEditorLabels: RampEditorLabels;
+    rampEditorPalette: RampEditorPalette;
     rampRow: RampRowProps;
     rankChip: RankChipProps;
     secondaryToolbar: SecondaryToolbarProps;
@@ -333,6 +343,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "PopoutButton",
     "PopoutManager",
     "PopoutRegion",
+    "RampEditor",
     "StyleNumberInput",
     "StyleSelect",
     "ScrollArea",
@@ -814,6 +825,11 @@ describe("Package exports", () => {
                     popoutRegion: true,
                     popoutTrigger: true,
                     proseBlock: true,
+                    rampEditor: true,
+                    rampEditorBin: true,
+                    rampEditorHandle: true,
+                    rampEditorLabels: true,
+                    rampEditorPalette: true,
                     rampRow: true,
                     rankChip: true,
                     sparklineRow: true,
@@ -885,7 +901,7 @@ describe("Package exports", () => {
                 } satisfies Record<keyof PublicTypeSurface, true>;
                 const names = Object.keys(listed);
 
-                expect(names).toHaveLength(132);
+                expect(names).toHaveLength(137);
             });
         });
 

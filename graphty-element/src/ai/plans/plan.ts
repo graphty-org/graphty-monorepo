@@ -6,6 +6,7 @@
  */
 
 import type { AiAgentRole, AiPlan } from "../agents";
+import type { SavedMessage } from "../engine/types";
 import { DELEGATE, MAX_ASSISTANT_TOOL_TURNS, type PlannedStep, type PlanSteps } from "../runConversation";
 import { withAnswers } from "./delegate";
 
@@ -21,21 +22,50 @@ export function unknownAgent(plan: AiPlan, roles: readonly AiAgentRole[]): strin
 }
 
 /**
+ * What the plan's hand-offs of the message answered so far: the results of graphty's own
+ * `delegate` calls since the reader's request, as `name: result`.
+ * @param messages - The conversation.
+ * @returns The lines.
+ */
+function planAnswers(messages: readonly SavedMessage[]): string[] {
+    const asked =
+        messages.length -
+        1 -
+        [...messages]
+            .reverse()
+            .findIndex((message) => message.role === "user" && message.parts.some((part) => part.origin === "reader"));
+    const since = messages.slice(asked + 1).flatMap((message) => message.parts);
+    const issued = new Map(
+        since.flatMap((part) =>
+            part.type === "tool-call" && part.origin === "graphty" && part.command === DELEGATE
+                ? [[part.callId, String(part.arguments.agent)]]
+                : [],
+        ),
+    );
+    return since.flatMap((part) =>
+        part.type === "tool-result" && issued.has(part.callId)
+            ? [`${String(issued.get(part.callId))}: ${part.content}`]
+            : [],
+    );
+}
+
+/**
  * A plan as the loop runs it.
  * @param plan - The plan, its helpers all roles.
  * @param input - The reader's request, every helper's task.
+ * @param start - The step to run first: past zero for a plan a reload reopened.
  * @returns Its steps, cut to `MAX_ASSISTANT_TOOL_TURNS`.
  */
-export function planSteps(plan: AiPlan, input: string): PlanSteps {
+export function planSteps(plan: AiPlan, input: string, start = 0): PlanSteps {
     const steps = plan.steps.filter((step) => step.agents.length > 0).slice(0, MAX_ASSISTANT_TOOL_TURNS);
-    /** The helper each of the plan's calls went to, by call id. */
-    const issued = new Map<string, string>();
-    let at = 0;
-    let sequence = false;
+    let at = start;
+    // The step before `start` held the message: its hand-offs run as it said.
+    let sequence = steps.at(start - 1)?.order === "sequence" && start > 0;
     return {
         get sequence(): boolean {
             return sequence;
         },
+        saved: () => ({ plan: { steps }, next: at }),
         next(conversation, newId): PlannedStep | undefined {
             const step = steps.at(at);
             at++;
@@ -44,21 +74,14 @@ export function planSteps(plan: AiPlan, input: string): PlanSteps {
                 return undefined;
             }
 
-            const answers = conversation.messages
-                .flatMap((message) => message.parts)
-                .flatMap((part) =>
-                    part.type === "tool-result" && issued.has(part.callId)
-                        ? [`${String(issued.get(part.callId))}: ${part.content}`]
-                        : [],
-                );
-            const task = withAnswers(input, answers);
+            const task = withAnswers(input, planAnswers(conversation.messages));
             // One id per call: `newId` makes a message's, which repeats until a message is added.
             const base = newId();
-            const calls = step.agents.map((agent, index) => {
-                const id = `${base}-${String(index)}`;
-                issued.set(id, agent);
-                return { id, name: DELEGATE, arguments: { agent, task } };
-            });
+            const calls = step.agents.map((agent, index) => ({
+                id: `${base}-${String(index)}`,
+                name: DELEGATE,
+                arguments: { agent, task },
+            }));
             return { calls, sequence };
         },
     };

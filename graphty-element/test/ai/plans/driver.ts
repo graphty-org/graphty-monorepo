@@ -9,6 +9,7 @@ import type { GraphSession } from "../../../session";
 import { AiController, type AiControllerOptions } from "../../../src/ai/AiController";
 import { CommandRegistry } from "../../../src/ai/commands";
 import type { CommandContext } from "../../../src/ai/commands/types";
+import { type ConversationStore, STORE_OVERRIDE } from "../../../src/ai/conversation/Conversation";
 import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
 import { LlmProviderEngine } from "../../../src/ai/engine/LlmProviderEngine";
 import { ENGINE_OVERRIDE } from "../../../src/ai/engine/load";
@@ -111,11 +112,13 @@ export class Harness {
      * @param session - The session.
      * @param driver - The engine.
      * @param options - Helpers, keys, questions, history.
+     * @param store - The store conversations are kept in, instead of the one `history` names.
      */
     constructor(
         readonly session: GraphSession,
         readonly driver: Driver,
         options: Pick<AiControllerOptions, "agents" | "apiKeys" | "questions" | "history" | "approvals"> = {},
+        store?: ConversationStore,
     ) {
         installAssistantTools(this.registry, session);
         this.controller = new AiController({
@@ -125,6 +128,7 @@ export class Harness {
             emitEvent: (event: AiEvent) => this.events.push(event),
             ...options,
             [ENGINE_OVERRIDE]: driver.engine,
+            ...(store === undefined ? {} : { [STORE_OVERRIDE]: store }),
         } as never);
     }
 

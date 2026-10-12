@@ -207,6 +207,7 @@ export function approvalRequest(entry: SavedApproval, conversationId: string): A
         conversationId,
         messageId: entry.messageId,
         createdAt: entry.createdAt,
+        ...(entry.agent === undefined ? {} : { agent: entry.agent }),
     };
 }
 

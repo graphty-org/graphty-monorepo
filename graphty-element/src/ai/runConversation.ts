@@ -16,6 +16,7 @@ import { z } from "zod";
 
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession, HistoryStepId } from "../session/types";
+import type { AiPlan } from "./agents";
 import type { ExecutionResult } from "./AiController";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, GraphCommand } from "./commands/types";
@@ -132,7 +133,37 @@ export interface Delegation {
         parent: ConversationRun,
         state: MessageState,
         sequence?: boolean,
-    ): Promise<{ readonly parts: readonly SavedPart[]; readonly usage: TokenUsage }>;
+        prior?: readonly string[],
+    ): Promise<DelegatedRun>;
+    /**
+     * Continue a helper whose batch was held, with the reader's decision, until it answers; then
+     * run the hand-offs of its turn that a sequence had not reached yet.
+     * @param callId - The `delegate` call the helper answers.
+     * @param decided - The decided batch its conversation ends in.
+     * @param parent - The run continuing the message.
+     * @param state - The message's state.
+     * @returns The parts the parent's next tool message gets, as for `run`.
+     */
+    resume(callId: string, decided: DecidedBatch, parent: ConversationRun, state: MessageState): Promise<DelegatedRun>;
+}
+
+/** A helper whose batch was held: the message waits on the reader for it. */
+export interface HeldHelper {
+    readonly held: HeldBatch;
+    /** The helper's message holding the calls. */
+    readonly messageId: string;
+    readonly agent: string;
+    /** The `delegate` call the helper answers. */
+    readonly callId: string;
+}
+
+/** What one turn's hand-offs did. */
+export interface DelegatedRun {
+    /** The parts the calls' tool message gets: each result, and each helper's conversation. */
+    readonly parts: readonly SavedPart[];
+    readonly usage: TokenUsage;
+    /** A helper's held batch, which ends the message there; its call has no result yet. */
+    readonly held?: HeldHelper;
 }
 
 /** One step of a router's plan: its `delegate` calls, and whether they run one after another. */
@@ -152,6 +183,11 @@ export interface PlanSteps {
     next(conversation: Conversation, newId: () => string): PlannedStep | undefined;
     /** Whether the step `next` returned last runs one after another (false once the plan is done). */
     readonly sequence: boolean;
+    /**
+     * The plan and the step it runs next, as a saved `plan-step` entry keeps them.
+     * @returns Them.
+     */
+    saved(): { readonly plan: AiPlan; readonly next: number };
 }
 
 /** A conversation: the instructions and the messages so far. The loop appends to `messages`. */
@@ -191,7 +227,15 @@ export interface ConversationRun {
      * @returns The approval request's id, or undefined when nothing can approve it; settles once
      *     the request is saved and the host told.
      */
-    readonly hold?: (held: HeldBatch, messageId: string) => Promise<string | undefined>;
+    readonly hold?: (
+        held: HeldBatch,
+        messageId: string,
+        helper?: { readonly agent: string; readonly callId: string },
+    ) => Promise<string | undefined>;
+    /** End the run at a hold, with no answer-only turn: a helper's hold ends the whole message. */
+    readonly endAtHold?: boolean;
+    /** A helper's held batch the reader decided, which the run continues first. */
+    readonly resume?: { readonly callId: string; readonly decided: DecidedBatch };
     /**
      * A held batch the reader decided, which the run starts with: its results answer the calls
      * the conversation ends in, and ordinary turns follow until the model answers.
@@ -857,6 +901,7 @@ async function tallyBatch(
  * @param added - The turn's tool message, when its other calls had one.
  * @param newId - Makes a message's id.
  * @param sequence - Run them one after another.
+ * @returns True when a helper's batch was held: the message ends there, waiting on the reader.
  */
 async function runDelegated(
     run: ConversationRun,
@@ -867,19 +912,60 @@ async function runDelegated(
     added: SavedMessage | undefined,
     newId: () => string,
     sequence = false,
-): Promise<void> {
-    let parts: readonly SavedPart[];
+): Promise<boolean> {
     if (batch.failure === undefined && run.delegation !== undefined) {
         const ran = await run.delegation.run(calls, run, state, sequence);
-        ({ parts } = ran);
-        tally.helpers = {
-            inputTokens: (tally.helpers?.inputTokens ?? 0) + ran.usage.inputTokens,
-            outputTokens: (tally.helpers?.outputTokens ?? 0) + ran.usage.outputTokens,
-        };
-    } else {
-        ({ parts } = closingResults(calls, { code: "AI_TOOL_NOT_RUN", params: {} }, ""));
+        return applyDelegated(run, ran, tally, added, newId);
     }
 
+    addParts(run, closingResults(calls, { code: "AI_TOOL_NOT_RUN", params: {} }, "").parts, added, newId);
+    return false;
+}
+
+/**
+ * Add what hand-offs did to the conversation and the tally; a helper's held batch becomes the
+ * message's approval request, saved with the conversation that now holds the helper's.
+ * @param run - The loop's run.
+ * @param ran - What the hand-offs did.
+ * @param tally - The message's tally.
+ * @param added - The turn's tool message, when its other calls had one.
+ * @param newId - Makes a message's id.
+ * @returns True when a helper's batch was held.
+ */
+async function applyDelegated(
+    run: ConversationRun,
+    ran: DelegatedRun,
+    tally: MessageTally,
+    added: SavedMessage | undefined,
+    newId: () => string,
+): Promise<boolean> {
+    tally.helpers = {
+        inputTokens: (tally.helpers?.inputTokens ?? 0) + ran.usage.inputTokens,
+        outputTokens: (tally.helpers?.outputTokens ?? 0) + ran.usage.outputTokens,
+    };
+    addParts(run, ran.parts, added, newId);
+    if (ran.held === undefined) {
+        return false;
+    }
+
+    const { held, messageId, agent, callId } = ran.held;
+    tally.held = { request: await run.hold?.(held, messageId, { agent, callId }), gate: held.gate };
+    return true;
+}
+
+/**
+ * Add parts to the turn's tool message, or as a tool message of their own.
+ * @param run - The loop's run.
+ * @param parts - The parts.
+ * @param added - The turn's tool message, when its other calls had one.
+ * @param newId - Makes a message's id.
+ */
+function addParts(
+    run: ConversationRun,
+    parts: readonly SavedPart[],
+    added: SavedMessage | undefined,
+    newId: () => string,
+): void {
     if (added === undefined) {
         run.conversation.messages.push({ id: newId(), role: "tool", parts: [...parts] });
     } else {
@@ -960,13 +1046,28 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
         conversation.messages.push(answerResult(run.answer, newId()));
     }
 
+    // Set when the message ends without another model turn: it waits on the reader.
+    let stopped = false;
+    // A helper ends at its hold: the reader's decision continues it, and the message with it.
+    const endHeld = (): boolean => {
+        if (run.endAtHold !== true || tally.held === undefined) {
+            return false;
+        }
+
+        if (heldResults !== undefined) {
+            conversation.messages.splice(conversation.messages.indexOf(heldResults), 1);
+        }
+
+        return true;
+    };
+
     if (run.decided !== undefined) {
         const { calls, outcome } = run.decided;
         const callsMessage = conversation.messages.at(-1)?.id ?? "";
         if (outcome === undefined && calls.every((call) => call.name === DELEGATE)) {
             // An approved hand-off: the helpers run, as the step that held them said.
             sink.status.startExecuting();
-            await runDelegated(run, calls, NO_BATCH, state, tally, undefined, newId, run.plan?.sequence);
+            stopped = await runDelegated(run, calls, NO_BATCH, state, tally, undefined, newId, run.plan?.sequence);
         } else if (outcome === undefined) {
             sink.status.startExecuting();
             // Only the hold the reader approved is let through, and only for this batch; every
@@ -976,16 +1077,23 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
             await tallyBatch(tally, batch, run, callsMessage);
             const added = appendResults(conversation, calls, batch, cap, newId);
             heldResults = batch.held === undefined ? undefined : added;
+            stopped = endHeld();
         } else {
             tally.decision = outcome;
             conversation.messages.push(closingResults(calls, outcome, newId()));
         }
     }
 
+    if (run.resume !== undefined && run.delegation !== undefined) {
+        // A helper held for the reader continues with the decision, then the message goes on.
+        sink.status.startExecuting();
+        const ran = await run.delegation.resume(run.resume.callId, run.resume.decided, run, state);
+        stopped = await applyDelegated(run, ran, tally, undefined, newId);
+    }
+
     // A router's plan runs first, as hand-offs of graphty's own, step by step; a denied step ends it.
     // A step held for approval ends the message there: its calls wait on the reader, not the model.
-    let planHeld = false;
-    if (run.decided?.outcome === undefined && run.delegation !== undefined) {
+    if (!stopped && run.decided?.outcome === undefined && run.delegation !== undefined) {
         for (
             let step = run.plan?.next(conversation, newId);
             step !== undefined;
@@ -994,16 +1102,19 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
             const callsMessage = appendCalls(conversation, "", step.calls, newId, "graphty");
             if (run.confirmDelegates === true) {
                 await holdDelegates(run, step.calls, state, tally, callsMessage);
-                planHeld = true;
+                stopped = true;
                 break;
             }
 
             sink.status.startExecuting();
-            await runDelegated(run, step.calls, NO_BATCH, state, tally, undefined, newId, step.sequence);
+            if (await runDelegated(run, step.calls, NO_BATCH, state, tally, undefined, newId, step.sequence)) {
+                stopped = true;
+                break;
+            }
         }
     }
 
-    for (let turn = 1; !planHeld; turn++) {
+    for (let turn = 1; !stopped; turn++) {
         // Past the tool turns, a text answer only: a model that spent every turn looking and never
         // acted would otherwise end the message with nothing said. toolMode "none" alone is not
         // enough: gemini-3.8-flash still answers it with a tool call and no text, so the ask also
@@ -1082,6 +1193,10 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
         if (batch.held !== undefined) {
             // Held: the question is not asked, the helpers do not run, and the model reads it.
             heldResults = added;
+            if (endHeld()) {
+                break;
+            }
+
             continue;
         }
 
@@ -1097,8 +1212,9 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
             continue;
         }
 
-        if (delegated.length > 0) {
-            await runDelegated(run, delegated, batch, state, tally, added, newId);
+        if (delegated.length > 0 && (await runDelegated(run, delegated, batch, state, tally, added, newId))) {
+            // A helper's batch waits on the reader: so does the message, and no question is asked.
+            break;
         }
 
         if (asking !== undefined && run.ask !== undefined && batch.failure === undefined) {

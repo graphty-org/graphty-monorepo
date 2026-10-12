@@ -47,6 +47,7 @@ import {
     closingResults,
     type Conversation,
     type DecidedBatch,
+    DELEGATE,
     type Delegation,
     MessageRolledBack,
     type PlanSteps,
@@ -140,7 +141,11 @@ interface PendingApproval {
     /** Reopened from the saved conversation, rather than held by this controller. */
     readonly replayed: boolean;
     /** The router's plan the held hand-off belongs to, whose later steps run once it is decided. */
-    readonly plan?: PlanSteps;
+    readonly plan?: () => Promise<PlanSteps | undefined>;
+    /** The saved `plan-step` entry keeping that plan, which ends with the request. */
+    readonly planStep?: string;
+    /** The helper whose batch is held, and the `delegate` call it answers. */
+    readonly helper?: { readonly agent: string; readonly callId: string };
 }
 
 /**
@@ -172,7 +177,30 @@ type OpenPending = PendingApproval | PendingQuestion;
  * @returns The calls.
  */
 function waitingCalls(pending: OpenPending): readonly ToolCallRequest[] {
-    return "held" in pending ? pending.held.calls : [pending.call];
+    if (!("held" in pending)) {
+        return [pending.call];
+    }
+
+    // A helper's held calls sit in its own conversation: the message waits on its hand-off.
+    return pending.helper === undefined
+        ? pending.held.calls
+        : [{ id: pending.helper.callId, name: DELEGATE, arguments: { agent: pending.helper.agent } }];
+}
+
+/**
+ * The `delegate` call a helper's saved message answers.
+ * @param messages - The main conversation.
+ * @param messageId - A message of the helper's conversation.
+ * @returns The call's id, or undefined when no helper's conversation holds that message.
+ */
+function helperCallOf(messages: readonly SavedMessage[], messageId: string): string | undefined {
+    for (const part of messages.flatMap((message) => message.parts)) {
+        if (part.type === "agent-ref" && part.messages.some((message) => message.id === messageId)) {
+            return part.callId;
+        }
+    }
+
+    return undefined;
 }
 
 /**
@@ -288,6 +316,8 @@ interface MessageRun {
     readonly answer?: { readonly call: ToolCallRequest; readonly values: readonly string[] };
     /** A router's plan, run before the model's turns: made when the message runs (a classifier's turn). */
     readonly plan?: () => Promise<PlanSteps | undefined>;
+    /** For a continuation: a helper's held batch, decided, which the helper continues with. */
+    readonly resume?: { readonly callId: string; readonly decided: DecidedBatch };
 }
 
 /**
@@ -726,7 +756,7 @@ export class AiController {
      * @returns The message's result.
      */
     private async runMessage(run: MessageRun): Promise<ExecutionResult> {
-        const { input, message, abortController, decided, answer } = run;
+        const { input, message, abortController, decided, answer, resume } = run;
         const startTime = Date.now();
         this.lastError = null;
 
@@ -760,7 +790,7 @@ export class AiController {
             conversation = run.conversation(session);
             base = conversation.messages.length;
             const running = conversation;
-            if (decided === undefined && answer === undefined) {
+            if (decided === undefined && answer === undefined && resume === undefined) {
                 // The reader's words are saved as the message starts, so a transcript shows them at once.
                 await this.saveInto(run.conversationId, running.messages);
             }
@@ -798,7 +828,7 @@ export class AiController {
                         readerText: input,
                         ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
                     },
-                    hold: (held, messageId) =>
+                    hold: (held, messageId, helper) =>
                         this.hold({
                             held,
                             message,
@@ -808,8 +838,10 @@ export class AiController {
                             messageId,
                             conversationId: run.conversationId,
                             ...(plan === undefined ? {} : { plan }),
+                            ...(helper === undefined ? {} : { helper }),
                         }),
                     ...(decided === undefined ? {} : { decided }),
+                    ...(resume === undefined ? {} : { resume }),
                     ...(this.asks
                         ? {
                               ask: (question: AskedQuestion, messageId: string) =>
@@ -932,7 +964,8 @@ export class AiController {
         result: ExecutionResult,
     ): Promise<void> {
         const code = result.code ?? "AI_FAILED";
-        const calls = run.decided?.calls ?? (run.answer === undefined ? [] : [run.answer.call]);
+        const resumed = run.resume === undefined ? [] : [{ id: run.resume.callId, name: DELEGATE, arguments: {} }];
+        const calls = run.decided?.calls ?? (run.answer === undefined ? resumed : [run.answer.call]);
         const closing =
             calls.length === 0 ? [] : [closingResults(calls, { code, params: {} }, this.newMessageId(conversation))];
         await this.saveInto(run.conversationId, [
@@ -986,6 +1019,9 @@ export class AiController {
      * @param hold.messageId - The conversation message holding the calls.
      * @param hold.conversationId - The saved conversation, with history.
      * @param hold.plan - The router's plan the message runs, whose later steps follow the decision.
+     * @param hold.helper - The helper whose batch is held, and the call it answers.
+     * @param hold.helper.agent - The helper's name.
+     * @param hold.helper.callId - The `delegate` call it answers.
      * @returns The request's id, once the conversation holding it is saved and the host told.
      */
     private async hold(hold: {
@@ -997,8 +1033,9 @@ export class AiController {
         messageId: string;
         conversationId: string | undefined;
         plan?: PlanSteps;
+        helper?: { readonly agent: string; readonly callId: string };
     }): Promise<string> {
-        const { held, message, session, conversationId } = hold;
+        const { held, message, session, conversationId, plan, helper } = hold;
         const id = uniqueId("approval_");
         const changed = { value: false };
         const stopWatching = session.on("history:changed", ({ reason }) => {
@@ -1018,7 +1055,20 @@ export class AiController {
             ...(conversationId === undefined ? {} : { conversationId }),
             messageId: hold.messageId,
             createdAt,
+            ...(helper === undefined ? {} : { agent: helper.agent }),
         };
+        // A plan's later steps are saved beside the request, so a reload runs them after it too.
+        const planStep: SavedPending | undefined =
+            plan === undefined
+                ? undefined
+                : {
+                      kind: "plan-step",
+                      id: uniqueId("plan_"),
+                      messageId: hold.messageId,
+                      ...plan.saved(),
+                      claim: null,
+                      createdAt,
+                  };
         this.approvals.set(id, {
             message,
             label: hold.label,
@@ -1030,7 +1080,9 @@ export class AiController {
             request,
             graph,
             replayed: false,
-            ...(hold.plan === undefined ? {} : { plan: hold.plan }),
+            ...(plan === undefined ? {} : { plan: () => Promise.resolve(plan) }),
+            ...(planStep === undefined ? {} : { planStep: planStep.id }),
+            ...(helper === undefined ? {} : { helper }),
         });
         this.updatePending();
         // The message holding the calls and the request are saved together, before the host hears
@@ -1046,8 +1098,13 @@ export class AiController {
             historyRevision: session.history.position,
             claim: null,
             createdAt,
+            ...(helper === undefined ? {} : { agent: helper.agent }),
         };
-        await this.saveInto(conversationId, hold.conversation.messages, (pending) => [...pending, entry]);
+        await this.saveInto(conversationId, hold.conversation.messages, (pending) => [
+            ...pending,
+            entry,
+            ...(planStep === undefined ? [] : [planStep]),
+        ]);
         this.emitAiEvent({ type: "ai-approval-requested", request, replayed: false });
         return id;
     }
@@ -1195,10 +1252,15 @@ export class AiController {
      */
     private reopenOne(record: ConversationRecord, entry: SavedApproval): PendingApproval {
         const messages = [...record.messages];
+        const callId = entry.agent === undefined ? undefined : helperCallOf(messages, entry.messageId);
+        const planStep = record.pending.find(
+            (other) => other.kind === "plan-step" && other.messageId === entry.messageId && other.claim === null,
+        );
+        const label = readerTextBefore(messages, entry.messageId);
         const pending: PendingApproval = {
             // The message's undo step went with the page: its calls start a step of their own.
             message: entry.messageId,
-            label: readerTextBefore(messages, entry.messageId),
+            label,
             held: {
                 gate: entry.gate as GateKind,
                 preview: entry.preview as JsonObject,
@@ -1212,6 +1274,13 @@ export class AiController {
             request: approvalRequest(entry, record.id),
             graph: entry.graph,
             replayed: true,
+            ...(entry.agent === undefined || callId === undefined ? {} : { helper: { agent: entry.agent, callId } }),
+            ...(planStep?.kind === "plan-step"
+                ? {
+                      planStep: planStep.id,
+                      plan: async () => (await import("./plans/plan")).planSteps(planStep.plan, label, planStep.next),
+                  }
+                : {}),
         };
         this.approvals.set(entry.id, pending);
         return pending;
@@ -1281,7 +1350,8 @@ export class AiController {
         const { current } = this;
         if (current !== undefined && current.id === pending.conversationId) {
             // Saved with the conversation's next save.
-            this.current = { ...current, pending: current.pending.filter((entry) => entry.id !== id) };
+            const ending = new Set([id, ...this.planStepOf(pending)]);
+            this.current = { ...current, pending: current.pending.filter((entry) => !ending.has(entry.id)) };
         }
 
         this.updatePending();
@@ -1328,9 +1398,19 @@ export class AiController {
             return;
         }
 
+        const ending = new Set([id, ...this.planStepOf(pending)]);
         await this.saveInto(pending.conversationId, pending.conversation.messages, (entries) =>
-            entries.filter((entry) => entry.id !== id),
+            entries.filter((entry) => !ending.has(entry.id)),
         );
+    }
+
+    /**
+     * The saved plan-step entry that ends with a request.
+     * @param pending - The request.
+     * @returns Its id, or none.
+     */
+    private planStepOf(pending: OpenPending): string[] {
+        return "planStep" in pending && pending.planStep !== undefined ? [pending.planStep] : [];
     }
 
     /**
@@ -1389,6 +1469,11 @@ export class AiController {
             };
         }
 
+        if (pending.planStep !== undefined && pending.conversationId !== undefined) {
+            // The plan's later steps go with the request: no other copy runs them.
+            await this.store?.claim(pending.conversationId, pending.planStep, this.claimant).catch(() => undefined);
+        }
+
         let decided: DecidedBatch;
         const change = this.graphChange(pending);
         if (change !== undefined) {
@@ -1415,10 +1500,11 @@ export class AiController {
             abortController,
             conversation: () => pending.conversation,
             conversationId: pending.conversationId,
-            decided,
+            // A helper's batch continues the helper; the message's own continues the message.
+            ...(pending.helper === undefined ? { decided } : { resume: { callId: pending.helper.callId, decided } }),
             totals: pending.held.totals,
             request: id,
-            ...(pending.plan === undefined ? {} : { plan: () => Promise.resolve(pending.plan) }),
+            ...(pending.plan === undefined ? {} : { plan: pending.plan }),
         });
     }
 

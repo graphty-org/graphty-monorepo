@@ -243,6 +243,16 @@ export function parseStyleBlock(text: unknown, fingerprint: StyleFingerprint): P
     if (top.version !== 1) {
         return { ok: false, reason: "VERSION" };
     }
+    // a block for another graph says so, whatever else in it would not fit this one
+    const fp = isObject(top.fingerprint) ? top.fingerprint : null;
+    if (
+        fp !== null &&
+        (fp.nodes !== fingerprint.nodes ||
+            fp.edges !== (fingerprint.heldEdges ?? fingerprint.edges) ||
+            fp.ids !== fingerprint.ids)
+    ) {
+        return { ok: false, reason: "FINGERPRINT" };
+    }
     let block: StyleBlock;
     try {
         block = readBlock(top);

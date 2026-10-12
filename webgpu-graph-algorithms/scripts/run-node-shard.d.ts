@@ -23,14 +23,17 @@ export function digestReport(file: string): string;
 export interface ShardRun {
     readonly status: number;
     readonly signalled: number;
+    /** Whether the hang watcher killed the run for staying silent after its last snapshot. */
+    readonly killed?: boolean;
     readonly silenceMs: number;
     readonly output: string;
     readonly outputFile?: string;
     readonly outputWritten?: boolean;
 }
 /**
- * The wrapper's exit code and cause: a non-zero vitest exit passes through; an exit of 0 fails when the hang watcher
- * signalled the run, when the output holds no vitest summary, or when the named --outputFile was not written.
+ * The wrapper's exit code and cause: a run the hang watcher killed fails as hung; a non-zero vitest exit passes
+ * through; an exit of 0 fails when the output holds no vitest summary or the named --outputFile was not written. A
+ * run that was only snapshotted while silent and then finished passes.
  */
 export function verdict(run: ShardRun): { exitCode: number; cause: string };
 /**

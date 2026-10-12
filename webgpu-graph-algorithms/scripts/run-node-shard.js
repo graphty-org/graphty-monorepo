@@ -19,9 +19,11 @@
  * killed: it fails as hung either way, and waiting longer only spends the job's time limit.
  *
  * The verdict fails closed (issue #2111). A non-zero vitest exit is passed through; an exit of 0 still fails, with a
- * named cause on a line marked [shard-verdict], when the hang watcher had to signal the run, when the output holds no
- * vitest summary, or when an --outputFile the caller named was not written by this run. A run whose tests were killed
- * must never look green because some process between the wrapper and vitest reported 0.
+ * named cause on a line marked [shard-verdict], when the watcher killed the run, when the output holds no vitest
+ * summary, or when an --outputFile the caller named was not written by this run. A run whose tests were killed must
+ * never look green because some process between the wrapper and vitest reported 0: such a run has no summary. A
+ * snapshot alone is not a failure (issue #2158): a long test may be silent for more than SILENCE_MS and then finish,
+ * and a run that ends with its summary and its report passes, with the snapshots noted in the log.
  *
  * Only Node processes are signalled: Node is the only program in the tree whose SIGUSR2 writes a report
  * (--report-on-signal, set below) instead of killing it. The tree also holds `pnpm` (a packaged binary that does not
@@ -220,25 +222,33 @@ function outputFileOf(argv) {
 }
 
 /**
- * The wrapper's exit code and its cause. A run the hang watcher signalled fails as hung (with vitest's own code when
+ * The wrapper's exit code and its cause. A run the hang watcher killed fails as hung (with vitest's own code when
  * that is non-zero); otherwise vitest's non-zero exit is passed through, and an exit of 0 is believed only when the
- * output holds vitest's summary and the named --outputFile was written.
- * @param {{status: number, signalled: number, silenceMs: number, output: string, outputFile?: string,
- *     outputWritten?: boolean}} run - what the run did
+ * output holds vitest's summary and the named --outputFile was written. Snapshots the watcher took along the way do
+ * not fail a run that then finishes; they only name the cause when it exits 0 without a summary.
+ * @param {{status: number, signalled: number, killed?: boolean, silenceMs: number, output: string,
+ *     outputFile?: string, outputWritten?: boolean}} run - what the run did
  * @returns {{exitCode: number, cause: string}} the exit code and a one-line cause
  */
 export function verdict(run) {
-    if (run.signalled > 0) {
+    const hung = `hung: no output for ${String(run.silenceMs / 1000)}s, signalled ${String(run.signalled)} process(es)`;
+    if (run.killed === true) {
         return {
             exitCode: run.status === 0 ? 1 : run.status,
-            cause: `hung: no output for ${String(run.silenceMs / 1000)}s, signalled ${String(run.signalled)} process(es)`,
+            cause: `${hung}, still silent after the last snapshot, killed`,
         };
     }
     if (run.status !== 0) {
         return { exitCode: run.status, cause: `vitest exited ${String(run.status)}` };
     }
     if (!hasSummary(stripVTControlCharacters(run.output))) {
-        return { exitCode: 1, cause: "no vitest summary: the run exited 0 without printing Test Files" };
+        return {
+            exitCode: 1,
+            cause:
+                run.signalled > 0
+                    ? `${hung}, then exited 0 without printing Test Files`
+                    : "no vitest summary: the run exited 0 without printing Test Files",
+        };
     }
     if (run.outputFile !== undefined && run.outputWritten !== true) {
         return { exitCode: 1, cause: `no JSON report: ${run.outputFile} was not written by this run` };
@@ -435,6 +445,7 @@ export async function main(argv, options = {}) {
     let last = Date.now();
     let taken = 0;
     let signalled = 0;
+    let killed = false;
     let busy = false;
     // The silence snapshot in flight, awaited before the verdict: the run can close while it still waits on reports.
     let inFlight = Promise.resolve();
@@ -462,6 +473,7 @@ export async function main(argv, options = {}) {
                 // Still silent after every snapshot: the run already fails as hung, so end it rather than leave it
                 // to the job's time limit.
                 killTree(child.pid ?? 0, taken);
+                killed = true;
                 clearInterval(timer);
                 return;
             }
@@ -500,6 +512,7 @@ export async function main(argv, options = {}) {
     const decision = verdict({
         status,
         signalled,
+        killed,
         silenceMs,
         output,
         outputFile,
@@ -510,6 +523,11 @@ export async function main(argv, options = {}) {
             console.log(`\n${formatMissingFiles(missingTestFiles(output))}`);
         }
         console.log(`${VERDICT_MARKER} FAIL ${decision.cause}`);
+    } else if (signalled > 0) {
+        console.log(
+            `[hang-report] note: the run was silent for ${String(silenceMs / 1000)}s and snapshotted, then finished ` +
+                "with its summary: a slow test, not a hang",
+        );
     }
     return decision.exitCode;
 }

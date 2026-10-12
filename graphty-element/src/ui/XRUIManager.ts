@@ -13,9 +13,9 @@ interface XRUIConfig {
  * Styling is done via CSS custom properties and ::part() selectors.
  */
 export class XRUIManager {
-    private container: HTMLElement;
+    private readonly container: HTMLElement;
     private overlay: HTMLElement | null = null;
-    private config: XRUIConfig;
+    private readonly config: XRUIConfig;
     private unavailableTimeout: ReturnType<typeof setTimeout> | null = null;
     private styleElement: HTMLStyleElement | null = null;
 

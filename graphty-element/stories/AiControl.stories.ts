@@ -1442,11 +1442,13 @@ function assistantPage(
     scripted: Readonly<Record<string, ScriptedResponse>> | readonly ScriptedResponse[],
 ): HTMLElement {
     const root = document.createElement("div");
-    root.style.cssText = "display:flex;gap:16px;height:600px;font:14px sans-serif;";
+    // Room on the right for the console-capture button Storybook floats in the top-right corner,
+    // which would otherwise sit over Send.
+    root.style.cssText = "display:flex;gap:16px;height:600px;font:14px sans-serif;padding-right:56px;";
 
     const element = document.createElement("graphty-element");
     element.id = "assistant-graph";
-    element.style.cssText = "flex:1;display:block;height:100%;";
+    element.style.cssText = "flex:1;min-width:0;display:block;height:100%;";
     element.layout = "circular";
     element.nodeData = SAMPLE_NODES;
     element.edgeData = SAMPLE_EDGES;
@@ -1617,6 +1619,13 @@ async function ask(canvasElement: HTMLElement, page: AssistantPage, text: string
     const send = canvasElement.querySelector<HTMLButtonElement>("#send");
     await holds(input !== null && send !== null, "the page has no input and Send button");
     const previous = page.sent;
+    // A reader's pointer lands on Send wherever on it they press, not on anything drawn over it.
+    const box = (send as HTMLButtonElement).getBoundingClientRect();
+    const covered = [0.1, 0.5, 0.9]
+        .flatMap((fx) => [0.1, 0.5, 0.9].map((fy) => [box.left + fx * box.width, box.top + fy * box.height]))
+        .map(([x, y]) => document.elementFromPoint(x, y))
+        .find((hit) => hit !== send);
+    await holds(covered === undefined, `${covered?.id ?? "something"} is drawn over part of Send`);
     await userEvent.type(input as HTMLInputElement, text);
     await userEvent.click(send as HTMLButtonElement);
     const { sent } = page;

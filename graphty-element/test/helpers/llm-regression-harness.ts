@@ -344,6 +344,11 @@ export class RecordingEngine implements AiEngine {
                     ...(event.invalidArguments && { invalidArguments: true }),
                 });
             } else if (event.type === "usage") {
+                // Summed for the whole run too, which setup.ts prints beside the request count.
+                const run = globalThis as { __LLM_REGRESSION_TOKENS__?: { input: number; output: number } };
+                const tokens = (run.__LLM_REGRESSION_TOKENS__ ??= { input: 0, output: 0 });
+                tokens.input += event.inputTokens;
+                tokens.output += event.outputTokens;
                 // Token usage, summed over the prompt's turns
                 this.capturedTokenUsage = {
                     prompt: (this.capturedTokenUsage?.prompt ?? 0) + event.inputTokens,

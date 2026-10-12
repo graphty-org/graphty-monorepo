@@ -1,3 +1,13 @@
+## 0.9.19 (2026-10-12)
+
+### 🩹 Fixes
+
+- **compact-mantine:** name the color input's controls from its label ([#2100](https://github.com/graphty-org/graphty-monorepo/issues/2100))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.18 (2026-10-12)
 
 This was a version bump only for compact-mantine to align it with other projects, there were no code changes.

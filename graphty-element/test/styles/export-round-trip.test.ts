@@ -254,12 +254,7 @@ async function handMade(): Promise<GraphSession> {
  * Round trips that fail today for a reason that is not the style system's, each with the reason.
  * They run as expected failures, so each is noticed the day it is fixed.
  */
-const KNOWN_GAPS: ReadonlyMap<string, string> = new Map([
-    [
-        "Pajek: gml/di-unipi-socc_dgLBF__germany50.gml",
-        "a Pajek vertex's name is its label, and the node id is written there, so the label comes back as the id",
-    ],
-]);
+const KNOWN_GAPS: ReadonlyMap<string, string> = new Map();
 
 /** The element's reader for each corpus directory. */
 const READERS: Readonly<Record<string, string>> = {

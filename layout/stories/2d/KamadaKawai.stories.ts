@@ -78,8 +78,10 @@ function createKamadaKawaiStory(args: KamadaKawaiArgs): HTMLElement {
         isApplied = true;
 
         // Animate to final positions
-        updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250);
-        updateStatus(statusPanel, "Kamada-Kawai layout applied! Distances match graph-theoretic distances.");
+        // The status says "applied" once the last frame is drawn; the play function waits on it
+        void updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250).then(() =>
+            updateStatus(statusPanel, "Kamada-Kawai layout applied! Distances match graph-theoretic distances."),
+        );
     }
 
     /**

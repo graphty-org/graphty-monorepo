@@ -5,10 +5,12 @@
  * Dawn-node exposes the language feature, while UniformBlock's generated text (a flat equivalent) compiles everywhere.
  * The assertion is `accepted === wgslFeatures.has("uniform_buffer_standard_layout")`, which the browser twin
  * (test/browser/uniform-layout.test.ts) pins to "rejected" on Chromium 139. The outcome is printed for the G2 record.
+ * Compiling is all it does, so it runs on Dawn's null backend, which accepts and rejects exactly as the card does
+ * (issue #275).
  */
 
 import { UniformBlock } from "../../src/kernel/struct-block.js";
-import { withContext } from "../helpers/device.js";
+import { withNullBackendContext } from "../helpers/device.js";
 import { requireGpu } from "../setup/gpu.js";
 
 const BAD_WGSL = `struct BadInner { x: f32 }
@@ -75,7 +77,7 @@ describe("uniform layout: hand-written misaligned struct vs the generated one (s
 
     it("the generated struct compiles; the hand-written one is accepted iff uniform_buffer_standard_layout is present (Dawn-node: accepted)", async (t) => {
         requireGpu(t);
-        await withContext(undefined, async (ctx) => {
+        await withNullBackendContext(async (ctx) => {
             const relaxed = ctx.caps.wgslFeatures.has("uniform_buffer_standard_layout");
             const good = await compileRaw(ctx.device, GOOD_WGSL, "test/uniform-layout/good");
             expect(good.messages).toEqual([]);

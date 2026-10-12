@@ -9,6 +9,7 @@ import { PointerEventTypes } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { Graph } from "../../../src/Graph";
+import { assertPlaced } from "../../helpers/placed-position";
 import { nextFrame } from "../../helpers/real-input";
 import {
     clickOnBackground,
@@ -326,6 +327,7 @@ describe("Node Selection - Click Interactions", () => {
         function getAllNodePositions(g: Graph): Map<string, { x: number; y: number; z: number }> {
             const positions = new Map<string, { x: number; y: number; z: number }>();
             for (const node of g.getNodes()) {
+                assertPlaced(node.mesh.position, `node ${String(node.id)}`);
                 positions.set(String(node.id), {
                     x: node.mesh.position.x,
                     y: node.mesh.position.y,

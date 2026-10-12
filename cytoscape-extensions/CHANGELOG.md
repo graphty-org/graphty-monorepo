@@ -1,3 +1,85 @@
+## 0.0.13 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.48
+- Updated layout to 2.4.3
+
+## 0.0.12 (2026-10-12)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** refuse async graph methods on a destroyed core ([#2085](https://github.com/graphty-org/graphty-monorepo/issues/2085))
+- **cytoscape-extensions:** show frozen story pictures in a canvas, not an img ([#2051](https://github.com/graphty-org/graphty-monorepo/issues/2051))
+- **cytoscape-extensions:** stop layouts cleanly on a destroyed Cytoscape core ([#2062](https://github.com/graphty-org/graphty-monorepo/issues/2062))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.47
+- Updated layout to 2.4.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.11 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.46
+- Updated graph-samples to 0.1.28
+- Updated graph-format to 1.3.13
+- Updated algorithms to 3.4.3
+- Updated graph-io to 0.3.36
+- Updated layout to 2.4.1
+
+## 0.0.10 (2026-10-11)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** load the GEXF color parser with the file formats ([b277792a0](https://github.com/graphty-org/graphty-monorepo/commit/b277792a0))
+- **cytoscape-extensions:** keep node and edge colors through a GEXF export and import ([#1983](https://github.com/graphty-org/graphty-monorepo/issues/1983))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.9 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.45
+- Updated graph-samples to 0.1.27
+- Updated graph-format to 1.3.12
+- Updated algorithms to 3.4.2
+- Updated graph-io to 0.3.35
+- Updated layout to 2.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.8 (2026-10-11)
+
+### 🩹 Fixes
+
+- **algorithms:** stop SynC blurring connected communities together ([#1698](https://github.com/graphty-org/graphty-monorepo/issues/1698))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.44
+- Updated algorithms to 3.4.1
+- Updated graph-io to 0.3.34
+- Updated layout to 2.3.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.7 (2026-10-10)
 
 ### 🚀 Features

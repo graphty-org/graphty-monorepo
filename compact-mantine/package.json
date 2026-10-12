@@ -1,6 +1,6 @@
 {
     "name": "@graphty/compact-mantine",
-    "version": "0.9.15",
+    "version": "0.9.20",
     "description": "Compact size variants for Mantine UI components - optimized for dense UIs",
     "type": "module",
     "main": "dist/index.cjs",
@@ -34,7 +34,6 @@
         "react-dom": ">=18.0.0"
     },
     "devDependencies": {
-        "@chromatic-com/storybook": "^3.2.6",
         "@mantine/core": "^8.3.10",
         "@mantine/hooks": "^8.3.10",
         "@storybook/addon-a11y": "^8.6.12",

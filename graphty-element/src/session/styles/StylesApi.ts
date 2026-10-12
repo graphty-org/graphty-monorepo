@@ -92,6 +92,7 @@ import type {
 } from "../../catalog/types";
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { GraphtyError } from "../../errors";
+import type { GraphtyWarningCode } from "../../errors/codes";
 import { resolveColumn } from "../columns";
 import {
     STYLE_DEFINITIONS,
@@ -121,7 +122,7 @@ import {
     type RunTicket,
 } from "../runs";
 import { sealedSet } from "../sealed";
-import type { CodedFactParam, ColumnRef } from "../shared";
+import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { beneathAuthored } from "./autoApply";
 import { channelDescriptor, isChannel } from "./channels";
@@ -634,6 +635,11 @@ export interface StyleChange {
      */
     readonly unresolvedPaths: readonly Path[];
     /**
+     * What the changed layers will paint nothing for, as codes; see
+     * {@link ValidationResult.warnings}. Empty for an undo, a redo, a restore or a rollback.
+     */
+    readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
+    /**
      * What moved the stack: an edit (`"command"`), or an undo, a redo, a restore or a rollback,
      * which each publish one change per step they passed.
      */
@@ -800,6 +806,9 @@ const NO_NOTES: readonly string[] = Object.freeze([]);
 /** No paths went unanswered. */
 const NO_PATHS: readonly Path[] = Object.freeze([]);
 
+/** Nothing to warn about. */
+const NO_WARNINGS: readonly CodedFact<GraphtyWarningCode>[] = Object.freeze([]);
+
 /** A layer nothing prepared has no bindings to read. */
 const NO_BINDINGS: readonly PreparedBinding[] = Object.freeze([]);
 
@@ -865,6 +874,8 @@ interface EditPlan<T> {
     readonly layers: readonly LayerId[];
     /** The paths those layers read that nothing answers. */
     readonly unresolvedPaths: readonly Path[];
+    /** What those layers will paint nothing for, when the plan checked any. */
+    readonly warnings?: readonly CodedFact<GraphtyWarningCode>[];
     /**
      * What the change announcement says this edit was. Worked out by the plan, because an
      * `encode()` only knows whether it adds a layer or replaces one once it has looked at the
@@ -1783,6 +1794,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             result: checked.layer.layer,
             layers: [checked.layer.layer.id],
             unresolvedPaths: checked.result.unresolvedPaths,
+            warnings: checked.result.warnings,
             reason: "add",
         };
     };
@@ -1822,6 +1834,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             result: checked.layer.layer,
             layers: [id],
             unresolvedPaths: checked.result.unresolvedPaths,
+            warnings: checked.result.warnings,
             reason: "update",
         };
     };
@@ -1954,6 +1967,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             result: checked.layer.layer,
             layers: [id],
             unresolvedPaths: checked.result.unresolvedPaths,
+            warnings: checked.result.warnings,
             reason: "update",
         };
     };
@@ -2086,6 +2100,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const id = minter();
         const imported: ImportedLayer[] = [];
         const unresolved = new Set<Path>();
+        const warnings: CodedFact<GraphtyWarningCode>[] = [];
 
         for (const spec of document.layers) {
             const authored = stamped(spec, templateId);
@@ -2110,6 +2125,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             for (const unanswered of checked.result.unresolvedPaths) {
                 unresolved.add(unanswered);
             }
+
+            warnings.push(...checked.result.warnings);
 
             imported.push({ spec: authored, compiled: checked.layer });
         }
@@ -2145,6 +2162,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }),
             layers: final.map((entry) => entry.layer.id),
             unresolvedPaths: Object.freeze([...unresolved]),
+            warnings: Object.freeze(warnings),
             reason: "add",
         };
     };
@@ -2222,7 +2240,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // Nobody may be awaiting it: a failed repaint is also reported where hooks report.
             painted.catch(() => undefined);
             announcements.push({
-                change: { reason: planned.reason, layers: planned.layers, unresolvedPaths: planned.unresolvedPaths },
+                change: {
+                    reason: planned.reason,
+                    layers: planned.layers,
+                    unresolvedPaths: planned.unresolvedPaths,
+                    warnings: planned.warnings ?? NO_WARNINGS,
+                },
                 settle,
                 refuse,
             });
@@ -2277,6 +2300,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 layers: lastPass.layers,
                 painted: lastPass.painted,
                 unresolvedPaths: NO_PATHS,
+                warnings: NO_WARNINGS,
                 cause: change.cause,
             });
         }

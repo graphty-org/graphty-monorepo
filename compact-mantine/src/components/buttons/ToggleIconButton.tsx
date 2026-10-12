@@ -94,8 +94,8 @@ export const ToggleIconButton = forwardRef<HTMLButtonElement, ToggleIconButtonPr
             event.currentTarget.releasePointerCapture(event.pointerId);
         }
         dragValue = !on;
-        window.addEventListener("pointerup", endDrag, { once: true });
-        window.addEventListener("pointercancel", endDrag, { once: true });
+        globalThis.addEventListener("pointerup", endDrag, { once: true });
+        globalThis.addEventListener("pointercancel", endDrag, { once: true });
         setOn(!on);
     };
 

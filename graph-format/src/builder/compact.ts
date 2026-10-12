@@ -564,7 +564,7 @@ export class StagingColumn {
         validity.resize(this.length, false);
         const { typed } = this;
         for (let row = 0; row < i; row++) {
-            if (typed === null || typed.get(row) !== INVALID_INDEX) {
+            if (typed?.get(row) !== INVALID_INDEX) {
                 validity.set(row, true);
             }
         }

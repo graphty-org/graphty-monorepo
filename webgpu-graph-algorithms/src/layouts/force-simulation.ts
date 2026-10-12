@@ -629,7 +629,7 @@ export class ForceSimulation<
     private stateValue: "created" | "loaded" | "disposed" = "created";
     private generationValue = 0;
     private tierValue: "exact" | "grid";
-    private dimValue: 2 | 3;
+    private readonly dimValue: 2 | 3;
     private snapshot: GraphSnapshot | null = null;
     private serial: number | null = null;
     private owner: F32 | null = null;
@@ -1004,7 +1004,7 @@ export class ForceSimulation<
             this.fixedWords = makeMask(n);
             this.fixedDirty = false;
         }
-        if (inputs !== null && inputs.fixed !== undefined && inputs.fixed !== null) {
+        if (inputs?.fixed !== undefined && inputs.fixed !== null) {
             this.fixedWords.set(inputs.fixed.subarray(0, Math.ceil(n / 32)));
             this.fixedDirty = true;
         }

@@ -215,6 +215,7 @@ describe("oboExporter: any graph", () => {
                 OBO_LOSS.GRAPH_COLUMN_AS_METADATA,
                 OBO_LOSS.ONTOLOGY_NAME,
                 OBO_LOSS.EDGE_ORDER,
+                OBO_LOSS.TYPE_GAINED,
             ]),
         );
     });
@@ -271,8 +272,8 @@ describe("oboExporter: any graph", () => {
         expect(await oboExporter.exportToString(g, { ontology: "go/slim" })).toBe(
             "format-version: 1.4\nontology: go/slim\n\n[Term]\nid: a\n",
         );
-        expect(codes(g, { ontology: "go" })).toEqual([]);
-        expect(codes(g)).toEqual([OBO_LOSS.ONTOLOGY_NAME]);
+        expect(codes(g, { ontology: "go" })).toEqual([OBO_LOSS.TYPE_GAINED]);
+        expect(codes(g)).toEqual([OBO_LOSS.TYPE_GAINED, OBO_LOSS.ONTOLOGY_NAME]);
         expect(() => oboExporter.check(g, { ontology: "a b" })).toThrow(/ontology id/);
     });
 
@@ -288,13 +289,15 @@ describe("oboExporter: any graph", () => {
             edges: [[0, 1]],
             edgeColumns: [{ name: "relation", dtype: "string", values: ["binds to"] }],
         });
-        expect(new Set(codes(g))).toEqual(new Set([OBO_LOSS.ROLE_ASSUMED, OBO_LOSS.RELATION_RENAMED]));
+        expect(new Set(codes(g))).toEqual(
+            new Set([OBO_LOSS.ROLE_ASSUMED, OBO_LOSS.RELATION_RENAMED, OBO_LOSS.TYPE_GAINED]),
+        );
         expect(await oboExporter.exportToString(g)).toContain("relationship: binds_to b");
     });
 
     it("reads an unchanged name role column as the label", async () => {
         const g = build({ ids: ["a"], nodeColumns: [{ name: "name", dtype: "string", values: ["A"] }] });
-        expect(codes(g)).toEqual([OBO_LOSS.ROLE_ASSUMED]);
+        expect(codes(g)).toEqual([OBO_LOSS.TYPE_GAINED, OBO_LOSS.ROLE_ASSUMED]);
         expect((await read(await oboExporter.exportToString(g))).nodes.byRole("label")?.value(0)).toBe("A");
     });
 
@@ -303,7 +306,7 @@ describe("oboExporter: any graph", () => {
             ids: ["a"],
             nodeColumns: [{ name: "label", dtype: "string", role: "label", values: [" A "] }],
         });
-        expect(codes(g)).toEqual([OBO_LOSS.COLUMN_AS_PROPERTY_VALUE]);
+        expect(codes(g)).toEqual([OBO_LOSS.TYPE_GAINED, OBO_LOSS.COLUMN_AS_PROPERTY_VALUE]);
         const back = await read(await oboExporter.exportToString(g));
         expect(back.nodes.get("property_value")?.value(0)).toEqual([
             { relation: "label", value: " A ", datatype: "xsd:string" },
@@ -351,7 +354,7 @@ describe("oboExporter: any graph", () => {
 
     it("reports numeric ids, and refuses two ids with one text", async () => {
         const numeric = build({ ids: [1, 2], edges: [[0, 1]] });
-        expect(codes(numeric)).toEqual([OBO_LOSS.ID_TEXT_TYPE, OBO_LOSS.RELATION_ASSUMED]);
+        expect(codes(numeric)).toEqual([OBO_LOSS.ID_TEXT_TYPE, OBO_LOSS.TYPE_GAINED, OBO_LOSS.RELATION_ASSUMED]);
         expect((await read(await oboExporter.exportToString(numeric))).ids.toArray()).toEqual(["1", "2"]);
         const clash = build({ ids: [5, "5"] });
         expect(codes(clash)).toContain(OBO_LOSS.ID_TEXT_COLLISION);
@@ -401,7 +404,7 @@ describe("oboExporter: any graph", () => {
         });
         const text = await oboExporter.exportToString(last);
         expect(text).not.toContain("id: p");
-        expect(codes(last)).toEqual([OBO_LOSS.RELATION_ASSUMED]);
+        expect(codes(last)).toEqual([OBO_LOSS.TYPE_GAINED, OBO_LOSS.RELATION_ASSUMED]);
         const back = await read(text);
         expect(compareSnapshots(last, back).filter((d) => !d.path.startsWith("edges.relation"))).toEqual([]);
         const first = build({
@@ -437,6 +440,16 @@ describe("oboExporter: any graph", () => {
 
     it("reports a vocabulary column of the other text dtype", () => {
         const g = build({ ids: ["a"], nodeColumns: [{ name: "namespace", dtype: "string", values: ["n"] }] });
-        expect(codes(g)).toEqual([OBO_LOSS.DTYPE_UNSUPPORTED]);
+        expect(codes(g)).toEqual([OBO_LOSS.TYPE_GAINED, OBO_LOSS.DTYPE_UNSUPPORTED]);
+    });
+
+    it("reports the type column a graph without one gains on re-import, and only then", async () => {
+        const plain = build({ ids: ["a", "b"] });
+        const notes = oboExporter.check(plain).filter((n) => n.code === OBO_LOSS.TYPE_GAINED);
+        expect(notes.map((n) => n.count)).toEqual([2]);
+        const back = await read(await oboExporter.exportToString(plain));
+        expect([back.nodes.get("type")?.value(0), back.nodes.get("type")?.value(1)]).toEqual(["Term", "Term"]);
+        const typed = build({ ids: ["a"], nodeColumns: [{ name: "type", dtype: "string", values: ["Instance"] }] });
+        expect(codes(typed)).not.toContain(OBO_LOSS.TYPE_GAINED);
     });
 });

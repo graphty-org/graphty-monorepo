@@ -17,7 +17,14 @@ function hasStartRenderLoop(manager: Manager): manager is RenderManagerWithStart
 export class LifecycleManager implements Manager {
     private initialized = false;
     private initializing = false;
-    private logger: Logger = GraphtyLogger.getLogger(["graphty", "lifecycle"]);
+    /**
+     * Set by {@link dispose} and cleared by {@link init}. Disposal is keyed on this rather than on
+     * `initialized`, so a graph shut down before it finished initialising -- one never attached,
+     * or detached while it was opening -- still disposes its managers, and with them its Babylon
+     * engine and WebGL context (issue #1977).
+     */
+    private disposed = false;
+    private readonly logger: Logger = GraphtyLogger.getLogger(["graphty", "lifecycle"]);
 
     /**
      * Creates a new lifecycle manager for coordinating manager initialization and disposal
@@ -26,9 +33,9 @@ export class LifecycleManager implements Manager {
      * @param initOrder - Array of manager names defining initialization order
      */
     constructor(
-        private managers: Map<string, Manager>,
-        private eventManager: EventManager,
-        private initOrder: string[],
+        private readonly managers: Map<string, Manager>,
+        private readonly eventManager: EventManager,
+        private readonly initOrder: string[],
     ) {}
 
     /**
@@ -40,6 +47,7 @@ export class LifecycleManager implements Manager {
         }
 
         this.initializing = true;
+        this.disposed = false;
         const startTime = performance.now();
 
         this.logger.info("Initializing managers", {
@@ -59,6 +67,12 @@ export class LifecycleManager implements Manager {
                     const managerStartTime = performance.now();
                     this.logger.debug(`Initializing manager: ${managerName}`);
                     await manager.init();
+                    // Disposed while this manager was initialising: the rest are disposed too.
+                    if (this.disposed) {
+                        this.initializing = false;
+                        return;
+                    }
+
                     const managerDuration = performance.now() - managerStartTime;
 
                     this.logger.debug(`Manager initialized: ${managerName}`, {
@@ -148,9 +162,11 @@ export class LifecycleManager implements Manager {
      * Dispose all managers in reverse initialization order
      */
     dispose(): void {
-        if (!this.initialized) {
+        if (this.disposed) {
             return;
         }
+
+        this.disposed = true;
 
         this.logger.info("Disposing managers", {
             managerCount: this.managers.size,

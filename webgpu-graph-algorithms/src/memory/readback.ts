@@ -263,7 +263,7 @@ export class Readback {
      */
     private borrowedEntry(slot: StagingSlot): SlotEntry {
         const entry = this.ring[slot.index];
-        if (entry === undefined || entry.slot !== slot || !entry.borrowed) {
+        if (entry?.slot !== slot || !entry.borrowed) {
             throw invalid("slot", slot.index, "a slot borrowed from this ring and not yet returned");
         }
         return entry;

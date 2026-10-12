@@ -8,7 +8,7 @@
  * Hover, press and focus are driven with real input through the harness.
  */
 import { ActionIcon, Avatar, Badge, Indicator, Kbd, Pill, Tabs, Tooltip } from "@mantine/core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import {
@@ -24,6 +24,7 @@ import {
     type ToolItem,
 } from "../../src";
 import {
+    animationsSettled,
     drive,
     expectMeasured,
     figmaAvailable,
@@ -35,7 +36,10 @@ import {
     resetHarness,
 } from "./harness";
 
-afterEach(resetHarness);
+afterEach(async () => {
+    vi.useRealTimers();
+    await resetHarness();
+});
 
 const Glyph = (): React.JSX.Element => <svg width={18} height={18} aria-hidden="true" />;
 const SHAPES: ToolItem[] = [
@@ -44,8 +48,30 @@ const SHAPES: ToolItem[] = [
     { value: "arrow", label: "Arrow", icon: <Glyph />, shortcut: "Shift+L" },
 ];
 
-// eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+/**
+ * The tooltip delays and Mantine's enter and exit transitions run on setTimeout. A fake one
+ * (see fakeTooltipTimers) steps them exactly, so a test checks the delays the code asks for
+ * rather than how long a busy machine took to honour them; animation frames stay real.
+ */
+function fakeTooltipTimers(): void {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+}
+
+/**
+ * Let `ms` pass on the fake tooltip clock, with an animation frame before and after so React has
+ * committed what the input scheduled and what the timers that fired scheduled.
+ * @param ms - how far to step
+ */
+async function elapse(ms: number): Promise<void> {
+    await frames();
+    vi.advanceTimersByTime(ms);
+    await frames();
+}
+
+/** Two animation frames. */
+async function frames(): Promise<void> {
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+}
 const openTooltip = (): HTMLElement | null => document.querySelector<HTMLElement>(".cm-tooltip");
 
 const BOX = ["width", "height", "backgroundColor", "borderRadius"];
@@ -482,12 +508,12 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
         it("a rail tooltip opens after 500ms, 6px past the button, its arrow outside the rail, centered on the pill", async () => {
             const { container } = await renderFigma(railIn(null));
             const button = part(container, ".cm-rail-button:not([data-active])");
+            fakeTooltipTimers();
             await drive(button, "hover");
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await sleep(350);
+            await elapse(350);
             expect(openTooltip()).toBeNull();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await sleep(350);
+            await elapse(350);
+            await animationsSettled();
             const tip = openTooltip();
             expect(tip).not.toBeNull();
             const t = (tip as HTMLElement).getBoundingClientRect();
@@ -510,24 +536,24 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
                     {railIn(null)}
                 </Tooltip.Group>,
             );
+            fakeTooltipTimers();
             await drive(part(container, ".cm-tool"), "hover");
-            await expect.poll(openTooltip, { timeout: 2000 }).not.toBeNull();
+            await elapse(1000);
+            expect(openTooltip()).not.toBeNull();
             await drive(part(container, ".cm-rail-button:not([data-active])"), "hover");
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await sleep(100);
+            await elapse(100);
             expect(openTooltip()?.textContent).toBe("Assets");
         });
 
         it("the help tooltip shows and hides at once", async () => {
             const { container } = await renderFigma(<HelpButton />);
             const button = part(container, ".cm-help-button");
+            fakeTooltipTimers();
             await drive(button, "hover");
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await sleep(100);
+            await elapse(100);
             expect(openTooltip()).not.toBeNull();
             await userEvent.unhover(button);
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await sleep(100);
+            await elapse(100);
             expect(openTooltip()).toBeNull();
         });
     });
@@ -554,8 +580,7 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const { container } = await renderFigma(<HelpButton />);
             const button = part(container, ".cm-help-button");
             await drive(button, "focus");
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((r) => setTimeout(r, 250));
+            await animationsSettled(button);
             expectMeasured(
                 button,
                 await fig("bc/help-button--focus", 24, ["outline", "outlineOffset", "borderTopColor"]),

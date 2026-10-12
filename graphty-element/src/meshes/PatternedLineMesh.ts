@@ -177,13 +177,13 @@ export class PatternedLineMesh {
     pattern: PatternType;
     lineDirection = new Vector3(1, 0, 0);
     private lastLength = 0;
-    private scene: Scene;
-    private width: number;
-    private color: string;
-    private opacity: number;
-    private is2DMode: boolean;
+    private readonly scene: Scene;
+    private readonly width: number;
+    private readonly color: string;
+    private readonly opacity: number;
+    private readonly is2DMode: boolean;
     /** Explicit element count from `line.patternCount`; undefined means follow the spacing rule. */
-    private patternCount: number | undefined;
+    private readonly patternCount: number | undefined;
     private static readonly SEGMENT_LENGTH = 0.75; // Fixed segment length for all edges (for instancing)
 
     // PHASE 5: Edge compatibility properties (mimic AbstractMesh interface)

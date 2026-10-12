@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { workerShare } from "../tools/test-slots.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 
 /**
  * The Chromium flag sets: the two of spec 12.2 (GRAPHTY_BROWSER_GPU "nvidia" | "swiftshader", default swiftshader)
@@ -132,10 +133,19 @@ const thresholdsActive =
  * AFTER the `node` project has finished (its groupOrder) and one file at a time, so no other test file shares the
  * device with them. Run beside another fork, they starve it: on the macOS Metal host lane (issue #1884, release
  * #1872), fr-layout-oracle's karate case, 0.6 s on its own, waited 30 s behind grid-exact's "(4, 5)" cases for the
- * shared GPU queue and timed out. The `node` project excludes these files, so the lanes select both projects:
+ * shared GPU queue and timed out. On a software adapter the device IS the runner's processors, so a file that keeps
+ * it busy for minutes slows every fork beside it: on the Windows WARP host lane (issue #2160, releases 38210551896
+ * and 38246411740) exact-large (two 70,000-node K3 passes per model) and se-settle (a 2000-node spring layout run to
+ * settled, twice) ran 5 to 7 minutes each, and the files beside them ran 2.5 to 5 times slower than in the pass
+ * where they did not: fr-properties' "pin A" case took 7 to 10.5 s there and 25.8 to 28.5 s of its 30 s beside them,
+ * and advance's grid case went over. The `node` project excludes these files, so the lanes select both projects:
  * `--project=node --project=node-gpu-alone`.
  */
-const GPU_ALONE_TESTS: readonly string[] = ["test/layouts/grid-exact.test.ts"];
+const GPU_ALONE_TESTS: readonly string[] = [
+    "test/layouts/grid-exact.test.ts",
+    "test/layouts/exact-large.test.ts",
+    "test/layouts/se-settle.test.ts",
+];
 
 /**
  * The test files that put a device into an error state on purpose: an uncaptured validation error, an error scope
@@ -272,7 +282,11 @@ async function recordNoiseRow(_context: unknown, row: Record<string, unknown>): 
  * a worker blocking its own event loop in synchronous oracle work, which the tests now yield out of (G5-F2's
  * resolution), and the shard's aborts were one test file's native memory and crash (G4-F13, G4-F18).
  */
-const nodeForks = coverageRun && availableParallelism() <= 8 ? 2 : Math.max(1, availableParallelism() - 1);
+// Never more than this run's share of the cores while machine-wide test slots are on (tools/test-slots.mjs).
+const nodeForks = Math.min(
+    coverageRun && availableParallelism() <= 8 ? 2 : Math.max(1, availableParallelism() - 1),
+    workerShare() ?? Infinity,
+);
 
 export default defineConfig({
     test: {
@@ -286,7 +300,7 @@ export default defineConfig({
         // verbose prints a line per test: useful locally, needless noise in CI
         reporters: [
             ...(process.env.CI ? ["default"] : ["verbose"]),
-            ...ciJunitReporter(
+            ...ciReporters(
                 process.env.GRAPHTY_GPU_NO_SUBGROUPS ? { classnameTemplate: "no-subgroups/{filepath}" } : {},
             ),
         ],

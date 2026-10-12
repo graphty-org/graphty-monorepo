@@ -61,7 +61,7 @@ export class MediaRecorderCapture {
     /** Stored reject callback for cancellation - cleared after use */
     private cancelReject: ((error: Error) => void) | null = null;
     /** Debug logging enabled */
-    private debug: boolean;
+    private readonly debug: boolean;
 
     /**
      * Creates a new MediaRecorderCapture instance

@@ -1,3 +1,53 @@
+## 0.9.20 (2026-10-12)
+
+### 🩹 Fixes
+
+- **compact-mantine:** document an empty section as its 40px header and rule ([8a7d8fcbc](https://github.com/graphty-org/graphty-monorepo/commit/8a7d8fcbc))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.19 (2026-10-12)
+
+### 🩹 Fixes
+
+- **compact-mantine:** name the color input's controls from its label ([#2100](https://github.com/graphty-org/graphty-monorepo/issues/2100))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.18 (2026-10-12)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.17 (2026-10-11)
+
+### 🩹 Fixes
+
+- **compact-mantine:** end the Toolbar Keyboard story after Move's tooltip opens ([#1997](https://github.com/graphty-org/graphty-monorepo/issues/1997))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.16 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🩹 Fixes
+
+- **compact-mantine:** keep a dragged pop-out where it was put when its sidebar anchor changes ([#1971](https://github.com/graphty-org/graphty-monorepo/issues/1971))
+- **compact-mantine:** make the focusable ScrollArea viewport opt-in ([#1599](https://github.com/graphty-org/graphty-monorepo/issues/1599))
+- **compact-mantine:** name unlabeled controls and make ScrollArea keyboard scrollable ([a95b241e0](https://github.com/graphty-org/graphty-monorepo/commit/a95b241e0))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.15 (2026-10-10)
 
 ### 🩹 Fixes

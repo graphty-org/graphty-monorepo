@@ -197,9 +197,13 @@ function tableError(report: ImportReportBuilder, entry: string, reason: string):
     return null;
 }
 
+/** The name prefix of the per-element style value columns graphty writes. */
+const STYLE_COLUMN_PREFIX = "graphty.style.";
+
 /**
  * The att record of one cell, or null for an unset cell. CyCSV's rules: an empty cell is unset
- * except in a String column, where it is the empty string; a list cell holds its items separated
+ * except in a String column, where it is the empty string (but unset in a `graphty.style.` column, whose empty
+ * cells graphty writes for elements without a style value); a list cell holds its items separated
  * by line breaks (`\n`, or `\r` as some Cytoscape versions write them; Java's `split`, so trailing empty items
  * vanish; an empty String-list cell is one
  * empty item, any other empty list cell unset); a cell starting with `=` is an equation.
@@ -222,7 +226,8 @@ export function cellAtt(
         return att(column.name, column.list ? "List" : column.type, null, text, line, namespace, hidden, true);
     }
     if (!column.list) {
-        if (text.length === 0 && column.type !== "String") {
+        // graphty writes an unset style value as an empty cell: no style value is the empty string
+        if (text.length === 0 && (column.type !== "String" || column.name.startsWith(STYLE_COLUMN_PREFIX))) {
             return null;
         }
         return att(column.name, column.type, null, text, line, namespace, hidden, false);

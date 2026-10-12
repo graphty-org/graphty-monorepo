@@ -151,6 +151,23 @@ describe("writing session styles", () => {
         }
     });
 
+    it("reads the empty cells it writes for elements without a style value back as no value, with no notes", async () => {
+        const json = readFileSync(resolve(STYLES, "../json/generated/graphology-graphty-written.json"));
+        const first = await registry.importGraph(new Uint8Array(json), { format: "json", styles: true });
+        const written = await registry.exportGraphToBytes(first.snapshot, "cys", {
+            styles: first.styles ?? undefined,
+            sanitizeIds: "mangle",
+        });
+        const back = await load(written);
+        expect(back.styles?.styles.source.tool).toBe("graphty");
+        expect(back.styles?.styles.notes).toEqual([]);
+        // a data column keeps CyCSV's rule: an empty String cell is the empty string
+        expect(cellAtt({ name: "graphty.style.node.copy.fill", type: "String", list: false }, "", 1, null, false)).toBe(
+            null,
+        );
+        expect(cellAtt({ name: "name", type: "String", list: false }, "", 1, null, false)?.value).toBe("");
+    });
+
     it("draws the same without its block: the named style and the view's bypasses are Cytoscape's own", async () => {
         const first = await load(file(resolve(STYLES, "cytoscape-tutorials-AnnotationExample.cys")));
         const ex = first.styles as ExtractedStyles;

@@ -350,7 +350,7 @@ function importTile(format: ImportFormat, s: Sample): Tile {
             return {
                 ran: "",
                 detail: null,
-                note: cy.width() < 400 ? read : `${read}\n${s.about}`,
+                note: read,
                 file: filePanel(s, size),
             };
         },
@@ -416,14 +416,23 @@ function exportTile(): Tile {
             return {
                 ran: "",
                 detail: null,
-                note:
-                    cy.width() < 400
-                        ? "Zachary's karate club written in every format; beside it, what each one leaves out."
-                        : `Zachary's karate club (${counts(cy)}, a club per node, positions from ForceAtlas2) written in every format.\nBeside it: each file's size in characters, and what onLoss reports the format cannot hold.`,
+                note: "Zachary's karate club written in every format; beside it, what each one leaves out.",
                 file: ["format    chars  left out", ...rows].join("\n"),
             };
         },
     };
+}
+
+/**
+ * What a Formats gallery entry's file is and how to read its picture, for the story's description.
+ * @param key - a format, "auto", or "export"
+ * @returns the words
+ */
+export function formatAbout(key: string): string {
+    if (key === "export") {
+        return "Zachary's karate club (34 nodes, 78 edges, a club per node, positions from ForceAtlas2) written with cy.graphtyExport in every format. Beside it: each file's size in characters, and what onLoss reports the format cannot hold.";
+    }
+    return key === "auto" ? AUTO.about : SAMPLES[key as keyof typeof SAMPLES].about;
 }
 
 /**

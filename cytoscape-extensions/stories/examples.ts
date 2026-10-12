@@ -21,6 +21,8 @@ const SEED = 42;
 interface Example {
     /** What the graph is, for the line above the tile. */
     graph: string;
+    /** How to read the picture, beyond the line under it, for the story's description. */
+    about?: string;
     /** Run the algorithm with `directed: true` (arrows drawn) or false; default: the group's setting. */
     directed?: boolean;
     /** Puts the graph into the empty core; default: the group's network. */
@@ -287,7 +289,7 @@ async function cycleCheck(cy: Core): Promise<Outcome> {
     return {
         ran: "cpu",
         detail: NO_GPU,
-        note: `left: ${says(left)} (green); right, the same graph with one arc added (the curved one): ${says(right)}, its nodes and arcs on a cycle in red`,
+        note: `left: ${says(left)} (green); right, with one arc added (curved): ${says(right)}, its cycles in red`,
     };
 }
 
@@ -537,6 +539,7 @@ function traversal(algorithm: string): Example {
     const other = algorithm === "depthFirstSearch" ? "breadthFirstSearch" : "depthFirstSearch";
     return {
         graph: `Zachary's karate club twice, both searched from the instructor (node 0): left ${WALKS[algorithm]}, right ${WALKS[other]}`,
+        about: "Each node is numbered and colored by when its search reached it (darker = later), and the search tree's edges are blue: the breadth-first tree is a wide bush three edges deep, the depth-first one a long winding chain.",
         directed: false,
         load: async (cy) => {
             const tmp = cytoscape({ headless: true });
@@ -565,7 +568,7 @@ function traversal(algorithm: string): Example {
             const left = await search(cy, "L", algorithm, gpuMode, extra);
             await search(cy, "R", other, "off", {});
             const b = left.backend;
-            const note = `left: ${WALKS[algorithm]}, right: ${WALKS[other]}; each node numbered and colored by when its search reached it (darker = later), the search tree in blue`;
+            const note = `left: ${WALKS[algorithm]}, right: ${WALKS[other]}; darker = reached later, the search tree in blue`;
             if (!b) {
                 return { ran: "cpu", detail: NO_GPU, note };
             }
@@ -628,8 +631,13 @@ async function search(
  */
 function spanning(algorithm: "kruskalMST" | "primMST"): Example {
     const road = roads(algorithm);
+    const how =
+        algorithm === "kruskalMST"
+            ? "Kruskal adds the shortest remaining edge anywhere that joins two separate trees, so its first edges are scattered over the map and merge into one tree"
+            : "Prim grows one tree from the blue node, always by the shortest edge leaving it, so its steps darken outward";
     return {
         ...road,
+        about: `Each tree edge is numbered and colored by the step it was added (pale = early, dark red = late). ${how}. Kruskal and Prim end with the same tree: every edge has a different length, so there is only one minimum spanning tree.`,
         run: async (cy, settings) => {
             const out = await (road.run as NonNullable<Example["run"]>)(cy, settings);
             const tree = cy.edges("[color]");
@@ -643,14 +651,10 @@ function spanning(algorithm: "kruskalMST" | "primMST"): Example {
             if (algorithm === "primMST") {
                 start.data({ mark: true, color: PALETTE[0] });
             }
-            const how =
-                algorithm === "kruskalMST"
-                    ? "Kruskal adds the shortest remaining edge anywhere that joins two separate trees, so its first edges are scattered over the map and merge into one tree"
-                    : "Prim grows one tree from the blue node, always by the shortest edge leaving it, so its steps darken outward";
             return {
                 ...out,
                 // the shared painter's "the tree in red" no longer holds: the tree is colored by step
-                note: `${(out.note ?? "").replace("the tree in red, ", "")}\nEach tree edge numbered and colored by the step it was added (pale = early, dark red = late). ${how}. Kruskal and Prim end with the same tree: every edge has a different length, so there is only one minimum spanning tree.`,
+                note: `${(out.note ?? "").replace("the tree in red, ", "")}; each edge numbered by its step (pale = early, dark red = late)`,
             };
         },
     };

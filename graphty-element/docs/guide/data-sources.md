@@ -860,6 +860,11 @@ how many layers were left out. Use it to warn a reader before their styles are l
 | JSON       | as attributes | as attributes   | yes             |                                                                                                                                                                                      |
 | CSV        | no            | no              | no (edge table) | `{ table: "nodes" }` writes the node table instead; `{ variant: "neo4j" }` writes a Neo4j admin-import file; a number id and the same text id (`1` and `"1"`) cannot both be written |
 
+CX, CX2 and Cytoscape session (`.cys`) node ids are integers: other ids are renumbered by default,
+each original kept in the file so reading it back restores it (`{ sanitizeIds: "error" }` refuses
+instead). A Cytoscape session is a zip file, so its catalogue entry says `binary: true`: its
+`text()` rejects with `E_UNSUPPORTED`, and the file is `bytes`.
+
 The "Colour and size" column describes an export without `styles: true`. With it, each format
 writes as much of the look as its own style slots hold; see [Exporting styles](#exporting-styles).
 

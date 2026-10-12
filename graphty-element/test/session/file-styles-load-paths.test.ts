@@ -56,7 +56,8 @@ describe("the catalog", () => {
         const session = createGraphSession();
         const formats = new Map(session.catalog.formats().map((format) => [format.id, format.styles]));
         assert.deepEqual(formats.get("gexf"), { read: true, write: "rules" });
-        assert.deepEqual(formats.get("cx"), { read: true, write: "none" });
+        assert.deepEqual(formats.get("cx"), { read: true, write: "rules" });
+        assert.deepEqual(formats.get("cys"), { read: true, write: "rules" });
         assert.deepEqual(formats.get("csv"), { read: false, write: "none" });
         session.dispose();
     });

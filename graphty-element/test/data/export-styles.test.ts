@@ -1,7 +1,7 @@
 /**
  * @file Writing the style layers into a file (`styles: true`) and reading them back
  * (`styles: "file"`): the same layers and the same picture per element through GEXF, GraphML,
- * DOT, CX2 and Cytoscape.js JSON; a palette written as its values with a note; CSV's losses
+ * DOT, CX2, CX, a Cytoscape session and Cytoscape.js JSON; a palette written as its values with a note; CSV's losses
  * reported before writing; and an export without styles exactly as it was.
  */
 
@@ -15,6 +15,7 @@ import {
     type GraphSession,
     type LayerSpec,
 } from "../../session";
+import { formatDescriptor } from "../../src/catalog/formats";
 import { type ExportLoss, exportSession } from "../../src/data/export";
 
 /** The formats that keep layers, and the options that pick each. */
@@ -23,6 +24,8 @@ const FORMATS: readonly [string, string, Readonly<Record<string, unknown>>][] = 
     ["GraphML", "graphml", {}],
     ["DOT", "dot", {}],
     ["CX2", "cx2", {}],
+    ["CX", "cx", {}],
+    ["Cytoscape session", "cys", {}],
     ["Cytoscape.js JSON", "json", { dialect: "cytoscape" }],
 ];
 
@@ -141,10 +144,33 @@ async function styled(): Promise<GraphSession> {
  * @param format - Its format.
  * @returns The session.
  */
-async function loadBack(text: string, format: string): Promise<GraphSession> {
+async function loadBack(text: string | Uint8Array, format: string): Promise<GraphSession> {
     const session = createGraphSession();
     await session.data.import({ type: format, config: { data: text } }, { styles: "file" });
     return session;
+}
+
+/**
+ * What an export wrote: its text, or for a binary format (a Cytoscape session is a zip archive) its bytes.
+ * @param result - The export.
+ * @param format - The format.
+ * @returns The file.
+ */
+async function written(result: ReturnType<typeof exportSession>, format: string): Promise<string | Uint8Array> {
+    if (formatDescriptor(format)?.binary !== true) {
+        return result.text();
+    }
+    const parts: Uint8Array[] = [];
+    for await (const chunk of result.bytes) {
+        parts.push(chunk);
+    }
+    const out = new Uint8Array(parts.reduce((n, part) => n + part.length, 0));
+    let at = 0;
+    for (const part of parts) {
+        out.set(part, at);
+        at += part.length;
+    }
+    return out;
 }
 
 /** A load's scope on its own elements: `graphty.style.<namespace>.<kind>.el.load`. */
@@ -211,7 +237,7 @@ describe("styles written into a file come back as the same layers", () => {
             );
             assert.notInclude(codes(result.losses), "W_STYLES_NOT_EXPORTED");
 
-            const back = await loadBack(await result.text(), format);
+            const back = await loadBack(await written(result, format), format);
             assert.deepEqual(specs(back), specs(session));
             assert.deepEqual(picture(back), picture(session));
             assert.deepEqual(Array.from(back.visibility.nodeMask()), Array.from(session.visibility.nodeMask()));
@@ -325,11 +351,11 @@ describe("an export without styles", () => {
             const session = await chain();
             const before = exportSession(session, format, options);
             assert.notInclude(codes(before.losses), "W_STYLES_NOT_EXPORTED");
-            const text = await before.text();
+            const text = await written(before, format);
 
             await session.styles.add(STACK[0]);
             const after = exportSession(session, format, options);
-            assert.strictEqual(await after.text(), text);
+            assert.deepEqual(await written(after, format), text);
             const note = after.losses.find((loss) => loss.code === "W_STYLES_NOT_EXPORTED");
             assert.deepEqual(note?.params, { columns: [], count: 1 });
             session.dispose();

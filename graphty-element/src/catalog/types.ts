@@ -851,6 +851,11 @@ export interface FormatDescriptor {
     mimeTypes: readonly string[];
     canImport: boolean;
     canExport: boolean;
+    /**
+     * True when the format's files are not text (a Cytoscape session is a zip archive): an
+     * export's `text()` rejects with `E_UNSUPPORTED`, so read its `bytes`. Absent means text.
+     */
+    binary?: boolean;
     /** The options its reader accepts. */
     options: readonly OptionDescriptor[];
     /**

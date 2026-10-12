@@ -29,8 +29,12 @@ import {
     type CommonExportOptions,
     type CSV_LOSS,
     csvExporter,
+    type CX_LOSS,
     type CX2_LOSS,
     cx2Exporter,
+    cxExporter,
+    type CYS_LOSS,
+    cysExporter,
     type DOT_LOSS,
     dotExporter,
     FormatRegistry,
@@ -84,7 +88,7 @@ type CodesOf<Table> = Extract<Table[keyof Table], string>;
 /**
  * What a built-in writer could not carry, as the `code` of an {@link ExportLoss}: the codes of
  * graph-io's loss tables for the formats graphty-element writes (`LOSS`, shared by every format,
- * and `CSV_LOSS`, `CX2_LOSS`, `DOT_LOSS`, `GEXF_LOSS`, `GML_LOSS`, `GRAPHML_LOSS`, `JSON_LOSS`,
+ * and `CSV_LOSS`, `CX_LOSS`, `CX2_LOSS`, `CYS_LOSS`, `DOT_LOSS`, `GEXF_LOSS`, `GML_LOSS`, `GRAPHML_LOSS`, `JSON_LOSS`,
  * `NEO4J_LOSS`, `PAJEK_LOSS`, `XGMML_LOSS`, each documenting its codes), and graphty-element's
  * own:
  *
@@ -109,7 +113,9 @@ type CodesOf<Table> = Extract<Table[keyof Table], string>;
 export type ExportLossCode =
     | CodesOf<typeof LOSS>
     | CodesOf<typeof CSV_LOSS>
+    | CodesOf<typeof CX_LOSS>
     | CodesOf<typeof CX2_LOSS>
+    | CodesOf<typeof CYS_LOSS>
     | CodesOf<typeof DOT_LOSS>
     | CodesOf<typeof GEXF_LOSS>
     | CodesOf<typeof GML_LOSS>
@@ -201,6 +207,8 @@ const BUILT_IN_WRITERS: Readonly<Record<string, AnyExporter>> = {
     pajek: pajekExporter,
     xgmml: xgmmlExporter,
     cx2: cx2Exporter,
+    cx: cxExporter,
+    cys: cysExporter,
 };
 
 /**

@@ -458,6 +458,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[];
 
 // @public
 export interface FormatDescriptor {
+    binary?: boolean;
     // (undocumented)
     canExport: boolean;
     // (undocumented)

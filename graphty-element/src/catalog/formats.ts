@@ -216,6 +216,28 @@ function choices(...values: string[]): { value: string; label: string }[] {
     return values.map((value) => ({ value, label: value }));
 }
 
+/**
+ * The id option of a format whose node ids are integers: renumber the others by default.
+ * @param format - The format's name, for the description.
+ * @returns The option.
+ */
+function integerIds(format: string): OptionDescriptor {
+    return {
+        name: "sanitizeIds",
+        plainName: "Non-Integer Ids",
+        technicalName: "sanitizeIds",
+        type: "enum",
+        values: [
+            { value: "mangle", label: "Renumber, keeping the original" },
+            { value: "error", label: "Refuse" },
+        ],
+        default: "mangle",
+        description:
+            `${format} node ids are integers. Renumber other ids and keep each original in a ` +
+            "graphty:originalId attribute that reading the file back restores, or refuse the export.",
+    };
+}
+
 /** What `exportGraph` accepts per built-in format, beside the common options. */
 const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
     json: [
@@ -333,22 +355,9 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
             description: String.raw`Write a line break or a tab in a text value as Cytoscape's \n or \t.`,
         },
     ],
-    cx2: [
-        {
-            name: "sanitizeIds",
-            plainName: "Non-Integer Ids",
-            technicalName: "sanitizeIds",
-            type: "enum",
-            values: [
-                { value: "mangle", label: "Renumber, keeping the original" },
-                { value: "error", label: "Refuse" },
-            ],
-            default: "mangle",
-            description:
-                "CX2 node ids are integers. Renumber other ids and keep each original in a " +
-                "graphty:originalId attribute that reading the file back restores, or refuse the export.",
-        },
-    ],
+    cx2: [integerIds("CX2")],
+    cx: [integerIds("CX")],
+    cys: [integerIds("Cytoscape session")],
 };
 
 /**
@@ -501,9 +510,10 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         extensions: [".cx"],
         mimeTypes: ["application/json"],
         canImport: true,
-        canExport: false,
+        canExport: true,
         options: [networkOption, zAsOption],
-        styles: { read: true, write: "none" },
+        writerOptions: writerOptionsOf("cx"),
+        styles: { read: true, write: "rules" },
     },
     {
         id: "cys",
@@ -511,9 +521,11 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         extensions: [".cys"],
         mimeTypes: ["application/zip"],
         canImport: true,
-        canExport: false,
+        canExport: true,
+        binary: true,
         options: [networkOption, zAsOption],
-        styles: { read: true, write: "none" },
+        writerOptions: writerOptionsOf("cys"),
+        styles: { read: true, write: "rules" },
     },
     {
         id: "obo",

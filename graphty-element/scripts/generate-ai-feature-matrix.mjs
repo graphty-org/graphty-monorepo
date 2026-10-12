@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 /**
  * Writes `docs/guide/ai-provider-features.md`: which provider offers which tool beyond the
- * assistant's own commands (web search, web pages, in-page code), from the catalog's
- * `AI_HOSTED_TOOL_CAPABILITIES` and `AI_PROVIDER_DESCRIPTORS`.
+ * assistant's own commands (web search, web pages, in-page code), and which transcribes and speaks,
+ * from the catalog's `AI_HOSTED_TOOL_CAPABILITIES`, `AI_VOICE_CAPABILITIES` and
+ * `AI_PROVIDER_DESCRIPTORS`; and which speech paths each browser and headset offers, from
+ * `BROWSER_VOICE` below.
  *
- * Run it after changing that table, with the package built: `npm run build`, then
+ * Run it after changing those tables, with the package built: `npm run build`, then
  * `node scripts/generate-ai-feature-matrix.mjs`. `test/documentation/ai-provider-features.test.ts`
  * fails while the committed page differs from what this renders from the source table.
  */
@@ -21,23 +23,82 @@ const TOOL_NAMES = {
 };
 
 /**
+ * Which speech paths each browser and headset offers (the harness design, section 5.5). Provider
+ * transcription and provider speech need only a microphone and audio playback, so they work in
+ * every one; the browser's own paths differ.
+ */
+const BROWSER_VOICE = [
+    [
+        "Chrome (desktop, Android)",
+        "yes; audio goes to Google, or stays on the device where Chrome offers on-device recognition for the language",
+        "yes",
+    ],
+    ["Edge (desktop)", "yes; audio goes to Microsoft", "yes"],
+    ["Safari (macOS, iOS)", "yes; on the device", "yes"],
+    ["Firefox", "no", "yes"],
+    [
+        "Quest Browser",
+        "no (it has the API, but recognition fails; the first press finds out and later presses use the provider)",
+        "yes (Quest Browser 5.0 and later)",
+    ],
+    ["Galaxy XR (Chrome)", "expected, as Chrome; not yet checked on the device", "yes"],
+    ["Vision Pro (Safari)", "yes; on the device", "yes"],
+];
+
+/**
+ * A Markdown table, its columns padded to line up.
+ * @param {readonly string[]} header The heading cells.
+ * @param {readonly (readonly string[])[]} rows The rows.
+ * @returns {string} The table.
+ */
+function markdownTable(header, rows) {
+    const widths = header.map((cell, i) => Math.max(cell.length, ...rows.map((row) => row[i].length)));
+    const line = (cells) => `| ${cells.map((cell, i) => cell.padEnd(widths[i])).join(" | ")} |`;
+    return [line(header), line(widths.map((width) => "-".repeat(width))), ...rows.map(line)].join("\n");
+}
+
+/**
+ * One provider's voice cell: the status, and the model that does it.
+ * @param {{ status: string; model?: string; viaChatModel?: boolean }} voice One direction.
+ * @returns {string} The cell.
+ */
+function voiceCell(voice) {
+    if (voice.viaChatModel === true) {
+        return `\`${voice.status}\`, by the chat model`;
+    }
+
+    return voice.model === undefined ? `\`${voice.status}\`` : `\`${voice.status}\`, \`${voice.model}\``;
+}
+
+/**
  * The page, from the catalog's tables.
  * @param {Readonly<Record<string, Readonly<Record<string, string>>>>} capabilities `AI_HOSTED_TOOL_CAPABILITIES`.
  * @param {readonly { id: string; plainName: string }[]} providers `AI_PROVIDER_DESCRIPTORS`, in their order.
  * @param {readonly string[]} tools `AI_HOSTED_TOOL_IDS`.
+ * @param {Readonly<Record<string, { transcription: { status: string; model?: string; viaChatModel?: boolean }; speech: { status: string; model?: string } }>>} voice `AI_VOICE_CAPABILITIES`.
  * @returns {string} The Markdown page.
  */
-export function renderAiFeatureMatrix(capabilities, providers, tools) {
+export function renderAiFeatureMatrix(capabilities, providers, tools, voice) {
     const header = ["Provider", ...tools.map((tool) => `${TOOL_NAMES[tool] ?? tool} (\`${tool}\`)`)];
     const rows = providers.map((provider) => [
         `${provider.plainName} (\`"${provider.id}"\`)`,
         ...tools.map((tool) => `\`${capabilities[provider.id]?.[tool] ?? "unknown"}\``),
     ]);
-    const widths = header.map((cell, i) => Math.max(cell.length, ...rows.map((row) => row[i].length)));
-    const line = (cells) => `| ${cells.map((cell, i) => cell.padEnd(widths[i])).join(" | ")} |`;
-    const table = [line(header), line(widths.map((width) => "-".repeat(width))), ...rows.map(line)].join("\n");
+    const table = markdownTable(header, rows);
+    const voiceTable = markdownTable(
+        ["Provider", "Transcription (speech in)", "Speech (speech out)"],
+        providers.map((provider) => [
+            `${provider.plainName} (\`"${provider.id}"\`)`,
+            voiceCell(voice[provider.id]?.transcription ?? { status: "unknown" }),
+            voiceCell(voice[provider.id]?.speech ?? { status: "unknown" }),
+        ]),
+    );
+    const browserTable = markdownTable(
+        ["Browser", "Browser recognition (speech in)", "Browser speech (speech out)"],
+        BROWSER_VOICE,
+    );
 
-    return `<!-- THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT AI_HOSTED_TOOL_CAPABILITIES in graphty-element/src/catalog/ai.ts AND RUN graphty-element/scripts/generate-ai-feature-matrix.mjs -->
+    return `<!-- THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT AI_HOSTED_TOOL_CAPABILITIES OR AI_VOICE_CAPABILITIES in graphty-element/src/catalog/ai.ts AND RUN graphty-element/scripts/generate-ai-feature-matrix.mjs -->
 
 # AI Provider Features
 
@@ -64,6 +125,26 @@ in \`@graphty/graphty-element/bundle\` and on a page whose content security poli
 
 The mock provider runs no web tools, so a test or story on it cannot show web search; it can run
 code.
+
+## Voice
+
+Which provider can hear the reader and speak the answer itself (see
+[Voice](./ai-assistant#voice)). A provider without transcription can still be spoken to through
+the browser's recognition, or through another provider's (\`voice.transcription\`); one without
+speech can answer through the browser's.
+
+${voiceTable}
+
+The table is \`AI_VOICE_CAPABILITIES\` in \`@graphty/graphty-element/catalog\`, and
+\`aiVoiceStatus(provider, "input" | "output")\` reads it. Google's speech model is a preview
+model.
+
+Which of the browser's own speech paths each browser and headset offers. Provider transcription
+and provider speech work in all of them: they need only a microphone and audio playback.
+
+${browserTable}
+
+\`getAiVoiceSupport()\` says which path the running page would take, and where the audio goes.
 `;
 }
 
@@ -81,6 +162,7 @@ if (isMain) {
         catalog.AI_HOSTED_TOOL_CAPABILITIES,
         catalog.AI_PROVIDER_DESCRIPTORS,
         catalog.AI_HOSTED_TOOL_IDS,
+        catalog.AI_VOICE_CAPABILITIES,
     );
     writeFileSync(resolve(packageRoot, "docs/guide/ai-provider-features.md"), page);
 }

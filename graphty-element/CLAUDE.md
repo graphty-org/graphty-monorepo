@@ -547,9 +547,27 @@ that is not the provider engine: see that folder's `UPSTREAM.md`),
 its own chunk plus a `.wasm` asset, loaded by `loadProgramRunner()` and never reached statically
 from `./ai` or `index.js`; `./bundle` leaves it out (`programBuild.ts`). Bindings are the read
 actions that hand the host nothing (`src/ai/tools/runCode.ts`). Which provider offers which tool is
-`AI_HOSTED_TOOL_CAPABILITIES` in `src/catalog/ai.ts`; after changing it, build and run
+`AI_HOSTED_TOOL_CAPABILITIES` in `src/catalog/ai.ts`; after changing it (or
+`AI_VOICE_CAPABILITIES`), build and run
 `node scripts/generate-ai-feature-matrix.mjs`, which rewrites `docs/guide/ai-provider-features.md`
 (`test/documentation/ai-provider-features.test.ts` fails until you do).
+
+**Voice** (`AiManagerConfig.voice`, guide section "Voice"). `src/ai/voice/` is the page side:
+`VoiceSession` (one press of `aiTalk`: listen, send or answer, speak), `choose.ts` (the `"auto"`
+rules as a pure function), `support.ts` (the page's speech facts and the per-origin memory of
+whether browser recognition works), `SpeechInput` and `SpeechOutput` (recognition or recording,
+synthesis or playback), `pointing.ts` (nodes pointed at while talk is held, sent in the message's
+facts block), and the XR bindings and in-scene controls (`xr.ts`, `XrPendingControl.ts`). Nothing is
+reached without `voice`: the session is one chunk loaded on the first `aiTalk` or
+`getAiVoiceSupport`, the XR part a second loaded once a session runs, and `prime.ts` (the Enter
+VR/AR click's microphone and audio priming) a third, loaded at enable; the provider calls (`transcribe`, `speak` on `AiEngine`) are the adapter's own chunk,
+`src/ai/engine/tanstack/voice.ts`, through `loadProviderVoice()`. The element speaks only the
+model's text or the host's `voice.say` words, and draws in XR only data, icons and `xr.ai.labels`.
+Which provider transcribes and speaks is `AI_VOICE_CAPABILITIES` in `src/catalog/ai.ts`; it feeds
+the same generated page as the hosted tools, with the browser-by-path table in
+`scripts/generate-ai-feature-matrix.mjs`. Tests run on the fakes in `test/helpers/fake-speech.ts`;
+the "Voice" story fakes recognition and the microphone only under automation, so on a headset it
+is the device check.
 
 Framework pins are exact (`test/packaging/ai-pins.test.ts`) and upgraded together with the
 contract suite and the paid `llm-regression` run; peers change only in a major

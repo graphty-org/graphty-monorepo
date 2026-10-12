@@ -104,3 +104,75 @@ export const xrAi: XRAiConfig = {
 export const googleHears: AiCapabilityStatus = aiVoiceStatus("google", "input");
 export const openAiSpeechModel: string | undefined = AI_VOICE_CAPABILITIES.openai.speech.model;
 export const noMic: AiVoiceUnavailableReason = "no-microphone";
+
+/**
+ * The AI guide's "Voice" section, as a reader who sees only the guide writes it: the simple path
+ * with its arrow-function handlers, the support check, the French options, the level meter and
+ * the `xr.ai` labels map set on the element.
+ * @param myKey - The provider key.
+ * @param showWhy - The page's own way of saying why speech is unavailable.
+ */
+export async function fromTheGuide(myKey: string, showWhy: (params?: Record<string, unknown>) => void): Promise<void> {
+    const element = document.querySelector("graphty-element");
+    const talk = document.querySelector<HTMLButtonElement>("#talk");
+    if (element === null || talk === null) {
+        return;
+    }
+
+    await element.enableAiControl({ provider: "google", apiKey: myKey, voice: { output: "browser" } });
+
+    talk.onpointerdown = (e) => {
+        talk.setPointerCapture(e.pointerId);
+        element.aiTalk(true);
+    };
+    talk.onpointerup = talk.onpointercancel = () => element.aiTalk(false);
+    talk.onkeydown = (e) => {
+        if (e.key === " " && !e.repeat) {
+            element.aiTalk(true);
+        }
+    };
+    talk.onkeyup = (e) => {
+        if (e.key === " ") {
+            element.aiTalk(false);
+        }
+    };
+
+    const support = await element.getAiVoiceSupport();
+    talk.hidden = support.input.status === "unavailable";
+
+    await element.enableAiControl({
+        provider: "openai",
+        apiKey: myKey,
+        voice: {
+            output: "provider",
+            language: "fr-FR",
+            replies: { approve: ["oui"], deny: ["non"] },
+            say: ({ code }) => (code === "AI_CONFIRMATION_NEEDED" ? "Je dois demander avant." : undefined),
+        },
+    });
+
+    element.addEventListener("ai-voice-level", (e) => {
+        talk.style.setProperty("--level", String(e.detail.level));
+    });
+    element.addEventListener("ai-voice-end", (e) => {
+        if (e.detail.code === "AI_VOICE_UNAVAILABLE") {
+            showWhy(e.detail.params);
+        } // { path, reason }
+    });
+
+    element.xr = {
+        enabled: true,
+        ai: {
+            pushToTalk: { buttons: ["b", "y"], wristOrb: true },
+            pendingButtons: { approve: ["a"], deny: ["x"] },
+            labels: {
+                XR_APPROVE: "Approve",
+                XR_DENY: "Deny",
+                XR_TRANSCRIPT: "You said",
+                AI_CONFIRMATION_NEEDED: "Allow this change?",
+                AI_QUESTION_ASKED: "The assistant asks",
+                AI_COMPLETED: "Done",
+            },
+        },
+    };
+}

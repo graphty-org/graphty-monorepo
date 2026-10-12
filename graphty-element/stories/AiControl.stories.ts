@@ -10,7 +10,7 @@
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html, type TemplateResult } from "lit";
-import { userEvent } from "storybook/test";
+import { userEvent, waitFor } from "storybook/test";
 
 import type { ExecutionResult } from "../src/ai/AiController";
 import type { AiManagerConfig } from "../src/ai/AiManager";
@@ -20,7 +20,14 @@ import type { MockLlmProvider } from "../src/ai/providers/MockLlmProvider";
 import type { WebLlmProvider } from "../src/ai/providers/WebLlmProvider";
 import { type GraphtyElement } from "../src/graphty-element";
 import { QueuedProvider } from "../test/helpers/queued-provider";
-import { assertControlsPresent, assertGraphLoaded, assertLayoutPlaced, drawn, holds } from "./assertions";
+import {
+    assertControlsPresent,
+    assertGraphLoaded,
+    assertLayoutPlaced,
+    drawn,
+    holds,
+    renderedElement,
+} from "./assertions";
 
 // Sample network infrastructure graph
 const SAMPLE_NODES = [
@@ -1431,14 +1438,16 @@ const assistantPages = new WeakMap<Element, AssistantPage>();
 /**
  * Draw the page and enable the assistant. With `questions` the page also draws a question card from
  * `ai-question-asked`; with `agents`, a list of what each helper did from `ai-agent-start` and
- * `ai-agent-end`; with `tools.inPageCode`, the programs the model ran, from the conversation.
+ * `ai-agent-end`; with `tools.inPageCode`, the programs the model ran, from the conversation; with
+ * `voice`, a talk button held by pointer or by Space (the AI guide's simple path) and a line
+ * showing what is heard, the microphone's level and how the last press ended.
  * @param config - The assistant's history, approvals, questions and helpers.
  * @param scripted - The mock provider's answers: by a phrase of the reader's message, or every
  *     model turn in order (the main model's and its helpers'), for a message with several turns.
  * @returns The page's root.
  */
 function assistantPage(
-    config: Pick<AiManagerConfig, "history" | "approvals" | "questions" | "agents" | "tools">,
+    config: Pick<AiManagerConfig, "history" | "approvals" | "questions" | "agents" | "tools" | "voice">,
     scripted: Readonly<Record<string, ScriptedResponse>> | readonly ScriptedResponse[],
 ): HTMLElement {
     const root = document.createElement("div");
@@ -1522,6 +1531,59 @@ function assistantPage(
         helpers.append(item);
     });
 
+    // The talk button: held by pointer or by Space, as the AI guide wires it. The release is read
+    // on the window, so letting go off the button still ends the press.
+    const talk = document.createElement("button");
+    talk.id = "talk";
+    talk.type = "button";
+    talk.textContent = "Hold to talk";
+    talk.style.cssText = "padding:8px;";
+    const heard = document.createElement("p");
+    heard.id = "voice-status";
+    heard.style.cssText = "margin:0;color:#555;min-height:1.2em;";
+    const level = document.createElement("meter");
+    level.id = "voice-level";
+    level.style.cssText = "width:100%;";
+    if (config.voice !== undefined) {
+        panel.append(talk, level, heard);
+    }
+
+    const release = (): void => {
+        talk.removeAttribute("aria-pressed");
+        element.aiTalk(false);
+    };
+    talk.addEventListener("pointerdown", () => {
+        talk.setAttribute("aria-pressed", "true");
+        element.aiTalk(true);
+        window.addEventListener("pointerup", release, { once: true });
+        window.addEventListener("pointercancel", release, { once: true });
+    });
+    talk.addEventListener("keydown", (e) => {
+        if (e.key === " " && !e.repeat) {
+            e.preventDefault();
+            talk.setAttribute("aria-pressed", "true");
+            element.aiTalk(true);
+        }
+    });
+    talk.addEventListener("keyup", (e) => {
+        if (e.key === " ") {
+            release();
+        }
+    });
+    element.addEventListener("ai-voice-start", () => {
+        heard.textContent = "Listening";
+    });
+    element.addEventListener("ai-voice-transcript", (e) => {
+        heard.textContent = e.detail.transcript;
+    });
+    element.addEventListener("ai-voice-level", (e) => {
+        level.value = e.detail.level;
+    });
+    element.addEventListener("ai-voice-end", (e) => {
+        level.value = 0;
+        heard.textContent = `Ended: ${e.detail.code ?? e.detail.reason}`;
+    });
+
     // The programs the model ran (`run_code` calls), as text.
     const programs = document.createElement("div");
     programs.id = "programs";
@@ -1547,7 +1609,8 @@ function assistantPage(
             ...(element.getAiConversation()?.messages ?? []).map((message) => {
                 const item = document.createElement("li");
                 const calls = message.role === "assistant" ? message.calls.map((call) => call.command) : [];
-                const who = message.role === "reader" ? "You" : (message.agent ?? "Assistant");
+                const reader = message.role === "reader" && message.via === "voice" ? "You (spoken)" : "You";
+                const who = message.role === "reader" ? reader : (message.agent ?? "Assistant");
                 item.textContent = `${who}: ${message.text}${calls.length > 0 ? ` [${calls.join(", ")}]` : ""}`;
                 return item;
             }),
@@ -2004,5 +2067,251 @@ export const RunCode: Story = {
         );
         await holds(before.session.status.counts.nodes === 12, "running code changed the graph");
         await drawn(canvasElement, "AI Control Run code");
+    },
+};
+
+/**
+ * How long the first press may take to load the voice chunk and read the page's speech support;
+ * later presses take a frame. A budget for a condition, never a wait.
+ */
+const VOICE_LOAD_BUDGET_MS = 10_000;
+
+/**
+ * Throw unless `condition` holds, for `waitFor` to retry.
+ * @param condition - What must hold.
+ * @param complaint - What to say when it does not.
+ */
+function need(condition: boolean, complaint: string): void {
+    if (!condition) {
+        throw new Error(complaint);
+    }
+}
+
+/** What the scripted recognizer hears, one utterance per press, in order. */
+const SPOKEN: string[] = [];
+
+/** Every microphone stream the scripted page opened. */
+const OPENED: MediaStream[] = [];
+
+/**
+ * A recognizer that hears the next scripted utterance as soon as it starts, in place of the
+ * browser's under automation, where nobody speaks.
+ */
+class ScriptedRecognition {
+    continuous = false;
+    interimResults = false;
+    lang = "";
+    processLocally?: boolean;
+    onresult: ((event: unknown) => void) | null = null;
+    onerror: ((event: { error: string }) => void) | null = null;
+    onend: (() => void) | null = null;
+    onstart: (() => void) | null = null;
+
+    start(): void {
+        const said = SPOKEN.shift() ?? "";
+        queueMicrotask(() => {
+            this.onstart?.();
+            this.onresult?.({
+                resultIndex: 0,
+                results: [Object.assign([{ transcript: said, confidence: 1 }], { isFinal: true })],
+            });
+        });
+    }
+
+    stop(): void {
+        queueMicrotask(() => this.onend?.());
+    }
+
+    abort(): void {
+        this.stop();
+    }
+}
+
+/**
+ * Under automation (Playwright sets `navigator.webdriver`), replace the browser's recognizer with
+ * {@link ScriptedRecognition} and the microphone with a silent stream; on a real device, change
+ * nothing, so the story runs the device's own speech paths.
+ * @returns Puts the browser's own back.
+ */
+function scriptSpeech(): (() => void) | undefined {
+    if (!navigator.webdriver) {
+        return undefined;
+    }
+
+    const names = ["SpeechRecognition", "webkitSpeechRecognition"] as const;
+    const saved = names.map((name) => Object.getOwnPropertyDescriptor(window, name));
+    for (const name of names) {
+        Object.defineProperty(window, name, {
+            value: name === "webkitSpeechRecognition" ? ScriptedRecognition : undefined,
+            configurable: true,
+            writable: true,
+        });
+    }
+
+    const { mediaDevices } = navigator;
+    mediaDevices.getUserMedia = () => {
+        const { stream } = new AudioContext().createMediaStreamDestination();
+        OPENED.push(stream);
+        return Promise.resolve(stream);
+    };
+    try {
+        // A probe remembered by an earlier run would choose the path for this one.
+        localStorage.removeItem("@graphty-ai-voice:recognition");
+    } catch {
+        // No storage: nothing is remembered either.
+    }
+
+    return () => {
+        names.forEach((name, i) => {
+            const descriptor = saved[i];
+            if (descriptor === undefined) {
+                Reflect.deleteProperty(window, name);
+            } else {
+                Object.defineProperty(window, name, descriptor);
+            }
+        });
+        Reflect.deleteProperty(mediaDevices, "getUserMedia");
+        SPOKEN.length = 0;
+        OPENED.length = 0;
+    };
+}
+
+/**
+ * Hold the page's talk button, as a reader does, until the recognizer has heard `utterance`, then
+ * let go.
+ * @param canvasElement - Where the story was rendered.
+ * @param utterance - What the reader says.
+ * @returns How the press ended (`ai-voice-end`'s code).
+ */
+async function speak(canvasElement: HTMLElement, utterance: string): Promise<string | undefined> {
+    const element = await renderedElement(canvasElement, "the story rendered no <graphty-element>");
+    const talk = canvasElement.querySelector<HTMLButtonElement>("#talk");
+    await holds(talk !== null, "the page has no talk button");
+    SPOKEN.push(utterance);
+    const ended = new Promise<string | undefined>((resolve) => {
+        element.addEventListener(
+            "ai-voice-end",
+            (e) => {
+                resolve(e.detail.code);
+            },
+            { once: true },
+        );
+    });
+    // One user for the whole press, so the release lets go of the button the press holds.
+    const user = userEvent.setup();
+    await user.pointer({ keys: "[MouseLeft>]", target: talk as HTMLButtonElement });
+    await waitFor(
+        () => {
+            need(
+                canvasElement.querySelector("#voice-status")?.textContent === utterance,
+                `"${utterance}" was not heard`,
+            );
+        },
+        { timeout: VOICE_LOAD_BUDGET_MS },
+    );
+    await user.pointer({ keys: "[/MouseLeft]", target: talk as HTMLButtonElement });
+    return ended;
+}
+
+/**
+ * The reader talks to the assistant (`voice`): they hold "Hold to talk" and say "Color the servers
+ * red", and the message is sent as spoken; they say "Remove the monitoring node", which is held
+ * for approval (`approvals: { ask: ["edit_data"] }`), and answer it by saying "Yes.". The page
+ * draws what is heard and the microphone's level from the voice events. The answers are the mock
+ * provider's, scripted.
+ *
+ * Under automation the recognizer and the microphone are scripted fakes and the play function
+ * talks. On a real device -- a desktop browser, Quest Browser, Galaxy XR, Vision Pro -- nothing is
+ * faked and the play function does nothing: hold the button (or, in VR, B or Y, or the wrist orb)
+ * and say one of the two requests, then "yes" or "no", to check the device's own recognition,
+ * speech and in-scene approval.
+ */
+export const Voice: Story = {
+    beforeEach: scriptSpeech,
+    render: () => {
+        const root = assistantPage(
+            { history: "memory", approvals: { ask: ["edit_data"] }, voice: { input: "auto", output: "auto" } },
+            {
+                "servers red": {
+                    text: "I colored the four servers red.",
+                    toolCalls: [
+                        {
+                            id: "c1",
+                            name: "style",
+                            arguments: {
+                                action: "add",
+                                where: "data.type == 'server'",
+                                values: { "node.color": "red" },
+                            },
+                        },
+                    ],
+                },
+                "remove the monitoring": {
+                    text: "I removed the monitoring node.",
+                    toolCalls: [
+                        { id: "r1", name: "edit_data", arguments: { action: "remove_nodes", ids: ["monitor"] } },
+                    ],
+                },
+            },
+        );
+        // On a headset the story is the device check, so it offers VR and AR.
+        const element = root.querySelector("graphty-element");
+        if (element !== null && !navigator.webdriver) {
+            element.xr = { enabled: true };
+        }
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        if (!navigator.webdriver) {
+            return;
+        }
+
+        await readyPage(canvasElement);
+        const before = await drawn(canvasElement, "AI Control Voice");
+        await assertGraphLoaded(before, { nodes: 12, edges: 20 });
+        const element = await renderedElement(canvasElement, "the story rendered no <graphty-element>");
+        const support = await element.getAiVoiceSupport();
+        await holds(support.input.path === "browser", `speech would be heard by ${support.input.path}`);
+
+        const first = await speak(canvasElement, "Color the servers red");
+        await holds(first === "AI_COMPLETED", `the first press ended ${String(first)}`);
+        await waitFor(() => {
+            need(element.getAiConversation()?.messages.length === 2, "the spoken request was not answered");
+        });
+        const spoken = element.getAiConversation()?.messages[0];
+        await holds(
+            spoken?.role === "reader" && spoken.via === "voice" && spoken.text === "Color the servers red",
+            `the first message is ${JSON.stringify(spoken)}, not the spoken request`,
+        );
+        await holds(
+            canvasElement.querySelector("#transcript")?.textContent?.includes("You (spoken): Color the servers red") ===
+                true,
+            "the page's transcript does not show the spoken message",
+        );
+
+        await speak(canvasElement, "Remove the monitoring node");
+        await waitFor(() => {
+            need(element.getPendingAiApprovals().length === 1, "the spoken removal was not held for approval");
+        });
+        await holds(before.session.status.counts.nodes === 12, "the node was removed before the reader approved");
+
+        // Answered by voice: "Yes." approves the held request, and is not sent as a message.
+        await speak(canvasElement, "Yes.");
+        await waitFor(() => {
+            need(before.session.status.counts.nodes === 11, "saying yes did not remove the monitoring node");
+        });
+        await holds(element.getPendingAiApprovals().length === 0, "the approval stayed open");
+        await holds(
+            !(element.getAiConversation()?.messages ?? []).some((m) => m.role === "reader" && m.text === "Yes."),
+            "the spoken answer was sent as a message",
+        );
+
+        const live = OPENED.flatMap((stream) => stream.getTracks()).filter((track) => track.readyState === "live");
+        await holds(
+            OPENED.length === 3 && live.length === 0,
+            `${String(live.length)} microphone tracks are still open`,
+        );
+        await drawn(canvasElement, "AI Control Voice");
     },
 };

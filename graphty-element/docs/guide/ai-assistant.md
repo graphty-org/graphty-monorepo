@@ -309,8 +309,9 @@ instructions or graph facts the element sends the model.
 
 - **The reader's message is saved as it is sent**, so it is in the conversation while the
   assistant works on it.
-- **`via`** is `"voice"` when you sent the message with `aiCommand(text, { via: "voice" })` --
-  pass it for a transcript from `startVoiceInput` -- and `"text"` otherwise.
+- **`via`** is `"voice"` when the reader spoke the message through [`aiTalk`](#voice), or you sent
+  it with `aiCommand(text, { via: "voice" })` -- pass it for a transcript from `startVoiceInput` --
+  and `"text"` otherwise.
 - **`outcome`** (`{ code, params }`) is set on the assistant entry of a message that failed or
   was taken back, instead of an answer: the code `aiCommand` resolved with (`AI_PROVIDER_ERROR`,
   `AI_CANCELLED`, ...). Word it as you word that result.
@@ -767,6 +768,181 @@ The sandbox (about 130 kB of script and 240 kB of WebAssembly) loads only on the
 | `AI_PROVIDER_PAUSED`         | the provider stopped a turn that used its own tool before the model answered (a long search), and again each of the three times the assistant sent the turn back to continue; `{ provider }`. What it found is not kept: asking again searches afresh |
 | `AI_TOOL_DENIED_BY_POLICY`   | with `reason: "web-content"` or `"in-page-code"`, as above                                                                                                                                                                                            |
 
+## Voice
+
+The reader can talk to the assistant and hear it answer. Set `voice`, and draw a button that the
+reader holds while talking:
+
+```typescript
+import "@graphty/graphty-element";
+
+const element = document.querySelector("graphty-element")!;
+const talk = document.querySelector<HTMLButtonElement>("#talk")!;
+
+await element.enableAiControl({ provider: "google", apiKey: myKey, voice: { output: "browser" } });
+
+talk.onpointerdown = (e) => {
+    talk.setPointerCapture(e.pointerId); // letting go off the button still ends the press
+    element.aiTalk(true);
+};
+talk.onpointerup = talk.onpointercancel = () => element.aiTalk(false);
+talk.onkeydown = (e) => {
+    if (e.key === " " && !e.repeat) {
+        element.aiTalk(true);
+    }
+};
+talk.onkeyup = (e) => {
+    if (e.key === " ") {
+        element.aiTalk(false);
+    }
+};
+```
+
+`aiTalk(true)` opens the microphone and listens; `aiTalk(false)` ends what the reader said and
+sends it as a message, exactly as `aiCommand(text, { via: "voice" })` would: the same tools,
+approvals, questions and history, and the conversation records it with `via: "voice"`. Voice is
+never the only way in: anything a reader can say, they can type.
+
+Show the button only where speech can be heard:
+
+```typescript
+const support = await element.getAiVoiceSupport();
+talk.hidden = support.input.status === "unavailable";
+```
+
+`getAiVoiceSupport()` returns `{ input, output }`, each `{ path, status, destination, code?,
+params? }`:
+
+- **`path`**: `"browser"` (the browser's own recognition or speech), `"provider"` (the AI
+  provider transcribes or speaks), or `"none"`.
+- **`status`**: `"ready"`, `"needs-permission"` (the reader has not yet allowed the microphone;
+  the first press asks) or `"unavailable"`, with `code` `AI_VOICE_UNAVAILABLE` and
+  `params: { path, reason }` saying why, or `AI_NOT_ENABLED` without `voice`.
+- **`destination`**: where the audio, or the text to speak, goes: `"on-device"`,
+  `"browser-vendor"`, `"provider"` or `"none"`. See [Privacy](#privacy).
+
+### Options
+
+| Option          | Default                              | What it does                                                                                                                                                                                        |
+| --------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `input`         | `"auto"`                             | How speech is heard. `"auto"`: the browser's recognition where it works, else the provider's transcription, else `AI_VOICE_UNAVAILABLE`. `"browser"`, `"provider"` or `"off"` force one             |
+| `output`        | `"auto"`                             | How answers are spoken. `"auto"`: not at all on a flat page, and in VR or AR by the browser's speech, else the provider's. `"browser"`, `"provider"` or `"off"` force one                           |
+| `language`      | the page's (`navigator.language`)    | The language heard and spoken, a BCP 47 tag such as `"fr-FR"`                                                                                                                                       |
+| `voiceName`     | the provider's default               | The provider's voice, by the provider's own name for it (`"alloy"` on OpenAI, `"Kore"` on Google)                                                                                                   |
+| `push`          | `"hold"`                             | `"hold"`: the reader talks while `aiTalk(true)` holds. `"toggle"`: each `aiTalk(true)` starts or ends, for a reader who cannot hold a button                                                        |
+| `transcription` | the chat provider                    | `{ provider, model? }`: transcribe through another provider, with its key from `apiKeys`. Anthropic transcribes nothing itself, so an Anthropic page sets `transcription: { provider: "openai" }`   |
+| `replies`       | `{ approve: ["yes"], deny: ["no"] }` | What the reader says to answer a [held approval](#remember-the-conversation-and-ask-before-changing-the-graph), compared with case and punctuation ignored. Set your own words for another language |
+| `say`           | absent                               | `({ code, params }) => string \| undefined`: the words to speak for an outcome the model wrote no text for. Absent, such an outcome is not spoken                                                   |
+
+Which providers transcribe and speak, and which browsers and headsets recognize speech, is on
+[AI Provider Features](./ai-provider-features#voice).
+
+**What is spoken.** Only the model's own text (`result.llmText`) is spoken. An outcome with no
+text -- an error, a held approval -- is spoken only in your words, from `say`; the element never
+speaks words of its own:
+
+```typescript
+await element.enableAiControl({
+    provider: "openai",
+    apiKey: myKey,
+    voice: {
+        output: "provider",
+        language: "fr-FR",
+        replies: { approve: ["oui"], deny: ["non"] },
+        say: ({ code }) => (code === "AI_CONFIRMATION_NEEDED" ? "Je dois demander avant." : undefined),
+    },
+});
+```
+
+**Answering by voice.** While an approval is held, saying one of `replies.approve` approves it and
+one of `replies.deny` denies it. While a [question](#questions) is open, saying one of its choices
+answers it. Anything else is a new message, which ends what was waiting, as a typed message does.
+
+**Talking interrupts.** `aiTalk(true)` stops an answer being spoken, and so does
+`stopAiSpeech()`. `disableAiControl()` closes the microphone and stops speaking.
+
+### Pointing: "color this"
+
+While talk is held, the element records the nodes the reader's mouse (or, in VR, the controller's
+ray) passes over, in order, and the nodes selected when the press began. The model is sent them
+with the message, so "color this one red" or "connect this to that" names the nodes the reader
+pointed at. Only ids are sent: the last 20 nodes pointed at and the first 20 selected (10 each
+with the small tool profile). A typed message carries no pointing.
+
+### Events
+
+| Event                 | `detail`                   | When                                                                                                                           |
+| --------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `ai-voice-start`      | `{}`                       | the microphone opened and listening began                                                                                      |
+| `ai-voice-transcript` | `{ transcript, isFinal }`  | what has been heard so far; the last one has `isFinal: true`                                                                   |
+| `ai-voice-level`      | `{ level }`                | how loud the microphone is, 0 to 1, at most once per animation frame while talk is held: draw a meter from it                  |
+| `ai-voice-end`        | `{ reason, code, params }` | the press ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`, or `AI_NOT_ENABLED` when the assistant has no `voice` |
+| `ai-speech-start`     | `{}`                       | an answer started being spoken                                                                                                 |
+| `ai-speech-end`       | `{ code, params }`         | it stopped: `AI_COMPLETED`, `AI_CANCELLED` (talk or `stopAiSpeech()` cut it off), `AI_VOICE_UNAVAILABLE`, or a provider's code |
+
+```typescript
+element.addEventListener("ai-voice-level", (e) => {
+    talk.style.setProperty("--level", String(e.detail.level));
+});
+element.addEventListener("ai-voice-end", (e) => {
+    if (e.detail.code === "AI_VOICE_UNAVAILABLE") {
+        showWhy(e.detail.params); // { path, reason }
+    }
+});
+```
+
+### In VR and AR
+
+In an immersive session the page's own buttons cannot be seen, so the element draws and binds
+its own controls. Each is on by default when `voice` is set, and each can be rebound or switched
+off in `xr.ai`:
+
+- **Talk**: hold B or Y on a Quest Touch controller, or, with hands, pinch and hold the microphone
+  orb on the wrist (`pushToTalk`). The trigger and thumbsticks keep their usual jobs.
+- **Answer a held approval**: A approves and X denies (`pendingButtons`); or point at the
+  approve or deny control drawn in the scene and pull the trigger or pinch (`pendingControl`); or
+  say "yes" or "no".
+- **Questions**: one control per choice, drawn in the scene.
+- **The panel**: what was heard and the assistant's answer, drawn in the scene (`panel`).
+- **Speaking**: with `output: "auto"`, answers are spoken.
+
+Entering VR or AR asks for the microphone and unlocks audio on that click, because a headset
+cannot ask once the reader is inside; the microphone closes again at once. Leaving VR or AR closes
+the microphone and stops speaking.
+
+The scene shows only data: the command's name from the catalog, its arguments, the model's
+question, choices and answer, and what the reader said, each with an icon. The words on the
+controls are yours, from `xr.ai.labels`, keyed by code; a code with no label shows its icon only:
+
+```typescript
+element.xr = {
+    enabled: true,
+    ai: {
+        pushToTalk: { buttons: ["b", "y"], wristOrb: true },
+        pendingButtons: { approve: ["a"], deny: ["x"] },
+        labels: {
+            XR_APPROVE: "Approve",
+            XR_DENY: "Deny",
+            XR_TRANSCRIPT: "You said",
+            AI_CONFIRMATION_NEEDED: "Allow this change?",
+            AI_QUESTION_ASKED: "The assistant asks",
+            AI_COMPLETED: "Done",
+        },
+    },
+};
+```
+
+An empty button list switches that binding off (`pushToTalk: { buttons: [] }`).
+
+### Result codes voice adds
+
+| Code                   | When                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `AI_VOICE_UNAVAILABLE` | speech cannot be heard or spoken; `{ path, reason }`. `path` is `"input"` or `"output"`; `reason` is one of `AI_VOICE_UNAVAILABLE_REASONS`: `"no-recognition"`, `"no-microphone"`, `"permission-denied"`, `"insecure-context"` (the page is not HTTPS), `"no-provider-transcription"`, `"no-provider-speech"`, `"no-key"`, `"no-synthesis"`, `"playback-failed"`. More may be added in a minor release |
+
+The "Voice" story in Storybook shows a talk button on the mock provider. On a headset or a phone
+it uses the device's own speech, so it is also the page to check a device with.
+
 ## Privacy
 
 - **History is off by default.** Nothing is kept unless you set `history`.
@@ -798,6 +974,26 @@ Web search, web pages and code add these:
 - **Saved with the conversation.** With `history`, the sources and the helper's answer are saved
   in the record (see the [conversation format](./ai-conversation-format)), as the rest of the
   conversation is.
+
+Voice adds these:
+
+- **The microphone is open only while talk is held**, from `aiTalk(true)` to `aiTalk(false)`, and
+  every track is stopped on release, cancel and `disableAiControl()`. Entering VR or AR opens it
+  for a moment to ask permission, and closes it at once.
+- **Where the audio goes depends on the path** (`getAiVoiceSupport()` says, as `destination`):
+    - the browser's recognition: Chrome's default sends audio to Google and Edge's to Microsoft
+      (`"browser-vendor"`); Chrome's on-device recognition, Safari and Vision Pro keep it on the
+      device (`"on-device"`);
+    - the provider's transcription sends a recording of what the reader said to the provider, on
+      the reader's key, as every message is (`"provider"`). With `transcription`, it goes to that
+      provider instead;
+    - spoken answers: the browser's speech stays in the browser (often on the device); the
+      provider's sends the answer's text to the provider.
+- **Nothing is recorded or kept.** The recording lives only until it is transcribed; the
+  conversation keeps the transcript, as it keeps typed text.
+- **Content security policy.** The provider's speech is played from a `blob:` URL, so it needs
+  `media-src blob:`; transcription and speech go to the provider's own host, already in
+  `connect-src`.
 
 ## Result codes
 

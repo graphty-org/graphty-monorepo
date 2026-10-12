@@ -49,7 +49,7 @@ export type ToolDerivedDefault =
           readonly source: string;
       }
     | {
-          /** An edge with no width of its own is drawn as thick as its weight (1 for an edge with no weight). */
+          /** An edge with no width of its own is drawn as thick as its weight (1 for an edge with no weight, or a weight of 0 or below). */
           readonly kind: "widthFromWeight";
           /** Where the default is stated. */
           readonly source: string;

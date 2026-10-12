@@ -1685,6 +1685,13 @@ export interface BindingPreview {
     readonly bins: readonly BindingPreviewBin[];
     /** Where a stepped scale changes step, ascending, in the data's units; empty otherwise. */
     readonly steps: readonly number[];
+    /**
+     * How many elements each step paints, lowest step first: one more entry than `steps`, a value
+     * on a cut counted in the step above it, and a value beyond the domain in the end step it is
+     * painted as. Empty when the scale is not stepped.
+     * @since 3.26.0
+     */
+    readonly stepCounts: readonly number[];
     /** How many elements carry a number below the domain, painted as its lower end. */
     readonly below: number;
     /** How many elements carry a number above the domain, painted as its upper end. */
@@ -1776,7 +1783,7 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
             return { from: null, to: null, value, count: counts.get(name) ?? 0, paints: orNull(prepared.paint(value)) };
         });
 
-        return { ...base, domain: null, bins, below, above, noValue, outsideScale };
+        return { ...base, stepCounts: [], domain: null, bins, below, above, noValue, outsideScale };
     }
 
     const { domain } = prepared;
@@ -1808,6 +1815,8 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
         return valueAt(place, ascending, at / binCount);
     });
     const counts = new Array<number>(binCount).fill(0);
+    const cuts = prepared.steps ?? [];
+    const stepCounts = stepped ? new Array<number>(cuts.length + 1).fill(0) : [];
 
     for (const value of column) {
         if (value === undefined || value === null) {
@@ -1819,7 +1828,14 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
         const position = Number.isNaN(number) ? Number.NaN : place(number);
         if (Number.isNaN(position)) {
             outsideScale++;
-        } else if (number < low) {
+            continue;
+        }
+
+        if (stepped) {
+            stepCounts[cuts.filter((cut) => number >= cut).length]++;
+        }
+
+        if (number < low) {
             below++;
         } else if (number > high) {
             above++;
@@ -1835,5 +1851,5 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
         return { from: Math.min(from, to), to: Math.max(from, to), count, paints: orNull(prepared.paint(middle)) };
     });
 
-    return { ...base, domain: [domain[0], domain[1]], bins, below, above, noValue, outsideScale };
+    return { ...base, stepCounts, domain: [domain[0], domain[1]], bins, below, above, noValue, outsideScale };
 }

@@ -173,6 +173,7 @@ export interface BindingPreview {
     readonly noValuePaints: EncodedValue | null;
     readonly outsideScale: number;
     readonly scale: NonNullable<RuleBinding["scale"]>;
+    readonly stepCounts: readonly number[];
     readonly steps: readonly number[];
 }
 

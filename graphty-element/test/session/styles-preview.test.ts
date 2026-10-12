@@ -191,6 +191,14 @@ describe("styles.preview", () => {
         const preview = session.styles.preview(binding, { channel: "node.color", bins: 4 });
 
         assert.deepEqual(preview.steps, [5.5, 11, 16.5]);
+        const cuts = [5.5, 11, 16.5];
+        assert.deepEqual(
+            preview.stepCounts,
+            [0, 1, 2, 3].map(
+                (step) => nodes.filter((n) => cuts.filter((cut) => n.degree >= cut).length === step).length,
+            ),
+            "each step counts the nodes it paints",
+        );
         await session.styles.add({
             name: "Degree",
             target: "node",

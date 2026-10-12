@@ -1446,26 +1446,36 @@ function resolveAcceleration(
  * `data.attributes()` reports -- while a record bag is keyed by the key the record arrived with.
  * The prefix is what separates the two, and stripping it here is what keeps every other caller
  * from having to know that the session's attributes all live under one root today.
+ * A run's value (`results.<run>.<field>`, the run named by its id or its algorithm) is read
+ * through the source the style layers read, so a rule over a run's value holds the elements a
+ * binding on that value paints.
  * @param records - Where the attribute bags are read.
  * @param readSnapshot - Reads the snapshot the indices address.
  * @param kindsOf - Which halves carry a path, as {@link fieldKindsOf} answers.
+ * @param elements - The style layers' value source, read through a call: it is built later.
  * @returns The value source.
  */
 function valueSourceOf(
     records: SessionRecordSource,
     readSnapshot: () => GraphSnapshot,
     kindsOf: (path: Path) => readonly string[],
+    elements: () => Pick<SessionSelectorSource, "nodeValue" | "edgeValue">,
 ): FilterValueSource {
     const keyOf = (path: Path): string =>
         path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
+    const isResult = (path: Path): boolean => path.startsWith("results.");
 
     return {
         nodeValue: (index: number, path: Path): unknown =>
-            records.nodeAttributes(index, readSnapshot().ids.idOf(index))?.[keyOf(path)],
+            isResult(path)
+                ? elements().nodeValue(index, path)
+                : records.nodeAttributes(index, readSnapshot().ids.idOf(index))?.[keyOf(path)],
         // An edge's endpoints are read from the snapshot when the record holds nothing under the
         // key, as a style selector reads them: the importer removes the keys they arrived under.
         edgeValue: (index: number, path: Path): unknown =>
-            records.edgeAttributes(index)?.[keyOf(path)] ?? edgeEndpointOf(readSnapshot(), index, keyOf(path)),
+            isResult(path)
+                ? elements().edgeValue(index, path)
+                : (records.edgeAttributes(index)?.[keyOf(path)] ?? edgeEndpointOf(readSnapshot(), index, keyOf(path))),
         halvesOf: (path: Path) => {
             const kinds = kindsOf(path);
             return { node: kinds.includes("node"), edge: kinds.includes("edge") };
@@ -2279,7 +2289,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         edgeMember,
         fieldKinds: dependencies.fieldKinds,
         matchEdges: (where: Query) => requireQuery(query).edges(where),
-        values: valueSourceOf(records, snapshot, fieldKinds),
+        values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
     });
 
     const visibility = createVisibilityApi({
@@ -2302,7 +2312,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         unresolvedPathsOf: (where: Query) => requireQuery(query).unresolvedPathsOf(where),
         ...(runsOptions.engine === undefined ? {} : { engine: runsOptions.engine }),
         result: resultSource,
-        values: valueSourceOf(records, snapshot, fieldKinds),
+        values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         onChange: (change) => {
             notifier.notify({ kind: "visibility" });
             publish(watchers, "visibility:changed", change);

@@ -148,6 +148,8 @@ describe("per-value entries", () => {
             },
             set: { "node.size": 2 },
         });
+        await styles.settled();
+        assert.strictEqual(styles.counts(hand.id).matched, 3, "a rule over a run's value holds that group");
 
         membership = SECOND;
         await runs.start("louvain", {}, { style: false, seed: 7 });

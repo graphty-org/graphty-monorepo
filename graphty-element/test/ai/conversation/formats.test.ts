@@ -19,6 +19,8 @@ import { fileURLToPath } from "node:url";
 import { assert, describe, it } from "vitest";
 import { z } from "zod";
 
+// Git reads the developer's own ~/.gitconfig otherwise (tools/ci-workflows.test.mjs checks this).
+import { isolatedGitEnv } from "../../../../tools/isolated-git-env.mjs";
 import { AI_CONVERSATION_FORMAT, AI_CONVERSATION_FORMAT_VERSION } from "../../../catalog";
 import {
     type ConversationRecord,
@@ -173,8 +175,9 @@ function rewritten(before: string, record: unknown): string[] {
  * @returns Its text there.
  */
 function onMergeBase(file: string): string | undefined {
-    const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: HERE, encoding: "utf8" }).trim();
-    const git = (...args: string[]): string => execFileSync("git", args, { cwd: top, encoding: "utf8" });
+    const env = isolatedGitEnv();
+    const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: HERE, encoding: "utf8", env }).trim();
+    const git = (...args: string[]): string => execFileSync("git", args, { cwd: top, encoding: "utf8", env });
     const base = git("merge-base", "HEAD", process.env.FORMAT_BASE ?? "origin/master").trim();
     const path = relative(top, file);
     return git("ls-tree", base, "--", path).trim() === "" ? undefined : git("show", `${base}:${path}`);

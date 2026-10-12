@@ -60,6 +60,7 @@ import {
 
 export { gmlExporter, type GmlExportOptions } from "./exporter.js";
 export { gmlImporter, type GmlImportOptions } from "./importer.js";
+export { GML_STYLE_BLOCK_KEY, GML_STYLE_CAPABILITIES } from "./styles.js";
 
 /**
  * The issue codes the GML importer records, by name: the codes shared with

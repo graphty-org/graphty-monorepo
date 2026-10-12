@@ -7,7 +7,7 @@ values are those that differ from their property's most common value; opaque one
 copies values (an unexplained passthrough or the exceptions), exception ones from the exceptions rule alone.
 Tool values are elements drawn with the writing program's default.
 
-333 inputs, 283 with styles; at most 15 node and 15 edge rules.
+343 inputs, 296 with styles; at most 15 node and 15 edge rules.
 
 | Input | Import | Nodes | Edges | Node rules | Edge rules | Varying | Opaque | Exceptions | Approximated | Tool values | Declared selecting nothing | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -148,10 +148,20 @@ Tool values are elements drawn with the writing program's default.
 | gexf/sigma-moroccan-ediaspora.gexf.gz | ok | 156 | 397 | 3 | 3 | 356 | 0% | 0% | 0 | 1347 | 0 |  |
 | gexf/sigma-standard_graph.gexf | ok | 17 | 35 | 3 | 2 | 26 | 100% | 0% | 0 | 122 | 0 |  |
 | gexf/sigma-website-diseasome.gexf.gz | ok | 1419 | 3926 | 3 | 2 | 2208 | 0% | 0% | 0 | 9271 | 0 |  |
-| gml/TwelveYC_network-vi__metabolicpos.gml | ok | 453 | 2040 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| gml/di-unipi-socc_dgLBF__germany50.gml | ok | 50 | 88 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| gml/generated/graphics-mix.gml | ok | 60 | 60 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| gml/spupyrev_bob__need4stacks261.gml | ok | 261 | 777 | - | - | 0 | - | - | 0 | 0 | 0 |  |
+| gml/TwelveYC_network-vi__metabolicpos.gml | ok | 453 | 2040 | 2 | 3 | 0 | - | - | 0 | 6573 | 0 |  |
+| gml/di-unipi-socc_dgLBF__germany50.gml | ok | 50 | 88 | 2 | 1 | 0 | - | - | 0 | 0 | 0 | W_STYLE_UNKNOWN_VALUE |
+| gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 87 | 0% | 0% | 0 | 690 | 0 |  |
+| gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 2 | 4 | 87 | 0% | 0% | 0 | 236 | 0 |  |
+| gml/generated/graphics-mix.gml | ok | 60 | 60 | 4 | 1 | 234 | 78% | 0% | 0 | 0 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| gml/generated/graphty-written.gml | ok | 30 | 40 | 7 | 7 | 74 | 14% | 0% | 0 | 30 | 0 | W_STYLE_EXTRA_LABELS |
+| gml/generated/igraph-flat-attributes.gml | ok | 20 | 25 | - | - | 0 | - | - | 0 | 0 | 0 |  |
+| gml/generated/networkx-graphics.gml | ok | 24 | 30 | 3 | 2 | 45 | 33% | 0% | 0 | 0 | 0 |  |
+| gml/generated/ogdf-escaped-labels.gml | ok | 25 | 35 | 9 | 6 | 67 | 18% | 4% | 0 | 0 | 0 |  |
+| gml/generated/tamper-block-truncated.gml | ok | 30 | 40 | 8 | 6 | 74 | 24% | 11% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_EXTRA_LABELS |
+| gml/generated/tamper-native-edited.gml | ok | 30 | 40 | 8 | 7 | 74 | 15% | 1% | 0 | 31 | 0 | W_STYLE_EXTRA_LABELS |
+| gml/generated/tamper-node-added.gml | ok | 31 | 40 | 8 | 6 | 74 | 24% | 11% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_EXTRA_LABELS |
+| gml/generated/yed-labels-and-arrows.gml | ok | 30 | 40 | 7 | 7 | 34 | 0% | 0% | 0 | 332 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
+| gml/spupyrev_bob__need4stacks261.gml | ok | 261 | 777 | 5 | 3 | 153 | 5% | 5% | 0 | 6681 | 0 |  |
 | graphml/LTVA1_STM32CrapSynth__func.graphml.gz | ok | 147 | 94 | 7 | 4 | 310 | 73% | 13% | 0 | 587 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_UNKNOWN_VALUE |
 | graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml | ok | 70 | 72 | 7 | 4 | 101 | 72% | 4% | 0 | 290 | 0 | W_STYLE_GRADIENT |
 | graphml/StateSmith_StateSmith__Spec1Sm.graphml | ok | 14 | 7 | 5 | 3 | 45 | 56% | 7% | 0 | 38 | 0 | W_STYLE_GRADIENT, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |

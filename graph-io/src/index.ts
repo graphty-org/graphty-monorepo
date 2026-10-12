@@ -159,6 +159,8 @@ export {
 export {
     GML_ISSUE,
     GML_LOSS,
+    GML_STYLE_BLOCK_KEY,
+    GML_STYLE_CAPABILITIES,
     gmlExporter,
     type GmlExportOptions,
     gmlImporter,

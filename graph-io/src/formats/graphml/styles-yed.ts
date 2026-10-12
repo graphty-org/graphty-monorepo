@@ -265,7 +265,7 @@ const YED_POSITIONS: ReadonlyMap<string, string> = new Map([
 ]);
 
 /** yEd's font styles, as label weight and italic. */
-const FONT_STYLES: ReadonlyMap<string, readonly [string, boolean]> = new Map([
+export const FONT_STYLES: ReadonlyMap<string, readonly [string, boolean]> = new Map([
     ["plain", ["normal", false]],
     ["bold", ["bold", false]],
     ["italic", ["normal", true]],
@@ -571,7 +571,7 @@ interface Written {
 }
 
 /** yEd's ShapeNode types, by the neutral shape each draws exactly. */
-const YED_SHAPES: ReadonlyMap<string, string> = new Map([
+export const YED_SHAPES: ReadonlyMap<string, string> = new Map([
     ["ellipse", "ellipse"],
     ["rectangle", "rectangle"],
     ["round-rectangle", "roundrectangle"],
@@ -585,7 +585,7 @@ const YED_SHAPES: ReadonlyMap<string, string> = new Map([
 ]);
 
 /** yEd's line types, by the neutral line style each draws exactly. */
-const YED_LINES: ReadonlyMap<string, string> = new Map([
+export const YED_LINES: ReadonlyMap<string, string> = new Map([
     ["solid", "line"],
     ["dashed", "dashed"],
     ["dotted", "dotted"],
@@ -593,7 +593,7 @@ const YED_LINES: ReadonlyMap<string, string> = new Map([
 ]);
 
 /** yEd's arrows, by the neutral arrow each draws exactly. */
-const YED_ARROWS: ReadonlyMap<string, string> = new Map([
+export const YED_ARROWS: ReadonlyMap<string, string> = new Map([
     ["none", "none"],
     ["triangle", "standard"],
     ["triangle-open", "white_delta"],
@@ -627,7 +627,7 @@ const YED_MODEL_POSITIONS: ReadonlyMap<string, string> = new Map([
  * @param nearest - the yEd value written when the table has none
  * @returns the written value
  */
-function yedValue(table: ReadonlyMap<string, string>, value: string, nearest: string): Written {
+export function yedValue(table: ReadonlyMap<string, string>, value: string, nearest: string): Written {
     const exact = table.get(value);
     if (exact !== undefined) {
         return { value: exact, exact: true };
@@ -642,7 +642,7 @@ function yedValue(table: ReadonlyMap<string, string>, value: string, nearest: st
  * @param opacity - the opacity, or null
  * @returns the text
  */
-function yedColor(color: string, opacity: StyleValue | null): string {
+export function yedColor(color: string, opacity: StyleValue | null): string {
     const hex = color.toUpperCase();
     if (typeof opacity !== "number" || opacity >= 1) {
         return hex;

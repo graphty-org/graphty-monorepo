@@ -154,6 +154,12 @@ export class GmlTokens {
     /** The number of tokens. */
     count = 0;
 
+    /**
+     * Whether a backslash escapes the next character inside a string (`\"`, `\\`): set for files OGDF wrote, whose
+     * writer escapes quotes that way. Plain GML has no escape mechanism.
+     */
+    backslashEscapes = false;
+
     /** Called by stringOf() with each named entity it cannot decode and the token's line, when set. */
     onUnknownEntity: ((entity: string, line: number) => void) | null = null;
 
@@ -208,6 +214,9 @@ export class GmlTokens {
         if (text.includes("\r")) {
             // a line break inside a string is part of it, as LF whatever the file's line ends
             text = text.replaceAll(/\r\n?/g, "\n");
+        }
+        if (this.backslashEscapes && text.includes("\\")) {
+            text = text.replaceAll(/\\([\s\S])/g, "$1");
         }
         if (text.indexOf("&") < 0) {
             return text;
@@ -279,6 +288,7 @@ export class GmlTokens {
  */
 export function tokenizeGml(text: string): GmlTokens {
     const tokens = new GmlTokens(text, Math.max(1024, text.length >>> 3));
+    tokens.backslashEscapes = OGDF_CREATOR.test(text.slice(0, 512));
     const n = text.length;
     let i = 0;
     let line = 1;
@@ -309,7 +319,7 @@ export function tokenizeGml(text: string): GmlTokens {
             tokens.push(TOKEN_CLOSE, i, i + 1, line);
             i++;
         } else if (c === 34) {
-            const close = text.indexOf('"', i + 1);
+            const close = tokens.backslashEscapes ? escapedClose(text, i + 1) : text.indexOf('"', i + 1);
             if (close < 0) {
                 const hint =
                     spanningLine === 0
@@ -340,6 +350,27 @@ export function tokenizeGml(text: string): GmlTokens {
     }
     validateStructure(tokens);
     return tokens;
+}
+
+/** A file OGDF wrote: its first key is `Creator "ogdf::..."`, after any comment lines. */
+const OGDF_CREATOR = /^(?:\s|#[^\n\r]*)*Creator\s+"ogdf::/;
+
+/**
+ * The offset of the quote closing a string whose backslashes escape the next character, or -1.
+ * @param text - the text
+ * @param from - the offset after the opening quote
+ * @returns the offset of the closing quote
+ */
+function escapedClose(text: string, from: number): number {
+    for (let k = from; k < text.length; k++) {
+        const c = text.charCodeAt(k);
+        if (c === 92) {
+            k++;
+        } else if (c === 34) {
+            return k;
+        }
+    }
+    return -1;
 }
 
 /**
@@ -447,7 +478,12 @@ function validateStructure(tokens: GmlTokens): void {
                 tokens.line[i],
             );
         }
-        const vk = kind[value];
+        let vk = kind[value];
+        if (vk === TOKEN_WORD && tokens.textOf(i) === "Creator" && !NON_FINITE_WORD.test(tokens.textOf(value))) {
+            // Gephi writes its name unquoted (`Creator Gephi`): read the word as the string it means
+            kind[value] = TOKEN_STRING;
+            vk = TOKEN_STRING;
+        }
         if (vk === TOKEN_OPEN) {
             stack.push(value);
         } else if (vk === TOKEN_CLOSE || (vk === TOKEN_WORD && !NON_FINITE_WORD.test(tokens.textOf(value)))) {

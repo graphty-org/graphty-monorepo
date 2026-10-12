@@ -84,7 +84,7 @@
     </head>
     <body>
         <main>
-            <a class="back" href="/">Back to the sandbox</a>
+            <a class="back" href="./">Back to the sandbox</a>
             <h1>XR sandbox: how to use it in the headset</h1>
             <p>
                 A short guide to every page and control of the XR technique sandbox, for Meta Quest 3 (Quest Browser)
@@ -348,8 +348,9 @@
                 <li>Point away: the tag stays a moment (0.3 s), then hides.</li>
             </ol>
             <p>
-                Settings: which value to show, tag size, a delay before showing, how long it stays. Not shown when the
-                input has no steady pointer (it then says &quot;needs hover&quot;).
+                Settings: which value to show, &quot;Letter height (deg)&quot; (default 1.2), a delay before showing,
+                how long it stays. Not shown when the input has no steady pointer (it then says &quot;needs
+                hover&quot;).
             </p>
             <h3>Node menus</h3>
             <p>Hold on a node for a menu of node actions; hold on empty space for graph actions.</p>
@@ -371,7 +372,7 @@
             <p>List style (the default):</p>
             <ol>
                 <li>
-                    A column of buttons appears beside the node:
+                    A panel with a column of buttons appears beside the node:
                     <strong>Select, Neighbors, Probe, Note, Hide, Close</strong>.
                 </li>
                 <li>
@@ -424,8 +425,8 @@
                     &quot;Colored by PageRank -- Undo&quot;. (It is a note, not a button.)
                 </li>
                 <li>
-                    Above the graph, a strip shows <strong>Undo: (the step)</strong>, <strong>Redo</strong>, and your
-                    last five steps.
+                    Just above the graph, one panel lists your last five steps (oldest first), then an
+                    <strong>Undo: (the step)</strong> button and <strong>Redo</strong>.
                 </li>
                 <li>Tap Undo to undo the last step. Tap an older step to undo back to and including it.</li>
             </ol>
@@ -471,7 +472,10 @@
             <p>Use a card: tap or poke its buttons with your dominant hand.</p>
             <ul>
                 <li><strong>Analyze</strong>: &quot;Run PageRank&quot; (one per result) reveals a result.</li>
-                <li><strong>Style</strong>: &quot;Color by X&quot;, &quot;Size by X&quot;, or nothing.</li>
+                <li>
+                    <strong>Style</strong>: a &quot;Color by&quot; grid and a &quot;Size by&quot; grid of result names
+                    (PageRank, Degree, ...), each with <strong>None</strong>. The current choice is highlighted.
+                </li>
                 <li>
                     <strong>Filter</strong>: &quot;Take the sieve&quot; (needs Physical tools on) and &quot;Remove
                     filter&quot;.
@@ -491,8 +495,8 @@
             <p>What you see (placed in front of you on entry and on Recenter):</p>
             <ul>
                 <li>
-                    <strong>Toolbar</strong>, low in front: PageRank, Degree, Betweenness, Community, Sieve, Probe,
-                    Note, with a status line.
+                    <strong>Toolbar</strong>, low in front: two rows of results (PageRank, Degree / Betweenness,
+                    Community), then Sieve, Probe and Note, with a status line.
                 </li>
                 <li>
                     <strong>Layers</strong>, up-left: one row per thing applied (selection, color, size, filter, hidden,
@@ -844,8 +848,8 @@
                 <li>Lean in, or use <strong>Recenter</strong> so panels come back in front of you.</li>
                 <li>Handling: scale the graph up with two hands.</li>
                 <li>
-                    Hover tag: raise &quot;Size&quot; in its settings. Text entry: &quot;Keyboard distance&quot;. Dense
-                    picking: &quot;Tag height&quot;.
+                    Hover tag: raise &quot;Letter height (deg)&quot; in its settings. Text entry: &quot;Keyboard
+                    distance&quot;. Dense picking: &quot;Tag letter height (deg)&quot;.
                 </li>
                 <li>Turn off &quot;Node labels&quot; in the Framework tab if labels crowd the view.</li>
             </ul>

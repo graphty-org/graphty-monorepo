@@ -124,7 +124,8 @@ Point at a node and see its name, value and rank before pressing anything.
 2. After something colors the graph (e.g. PageRank) the tag shows that value: "Strozzi 0.088, #3".
 3. Point away: the tag stays a moment (0.3 s), then hides.
 
-Settings: which value to show, tag size, a delay before showing, how long it stays.
+Settings: which value to show, "Letter height (deg)" (default 1.2), a delay before showing, how
+long it stays.
 Not shown when the input has no steady pointer (it then says "needs hover").
 
 ### Node menus
@@ -141,7 +142,8 @@ Open it:
 
 List style (the default):
 
-1. A column of buttons appears beside the node: **Select, Neighbors, Probe, Note, Hide, Close**.
+1. A panel with a column of buttons appears beside the node: **Select, Neighbors, Probe, Note, Hide,
+   Close**.
 2. Point at one and tap (or poke it).
     - Neighbors selects the node and its direct neighbors.
     - Probe shows a card above the node for 6 s: PageRank, rank, degree.
@@ -176,7 +178,8 @@ Every change is named where you can see it and can be taken back.
 
 1. Make a change (e.g. color by PageRank). A green note appears beside the hand that did it for
    2 s: "Colored by PageRank -- Undo". (It is a note, not a button.)
-2. Above the graph, a strip shows **Undo: (the step)**, **Redo**, and your last five steps.
+2. Just above the graph, one panel lists your last five steps (oldest first), then an **Undo: (the
+   step)** button and **Redo**.
 3. Tap Undo to undo the last step. Tap an older step to undo back to and including it.
 
 Selecting is never a step: it is not listed and not undone. Moving the graph is not a step either.
@@ -210,7 +213,8 @@ Turn to another card:
 Use a card: tap or poke its buttons with your dominant hand.
 
 - **Analyze**: "Run PageRank" (one per result) reveals a result.
-- **Style**: "Color by X", "Size by X", or nothing.
+- **Style**: a "Color by" grid and a "Size by" grid of result names (PageRank, Degree, ...), each
+  with **None**. The current choice is highlighted.
 - **Filter**: "Take the sieve" (needs Physical tools on) and "Remove filter".
 - **Selection**: "Grow 1 hop" (one node selected), "Hide selected", "Clear selection", "Show hidden".
 - **History**: Undo (naming the step) and Redo.
@@ -224,8 +228,8 @@ Desktop design-tool panels placed around you: a toolbar, a layer list, an inspec
 
 What you see (placed in front of you on entry and on Recenter):
 
-- **Toolbar**, low in front: PageRank, Degree, Betweenness, Community, Sieve, Probe, Note, with a
-  status line.
+- **Toolbar**, low in front: two rows of results (PageRank, Degree / Betweenness, Community), then
+  Sieve, Probe and Note, with a status line.
 - **Layers**, up-left: one row per thing applied (selection, color, size, filter, hidden, notes),
   each with an **x** that removes just that.
 - **Inspector**, up-right: the selected node's values and ranks (read only).
@@ -444,8 +448,8 @@ landing page's preset list after a reload.
 
 - Lean in, or use **Recenter** so panels come back in front of you.
 - Handling: scale the graph up with two hands.
-- Hover tag: raise "Size" in its settings. Text entry: "Keyboard distance". Dense picking: "Tag
-  height".
+- Hover tag: raise "Letter height (deg)" in its settings. Text entry: "Keyboard distance". Dense
+  picking: "Tag letter height (deg)".
 - Turn off "Node labels" in the Framework tab if labels crowd the view.
 
 **Voice is not heard.**

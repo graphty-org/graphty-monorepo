@@ -165,6 +165,9 @@ const TRUE_TEXTS: ReadonlySet<string> = new Set(["true", "yes", "shape"]);
 /** A point's size when the file gives none: 0.05 inch. */
 const POINT_SIZE = 0.05;
 
+/** The size in inches Graphviz gives a circle, a square or a `regular` node that states none. */
+const REGULAR_SIZE = 0.5;
+
 /** One attribute of an element as text, or null when it is unset. */
 type Attr = (name: string) => string | null;
 
@@ -470,7 +473,7 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
         if (alpha === 0) {
             put("borderWidth", 0);
         } else if (width !== null) {
-            put("borderWidth", canonNumber(width, at("borderWidth")));
+            put("borderWidth", penWidth(width, get("penwidth") !== null, at("borderWidth")));
         } else if (tokens.includes("bold")) {
             put("borderWidth", 2);
         }
@@ -504,6 +507,22 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
 }
 
 /**
+ * A pen width as Graphviz draws it: a negative `penwidth` is raised to 0, its minimum, and noted.
+ * @param raw - the `penwidth` or `setlinewidth` value
+ * @param attribute - whether it is the `penwidth` attribute
+ * @param site - where it was read
+ * @returns the width, or null when it does not parse
+ */
+function penWidth(raw: string, attribute: boolean, site: CanonSite): number | null {
+    const value = Number(raw.trim());
+    if (attribute && Number.isFinite(value) && value < 0) {
+        noteAt(site, STYLE_ISSUE.BAD_VALUE, raw.slice(0, MAX_STYLE_VALUE_LENGTH));
+        return 0;
+    }
+    return canonNumber(raw, site);
+}
+
+/**
  * Reads a node's width and height: exact where Graphviz draws them exactly (`fixedsize`, an empty label that is not
  * a record's, a point), otherwise minimums it grows to fit the label, noted.
  * @param get - the node's attributes
@@ -514,20 +533,24 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
  * @param at - the sites
  */
 function readSize(get: Attr, shape: string, point: boolean, label: string | null, put: Put, at: At): void {
-    const w = inches(get("width"), at("width"));
-    const h = inches(get("height"), at("height"));
-    if (w === null && h === null) {
+    let w = inches(get("width"), at("width"));
+    let h = inches(get("height"), at("height"));
+    const same = point || CIRCLE_LIKE.has(shape) || isTrue(get("regular"));
+    if (shape === "plain") {
+        // plain is plaintext with its width and height forced to 0: exactly the size of its label
+        w = h = 0;
+    } else if (w === null && h === null) {
         if (point) {
             put("width", num6(POINT_SIZE * DOT_POINTS_PER_INCH));
             put("height", num6(POINT_SIZE * DOT_POINTS_PER_INCH));
+            return;
         }
-        return;
+        if (!same) {
+            return;
+        }
+        // a regular shape takes the smaller of the default width and height (0.5 inch) for both
+        w = h = REGULAR_SIZE;
     }
-    if (shape === "plain") {
-        noteAt(at("width"), STYLE_ISSUE.NOT_CARRIED, "plain");
-        return;
-    }
-    const same = point || CIRCLE_LIKE.has(shape) || isTrue(get("regular"));
     let ww = w;
     let hh = h;
     if (point) {
@@ -557,7 +580,7 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     readColor(nonEmpty(get("color")), scheme, "edge", "color", "opacity", put, at);
     const width = nonEmpty(get("penwidth")) ?? setLineWidth(tokens);
     if (width !== null) {
-        put("width", canonNumber(width, at("width")));
+        put("width", penWidth(width, get("penwidth") !== null, at("width")));
     } else if (tokens.includes("bold")) {
         put("width", 2);
     }

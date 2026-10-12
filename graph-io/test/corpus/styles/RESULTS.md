@@ -109,12 +109,12 @@ Tool values are elements drawn with the writing program's default.
 | dot/generated/tamper-node-added.gv | ok | 76 | 131 | 5 | 7 | 149 | 0% | 0% | 0 | 1489 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_NOT_CARRIED, W_STYLE_UNKNOWN_VALUE |
 | dot/graphviz-gallery-directed-bazel.gv | ok | 8 | 15 | 3 | 3 | 0 | - | - | 0 | 192 | 0 |  |
 | dot/graphviz-gallery-directed-go-package.gv | ok | 20 | 49 | 5 | 3 | 0 | - | - | 0 | 572 | 0 |  |
-| dot/graphviz-gallery-directed-lion_share.gv | ok | 47 | 51 | 8 | 4 | 48 | 2% | 2% | 0 | 631 | 0 |  |
+| dot/graphviz-gallery-directed-lion_share.gv | ok | 47 | 51 | 8 | 4 | 82 | 1% | 1% | 0 | 571 | 0 | W_STYLE_SIZE_MINIMUM |
 | dot/graphviz-gallery-directed-neural-network.gv | ok | 10 | 9 | 4 | 3 | 0 | - | - | 0 | 152 | 0 | W_STYLE_RECORD_LABEL |
 | dot/graphviz-gallery-directed-ninja.gv | ok | 125 | 131 | 5 | 7 | 12 | 0% | 0% | 0 | 1526 | 0 | W_STYLE_SIZE_MINIMUM |
 | dot/graphviz-gallery-directed-profile.gv | ok | 61 | 85 | 4 | 4 | 42 | 0% | 0% | 0 | 1084 | 0 |  |
 | dot/graphviz-gallery-directed-sdh.gv | ok | 75 | 131 | 5 | 7 | 170 | 0% | 0% | 0 | 1457 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_UNKNOWN_VALUE |
-| dot/graphviz-gallery-gradient-colors.gv | ok | 28 | 3 | 4 | 3 | 38 | 100% | 0% | 0 | 252 | 0 | W_STYLE_GRADIENT |
+| dot/graphviz-gallery-gradient-colors.gv | ok | 28 | 3 | 4 | 3 | 38 | 100% | 0% | 0 | 244 | 0 | W_STYLE_GRADIENT, W_STYLE_SIZE_MINIMUM |
 | dot/graphviz-gallery-gradient-g_c_n.gv | ok | 2 | 0 | 5 | 1 | 1 | 100% | 0% | 0 | 15 | 0 | W_STYLE_GRADIENT |
 | dot/graphviz-gallery-neato-colors.gv | ok | 13 | 21 | 4 | 5 | 28 | 43% | 0% | 0 | 164 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_SIZE_MINIMUM |
 | dot/graphviz-gallery-neato-philo.gv | ok | 21 | 27 | 6 | 3 | 9 | 0% | 0% | 0 | 381 | 0 |  |

@@ -190,6 +190,33 @@ describe("DOT styles: Graphviz's rules", () => {
         expect(minimum?.elements).toEqual([snapshot.ids.indexOf("m")]);
     });
 
+    it("raises a negative pen width to 0, as Graphviz draws it, with a note", async () => {
+        const { snapshot, styles } = await load(`digraph { a [penwidth=-1]; a -> b [penwidth=-2]; }`);
+        expect(byId(styles, snapshot, "borderWidth").get("a")).toBe(0);
+        expect(drawn(styles, snapshot, "edge", "width")).toEqual([0]);
+        expect(codes(styles)).toContain("W_STYLE_BAD_VALUE");
+    });
+
+    it("sizes regular and plain nodes as Graphviz does: 0.5 inch, and plain always 0, minimums unless unlabeled", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            c [shape=circle]; s [shape=Msquare]; r [regular=true]; e [shape=circle, label=""]; o;
+            p [shape=plain]; q [shape=plain, width=3, height=2, label=""];
+        }`);
+        const w = byId(styles, snapshot, "width");
+        const h = byId(styles, snapshot, "height");
+        expect(["c", "s", "r", "e", "o", "p", "q"].map((id) => [w.get(id), h.get(id)])).toEqual([
+            [36, 36],
+            [36, 36],
+            [36, 36],
+            [36, 36],
+            [54, 36],
+            [0, 0],
+            [0, 0],
+        ]);
+        const minimum = styles.styles.notes.find((n) => n.code === "W_STYLE_SIZE_MINIMUM");
+        expect(minimum?.elements).toEqual(["c", "s", "r", "p"].map((id) => snapshot.ids.indexOf(id)));
+    });
+
     it("draws arrows per dir and the graph's kind: a target arrow on directed edges by default", async () => {
         const directed = await load(`digraph {
             a -> b; a -> c [dir=back]; a -> d [dir=both, arrowhead=odiamond]; a -> e [arrowhead=none];

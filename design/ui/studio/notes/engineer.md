@@ -11,10 +11,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-12) **The style tree is built in graphty-element** (`src/session/styles/tree.ts`):
-  `styles.tree()` plus addFolder, renameRow, moveRow, pinRow, lockRow, hideRow, deleteRow; error
-  `E_LOCKED`; saved as `StyleDocument.tree`. The app's panel reads rows from it and never orders
-  layers itself. Not yet exercised in a browser or by the renderer twin of the history fixtures.
+- (2026-10-12) **Per-value entries replace the split** (`styles.categories(layer, channel)`,
+  `styles.setValueEntry(layer, channel, value, entry)`; `session/styles/values.ts`). No split
+  command, row or field: a community is a category row of its binding (design decision 1.7). On
+  every re-run `RunsApi.realignGroups` walks EVERY layer: bindings over `results.<run>.*` and rule
+  leaves (`categories`, and `item` following the current run) move to the group with most shared
+  members; codes `group.new` / `group.gone` (`dropped`) on `Layer.unmatched`. Why every layer: a
+  hand layer "community is 3" must keep meaning the same nodes. By name (no `sizes`), a layer that
+  names no value is skipped, so numeric runs cost nothing. Limits: a reader-locked layer is skipped
+  (E_LOCKED caught; a lock-bypassing patch would fix it); expression selectors are not rewritten.
 - (2026-10-12) **Rows on both kinds are built in the element** (`styles.addRow`, `writeRow`,
   `parts`; `session/styles/rows.ts`): a "both" row is a node part and an edge part right under it,
   sharing a selector, tied by `Layer.row` (the node part's id). Writes route by channel kind
@@ -31,7 +36,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-12) **Panel facts built in the element**: `styles.agreement(scope, channel, { below })`
   cuts the painted stack beneath a tree row (rows met before it in the tree walk are exactly the
   consumer layers beneath, since tree order is paint order); `styles.preview(binding, { channel,
-  bins })` runs the repaint's own `prepareBinding` plus `previewBinding` (`encoding.ts`): numeric
+bins })` runs the repaint's own `prepareBinding` plus `previewBinding` (`encoding.ts`): numeric
   bins are equal stretches of the scale's position (bin edges found by bisection, so plugin scales
   work), stepped scales bin in data units and report `steps` (new `PreparedBinding.steps`);
   binding `stops` is an inline palette (`palettes.ts` `inlinePalette`, legend id `custom`). Why:
@@ -70,13 +75,6 @@ caseSensitive? }` on one matcher `textMatcher` (`session/text.ts`) that selectio
   (`git hash-object -w` + `update-index --cacheinfo`). Then `git archive $(git write-tree)` into
   `tmp/<task>/iso`, symlink the rest of the repo and `node_modules`, `tsc -p tsconfig.build.json`,
   and run `tools/api-report.mjs` by its REAL path (a symlinked path skips its main guard silently).
-- (2026-10-12) **Split by value is built in the element** (`styles.split`, `unsplit`,
-  `setSplitOverride`, `splitChildren`; `session/styles/split.ts`). A child's override is the
-  parent binding's `map` entry, so palettes reach every other child and unsplit is free; a re-run of
-  a partition run matches groups by shared members inside the run's own step (`RunsApi.commit`).
-  Limit: a child overrides only channels the parent paints by the split value; overriding a fixed
-  property needs generated child layers in the stack. The tree must still show split rows from
-  `layer.split` and `splitChildren` (the tree unit was in flight beside this one).
 - (2026-10-12) **Tier 3 (unified styles) started; my answers to the owner's 12 questions are in
   `tier3/decide/engineer.md`.** The studio worktree is now `.worktrees/design-studio-tier3`
   (branch `design/studio-tier3`). The owner approves the built UI before any study.
@@ -411,7 +409,9 @@ log`, the round folder and `tmp/<task>/` first.
 - (2026-10-12) **A plan item marked "built and kept" needs only a check.** The row that paints
   nodes and edges (`styles.addRow` with target both, commit 262b846095) was re-listed in a later
   plan; I confirmed the commit is on the branch and its 7 tests pass, and changed no code. Check
-  `git branch --contains <sha>` and run the named test before rebuilding anything.
+  `git branch --contains <sha>` and run the named test before rebuilding anything. Same again
+  for the generic layer rules (commit 2242877542, `test/session/rule-text.test.ts`, 7 pass).
+  Budget about 5 minutes for the test-slot queue on a single small file.
 
 ## Sources
 

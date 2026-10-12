@@ -88,3 +88,7 @@ overrides:
     "@tanstack/ai>@tanstack/ai-event-client": 0.13.1
     "@tanstack/ai-event-client>@tanstack/devtools-event-client": 0.4.4
     "@tanstack/ai-utils": 0.4.1
+    # In-page code: TanStack Code Mode's QuickJS driver and the WebAssembly build it loads, built
+    # into graphty-element's own program chunk, pinned the same way.
+    "@tanstack/ai-isolate-quickjs>quickjs-emscripten": 0.31.0
+    "quickjs-emscripten>@jitl/quickjs-wasmfile-release-sync": 0.31.0

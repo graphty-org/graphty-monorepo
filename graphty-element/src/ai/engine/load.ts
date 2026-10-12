@@ -6,7 +6,7 @@
 
 import type { LlmProvider } from "../providers/types";
 import { LlmProviderEngine } from "./LlmProviderEngine";
-import type { AiEngine, ProviderApiTurn } from "./types";
+import type { AiEngine, ProgramRunner, ProviderApiTurn } from "./types";
 
 /**
  * An `AiController` option, keyed by this symbol, that runs a given engine instead of the
@@ -48,4 +48,21 @@ export function engineFor(provider: LlmProvider): AiEngine {
  */
 export async function loadProviderApiTurn(): Promise<ProviderApiTurn> {
     return (await import("./tanstack/index")).providerApiTurn;
+}
+
+/** The in-page code sandbox, as its chunk exports it. */
+export interface ProgramModule {
+    readonly runProgram: ProgramRunner;
+    /** How many sandboxes are open: 0 whenever no program runs. */
+    readonly openProgramContexts: () => number;
+}
+
+/**
+ * Load the in-page code sandbox (TanStack Code Mode's QuickJS driver and its WebAssembly), its own
+ * chunk, on the first program. Not an engine method: code runs in the page whichever engine wrote it.
+ * @returns The sandbox.
+ */
+export async function loadProgramRunner(): Promise<ProgramModule> {
+    const { runProgram, openProgramContexts } = await import("./tanstack/program");
+    return { runProgram, openProgramContexts };
 }

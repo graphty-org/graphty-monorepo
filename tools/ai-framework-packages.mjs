@@ -17,8 +17,11 @@ export const FRAMEWORK_FAMILIES = Object.freeze({
     "ai-sdk": { exact: ["ai"], prefixes: ["@ai-sdk/"] },
     /** TanStack AI and the AG-UI protocol types it streams: the adapter folder only. */
     tanstack: { exact: [], prefixes: ["@tanstack/", "@ag-ui/"] },
-    /** The provider SDKs TanStack AI's adapters drive: the adapter folder only. */
-    vendor: { exact: ["openai", "@google/genai"], prefixes: ["@anthropic-ai/"] },
+    /**
+     * The provider SDKs TanStack AI's adapters drive, and the QuickJS WebAssembly build Code Mode's
+     * driver runs programs in: the adapter folder only.
+     */
+    vendor: { exact: ["openai", "@google/genai", "quickjs-emscripten"], prefixes: ["@anthropic-ai/", "@jitl/"] },
     /** WebLLM, the in-browser engine: WebLlmProvider and its tests only. */
     webllm: { exact: [], prefixes: ["@mlc-ai/"] },
 });

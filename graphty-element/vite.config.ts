@@ -121,6 +121,46 @@ function chunkMeta(): Plugin {
 }
 
 /**
+ * Builds the in-page code sandbox (`src/ai/engine/tanstack/program.ts`) as its own chunk,
+ * `chunks/program-<hash>.js`, with QuickJS's WebAssembly beside the build as an asset. Nothing an
+ * entry exports reaches it statically: `loadProgramRunner()` loads it with `import()`. It is
+ * emitted here as well, so the chunk exists (and the packaging fixtures in
+ * `test/packaging/program-wasm.test.ts` can load it) whether or not a caller is built in yet.
+ * @returns The plugin.
+ */
+function programChunk(): Plugin {
+    return {
+        name: "graphty-program-chunk",
+        apply: "build",
+        buildStart(): void {
+            this.emitFile({
+                type: "chunk",
+                id: resolve(__dirname, "src/ai/engine/tanstack/program.ts"),
+                name: "program",
+            });
+        },
+        transform: {
+            filter: { id: /quickjs-wasmfile-release-sync\/dist\/emscripten-module\.browser\.mjs$/ },
+            handler(code): string {
+                // Emscripten's own `new URL("emscripten-module.wasm", import.meta.url)` is its default
+                // location, never used: program.ts always passes `wasmLocation`. Left in, a library
+                // build inlines the WebAssembly into the chunk as base64 (700 kB), and a consumer's
+                // bundler would look for a file beside a chunk that has none.
+                const replaced = code.replace(
+                    '(new URL("emscripten-module.wasm",import.meta.url)).href',
+                    '"emscripten-module.wasm"',
+                );
+                if (replaced === code) {
+                    this.error("the QuickJS module no longer has the default WebAssembly URL this build removes");
+                }
+
+                return replaced;
+            },
+        },
+    };
+}
+
+/**
  * Writes `THIRD-PARTY-LICENSES.txt` beside the build: the license and notice files of every package
  * whose code the build copies into its own output (TanStack AI and the provider SDKs in the AI
  * chunks, lodash, and in the `./bundle` build everything), so the package ships the notices their
@@ -183,6 +223,7 @@ export default defineConfig(({ mode }) => {
                 lit: true,
             }),
             chunkMeta(),
+            programChunk(),
             stubAnthropicNodeToolset(),
             thirdPartyLicenses(),
         ],
@@ -210,6 +251,8 @@ export default defineConfig(({ mode }) => {
                     // would be free to drop every registration and leave an element that
                     // renders nothing it knows how to render.
                     chunkFileNames: "chunks/[name]-[hash].js",
+                    // QuickJS's WebAssembly (the program chunk's), beside the chunks.
+                    assetFileNames: "chunks/[name]-[hash][extname]",
                 },
                 treeshake: {
                     // This does NOT override package.json's `sideEffects` array, and the
@@ -229,6 +272,10 @@ export default defineConfig(({ mode }) => {
                     moduleSideEffects: true,
                 },
             },
+        },
+        experimental: {
+            // The program chunk finds its WebAssembly relative to itself, wherever dist/ is served from.
+            renderBuiltUrl: (fileName) => (fileName.endsWith(".wasm") ? { relative: true } : undefined),
         },
         optimizeDeps: {
             exclude: ["@babylonjs/core", "@babylonjs/inspector"],

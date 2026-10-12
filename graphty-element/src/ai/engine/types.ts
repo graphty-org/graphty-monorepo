@@ -187,3 +187,48 @@ export interface AiEngine {
     checkKey(signal: AbortSignal): Promise<EngineOutcome>;
     dispose(): void;
 }
+
+/**
+ * One host function a program written by the model calls as `await tools.<name>(input)`. What it
+ * resolves with must survive `JSON.stringify`; a throw reaches the program as an `Error`.
+ */
+export type ProgramBinding = (input: unknown) => Promise<unknown>;
+
+/** The host functions a program may call, by name (a JavaScript identifier). */
+export type ProgramBindings = Readonly<Record<string, ProgramBinding>>;
+
+/** How far a program may go before it is stopped. */
+export interface ProgramLimits {
+    /** Wall time, in milliseconds, before the program is interrupted (`program-timeout`). */
+    readonly timeoutMs: number;
+    /** Binding calls allowed; the next one fails and the program ends `program-call-limit`. */
+    readonly maxCalls: number;
+    /** Characters of console output kept; the rest is dropped. */
+    readonly maxLogChars: number;
+    /** The sandbox's memory, in megabytes (`program-memory` past it). */
+    readonly memoryMb: number;
+}
+
+/** Why a program failed: the `cause` of its `AI_TOOL_FAILED`. */
+export type ProgramFailureCause =
+    "program-threw" | "program-timeout" | "program-memory" | "program-call-limit" | "program-cancelled";
+
+/**
+ * What a program did. `AI_COMPLETED` with the value it returned, or `AI_TOOL_FAILED` with
+ * `{ tool: "run_code", cause }` (`ProgramFailureCause`), plus the program's own error `name` and
+ * `message` for `program-threw`. `logs` is its console output, at most `maxLogChars` characters.
+ */
+export interface ProgramResult {
+    readonly code: "AI_COMPLETED" | "AI_TOOL_FAILED";
+    readonly params: AiResultParams;
+    readonly value?: unknown;
+    readonly logs: readonly string[];
+}
+
+/** Runs one program in a fresh sandbox, disposed on every path (`loadProgramRunner()` in load.ts). */
+export type ProgramRunner = (
+    source: string,
+    bindings: ProgramBindings,
+    limits: ProgramLimits,
+    signal: AbortSignal,
+) => Promise<ProgramResult>;

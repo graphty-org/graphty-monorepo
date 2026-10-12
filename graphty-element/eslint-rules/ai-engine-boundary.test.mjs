@@ -76,6 +76,16 @@ describe("refused", () => {
             "src/ai/engine/tanstack/openai.ts",
             'import { x } from "@tanstack/ai-persistence";',
         ],
+        [
+            "Code Mode's tool, whose stubs would break the tool budget",
+            "src/ai/engine/tanstack/program.ts",
+            'import { createCodeModeTool } from "@tanstack/ai-code-mode";',
+        ],
+        [
+            "QuickJS outside the adapter",
+            "src/ai/tools/families/data.ts",
+            'import { getQuickJS } from "quickjs-emscripten";',
+        ],
         ["the AI SDK in the adapter", "src/ai/engine/tanstack/openai.ts", 'import { generateText } from "ai";'],
         ["a vendor SDK outside the adapter", "src/ai/providers/VercelAiProvider.ts", 'import OpenAI from "openai";'],
         ["a zod subpath (the root's rule, kept)", "src/ai/engine/types.ts", 'import { z } from "zod/v4";'],
@@ -103,6 +113,14 @@ describe("allowed", () => {
                 'import { createOpenaiChat, type OpenAITextConfig } from "@tanstack/ai-openai";',
                 'import OpenAI from "openai";',
                 'import { other } from "./mapping.js";',
+            ].join("\n"),
+        ],
+        [
+            "the in-page code sandbox's driver and TypeScript stripper",
+            "src/ai/engine/tanstack/program.ts",
+            [
+                'import { stripTypeScript } from "@tanstack/ai-code-mode";',
+                'import { createQuickJSIsolateDriver } from "@tanstack/ai-isolate-quickjs";',
             ].join("\n"),
         ],
         [

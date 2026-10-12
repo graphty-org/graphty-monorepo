@@ -89,6 +89,22 @@ const UNUSED_PEERS_ALLOWED = {
     "@graphty/graphty-element": new Set(["ai", "@ai-sdk/anthropic", "@ai-sdk/google", "@ai-sdk/openai"]),
 };
 
+/**
+ * Specifiers a shipped file holds as text that looks like an import but is not one, by file, with
+ * the reason. Each file pattern is as narrow as the code that writes the text.
+ */
+const TEXT_NOT_IMPORTS = {
+    "@graphty/graphty-element": [
+        {
+            files: /^dist\/chunks\/program-[\w-]+\.js$/,
+            names: ["baz", "flow-enums-runtime", "react-hot-loader"],
+            reason:
+                "sucrase, Code Mode's TypeScript stripper in the in-page code chunk, writes these into the code " +
+                "it generates and names them in its comments; nothing loads them",
+        },
+    ],
+};
+
 const builtins = new Set(builtinModules.flatMap((m) => [m, `node:${m}`]));
 
 // Static imports and re-exports start at column 0 in both tsc and rollup output; anything
@@ -189,6 +205,8 @@ function check(dir, packed, workspaceVersions) {
                 if (builtins.has(spec) || builtins.has(packageName(spec)) || spec.startsWith("node:")) continue;
                 let name = packageName(spec);
                 if (!VALID_NAME.test(name) || name === manifest.name) continue;
+                if (TEXT_NOT_IMPORTS[manifest.name]?.some((t) => t.files.test(file) && t.names.includes(name)))
+                    continue;
                 const types = `@types/${name.replace(/^@/, "").replace("/", "__")}`;
                 if (/\.d\.[cm]?ts$/.test(file) && !declared.has(name) && declared.has(types)) name = types;
                 if (!imported.has(name)) imported.set(name, file);

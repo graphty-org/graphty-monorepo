@@ -6,7 +6,7 @@
  * @module test/packaging/ai-lazy-chunks.test
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -179,6 +179,49 @@ describe("AI chunks load lazily", () => {
                 assert.notInclude([...reached], chunk.fileName, `${entry} loads ${chunk.fileName} up front`);
             }
         }
+    });
+
+    it("builds the in-page code sandbox into its own chunk, reached only by import(), with its WebAssembly beside it", () => {
+        const { chunks } = JSON.parse(readFileSync(META, "utf8")) as { chunks: Chunk[] };
+        const program = chunks.find((c) => c.modules.includes("src/ai/engine/tanstack/program.ts"));
+        assert.ok(program, "a chunk holds program.ts");
+        const owners = program.modules.map(moduleOwner);
+        assert.include(owners, "@tanstack/ai-isolate-quickjs");
+        assert.include(owners, "@tanstack/ai-code-mode");
+        assert.notInclude(owners, "@tanstack/ai", "the sandbox does not pull in TanStack AI's chat");
+        assert.ok(
+            chunks.every((c) => !c.imports.includes(program.fileName)),
+            "nothing imports the program chunk statically",
+        );
+
+        // QuickJS and Code Mode live in the program chunk and the chunks only it loads.
+        const sandbox = /^(?:@tanstack\/ai-code-mode|@tanstack\/ai-isolate-quickjs|quickjs-emscripten.*|@jitl\/.+)$/;
+        for (const chunk of chunks.filter((c) => c.modules.some((id) => sandbox.test(moduleOwner(id) ?? "")))) {
+            const loaders = chunks.filter(
+                (c) => c.imports.includes(chunk.fileName) || c.dynamicImports.includes(chunk.fileName),
+            );
+            assert.ok(
+                chunk === program || loaders.every((c) => c === program),
+                `${chunk.fileName} holds the sandbox but is loaded by ${loaders.map((c) => c.fileName).join(", ")}`,
+            );
+        }
+
+        const source = readFileSync(resolve(PACKAGE_ROOT, "dist", program.fileName), "utf8");
+        const wasm = /new URL\("(emscripten-module-[\w-]+\.wasm)", import\.meta\.url\)/.exec(source)?.[1];
+        assert.ok(wasm, "the program chunk names its WebAssembly relative to itself");
+        assert.ok(existsSync(resolve(PACKAGE_ROOT, "dist/chunks", wasm)), `dist/chunks/${wasm} is built`);
+        for (const chunk of chunks.filter((c) => c.fileName.endsWith(".js"))) {
+            const text = readFileSync(resolve(PACKAGE_ROOT, "dist", chunk.fileName), "utf8");
+            assert.notInclude(text, "data:application/wasm", `${chunk.fileName} inlines a WebAssembly module`);
+        }
+    });
+
+    it("leaves the in-page code sandbox out of ./bundle", () => {
+        const bundle = readFileSync(resolve(PACKAGE_ROOT, "dist/graphty.bundle.js"), "utf8");
+        assert.notInclude(bundle, "emscripten-module");
+        assert.notInclude(bundle, "data:application/wasm");
+        const wasm = readdirSync(resolve(PACKAGE_ROOT, "dist")).filter((f) => f.endsWith(".wasm"));
+        assert.deepEqual(wasm, [], "the ./bundle build emits no WebAssembly");
     });
 
     it("refuses each planted violation", () => {

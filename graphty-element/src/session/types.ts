@@ -38,6 +38,7 @@ import type {
     LayoutId,
     MeasurementDeclaration,
     Path,
+    RuleTree,
     RunId,
     Scope,
     ScopeInput,
@@ -345,6 +346,14 @@ export interface FindValueRow {
     readonly count: number;
     /** A selection target naming exactly those elements, for `selection.apply`. */
     readonly target: SelectionTarget;
+    /**
+     * The rule leaf that holds the elements carrying exactly this value, over the whole graph
+     * rather than the find's scope: `{ kind: "text", reads: path, mode: "exact", text, caseSensitive:
+     * true }`. Live where `target` is a fixed list: as a layer's `{ match: "rule", where }` or a
+     * filter, it follows the data. A row is the same kind's elements; the rule also holds the
+     * other kind's elements carrying the value, when that kind has the column too.
+     */
+    readonly rule: Extract<RuleTree, { kind: "text" }>;
     /**
      * Present only when `value` is a number: the elements in scope whose value in this column is
      * `value` or more. `target` is the typed rule `<column> >= value` (a `{ text: "=..." }`

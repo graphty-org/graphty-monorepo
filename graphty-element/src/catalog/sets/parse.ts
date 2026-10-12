@@ -56,6 +56,8 @@ const KEYWORDS = ["visible", "graph", "selection", "largest-component"];
 /** Every edge reading this element knows. */
 export const EDGE_READINGS: readonly EdgeReading[] = ["induced", "listed", "clipped"];
 const DIRECTIONS = ["in", "out", "all"];
+/** The modes a `text` leaf compares by. */
+const TEXT_MODES = ["substring", "exact", "starts-with", "ends-with", "regex"];
 
 /**
  * A refusal.
@@ -385,6 +387,46 @@ function checkLeafNodes(value: Readonly<Record<string, unknown>>): void {
 }
 
 /**
+ * Check a `text` leaf: what it reads (`"id"` or a value path), a known mode, the text (a
+ * regular expression that parses, for `regex`), and the optional flags.
+ * @param value - The leaf.
+ * @param walker - The pass.
+ */
+function checkTextLeaf(value: Loose, walker: Walker): void {
+    if (value.reads !== "id") {
+        checkQuery(value.reads, 'A "text" leaf\'s reads');
+        checkDoorRoot(value.reads, walker);
+    }
+
+    if (!TEXT_MODES.includes(value.mode as string)) {
+        walker.unknown(String(value.mode), 'A "text" leaf\'s mode');
+    }
+
+    if (typeof value.text !== "string") {
+        throw bad('A "text" leaf\'s text is a string.', { text: value.text });
+    }
+
+    if (value.caseSensitive !== undefined && typeof value.caseSensitive !== "boolean") {
+        throw bad('A "text" leaf\'s caseSensitive is true or false.', { caseSensitive: value.caseSensitive });
+    }
+
+    checkLeafNodes(value);
+
+    if (value.mode === "regex") {
+        try {
+            new RegExp(value.text);
+        } catch (error) {
+            throw bad(
+                `"${value.text}" is not a regular expression: ${error instanceof Error ? error.message : String(error)}`,
+                {
+                    text: value.text,
+                },
+            );
+        }
+    }
+}
+
+/**
  * Check one rule tree node, all the way down.
  * @param value - The candidate node.
  * @param walker - The pass.
@@ -469,6 +511,11 @@ function checkTree(value: unknown, walker: Walker): void {
             return;
         case "threshold":
             checkThreshold(value, walker);
+
+            return;
+        case "text":
+            known(["reads", "mode", "text", "caseSensitive", "nodes"]);
+            checkTextLeaf(value, walker);
 
             return;
         case "all":

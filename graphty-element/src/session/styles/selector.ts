@@ -33,7 +33,7 @@
  */
 
 import { parseScope } from "../../catalog/sets/parse";
-import type { EdgeId, NodeId, Path, Query, Scope } from "../../catalog/types";
+import type { EdgeId, EdgeReading, NodeId, Path, Query, RuleTree, Scope } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import {
     columnsFor,
@@ -89,13 +89,20 @@ export type Selector =
      * The members of a scope, usually a kept set. One bit test per element against the scope's
      * live bitmap, which follows the set; a scope that cannot be resolved paints nothing.
      */
-    | { readonly match: "member"; readonly of: Scope };
+    | { readonly match: "member"; readonly of: Scope }
+    /**
+     * The elements a rule tree holds, re-evaluated as the data changes: a `member` of the inline
+     * rule set `{ kind: "rule", where, reading: edges }`, so it costs what that does and follows
+     * the data the same way. `edges` defaults to `clipped`, the edges between the rule's nodes.
+     * "Top N by" any number column is a `threshold` leaf with `top`.
+     */
+    | { readonly match: "rule"; readonly where: RuleTree; readonly edges?: EdgeReading };
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Every selector kind, for a refusal that lists what was allowed. */
-const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member"] as const;
+const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member", "rule"] as const;
 
 /** The prefix of the only paths a top selector ranks: a run's published fields. */
 const RESULT_PATH_PREFIX = "results.";
@@ -250,17 +257,22 @@ function assertSelector(selector: Selector): void {
 
             return;
         case "member":
+        case "rule":
             try {
-                parseScope(selector.of);
+                parseScope(selectorScope(selector));
             } catch (error) {
                 if (!isGraphtyError(error)) {
                     throw error;
                 }
 
-                throw badShape("bad-member-scope", `A "member" selector names a scope: ${error.message}`, {
-                    of: selector.of,
-                    scope: error.details,
-                });
+                throw badShape(
+                    `bad-${selector.match}-scope`,
+                    `A "${selector.match}" selector ${selector.match === "rule" ? "holds a rule" : "names a scope"}: ${error.message}`,
+                    {
+                        of: selectorScope(selector),
+                        scope: error.details,
+                    },
+                );
             }
 
             return;
@@ -269,6 +281,23 @@ function assertSelector(selector: Selector): void {
                 match: kind,
                 kinds: SELECTOR_KINDS,
             });
+    }
+}
+
+/**
+ * The scope a `member` or `rule` selector paints: the named scope, or the rule as an inline rule
+ * set. The session keeps one live membership per scope, keyed by this value.
+ * @param selector - The selector.
+ * @returns The scope, or null for a selector that names none.
+ */
+export function selectorScope(selector: Selector): Scope | null {
+    switch (selector.match) {
+        case "member":
+            return selector.of;
+        case "rule":
+            return { define: { kind: "rule", where: selector.where, reading: selector.edges ?? "clipped" } };
+        default:
+            return null;
     }
 }
 
@@ -332,7 +361,8 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
                 paths: Object.freeze([path]),
             };
         }
-        case "member": {
+        case "member":
+        case "rule": {
             if (source.scope === undefined) {
                 throw new GraphtyError({
                     code: "E_UNSUPPORTED",
@@ -343,10 +373,10 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
                 });
             }
 
-            const live = source.scope(parseScope(selector.of));
+            const live = source.scope(parseScope(selectorScope(selector)));
 
             return {
-                match: "member",
+                match: selector.match,
                 target,
                 test: scopePredicate(live, target),
                 paths: EMPTY_PATHS,

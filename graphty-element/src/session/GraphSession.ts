@@ -144,6 +144,7 @@ import { atStylePath, channelsFor } from "./styles/channels";
 import type { CompiledLayer } from "./styles/Layer";
 import { createLayerRepaint, type ElementPaint, type ElementRemaps, type RepaintEngine } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
+import { selectorScope } from "./styles/selector";
 import { createSelectorSource, edgeEndpointOf, type SessionSelectorSource } from "./styles/sources";
 import type {
     AccelerationControllerLike,
@@ -2141,11 +2142,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // Style layers naming a set are its users too; the stack is built below.
         // So is the visibility filter, once however many of its leaves name the set.
         users: () => [
-            ...(stack?.list() ?? []).flatMap((layer) =>
-                layer.selector.match === "member"
-                    ? [{ user: { kind: "layer" as const, id: layer.id, label: layer.name }, scope: layer.selector.of }]
-                    : [],
-            ),
+            ...(stack?.list() ?? []).flatMap((layer) => {
+                const named = selectorScope(layer.selector);
+                return named === null
+                    ? []
+                    : [{ user: { kind: "layer" as const, id: layer.id, label: layer.name }, scope: named }];
+            }),
             ...(visibility.rule === null
                 ? []
                 : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.rule }]),
@@ -2970,12 +2972,15 @@ function readsAnyField(entry: CompiledLayer, changed: { readonly node: string[];
 }
 
 /**
- * The scopes a stack's `{match:"member"}` layers name.
+ * The scopes a stack's `{match:"member"}` and `{match:"rule"}` layers name.
  * @param stack - The stack, or null before it exists.
  * @returns The scopes.
  */
 function layerScopesOf(stack: SessionStylesApi | null): Scope[] {
-    return (stack?.list() ?? []).flatMap((layer) => (layer.selector.match === "member" ? [layer.selector.of] : []));
+    return (stack?.list() ?? []).flatMap((layer) => {
+        const scope = selectorScope(layer.selector);
+        return scope === null ? [] : [scope];
+    });
 }
 
 /**

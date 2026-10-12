@@ -182,12 +182,21 @@ class Collector {
                 return;
             case "range":
             case "categories":
-                this.path(node.attribute);
+            case "text": {
+                const read = node.kind === "text" ? node.reads : node.attribute;
+                if (read === "id") {
+                    // The id moves only with the graph's own shape.
+                    this.add({ kind: "topology" });
+                } else {
+                    this.path(read);
+                }
+
                 if (node.nodes === "ends") {
                     this.add({ kind: "topology" });
                 }
 
                 return;
+            }
             case "degree":
             case "component":
             case "neighborhood":

@@ -18,7 +18,6 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, Query, ScopeInput } from "../catalog/types";
-import { GraphtyError } from "../errors";
 import { RevisionCache } from "./revision";
 import type { SelectionMatch, SelectionSearchHit, SelectionTextMode } from "./selection";
 import { searchOf, type SelectionTarget } from "./selection/targets";
@@ -29,7 +28,7 @@ import {
     type SelectorSource,
     type SelectorTarget,
 } from "./styles/predicate";
-import { matchText, normalizeText } from "./text";
+import { matchText, normalizeText, textMatcher } from "./text";
 import type { FindAtLeastRow, FindEnd, FindHit, FindKind, FindResult, FindValueRow } from "./types";
 
 /** Everything the engine reads. */
@@ -192,22 +191,18 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         let readsId = true;
 
         const attribute = mode === "attribute" ? attributeOf(text, searched) : null;
+        const lower = (value: string): string => value.toLowerCase();
 
         if (attribute !== null) {
-            const wanted = attribute.value.toLowerCase();
-            accepts = (candidate) => candidate.toLowerCase() === wanted;
+            accepts = textMatcher(attribute.value, "exact", lower);
             readsId = attribute.path === "id";
             paths = readsId ? [] : [attribute.path];
-        } else if (mode === "exact") {
-            accepts = (candidate) => candidate === text;
-        } else if (mode === "regex") {
-            const pattern = compilePattern(text);
-            accepts = (candidate) => pattern.test(candidate);
+        } else if (mode === "exact" || mode === "regex") {
+            accepts = textMatcher(text, mode, null);
         } else {
-            // Substring, and an attribute search whose prefix names no attribute: that text is
-            // just text, so a pasted URL still finds the node that carries it.
-            const wanted = text.toLowerCase();
-            accepts = (candidate) => candidate.toLowerCase().includes(wanted);
+            // Substring, starts and ends with, and an attribute search whose prefix names no
+            // attribute: that text is just text, so a pasted URL still finds the node that carries it.
+            accepts = textMatcher(text, mode === "attribute" ? "substring" : mode, lower);
         }
 
         const ids =
@@ -769,7 +764,14 @@ function valueRowOf(index: FindIndex, row: MatchedRow, request: SearchRequest): 
         entry.target = target;
     }
 
-    const exact = { kind, path: column.path, value: entry.value, count: members.length, target };
+    const rule = {
+        kind: "text" as const,
+        reads: column.path,
+        mode: "exact" as const,
+        text: String(entry.value),
+        caseSensitive: true,
+    };
+    const exact = { kind, path: column.path, value: entry.value, count: members.length, target, rule };
     return typeof entry.value === "number" && Number.isFinite(entry.value)
         ? { ...exact, atLeast: atLeastOf(index, column.path, entry.value, request) }
         : exact;
@@ -830,24 +832,4 @@ function attributeOf(text: string, searched: readonly Path[]): { path: Path; val
     const path = key.startsWith("data.") ? key : `data.${key}`;
 
     return searched.includes(path) ? { path, value } : null;
-}
-
-/**
- * Compile a typed regular expression, refusing one that does not parse.
- * @param text - The pattern.
- * @returns The expression.
- * @throws A `GraphtyError` coded `E_BAD_COMMAND` naming the parse error.
- */
-function compilePattern(text: string): RegExp {
-    try {
-        return new RegExp(text);
-    } catch (error) {
-        throw new GraphtyError({
-            code: "E_BAD_COMMAND",
-            message: `"${text}" is not a regular expression: ${error instanceof Error ? error.message : String(error)}`,
-            source: "run",
-            details: { text, mode: "regex" },
-            cause: error,
-        });
-    }
 }

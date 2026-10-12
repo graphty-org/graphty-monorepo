@@ -370,6 +370,7 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // What is visible: the data scope, never the render set
 // ---------------------------------------------------------------------------------------------
 
+export type { TextMatchMode } from "./src/catalog/types";
 export type {
     AttributeLeafNodes,
     FilterResult,

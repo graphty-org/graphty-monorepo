@@ -260,7 +260,7 @@ export type ElementPredicate = (index: number) => boolean;
 /** A selector, reduced to the test a repaint runs and the columns that test reads. */
 export interface CompiledSelector {
     /** Which selector kind this was compiled from. */
-    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member";
+    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member" | "rule";
     /** Which kind of element it speaks about. */
     readonly target: SelectorTarget;
     /**

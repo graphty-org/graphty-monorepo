@@ -27,6 +27,34 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: generic layer rules, a text test, and the node id as a value
+
+**What.** For the unified style panel's "Which elements" editor, all in graphty-element.
+
+- A layer selector `{ match: "rule", where: RuleTree, edges?: EdgeReading }`: the elements a rule
+  tree holds, re-evaluated as the data changes. It is a `member` of the inline rule set
+  `{ kind: "rule", where, reading: edges }`; `edges` defaults to `clipped`, the edges between the
+  rule's nodes, as the visibility filter reads them.
+- A `RuleTree` leaf `{ kind: "text", reads, mode, text, caseSensitive?, nodes? }`. `reads` is
+  `"id"` (the node's id) or a value path such as `data.name`. `mode` is the new exported
+  `TextMatchMode`: `substring`, `exact`, `starts-with`, `ends-with` or `regex`. Without
+  `caseSensitive`, both sides are folded the way find folds them (case, accents, runs of spaces) and
+  a pattern ignores case. The leaf works wherever a rule tree does: layers, rule sets, the
+  visibility filter.
+- `SelectionTextMode` gains `starts-with` and `ends-with`. A selection's text search and the leaf
+  run one matcher (`textMatcher` in `session/text.ts`).
+- Each `FindValueRow` carries `rule`: the exact-value text leaf that holds the row's elements, over
+  the whole graph, so a find row becomes a live layer rule with no text turned into a rule by the app.
+- "Top N by" any number column needs nothing new: the `threshold` leaf already ranks `data.*`
+  paths, and the rule selector brings it to a layer (`{ kind: "threshold", path: "data.age", top: 10 }`).
+
+**Why.** The owner's examples, "odd-numbered node ids" and "name contains Bob", could not be written:
+the layer rule language had no text test and could not read the id. One matcher for search and rule
+keeps a search and the rule made from it in agreement.
+
+**Not breaking.** A new selector kind, a new leaf kind and a new mode in open unions, a new
+exported type, and a new field on a result row. Selection's existing modes compare as before.
+
 ## 2026-10-11 -- Decided by the team: "or more" for a number inside a column's range, one rule spelling, and no refused suggestion
 
 **What.** To build for tier 2 round 5, all in graphty-element's `./session` entry.

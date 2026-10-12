@@ -30,7 +30,16 @@
 
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query, Scope, ScopeInput, SelectionDirection } from "../../catalog/types";
+import type {
+    EdgeId,
+    NodeId,
+    Path,
+    Query,
+    Scope,
+    ScopeInput,
+    SelectionDirection,
+    TextMatchMode,
+} from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { eachAdjacentArc } from "../adjacency";
 import type { NoteMembers } from "../notes/select";
@@ -62,10 +71,12 @@ const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
  * - `substring`: the id or an attribute value contains the text, ignoring case.
  * - `exact`: the id or an attribute value is the text, exactly.
  * - `regex`: the id or an attribute value matches the text as a regular expression.
+ * - `starts-with`, `ends-with`: the id or an attribute value starts (ends) with the text, ignoring
+ *   case.
  * - `attribute`: the text is `key:value`, and the node's `key` (or its id, for `id`) is the value,
  *   ignoring case. A key no node carries is searched as plain substring text.
  */
-export type SelectionTextMode = "substring" | "exact" | "regex" | "attribute";
+export type SelectionTextMode = TextMatchMode | "attribute";
 
 export type { SelectionDirection } from "../../catalog/types";
 

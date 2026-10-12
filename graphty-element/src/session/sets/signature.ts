@@ -265,8 +265,15 @@ function rulePart(
             return part === null ? null : `e${part}`;
         }
         case "range":
-        case "categories": {
-            const dependency = dependencyOf(where.attribute);
+        case "categories":
+        case "text": {
+            const read = where.kind === "text" ? where.reads : where.attribute;
+            if (read === "id") {
+                // Ids: the serial and the key say it all.
+                return "t";
+            }
+
+            const dependency = dependencyOf(read);
             if ("run" in dependency) {
                 const token = context.executionOf?.(dependency.run);
                 return context.executionOf === undefined ? null : `r${JSON.stringify(dependency.run)}=${token ?? "-"}`;

@@ -688,7 +688,14 @@ export type Selector =
      * set paints from its kept record, so removing a set never blanks a layer; a scope that
      * cannot be evaluated paints nothing and never throws.
      */
-    | { match: "member"; of: Scope };
+    | { match: "member"; of: Scope }
+    /**
+     * The elements a rule tree holds, re-evaluated as the data changes: what a rule set holds,
+     * without keeping a set. `edges` is how the edges are read beside a rule about nodes (default
+     * `clipped`, the edges between its nodes, as the visibility filter reads it). "Top N by" any
+     * number is a `threshold` leaf: `{ kind: "threshold", path: "data.age", top: 10 }`.
+     */
+    | { match: "rule"; where: RuleTree; edges?: EdgeReading };
 
 /** Who put a layer in the stack. Every layer names its source. */
 export type LayerSource =
@@ -1105,6 +1112,14 @@ export type SelectionDirection = "in" | "out" | "all";
 export type AttributeLeafNodes = "all" | "ends";
 
 /**
+ * How a text test compares: the value contains the text (`substring`), is it (`exact`), starts
+ * or ends with it, or matches it as a regular expression (`regex`).
+ *
+ * OPEN UNION: modes may be added in a minor release; handle unknown modes.
+ */
+export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" | "regex";
+
+/**
  * A rule tree: what the visibility filter keeps, and what a rule set holds.
  *
  * Every leaf speaks about nodes, edges or both, and is SILENT about the rest: `all` and `any` fold
@@ -1180,6 +1195,28 @@ export type RuleTree =
           readonly top?: number;
           /** Strictly above this value. Exactly one cut. */
           readonly above?: number;
+      }
+    /**
+     * The elements whose text for one value passes a text test: "name contains bob", "id matches
+     * `[13579]$`". The same matcher a selection's text search runs. A number or a yes-or-no value
+     * is read as its text; an element without a value fails. Reading `"id"` speaks nodes; a value
+     * path speaks each half whose elements carry it, as a `range` leaf does.
+     */
+    | {
+          readonly kind: "text";
+          /** What it reads: `"id"` for the node's id, or a value path such as `data.name`. */
+          readonly reads: Path;
+          /** How the text is compared. */
+          readonly mode: TextMatchMode;
+          /** The text, or the regular expression for `regex`. */
+          readonly text: string;
+          /**
+           * Whether case counts. Default false: both sides are folded the way find folds them
+           * (case, accents and runs of spaces), and a `regex` ignores case.
+           */
+          readonly caseSensitive?: boolean;
+          /** Which nodes the leaf keeps when its value lives on edges: see {@link AttributeLeafNodes}. */
+          readonly nodes?: AttributeLeafNodes;
       }
     | { readonly kind: "all"; readonly of: readonly RuleTree[] }
     | { readonly kind: "any"; readonly of: readonly RuleTree[] }

@@ -250,6 +250,7 @@ function elementLocal(filter: RuleTree): boolean {
             return true;
         case "range":
         case "categories":
+        case "text":
             // "ends" reads every edge at the element, not the element alone.
             return filter.nodes !== "ends";
         case "threshold":

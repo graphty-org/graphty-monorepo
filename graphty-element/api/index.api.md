@@ -1534,6 +1534,9 @@ export interface FindValueRow {
     readonly count: number;
     readonly kind: FindKind;
     readonly path: Path;
+    readonly rule: Extract<RuleTree, {
+        kind: "text";
+    }>;
     readonly target: SelectionTarget;
     readonly value: string | number | boolean;
 }

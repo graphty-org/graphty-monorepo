@@ -1427,6 +1427,20 @@ export type RuleTree = {
     readonly path: Path;
     readonly top?: number;
     readonly above?: number;
+}
+/**
+* The elements whose text for one value passes a text test: "name contains bob", "id matches
+* `[13579]$`". The same matcher a selection's text search runs. A number or a yes-or-no value
+* is read as its text; an element without a value fails. Reading `"id"` speaks nodes; a value
+* path speaks each half whose elements carry it, as a `range` leaf does.
+*/
+| {
+    readonly kind: "text";
+    readonly reads: Path;
+    readonly mode: TextMatchMode;
+    readonly text: string;
+    readonly caseSensitive?: boolean;
+    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "all";
     readonly of: readonly RuleTree[];
@@ -1519,6 +1533,17 @@ export type Selector = {
 | {
     match: "member";
     of: Scope;
+}
+/**
+* The elements a rule tree holds, re-evaluated as the data changes: what a rule set holds,
+* without keeping a set. `edges` is how the edges are read beside a rule about nodes (default
+* `clipped`, the edges between its nodes, as the visibility filter reads it). "Top N by" any
+* number is a `threshold` leaf: `{ kind: "threshold", path: "data.age", top: 10 }`.
+*/
+| {
+    match: "rule";
+    where: RuleTree;
+    edges?: EdgeReading;
 };
 
 // @public
@@ -1606,6 +1631,9 @@ export interface SuggestedName {
     // (undocumented)
     readonly label: string;
 }
+
+// @public
+export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" | "regex";
 
 // @public
 export interface ThemeDescriptor {

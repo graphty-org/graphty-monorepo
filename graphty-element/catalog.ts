@@ -126,6 +126,7 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
+    TextMatchMode,
 } from "./src/catalog/types";
 
 /**

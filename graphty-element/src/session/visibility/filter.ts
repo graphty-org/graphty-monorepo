@@ -43,6 +43,7 @@ import { type GraphSnapshot, INVALID_INDEX, maskTest, type U32 } from "@graphty/
 import { runIdOfRef } from "../../catalog/sets/canonical";
 import { assertRuleTree, parseScope } from "../../catalog/sets/parse";
 import type {
+    AttributeLeafNodes,
     EdgeId,
     NodeId,
     Path,
@@ -64,6 +65,7 @@ import {
     followsGroup,
     visibilityCycle,
 } from "../sets/dependencies";
+import { normalizeText, textMatcher } from "../text";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer asks for
@@ -279,6 +281,7 @@ const FILTER_KINDS = [
     "member",
     "item",
     "threshold",
+    "text",
     "all",
     "any",
     "not",
@@ -491,6 +494,7 @@ function assertFilter(filter: RuleTree): void {
             return;
         case "item":
         case "threshold":
+        case "text":
             assertRuleTree(filter);
 
             return;
@@ -651,7 +655,8 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
                 return;
             case "range":
             case "categories":
-                if (sources.values === undefined) {
+            case "text":
+                if (sources.values === undefined && !(each.kind === "text" && each.reads === "id")) {
                     throw unsupported(each.kind, "a source of attribute values");
                 }
 
@@ -913,11 +918,52 @@ function compileAttribute(
     context: CompileContext,
     filter: Extract<RuleTree, { kind: "range" | "categories" }>,
 ): CompiledHalves {
-    const { graph } = context;
-    const { attribute } = filter;
-    const values = valuesOf(context, filter.kind);
-    const mark = markFor(context, attribute);
     const accept = filter.kind === "range" ? inRange(filter.min, filter.max) : inCategories(filter.values);
+
+    return compileValueLeaf(context, filter.kind, filter.attribute, filter.nodes, accept);
+}
+
+/**
+ * A `text` leaf: the shared text matcher (`textMatcher`, what a selection's text search runs)
+ * over one value, folded the way find folds text unless case counts. On `"id"` it reads the
+ * node's id and speaks nodes; on a value path it speaks as a `range` leaf does.
+ * @param context - The compile context.
+ * @param filter - The leaf.
+ * @returns The halves.
+ */
+function compileText(context: CompileContext, filter: Extract<RuleTree, { kind: "text" }>): CompiledHalves {
+    const matches = textMatcher(filter.text, filter.mode, filter.caseSensitive === true ? null : normalizeText);
+    const accept = (value: unknown): boolean =>
+        (typeof value === "string" || typeof value === "number" || typeof value === "boolean") &&
+        matches(String(value));
+
+    if (filter.reads === "id") {
+        const { ids } = context.graph;
+        return { node: (index) => accept(ids.idOf(index)), edge: null };
+    }
+
+    return compileValueLeaf(context, "text", filter.reads, filter.nodes, accept);
+}
+
+/**
+ * A leaf that tests one value per element, on each half that carries it.
+ * @param context - The compile context.
+ * @param kind - The leaf kind, for a refusal.
+ * @param attribute - The value path.
+ * @param nodes - Which nodes the leaf keeps when the value lives on edges.
+ * @param accept - The test of one value.
+ * @returns The halves.
+ */
+function compileValueLeaf(
+    context: CompileContext,
+    kind: string,
+    attribute: Path,
+    nodes: AttributeLeafNodes | undefined,
+    accept: (value: unknown) => boolean,
+): CompiledHalves {
+    const { graph } = context;
+    const values = valuesOf(context, kind);
+    const mark = markFor(context, attribute);
     const readNode = (index: number): unknown => values.nodeValue(index, attribute);
     const readEdge = (index: number): unknown => values.edgeValue(index, attribute);
     const known = values.halvesOf?.(attribute);
@@ -931,7 +977,7 @@ function compileAttribute(
     let node = onNodes || !onEdges ? test(readNode) : null;
     const edge = onEdges ? test(readEdge) : null;
 
-    if (filter.nodes === "ends" && edge !== null) {
+    if (nodes === "ends" && edge !== null) {
         const list = graph.edgeList();
         const ends = new Uint8Array(graph.nodeCount);
 
@@ -1381,6 +1427,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return compileItem(context, filter.item);
         case "threshold":
             return compileThreshold(context, filter);
+        case "text":
+            return compileText(context, filter);
         case "all":
         case "any": {
             const members = filter.of.map((member) => compileOne(member, context));

@@ -11,6 +11,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Generic rules built in the element** (commit "generic layer rules"): selector
+  `{ match: "rule", where, edges? }` (a member of the inline rule set, so live scopes and data
+  dependencies come free); `RuleTree` leaf `{ kind: "text", reads: "id" | path, mode, text,
+caseSensitive? }` on one matcher `textMatcher` (`session/text.ts`) that selection's `textTest`
+  also runs; `FindValueRow.rule` (exact, case-sensitive leaf); top N by a data column is the existing
+  `threshold` leaf. Why: reuse beat new machinery; the member path already watches and repaints.
+  Not done: `{ match: "top" }` still refuses `data.*` (use the rule); `stabiliseEdgeRefs` does not
+  walk a rule selector's member leaves (a session edge id inside one is not made stable).
+- (2026-10-12) **Worked: staging my hunks when another agent's half-built work breaks the build.**
+  `git apply --cached --unidiff-zero` of a FILTERED -U0 patch misplaces hunks; instead build each
+  mixed file's blob as HEAD plus my -U0 hunks applied bottom-up by old line number
+  (`git hash-object -w` + `update-index --cacheinfo`). Then `git archive $(git write-tree)` into
+  `tmp/<task>/iso`, symlink the rest of the repo and `node_modules`, `tsc -p tsconfig.build.json`,
+  and run `tools/api-report.mjs` by its REAL path (a symlinked path skips its main guard silently).
 - (2026-10-12) **Tier 3 (unified styles) started; my answers to the owner's 12 questions are in
   `tier3/decide/engineer.md`.** The studio worktree is now `.worktrees/design-studio-tier3`
   (branch `design/studio-tier3`). The owner approves the built UI before any study.

@@ -131,7 +131,9 @@ export function kernelModules() {
     const segments = text.split(/\bid:\s*"/).slice(1); // each segment starts with an entry's id
     for (const segment of segments) {
         const id = /^([\w-]+)"/.exec(segment)?.[1];
-        const files = [...wgslImports].filter(([name]) => new RegExp(`\\b${name}\\b`).test(segment)).map(([, f]) => f);
+        const files = [...wgslImports]
+            .filter(([name]) => new RegExp(String.raw`\b${name}\b`).test(segment))
+            .map(([, f]) => f);
         if (id !== undefined) {
             modules.set(id, [...(modules.get(id) ?? []), ...files]);
         }
@@ -204,7 +206,7 @@ export function declaredGroups(read = (p) => readFileSync(join(PACKAGE_DIR, p), 
         }
         let name = m[3] ?? m[4];
         if (m[2] !== undefined) {
-            const value = new RegExp(`export const ${m[2]}\\s*=\\s*"([\\w-]+)"`).exec(read(benchFile));
+            const value = new RegExp(String.raw`export const ${m[2]}\s*=\s*"([\w-]+)"`).exec(read(benchFile));
             if (value === null) {
                 throw new Error(`${benchFile}: no \`export const ${m[2]} = "..."\``);
             }

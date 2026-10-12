@@ -7,7 +7,7 @@ values are those that differ from their property's most common value; opaque one
 copies values (an unexplained passthrough or the exceptions), exception ones from the exceptions rule alone.
 Tool values are elements drawn with the writing program's default.
 
-343 inputs, 296 with styles; at most 15 node and 15 edge rules.
+348 inputs, 331 with styles; at most 15 node and 15 edge rules.
 
 | Input | Import | Nodes | Edges | Node rules | Edge rules | Varying | Opaque | Exceptions | Approximated | Tool values | Declared selecting nothing | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -84,36 +84,41 @@ Tool values are elements drawn with the writing program's default.
 | cys/generated/graphty-written-block-truncated.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
 | cys/generated/graphty-written-native-edit.cys | ok | 45 | 62 | 5 | 3 | 103 | 1% | 1% | 0 | 0 | 0 |  |
 | cys/generated/graphty-written.cys | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 0 | 0 |  |
-| dot/ArthurConmy_Automatic-Circuit-Discovery__layout.gv | ok | 108 | 926 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/DynamicalSystemsGroup_cats__cats_pkg.gv | ok | 456 | 1003 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot | ok | 18 | 20 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/damoqiongqiu_NiceFish__dependencies.dot | ok | 126 | 75 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/decentraland_architecture__architecture.dot | ok | 53 | 72 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/generated/clusters-200.gv | ok | 1200 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/generated/colors-and-scopes.gv | ok | 33 | 3 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/generated/random-100.gv | ok | 100 | 100 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/generated/random-1000.gv | ok | 1000 | 1000 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/generated/random-10000.gv.gz | ok | 10000 | 10000 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-directed-bazel.gv | ok | 8 | 15 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-directed-go-package.gv | ok | 20 | 49 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-directed-lion_share.gv | ok | 47 | 51 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-directed-neural-network.gv | ok | 10 | 9 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-directed-ninja.gv | ok | 125 | 131 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-directed-profile.gv | ok | 61 | 85 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-directed-sdh.gv | ok | 75 | 131 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-gradient-colors.gv | ok | 28 | 3 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-gradient-g_c_n.gv | ok | 2 | 0 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-neato-colors.gv | ok | 13 | 21 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-neato-philo.gv | ok | 21 | 27 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-neato-traffic_lights.gv | ok | 14 | 16 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-neato-transparency.gv | ok | 6 | 6 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-twopi-networkmap_twopi.gv.gz | ok | 426 | 425 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-twopi-twopi2.gv | ok | 1090 | 1118 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-undirected-gd_1994_2007.gv | ok | 506 | 1380 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/graphviz-gallery-undirected-root.gv | ok | 1054 | 1083 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/raphael-group_machina__T_seed9_mut1.dot | ok | 79 | 78 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/vivek3141_super-mario-neat__Digraph.gv | ok | 281 | 878 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| dot/zjunlp_KnowledgeCircuits__graph.gv | ok | 95 | 452 | - | - | 0 | - | - | 0 | 0 | 0 |  |
+| dot/ArthurConmy_Automatic-Circuit-Discovery__layout.gv | ok | 108 | 926 | 4 | 3 | 80 | 100% | 0% | 0 | 7022 | 0 | W_STYLE_BAD_VALUE, W_STYLE_HTML_LABEL, W_STYLE_NOT_CARRIED, W_STYLE_SIZE_MINIMUM |
+| dot/DynamicalSystemsGroup_cats__cats_pkg.gv | ok | 456 | 1003 | 9 | 4 | 1068 | 0% | 0% | 0 | 10746 | 0 | W_STYLE_HTML_LABEL |
+| dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot | ok | 18 | 20 | 8 | 7 | 27 | 22% | 22% | 0 | 273 | 0 | W_STYLE_HTML_LABEL, W_STYLE_UNKNOWN_VALUE |
+| dot/damoqiongqiu_NiceFish__dependencies.dot | ok | 126 | 75 | 6 | 5 | 60 | 12% | 12% | 0 | 1739 | 0 |  |
+| dot/decentraland_architecture__architecture.dot | ok | 53 | 72 | 7 | 8 | 11 | 9% | 9% | 0 | 766 | 0 | W_STYLE_HTML_LABEL, W_STYLE_SIZE_MINIMUM |
+| dot/generated/clusters-200.gv | ok | 1200 | 0 | 4 | 1 | 995 | 0% | 0% | 0 | 11800 | 0 |  |
+| dot/generated/clusters-40.gv | ok | 160 | 39 | 4 | 2 | 117 | 0% | 0% | 0 | 1911 | 0 |  |
+| dot/generated/colors-and-scopes.gv | ok | 33 | 3 | 4 | 5 | 49 | 100% | 2% | 0 | 288 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_BAD_VALUE, W_STYLE_COLOR_LIST, W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_UNKNOWN_VALUE |
+| dot/generated/graphty-written.gv | ok | 75 | 131 | 5 | 7 | 273 | 8% | 0% | 0 | 75 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_UNKNOWN_VALUE |
+| dot/generated/random-100.gv | ok | 100 | 100 | 4 | 6 | 502 | 90% | 0% | 0 | 1281 | 0 |  |
+| dot/generated/random-1000.gv | ok | 1000 | 1000 | 4 | 6 | 5209 | 90% | 0% | 0 | 12805 | 0 |  |
+| dot/generated/random-10000.gv.gz | ok | 10000 | 10000 | 4 | 6 | 52057 | 90% | 0% | 0 | 127999 | 0 |  |
+| dot/generated/tamper-block-truncated.gv | ok | 75 | 131 | 5 | 7 | 149 | 0% | 0% | 0 | 1478 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_NOT_CARRIED, W_STYLE_UNKNOWN_VALUE |
+| dot/generated/tamper-native-edited.gv | ok | 75 | 131 | 6 | 7 | 273 | 8% | 0% | 0 | 75 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_UNKNOWN_VALUE |
+| dot/generated/tamper-node-added.gv | ok | 76 | 131 | 5 | 7 | 149 | 0% | 0% | 0 | 1489 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_NOT_CARRIED, W_STYLE_UNKNOWN_VALUE |
+| dot/graphviz-gallery-directed-bazel.gv | ok | 8 | 15 | 3 | 3 | 0 | - | - | 0 | 192 | 0 |  |
+| dot/graphviz-gallery-directed-go-package.gv | ok | 20 | 49 | 5 | 3 | 0 | - | - | 0 | 572 | 0 |  |
+| dot/graphviz-gallery-directed-lion_share.gv | ok | 47 | 51 | 8 | 4 | 48 | 2% | 2% | 0 | 631 | 0 |  |
+| dot/graphviz-gallery-directed-neural-network.gv | ok | 10 | 9 | 4 | 3 | 0 | - | - | 0 | 152 | 0 | W_STYLE_RECORD_LABEL |
+| dot/graphviz-gallery-directed-ninja.gv | ok | 125 | 131 | 5 | 7 | 12 | 0% | 0% | 0 | 1526 | 0 | W_STYLE_SIZE_MINIMUM |
+| dot/graphviz-gallery-directed-profile.gv | ok | 61 | 85 | 4 | 4 | 42 | 0% | 0% | 0 | 1084 | 0 |  |
+| dot/graphviz-gallery-directed-sdh.gv | ok | 75 | 131 | 5 | 7 | 170 | 0% | 0% | 0 | 1457 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_UNKNOWN_VALUE |
+| dot/graphviz-gallery-gradient-colors.gv | ok | 28 | 3 | 4 | 3 | 38 | 100% | 0% | 0 | 252 | 0 | W_STYLE_GRADIENT |
+| dot/graphviz-gallery-gradient-g_c_n.gv | ok | 2 | 0 | 5 | 1 | 1 | 100% | 0% | 0 | 15 | 0 | W_STYLE_GRADIENT |
+| dot/graphviz-gallery-neato-colors.gv | ok | 13 | 21 | 4 | 5 | 28 | 43% | 0% | 0 | 164 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_SIZE_MINIMUM |
+| dot/graphviz-gallery-neato-philo.gv | ok | 21 | 27 | 6 | 3 | 9 | 0% | 0% | 0 | 381 | 0 |  |
+| dot/graphviz-gallery-neato-traffic_lights.gv | ok | 14 | 16 | 6 | 3 | 6 | 33% | 33% | 0 | 238 | 0 |  |
+| dot/graphviz-gallery-neato-transparency.gv | ok | 6 | 6 | 5 | 1 | 10 | 100% | 0% | 0 | 84 | 0 | W_STYLE_ALPHA_DROPPED |
+| dot/graphviz-gallery-twopi-networkmap_twopi.gv.gz | ok | 426 | 425 | 6 | 2 | 6 | 100% | 100% | 0 | 5104 | 0 | W_STYLE_HTML_LABEL |
+| dot/graphviz-gallery-twopi-twopi2.gv | ok | 1090 | 1118 | 5 | 7 | 1690 | 23% | 23% | 0 | 14484 | 0 |  |
+| dot/graphviz-gallery-undirected-gd_1994_2007.gv | ok | 506 | 1380 | 5 | 1 | 664 | 100% | 0% | 0 | 15962 | 0 | W_STYLE_SIZE_MINIMUM |
+| dot/graphviz-gallery-undirected-root.gv | ok | 1054 | 1083 | 6 | 7 | 1636 | 23% | 23% | 0 | 11989 | 0 |  |
+| dot/raphael-group_machina__T_seed9_mut1.dot | ok | 79 | 78 | 5 | 4 | 127 | 0% | 0% | 0 | 1178 | 0 | W_STYLE_COLOR_LIST |
+| dot/vivek3141_super-mario-neat__Digraph.gv | ok | 281 | 878 | 5 | 8 | 1837 | 48% | 0% | 0 | 6954 | 0 | W_STYLE_SIZE_MINIMUM |
+| dot/zjunlp_KnowledgeCircuits__graph.gv | ok | 95 | 452 | 6 | 5 | 490 | 18% | 0% | 0 | 3544 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_HTML_LABEL, W_STYLE_SIZE_MINIMUM |
 | gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz | ok | 225 | 1090 | 2 | 2 | 0 | - | - | 0 | 3495 | 0 |  |
 | gexf/generated/alpha-text.gexf | ok | 4 | 0 | 2 | 1 | 0 | - | - | 0 | 15 | 0 |  |
 | gexf/generated/broken-viz.gexf | ok | 120 | 2 | 3 | 5 | 33 | 0% | 0% | 0 | 378 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |

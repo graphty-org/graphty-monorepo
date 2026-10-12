@@ -439,6 +439,8 @@ export type StyleRuleReason =
     | "LAYER_CAP"
     /** Edges with no color of their own take their source node's color, as the writing tool draws them. */
     | "SOURCE_NODE_COLOR"
+    /** Nodes with no label of their own show their name, as the writing tool draws them (Graphviz's `\N`). */
+    | "NODE_NAME"
     /** The file computes the value with a function; the drawn values are copied. */
     | "FUNCTION"
     /** The work budget ran out before the values were explained; they are copied. */

@@ -139,6 +139,8 @@ export {
 export {
     DOT_ISSUE,
     DOT_LOSS,
+    DOT_STYLE_BLOCK_ATTRIBUTE,
+    DOT_STYLE_CAPABILITIES,
     dotExporter,
     type DotExportOptions,
     dotImporter,

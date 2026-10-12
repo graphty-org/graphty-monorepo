@@ -6,3 +6,4 @@
 
 export { DOT_LOSS, dotExporter, type DotExportOptions } from "./exporter.js";
 export { DOT_ISSUE, dotImporter, type DotImportOptions } from "./importer.js";
+export { DOT_STYLE_BLOCK_ATTRIBUTE, DOT_STYLE_CAPABILITIES } from "./styles.js";

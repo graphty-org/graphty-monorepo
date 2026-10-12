@@ -26,6 +26,7 @@ import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
     CLUSTER_COLUMN,
@@ -38,6 +39,7 @@ import {
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "./names.js";
+import { DOT_STYLE_CAPABILITIES, dotStyledExport, isHtmlString } from "./styles.js";
 
 /**
  * The DOT exporter's format-specific options.
@@ -196,22 +198,24 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
     format: DOT_FORMAT,
     options: Object.freeze(["indent", "name", "strict"]),
     capabilities: CAPABILITIES,
+    styles: Object.freeze({ capabilities: DOT_STYLE_CAPABILITIES }),
 
     /**
-     * Pre-flight: every loss the DOT text would incur, without writing anything.
+     * Pre-flight: every loss the DOT text would incur, without writing anything; with styles, also the values
+     * written as the nearest ones Graphviz has.
      * @param snapshot - the snapshot to check
      * @param options - format-specific and common options
      * @returns the notes, empty when the export is exact
      */
-    check(snapshot: GraphSnapshot, options?: DotExportOptions & CommonExportOptions): readonly LossNote[] {
-        const resolved = resolveExportOptions(options);
-        const notes = checkCapabilities(snapshot, CAPABILITIES, resolved, {
-            positionDtype: "f64",
-            roles: KEPT_ROLES,
-            roleNames: ROLE_NAMES,
-        });
-        const plan = new ExportPlan(snapshot, resolved, options);
-        return [...notes, ...plan.notes()];
+    check(
+        snapshot: GraphSnapshot,
+        options?: DotExportOptions & CommonExportOptions & ExporterStyleOptions,
+    ): readonly LossNote[] {
+        const styled = dotStyledExport(snapshot, options?.styles);
+        if (styled === null) {
+            return checkPlain(snapshot, options);
+        }
+        return Object.freeze([...checkPlain(styled.snapshot, options), ...styled.notes]);
     },
 
     /**
@@ -220,8 +224,11 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
      * @param options - format-specific and common options
      * @returns the encoded chunks
      */
-    export(snapshot: GraphSnapshot, options?: DotExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(writeDot(snapshot, options));
+    export(
+        snapshot: GraphSnapshot,
+        options?: DotExportOptions & CommonExportOptions & ExporterStyleOptions,
+    ): AsyncIterable<Uint8Array> {
+        return encodeChunks(writeDot(dotStyledExport(snapshot, options?.styles)?.snapshot ?? snapshot, options));
     },
 
     /**
@@ -230,10 +237,30 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
      * @param options - format-specific and common options
      * @returns the whole document
      */
-    exportToString(snapshot: GraphSnapshot, options?: DotExportOptions & CommonExportOptions): Promise<string> {
-        return joinText(writeDot(snapshot, options));
+    exportToString(
+        snapshot: GraphSnapshot,
+        options?: DotExportOptions & CommonExportOptions & ExporterStyleOptions,
+    ): Promise<string> {
+        return joinText(writeDot(dotStyledExport(snapshot, options?.styles)?.snapshot ?? snapshot, options));
     },
 });
+
+/**
+ * Every loss the DOT text of a snapshot would incur.
+ * @param snapshot - the snapshot to check
+ * @param options - format-specific and common options
+ * @returns the notes
+ */
+function checkPlain(snapshot: GraphSnapshot, options?: DotExportOptions & CommonExportOptions): LossNote[] {
+    const resolved = resolveExportOptions(options);
+    const notes = checkCapabilities(snapshot, CAPABILITIES, resolved, {
+        positionDtype: "f64",
+        roles: KEPT_ROLES,
+        roleNames: ROLE_NAMES,
+    });
+    const plan = new ExportPlan(snapshot, resolved, options);
+    return [...notes, ...plan.notes()];
+}
 
 /**
  * The text parts of a DOT document.
@@ -257,31 +284,6 @@ function* writeDot(snapshot: GraphSnapshot, options?: DotExportOptions & CommonE
  */
 function endsWithBackslash(text: string): boolean {
     return !isWritableDotText(text);
-}
-
-/**
- * Whether a text is an HTML string (balanced angle brackets around the whole text), which DOT
- * writes bare as `<...>`.
- * @param text - the text
- * @returns true for an HTML string
- */
-function isHtmlString(text: string): boolean {
-    if (text.length < 2 || !text.startsWith("<") || !text.endsWith(">")) {
-        return false;
-    }
-    let depth = 0;
-    for (let i = 0; i < text.length; i++) {
-        const c = text.charCodeAt(i);
-        if (c === 0x3c) {
-            depth++;
-        } else if (c === 0x3e) {
-            depth--;
-            if (depth === 0 && i !== text.length - 1) {
-                return false;
-            }
-        }
-    }
-    return depth === 0;
 }
 
 /**

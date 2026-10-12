@@ -64,6 +64,8 @@ const VALUE_EXPORTS = [
     "cx2Importer",
     "DOT_LOSS",
     "DOT_ISSUE",
+    "DOT_STYLE_BLOCK_ATTRIBUTE",
+    "DOT_STYLE_CAPABILITIES",
     "dotExporter",
     "dotImporter",
     "GEXF_1_2_CAPABILITIES",

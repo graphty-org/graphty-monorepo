@@ -911,7 +911,7 @@ function enforceCap(
  * @param plan - the target's state
  * @param drafts - the rules, bottom to top
  * @param truth - the file's values per property
- * @param toolSet - the tool's defaults, or null
+ * @param toolSet - the tool's default values, or null
  * @param tolerated - per property, the elements a ramp matches only within the tool's rounding
  * @param src - the reference source
  * @returns the exceptions rule, or null when nothing differs
@@ -925,13 +925,18 @@ function replay(
     src: ReturnType<typeof refSource>,
 ): Draft | null {
     const rules = drafts.map(finish);
+    // where the file gives no value, the tool draws its default: its constants, and where a reader adds tool rules
+    // of its own (Graphviz's target arrow on directed edges), what those rules give over the constants
+    const toolRules = rules.filter((r) => r.origin === "tool");
+    const ownToolRules = toolRules.length > (toolSet === null ? 0 : 1);
     const map: Record<string, Mapping> = {};
     for (const [p, t] of truth) {
         const got = resolveRules(rules, plan.target, p, src, plan.budget);
-        const fallback = toolSet?.[p] ?? null;
+        const perElement = ownToolRules ? resolveRules(toolRules, plan.target, p, src, plan.budget) : null;
+        const constant = toolSet?.[p] ?? null;
         let col: (StyleValue | null)[] | null = null;
         for (let i = 0; i < plan.n; i++) {
-            const want = t[i] ?? fallback;
+            const want = t[i] ?? (perElement === null ? constant : perElement[i]);
             if (got[i] === want || want === null) {
                 continue;
             }

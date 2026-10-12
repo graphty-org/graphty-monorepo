@@ -35,7 +35,7 @@ const CASE_LABEL = new RegExp(`\\bcase\\s+["'\`]${ROLES}["'\`]\\s*:`);
 const ROLE_SWITCH = /\bswitch\s*\(\s*[\w.?]*\brole\s*\)/;
 
 /** One read found. */
-export interface RoleRead {
+interface RoleRead {
     /** The file, relative to the scanned root, with forward slashes. */
     readonly file: string;
     /** The 1-based line. */

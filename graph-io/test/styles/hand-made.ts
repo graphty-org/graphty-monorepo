@@ -18,7 +18,7 @@ const GROUPS = ["alpha", "beta", "gamma"];
  * (one of them hidden) and a weight; nodes 0, 5 and 10 are members of a set held in a style column.
  * @returns the graph
  */
-export function handMadeGraph(): GraphSnapshot {
+function handMadeGraph(): GraphSnapshot {
     const b = new GraphBuilder({ directed: true });
     const group = b.declareNodeColumn({ name: "group", dtype: "string" });
     const score = b.declareNodeColumn({ name: "score", dtype: "f64" });
@@ -47,7 +47,7 @@ export function handMadeGraph(): GraphSnapshot {
  * @param snapshot - the graph
  * @returns the styles
  */
-export function handMadeStyles(snapshot: GraphSnapshot): ExtractedStyles {
+function handMadeStyles(snapshot: GraphSnapshot): ExtractedStyles {
     const rules: StyleRule[] = [
         {
             id: "node.defaults",

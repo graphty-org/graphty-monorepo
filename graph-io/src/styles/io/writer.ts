@@ -322,7 +322,7 @@ function isStyleScalar(v: unknown): v is StyleValue {
  * @param exporter - the exporter
  * @returns true when the block is written
  */
-export function keepsStyleBlock(exporter: GraphExporter): boolean {
+function keepsStyleBlock(exporter: GraphExporter): boolean {
     const caps = exporter.styles?.capabilities;
     return (
         caps !== undefined &&

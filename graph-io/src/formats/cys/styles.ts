@@ -107,7 +107,7 @@ export function readSessionStyles(snapshot: GraphSnapshot, context: StyleReadCon
  * @param notes - where problems are noted
  * @returns the style
  */
-export function cytoscapeStyleFromVizmap(root: XmlNode, name: string | null, notes: StyleNotes): CytoscapeStyle {
+function cytoscapeStyleFromVizmap(root: XmlNode, name: string | null, notes: StyleNotes): CytoscapeStyle {
     const style = emptyCytoscapeStyle();
     const styles = root.children.filter((c) => c.name === "visualStyle");
     let chosen = styles.find((s) => s.attrs.get("name") === name);

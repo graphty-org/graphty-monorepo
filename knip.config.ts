@@ -54,10 +54,6 @@ const config: KnipConfig = {
                 "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
-                // the style harness loads every module in formats/ by directory listing; isolated.ts is the
-                // per-file runner scripts/styles-corpus.mjs spawns
-                "test/styles/formats/*.ts",
-                "test/styles/isolated.ts",
                 "scripts/**/*.{ts,js,mjs}",
             ],
             project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
@@ -69,6 +65,8 @@ const config: KnipConfig = {
             entry: [
                 "src/index.ts!",
                 "src/styles/index.ts!",
+                // the unpublished barrel of the whole style engine, for graph-io's own tests and scripts
+                "src/styles/internal.ts",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
                 // the style harness loads every module in formats/ by directory listing; isolated.ts is the

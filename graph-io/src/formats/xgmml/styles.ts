@@ -46,7 +46,7 @@ type Table = GraphSnapshot["nodes"];
  * @param table - the node, edge or graph table
  * @returns the column's name, or null
  */
-export function graphicsColumnOf(table: Table): string | null {
+function graphicsColumnOf(table: Table): string | null {
     for (const col of table) {
         const { origin } = col.meta;
         if (col.dtype === "json" && origin?.type === "graphics" && origin.namespace === XGMML_ORIGIN_NAMESPACE) {
@@ -91,7 +91,7 @@ export function graphicsBypasses(table: Table, target: StyleTarget, n: number, n
 }
 
 /** What the XGMML style reader is told by its caller. */
-export interface XgmmlStyleSettings {
+interface XgmmlStyleSettings {
     /** Whose defaults fill what the file leaves unset. */
     readonly tool: StyleTool;
     /** A bool column marking hidden elements (a Cytoscape 2.x session's hidden state), or null. */

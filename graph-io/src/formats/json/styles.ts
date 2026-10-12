@@ -1187,7 +1187,8 @@ function cyjsProperties(map: ReadonlyMap<string, { readonly property: string }>,
 
 /**
  * The neutral properties each style-writing dialect holds natively. Not part of the published entry points: the
- * documentation's per-dialect tables read it.
+ * documentation's per-dialect tables read it, through a dynamic import knip cannot follow (hence public).
+ * @public
  */
 export const NATIVE: Readonly<
     Record<"cytoscape" | "graphology" | "vis", Readonly<Record<StyleTarget, readonly string[]>>>

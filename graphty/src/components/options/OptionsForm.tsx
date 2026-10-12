@@ -58,7 +58,7 @@ interface FieldRendererProps {
  * @param root0.onChange - Called with the new value.
  * @returns The control, or null when the option has no control here.
  */
-function FieldRenderer({ option, value, onChange }: FieldRendererProps): React.JSX.Element | null {
+function FieldRenderer({ option, value, onChange }: Readonly<FieldRendererProps>): React.JSX.Element | null {
     const label = option.plainName;
     const { description } = option;
     const labelStyles = {
@@ -169,7 +169,7 @@ export function OptionsForm({
     onChange,
     showAdvanced = false,
     hiddenFields = [],
-}: OptionsFormProps): React.JSX.Element {
+}: Readonly<OptionsFormProps>): React.JSX.Element {
     const defaults = useMemo(() => optionDefaults(options), [options]);
 
     const visible = useMemo(

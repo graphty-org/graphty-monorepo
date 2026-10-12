@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { extractStyles, type StyleRule } from "../../src/styles/index.js";
+import { editJsonNodeFill } from "./formats/json.js";
 import {
     checkInput,
     checkStyles,
@@ -87,6 +88,24 @@ describe("the checks", () => {
         expect(fill.every((v) => v === null || /^#[0-9a-f]{6}$/.test(String(v)))).toBe(true);
         expect(new Set(fill)).toEqual(new Set(["#ff0000", "#0000ff", "#008000", "#ffa500"]));
         expect(truth?.node?.visible?.some((v) => v === false)).toBe(true);
+    });
+
+    it("edit a JSON node's color and keep its alpha, so an outside edit changes one value", () => {
+        const fill = (doc: unknown, read: (d: Record<string, never>) => unknown): unknown => {
+            const out = editJsonNodeFill(new TextEncoder().encode(JSON.stringify(doc)));
+            return out === null ? null : read(JSON.parse(new TextDecoder().decode(out)) as Record<string, never>);
+        };
+        const vis = {
+            nodes: [{ id: 1, color: { background: "rgba(0,0,255,0.501961)" } }],
+            edges: [{ from: 1, to: 1 }],
+        };
+        expect(fill(vis, (d) => (d.nodes as { color: { background: string } }[])[0].color.background)).toBe(
+            "rgba(18,52,86,0.501961)",
+        );
+        const graphology = { attributes: {}, nodes: [{ key: "a", attributes: { color: "#0000ff80" } }] };
+        expect(fill(graphology, (d) => (d.nodes as { attributes: { color: string } }[])[0].attributes.color)).toBe(
+            "#12345680",
+        );
     });
 
     it("fail on an injected wrong rule, naming the element and the property", async () => {

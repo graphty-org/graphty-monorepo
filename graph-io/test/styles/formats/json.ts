@@ -90,7 +90,17 @@ function inputs(): StyleInput[] {
  */
 export function editJsonNodeFill(written: Uint8Array): Uint8Array | null {
     const doc = decode(written);
-    const next = (old: unknown): string => (old === "#123456" ? "#654321" : "#123456");
+    // the color changes and its alpha (rgba(...)'s fourth value, #RRGGBBAA's last digits) stays: one value edited
+    const next = (old: unknown): string => {
+        const text = typeof old === "string" ? old.trim() : "";
+        const rgba = /^rgba\(\s*([^,]+),\s*([^,]+),\s*([^,]+),(.*)\)$/i.exec(text);
+        if (rgba !== null) {
+            const was = rgba.slice(1, 4).map(Number).join(",");
+            return `rgba(${was === "18,52,86" ? "101,67,33" : "18,52,86"},${rgba[4]})`;
+        }
+        const hex = text.toLowerCase();
+        return (hex.startsWith("#123456") ? "#654321" : "#123456") + (/^#[0-9a-f]{8}$/.test(hex) ? hex.slice(7) : "");
+    };
     const { elements } = doc;
     if (isObject(elements) && Array.isArray(elements.nodes) && isObject(elements.nodes[0])) {
         const node = elements.nodes[0];

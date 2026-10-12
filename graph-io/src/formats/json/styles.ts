@@ -182,7 +182,12 @@ const CYJS_TEXT: Readonly<Record<StyleTarget, readonly string[]>> = {
 
 const CYJS_WRITTEN: Written = {
     node: Object.fromEntries(CYJS_TEXT.node.map((p) => [p, trimmed(p)])),
-    edge: Object.fromEntries(CYJS_TEXT.edge.map((p) => [p, trimmed(p)])),
+    edge: {
+        ...Object.fromEntries(CYJS_TEXT.edge.map((p) => [p, trimmed(p)])),
+        // Cytoscape.js draws a loop curved whatever its curve style says
+        curved: (want, e, snapshot) =>
+            snapshot.edgeSource(e) === snapshot.edgeTarget(e) && want("curved") !== null ? true : want("curved"),
+    },
 };
 
 /**
@@ -408,7 +413,13 @@ function blockText(snapshot: GraphSnapshot, src: JsonStyleSource): string | null
 
 /** What a writer writes for a value that its dialect holds only approximately, per target and property. */
 type Written = Partial<
-    Record<StyleTarget, Record<string, (want: (p: string) => StyleValue | null) => StyleValue | null>>
+    Record<
+        StyleTarget,
+        Record<
+            string,
+            (want: (p: string) => StyleValue | null, i: number, snapshot: GraphSnapshot) => StyleValue | null
+        >
+    >
 >;
 
 /**
@@ -471,7 +482,7 @@ function exactFromBlock(
                 const native = values[target][property]?.[i] ?? null;
                 // a native value the writer made from the block's other values (vis.js's one size for a width) is the
                 // block's own value, none included
-                if (native !== w && native !== null && native === write((p) => resolved(p)[i])) {
+                if (native !== w && native !== null && native === write((p) => resolved(p)[i], i, snapshot)) {
                     (values[target][property] ??= new Array<StyleValue | null>(n).fill(null))[i] = w;
                 }
             }

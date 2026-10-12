@@ -635,6 +635,18 @@ describe("sessionToolSet", () => {
         expect(job.status.text).toBe("still building");
     });
 
+    it("takes a capacity answer with no job from an owner session, and refuses one without capacity", async () => {
+        const { ctx, commits } = setup({ jobs: {} });
+        const owner = { session: "o2" };
+        const ok = await call(ctx, "githerd_expect", { reason: "free", capacity: 2 }, owner);
+        expect(ok.text).toBe(JSON.stringify({ ok: true }));
+        expect(ctx.state.capacity).toEqual({ o2: { n: 2, at: "2026-10-04T12:00:00.000Z", held: [] } });
+        expect(commits.at(-1)).toMatchObject({ kind: "expect", job: null, capacity: 2 });
+        expect((await call(ctx, "githerd_expect", { reason: "free" }, owner)).text).toMatch(/set capacity/);
+        // A worker names its job.
+        expect((await call(ctx, "githerd_expect", { reason: "x", capacity: 1 })).text).toMatch(/name it in job/);
+    });
+
     it("declares a wait and a long step only for a job the caller holds", async () => {
         const job = heldJob("pr-7");
         const other = heldJob("pr-8");

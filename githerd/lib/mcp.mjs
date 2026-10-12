@@ -443,7 +443,8 @@ export const TOOLS = [
             "capacity, optional, is how many further jobs this session can " +
             "take now: while it is above 0 (less the jobs you claim after answering), githerd invites this session to " +
             "queued work even when it is not idle; 0 stops that until you answer again. Jobs that are only waiting " +
-            "to push or for CI do not use your capacity: count only jobs you are actively working when you answer capacity.",
+            "to push or for CI do not use your capacity: count only jobs you are actively working when you answer capacity. " +
+            "Leave job out only to answer githerd's capacity question when this session holds no job; capacity is then required.",
         inputSchema: object(
             {
                 job: JOB,
@@ -451,7 +452,7 @@ export const TOOLS = [
                 reason: REASON,
                 capacity: { type: "integer", minimum: 0, maximum: 20 },
             },
-            ["job", "reason"],
+            ["reason"],
         ),
     },
     {

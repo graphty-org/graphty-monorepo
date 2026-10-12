@@ -178,6 +178,40 @@ function heldJob(state, id, session, client) {
 }
 
 /**
+ * Records a session's room for more jobs, which inviteStep reads (asks.mjs), with the jobs it
+ * holds now: once one of them ends, the answer is stale.
+ * @param {any} state the daemon state, changed in place
+ * @param {string} session the session
+ * @param {number} n how many more jobs it can take
+ * @param {Date} now the clock
+ */
+function recordCapacity(state, session, n, now) {
+    state.capacity ??= {};
+    const held = Object.values(state.jobs ?? {})
+        .filter((j) => j.holder?.session === session)
+        .map((j) => j.id);
+    state.capacity[session] = { n, at: now.toISOString(), held };
+}
+
+/**
+ * githerd_expect with no job: an owner session's capacity answer alone.
+ * @param {SessionToolContext} ctx the context
+ * @param {any} args the tool arguments
+ * @param {string | null} session the calling session
+ * @param {any} client the client's metadata
+ * @returns {Promise<string>} the answer
+ */
+async function capacityOnly(ctx, args, session, client) {
+    if (client.job) throw new Error(`this worker is started for job ${client.job}; name it in job`);
+    if (args.capacity === undefined || !session) {
+        throw new Error("githerd_expect without a job answers githerd's capacity question: set capacity");
+    }
+    recordCapacity(ctx.state, session, args.capacity, ctx.now);
+    await ctx.commit({ kind: "expect", job: null, reason: args.reason, capacity: args.capacity });
+    return JSON.stringify({ ok: true });
+}
+
+/**
  * A held job's unread news, now marked read; for an issue job, its holder has read the issue's
  * current revision too (merge decision line 8).
  * @param {any} state the daemon state
@@ -356,6 +390,8 @@ export function sessionToolSet(ctx) {
         },
         githerd_expect: async (args, caller, client) => {
             const session = sessionOf(caller, client);
+            // No job: the answer to githerd's capacity question to a session holding none (asks.mjs).
+            if (args.job === undefined) return capacityOnly(ctx, args, session, client);
             const job = heldJob(state, args.job, session, client);
             // Only a worker's long step sends minutes: an open window counts as progress to the
             // watchdog (watchdog.mjs). A status answer without it leaves any window as it was.
@@ -363,15 +399,7 @@ export function sessionToolSet(ctx) {
             if (until) job.expect = { until, reason: args.reason };
             // The reason is the holder's status too: it answers githerd's status question (asks.mjs).
             job.status = { at: now.toISOString(), text: args.reason };
-            // The session's room for more jobs, which inviteStep reads (asks.mjs).
-            if (args.capacity !== undefined && session) {
-                state.capacity ??= {};
-                // The jobs it holds now: once one of them ends, the answer is stale (asks.mjs).
-                const held = Object.values(state.jobs ?? {})
-                    .filter((j) => j.holder?.session === session)
-                    .map((j) => j.id);
-                state.capacity[session] = { n: args.capacity, at: now.toISOString(), held };
-            }
+            if (args.capacity !== undefined && session) recordCapacity(state, session, args.capacity, now);
             // The capacity answer goes in the ledger too, so who had room when can be read back.
             const capacity = args.capacity === undefined ? {} : { capacity: args.capacity };
             await ctx.commit({ kind: "expect", job: job.id, until, reason: args.reason, ...capacity });

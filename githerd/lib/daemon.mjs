@@ -2227,6 +2227,7 @@ export async function startDaemon({
             minutes: config.workers.statusMinutes,
             owners: liveInRepo,
             cli: cliCommand,
+            config,
         });
         for (const line of lines) void ledger(line);
     }

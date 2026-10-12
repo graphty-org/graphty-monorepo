@@ -425,6 +425,15 @@ function room(state, session) {
     return (stale ? 1 : said.n) - claimed;
 }
 
+/**
+ * The Claude Code registry statuses (`~/.claude/sessions/<pid>.json`, peers.mjs) in which a session
+ * sits at its prompt and so can take a job: `idle`, and `shell`, which is idle with a background
+ * shell still running (often a wait a finished subagent left behind), not a busy session. `busy`
+ * is a turn in progress and `waiting` a dialog waiting on the user: neither counts, nor does an
+ * entry with no status; those sessions are invited only on the room their capacity answer leaves.
+ */
+const AT_PROMPT = new Set(["idle", "shell"]);
+
 /** Job states a session is actively working in; a `waiting` job counts only while it waits on the session's own task. */
 const ACTIVE = new Set(["working", "starting"]);
 const DEFAULT_MAX_ACTIVE = 3;
@@ -456,11 +465,13 @@ export function atActiveCap(state, session, config) {
 
 /**
  * A session's room as invitations see it, recorded in `state.inviteRooms[session]` =
- * `{room, at, said}`: the room it reported (its capacity answer less claims, `room`, at least 1
- * while it is idle in the registry), when that room last rose from 0 or from fewer than the jobs
- * queued for it to more (`at`, empty while it never did), and the capacity answer last read
- * (`said`). A new capacity answer replaces the room; the session going busy without one does not
- * lower it, so a session's turns ending and starting never read as fresh room.
+ * `{room, at, said, left}`: the room it reported (its capacity answer less claims, `room`, at
+ * least 1 while it sits at its prompt, `AT_PROMPT`), when that room last rose from 0 or from fewer
+ * than the jobs queued for it to more (`at`, empty while it never did), the capacity answer last
+ * read (`said`), and the room that answer still left at the last pass (`left`). A new capacity
+ * answer replaces the room, and counts as a rise when it gives more than the last answer had left
+ * (an answer used up by claims, then answered afresh); the session going busy without one does
+ * not lower it, so a session's turns ending and starting never read as fresh room.
  * @param {any} state the daemon state, changed in place
  * @param {import("./peers.mjs").PeerSession} s the session
  * @param {number} able how many queued jobs it could claim
@@ -469,14 +480,18 @@ export function atActiveCap(state, session, config) {
  */
 function inviteRoom(state, s, able, now) {
     const cur = Math.max(room(state, s.sessionId) ?? 0, 0);
-    const idle = s.status === "idle";
+    const idle = AT_PROMPT.has(s.status ?? "");
     const eff = idle ? Math.max(cur, 1) : cur;
     const said = state.capacity?.[s.sessionId]?.at ?? null;
     const rec = state.inviteRooms[s.sessionId] ?? { room: 0, at: "", said: null };
+    const fresh = said !== rec.said;
+    const left = rec.left ?? rec.room;
     let next = rec;
-    if (eff > rec.room) next = { room: eff, at: rec.room < able ? now.toISOString() : rec.at, said };
-    else if (said !== rec.said) next = { ...rec, room: idle ? rec.room : eff, said };
-    state.inviteRooms[s.sessionId] = next;
+    if (eff > rec.room || (fresh && cur > left)) {
+        const at = Math.min(rec.room, left) < able ? now.toISOString() : rec.at;
+        next = { room: idle ? Math.max(eff, rec.room) : eff, at, said };
+    } else if (fresh) next = { ...rec, room: idle ? rec.room : eff, said };
+    state.inviteRooms[s.sessionId] = { ...next, left: cur };
     return { free: eff > 0, at: next.at };
 }
 
@@ -510,11 +525,11 @@ function dueInvites(state, queue, live, { config, now }) {
 /**
  * Invites the Claude sessions in this repository that have room to pull work (the owner's
  * decisions of 2026-10-05): every pass, each queued job no worker slot took is announced to every
- * session whose registry status is `idle` or whose last capacity answer leaves room (`room`) and
+ * session at its prompt (`AT_PROMPT`) or whose last capacity answer leaves room (`room`) and
  * that has not heard it since its room last rose (`inviteRoom`); never one at `workers.maxActive`
  * (`atActiveCap`). So a session that heard a job and
- * did not take it hears it again only after reporting more room: a capacity answer above its last,
- * or going idle after reporting none. Who heard which job is kept on the job, `job.invited` =
+ * did not take it hears it again only after reporting more room: a capacity answer above what its
+ * last one left, or reaching its prompt after reporting none. Who heard which job is kept on the job, `job.invited` =
  * `{[session]: at}` (a job's older `invitedAt` counts as heard by every session). githerd's own
  * workers are never among them (`liveSessions` leaves them out). A session is invited only to a job
  * it could claim (`jobInUse` with that session, the rule githerd_next and githerd_claim apply), so a
@@ -960,25 +975,27 @@ function githerdWatches(job) {
  * question nobody heard (dry-run, or a send that failed). githerd's own workers have the watchdog
  * instead. The same message asks the owner of each broken pull request whether it is fixing it
  * (`brokenOwned`), whoever that owner is: it asks about the session's own pull request, so
- * `workers.sessions` does not apply.
+ * `workers.sessions` does not apply. A session the question does not reach because it holds no job
+ * it is asked about is asked for its capacity alone (`capacityDue`).
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
  *   transport: import("./peers.mjs").Transport, minutes: number,
- *   owners?: () => import("./peers.mjs").PeerSession[], cli?: string}} opts the clock, whether the
- *   `workers` write group acts (else each send is a would-do line), the sessions githerd may
- *   message, the transport, how often to ask (`workers.statusMinutes`), every live session in this
- *   repository (`sessions` when absent), and the githerd command line a session without githerd's
- *   tools answers with
+ *   owners?: () => import("./peers.mjs").PeerSession[], cli?: string, config?: any}} opts the clock,
+ *   whether the `workers` write group acts (else each send is a would-do line), the sessions githerd
+ *   may message, the transport, how often to ask (`workers.statusMinutes`), every live session in
+ *   this repository (`sessions` when absent), the githerd command line a session without githerd's
+ *   tools answers with, and the config
  * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
  */
 export async function statusStep(
     state,
-    { now, acting, sessions, transport, minutes, owners = sessions, cli = DEFAULT_CLI },
+    { now, acting, sessions, transport, minutes, owners = sessions, cli = DEFAULT_CLI, config },
 ) {
     const lines = [];
     await tellSettledPrWaits(state, { acting, transport, owners }, lines);
     const due = dueJobs(state, now, minutes, lines);
     const prsDue = brokenOwned(state, { now, minutes, owners }, lines);
+    await askCapacity(state, { now, acting, sessions, transport, minutes, cli, config, due }, lines);
     const live = due.size ? sessions() : [];
     const everyone = prsDue.size ? owners() : [];
     for (const session of new Set([...due.keys(), ...prsDue.keys()])) {
@@ -992,6 +1009,68 @@ export async function statusStep(
         await askSession(state, asked, { now, acting, transport, minutes, cli }, lines);
     }
     return lines;
+}
+
+/**
+ * Whether session `s` is due the capacity question (`askCapacity`): it is not paused, no shared
+ * resource is saturated, it holds no job the status question asks about (that question asks its
+ * capacity already), its last capacity answer is missing, gone stale (`staleSince`) or used up
+ * (`room`), a queued job is one it could claim (`jobInUse`), and neither its last answer nor the
+ * last capacity question came within `minutes`.
+ * @param {any} state the daemon state
+ * @param {import("./peers.mjs").PeerSession} s the session
+ * @param {{now: Date, minutes: number, config?: any}} opts the clock, the cadence and the config
+ * @returns {boolean} it is due
+ */
+function capacityDue(state, s, { now, minutes, config }) {
+    const id = s.sessionId;
+    if (state.offersPaused?.[s.name] || state.pressure?.length) return false;
+    const jobs = Object.values(state.jobs ?? {});
+    if (jobs.some((j) => j.holder?.session === id && ASKED.has(j.state) && !githerdWatches(j))) return false;
+    const said = state.capacity?.[id];
+    if (said && !staleSince(state, id, said) && (room(state, id) ?? 0) > 0) return false;
+    const last = Math.max(Date.parse(said?.at ?? "") || 0, Date.parse(state.capacityAsks?.[id] ?? "") || 0);
+    // A cadence, how often to ask: the status question's own.
+    if (now.getTime() - last < minutes * MINUTE) return false;
+    return jobs.some((j) => j.state === "queued" && !jobInUse(state, j, { config, now, session: id }));
+}
+
+/**
+ * Asks each session that can message but holds no job the status question covers, and whose word
+ * on its capacity is missing, stale or used up while jobs it could claim are queued, how many jobs
+ * it can take now (`capacityDue`), on the status question's cadence. Without it a session whose
+ * answer was used up by claims that since ended was never invited again (the stall of
+ * 2026-10-12). Its answer, `githerd_expect` with capacity and no job, re-opens invitations
+ * (`inviteRoom`). The last question is kept in `state.capacityAsks[session]`.
+ * @param {any} state the daemon state, changed in place
+ * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
+ *   transport: import("./peers.mjs").Transport, minutes: number, cli: string, config?: any,
+ *   due: Map<string, any[]>}} opts the clock, whether the `workers` write group acts, the sessions
+ *   githerd may message, the transport, the cadence, the githerd command line, the config and the
+ *   sessions the status question asks this pass
+ * @param {({kind: string} & Record<string, unknown>)[]} lines the ledger lines, appended to
+ */
+async function askCapacity(state, { now, acting, sessions, transport, minutes, cli, config, due }, lines) {
+    if (!Object.values(state.jobs ?? {}).some((j) => j.state === "queued")) return;
+    const live = sessions();
+    state.capacityAsks ??= {};
+    for (const id of Object.keys(state.capacityAsks)) {
+        if (!live.some((s) => s.sessionId === id)) delete state.capacityAsks[id];
+    }
+    for (const s of live) {
+        if (due.has(s.sessionId) || !capacityDue(state, s, { now, minutes, config })) continue;
+        state.capacityAsks[s.sessionId] = now.toISOString();
+        if (!acting) {
+            lines.push({ kind: "would-do", group: "workers", op: `ask ${s.name} for its capacity` });
+            continue;
+        }
+        const text =
+            "githerd: jobs are queued, and githerd has no current word on how many this session can take. " +
+            "Answer by calling githerd_expect with no job, capacity set to how many more jobs this session can " +
+            `take now and reason one line (without githerd's tools: \`${cli} capacity <n> "<reason>"\` from your ` +
+            `shell). ${NOT_COUNTED}. githerd asks again in ${minutes} minutes while jobs stay queued.`;
+        lines.push({ kind: "capacity-asked", session: s.name, ...(await tellSessions([s], text, transport)) });
+    }
 }
 
 /**

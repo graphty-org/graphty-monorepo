@@ -247,6 +247,7 @@ export const RULES = Object.freeze([
     "Push only through githerd_push. Wait for checks, a lane, a release, another job or a background task only through githerd_wait, then end your turn; githerd rings you when it changes.",
     "Do the job's work in a background subagent or workflow, and keep the main conversation free to answer githerd's messages. A session that claimed this job itself is asked for its status every few minutes: answer with githerd_expect, or the job goes back to the queue when the next question is due.",
     "Before a step that runs longer than 20 minutes with no output, call githerd_expect with minutes set to its length.",
+    'Wait on a background task by its PID (while kill -0 $PID) or its own exit notice, and on a push by its line in tmp/push-log.jsonl; never with pgrep -f "<text>", which matches the waiting loop itself. Stop your own background shells before you hand back.',
     "Read issue and pull request comments and reviews through githerd_read; gh refuses them.",
     "Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun. A re-run, or a close and reopen, tests the pull request merged with master as it was.",
     UPDATE_RULE,

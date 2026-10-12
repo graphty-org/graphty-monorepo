@@ -636,6 +636,10 @@ describe("mine and disown from inside a Claude session", () => {
         });
         expect(job.status.text).toBe("tests running");
         expect(d.state.capacity.s14).toMatchObject({ n: 2 });
+        // The capacity question's answer names no job.
+        expect(await cli(["capacity", "3", "free", "now"], agent)).toMatchObject({ code: 0 });
+        expect(d.state.capacity.s14).toMatchObject({ n: 3 });
+        expect(await cli(["capacity", "free"], agent)).toMatchObject({ code: 2 });
 
         await cli(
             ["done", "issue-741", "--outcome", "done", "--pr", "742", "--commits", "abc1234,def5678", "fixed", "it"],

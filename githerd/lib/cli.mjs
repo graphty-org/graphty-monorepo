@@ -85,6 +85,8 @@ const USAGE = `usage: githerd <command>
         --plan "<plan>" "<overlap reason>" githerd_claim: take a job, judged against next's snapshot
   status-answer <job> [--capacity <n>] "<status>"
                                            githerd_expect: answer githerd's status question on a job
+  capacity <n> "<reason>"                  githerd_expect with no job: answer githerd's capacity
+                                           question while this session holds no job
   done <job> --outcome done|split|not-needed|deferred|failed [--pr <n>] [--commits <sha,...>]
        [--reason "<why>"] [--evidence "<proof>"] [--theory "<why it broke>"] [--pushed-head <sha>]
        [--children <n,...>] [--siblings '<json>'] [--defect "<summary>" | --defect '{"summary":"..","issue":12}' ...]
@@ -606,6 +608,11 @@ function toolCall(c) {
     const num = (/** @type {string} */ k) => (f(k) === undefined ? undefined : Number(f(k)));
     if (c.name === "next") return { tool: "githerd_next", args: {} };
     if (c.name === "done") return job ? { tool: "githerd_done", args: doneArgs(c, job, text) } : null;
+    if (c.name === "capacity") {
+        return /^\d+$/.test(job ?? "") && text
+            ? { tool: "githerd_expect", args: { capacity: Number(job), reason: text } }
+            : null;
+    }
     if (!job || !text) return null;
     if (c.name === "claim") {
         const overlap = { decision: f("overlap"), with: f("with"), reason: text };
@@ -684,7 +691,7 @@ function doneArgs(c, job, text) {
 }
 
 /**
- * `next`, `claim`, `status-answer` and `done`: the session tools a worker needs, called for the
+ * `next`, `claim`, `status-answer`, `capacity` and `done`: the session tools a worker needs, called for the
  * Claude session this command runs under, as `mine <pr>` finds it, through the daemon's own tool
  * handlers, so a session whose githerd tools fail can still take and finish jobs.
  * @param {Command} c the command
@@ -1198,6 +1205,7 @@ const HANDLERS = {
     next: cmdSessionTool,
     claim: cmdSessionTool,
     "status-answer": cmdSessionTool,
+    capacity: cmdSessionTool,
     done: cmdSessionTool,
     answer: cmdRecord,
     order: cmdRecord,

@@ -533,7 +533,7 @@ describe("inviting idle sessions to pull work", () => {
     });
 
     /**
-     * s2 (registry status `shell`, running a watcher) answered capacity 0 at NOW while holding
+     * s2 (registry status `busy`) answered capacity 0 at NOW while holding
      * issue-1, and issue-5 is queued.
      * @param {any} [said] its capacity answer
      * @returns {any} the state
@@ -546,38 +546,66 @@ describe("inviting idle sessions to pull work", () => {
         state.capacity = { s2: said ?? { n: 0, at: later(1).toISOString(), held: ["issue-1"] } };
         return state;
     }
-    const shell = () => SESSIONS.map((s) => ({ ...s, status: s.sessionId === "s2" ? "shell" : "busy" }));
+    const s2Busy = busy;
+    const as = (/** @type {string | null} */ status) => () =>
+        SESSIONS.map((s) => ({ ...s, status: s.sessionId === "s2" ? status : "busy" }));
 
-    it("does not invite a session running a shell command as idle", async () => {
+    it("invites a session at its prompt with a background shell running (`shell`) as it does an idle one", async () => {
         const state = queued("issue-5");
         const f = fake();
-        expect(await inviteStep(state, { ...f.opts({ sessions: shell }), offered })).toEqual([]);
-        expect(f.sent).toEqual([]);
+        // s2 answered capacity 0 earlier and claimed nothing since; at its prompt it still has room.
+        state.capacity = { s2: { n: 0, at: NOW.toISOString(), held: [] } };
+        await inviteStep(state, { ...f.opts({ sessions: as("shell") }), offered });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock"]);
+    });
+
+    it("does not invite a session in a dialog (`waiting`) or with no registry status on that alone", async () => {
+        for (const status of ["waiting", null]) {
+            const state = queued("issue-5");
+            const f = fake();
+            expect(await inviteStep(state, { ...f.opts({ sessions: as(status) }), offered })).toEqual([]);
+        }
+    });
+
+    it("invites again when a used-up capacity answer is answered afresh with room", async () => {
+        const state = queued("issue-5", "issue-1");
+        const f = fake();
+        // s2 answered room for one and claimed issue-1, which ended: the answer is used up.
+        state.capacity = { s2: { n: 1, at: NOW.toISOString(), held: [] } };
+        await inviteStep(state, { ...f.opts({ sessions: s2Busy }), offered, now: later(1) });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock"]);
+        state.jobs["issue-1"].claim = { session: "s2", at: later(2).toISOString() };
+        Object.assign(state.jobs["issue-1"], { state: "done", stateSince: later(3).toISOString() });
+        expect(await inviteStep(state, { ...f.opts({ sessions: s2Busy }), offered, now: later(4) })).toEqual([]);
+        // The same room answered again is fresh room, since none was left.
+        state.capacity.s2 = { n: 1, at: later(5).toISOString(), held: [] };
+        await inviteStep(state, { ...f.opts({ sessions: s2Busy }), offered, now: later(6) });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock", "/s2.sock"]);
     });
 
     it("asks a session again once the jobs its capacity answer counted have ended, and only once", async () => {
         const state = heldAtAnswer();
         const f = fake();
         // While it still holds issue-1, its answer of 0 holds.
-        expect(await inviteStep(state, { ...f.opts({ sessions: shell }), offered, now: later(2) })).toEqual([]);
+        expect(await inviteStep(state, { ...f.opts({ sessions: s2Busy }), offered, now: later(2) })).toEqual([]);
         // issue-1 ends: the answer is stale, so s2 hears the queued job once.
         move(state.jobs["issue-1"], "verifying", later(3));
         move(state.jobs["issue-1"], "done", later(3));
-        await inviteStep(state, { ...f.opts({ sessions: shell }), offered, now: later(4) });
+        await inviteStep(state, { ...f.opts({ sessions: s2Busy }), offered, now: later(4) });
         expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock"]);
-        expect(await inviteStep(state, { ...f.opts({ sessions: shell }), offered, now: later(5) })).toEqual([]);
+        expect(await inviteStep(state, { ...f.opts({ sessions: s2Busy }), offered, now: later(5) })).toEqual([]);
         // A new answer governs: 0 again stays quiet.
         state.capacity.s2 = { n: 0, at: later(6).toISOString(), held: [] };
-        expect(await inviteStep(state, { ...f.opts({ sessions: shell }), offered, now: later(7) })).toEqual([]);
+        expect(await inviteStep(state, { ...f.opts({ sessions: s2Busy }), offered, now: later(7) })).toEqual([]);
         expect(f.sent).toHaveLength(1);
     });
 
     it("reads an answer without its held jobs as counting the jobs the session had claimed by then", async () => {
         const state = heldAtAnswer({ n: 0, at: later(1).toISOString() });
         const f = fake();
-        expect(await inviteStep(state, { ...f.opts({ sessions: shell }), offered, now: later(2) })).toEqual([]);
+        expect(await inviteStep(state, { ...f.opts({ sessions: s2Busy }), offered, now: later(2) })).toEqual([]);
         move(state.jobs["issue-1"], "queued", later(3), { reason: "released" });
-        await inviteStep(state, { ...f.opts({ sessions: shell }), offered: offered.slice(0, 1), now: later(4) });
+        await inviteStep(state, { ...f.opts({ sessions: s2Busy }), offered: offered.slice(0, 1), now: later(4) });
         expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock"]);
     });
 
@@ -818,9 +846,14 @@ describe("asking an owner session for the status of the job it holds", () => {
         await statusStep(silent, opts(f, { now: at("12:15") }));
         const lines = await statusStep(silent, opts(f, { now: at("12:30") }));
         const reason = "no answer to the status question of 2026-10-05T12:15:00.000Z";
-        expect(lines).toEqual([{ kind: "claim-released", job: "issue-186", session: "s1", reason }]);
+        // The released job is queued, so the sessions holding no job are asked their capacity.
+        expect(lines).toEqual([
+            { kind: "claim-released", job: "issue-186", session: "s1", reason },
+            expect.objectContaining({ kind: "capacity-asked", session: "graphty-13" }),
+            expect.objectContaining({ kind: "capacity-asked", session: "graphty-14" }),
+        ]);
         expect(silent.jobs["issue-186"]).toMatchObject({ state: "queued", holder: null, reason, statusAsk: null });
-        expect(f.sent).toHaveLength(3);
+        expect(f.sent).toHaveLength(5);
     });
 
     it("releases nothing on elapsed time alone: never asked, a question nobody heard, or a status from before", async () => {
@@ -894,14 +927,68 @@ describe("asking an owner session for the status of the job it holds", () => {
 
         state.jobs["pr-5"].status = { at: "2026-10-05T12:20:00.000Z", text: "rebasing" };
         const next = await statusStep(state, opts(f, { now: at("12:30") }));
+        // s2 holds no job while issue-186 is queued again: it is asked its capacity.
         expect(next).toEqual([
             expect.objectContaining({ kind: "claim-released", job: "issue-186" }),
+            expect.objectContaining({ kind: "capacity-asked", session: "graphty-14" }),
             expect.objectContaining({ kind: "status-asked", jobs: ["pr-5"] }),
         ]);
         expect(state.jobs["issue-186"].state).toBe("queued");
         expect(state.jobs["pr-5"].state).toBe("working");
-        expect(f.sent).toHaveLength(2);
-        expect(f.sent[1][1]).not.toContain("issue-186");
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s1.sock", "/s2.sock", "/s1.sock"]);
+        expect(f.sent[2][1]).not.toContain("issue-186");
+    });
+
+    it("asks a session holding no asked job, with a used-up capacity answer, its capacity once per interval", async () => {
+        const f = fake();
+        const shellS2 = () => [SESSIONS[0], { ...SESSIONS[1], status: "shell" }];
+        const state = claimed();
+        state.jobs["issue-9"] = newJob({ kind: "issue", target: "#9", id: "issue-9" }, NOW);
+        // s2 answered room for one and claimed a job that has since ended: nothing left.
+        state.capacity = { s2: { n: 1, at: "2026-10-05T11:00:00.000Z", held: [] } };
+        state.jobs["issue-8"] = Object.assign(newJob({ kind: "issue", target: "#8", id: "issue-8" }, NOW), {
+            state: "done",
+            claim: { session: "s2", at: "2026-10-05T11:10:00.000Z" },
+        });
+        const o = (/** @type {string} */ hm) => opts(f, { now: at(hm), sessions: shellS2 });
+        const lines = await statusStep(state, o("12:10"));
+        // s1 works issue-186, so only s2 is asked, and only for its capacity.
+        expect(lines).toEqual([{ kind: "capacity-asked", session: "graphty-14", sent: ["graphty-14"], failed: [] }]);
+        expect(f.sent[0][0]).toBe("/s2.sock");
+        expect(f.sent[0][1]).toContain("calling githerd_expect with no job, capacity set to how many more jobs");
+        expect(f.sent[0][1]).toContain('`githerd capacity <n> "<reason>"`');
+        expect(state.capacityAsks).toEqual({ s2: at("12:10").toISOString() });
+        // Not again within the status question's interval.
+        expect(await statusStep(state, o("12:14"))).toEqual([]);
+        expect(await statusStep(state, o("12:25"))).toContainEqual(
+            expect.objectContaining({ kind: "capacity-asked", session: "graphty-14" }),
+        );
+        // A fresh answer with room ends the questions; so does the queue emptying.
+        state.capacity.s2 = { n: 1, at: at("12:26").toISOString(), held: [] };
+        state.jobs["issue-186"].status = { at: at("12:30").toISOString(), text: "tests running" };
+        expect(await statusStep(state, o("12:45"))).not.toContainEqual(
+            expect.objectContaining({ kind: "capacity-asked" }),
+        );
+        state.capacity.s2.n = 0;
+        state.jobs["issue-9"].state = "done";
+        state.jobs["issue-186"].status = { at: at("12:50").toISOString(), text: "tests running" };
+        expect(await statusStep(state, o("13:30"))).not.toContainEqual(
+            expect.objectContaining({ kind: "capacity-asked" }),
+        );
+    });
+
+    it("does not ask a paused session its capacity, nor any while a shared resource is saturated", async () => {
+        const f = fake();
+        const state = { jobs: { "issue-9": newJob({ kind: "issue", target: "#9", id: "issue-9" }, NOW) } };
+        const paused = { ...state, offersPaused: { "graphty-13": {}, "graphty-14": {} } };
+        expect(await statusStep(paused, opts(f, { now: at("12:15") }))).toEqual([]);
+        const saturated = { ...state, pressure: ["2 pushes waiting in the push queue"] };
+        expect(await statusStep(saturated, opts(f, { now: at("12:15") }))).toEqual([]);
+        expect(await statusStep(state, opts(f, { now: at("12:15"), acting: false }))).toEqual([
+            { kind: "would-do", group: "workers", op: "ask graphty-13 for its capacity" },
+            { kind: "would-do", group: "workers", op: "ask graphty-14 for its capacity" },
+        ]);
+        expect(f.sent).toEqual([]);
     });
 
     it("leaves a worker's job, a verifying job and a kept job alone", async () => {

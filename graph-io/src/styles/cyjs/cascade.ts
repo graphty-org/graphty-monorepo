@@ -166,6 +166,55 @@ function classSet(v: unknown): Set<unknown> {
 }
 
 /**
+ * Each node's compound parent, as Cytoscape.js keeps it: a parent naming no node, an edge, or a descendant of the
+ * node itself (which would make a cycle) is dropped. Near-linear in the nodes, however deep the hierarchy.
+ * @param nodes - the core's nodes, in order; a dropped parent is recorded in their overrides
+ * @param ids - the index of each node id (edge ids map to -1)
+ * @returns each node's parent index (-1 for none) and each node's children
+ */
+function parentsOf(
+    nodes: readonly CyjsElement[],
+    ids: ReadonlyMap<string, number>,
+): { parent: Int32Array; children: number[][] } {
+    const parent = new Int32Array(nodes.length).fill(-1);
+    const children: number[][] = nodes.map(() => []);
+    // root[x] leads to the root of x's parent chain; paths are halved as they are walked
+    const root = Int32Array.from(nodes, (_n, i) => i);
+    const rootOf = (x: number): number => {
+        while (root[x] !== x) {
+            root[x] = root[root[x]];
+            x = root[x];
+        }
+        return x;
+    };
+    for (let i = 0; i < nodes.length; i++) {
+        const raw = nodes[i].data.parent;
+        if (raw === undefined || raw === null) {
+            continue;
+        }
+        const text = typeof raw === "number" && !Number.isNaN(raw) ? String(raw) : raw;
+        const p = typeof text === "string" ? ids.get(text) : undefined;
+        if (p === undefined || p < 0) {
+            (nodes[i].overrides as Map<string, unknown>).set("parent", undefined);
+            continue;
+        }
+        if (typeof raw === "number") {
+            (nodes[i].overrides as Map<string, unknown>).set("parent", text);
+        }
+        // a node never becomes its own ancestor: node i has no parent yet, so it is an ancestor of p exactly when it
+        // is the root of p's chain, found in near-constant time through the union-find roots
+        if (rootOf(p) === i) {
+            (nodes[i].overrides as Map<string, unknown>).set("parent", undefined);
+            continue;
+        }
+        parent[i] = p;
+        root[i] = p;
+        children[p].push(i);
+    }
+    return { parent, children };
+}
+
+/**
  * The elements a Cytoscape.js core holds after `cy.add(elements)`.
  * @param elements - an array of element JSON, or `{ nodes, edges }`
  * @returns the elements and their links
@@ -270,41 +319,7 @@ export function cyjsGraph(elements: unknown): CyjsGraph {
     for (const id of edgeIds) {
         ids.set(id, -1);
     }
-    const parent = new Int32Array(nodes.length).fill(-1);
-    const children: number[][] = nodes.map(() => []);
-    // root[x] leads to the root of x's parent chain; paths are halved as they are walked
-    const root = Int32Array.from(nodes, (_n, i) => i);
-    const rootOf = (x: number): number => {
-        while (root[x] !== x) {
-            root[x] = root[root[x]];
-            x = root[x];
-        }
-        return x;
-    };
-    for (let i = 0; i < nodes.length; i++) {
-        const raw = nodes[i].data.parent;
-        if (raw === undefined || raw === null) {
-            continue;
-        }
-        const text = typeof raw === "number" && !Number.isNaN(raw) ? String(raw) : raw;
-        const p = typeof text === "string" ? ids.get(text) : undefined;
-        if (p === undefined || p < 0) {
-            (nodes[i].overrides as Map<string, unknown>).set("parent", undefined);
-            continue;
-        }
-        if (typeof raw === "number") {
-            (nodes[i].overrides as Map<string, unknown>).set("parent", text);
-        }
-        // a node never becomes its own ancestor: node i has no parent yet, so it is an ancestor of p exactly when it
-        // is the root of p's chain, found in near-constant time through the union-find roots
-        if (rootOf(p) === i) {
-            (nodes[i].overrides as Map<string, unknown>).set("parent", undefined);
-            continue;
-        }
-        parent[i] = p;
-        root[i] = p;
-        children[p].push(i);
-    }
+    const { parent, children } = parentsOf(nodes, ids);
     const incident: number[][] = nodes.map(() => []);
     for (let e = 0; e < edges.length; e++) {
         incident[src[e]].push(e);

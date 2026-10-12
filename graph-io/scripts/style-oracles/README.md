@@ -82,7 +82,8 @@ edge to resolve to the same value.
 **`xml.mjs`** parses GEXF and yEd GraphML files again with fast-xml-parser and reads the program's
 values by the program's rules: for Gephi, the last `viz:color` (channels clamped to 0..255) and
 `viz:size` of a node (black and 10 when absent), an edge's `viz:color` or else its source node's fill,
-and its `viz:thickness`; for yEd, a node's `y:Fill` (`#FFCC00` when absent, no fill when transparent),
+and its `viz:thickness` or else its weight (a static value of the attribute titled `weight` over the
+`weight` attribute, 1 when absent or 0 or below); for yEd, a node's `y:Fill` (`#FFCC00` when absent, no fill when transparent),
 its first visible label with text, its `y:Geometry` size, an edge's `y:LineStyle` color (black when
 absent) and first visible label. Files whose edge count graph-io reads differently (malformed or
 hierarchical files) have their edges skipped, and say so.

@@ -3,7 +3,7 @@
 // for every node and edge graph-io's value (with the program's defaults beneath) must be that value; where the file
 // has none, it must be the program's own default.
 //   GEXF (Gephi): node fill and size (viz:color, viz:size; black and 10 when absent), edge color (viz:color, else
-//     the source node's fill, as Gephi draws it) and width (viz:thickness, none when absent)
+//     the source node's fill, as Gephi draws it) and width (viz:thickness, else the edge's weight, as Gephi draws it)
 //   yEd: node fill (y:Fill, #FFCC00 when absent, none when transparent), label (the first visible label with
 //     text), width and height (y:Geometry), edge color (y:LineStyle, black when absent) and label
 // Usage: node graph-io/scripts/style-oracles/xml.mjs [file or directory ...]
@@ -212,6 +212,13 @@ function gexf(doc, g, tally, name) {
             check(tally, g, `gexf node ${p}`, at, "node", p, i, size, size ?? 10, 10, "width");
         }
     }
+    const weightIds = new Set(
+        all(doc, "attributes")
+            .filter((a) => a.attrs.class === "edge")
+            .flatMap((a) => children(a, "attribute"))
+            .filter((a) => a.attrs.title === "weight")
+            .map((a) => a.attrs.id),
+    );
     const edges = all(doc, "edge").filter((el) => el.attrs.source !== undefined);
     if (edges.length !== s.edgeCount) {
         tally.skip(name, `graph-io holds ${s.edgeCount} edges, the file ${edges.length}: edges not compared`);
@@ -225,7 +232,14 @@ function gexf(doc, g, tally, name) {
         const fromSource = fills.get(el.attrs.source) ?? "#000000";
         check(tally, g, "gexf edge color", at, "edge", "color", e, color, color ?? fromSource, fromSource);
         const thickness = number(children(el, "thickness").at(-1)?.attrs.value);
-        check(tally, g, "gexf edge width", at, "edge", "width", e, thickness, thickness, null);
+        // Gephi draws an edge as thick as its weight: a static attvalue of the attribute titled "weight" over the
+        // weight attribute, 1 when there is none. A weight of 0 or below is drawn 1 wide (style-tool-defaults.md).
+        const static_ = children(el, "attvalues")
+            .flatMap((a) => children(a, "attvalue"))
+            .filter((a) => weightIds.has(a.attrs.for) && a.attrs.start === undefined && a.attrs.end === undefined);
+        const w = number(static_.at(-1)?.attrs.value ?? el.attrs.weight);
+        const weight = w !== null && w > 0 && Number.isFinite(w) ? w : 1;
+        check(tally, g, "gexf edge width", at, "edge", "width", e, thickness, thickness ?? weight, weight);
     });
 }
 

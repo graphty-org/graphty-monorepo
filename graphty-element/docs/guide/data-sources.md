@@ -802,9 +802,10 @@ edge width and node shape each element is drawn with. Edge weights are the weigh
 runs on -- read through `edgeWeightPath` or the legacy `value` key, and folded under
 `repeatedEdges` -- and positions are written in file units (divided by `positionScale`), so a
 reload puts every node back where it was. Whatever the format has no place for -- positions in CSV,
-colours in GraphML, node attributes in an edge-list CSV -- is listed in `losses`, one per kind of
-omission, about the table or file actually written: exporting the CSV node table lists no edge or
-graph loss. A value an algorithm did not measure is left absent, never written as zero. The
+colours in GraphML (unless the export asks for `styles: true`, see
+[Styles from Files](./file-styles#exporting-with-styles)), node attributes in an edge-list CSV --
+is listed in `losses`, one per kind of omission, about the table or file actually written:
+exporting the CSV node table lists no edge or graph loss. A value an algorithm did not measure is left absent, never written as zero. The
 element's own edge ids and internal columns are not written.
 
 Each loss is a coded fact, `{ code, params: { columns, count } }`, and graphty-element writes no
@@ -812,7 +813,7 @@ words for it:
 
 - `code` is an `ExportLossCode`: one of the codes in graph-io's loss tables for the format written
   (`LOSS`, which every format shares, and `CSV_LOSS`, `GRAPHML_LOSS`, `GEXF_LOSS` and the rest,
-  each code documented there), or one of graphty-element's own: `W_GRAPHTY_COLUMN_DROPPED` (a
+  each code listed on graph-io's [codes page](https://graphty.app/docs/graph-io/guide/codes.html)), or one of graphty-element's own: `W_GRAPHTY_COLUMN_DROPPED` (a
   loaded column under the reserved `graphty.` root), `W_GRAPHTY_NOTES` (notes, which no format
   holds as notes), `W_GRAPHTY_TRUNCATED` (note text cut to 64 KB), `W_GRAPHTY_CSV_NEUTRALIZED`
   (cells a spreadsheet would run as a formula, prefixed with an apostrophe),

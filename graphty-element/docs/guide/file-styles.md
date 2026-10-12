@@ -61,7 +61,8 @@ documents carry styles. CSV and OBO files hold none.
 - `layers`: the ids of the layers the file made, bottom first;
 - `notes`: what reading the file and turning it into layers met, each `{ code, params }`. `params`
   names the `property` (`fill`, `shape`, `borderWidth`, ...), the `target` (`node`, `edge` or
-  `graph`), how many elements (`count`) and up to 8 `samples`.
+  `graph`), how many elements (`count`, each element counted once) and, for a value left out, up
+  to 8 `samples` of the file's values (empty when the note has none to show).
 
 A note never stops the load: every style that can be drawn is drawn. The codes graphty-element adds
 while it turns a file's rules into layers:
@@ -149,7 +150,9 @@ and sized by a `team` attribute gives:
 - **One layer per rule of the file**, in the file's order, named by the rule: the defaults
   (`node.tool`, the writing program's; `node.defaults`, the file's own), a mapping from a column
   (`node.by.team`), a group the file selects (`node.sheet.1` for a Cytoscape.js stylesheet rule),
-  and the exceptions on top.
+  and the exceptions on top. Values that follow no rule the load can name (a GEXF file's own
+  `viz:color` and `viz:size` on each node) are copied element by element into one layer,
+  `node.copy` (or `edge.copy`).
 - **`kind`** is `"base"` for defaults, `"encoding"` for mappings and groups, and `"custom"` for
   values copied element by element.
 - **The selector** picks the elements of this load only, so a second file loaded beside the first
@@ -276,13 +279,17 @@ the `target` (`node`, `edge` or `graph`) and the `property` it is about: a prope
 `fill` or `lineStyle`, or `graphty:<channel>` (`graphty:node.glow`) for a look only graphty
 draws.
 
-| Code                      | What is lost                                                                                                                                                                                                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `W_STYLE_NOT_WRITTEN`     | The format has no place for this property; other programs will not see it. `count` is how many elements carry a value. Where the format keeps the layers, graphty still gets it back                                                                                     |
-| `W_STYLE_APPROXIMATED`    | Written as the nearest value the format allows (a shape GEXF does not have, a color as the nearest Pajek color name)                                                                                                                                                     |
-| `W_STYLE_RULES_NOT_KEPT`  | The format keeps only each element's look, not the layers; reading the file back finds rules again from the values where it can. `count` is how many rules                                                                                                               |
-| `W_STYLE_LAYER_FLATTENED` | A layer the file cannot hold as a rule (a palette or a scale the format has no form for, a value the file does not hold such as an algorithm's result) is written as the values it paints. `params.layer` names it and `params.reason` says why (`SCALE`, `RESULT_PATH`) |
-| `E_STYLES_MISMATCH`       | The styles belong to a different graph; nothing is written                                                                                                                                                                                                               |
+| Code                      | What is lost                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `W_STYLE_NOT_WRITTEN`     | The format has no place for this property; other programs will not see it. `count` is how many elements carry a value. Where the format keeps the layers, graphty still gets it back                                                                                                                                                                                                |
+| `W_STYLE_APPROXIMATED`    | Written as the nearest value the format allows (a shape GEXF does not have, a color as the nearest Pajek color name)                                                                                                                                                                                                                                                                |
+| `W_STYLE_RULES_NOT_KEPT`  | The format keeps only each element's look, not the layers; reading the file back finds rules again from the values where it can. `count` is how many rules                                                                                                                                                                                                                          |
+| `W_STYLE_LAYER_FLATTENED` | A layer the file cannot hold as a rule (a palette or a scale the format has no form for, a value the file does not hold such as an algorithm's result, a copied layer whose values must be converted to the format's own, such as a 3D shape written as a 2D one) is written as the values it paints. `params.layer` names it and `params.reason` says why (`SCALE`, `RESULT_PATH`) |
+| `E_STYLES_MISMATCH`       | The styles belong to a different graph; nothing is written                                                                                                                                                                                                                                                                                                                          |
+
+An export also reports the losses that are not about styles (positions a format has no place for,
+a label column read back under its role, `W_ROLE_ASSUMED`); every such code is listed on
+graph-io's [codes page](https://graphty.app/docs/graph-io/guide/codes.html).
 
 An export WITHOUT `styles: true` writes the same file it always has. When the graph has layers of
 its own above the base layers, it adds one loss, `W_STYLES_NOT_EXPORTED`, whose `count` is how many

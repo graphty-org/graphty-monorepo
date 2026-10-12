@@ -6,15 +6,26 @@
 
 import { readFileSync } from "node:fs";
 
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
+import { AiController } from "../../../src/ai/AiController";
+import { CommandRegistry } from "../../../src/ai/commands";
+import type { CommandContext } from "../../../src/ai/commands/types";
+import { ENGINE_OVERRIDE } from "../../../src/ai/engine/load";
 import { ProviderApiEngine } from "../../../src/ai/engine/ProviderApiEngine";
+import type { AiEngine, TurnEvent } from "../../../src/ai/engine/types";
+import { installAssistantTools } from "../../../src/ai/tools/install";
+import { VoiceSession } from "../../../src/ai/voice/VoiceSession";
+import type { AiEvent } from "../../../src/events";
+import { assistantSession, SMALL_GRAPH } from "../../helpers/assistant";
+import { FakeRecorder, installFakeSpeech } from "../../helpers/fake-speech";
 import {
     getLlmRegressionApiKey,
     getLlmRegressionModel,
     getLlmRegressionProvider,
     skipIfNoApiKey,
 } from "../../helpers/llm-regression-env";
+import { redNodes } from "./red";
 
 const FIXTURE = new URL("fixtures/voice/make-all-the-nodes-red.json", import.meta.url);
 const { clip, expectedWords } = JSON.parse(readFileSync(FIXTURE, "utf8")) as {
@@ -26,6 +37,18 @@ const { clip, expectedWords } = JSON.parse(readFileSync(FIXTURE, "utf8")) as {
 function counted(): void {
     const counter = globalThis as { __LLM_REGRESSION_API_CALLS__?: number };
     counter.__LLM_REGRESSION_API_CALLS__ = (counter.__LLM_REGRESSION_API_CALLS__ ?? 0) + 1;
+}
+
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
+
+/**
+ * The committed clip, as a recorder hands it over.
+ * @returns The clip.
+ */
+function committedClip(): Blob {
+    return new Blob([readFileSync(new URL(`fixtures/voice/${clip}`, import.meta.url))], { type: "audio/wav" });
 }
 
 /**
@@ -46,9 +69,7 @@ describe.skipIf(skipIfNoApiKey())("voice through the provider", () => {
     it.skipIf(!("transcribe" in voice))(
         "transcribes the committed clip into text holding every expected word",
         async () => {
-            const audio = new Blob([readFileSync(new URL(`fixtures/voice/${clip}`, import.meta.url))], {
-                type: "audio/wav",
-            });
+            const audio = committedClip();
             counted();
             const heard = await voice.transcribe?.(audio, { language: "en-US" }, new AbortController().signal);
             assert.strictEqual(heard?.code, "AI_COMPLETED", JSON.stringify(heard));
@@ -83,4 +104,97 @@ describe.skipIf(skipIfNoApiKey())("voice through the provider", () => {
             assert.isAbove(bytes.length, 0);
         }
     });
+});
+
+describe.skipIf(skipIfNoApiKey())("a spoken command on a real model", () => {
+    it.skipIf(!("transcribe" in engine()))(
+        "the committed clip, recorded while talk is held, colors every node of the small graph red",
+        async () => {
+            // The page: a microphone whose recorder hands over the committed clip, no recognizer.
+            installFakeSpeech({ recognition: "absent", language: "en-US" });
+            const recording: FakeRecorder[] = [];
+            vi.stubGlobal(
+                "MediaRecorder",
+                class extends FakeRecorder {
+                    override mimeType = "audio/wav";
+                    override start(): void {
+                        super.start();
+                        recording.push(this);
+                    }
+
+                    override stop(): void {
+                        this.state = "inactive";
+                        queueMicrotask(() => {
+                            this.ondataavailable?.({ data: committedClip() });
+                            this.onstop?.();
+                        });
+                    }
+                },
+            );
+
+            const session = await assistantSession();
+            const real = engine();
+            // Counts each request, as the harness does.
+            const counting: AiEngine = Object.assign(Object.create(real) as AiEngine, {
+                turn: (request: Parameters<AiEngine["turn"]>[0], signal: AbortSignal): AsyncIterable<TurnEvent> => {
+                    counted();
+                    return real.turn(request, signal);
+                },
+                transcribe: (...args: Parameters<NonNullable<AiEngine["transcribe"]>>) => {
+                    counted();
+                    return real.transcribe!(...args);
+                },
+            });
+            const registry = new CommandRegistry();
+            installAssistantTools(registry, session);
+            let finished: (event: AiEvent) => void = () => undefined;
+            const done = new Promise<AiEvent>((resolve) => {
+                finished = resolve;
+            });
+            const controller = new AiController({
+                provider: { name: getLlmRegressionProvider() } as never,
+                commandRegistry: registry,
+                graph: { getSession: () => session } as unknown as CommandContext["graph"],
+                model: getLlmRegressionModel(),
+                history: "memory",
+                emitEvent: (event: AiEvent) => {
+                    if (event.type === "ai-command-complete" || event.type === "ai-command-error") {
+                        finished(event);
+                    }
+                },
+                [ENGINE_OVERRIDE]: counting,
+            } as never);
+            const voiceEnds: Record<string, unknown>[] = [];
+            const voice = new VoiceSession({
+                options: { input: "provider", language: "en-US" },
+                controller,
+                emit: (type, detail) => {
+                    if (type === "ai-voice-end") {
+                        voiceEnds.push(detail);
+                    }
+                },
+                transcriber: () => ({ readiness: "ready", engine: counting }),
+                speaker: () => ({ readiness: "unsupported" }),
+                immersive: () => false,
+            });
+
+            voice.talk(true);
+            await vi.waitFor(() => {
+                assert.lengthOf(recording, 1, "the microphone is recording");
+            });
+            voice.talk(false);
+            const outcome = await done;
+
+            assert.strictEqual(outcome.type, "ai-command-complete", JSON.stringify(outcome));
+            assert.deepStrictEqual(voiceEnds, [{ reason: "user", code: "AI_COMPLETED", params: {} }]);
+            const reader = controller.getConversation()?.messages.find((message) => message.role === "reader");
+            assert.strictEqual(reader?.role === "reader" ? reader.via : undefined, "voice");
+            assert.sameMembers(
+                redNodes(session, SMALL_GRAPH.nodes as { id: string }[]),
+                SMALL_GRAPH.nodes.map((node) => node.id as string),
+                "every node is red",
+            );
+            controller.dispose();
+        },
+    );
 });

@@ -181,11 +181,14 @@ describe("AI chunks load lazily", () => {
         }
     });
 
-    it("keeps the voice module and the transcription and speech adapters out of every chunk an entry loads up front", () => {
+    it("keeps push-to-talk, the voice module and the transcription and speech adapters out of every chunk an entry loads up front", () => {
         const { chunks } = JSON.parse(readFileSync(META, "utf8")) as { chunks: Chunk[] };
         const byFile = new Map(chunks.map((c) => [c.fileName, c]));
         const voiceModules = [
             /^src\/ai\/engine\/tanstack\/voice\.ts$/,
+            // Push-to-talk in the page: reached only by import() when `voice` is set.
+            /^src\/ai\/voice\/VoiceSession\.ts$/,
+            /^src\/ai\/voice\/SpeechInput\.ts$/,
             /@tanstack\/ai-openai\/dist\/esm\/adapters\/(?:transcription|tts)\.js$/,
             /@tanstack\/ai-gemini\/dist\/esm\/adapters\/tts\.js$/,
             /@tanstack\/ai\/dist\/esm\/activities\/(?:generateTranscription|generateSpeech)\/index\.js$/,

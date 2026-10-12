@@ -134,6 +134,25 @@ export async function click(element: Element, point: Point, modifiers?: Modifier
 }
 
 /**
+ * Move to a point and press the left button there, holding it (`release` lets go).
+ * @param element - The element the point is on.
+ * @param point - Where.
+ */
+export async function press(element: Element, point: Point): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 0);
+    await mouseEvent("mousePressed", element, point, 1);
+}
+
+/**
+ * Release the left button at a point.
+ * @param element - The element the point is on.
+ * @param point - Where.
+ */
+export async function release(element: Element, point: Point): Promise<void> {
+    await mouseEvent("mouseReleased", element, point, 0);
+}
+
+/**
  * Press the left button at one point, move to another in steps, and release there.
  * @param element - The element the points are on.
  * @param from - Where the press is.

@@ -9,6 +9,7 @@ import debounce from "lodash/debounce.js";
 import {
     AI_PROVIDER_IDS,
     type AiCapabilities,
+    aiProviderDescriptor,
     type AiProviderId,
     type AiResultCode,
     type AiResultParams,
@@ -33,6 +34,8 @@ import { CommandRegistry } from "./commands";
 import { offeredName } from "./commands/CommandRegistry";
 import { defaultConversationKey } from "./conversation/scope";
 import type { AiConversationSnapshot, AiConversationSummary } from "./conversation/snapshot";
+import { engineFor } from "./engine/load";
+import type { AiEngine } from "./engine/types";
 import { ApiKeyManager } from "./keys";
 import { createProvider, type ProviderType } from "./providers";
 import type { LlmProvider } from "./providers/types";
@@ -40,6 +43,7 @@ import { checkAgents } from "./roles";
 import { SchemaManager } from "./schema";
 import { installAssistantTools } from "./tools/install";
 import type { AssistantGateLimits } from "./tools/types";
+import type { ProviderSpeech, VoiceSession } from "./voice/VoiceSession";
 
 /** Default debounce delay for schema updates in milliseconds */
 const SCHEMA_UPDATE_DEBOUNCE_MS = 300;
@@ -294,6 +298,12 @@ export class AiManager {
     private debouncedSchemaUpdate: ReturnType<typeof debounce> | null = null;
     private disposed = false;
     private initialized = false;
+    /** The assistant's `voice`, absent for none. */
+    private voiceOptions: AiVoiceOptions | undefined;
+    /** Push-to-talk, loaded on the first press or support read: `src/ai/voice/` is its own chunk. */
+    private voiceSession: Promise<VoiceSession> | undefined;
+    /** `apiKeys`, for a transcription provider other than the chat's. */
+    private voiceKeys: AiManagerConfig["apiKeys"];
 
     /**
      * Creates a new AiManager instance.
@@ -394,7 +404,72 @@ export class AiManager {
             },
         });
 
+        this.voiceOptions = config.voice;
+        this.voiceKeys = config.apiKeys;
         this.initialized = true;
+    }
+
+    /**
+     * Push-to-talk, loaded on first use.
+     * @param voice - The assistant's `voice`.
+     * @returns The session.
+     */
+    private voice(voice: AiVoiceOptions): Promise<VoiceSession> {
+        const { graph, controller } = this;
+        if (this.voiceSession === undefined && graph !== null && controller !== null) {
+            this.voiceSession = import("./voice/VoiceSession").then(
+                ({ VoiceSession }) =>
+                    new VoiceSession({
+                        options: voice,
+                        controller,
+                        emit: (type, detail) => {
+                            graph.eventManager.emit(type, detail);
+                        },
+                        transcriber: () => this.transcriber(voice),
+                        speaker: () => {
+                            const engine = this.provider === null ? undefined : engineFor(this.provider);
+                            return engine?.speak === undefined
+                                ? { readiness: "unsupported" }
+                                : { readiness: "ready", engine };
+                        },
+                        immersive: () => (graph.getXRSessionManager()?.getActiveMode() ?? null) !== null,
+                    }),
+            );
+        }
+
+        return this.voiceSession ?? Promise.reject(new Error("AI Manager not initialized"));
+    }
+
+    /**
+     * Provider transcription: the chat provider's, or `voice.transcription`'s with its key from
+     * `apiKeys` or the key manager (an Anthropic reader's speech through OpenAI).
+     * @param voice - The assistant's `voice`.
+     * @returns Whether it can transcribe, and the engine that does.
+     */
+    private transcriber(voice: AiVoiceOptions): ProviderSpeech<"transcribe"> {
+        const chat = this.provider?.name;
+        const id = voice.transcription?.provider;
+        let engine: AiEngine | undefined;
+        if (id === undefined || id === chat) {
+            engine = this.provider === null ? undefined : engineFor(this.provider);
+        } else {
+            const key = this.voiceKeys?.[id] ?? this.apiKeyManager.getKey(id);
+            if (key === undefined && aiProviderDescriptor(id).requiresKey) {
+                return { readiness: "no-key" };
+            }
+
+            if (key !== undefined) {
+                this.keysSeen.add(key);
+            }
+
+            const provider = createProvider(id);
+            provider.configure({ apiKey: key ?? "" });
+            engine = engineFor(provider);
+        }
+
+        return engine?.transcribe === undefined
+            ? { readiness: "unsupported" }
+            : { readiness: "ready", engine, model: voice.transcription?.model };
     }
 
     /**
@@ -536,27 +611,55 @@ export class AiManager {
     }
 
     /**
-     * Press or release talk. Without `voice` a press ends at once with `ai-voice-end`
-     * `{ reason: "error", code: "AI_NOT_ENABLED" }`, and a release does nothing.
+     * Press or release talk: while held the assistant listens, then sends what was heard as a
+     * command (`via: "voice"`), or answers the pending approval or question it matches, and speaks
+     * the outcome when `voice.output` is on. Without `voice` a press ends at once with
+     * `ai-voice-end` `{ reason: "error", code: "AI_NOT_ENABLED" }`, and a release does nothing.
      * @param down - True to press, false to release.
      */
     talk(down: boolean): void {
-        if (down) {
-            this.graph?.eventManager.emit("ai-voice-end", { reason: "error", code: "AI_NOT_ENABLED", params: {} });
+        const voice = this.voiceOptions;
+        if (voice === undefined || !this.initialized) {
+            if (down) {
+                this.graph?.eventManager.emit("ai-voice-end", { reason: "error", code: "AI_NOT_ENABLED", params: {} });
+            }
+
+            return;
         }
+
+        // In order: a release right after a press reaches the session after the press.
+        const { graph } = this;
+        this.voice(voice).then(
+            (session) => {
+                session.talk(down);
+            },
+            () => {
+                // The voice chunk would not load: the press ends, as a typed message would fail.
+                if (down) {
+                    graph?.eventManager.emit("ai-voice-end", { reason: "error", code: "AI_FAILED", params: {} });
+                }
+            },
+        );
     }
 
-    /** Stop speaking an answer; nothing is spoken without `voice`. */
+    /** Stop speaking an answer (`ai-speech-end` `{ code: "AI_CANCELLED" }`); nothing speaks without `voice`. */
     stopSpeech(): void {
-        // Nothing speaks without `voice`.
+        void this.voiceSession?.then((session) => {
+            session.stopSpeech();
+        });
     }
 
     /**
      * How speech would be carried in each direction.
      * @returns Both directions; unavailable with `AI_NOT_ENABLED` without `voice`.
      */
-    getVoiceSupport(): Promise<AiVoiceSupport> {
-        return Promise.resolve(NO_VOICE_SUPPORT);
+    async getVoiceSupport(): Promise<AiVoiceSupport> {
+        const voice = this.voiceOptions;
+        if (voice === undefined || !this.initialized) {
+            return NO_VOICE_SUPPORT;
+        }
+
+        return (await this.voice(voice)).support();
     }
 
     /**
@@ -789,6 +892,12 @@ export class AiManager {
 
         this.disposed = true;
         this.initialized = false;
+        // The microphone closes and speech stops.
+        void this.voiceSession?.then((session) => {
+            session.dispose();
+        });
+        this.voiceSession = undefined;
+        this.voiceOptions = undefined;
 
         // Cancel any pending debounced updates
         if (this.debouncedSchemaUpdate) {

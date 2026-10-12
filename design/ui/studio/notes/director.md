@@ -5,10 +5,17 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-12 (tier 3 design: the twelve unified-style decisions and the build plan).
+Last updated: 2026-10-12 (tier 3 design revised for the owner's first review: Clear, no split rows, Figma pass).
 
 ## Top of mind
 
+- 2026-10-12: OWNER REVIEW 1 ANSWERED in `tier3/design.md` (decisions 1.1, 1.7, new 1.13; change
+  log at the end). Two row kinds only. If anyone rebuilds a split row, a child row, "Follow parent"
+  or a split command, stop it: per-group colors are value-table entries, anything else is "New layer
+  for <value>". The built split API is unreleased and is replaced by `element-value-entries`.
+- 2026-10-12: Before naming an element addition, read the API report: `styles.agreement` already
+  returns `layerId` / a breakdown (one proposal asked for a new `from` field), and
+  `session.transaction` already makes several writes one undo step.
 - 2026-10-12: TIER 3 IS A BUILD, NOT A STUDY, until the owner approves the UI. Design and plan:
   `tier3/design.md` (24 units: 8 element, 2 compact-mantine, 10 app, 4 values/tests/stories/docs).
   Owner checkpoints after the tree + Style tab, after pickers/popovers/labels/effects, after layer 4.
@@ -178,6 +185,20 @@ Last updated: 2026-10-12 (tier 3 design: the twelve unified-style decisions and 
 - 2026-10-12 -- Everything starts writing nothing (floor shows through its placeholders); Hovered
   starts writing nothing; Selected starts with today's halo and band as effects. Reason: neutral
   defaults; the model left these to the build.
+- 2026-10-12 -- Owner review 1 (`tier3/owner-feedback-1.md`). (1) Unsetting: three field states
+  (not set / set / set to nothing), one command Clear on a minus drawn at rest only on set fields,
+  empty-and-Enter or Delete as shortcuts, tooltip from `agreement` below, focus to the field after,
+  one undo. Rejected a "Not set" select option (sits beside "None", opposite meaning), a per-field
+  eye and Clear all. Labels: per-field minus back to the look, no Reset. (2) Split: took the IA
+  proposal over the Figma designer's "layer with children" and interaction's "folder of empty
+  layers". Reason: the owner's test is every row a layer or a folder; "layer with children" keeps
+  the sibling-only and refused-drop rules under another name, and generated layers flood the tree
+  and copy rules that drift. The value table gives palette reach already, and the built split
+  stored overrides there anyway, so the element work mostly survives. (3) Figma pass as decision
+  1.13; Selection colors names the layers each color comes from (the crosswalk's existing rule),
+  edits in place in those layers; eye per list entry where Figma has it, meaning "draws nothing
+  here" (a value that covers), flagged for the owner review because Figma's hidden fill reveals
+  what is beneath. Clicking an empty list title adds (Figma), over interaction's "second door".
 - 2026-10-12 -- Held as second doors until a study shows need: "Vary color by this" from a table
   column, "Show by" in the Values tab, saved label looks, a per-property pause eye.
 
@@ -253,6 +274,13 @@ Last updated: 2026-10-12 (tier 3 design: the twelve unified-style decisions and 
   (`proposeEncoding`). Ask "does the element already answer this?" before naming a new call, and
   give each question one call.
 
+- **2026-10-12, owner review 1:** the owner judged by interaction consistency, not by model
+  fidelity. The split parent satisfied the model and failed that test; three of my reasons for it
+  were really about storage. Ask of every new row or control: does a reader learn a rule that
+  applies nowhere else? If yes, find the existing mechanism first.
+- **Watch at the owner review:** whether an entry's eye that blocks the beneath reads as Figma's
+  eye that reveals it; whether empty fields with gray placeholders read as "not set" at a glance.
+
 ## Sources
 
 - Tier 2 round 3 (2026-10-10): `tier2/rounds/round-3/{plan,scores,insights,decisions}.md`;
@@ -277,6 +305,7 @@ Last updated: 2026-10-12 (tier 3 design: the twelve unified-style decisions and 
   `expert/`, `claims/`, sessions `r5-s01b`..`r5-s56b`; build 8c015b806. PR #1727 (breaking table). Run scripts: `tier2/rounds/workflow-tier2.js` (main, excluded from
   git) and the main checkout's `tmp/studio-resume/workflow-tier2-continue.js` (the stale fork).
 - Tier 3 (2026-10-12): `tier3/design.md` (decisions, panel, coverage table, element additions,
-  owner items, units); proposals `tier3/decide/{ia,interaction,figma,visual,content,a11y,user,engineer}.md`;
+  owner items, units, change log); owner review 1 `tier3/owner-feedback-1.md` and proposals
+  `tier3/decide/feedback-1-{figma,interaction,ia}.md`; proposals `tier3/decide/{ia,interaction,figma,visual,content,a11y,user,engineer}.md`;
   `tier3/style-catalog.md`; model `design/ui/unified-style-layers.md`; mock and organization design
   on branch `mock/style-panel` (pull request #2098).

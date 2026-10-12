@@ -41,10 +41,8 @@ most one value per layer never has a "+".
 
 - **Seven core properties are always drawn, on four rows**, paired the way Figma pairs width
   and height: Nodes `Shape | Size` and `Color`; Edges `Color | Width` and `Head | Tail`. An
-  empty field means "this layer does not set it". Its placeholder is the value the layers
-  beneath give these elements, read from graphty-element; when they differ, the placeholder is
-  "Mixed". Typing or picking writes the value; a minus, shown only once the field is set, clears
-  it.
+  empty field means "this layer does not set it", and the layers beneath decide. Typing or
+  picking writes a value; Clear takes it back (below).
 - **Rarer one-value properties live behind the settings button at the start of the row they
   modify** (opacity behind Color; wireframe and show behind Shape; pattern, curve and show behind
   the edge line; arrow size, color and opacity behind Ends). Once set, a rare property is drawn as
@@ -52,6 +50,44 @@ most one value per layer never has a "+".
 - **Yes-or-no properties are two-word selects with an empty state**: "Solid / Wireframe",
   "Shown / Hidden", "Straight / Curved". Empty means not set, exactly like every other field. One
   rule for every yes-or-no property.
+
+**Setting and clearing a field.** Layers stack, and a layer covers the layers beneath it only where
+it sets a value. So "unset" means "stop covering": the field goes back to empty and the elements
+show what the layers beneath give them. That is a different act from turning something off. "None"
+arrowheads, Show "Hidden", or a label entry with its eye off are values: they cover the layers
+beneath with nothing, and they are cleared like any other value.
+
+Every field is in one of three states, and each looks different at rest by two cues, never by color
+alone:
+
+| State          | At rest                                                                                        | Meaning                   |
+| -------------- | ---------------------------------------------------------------------------------------------- | ------------------------- |
+| Not set        | empty; the value beneath as gray placeholder text ("Mixed" when the elements differ); no minus | the layers beneath decide |
+| Set            | the value in normal text (a value pill when it varies), and a minus at the row's end           | this layer paints it      |
+| Set to nothing | "None", "Hidden", or an entry's eye off, in normal text, and a minus                           | this layer turns it off   |
+
+- **One command, Clear, on the minus.** Only set fields have a minus, and it is always drawn, not
+  only on hover, so the panel's right edge is a list of what this layer writes. It clears every
+  kind of field the same way: a number, a color, a glyph select, a two-word select, a varied value
+  (the whole binding goes) and a list entry (the entry goes). The minus is the next tab stop after
+  its field.
+- **Keyboard shortcuts for the same act.** In a text field (number, hex, typed words), empty it and
+  press Enter or Tab. On a focused, closed select, color chit or value pill, press Delete or
+  Backspace.
+- **Before clearing, the reader sees what comes back.** The minus's tooltip and accessible
+  description name the value and the layer it comes from: "Clear: back to Icosphere, from
+  Everything", or "Clear: back to mixed, from Degree and Louvain". graphty-element already answers
+  this: `styles.agreement(scope, channel, { below })` returns the value beneath and the layer that
+  paints it, or a breakdown by layer when they differ.
+- **After clearing,** the canvas and legend repaint at once, the field shows the value beneath as
+  its placeholder, focus moves to the field (its minus is gone), and one Undo, "Clear node color",
+  restores the old value. There is no confirmation.
+- **Screen readers hear the state in the field's name**: "Node color, set here, #D55E00" against
+  "Node color, not set, Degree gives #3388FF".
+- **Lists show what they inherit, like fields.** An empty Text or Effects list shows each entry a
+  layer beneath writes as one gray line ("Glow, from Selected") with an eye and no minus. Turning
+  that eye off adds an entry on this layer that draws nothing there; that entry is then set, with
+  its own minus. The "+" adds an entry of this layer's own.
 
 **Why.** A property row that must be "added" before it can be set costs a click and hides the
 property: in tier 1, 18 of 18 participants found Size behind Shape's "+" only by guessing. A switch
@@ -64,11 +100,16 @@ never exists. Every property always drawn: about 30 rows of gray placeholders. A
 property, or a checkbox: no "not set" state. A row of toggle icons per kind that marks what the
 layer writes: a second control for the state the row's minus already sets. Adding yes-or-no
 properties already switched on: a row's presence becomes the only sign it is set, unlike every other
-field.
+field. For clearing: a minus shown only on hover (a mouse reader cannot see at rest what the layer
+writes); gray text as the only cue (fails WCAG 1.4.1); a "Not set" first option in every select (a
+second way to clear in the same row, listed next to "None", which means the opposite); an eye on
+each one-value field (a second way to let the beneath show through); "Clear all" on a layer (Delete
+or Undo already does it).
 
 **Look at.** The Selected layer and the route layer, at rest, in the style panel story. Judge
-whether the placeholders read as "not set here" and whether the Selected layer's seven gray fields
-are acceptable noise for a layer that writes one effect.
+whether the placeholders read as "not set here", whether the minuses read as "what this layer
+writes", and whether the Selected layer's seven gray fields are acceptable noise for a layer that
+writes one effect. Then hover a minus and clear a field.
 
 ### 1.2 What "+" opens where it stays
 
@@ -77,7 +118,8 @@ value-table entries, and the tree's own Add layer / Add folder. Each "+" opens a
 and a noun per item; an item that cannot be added is disabled with its reason on a second line
 (Figma's effect type menu). Picking an item adds the entry and opens its value picker at once: a
 ring opens the color picker with focus in its hex field, a label opens its source picker. Nothing is
-written until a value is chosen, and Escape leaves nothing behind.
+written until a value is chosen, and Escape leaves nothing behind. Clicking the title of an empty
+Text or Effects list opens the same "+" menu, as Figma's empty Fill title does.
 
 Value selects with many look-alike options (25 node shapes, 14 arrow kinds, 9 line patterns) open a
 grid of glyphs with names, not a text list. The glyphs come from graphty-element's catalog, so the
@@ -195,28 +237,61 @@ whether a handle means domain or clamp: both hide which of two settings a gestur
 
 ### 1.7 The Louvain "folder" and folders in general
 
-**Decision.** Louvain is a layer, not a folder: a split parent. It holds the binding and the schemes
-its children inherit, so it paints. It has its own glyph (the split glyph), never the folder glyph;
-its children show their color chit. A folder paints nothing: no Which elements, no property groups;
-its panel lists its rows and the colors they paint. Each tree row's accessible name says which kind
-it is ("Louvain, layer split by group, 6 layers"; "Annotations, folder, 2 layers"). Dropping a row
-onto a split parent is refused during the drag, with the reason on the drop line.
+**Decision.** The tree has two row kinds, **layer** and **folder**, and no third. Every row the
+reader meets behaves like one or the other.
 
-Split into layers is a command on **any** layer with a categorical derived property, not only a
-run's. A run's categorical suggestion arrives unsplit (its categories edited in the binding
-popover); splitting is the reader's act.
+- **Louvain is one ordinary layer** whose color varies by community. Its communities are not tree
+  rows. They are the category rows of its color binding, listed in the binding popover (section 4)
+  and in the Values tab: each with its chit, name, count and eye.
+- **Changing one group's color is an entry in that binding's value table.** Recoloring community 3
+  edits its chit; the chit's minus clears the entry and the community goes back to the palette.
+  A palette change reaches every community without an entry, because the entries and the palette
+  live in one binding. That is the model's "split by value", kept without a row type.
+- **Anything else for one group** (a larger size, a label, a glow) is an ordinary layer: "New layer
+  for <value>" on a category row makes a layer above, rule "community is 3", selected and open on
+  its first property. It is the same door as "New layer from selection" (section 3.4), and the
+  layer behaves like every other layer.
+- **The mechanism is not about communities.** Category rows, value-table entries and "New layer for
+  <value>" work on any categorical binding: a data column (department, an edge's relationship), a
+  run's labels, k-core shells, the sides of a minimum cut. A number drawn in steps lists its steps
+  the same way in the ramp popover, and "New layer for <step>" gives a layer whose rule is that
+  step's range.
+- **Re-runs keep each entry with its group.** A community run renumbers its groups on every run.
+  graphty-element matches each old group to the new group that shares the most members, and moves
+  value-table entries, hidden values and rule conditions naming that group along with it; a group
+  it cannot match is reported on the layer as a code, which the Values tab shows. A hand layer whose
+  rule says "community is 3" gets the same matching, so this is a property of rules and bindings,
+  not of any one row type.
+- **A folder paints nothing**: no Which elements, no property groups. Its panel is its rows in
+  paint order and its Selection colors (decision 1.13). Each tree row's accessible name says which
+  kind it is ("Louvain, layer, 77 nodes"; "Annotations, folder, 2 layers").
+- **Editing several rows at once** is selecting them in the tree (Shift- or Control-click) and
+  editing them together, Figma's way: the panel shows the fields they share, "Mixed" where they
+  differ, and each write reaches every selected row in one undo step.
 
-**Why.** The model already settles it: a scheme change on the parent must reach every child the
-reader has not overridden, and a folder of copied layers cannot do that. Arriving unsplit keeps a
-500-community run to one row until the reader wants per-group control, and offering the split on any
-layer keeps runs from being favored.
+**Why.** The owner's test is consistency of interaction: every row behaves like a layer or a
+folder. A split parent and its generated children needed rules of their own (refused drops,
+children that move only among their siblings, a read-only child rule, "Follow parent", a search
+inside the tree past eight children), each learned for one row kind. The value table already gives
+the one property that justified the split, palette changes reaching untouched groups, and it does
+so in the binding the reader already edits. Nothing is generated, so a 500-community run is still
+one row. Every mechanism used here has other uses: value-table entries serve any categorical
+binding, "New layer for <value>" is "New layer from selection" with the rule filled in, and editing
+several rows serves every layer.
 
-**Rejected.** A folder of independent generated layers: the palette change no longer reaches them.
-Folders that paint their children: silently override each child's choices. Stacked color chits plus
-a "paints" mark on the parent: one glyph says it.
+**Rejected.** A split parent as its own row kind: a third kind with five
+special rules. A split layer as "an ordinary layer that has children", like a Figma frame: the
+children still move only among their siblings and refuse drops, so the special rules come back
+under another name. "Split into layers" as a command that fills a folder with empty layers, one per
+value: 500 communities flood the tree, each group's rule is copied at the moment of the split and
+drifts from the original's, and readers would meet layers that set nothing. Folders that paint
+their children: they would silently override each child's choices.
 
-**Look at.** The tree with Louvain split and the Annotations folder side by side, and the Louvain
-row's menu.
+**Given up.** A tree row per community with its own lock. The eye moves to the category row; a
+group that needs its own lock gets its own layer by "New layer for <value>".
+
+**Look at.** Louvain's color binding popover with community 3 recolored, then the palette changed;
+"New layer for 3" from the same row; and the Annotations folder's panel.
 
 ### 1.8 Which elements: together or separately
 
@@ -268,11 +343,17 @@ keeps the panel from falling behind as the element grows.
 value pill, or typed words), then its look, size and position. The **look** is a select of named
 label looks shown as previews, offered the way palettes are. Everything else is in one "Label
 settings" popover with captioned groups (Type, Box, Letters, Placement, Motion and distance, Badge),
-no tabs. A field changed after picking a look marks the entry "Edited", with a reset.
+no tabs. Each entry has an eye: off, the entry draws no label on these elements (the element's
+`enabled: false`), which covers any label a layer beneath writes there.
+
+Inside Label settings, the look is what lies beneath: a field the reader has not changed shows the
+look's value as its placeholder, and a changed field is set, with its minus. Clear works there
+exactly as in decision 1.1, back to the look's value. The look select reads "Default, edited" while
+any field differs from the look. There is no separate Reset.
 
 The looks are a new graphty-element catalog list, each passing 4.5:1 text contrast, tested in the
-element. A layer stores the look's id plus only the fields the reader changed, so "Edited" is a fact
-the element reports, not a comparison the app makes. graphty-element's nine badges stay where they
+element. A layer stores the look's id plus only the fields the reader changed, so which fields are
+changed is a fact the element reports, not a comparison the app makes. graphty-element's nine badges stay where they
 are, as the Badge field in the popover. Saved looks of the reader's own wait until a study shows
 people reuse them.
 
@@ -283,7 +364,10 @@ Recoloring the badges changes existing output, which is the owner's call.
 
 **Rejected.** Tabs inside the popover: tabs hide fields. A docked pop-out panel: slows every edit.
 Badges as the looks list: contrast failures. Two names for an edited look ("Custom" and "Edited"):
-one word, "Edited". Saved looks now: no evidence of reuse yet.
+one word, "edited". An "Edited" mark with its own Reset: a second way to take a value back, beside
+the minus every other field uses. Figma's Detach on a look: the entry already stores the look plus
+changes, so there is nothing to detach into. A "No label" source to hide a label from beneath: the
+eye does it. Saved looks now: no evidence of reuse yet.
 
 **Look at.** The Key people layer's label entry, its look select, and its settings popover.
 
@@ -338,6 +422,69 @@ element supports them: build them instead. "Show by" in the Values tab: a second
 
 **Look at.** The Edge betweenness layer (width varies) and Key people (label size varies by degree).
 
+### 1.13 Consistency with Figma's right sidebar
+
+**Decision.** The panel follows Figma's right sidebar wherever Figma has solved the same problem,
+and departs only where a graph fact or a fixed rule forces it. The pass covered every decision above
+and the panel's structure, against Figma's help center and the repository's capture of the Figma
+editor (`design/ui/figma/`, `compact-mantine/design/figma-spec.md`). The framework's single list of
+departures is `design/ui/framework/figma-crosswalk.md` section 4; each departure below already has
+a row there or is added with the build.
+
+**Adopted as Figma does it**
+
+| Figma pattern                                                                                     | In the style panel                                                                                                          |
+| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| "Mixed" in a field whose values differ; typing over it writes one value                           | a not-set field whose beneath values differ, and a field shared by several selected rows                                    |
+| Several selected rows edited together                                                             | Shift- or Control-click rows in the tree; shared fields, "Mixed" where they differ, one undo step (decision 1.7)            |
+| "Click + to replace mixed content" on a list                                                      | Text and Effects lists under several selected rows                                                                          |
+| "+" on a list's title, "-" on each entry                                                          | Text, Effects, conditions and value-table entries (decision 1.2)                                                            |
+| Clicking an empty list's title adds an entry                                                      | empty Text and Effects titles open their "+" menu                                                                           |
+| An eye on each fill and effect entry                                                              | an eye on each Text and Effects entry, including the gray inherited lines (decision 1.1)                                    |
+| A settings button at the start of a row                                                           | the rare one-value properties (decision 1.1)                                                                                |
+| A bound field shows a pill; "Apply variable" sits at the field's end on hover and focus           | a varied value is a pill; the vary glyph sits where "Apply variable" does                                                   |
+| The variable picker: search, groups, only what fits                                               | the vary picker (decision 1.5)                                                                                              |
+| The selection's type row: name, then actions                                                      | the panel header: kind glyph, name, "Select what it paints" (Figma's "Select matching layers"), the row menu                |
+| Eye and lock live on the layer row only                                                           | the panel header drops its eye and lock; two controls for one state are a defect                                            |
+| Selection colors: every color in the selection, each editable                                     | on a folder and on several selected rows (below)                                                                            |
+| Sections that do not apply are absent, not disabled                                               | the Nodes or Edges group is hidden (decision 1.4)                                                                           |
+| A fixed section order whatever the selection holds; popovers open beside the panel, one at a time | Which elements, Nodes, Edges, and inside each group the same row order; popovers open to the left of the panel, 240 px wide |
+| Frame and group as different things                                                               | layer and folder; the folder paints nothing (decision 1.7)                                                                  |
+
+**Adapted, with the reason**
+
+- **Instance overrides and Reset become Clear, drawn at rest.** Figma leaves overrides unmarked and
+  resets them from a menu. "What does this layer write?" is the main question a stack raises, so
+  a set field always carries its minus (decision 1.1).
+- **Detach on a bound value becomes "Fix at <value>".** Detach keeps the one value a variable
+  held; a varied property paints a different value per element, so the command must name the value
+  it keeps. Already a crosswalk row ("Detach keeps the one value").
+- **Text styles become label looks** that keep their name, read "edited" once changed, and clear
+  per field, without Detach (decision 1.10).
+- **Selection colors names the layers each color comes from.** On a folder or several selected
+  rows it lists the fixed colors their rows write (values and value-table entries), up to three
+  chits and "+N", expanding to one row per color. Each row names the layers that write that color,
+  and editing it rewrites the color in exactly those layers, in one undo step. Colors painted by
+  layers outside the selection are not listed. Reason: the crosswalk's existing rule that a
+  Selection colors row must show which layer it changes, since appearance is written only through
+  style layers. It replaces the folder panel's three chits from the first draft.
+
+**Rejected, with the reason**
+
+- **"+" adding a default entry at once** (Figma's Effects and Fill). A fixed value covers every
+  layer beneath it, so a default would repaint by surprise; picking writes. Already a crosswalk row
+  (`"+" on a Fill section adds`).
+- **Switches for yes-or-no properties.** A switch has no "not set" state (decision 1.1).
+- **Non-sticky group titles.** Figma's titles scroll away; ours stick, because "Color" is in both
+  the Nodes and Edges groups and the heading says which.
+- **Gradient as a paint type inside the color picker.** It would be a second door to "vary by", for
+  color only.
+- **Components and variable modes as features.** Reuse here is the value table and label looks; a
+  second inheritance system would compete with the stack.
+
+**Look at.** The route layer's header next to Figma's type row; a folder's Selection colors; three
+selected rows with a "Mixed" color.
+
 ---
 
 ## 2. The panel
@@ -354,18 +501,19 @@ Style layers                                 [+]
      Key people                          (lk)(eye)
    Route Valjean to Javert               (lk)(eye)      paints nodes and edges
    Edge betweenness                      (lk)(eye)
- v Louvain                               (lk)(eye)      split glyph
-     Community 1 ... 6                   (lk)(eye)      color chit each
+   Louvain                               (lk)(eye)      color varies by community
    Degree                                (lk)(eye)
    Everything                       (pin)(lk)(eye)
 -------------------------------------------------
  Graph settings
 ```
 
-- **Four row kinds**, each with its own glyph: layer, split parent, split child (its color chit),
-  folder. A layer's marks say what it paints (a dot for nodes, a line for edges, both for both)
-  and whether every property it writes is painted over by layers above ("Painted over by Degree",
-  from `styles.counts`).
+- **Two row kinds**, each with its own glyph: layer and folder. A layer's marks say what it paints
+  (a dot for nodes, a line for edges, both for both) and whether every property it writes is
+  painted over by layers above ("Painted over by Degree", from `styles.counts`).
+- **Selecting rows**: a click selects one row; Shift-click and Control-click select several, and
+  the right panel edits them together (decision 1.7). compact-mantine's `Tree` already selects
+  several rows.
 - **Eye and lock** on hover, focus, and always when on; **pin** from the row menu, shown as a mark.
   Lock is the reader's flag on any row.
 - **"+"** opens a menu: Add layer, Add folder. Add layer makes a draft at the top of the unpinned
@@ -373,14 +521,10 @@ Style layers                                 [+]
   until its first value is set, then becomes a layer in one undo step. Add folder makes "New
   folder" in rename.
 - **Row menu**: Rename, Duplicate, Move to folder, Pin to top, Pin to bottom, Unpin, Select what it
-  paints, Delete; Split into layers on a layer with a categorical derived property; Unsplit on a
-  split parent; Follow parent on a child; Ungroup on a folder.
-- **Moves**: rows drag to reorder; a drop onto a folder's middle moves a row in; a split child
-  moves only among its siblings; a drop onto a split parent is refused with the reason; a pinned
-  row moves within its band. compact-mantine's `Tree` already reports moves (`onMove`) and refuses
-  drops (`canDrop`).
-- **Past 8 split children**, the tree shows 8 and "N more", with a search field while that parent
-  is open.
+  paints, Delete; Ungroup on a folder. The same menu for every layer.
+- **Moves**: rows drag to reorder; a drop onto a folder's middle moves a row in; a pinned row moves
+  within its band. compact-mantine's `Tree` already reports moves (`onMove`) and refuses drops
+  (`canDrop`).
 - **Footer**: Graph settings; Restore starting layers only when Everything, Selected or Hovered
   has been deleted.
 
@@ -389,7 +533,7 @@ Style layers                                 [+]
 ```
 +------------------------------------------------+
 | [Style] [Values]                                |
-| (glyph) Route Valjean to Javert  (lk)(eye)(...) |
+| (glyph) Route Valjean to Javert  (select)(...)  |
 +------------------------------------------------+
 | Which elements                                  |
 |  Nodes and edges where on path, Dijkstra        |
@@ -410,9 +554,10 @@ Style layers                                 [+]
 +------------------------------------------------+
 ```
 
-**Header.** Kind glyph, name (rename in place), lock and eye, "..." for the row menu. A locked
-layer's controls are disabled with "This layer is locked" at the top; a hidden one says "Hidden:
-changes will not show until it is shown".
+**Header.** Kind glyph, name (rename in place), "Select what it paints", and "..." for the row
+menu. The eye and lock stay on the tree row only. A locked layer's controls are disabled with "This
+layer is locked" at the top; a hidden one says "Hidden: changes will not show until it is shown".
+Those two lines state the row's state; they are not a second control for it.
 
 **Which elements** (section 3).
 
@@ -420,7 +565,7 @@ changes will not show until it is shown".
 
 **Rows per property.** Field widths follow compact-mantine's 240 px grid. Every row has its settings
 button at the start where it has rare settings, the value control, the vary glyph on hover and focus
-(always on touch), and a minus once set.
+(always on touch), and a minus once set (decision 1.1).
 
 | Group | Row            | Control                                                                     | Values per layer       | Settings button holds                                                                                        |
 | ----- | -------------- | --------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -444,23 +589,28 @@ button at the start where it has rare settings, the value control, the vary glyp
   up to 8 category chits and "+N". Notes for non-neutral settings print below as plain secondary
   text ("Log scale", "Clamped at 2nd to 98th percentile, 14 outside"), written from the element's
   codes. The ramp strip and the settings button both open the binding popover.
-- **Split parents** show their schemes on the derived rows; **split children** show the parent's
-  values in secondary text and their own overrides in primary text, with Follow parent in the row
-  menu. Placeholders on a child show the parent's value, because the parent is what lies beneath.
-- **Folders** show no groups: a list of their rows in paint order (each with its eye) and up to
-  three chits of the colors they paint, each naming and selecting the layer that paints it.
+- **Folders** show no groups: a list of their rows in paint order (each with its eye; a click
+  selects the row), then Selection colors (decision 1.13).
+- **Several selected rows** show a header "3 layers", no Which elements, the groups their kinds
+  share, each field holding the shared value or "Mixed", Selection colors last, and every write
+  going to each selected row in one undo step. A row that is locked is left out of the write and
+  named in a line under the header.
 - **The draft** shows Which elements open and no groups until a kind is chosen.
 
 ### 2.3 Labels
 
 ```
  Text                                           [+]
-  [set] (name)                         (=) (-)
+  [set] (name)                    (=) (eye) (-)
         [Default v]  [48 px] (=)  [Below v]
+   Label, from Degree                  (eye)        gray: written beneath
 ```
 
 - Line 1: the settings button, the source (a value pill when passed through from a value, a text
-  field for typed words, with a help tooltip listing the six formatting tags), vary glyph, minus.
+  field for typed words, with a help tooltip listing the six formatting tags), vary glyph, eye,
+  minus.
+- A gray line is an entry a layer beneath writes (decision 1.1): its eye off adds an entry here
+  that draws no label on these elements.
 - Line 2: the look select (previews), size (label px, varies with the new label size channel), and
   position as a word (a node's ten locations; an edge's On the line, Above, Below, At source end,
   At target end).
@@ -468,9 +618,10 @@ button at the start where it has rare settings, the value control, the vary glyp
   Type (font, weight, line height, alignment), Box (padding, corners, margins, border, background
   gradient), Letters (outline, shadow), Placement (offset, pointer, draw over the graph, clicking
   picks the node), Motion and distance (animation and its speed, fade with distance), Badge (the
-  nine badges and None, icon and its side, progress, shorten large numbers). Every field shows the
-  element's default for its block while empty. A changed field marks the entry "Edited" with
-  Reset.
+  nine badges and None, icon and its side, progress, shorten large numbers). A field the reader has
+  not changed shows the look's value as its placeholder; a changed field has its minus, which
+  clears it back to the look's value. The look select reads "Default, edited" while any field
+  differs.
 - Tooltip and captions are the same entry with their own defaults.
 
 ### 2.4 The Values tab
@@ -481,8 +632,9 @@ Information, never styling, built the same way for every row from the values it 
   only" for is selected and is hovered).
 - A number value: its histogram with minimum, median and maximum; the step bounds and counts when
   the layer draws it in steps; a ranked list under a "Top N by" rule.
-- A category value: group sizes, largest first; on a split parent each row selects its child; the
-  last re-run's matching ("Community 7 is new").
+- A category value: group sizes, largest first, each row with its chit; a click on a row selects
+  that group's elements on the canvas (so "New layer from selection" works from here too); the
+  last re-run's matching from the element's codes ("Community 7 is new").
 - A small rule result or a set: its members, 8 then "N more" with search.
 - An ordered set (a route's steps): the numbered list, its length and total weight.
 - Selected and Hovered: the current elements, or "Nothing hovered".
@@ -525,7 +677,6 @@ Which elements
   app so both use it.
 - Done keeps the rule; Escape restores it. Either returns focus to the sentence.
 - The count is the element's, live as the rule is edited.
-- A split child's rule is its parent's plus its value, shown read-only.
 
 ### 3.2 Worked example: "name contains Bob"
 
@@ -573,11 +724,14 @@ elements, and opens it on its first property.
 - "Fix at <value>" in the binding popover turns a derived field back into one value, naming the
   value it keeps.
 - The binding popover for categories holds the scheme (palettes by plain name, shape schemes,
-  pattern and arrow lists that fit), the category rows (chit, name, count, eye), Other's share and
-  the overflow choice, values not listed (Skip or Paint), elements with no value, combine, and
-  Split into layers.
+  pattern and arrow lists that fit), the category rows, Other's share and the overflow choice,
+  values not listed (Skip or Paint), elements with no value, and combine. A category row is its
+  chit, name, count and eye. Editing the chit writes a value-table entry for that value, and the
+  chit then carries a minus that clears it back to the palette (decision 1.1). The row's menu has
+  "New layer for <value>" (decision 1.7). Past 8 rows, a search field filters them.
 - The binding popover for numbers holds the ramp editor (decision 1.6), Range (number fields for
-  sizes and widths), elements with no value, and combine.
+  sizes and widths), elements with no value, and combine. A ramp drawn in steps lists its steps
+  with their counts, each with "New layer for <step>".
 
 ---
 
@@ -639,7 +793,7 @@ element's published lists.
 | Label fields: `location`, `attachOffset`, `pointer*`, `onTop`, `pickable`                                                                         | Entry position; Label settings, Placement                                      | no                        |
 | Label fields: `animation`, `animationSpeed`, `depthFade*`                                                                                         | Label settings, Motion and distance                                            | no                        |
 | Label fields: `badge`, `icon`, `iconPosition`, `progress`, `smartOverflow`, `maxNumber`, `overflowSuffix`                                         | Label settings, Badge                                                          | no                        |
-| Label field `enabled`                                                                                                                             | the entry's presence (minus removes it)                                        | --                        |
+| Label field `enabled`                                                                                                                             | the entry's eye (off draws no label here); the minus removes the entry         | --                        |
 | Text fields no channel reaches: `textPath`, `position`, `attachPosition`, `autoSize`, `resolution`, `billboardMode`, `borders`, `textOutlineJoin` | not offered: no channel reaches them; words from a value use the source picker | --                        |
 | Formatting tags inside label words (6)                                                                                                            | help on the typed-words field                                                  | --                        |
 | Badge presets (9)                                                                                                                                 | Label settings, Badge                                                          | --                        |
@@ -664,8 +818,8 @@ Every item is additive: a new export, method, option, channel, rule kind or opti
 default keeps today's behavior. Each is recorded under "decided by the team" in `owner-decisions.md`
 when it is built.
 
-1. **A style tree.** `styles.tree()` returns rows in paint order: layers, folders, split parents
-   and split children, each with its name, pin (top, bottom or none), lock (the reader's flag),
+1. **A style tree.** `styles.tree()` returns rows in paint order: layers and folders, each with its
+   name, pin (top, bottom or none), lock (the reader's flag),
    hidden flag and children. Calls to add, rename, move, pin, lock, hide and delete rows, each one
    undo step, saved in the style document. A row may own a node part and an edge part sharing one
    rule (section 1.8). `styles.list()` and every `Layer` keep their single `target`, and
@@ -684,14 +838,17 @@ when it is built.
    number column, not only a run's field. Each `FindResult` value row carries the rule leaf that
    reproduces it.
 4. **Panel facts.** `styles.agreement` takes `{ below: rowId }` and answers what the layers
-   beneath that row give its elements, per property. `styles.preview(binding)` answers, for a
-   binding not yet written, the bins in the scale's space with their counts, what each bin paints,
+   beneath that row give its elements, per property, with the layer that paints it (or a
+   breakdown by layer when mixed), which is everything Clear's tooltip needs.
+   `styles.preview(binding)` answers, for a binding not yet written, the bins in the scale's space with their counts, what each bin paints,
    the step bounds, and the counts clamped below and above and without a value. A binding may
    carry its own palette stops, saved with the layer.
-5. **Split by value.** Split and unsplit on any layer with a categorical derived property;
-   generated children that store only overrides; scheme changes reaching every child without an
-   override; overrides kept with the right group across a re-run by member overlap for arbitrary
-   labels and by name for meaningful ones, with unmatched groups reported as codes.
+5. **Per-value entries that follow their groups.** For any categorical binding: each value with
+   its count, whether it is hidden and its value-table entry, read in one call; a call that sets or
+   clears one value's entry, one undo step. When a run renumbers its groups, value-table entries,
+   hidden values and rule conditions that name a group follow it by member overlap (by name for
+   meaningful values), on any layer, and groups that cannot be matched are reported on the layer as
+   codes. There is no split command and no split row: these replace them (decision 1.7).
 6. **New channels and writes.** `node.visible`, `edge.visible`; label size, text color and
    background as bindable channels for node labels, tooltips, edge labels and captions; a combine
    mode (replace, multiply, add) on number writes.
@@ -699,6 +856,13 @@ when it is built.
    name and a static glyph. A list of named label looks, each tested to pass 4.5:1 text contrast,
    and an optional `look` field on `LabelStyle`, so a layer stores a look plus only the fields the
    reader changed.
+8. **Colors across rows, and an off value for effects.** For a set of rows: the fixed colors they
+   write (fixed values and value-table entries), normalized so two spellings of one color are one,
+   each with the layers and channels that write it; and a call that replaces one color with
+   another in exactly those writes, one undo step. Each effect channel (outline, glow, halo, band,
+   motion) accepts a value that draws nothing, as `LabelStyle.enabled: false` does for labels, so
+   an entry's eye can cover what a layer beneath writes. Writing one value to several rows at once
+   needs nothing new: `session.transaction` already makes it one undo step.
 
 Not added in this tier, because nothing in the panel needs them yet: endpoint and neighbor reads,
 list values, computed values, multi-input bindings, color mixing, stacking rings, a per-property
@@ -743,6 +907,12 @@ unit replaces code rather than adding a second path: the current Style tab
 `rows.ts`) are deleted as their replacements land. UI acceptance is tested with real input
 (`userEvent` from `vitest/browser`) in `*.real-element.test.tsx` against the real element.
 
+Already built on the design branch, and kept: `element-style-tree`, `element-both-kinds-rows`,
+`element-rules` and `element-panel-facts` (its `agreement` already names the layer beneath, so Clear
+needs nothing more). `element-split-by-value` was built too; its value-table storage and re-run
+matching are kept, and `element-value-entries` replaces its split command and split fields. None of
+it has been released, so removing those is not a breaking change for any consumer.
+
 ### Layer 1: graphty-element
 
 **`element-style-tree`: rows, folders, pins and a reader's lock.**
@@ -750,7 +920,7 @@ unit replaces code rather than adding a second path: the current Style tab
 - Files: `graphty-element/src/session/styles/tree.ts` (new), `StylesApi.ts`, `Layer.ts`,
   `graphty-element/src/catalog/types.ts`, `graphty-element/src/session/projectFile.ts`,
   `graphty-element/test/session/styles-tree.test.ts` (new), `graphty-element/api/session.api.md`.
-- What: `styles.tree()` returns rows in paint order (layer, folder; split rows come later), each
+- What: `styles.tree()` returns rows in paint order (layer, folder), each
   with name, pin (top, bottom, none), the reader's lock, hidden and children. Calls to add a folder,
   rename, move (parent and index), pin, lock, hide and delete a row, each one undo step and one
   change event. A folder's eye and lock reach its rows; the tree order is the paint order. Saved in
@@ -825,21 +995,39 @@ unit replaces code rather than adding a second path: the current Style tab
   the color `styles.explain` reports for a node in that bin, on five sampled nodes; the clamped
   counts equal the nodes outside the clamp; a binding with its own stops survives save and reopen.
 
-**`element-split-by-value`: split parents and their children.**
+**`element-value-entries`: per-value entries that follow their groups (replaces split).**
 
-- Files: `tree.ts`, `StylesApi.ts`, `graphty-element/src/session/styles/split.ts` (new),
-  `graphty-element/src/session/runs/RunsApi.ts`, `graphty-element/test/session/styles-split.test.ts`
-  (new).
-- What: split and unsplit any layer with a categorical derived property. One generated child per
-  value present; a child stores only its overrides; a scheme change on the parent reaches every
-  child without an override. On a re-run, arbitrary labels (community ids) align children by member
-  overlap and meaningful labels by name; groups that cannot be matched are reported as codes.
-  Unsplit turns overrides into value-table entries.
-- Acceptance: splitting a Louvain layer gives one child per community; overriding community 3's
-  color and switching the palette recolors every other community and leaves 3; re-running Louvain so
-  the ids are renumbered keeps the override on the community with the most shared members; a new
-  community is reported with a code; a layer bound to a data column's categories splits the same
-  way.
+- Files: `graphty-element/src/session/styles/split.ts` (renamed `values.ts`), `StylesApi.ts`,
+  `Layer.ts`, `graphty-element/src/catalog/types.ts`, `graphty-element/src/session/runs/RunsApi.ts`,
+  `graphty-element/src/session/styles/selector.ts`, `graphty-element/test/session/styles-split.test.ts`
+  (renamed `styles-value-entries.test.ts`), `graphty-element/api/*.api.md`.
+- What: remove `styles.split`, `styles.unsplit`, `LayerSplit` and the layer's `split` field. Keep
+  the rest under neutral names: `styles.categories(layerId, channel)` (was `splitChildren`: each
+  value, its count, hidden, its entry) and `styles.setValueEntry(layerId, channel, value, entry)`
+  (was `setSplitOverride`; `undefined` clears). Re-run matching runs for every layer, not only a
+  split one: value-table entries, hidden values and rule conditions naming a group of a run's
+  partition follow it by member overlap, other values by name. Unmatched groups are an optional
+  field on the layer with codes `group.new` and `group.gone`.
+- Acceptance: on a Louvain-colored layer, setting community 3's color entry and switching the
+  palette recolors every other community and leaves 3; clearing the entry returns 3 to the
+  palette; a re-run that renumbers the ids keeps the entry, a hidden value and a hand layer's rule
+  "community is 3" on the community with most shared members; a new community is reported with
+  `group.new`; the same calls work on a data column's categories; the API report shows no
+  `split` name.
+
+**`element-colors-and-off`: colors across rows, and an off value for effects.**
+
+- Files: `StylesApi.ts`, `graphty-element/src/session/styles/intern.ts`, `channels.ts`,
+  `graphty-element/src/managers/StylePainter.ts`, `graphty-element/test/session/styles-colors.test.ts`
+  (new), `graphty-element/api/session.api.md`.
+- What: `styles.colors(rowIds)`: the fixed colors those rows write (fixed values and value-table
+  entries), normalized, each with the layers and channels that write it.
+  `styles.replaceColor(rowIds, from, to)`: rewrites exactly those writes, one undo step. An effect
+  value that draws nothing for each effect channel (outline, glow, halo, band, motion). Additive.
+- Acceptance: `#d55e00` and `#D55E00` written by two rows come back as one color naming both;
+  replacing it repaints both rows' elements (read through `styles.explain`) and one Undo restores
+  both; a row outside the given ids keeps the color; a glow written as off on a top layer hides a
+  glow a layer beneath writes, by pixel count.
 
 **`element-channels`: visible, label looks that vary, and combine.**
 
@@ -902,8 +1090,9 @@ unit replaces code rather than adding a second path: the current Style tab
   `graphty/src/workspace/graph-place/__tests__/StyleTree.real-element.test.tsx` (new).
 - What: section 2.1 from `styles.tree()`.
 - Acceptance (real input): Add folder from "+" makes a folder in rename; dragging Key people onto it
-  moves it in the element's tree; dragging a row onto Louvain is refused and nothing moves;
-  Alt+ArrowUp moves the focused row; the lock click disables the Style tab's controls; the eye stops
+  moves it in the element's tree; dragging a row into a pinned band is refused and nothing moves;
+  Alt+ArrowUp moves the focused row; Shift-click selects two rows and the right panel heads "2
+  layers"; the lock click disables the Style tab's controls; the eye stops
   the row painting (node color through `styles.explain`); each row's accessible name names its kind;
   Add layer selects a draft with focus on the kind choice, and abandoning it leaves nothing.
 
@@ -914,9 +1103,14 @@ unit replaces code rather than adding a second path: the current Style tab
   `graphty/src/workspace/style/__tests__/StylePanel.real-element.test.tsx` (new).
 - What: section 2.2: header, groups by kind, the paired core rows with placeholders from the
   agreement below the row, settings popovers with the rare properties, written rare rows, two-word
-  selects, glyph grids, minus, the combine prefix, sticky headings.
+  selects, glyph grids, Clear (decision 1.1), the combine prefix, sticky headings; the header with
+  "Select what it paints" and no eye or lock.
 - Acceptance (real input): on Selected, Size is empty with the beneath value as placeholder; typing
-  2 and Enter writes size on that row only; the minus clears it; Shape's grid picks Octahedron;
+  2 and Enter writes size on that row only; the minus's tooltip names the value and layer beneath
+  (from `styles.agreement` below the row); the minus clears it, focus lands in the field and one
+  Undo restores 2; emptying the field and pressing Enter clears it too; Delete on the focused Shape
+  select clears a set shape; each field's accessible name says set or not set; Shape's grid picks
+  Octahedron;
   "Hidden" in Shape's settings writes visible false and draws its own row; an edges-only layer shows
   no Nodes heading; the route layer fits without scrolling at 1440 x 900 and its height at 900 x 700
   is recorded in the test output.
@@ -958,41 +1152,52 @@ unit replaces code rather than adding a second path: the current Style tab
 
 - Files: `graphty/src/workspace/style/BindingPopover.tsx` (rewritten),
   `__tests__/BindingPopover.real-element.test.tsx`.
-- What: section 4, the ramp editor fed by `styles.preview`, and the categories popover with Split
-  into layers.
+- What: section 4, the ramp editor fed by `styles.preview`, and the categories popover with its
+  category rows from `styles.categories`, value-table entries through `styles.setValueEntry`, and
+  "New layer for <value>". Depends on `element-value-entries`.
 - Acceptance (real input): dragging the domain handle changes the ramp ends and the color
   `styles.explain` reports for a known node; choosing Log redraws the axis; a clamp shows the count
-  the preview gives; Split into layers on a hand layer bound to a data category puts children in the
-  tree.
+  the preview gives; on Louvain, editing community 3's chit recolors only community 3, then a
+  palette change recolors every other community and leaves 3, and the chit's minus returns it to
+  the palette; "New layer for 3" adds a layer above with rule "community is 3" and the same count;
+  the same works on a hand layer bound to a data column's categories.
 
 **`app-labels`: label entries.**
 
 - Files: `graphty/src/workspace/style/LabelSection.tsx` (rewritten), `LabelSettings.tsx` (new),
   `__tests__/Labels.real-element.test.tsx`.
 - What: section 2.3.
-- Acceptance (real input): Text "+" then Label opens the source picker; picking `name` labels the
-  nodes; picking a look applies it; changing the font marks the entry "Edited" and Reset removes the
-  mark; the size's vary glyph binds label size to degree.
+- Acceptance (real input): clicking the empty Text title opens the "+" menu; Label opens the
+  source picker; picking `name` labels the nodes; picking a look applies it; changing the font
+  makes the look read "Default, edited" and the font's minus clears it back to the look's value;
+  the entry's eye off removes the labels from the canvas and a label written beneath with them;
+  on a layer with no entry, a label written beneath shows as a gray line; the size's vary glyph
+  binds label size to degree.
 
 **`app-effects-and-ends`: effects and arrow ends.**
 
 - Files: `graphty/src/workspace/style/Effects.tsx` (new), `Ends.tsx` (new),
   `__tests__/Effects.real-element.test.tsx`.
-- What: the Effects lists (Outline, Glow, Halo; Band, Motion) and the Head | Tail row with its
-  settings.
+- What: the Effects lists (Outline, Glow, Halo; Band, Motion) with an eye per entry and gray lines
+  for effects written beneath, and the Head | Tail row with its settings. Depends on
+  `element-colors-and-off`.
 - Acceptance (real input): Effects "+" then Glow opens the color picker with focus in its hex field;
   Escape writes nothing; typing a hex writes the glow; Glow is then disabled in the menu with its
-  reason; picking None for Head writes `none`; an empty end color reads "Line color".
+  reason; turning the Glow entry's eye off stops the glow drawing; picking None for Head writes
+  `none`; an empty end color reads "Line color".
 
-**`app-split-folder-draft`: the other row kinds.**
+**`app-folder-rows-draft`: folders, several rows at once, and the draft.**
 
-- Files: `graphty/src/workspace/style/SplitPanels.tsx` (new), `FolderPanel.tsx` (new),
-  `StylePanel.tsx`, `__tests__/RowKinds.real-element.test.tsx`.
-- What: the split parent with schemes, the child with overrides and Follow parent, the folder's row
-  list and chits, the draft.
-- Acceptance (real input): a child's color override then Follow parent clears it; a folder's panel
-  lists its rows in paint order and clicking one selects it; a draft with Nodes chosen shows only
-  the Nodes group.
+- Files: `graphty/src/workspace/style/FolderPanel.tsx` (new), `MultiRowPanel.tsx` (new),
+  `SelectionColors.tsx` (new), `StylePanel.tsx`, `__tests__/RowKinds.real-element.test.tsx`.
+- What: the folder's row list and Selection colors; several selected rows edited together
+  (section 2.2), writes in one `session.transaction`; Selection colors from `styles.colors` and
+  `styles.replaceColor`; the draft. Depends on `element-colors-and-off`.
+- Acceptance (real input): a folder's panel lists its rows in paint order and clicking one selects
+  it; editing a color in its Selection colors repaints every row that wrote it and one Undo restores
+  all; with two rows of different sizes selected, Size reads "Mixed" and typing 2 writes 2 to both
+  in one undo step; a locked row among them is named and left unwritten; a draft with Nodes chosen
+  shows only the Nodes group.
 
 **`app-graph-settings`: Graph settings.**
 
@@ -1010,7 +1215,8 @@ unit replaces code rather than adding a second path: the current Style tab
   `__tests__/LayerValues.real-element.test.tsx`.
 - What: section 2.4, for every row kind.
 - Acceptance (real input): Degree shows a histogram whose minimum, median and maximum match
-  `data.attributes()`; Louvain's group sizes add up to 77; the route lists 5 steps in order;
+  `data.attributes()`; Louvain's group sizes add up to 77, and clicking one selects that many nodes;
+  the route lists 5 steps in order;
   Selected lists the node a real click selected; painted counts match `styles.counts`.
 
 **`app-coverage-test`: every style has a home.**
@@ -1026,7 +1232,8 @@ unit replaces code rather than adding a second path: the current Style tab
 - Files: `graphty/src/workspace/style/StylePanel.stories.tsx` (new), screenshots under
   `design/ui/studio/tier3/build/`.
 - What: Les Miserables with the mock's rows (Everything, Selected, Hovered, Annotations, Key people,
-  the route, Edge betweenness, Louvain split, Degree, a draft) on the real element, each state
+  the route, Edge betweenness, Louvain with community 3 recolored, Degree, a draft, and two rows
+  selected together) on the real element, each state
   reached by real input in its play function; captures at 1440 x 900 and 900 x 700.
 - Acceptance: every play function passes in the storybook project; the screenshot set for the three
   review checkpoints exists.
@@ -1034,11 +1241,13 @@ unit replaces code rather than adding a second path: the current Style tab
 **`docs-unified-styles`: graphty-element's guide and API reports.**
 
 - Files: `graphty-element/docs/guide/` (new pages on the style tree, rows on both kinds, starting
-  rows, rules and text matching, previews, split by value), `graphty-element/api/*.api.md`,
-  `graphty-element/test/documentation/` (the example compiled),
-  `design/ui/studio/owner-decisions.md`.
+  rows, rules and text matching, previews, per-value entries and re-run matching, colors across
+  rows), `graphty-element/api/*.api.md`, `graphty-element/test/documentation/` (the example
+  compiled), `design/ui/studio/owner-decisions.md`, `design/ui/framework/figma-crosswalk.md`.
 - What: each addition documented with a first example of about 15 lines that names no internal
-  concept, and recorded under "decided by the team".
+  concept, and recorded under "decided by the team" (the split entries there marked replaced). The
+  crosswalk's rows that this design supersedes are rewritten to match decision 1.13: Selection
+  colors, hand-made folders, "+" on a section, sticky group titles.
 - Acceptance: the docs build passes its dead-link check; the guide's examples compile against the
   published types in a test; the API reports show additions only.
 
@@ -1047,10 +1256,32 @@ unit replaces code rather than adding a second path: the current Style tab
 The owner sees the panel in three checkpoints, each a set of screenshots of the stories in
 `owner-review-stories` plus the app's new workspace on Les Miserables:
 
-1. After `app-layer-tree` and `app-style-tab`: the tree, Everything, Selected and the route layer
-   at rest (decisions 1.1, 1.3, 1.4, 1.7, 1.8).
-2. After the picker, popover, label and effect units: vary by, the ramp editor, labels, the "+"
-   menus and the worked examples (decisions 1.2, 1.5, 1.6, 1.10, 1.11, 1.12).
+1. After `app-layer-tree`, `app-style-tab` and `app-folder-rows-draft`: the tree with its two row
+   kinds, Everything, Selected and the route layer at rest, a field cleared with its tooltip
+   showing, a folder's Selection colors, two rows edited together (decisions 1.1, 1.3, 1.4, 1.7,
+   1.8, 1.13).
+2. After the picker, popover, label and effect units: vary by, the ramp editor, Louvain's category
+   rows and "New layer for <value>", labels, the "+" menus and the worked examples (decisions 1.2,
+   1.5, 1.6, 1.7, 1.10, 1.11, 1.12).
 3. After layer 4: the Values tab, Graph settings and the coverage test's output (decision 1.9).
 
 The owner approves the UI before any study runs.
+
+---
+
+## Change log
+
+- **2026-10-12, first version.** The twelve decisions, the panel, the coverage table, the element
+  additions, the owner items and the build plan.
+- **2026-10-12, after the owner's first review** (`tier3/owner-feedback-1.md`).
+    - Unsetting: decision 1.1 now defines three field states (not set, set, set to nothing), one
+      command (Clear on an always-drawn minus, only on set fields), its keyboard shortcuts, what the
+      reader sees before and after, and inherited list entries as gray lines.
+    - Split parents are gone (decision 1.7): two row kinds, layer and folder. Per-group colors are
+      value-table entries in the ordinary binding; anything else for one group is "New layer for
+      <value>"; several rows are edited at once. The built split command is replaced by
+      `element-value-entries`; `app-split-folder-draft` became `app-folder-rows-draft`.
+    - New decision 1.13, the Figma consistency pass: the panel header loses its eye and lock and
+      gains "Select what it paints"; an eye on every Text and Effects entry; clicking an empty list
+      title opens its "+" menu; Selection colors on folders and on several rows; label looks clear
+      per field with no Reset. New element unit `element-colors-and-off`.

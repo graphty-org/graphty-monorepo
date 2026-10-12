@@ -430,7 +430,7 @@ export async function main(argv, options = {}) {
     const quoted = [...command, ...extra].map((a) => `'${a}'`).join(" ");
     const child = CAN_SIGNAL
         ? spawn("sh", ["-c", `ulimit -c 0; exec ${quoted}`], { cwd: packageRoot, env }) // NOSONAR(S4721): runs the caller's own test command line, as the caller could itself
-        : spawn(command[0], [...command.slice(1), ...extra], { cwd: packageRoot, env, shell: true });
+        : spawn(command[0], [...command.slice(1), ...extra], { cwd: packageRoot, env, shell: true }); // NOSONAR(S4721): the same command line, on Windows
     const transcript = [];
     let last = Date.now();
     let taken = 0;

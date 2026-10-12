@@ -287,6 +287,18 @@ export async function askStep(state, { now, acting, sessions, transport, session
 }
 
 /**
+ * Whether the one session invited to an issue job filed its issue (queue.mjs filerFirst).
+ * @param {any} state the daemon state
+ * @param {any} job the job
+ * @param {import("./peers.mjs").PeerSession[]} to the sessions invited
+ * @returns {boolean} true when it did
+ */
+function filerOnly(state, job, to) {
+    if (job.kind !== "issue" || to.length !== 1) return false;
+    return issueFiler(state, Number(String(job.target).replace("#", "")))?.session === to[0].sessionId;
+}
+
+/**
  * The invitation for one queued job, ending with a line for a session that missed the onboarding
  * message (`onboardText`).
  * @param {any} job the job record
@@ -584,9 +596,7 @@ export async function inviteStep(state, { now, acting, sessions, transport, offe
             const op = `invite ${names.length} idle session(s) to take ${id}`;
             lines.push({ kind: "would-do", group: "workers", op, job: id });
         }
-        const filer = job.kind === "issue" ? issueFiler(state, Number(String(job.target).replace("#", ""))) : null;
-        const filed = to.length === 1 && to[0].sessionId === filer?.session;
-        const text = inviteText(job, reason, cli, filed);
+        const text = inviteText(job, reason, cli, filerOnly(state, job, to));
         const out = acting ? await tellSessions(to, text, transport) : { sent: [], failed: [] };
         state.invited = { at, count: acting ? out.sent.length : names.length, acting };
         lines.push({ kind: "sessions-invited", job: id, sessions: names, ...out });

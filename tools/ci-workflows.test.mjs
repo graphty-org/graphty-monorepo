@@ -262,6 +262,7 @@ describe("the pre-push gate matches CI", () => {
             // The runner wraps every shard in the machine-wide test slot (it imports only node builtins).
             copyFileSync(new URL("./test-slots.mjs", import.meta.url), join(dir, "tools/test-slots.mjs"));
             copyFileSync(new URL("./prepush-inputs.mjs", import.meta.url), join(dir, "tools/prepush-inputs.mjs"));
+            copyFileSync(new URL("./shard-verdict.mjs", import.meta.url), join(dir, "tools/shard-verdict.mjs"));
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
             writeFileSync(
                 join(dir, "tools/ci-test-matrix.mjs"),
@@ -286,6 +287,39 @@ describe("the pre-push gate matches CI", () => {
             });
             assert.match(run.stdout, /\[FAIL\] broken \(exit 1/);
             assert.match(run.stdout, /Stopped after broken failed/);
+            assert.equal(run.status, 1, run.stdout + run.stderr);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("fails a shard that exits 0 with no vitest run summary in its log", () => {
+        // A pnpm older than 10.29.1 reports a pnpm exec killed by a signal as exit 0 (issue #2116).
+        const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs", "shard-verdict.mjs"]) {
+                copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
+            }
+            const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
+            writeFileSync(
+                join(dir, "tools/ci-test-matrix.mjs"),
+                `export const SHARDS = ${JSON.stringify([shard("killed")])};\n`,
+            );
+            writeFileSync(join(dir, "tools/run-tests.sh"), "echo ' RUN  v4'\nexit 0\n");
+            assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
+            const run = spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["killed"]'], {
+                cwd: dir,
+                encoding: "utf8",
+                timeout: 60_000,
+                env: {
+                    ...process.env,
+                    GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
+                    GRAPHTY_TEST_SLOTS: "1",
+                    GRAPHTY_TEST_SLOT_HELD: "",
+                },
+            });
+            assert.match(run.stdout, /\[FAIL\] killed \(exit 0 but 0 of 1 vitest run summaries/);
             assert.equal(run.status, 1, run.stdout + run.stderr);
         } finally {
             rmSync(dir, { recursive: true, force: true });
@@ -3176,7 +3210,7 @@ describe("a failed pre-push test shard (#1562)", () => {
         try {
             mkdirSync(join(dir, "tools"));
             mkdirSync(join(dir, "tmp"));
-            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs"]) {
+            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs", "shard-verdict.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             const shard = { shard: "fake", package: "fake", "test-command": "true", "needs-browser": false };

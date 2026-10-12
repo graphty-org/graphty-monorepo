@@ -20,6 +20,9 @@
 # (visual-fonts/, through FONTCONFIG_FILE), and for the lavapipe shard the Mesa
 # lavapipe Vulkan ICD with GRAPHTY_GPU_ADAPTER=llvmpipe and GRAPHTY_GPU_REQUIRE=any. Install
 # mesa-vulkan-drivers for that one, or set VK_DRIVER_FILES yourself.
+#
+# A shard passes only when its command exits 0 AND its output holds the vitest run summary of each
+# run, and the reports it asks vitest for were written (tools/shard-verdict.mjs).
 
 set -uo pipefail
 
@@ -70,7 +73,13 @@ run_shard() {
             export GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}"
         fi
         echo "==> $name: $cmd"
-        sh -c "$cmd"
+        # Exit 0 alone is not a pass: a pnpm older than 10.29.1 on PATH reports a pnpm exec killed by a
+        # signal as exit 0. tools/shard-verdict.mjs also asks for the vitest summary and the reports.
+        log="$(mktemp)"
+        trap 'rm -f "$log"' EXIT
+        start="$(node -p 'Date.now()')"
+        sh -c "$cmd" 2>&1 | tee "$log"
+        node "$ROOT/tools/shard-verdict.mjs" "$name" "${PIPESTATUS[0]}" "$log" "$start"
     )
 }
 

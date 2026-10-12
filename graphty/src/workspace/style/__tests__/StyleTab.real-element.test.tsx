@@ -548,15 +548,14 @@ describe("labels from an attribute (task T10) on the real element", () => {
         await page.viewport(1366, 768);
     });
 
-    it("the Label + adds a label line and opens its attribute list; picking binds it and states the counts", async () => {
+    it("a Label entry picked from Text's + binds the label and states the counts", async () => {
         // Every node on one spot, so the overlap rule (on in the workspace) hides all labels but one.
         const { session, element } = await openWithGraph(true);
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        const label = within(tab).getByRole("group", { name: "Label" });
-        await userEvent.click(within(label).getByRole("button", { name: "Add label line" }));
+        const text = within(tab).getByRole("group", { name: "Text" });
+        await userEvent.click(within(text).getByRole("button", { name: "Add to Text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
         const list = await screen.findByRole("dialog", { name: "From data" });
-        // The new line starts empty, at Above.
-        assert.isNotNull(within(label).getByRole("button", { name: "Label, Above: no attribute, draws nothing" }));
         await userEvent.click(within(list).getByRole("option", { name: "name" }));
 
         await waitFor(() => {
@@ -599,35 +598,6 @@ describe("labels from an attribute (task T10) on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        // One label line per row for now: "+" says so.
-        const plus = within(styleTab()).getByRole("button", { name: "Add label line" });
-        assert.equal(plus.getAttribute("aria-disabled"), "true");
-    });
-
-    it("the heading word adds the line too; Esc leaves it empty, it writes nothing and is dropped on selection change", async () => {
-        const { session, store } = await openWithGraph();
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(tab).getByRole("button", { name: "Label" }));
-        await screen.findByRole("dialog", { name: "From data" });
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("dialog", { name: "From data" }));
-        });
-        const empty = within(styleTab()).getByRole("button", { name: "Label, Above: no attribute, draws nothing" });
-        assert.equal(empty.textContent, "Pick an attribute");
-        assert.lengthOf(readerLayers(session), 0, "an empty line writes nothing");
-        assert.equal(
-            within(styleTab()).getByRole("button", { name: "Add label line" }).getAttribute("aria-disabled"),
-            "true",
-            "while an empty line exists, + adds no second one",
-        );
-
-        const degree = await session.runs.start("degree");
-        await session.styles.settled();
-        store.set({ inspected: { kind: "measure-row", id: degree.runId } });
-        await waitFor(() => {
-            assert.isNull(within(styleTab()).queryByText("Pick an attribute"));
-        });
     });
 
     it("Add label line from an attribute makes a row on top, bound to it, and selects it", async () => {
@@ -709,8 +679,9 @@ describe("focus after a pick on the real element", () => {
         await focusIsOnLine("node.size");
         assert.isNull(within(styleTab()).queryByRole("button", { name: "Size by attribute" }));
 
-        // The label's attribute pick.
-        await userEvent.click(within(styleTab()).getByRole("button", { name: "Add label line" }));
+        // The label's source pick.
+        await userEvent.click(within(styleTab()).getByRole("button", { name: "Add to Text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
         const names = await screen.findByRole("dialog", { name: "From data" });
         await userEvent.click(within(names).getByRole("option", { name: "name" }));
         await waitFor(() => {
@@ -800,7 +771,7 @@ describe("editing lines on the real element", () => {
         assert.isNotNull(within(styleTab()).getByRole("button", { name: `Shape ${shape}` }));
     });
 
-    it("the bind icon, the bound value, the Shape value and the label line open titled pop-outs their X closes", async () => {
+    it("the bind icon, the bound value and the Shape value open titled pop-outs their X closes", async () => {
         await openWithGraph();
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         /**
@@ -830,14 +801,6 @@ describe("editing lines on the real element", () => {
         );
         await openAndClose(await within(styleTab()).findByRole("button", { name: /^dept,/ }), "Color from data");
 
-        // The label line: its attribute list, then its position.
-        await userEvent.click(within(styleTab()).getByRole("button", { name: "Add label line" }));
-        const list = await screen.findByRole("dialog", { name: "Label" });
-        await userEvent.click(within(list).getByTestId("popout-header-close"));
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("dialog", { name: "Label" }));
-        });
-        await openAndClose(within(styleTab()).getByRole("button", { name: "Label position" }), "Label position");
     });
 
     it("a drag across the Color picker is one undo step", async () => {
@@ -981,30 +944,6 @@ describe("editing lines on the real element", () => {
         });
     });
 
-    it("the Show checkbox appears over a label drawn beneath, and hides it on this row", async () => {
-        const { session, store } = await openWithGraph();
-        await session.styles.encode({ column: { kind: "node", name: "name" }, channel: "node.label" });
-        const top = await session.styles.add({
-            name: "Top",
-            target: "node",
-            selector: { match: "everything" },
-            set: { "node.opacity": 1 },
-        });
-        store.set({ inspected: { kind: "layer-row", id: top.id } });
-        // The tab remounts for the new row: read it afresh.
-        await waitFor(
-            () => {
-                assert.isNotNull(within(styleTab()).getByRole("checkbox", { name: "Show" }));
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        await userEvent.click(within(styleTab()).getByRole("checkbox", { name: "Show" }));
-        await waitFor(() => {
-            const style = session.styles.get(top.id)?.set?.["node.labelStyle"];
-            assert.deepEqual(style, { enabled: false });
-        });
-    });
-
     it("binds with the keyboard alone: the bind icon, then the list", async () => {
         const { session } = await openWithGraph();
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
@@ -1036,7 +975,7 @@ describe("editing lines on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        assert.isNotNull(within(styleTab()).getByRole("button", { name: 'Label, Above: "Hi"' }));
+        assert.isNotNull(within(styleTab()).getByRole("button", { name: "Label source: Hi" }));
     });
 
     it("shows no Style tab for an inspected thing that is not a layer, instead of editing Everything", async () => {
@@ -1270,7 +1209,7 @@ describe("one look for names and headings on the real element", () => {
         return `${style.fontSize} ${style.fontWeight} ${style.color} ${String(Math.round(element.getBoundingClientRect().left))}`;
     }
 
-    it("a Color line's name is drawn as the Size and Shape lines' names, and the Label heading as Fill's", async () => {
+    it("a Color line's name is drawn as the Size and Shape lines' names, and the Text heading as Fill's", async () => {
         await openWithGraph();
         await pickStyleTab();
         const line = (channel: string): HTMLElement => {
@@ -1291,7 +1230,7 @@ describe("one look for names and headings on the real element", () => {
 
         const heading = (section: string, word: string): HTMLElement =>
             within(within(styleTab()).getByRole("group", { name: section })).getByText(word, { exact: true });
-        assert.equal(drawn(heading("Label", "Label")), drawn(heading("Fill", "Fill")));
+        assert.equal(drawn(heading("Text", "Text")), drawn(heading("Fill", "Fill")));
     });
 });
 

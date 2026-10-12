@@ -1,13 +1,23 @@
-import { AlignmentMatrix, FieldRow, Popout, PopoutButton } from "@graphty/compact-mantine";
+import {
+    Popout,
+    PopoutButton,
+    StyleNumberInput,
+    StyleSelect,
+    ToggleIconButton,
+    VariablePill,
+} from "@graphty/compact-mantine";
+import { channelsFor, LABEL_LOOKS, labelLookChanges } from "@graphty/graphty-element/catalog";
 import type { Channel, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Checkbox, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import { ActionIcon, Button, Checkbox, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FromDataList } from "./FromDataList";
+import { LabelSettings } from "./LabelSettings";
 import {
+    type DataBinding,
     type DataChoice,
     type Line,
     lineOf,
@@ -15,13 +25,12 @@ import {
     propose,
     readsNothing,
     removeLine,
-    setBeneath,
     sourceName,
     type Target,
     writeLine,
 } from "./row";
 import { focusLineNext, focusSectionNext } from "./useFocusLine";
-import { cellOfLocation, labelStatement, locationOfCell, positionWord } from "./words";
+import { labelStatement, positionWord } from "./words";
 
 /** Props for LabelSection. */
 interface LabelSectionProps {
@@ -35,61 +44,81 @@ interface LabelSectionProps {
     fresh?: NewLayer;
 }
 
-/** Why the Label "+" adds nothing now, or null when it adds a line. */
-const ONE_LINE = "One label line per row for now";
-const PICK_FIRST = "Pick an attribute for the new label line first";
-
-/** The width of the label line's pop-outs, as wide as the panel's own rows. */
-const POPOUT_WIDTH = 248;
-
-/** The label channel and its style channel, by target. */
+/** The label's channels, by target: its words, its style, and its size. */
 const CHANNELS = {
-    node: { label: "node.label", style: "node.labelStyle" },
-    edge: { label: "edge.label", style: "edge.labelStyle" },
-} as const satisfies Record<Target, { label: Channel; style: Channel }>;
+    node: { label: "node.label", style: "node.labelStyle", size: "node.labelSize" },
+    edge: { label: "edge.label", style: "edge.labelStyle", size: "edge.labelSize" },
+} as const satisfies Record<Target, { label: Channel; style: Channel; size: Channel }>;
+
+/** Why "+" adds no second label. */
+const ONE_LABEL = "One label per element";
+
+/** The width of the entry's pop-outs: the source list as wide as the panel's rows, the settings wider. */
+const LIST_WIDTH = 248;
+const SETTINGS_WIDTH = 280;
+
+/** Where a label can sit, in the order the position select lists them. */
+const LOCATIONS = [
+    "top",
+    "top-right",
+    "right",
+    "bottom-right",
+    "bottom",
+    "bottom-left",
+    "left",
+    "top-left",
+    "center",
+    "automatic",
+] as const satisfies readonly NonNullable<LabelStyle["location"]>[];
 
 /**
- * Why the Label "+" adds nothing now.
- * @param line - the row's label line, if it has one.
- * @param empty - whether an empty line is waiting for its attribute.
- * @returns the reason, or null when "+" adds a line.
+ * A layer's label style as written, or an empty one.
+ * @param line - the line that writes the style channel, if any.
+ * @returns the style.
  */
-function blockedReason(line: Line | undefined, empty: boolean): string | null {
-    if (line !== undefined) {
-        return ONE_LINE;
-    }
-    return empty ? PICK_FIRST : null;
+function styleOf(line: Line | undefined): LabelStyle {
+    const value = line?.value;
+    return typeof value === "object" && !("r" in value) ? value : {};
 }
 
 /**
- * What the line draws: the bound attribute's name, graphty-element's own "nothing answers this
- * path", or the literal text the row writes.
+ * The names of the layers beneath the row that write this kind's label words: graphty-element's
+ * own answer of what lies beneath the row (`styles.agreement` with `below`), over the whole graph.
+ * ponytail: read over the whole graph, not the row's own elements (no scope names a layer's
+ * matches); scope it when the element offers one.
  * @param session - the element's session.
- * @param target - nodes or edges.
+ * @param layers - the row's layers on this side, bottom first.
  * @param channel - the label channel.
- * @param line - the row's label line, if it has one.
- * @returns the words, or null without a line.
+ * @returns the layers' names, empty when nothing beneath writes a label or the row has no layer yet.
  */
-function readsOf(session: GraphSession, target: Target, channel: Channel, line: Line | undefined): string | null {
-    if (line === undefined) {
-        return null;
+function writtenBeneath(session: GraphSession, layers: readonly Layer[], channel: Channel): string[] {
+    const own = layers.find((layer) => !layer.locked);
+    if (own === undefined) {
+        return [];
     }
-    if (line.binding === undefined) {
-        return JSON.stringify(line.value) ?? "";
+    let channels: ReturnType<GraphSession["styles"]["agreement"]>["channels"];
+    try {
+        ({ channels } = session.styles.agreement("graph", channel, { below: own.row ?? own.id }));
+    } catch {
+        // A row the element's tree does not hold (a run's own layers) has no "beneath" to read.
+        return [];
     }
-    return readsNothing(session, target, channel, line.binding)
-        ? "reads nothing"
-        : (sourceName(session, line.binding) ?? line.binding.by);
+    const ids = channels.flatMap((found) => {
+        if (found.state === "agree") {
+            return found.value === undefined ? [] : [found.layerId];
+        }
+        return found.breakdown.filter((share) => share.value !== undefined).map((share) => share.layerId);
+    });
+    return [...new Set(ids)].map((id) => session.styles.get(id)?.name ?? id);
 }
 
 /**
- * The Label section (tier1-design.md section 3, item 1, and 5.T10): the Label "+" and the heading
- * word both add an empty label line at the next free position (Above) and open its attribute list.
- * The Show checkbox sits on the header, only when a layer beneath this row draws a label. One
- * label line per row until the element has labels keyed by position. The line states its result
- * from the element's `nodeLabelCounts`, beside Show all labels (off by default), which the
- * element host writes to the element's `layoutBehavior.labels.declutter`. An empty line writes
- * nothing and is dropped when the selection changes (the Style tab remounts this section per row).
+ * The Text list of one kind (design 2.3): a label entry, or none. "+" (and the title, while the
+ * list is empty) opens a menu of what can be added; Label opens the source picker, and nothing is
+ * written until a source is picked. While this row has no entry, a label a layer beneath writes
+ * shows as a gray line whose eye adds an entry here that draws no label on these elements.
+ * ponytail: Label is the only kind in the menu; the Tooltip and the edge captions join it when
+ * their own sections move into this list.
  * @param props - Component props
  * @param props.target - nodes or edges
  * @param props.row - the row's layers
@@ -99,98 +128,141 @@ function readsOf(session: GraphSession, target: Target, channel: Channel, line: 
  */
 export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSectionProps>): React.JSX.Element | null {
     const { session, element, store } = useWorkspace();
-    const [empty, setEmpty] = useState(false);
-    const [listOpen, setListOpen] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [picking, setPicking] = useState(false);
     const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
     if (session === null) {
         return null;
     }
-    const { label: channel, style: styleChannel } = CHANNELS[target];
-    const line = lineOf(layers, channel);
-    const styleValue = lineOf(layers, styleChannel)?.value;
-    const labelStyle: LabelStyle = typeof styleValue === "object" && !("r" in styleValue) ? styleValue : {};
+    const channels = CHANNELS[target];
+    const words = lineOf(layers, channels.label);
+    const styleLine = lineOf(layers, channels.style);
+    const style = styleOf(styleLine);
+    const hasEntry = words !== undefined || styleLine !== undefined;
+    const beneath = hasEntry ? [] : writtenBeneath(session, layers, channels.label);
     const fail = (): void => {
         store.set({ notice: { message: "The label could not be changed" } });
     };
-    const writeStyle = (change: LabelStyle): void => {
-        writeLine(session, row, target, styleChannel, { value: { ...labelStyle, ...change } }, fresh).catch(fail);
+    const writeStyle = (patch: Partial<LabelStyle>): void => {
+        const next = Object.fromEntries(
+            Object.entries({ ...style, ...patch }).filter(([, value]) => value !== undefined),
+        ) as LabelStyle;
+        const done =
+            Object.keys(next).length === 0 && styleLine !== undefined
+                ? removeLine(session, styleLine.layer, channels.style)
+                : writeLine(session, row, target, channels.style, { value: next }, fresh);
+        done.catch(fail);
     };
     const pick = (choice: DataChoice): void => {
-        setListOpen(false);
-        const proposal = propose(session, choice, channel);
+        setPicking(false);
+        const proposal = propose(session, choice, channels.label);
         if (proposal.ok) {
-            setEmpty(false);
-            // The list closes and the line is redrawn bound; focus goes to the line, not the body.
-            focusLineNext(channel, true);
-            writeLine(session, row, target, channel, { binding: proposal.binding }, fresh).catch(() => {
+            focusLineNext(channels.label, true);
+            writeLine(session, row, target, channels.label, { binding: proposal.binding }, fresh).catch(() => {
                 focusLineNext(null);
                 fail();
             });
         }
     };
-    const blocked = blockedReason(line, empty);
-    const add = (): void => {
-        if (blocked === null) {
-            setEmpty(true);
-            setListOpen(true);
-        }
-    };
-    const reads = readsOf(session, target, channel, line);
+    const title = (
+        <Text size="xs" fw={600} pl={4}>
+            Text
+        </Text>
+    );
 
     return (
-        <Stack gap={2} role="group" aria-label="Label" data-section="label">
-            <Group gap={4} h={24} wrap="nowrap">
-                {/* The heading word adds a line too, so it is a button drawn as the other sections' headings. */}
-                <UnstyledButton aria-disabled={blocked !== null} onClick={add}>
-                    <Text size="xs" fw={600} pl={4}>
-                        Label
-                    </Text>
-                </UnstyledButton>
-                {setBeneath(session, row, channel) ? (
-                    <Checkbox
-                        size="xs"
-                        label="Show"
-                        checked={labelStyle.enabled !== false}
-                        onChange={(event) => {
-                            writeStyle({ enabled: event.currentTarget.checked });
+        <Stack gap={2} role="group" aria-label="Text" data-section="label">
+            <Menu opened={menuOpen} onChange={setMenuOpen} position="bottom-end">
+                <Group gap={4} h={24} wrap="nowrap" justify="space-between">
+                    {/* An empty list's title opens the "+" menu too, as Figma's empty Fill title does. */}
+                    {hasEntry || picking ? (
+                        title
+                    ) : (
+                        <UnstyledButton
+                            aria-label="Add text"
+                            onClick={() => {
+                                setMenuOpen(true);
+                            }}
+                        >
+                            {title}
+                        </UnstyledButton>
+                    )}
+                    <Menu.Target>
+                        <Tooltip label="Add text">
+                            <ActionIcon variant="subtle" size="sm" aria-label="Add to Text">
+                                <GLYPHS.add size={14} aria-hidden />
+                            </ActionIcon>
+                        </Tooltip>
+                    </Menu.Target>
+                </Group>
+                <Menu.Dropdown>
+                    <Menu.Item
+                        leftSection={<GLYPHS.category size={14} aria-hidden />}
+                        disabled={hasEntry}
+                        onClick={() => {
+                            setPicking(true);
                         }}
-                    />
-                ) : null}
-                <Tooltip label={blocked ?? "Add label line"}>
-                    <ActionIcon
-                        variant="subtle"
-                        size="sm"
-                        ml="auto"
-                        aria-label="Add label line"
-                        aria-disabled={blocked !== null}
-                        data-disabled={blocked === null ? undefined : true}
-                        onClick={add}
                     >
-                        <GLYPHS.add size={14} aria-hidden />
-                    </ActionIcon>
-                </Tooltip>
-            </Group>
-            {line === undefined && !empty ? null : (
-                <LabelLine
+                        <div>Label</div>
+                        {hasEntry ? (
+                            <Text size="xs" c="dimmed">
+                                {ONE_LABEL}
+                            </Text>
+                        ) : null}
+                    </Menu.Item>
+                </Menu.Dropdown>
+            </Menu>
+            {picking && !hasEntry ? (
+                <SourcePicker target={target} channel={channels.label} opened onOpenChange={setPicking} onPick={pick}>
+                    <Button size="compact-xs" variant="default" c="dimmed" fullWidth justify="flex-start">
+                        Pick a value
+                    </Button>
+                </SourcePicker>
+            ) : null}
+            {hasEntry ? (
+                <LabelEntry
                     session={session}
                     target={target}
-                    channel={channel}
-                    line={line}
-                    reads={reads}
-                    location={labelStyle.location}
-                    listOpen={listOpen}
-                    onListOpen={setListOpen}
+                    words={words}
+                    style={style}
+                    styleLine={styleLine}
+                    size={lineOf(layers, channels.size)}
+                    beneath={writtenBeneath(session, layers, channels.label)}
                     onPick={pick}
-                    onLocation={(location) => {
-                        writeStyle({ location });
+                    onStyle={writeStyle}
+                    onSize={(write) => {
+                        const line = lineOf(layers, channels.size);
+                        if (write !== undefined) {
+                            writeLine(session, row, target, channels.size, write, fresh).catch(fail);
+                        } else if (line !== undefined) {
+                            removeLine(session, line.layer, channels.size).catch(fail);
+                        }
                     }}
-                    onDropEmpty={() => {
-                        setEmpty(false);
+                    onRemove={() => {
+                        removeEntry(session, layers, Object.values(channels)).catch(fail);
                     }}
-                    onFail={fail}
                 />
-            )}
-            {line !== undefined && target === "node" && element !== null ? (
+            ) : null}
+            {beneath.length > 0 && !picking ? (
+                <Group gap={4} pl={4} wrap="nowrap" data-beneath={channels.label}>
+                    <Text size="xs" c="dimmed" truncate style={{ flex: 1 }}>
+                        {`Label, from ${beneath.join(" and ")}`}
+                    </Text>
+                    <ToggleIconButton
+                        variant="swap"
+                        label={`Hide label from ${beneath.join(" and ")}`}
+                        checked={false}
+                        icon={<GLYPHS.show size={14} />}
+                        checkedIcon={<GLYPHS.hide size={14} />}
+                        onChange={(hide) => {
+                            if (hide) {
+                                writeStyle({ enabled: false });
+                            }
+                        }}
+                    />
+                </Group>
+            ) : null}
+            {words !== undefined && target === "node" && element !== null ? (
                 <Group gap={8} pl={4} wrap="nowrap">
                     <Text size="xs" c="dimmed" aria-live="polite">
                         {labelStatement(element.nodeLabelCounts, !allLabelsShown)}
@@ -210,161 +282,333 @@ export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSecti
     );
 }
 
-/** Props for LabelLine. */
-interface LabelLineProps {
-    session: GraphSession;
-    target: Target;
-    /** The label channel. */
-    channel: Channel;
-    /** The row's label line, or undefined for the empty line waiting for its attribute. */
-    line: Line | undefined;
-    /** What the line draws, in words. */
-    reads: string | null;
-    /** Where the label sits. */
-    location: LabelStyle["location"];
-    /** Whether the attribute list is open. */
-    listOpen: boolean;
-    onListOpen: (open: boolean) => void;
-    onPick: (choice: DataChoice) => void;
-    onLocation: (location: LabelStyle["location"]) => void;
-    /** Drops the empty line. */
-    onDropEmpty: () => void;
-    /** Reports a change the element refused. */
-    onFail: () => void;
+/**
+ * Removes every channel of the label from the row's layers that write it, layer by layer.
+ * @param session - the element's session.
+ * @param layers - the row's layers on this side.
+ * @param channels - the label's channels.
+ */
+async function removeEntry(
+    session: GraphSession,
+    layers: readonly Layer[],
+    channels: readonly Channel[],
+): Promise<void> {
+    for (const layer of layers) {
+        const held = channels.filter((c) => layer.set?.[c] !== undefined || layer.encode?.[c] !== undefined);
+        if (!layer.locked && held.length > 0) {
+            await removeLine(session, layer, ...held);
+        }
+    }
 }
 
 /**
- * The label line: its position, the attribute it reads with its list, and its remove button.
+ * The source list in a pop-out, docked to its trigger.
  * @param props - Component props
- * @param props.session - The element's session
  * @param props.target - nodes or edges
- * @param props.channel - the label channel
- * @param props.line - the row's label line, or undefined for the empty line
- * @param props.reads - what the line draws, in words
- * @param props.location - where the label sits
- * @param props.listOpen - whether the attribute list is open
- * @param props.onListOpen - opens or closes the attribute list
- * @param props.onPick - called with the picked attribute
- * @param props.onLocation - called with a new position
- * @param props.onDropEmpty - drops the empty line
- * @param props.onFail - reports a refused change
- * @returns The line
+ * @param props.channel - the channel the pick goes on
+ * @param props.opened - whether it is open
+ * @param props.onOpenChange - opens or closes it
+ * @param props.onPick - called with the pick
+ * @param props.inUse - the path already read, listed first
+ * @param props.title - the pop-out's title
+ * @param props.children - the trigger
+ * @returns The pop-out
  */
-function LabelLine({
-    session,
+function SourcePicker({
     target,
     channel,
-    line,
-    reads,
-    location,
-    listOpen,
-    onListOpen,
+    opened,
+    onOpenChange,
     onPick,
-    onLocation,
-    onDropEmpty,
-    onFail,
-}: Readonly<LabelLineProps>): React.JSX.Element {
-    const [positionOpen, setPositionOpen] = useState(false);
-    const position = positionWord(location);
-    const remove = (event: React.MouseEvent): void => {
-        if (line === undefined) {
-            focusSectionNext(event.currentTarget, channel);
-            onDropEmpty();
-        } else if (!line.layer.locked) {
-            focusSectionNext(event.currentTarget, channel);
-            removeLine(session, line.layer, channel).catch(() => {
-                focusLineNext(null);
-                onFail();
-            });
-        }
-    };
+    inUse = [],
+    title = "Label",
+    children,
+}: Readonly<{
+    target: Target;
+    channel: Channel;
+    opened: boolean;
+    onOpenChange: (open: boolean) => void;
+    onPick: (choice: DataChoice) => void;
+    inUse?: readonly string[];
+    title?: string;
+    children: React.ReactElement;
+}>): React.JSX.Element {
+    return (
+        <Popout opened={opened} onOpenChange={onOpenChange}>
+            <Popout.Trigger>{children}</Popout.Trigger>
+            <Popout.Panel width={LIST_WIDTH} placement="left" alignment="start" header={{ variant: "title", title }}>
+                <FromDataList
+                    target={target}
+                    channel={channel}
+                    inUse={inUse}
+                    onPick={onPick}
+                    onClose={() => {
+                        onOpenChange(false);
+                    }}
+                />
+            </Popout.Panel>
+        </Popout>
+    );
+}
+
+/** Props for LabelEntry. */
+interface LabelEntryProps {
+    session: GraphSession;
+    target: Target;
+    /** The line that writes the words, if this row writes them. */
+    words: Line | undefined;
+    /** The label style this row writes. */
+    style: LabelStyle;
+    /** The line that writes the style, if any. */
+    styleLine: Line | undefined;
+    /** The line that writes the label size, if any. */
+    size: Line | undefined;
+    /** The layers beneath that write label words, for an entry that writes none of its own. */
+    beneath: readonly string[];
+    onPick: (choice: DataChoice) => void;
+    /** Writes fields of the style; a field given as undefined is cleared. */
+    onStyle: (patch: Partial<LabelStyle>) => void;
+    /** Writes the size, or clears it with undefined. */
+    onSize: (write: { value: number } | { binding: DataBinding } | undefined) => void;
+    onRemove: () => void;
+}
+
+/**
+ * One label entry at rest (design 2.3), two lines. Line 1: the settings button, the source, the
+ * eye (`LabelStyle.enabled`), the minus. Line 2: the look (previews; "Card, edited" while a field
+ * differs, from graphty-element's `labelLookChanges`), the size with its vary glyph, the position.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.target - nodes or edges
+ * @param props.words - the line that writes the words, if this row writes them
+ * @param props.style - the label style this row writes
+ * @param props.styleLine - the line that writes the style, if any
+ * @param props.size - the line that writes the label size, if any
+ * @param props.beneath - the layers beneath that write label words
+ * @param props.onPick - called with a new source
+ * @param props.onStyle - writes fields of the style
+ * @param props.onSize - writes or clears the size
+ * @param props.onRemove - removes the entry
+ * @returns The entry
+ */
+function LabelEntry({
+    session,
+    target,
+    words,
+    style,
+    styleLine,
+    size,
+    beneath,
+    onPick,
+    onStyle,
+    onSize,
+    onRemove,
+}: Readonly<LabelEntryProps>): React.JSX.Element {
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [sourceOpen, setSourceOpen] = useState(false);
+    const [sizeOpen, setSizeOpen] = useState(false);
+    const channels = CHANNELS[target];
+    const locked = (words ?? styleLine)?.layer.locked === true;
+    const hidden = style.enabled === false;
+    let source: string;
+    if (words === undefined) {
+        source = beneath.length === 0 ? "No words" : `From ${beneath.join(" and ")}`;
+    } else if (words.binding === undefined) {
+        source = typeof words.value === "string" ? words.value : "";
+    } else {
+        source = readsNothing(session, target, channels.label, words.binding)
+            ? "reads nothing"
+            : (sourceName(session, words.binding) ?? words.binding.by);
+    }
+    const lookId = style.look ?? "default";
+    const edited = labelLookChanges(style).length > 0;
+    const looks = LABEL_LOOKS.map((look) => ({
+        value: look.id,
+        label: look.id === lookId && edited ? `${look.plainName}, edited` : look.plainName,
+        glyph: <LookPreview background={look.style.background} color={look.style.color} />,
+    }));
+    const sizeDescriptor = channelsFor(target).find((d) => d.channel === channels.size);
+    const sizeDefault = typeof sizeDescriptor?.default === "number" ? sizeDescriptor.default : 48;
 
     return (
-        <FieldRow
-            data-line={channel}
-            data-bound={line?.binding === undefined ? undefined : true}
-            trailing={
-                <Tooltip label="Remove label line">
-                    <ActionIcon variant="subtle" size="sm" aria-label="Remove label line" onClick={remove}>
-                        <GLYPHS.remove size={14} aria-hidden />
-                    </ActionIcon>
-                </Tooltip>
-            }
+        <Stack
+            gap={4}
+            pl={4}
+            data-line={channels.label}
+            data-bound={words?.binding === undefined ? undefined : true}
+            data-hidden={hidden ? true : undefined}
         >
             <Group gap={4} wrap="nowrap">
-                <Popout opened={positionOpen} onOpenChange={setPositionOpen}>
+                <Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>
                     <Popout.Trigger>
-                        {/* The Tooltip passes the trigger's click and ref to the button, but not
-                            its ARIA, so the button states its own. */}
-                        <Tooltip label="Label position">
+                        <Tooltip label="Label settings">
                             <PopoutButton
-                                icon={
-                                    <Text size="xs" component="span">
-                                        Aa
-                                    </Text>
-                                }
-                                aria-label="Label position"
+                                icon={<GLYPHS.settings size={14} aria-hidden />}
+                                aria-label="Label settings"
                                 aria-haspopup="dialog"
-                                aria-expanded={positionOpen}
+                                aria-expanded={settingsOpen}
                             />
                         </Tooltip>
                     </Popout.Trigger>
                     <Popout.Panel
-                        width={POPOUT_WIDTH}
+                        width={SETTINGS_WIDTH}
                         placement="left"
                         alignment="start"
-                        header={{ variant: "title", title: "Label position" }}
+                        header={{ variant: "title", title: "Label settings" }}
                     >
                         <Popout.Content>
-                            <AlignmentMatrix
-                                label="Label position"
-                                value={cellOfLocation(location)}
-                                onChange={(cell) => {
-                                    onLocation(locationOfCell(cell));
-                                }}
-                            />
+                            <LabelSettings style={style} onChange={onStyle} />
                         </Popout.Content>
                     </Popout.Panel>
                 </Popout>
-                <Text size="xs" truncate>
-                    {position}
-                </Text>
-            </Group>
-            <Popout opened={listOpen} onOpenChange={onListOpen}>
-                <Popout.Trigger>
-                    {/* A boxed field, as the other values are. */}
+                <SourcePicker
+                    target={target}
+                    channel={channels.label}
+                    opened={sourceOpen}
+                    onOpenChange={setSourceOpen}
+                    inUse={words?.binding === undefined ? [] : [words.binding.by]}
+                    onPick={(choice) => {
+                        setSourceOpen(false);
+                        onPick(choice);
+                    }}
+                >
                     <Button
                         size="compact-xs"
                         variant="default"
-                        c={line === undefined ? "dimmed" : undefined}
+                        c={words === undefined ? "dimmed" : undefined}
                         fullWidth
                         justify="flex-start"
-                        aria-label={
-                            line === undefined
-                                ? `Label, ${position}: no attribute, draws nothing`
-                                : `Label, ${position}: ${reads ?? ""}`
-                        }
+                        aria-label={`Label source: ${source}`}
+                        style={{ flex: 1, minWidth: 0 }}
                     >
-                        {line === undefined ? "Pick an attribute" : `Abc ${reads ?? ""}`}
+                        {source}
                     </Button>
-                </Popout.Trigger>
-                <Popout.Panel
-                    width={POPOUT_WIDTH}
-                    placement="left"
-                    alignment="start"
-                    header={{ variant: "title", title: "Label" }}
-                >
-                    <FromDataList
+                </SourcePicker>
+                <ToggleIconButton
+                    variant="swap"
+                    label="Hide label"
+                    checked={hidden}
+                    icon={<GLYPHS.show size={14} />}
+                    checkedIcon={<GLYPHS.hide size={14} />}
+                    onChange={(hide) => {
+                        onStyle({ enabled: hide ? false : undefined });
+                    }}
+                />
+                {locked ? null : (
+                    <Tooltip label="Remove label">
+                        <ActionIcon
+                            variant="subtle"
+                            size="sm"
+                            aria-label="Remove label"
+                            onClick={(event) => {
+                                // The minus goes with the entry: focus moves to the list's "+".
+                                focusSectionNext(event.currentTarget, channels.label);
+                                onRemove();
+                            }}
+                        >
+                            <GLYPHS.remove size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                )}
+            </Group>
+            <StyleSelect
+                label="Look"
+                value={style.look}
+                defaultValue="default"
+                options={looks}
+                onChange={(look) => {
+                    onStyle({ look: look as LabelStyle["look"] });
+                }}
+            />
+            <Group gap={4} wrap="nowrap" align="flex-end">
+                <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "flex-end", gap: 2 }}>
+                    {size?.binding === undefined ? (
+                        <StyleNumberInput
+                            label="Size"
+                            value={typeof size?.value === "number" ? size.value : undefined}
+                            defaultValue={sizeDefault}
+                            min={1}
+                            onChange={(value) => {
+                                onSize(value === undefined ? undefined : { value });
+                            }}
+                        />
+                    ) : (
+                        <VariablePill
+                            name={sourceName(session, size.binding) ?? size.binding.by}
+                            width="100%"
+                            detachLabel="Detach label size"
+                            onDetach={() => {
+                                onSize(undefined);
+                            }}
+                            onClick={() => {
+                                setSizeOpen(true);
+                            }}
+                        />
+                    )}
+                    <SourcePicker
                         target={target}
-                        channel={channel}
-                        inUse={line?.binding === undefined ? [] : [line.binding.by]}
-                        onPick={onPick}
-                        onClose={() => {
-                            onListOpen(false);
+                        channel={channels.size}
+                        opened={sizeOpen}
+                        onOpenChange={setSizeOpen}
+                        title="Label size by attribute"
+                        onPick={(choice) => {
+                            setSizeOpen(false);
+                            const proposal = propose(session, choice, channels.size);
+                            if (proposal.ok) {
+                                onSize({ binding: proposal.binding });
+                            }
+                        }}
+                    >
+                        <Tooltip label="Label size by attribute">
+                            <PopoutButton
+                                icon={<GLYPHS.link size={14} aria-hidden />}
+                                aria-label="Label size by attribute"
+                                aria-haspopup="dialog"
+                                aria-expanded={sizeOpen}
+                            />
+                        </Tooltip>
+                    </SourcePicker>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <StyleSelect
+                        label="Position"
+                        value={style.location}
+                        defaultValue="top"
+                        options={LOCATIONS.map((location) => ({ value: location, label: positionWord(location) }))}
+                        onChange={(location) => {
+                            onStyle({ location: location as LabelStyle["location"] });
                         }}
                     />
-                </Popout.Panel>
-            </Popout>
-        </FieldRow>
+                </div>
+            </Group>
+        </Stack>
+    );
+}
+
+/**
+ * A look's small preview: "Ab" in its text color on its background.
+ * @param props - Component props
+ * @param props.background - the look's background, if it sets one
+ * @param props.color - the look's text color, if it sets one
+ * @returns The preview
+ */
+function LookPreview({ background, color }: Readonly<{ background?: string; color?: string }>): React.JSX.Element {
+    return (
+        <span
+            style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 22,
+                height: 16,
+                borderRadius: 3,
+                fontSize: 10,
+                background: background ?? "transparent",
+                color: color ?? "currentColor",
+                border: background === undefined ? "1px dashed currentColor" : undefined,
+            }}
+        >
+            Ab
+        </span>
     );
 }

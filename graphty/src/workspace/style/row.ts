@@ -10,7 +10,7 @@
  */
 
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
-import type { Binding, Channel, ChannelValue, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
+import type { Binding, Channel, ChannelValue, CombineMode, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
 import type { ColumnRef, GraphSession, Layer } from "@graphty/graphty-element/session";
 
 import { runName } from "../runWords";
@@ -35,6 +35,14 @@ export interface Line {
     readonly layer: Layer;
     readonly value?: ChannelValue;
     readonly binding?: DataBinding;
+    /** How a literal number meets what lies beneath, when not "replace". */
+    readonly combine?: CombineMode;
+}
+
+/** A literal value to write, and how it meets what lies beneath (a number only). */
+export interface LiteralWrite {
+    readonly value: ChannelValue;
+    readonly combine?: CombineMode;
 }
 
 /**
@@ -76,7 +84,12 @@ export function lineOf(layers: readonly Layer[], channel: Channel): Line | undef
         const layer = layers[i];
         const bound = layer.encode?.[channel];
         if (bound !== undefined) {
-            return "by" in bound ? { layer, binding: bound } : { layer, value: bound.value };
+            if ("by" in bound) {
+                return { layer, binding: bound };
+            }
+            return bound.combine === undefined || bound.combine === "replace"
+                ? { layer, value: bound.value }
+                : { layer, value: bound.value, combine: bound.combine };
         }
         const value = layer.set?.[channel];
         if (value !== undefined) {
@@ -121,10 +134,10 @@ function without<T>(
     return Object.keys(rest).length === 0 ? undefined : rest;
 }
 
-/** Each label channel's style channel. */
-const LABEL_STYLE_CHANNEL: Partial<Readonly<Record<Channel, Channel>>> = {
-    "node.label": "node.labelStyle",
-    "edge.label": "edge.labelStyle",
+/** Each label channel's style channel and size channel. */
+const LABEL_CHANNELS: Partial<Readonly<Record<Channel, { readonly style: Channel; readonly size: Channel }>>> = {
+    "node.label": { style: "node.labelStyle", size: "node.labelSize" },
+    "edge.label": { style: "edge.labelStyle", size: "edge.labelSize" },
 };
 
 /**
@@ -137,40 +150,38 @@ const LABEL_STYLE_CHANNEL: Partial<Readonly<Record<Channel, Channel>>> = {
 export const LABEL_SIZE_PX = 72;
 
 /**
- * The app's look for a label: the font the app itself is set in, at a size a reader can read,
- * drawn over the graph on a white chip, so a nearer node or a selected edge's band never cuts a
- * name. On top alone keeps every letter, but a label's ground is transparent: a selected edge's
- * blue band showed between the strokes and through a letter's open middle, and "Stadium" read
- * "Stadi m". The chip is the ground the letters need. graphty-element leaves all of it to its
- * consumer (its own default face is often missing, and then the browser falls back to a serif;
- * its labels sort by depth and have no ground), so the app states its choice on every label line
- * it adds. A click on a drawn name picks the node it names (`pickable`): a reader points at the
- * word they can read, not at the sphere under it.
+ * The app's starting look for a new label: graphty-element's Card look (dark text on a white,
+ * bordered chip, in a sans serif), drawn over the graph, and picking the node it names. On top
+ * alone keeps every letter, but a label's ground is transparent: a selected edge's blue band
+ * showed between the strokes and through a letter's open middle, and "Stadium" read "Stadi m". The
+ * chip is the ground the letters need. A click on a drawn name picks the node it names
+ * (`pickable`): a reader points at the word they can read, not at the sphere under it. Where it
+ * sits and how it behaves are not part of a look, so the entry reads "Card", not "Card, edited".
  * @returns the label style.
  */
 function appLabelLook(): LabelStyle {
-    return {
-        font: getComputedStyle(document.body).fontFamily,
-        sizePx: LABEL_SIZE_PX,
-        onTop: true,
-        background: "#FFFFFF",
-        cornerRadius: 4,
-        pickable: true,
-    };
+    return { look: "card", onTop: true, pickable: true };
 }
 
 /**
- * The app's label look for a label line being bound, unless the layer already styles its labels.
+ * The app's starting look and size for a label line being bound, unless the layer already styles
+ * its labels.
  * @param channel - the channel being written.
  * @param set - what the layer already sets.
- * @returns the style channel's entry to add, or nothing.
+ * @returns the style and size channels' entries to add, or nothing.
  */
 function labelLookFor(
     channel: Channel,
     set: Partial<Record<Channel, ChannelValue>> | undefined,
 ): Partial<Record<Channel, ChannelValue>> {
-    const style = LABEL_STYLE_CHANNEL[channel];
-    return style === undefined || set?.[style] !== undefined ? {} : { [style]: appLabelLook() };
+    const label = LABEL_CHANNELS[channel];
+    if (label === undefined || set?.[label.style] !== undefined) {
+        return {};
+    }
+    return {
+        [label.style]: appLabelLook(),
+        ...(set?.[label.size] === undefined ? { [label.size]: LABEL_SIZE_PX } : {}),
+    };
 }
 
 /**
@@ -320,7 +331,7 @@ export async function writeLine(
     ids: readonly LayerId[],
     target: Target,
     channel: Channel,
-    write: { readonly value: ChannelValue } | { readonly binding: DataBinding },
+    write: LiteralWrite | { readonly binding: DataBinding },
     fresh: NewLayer | undefined,
 ): Promise<LayerId> {
     const layers = rowLayers(session, ids, target);
@@ -330,10 +341,17 @@ export async function writeLine(
     const own = [...layers]
         .reverse()
         .find((layer) => !layer.locked && (!everything || home === undefined || sameSelector(layer.selector, home)));
-    const set = "value" in write ? { [channel]: write.value } : undefined;
-    const encode = "binding" in write ? { [channel]: write.binding } : undefined;
+    // A literal that combines with what lies beneath is an encoding of the value; a plain one is set.
+    const combined = "value" in write && write.combine !== undefined && write.combine !== "replace";
+    const set = "value" in write && !combined ? { [channel]: write.value } : undefined;
+    let encode: Partial<Record<Channel, Binding>> | undefined;
+    if ("binding" in write) {
+        encode = { [channel]: write.binding };
+    } else if (combined) {
+        encode = { [channel]: { value: write.value, combine: write.combine } };
+    }
     // A label line being bound brings the app's label look with it, in the same step.
-    const look = encode === undefined ? {} : labelLookFor(channel, own?.set);
+    const look = "binding" in write ? labelLookFor(channel, own?.set) : {};
     // On the Everything row, the other layers that write this channel, so the new line is its only one.
     const others = everything
         ? layers.filter(

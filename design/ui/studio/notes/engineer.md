@@ -11,6 +11,25 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Label entries are built** (`style/LabelSection.tsx`, `LabelSettings.tsx`, test
+  `Labels.real-element.test.tsx`). The Text list keeps LabelSection's old props (`target`, `row`,
+  `layers`, `fresh`) so the new StylePanel can mount it as StyleTab did. A new entry starts on the
+  Card look with `onTop` and `pickable`, and its size goes to the `node.labelSize` channel (72),
+  not the style's `sizePx`: any look field the app writes makes the look read "edited" from the
+  first frame. For the same reason the element's `labelLookChanges` now leaves out `location`,
+  `onTop` and `pickable` (position sits beside the look on the entry), and the non-default looks
+  name `Verdana, sans-serif` (Verdana alone fell back to serif here). Settings fields are
+  compact-mantine's set-or-inherited trio, so a field's clear is the trio's reset ("Reset Font to
+  default"), not a minus; if the studio wants a minus glyph, change it in compact-mantine for
+  every caller. The gray line for a label written beneath reads `styles.agreement("graph",
+"node.label", { below: own.row ?? own.id })`, over the whole graph (no scope names a layer's
+  matches). Not built: Tooltip and edge captions in the Text menu (Tooltip keeps its own section),
+  typed words as a source, vary on text color and background, the gradient's colors, icon and
+  overflow suffix fields. Seen failing at HEAD, not mine: `words.test.ts` and `row.test.ts` on the
+  new label, halo and band channels (no words, no starting value). WORKED again: an isolated tree
+  (`git archive HEAD` + my files, node_modules and dist symlinked) while another agent was
+  mid-rewrite of `words.ts` and had deleted `StyleTab.tsx` in the shared worktree.
+
 - (2026-10-12) **The app's style tree is built** (`graph-place/StyleTree.tsx`, replacing
   `PaintTree.tsx` and the paint rows). It draws `styles.tree()` top first (the element's tree is
   bottom first at every level, so each level is reversed) with two row kinds, a layer and a

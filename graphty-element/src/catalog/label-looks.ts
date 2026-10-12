@@ -9,7 +9,9 @@
  *
  * Every look sets its own text and background colors, and every one measures at least 4.5:1
  * between them (WCAG AA for body text), checked by `test/catalog/glyphs.test.ts`. The default look
- * sets nothing: it is the element's own label, black text on the element's light canvas.
+ * sets nothing: it is the element's own label, black text on the element's light canvas. The
+ * others name the element's own face with a generic fallback, so a machine without Verdana draws
+ * them in its sans serif rather than in the browser's default serif.
  */
 
 import type { LabelStyle } from "./label-style";
@@ -34,6 +36,7 @@ export const LABEL_LOOKS: readonly LabelLookDescriptor[] = Object.freeze([
         id: "card",
         plainName: "Card",
         style: {
+            font: "Verdana, sans-serif",
             color: "#1a1a1a",
             background: "#ffffff",
             padding: 6,
@@ -42,16 +45,28 @@ export const LABEL_LOOKS: readonly LabelLookDescriptor[] = Object.freeze([
             borderColor: "#8a8a8a",
         },
     },
-    { id: "dark", plainName: "Dark", style: { color: "#ffffff", background: "#222222", padding: 6, cornerRadius: 6 } },
+    {
+        id: "dark",
+        plainName: "Dark",
+        style: { font: "Verdana, sans-serif", color: "#ffffff", background: "#222222", padding: 6, cornerRadius: 6 },
+    },
     {
         id: "pill",
         plainName: "Pill",
-        style: { color: "#ffffff", background: "#1f5fa8", padding: 8, cornerRadius: 24, weight: "bold" },
+        style: {
+            font: "Verdana, sans-serif",
+            color: "#ffffff",
+            background: "#1f5fa8",
+            padding: 8,
+            cornerRadius: 24,
+            weight: "bold",
+        },
     },
     {
         id: "callout",
         plainName: "Callout",
         style: {
+            font: "Verdana, sans-serif",
             color: "#1a1a1a",
             background: "#fff4c2",
             padding: 6,
@@ -71,15 +86,19 @@ export function labelLook(id: string): LabelLookDescriptor | undefined {
     return LABEL_LOOKS.find((look) => look.id === id);
 }
 
-/** Fields that are not part of a look, so never reported as a change from one. */
-const NOT_LOOK_FIELDS: ReadonlySet<string> = new Set(["look", "enabled"]);
+/**
+ * Fields that are not part of a look, so never reported as a change from one: the look itself, the
+ * on/off switch, and where the label sits, whether it is drawn over the graph and whether it takes
+ * clicks -- placement and behavior, which no look sets and an editor offers beside the look.
+ */
+const NOT_LOOK_FIELDS: ReadonlySet<string> = new Set(["look", "enabled", "location", "onTop", "pickable"]);
 
 /**
  * The fields a label style changes from the look it names.
  *
  * A field counts when the style sets it and its value differs from the look's (the default look,
- * when the style names none). `look` itself and `enabled`, the label's on/off switch, are never
- * changes. An empty list means the style is exactly its look.
+ * when the style names none). `look` itself, `enabled` (the label's on/off switch), `location`,
+ * `onTop` and `pickable` (where it sits and how it behaves) are never changes. An empty list means the style is exactly its look.
  * @param style - A label style a layer writes.
  * @returns The changed fields, in the style's own order.
  */

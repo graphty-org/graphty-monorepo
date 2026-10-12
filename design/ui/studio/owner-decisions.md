@@ -71,6 +71,21 @@ on the data's own axis, in the shared library so the app writes no bespoke contr
 **Alternatives.** `GradientEditor` as is (its stops sit on a color axis, not the data); text
 fields alone (complete but read rather than seen).
 
+## 2026-10-12 -- Decided by the team: where a label sits is not part of its look, and looks name a sans fallback
+
+**What.** In graphty-element's `./catalog`: `labelLookChanges` no longer reports `location`,
+`onTop` or `pickable` as changes from a look, and the Card, Dark, Pill and Callout looks set
+`font: "Verdana, sans-serif"`. In the app, a new label starts on the Card look, drawn over the
+graph and picking its node, at label size 72 written to the new `node.labelSize` channel instead
+of the label style's own size.
+
+**Why.** The entry shows position beside the look, so moving a label must not make its look read
+"edited"; drawing over the graph and taking clicks are behavior no look sets. Without a generic
+fallback, a machine without Verdana drew a look's words in the browser's default serif.
+
+**Not breaking.** `labelLookChanges` and the looks were added on this branch and are not
+released.
+
 ## 2026-10-12 -- Decided by the team: pictures for shapes, arrows and line patterns, and named label looks
 
 **What.** All in graphty-element's `./catalog`, additive.

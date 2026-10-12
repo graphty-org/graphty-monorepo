@@ -73,6 +73,15 @@ describe("label looks", () => {
         assert.deepStrictEqual(labelLookChanges({ weight: "bold" }), ["weight"], "no look reads as the default look");
     });
 
+    it("does not count where a label sits or how it behaves as a change from its look", () => {
+        assert.deepStrictEqual(
+            labelLookChanges({ look: "card", location: "bottom", onTop: true, pickable: true }),
+            [],
+            "placement and behavior sit beside the look, not in it",
+        );
+        assert.deepStrictEqual(labelLookChanges({ look: "card", location: "bottom", font: "serif" }), ["font"]);
+    });
+
     it("paints a look's fields beneath the layer's own, over the layers beneath", async () => {
         const session = createGraphSession();
         await session.data.addNodes([{ id: "a" }, { id: "b" }]);

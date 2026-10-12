@@ -42,7 +42,7 @@ describe("a label line the app adds", () => {
         return session;
     }
 
-    it("is drawn in the app's own font at a legible size, on top on a white chip, in the same step as the binding", async () => {
+    it("starts on the Card look at a legible size, on top and picking its node, in the same step as the binding", async () => {
         const on = await twoNodes();
         const proposal = propose(on, { kind: "column", column: { kind: "node", name: "name" } }, "node.label");
         if (!proposal.ok) {
@@ -51,14 +51,8 @@ describe("a label line the app adds", () => {
         const before = on.history.steps.length;
         const id = await writeLine(on, [], "node", "node.label", { binding: proposal.binding }, EVERYTHING_LAYER);
         const layer = on.styles.list().find((l) => l.id === id);
-        assert.deepEqual(layer?.set?.["node.labelStyle"], {
-            font: getComputedStyle(document.body).fontFamily,
-            sizePx: LABEL_SIZE_PX,
-            onTop: true,
-            background: "#FFFFFF",
-            cornerRadius: 4,
-            pickable: true,
-        });
+        assert.deepEqual(layer?.set?.["node.labelStyle"], { look: "card", onTop: true, pickable: true });
+        assert.equal(layer?.set?.["node.labelSize"], LABEL_SIZE_PX);
         assert.equal(on.history.steps.length, before + 1);
     });
 
@@ -67,7 +61,7 @@ describe("a label line the app adds", () => {
         const before = on.styles.list().length;
         const layer = await addLabelRow(on, { kind: "node", name: "name" });
         const written = on.styles.list().find((l) => l.id === layer.id);
-        assert.equal((written?.set?.["node.labelStyle"] as { sizePx?: number } | undefined)?.sizePx, LABEL_SIZE_PX);
+        assert.equal(written?.set?.["node.labelSize"], LABEL_SIZE_PX);
         await on.undo();
         assert.lengthOf(on.styles.list(), before);
     });

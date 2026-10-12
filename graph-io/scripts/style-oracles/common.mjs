@@ -8,7 +8,11 @@ import { gunzipSync } from "node:zlib";
 
 const DIST = resolve(import.meta.dirname, "../../dist");
 const { importGraph } = await import(join(DIST, "graph-io.js"));
-const { resolveStyles, canonColor, canonEnum, StyleNotes } = await import(join(DIST, "styles.js"));
+const { resolveStyles } = await import(join(DIST, "styles.js"));
+// The color and enumeration readers are not published (@graphty/graph-io/styles names only what a consumer uses), so
+// they come from the sources.
+const { tsImport } = await import("tsx/esm/api");
+const { canonColor, canonEnum, StyleNotes } = await tsImport("../../src/styles/internal.ts", import.meta.url);
 
 const SCRATCH = { notes: new StyleNotes(), target: "node", property: "fill" };
 

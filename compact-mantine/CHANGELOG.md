@@ -1,3 +1,13 @@
+## 0.9.21 (2026-10-12)
+
+### 🩹 Fixes
+
+- **compact-mantine:** name the departure note by its severity word and its own text ([#2103](https://github.com/graphty-org/graphty-monorepo/issues/2103))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.20 (2026-10-12)
 
 ### 🩹 Fixes

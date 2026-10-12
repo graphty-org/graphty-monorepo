@@ -1,3 +1,23 @@
+## 3.25.3 (2026-10-12)
+
+### 🩹 Fixes
+
+- **graphty-element:** draw capsule and torus nodes at node.size ([#2070](https://github.com/graphty-org/graphty-monorepo/issues/2070))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.49
+- Updated @graphty/remote-logger to 2.0.16
+- Updated graph-samples to 0.1.29
+- Updated graph-format to 1.3.14
+- Updated algorithms to 3.4.4
+- Updated graph-io to 0.3.37
+- Updated layout to 2.4.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.25.2 (2026-10-12)
 
 ### 🩹 Fixes

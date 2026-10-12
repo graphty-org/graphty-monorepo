@@ -30,7 +30,7 @@ graph [
       w 60
       h 30
       type "diamond"
-      fill "#123456"
+      fill "#12345600"
       outline "#000000"
       outlineStyle "line"
       outlineWidth 1

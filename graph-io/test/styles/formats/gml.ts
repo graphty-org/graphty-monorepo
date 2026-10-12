@@ -22,7 +22,8 @@ export function editGmlNodeFill(written: Uint8Array): Uint8Array | null {
         return null;
     }
     const at = match.index + match[0].length - match[1].length - 1;
-    const next = match[1].startsWith("#123456") ? "#654321" : "#123456";
+    // the color changes and its alpha (#RRGGBBAA) stays: one value edited
+    const next = (match[1].startsWith("#123456") ? "#654321" : "#123456") + match[1].slice(7);
     return encode(text.slice(0, at) + next + text.slice(at + match[1].length));
 }
 

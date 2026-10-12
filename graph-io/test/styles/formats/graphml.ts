@@ -31,7 +31,9 @@ export function editGraphmlNodeFill(written: Uint8Array): Uint8Array | null {
     }
     const start = at + '<y:Fill color="'.length;
     const end = text.indexOf('"', start);
-    const next = text.slice(start, end).startsWith("#123456") ? "#654321" : "#123456";
+    // the color changes and its alpha (#RRGGBBAA) stays: one value edited
+    const old = text.slice(start, end);
+    const next = (old.startsWith("#123456") ? "#654321" : "#123456") + old.slice(7);
     return encode(text.slice(0, start) + next + text.slice(end));
 }
 

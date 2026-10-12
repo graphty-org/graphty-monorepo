@@ -32,9 +32,11 @@ export function editGexfNodeColor(written: Uint8Array): Uint8Array | null {
     }
     const end = text.indexOf("/>", at);
     const old = text.slice(at, end);
-    const next = old.includes('r="18" g="52" b="86"')
-        ? '<viz:color r="86" g="52" b="18"'
-        : '<viz:color r="18" g="52" b="86"';
+    // the color changes and its alpha stays: one value edited
+    const alpha = / a="[^"]*"/.exec(old)?.[0] ?? "";
+    const next =
+        (old.includes('r="18" g="52" b="86"') ? '<viz:color r="86" g="52" b="18"' : '<viz:color r="18" g="52" b="86"') +
+        alpha;
     return encode(text.slice(0, at) + next + text.slice(end));
 }
 

@@ -63,8 +63,17 @@ const VERDICT_MARKER = "[shard-verdict]";
 const REPORT_WAIT_MS = 10_000;
 /** The runner the arguments are appended to; main()'s `command` option replaces it in tests. */
 const VITEST_COMMAND = ["pnpm", "exec", "vitest", "run"];
-/** The lines that prove vitest reached its end: the summary, or the notice of a run that matched no file. */
-const SUMMARY = /^\s*Test Files\s|No test files found/m;
+/**
+ * Whether the output proves vitest reached its end: its summary line, or its notice of a run that matched no file.
+ * @param {string} output - the run's output, colour escapes removed
+ * @returns {boolean} true when vitest finished
+ */
+function hasSummary(output) {
+    return (
+        output.includes("No test files found") ||
+        output.split("\n").some((line) => line.trimStart().startsWith("Test Files "))
+    );
+}
 
 /** The head of a per-file or per-test result line: one of the reporters' status glyphs and its ASCII fallbacks. */
 const RESULT_HEAD = /^\s*[\u2713\u221A\u00D7\u2717\u276F\u203A\u2193]\s/;
@@ -186,10 +195,10 @@ function nodeProcesses(pids) {
     }
     const node = new Set();
     for (const line of ps.stdout.split("\n")) {
-        const match = /^\s*(\d+)\s+(.+?)\s*$/.exec(line);
+        const [pid, ...name] = line.trim().split(/\s+/);
         // A vitest worker renames itself (`node (vitest 2)`), which Linux reports as its command name.
-        if (match !== null && /^node(?:\s|$)/.test(basename(match[2]))) {
-            node.add(Number(match[1]));
+        if (name.length > 0 && basename(name.join(" ")).split(" ")[0] === "node") {
+            node.add(Number(pid));
         }
     }
     return pids.filter((pid) => node.has(pid));
@@ -228,7 +237,7 @@ export function verdict(run) {
     if (run.status !== 0) {
         return { exitCode: run.status, cause: `vitest exited ${String(run.status)}` };
     }
-    if (!SUMMARY.test(stripVTControlCharacters(run.output))) {
+    if (!hasSummary(stripVTControlCharacters(run.output))) {
         return { exitCode: 1, cause: "no vitest summary: the run exited 0 without printing Test Files" };
     }
     if (run.outputFile !== undefined && run.outputWritten !== true) {
@@ -353,6 +362,33 @@ async function snapshot(dir, pid, index, reason) {
 }
 
 /**
+ * Kills a run that stayed silent after every snapshot: the runner and everything under it.
+ * @param {number} pid - the runner's process id
+ * @param {number} taken - how many snapshots were taken, for the log line
+ */
+function killTree(pid, taken) {
+    const pids = descendants(pid);
+    console.log(`\n[hang-report] still silent after ${String(taken)} snapshot(s); killing ${pids.join(", ")}`);
+    for (const target of pids) {
+        try {
+            process.kill(target, "SIGKILL");
+        } catch {
+            // already gone
+        }
+    }
+}
+
+/**
+ * Whether a file exists and was written at or after a moment, so a stale report never stands in for this run's.
+ * @param {string | undefined} path - the file, or undefined when none was named
+ * @param {number} since - the moment, in milliseconds since the epoch
+ * @returns {boolean} true when the file was written since then
+ */
+function writtenSince(path, since) {
+    return path !== undefined && existsSync(path) && statSync(path).mtimeMs >= since;
+}
+
+/**
  * Runs the projects and returns the exit code, taking a snapshot whenever the output goes quiet and once more when
  * the run fails.
  * @param {readonly string[]} argv - the wrapper's arguments, forwarded to vitest unchanged
@@ -393,7 +429,7 @@ export async function main(argv, options = {}) {
     // step before a single test ran.
     const quoted = [...command, ...extra].map((a) => `'${a}'`).join(" ");
     const child = CAN_SIGNAL
-        ? spawn("sh", ["-c", `ulimit -c 0; exec ${quoted}`], { cwd: packageRoot, env })
+        ? spawn("sh", ["-c", `ulimit -c 0; exec ${quoted}`], { cwd: packageRoot, env }) // NOSONAR(S4721): runs the caller's own test command line, as the caller could itself
         : spawn(command[0], [...command.slice(1), ...extra], { cwd: packageRoot, env, shell: true });
     const transcript = [];
     let last = Date.now();
@@ -425,17 +461,7 @@ export async function main(argv, options = {}) {
             if (taken >= MAX_SNAPSHOTS) {
                 // Still silent after every snapshot: the run already fails as hung, so end it rather than leave it
                 // to the job's time limit.
-                const pids = descendants(child.pid ?? 0);
-                console.log(
-                    `\n[hang-report] still silent after ${String(taken)} snapshot(s); killing ${pids.join(", ")}`,
-                );
-                for (const pid of pids) {
-                    try {
-                        process.kill(pid, "SIGKILL");
-                    } catch {
-                        // already gone
-                    }
-                }
+                killTree(child.pid ?? 0, taken);
                 clearInterval(timer);
                 return;
             }
@@ -477,7 +503,7 @@ export async function main(argv, options = {}) {
         silenceMs,
         output,
         outputFile,
-        outputWritten: outputPath !== undefined && existsSync(outputPath) && statSync(outputPath).mtimeMs >= started,
+        outputWritten: writtenSince(outputPath, started),
     });
     if (decision.exitCode !== 0) {
         if (status === 0) {

@@ -871,17 +871,23 @@ export function blockStyles(
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const src = refSource(target, n, columns[target], features[target], snapshot);
         const map = Object.create(null) as Record<string, Mapping>;
-        for (const [property, values] of Object.entries(truth[target] ?? {})) {
+        // in one order whatever order the reader found the properties in, so a file written again is the same
+        for (const [property, values] of Object.entries(truth[target] ?? {}).sort(([a], [b]) =>
+            a < b ? -1 : a > b ? 1 : 0,
+        )) {
             if (values === undefined) {
                 continue;
             }
             const resolved = resolveRules(blockRules, target, property, src);
             const unset = (tool === null ? null : toolDefaults(tool))?.[target]?.[property as never] as
                 { readonly value: StyleValue } | undefined;
+            // an empty text draws what no text draws: a format that holds no "unset" (CyCSV) reads one back as ""
+            const empty = STYLE_PROPERTIES[target].get(property) === "text" ? "" : undefined;
             let exceptions: (StyleValue | null)[] | null = null;
             for (let i = 0; i < n; i++) {
                 const t = values[i] ?? null;
-                if (t !== null && !within(t, resolved[i]) && !(resolved[i] === null && t === unset?.value)) {
+                const unchanged = resolved[i] === null && (t === unset?.value || t === empty);
+                if (t !== null && !within(t, resolved[i]) && !unchanged) {
                     exceptions ??= new Array<StyleValue | null>(n).fill(null);
                     exceptions[i] = t;
                 }

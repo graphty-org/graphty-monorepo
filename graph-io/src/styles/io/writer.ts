@@ -106,7 +106,47 @@ export function prepareStyleExport(
         };
     }
     const caps = exporter.styles?.capabilities ?? null;
-    const extracted = keepsStyleBlock(exporter) ? withLostInputsCarried(given, snapshot, exporter, plain) : given;
+    let plan = writePlan(snapshot, exporter, given);
+    if (keepsStyleBlock(exporter)) {
+        // what the export loses of the graph's data, styles written as they are: the rules' inputs among it are carried
+        let checked: readonly LossNote[];
+        try {
+            checked = exporter.check(plan.snapshot, plan.input === null ? plain : { ...plain, styles: plan.input });
+        } catch {
+            checked = [];
+        }
+        const carried = withLostInputsCarried(given, snapshot, checked);
+        if (carried !== given) {
+            plan = writePlan(snapshot, exporter, carried);
+        }
+    }
+    return {
+        snapshot: plan.snapshot,
+        input: plan.input,
+        notes: lossNotes(plan.extracted, exporter, caps, plan.picture, snapshot),
+        refusal: null,
+    };
+}
+
+/**
+ * What an exporter is handed to write a graph's styles: the snapshot with the block and tagged values added where
+ * the format keeps them, and its `options.styles`.
+ * @param snapshot - the graph
+ * @param exporter - the exporter
+ * @param extracted - the styles
+ * @returns the plan
+ */
+function writePlan(
+    snapshot: GraphSnapshot,
+    exporter: GraphExporter,
+    extracted: ExtractedStyles,
+): {
+    readonly snapshot: GraphSnapshot;
+    readonly input: ExporterStyleInput | null;
+    readonly extracted: ExtractedStyles;
+    readonly picture: (target: StyleTarget, property: StyleProperty) => readonly (StyleValue | null)[];
+} {
+    const caps = exporter.styles?.capabilities ?? null;
     const pictures = new Map<string, readonly (StyleValue | null)[]>();
     const picture = (target: StyleTarget, property: StyleProperty): readonly (StyleValue | null)[] => {
         const key = `${target}\u0000${property}`;
@@ -127,56 +167,48 @@ export function prepareStyleExport(
     return {
         snapshot: styledSnapshot(snapshot, caps, tags, block),
         input: exporter.styles === undefined ? null : { picture, block, tags, rules: extracted },
-        notes: lossNotes(extracted, exporter, caps, picture, snapshot),
-        refusal: null,
+        extracted,
+        picture,
     };
 }
 
-/** Loss notes that name columns the format still writes, elsewhere. */
-const COLUMNS_KEPT_ELSEWHERE: ReadonlySet<string> = new Set(["W_CSV_NODE_TABLE"]);
+/**
+ * Loss notes about a column whose values read back the same: written elsewhere (CSV's node table), under another
+ * name a block finds by its values, with another role, storage or number type, or as a wider type.
+ */
+const VALUES_KEPT = /NODE_TABLE|NAME_CHANGED|ROLE_ASSUMED|STORAGE_CLASS|NUMBER_TYPE|INTEGRAL|WIDENED/;
 
 /**
  * The styles with every input the format will not read back as it is given carried as a style column of its own: a
- * data column the export drops or changes (its loss notes name it, or the format writes its label slot from the
- * styles), and the in and out degrees when the file does not keep the edges' direction. The rules then read the
- * copies, which the file keeps beside the block, and give back the same values.
+ * data column the export drops or changes (its loss notes name it), and the in and out degrees when the file does not
+ * keep the edges' direction. The rules then read the copies, which the file keeps beside the block, and give back the
+ * same values.
  * @param extracted - the styles
  * @param snapshot - the graph
- * @param exporter - the exporter
- * @param plain - the export's options without styles
+ * @param notes - what the export, styles written as they are, loses
  * @returns the styles, the same object when nothing is lost
  */
 function withLostInputsCarried(
     extracted: ExtractedStyles,
     snapshot: GraphSnapshot,
-    exporter: GraphExporter,
-    plain: Readonly<Record<string, unknown>> | undefined,
+    notes: readonly LossNote[],
 ): ExtractedStyles {
-    let notes: readonly LossNote[];
-    try {
-        notes = exporter.check(snapshot, plain);
-    } catch {
-        return extracted;
-    }
     const lost = new Set<string>();
     let direction = false;
     for (const note of notes) {
-        if (!COLUMNS_KEPT_ELSEWHERE.has(note.code)) {
+        if (!VALUES_KEPT.test(note.code)) {
             for (const name of note.columns ?? (note.column === null ? [] : [note.column])) {
                 lost.add(name);
             }
         }
         direction ||= /DIRECTION/.test(note.code);
     }
-    const caps = exporter.styles?.capabilities;
     const rules: StyleRule[] = [];
     const columns = { node: new Map(extracted.columns.node), edge: new Map(extracted.columns.edge) };
     let changed = false;
     for (const rule of extracted.styles.rules) {
         const table = rule.target === "node" ? snapshot.nodes : snapshot.edges;
         const n = rule.target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        // the label slot written from the styles takes the place of the label column
-        const label = caps?.[rule.target].includes("label") === true ? table.byRole("label")?.meta.name : undefined;
         const held = columns[rule.target];
         // one copy per input, shared by every rule that reads it
         const carry = (base: string, values: () => StyleColumn): { style: string } => {
@@ -186,8 +218,9 @@ function withLostInputsCarried(
             }
             return { style: key };
         };
+        // only a column of plain values can be copied: a list, or a column with no value, stays as it is
         const isLost = (name: unknown): name is string =>
-            typeof name === "string" && (lost.has(name) || name === label) && table.has(name);
+            typeof name === "string" && lost.has(name) && table.has(name) && carriable(table, n, name);
         const cells = (name: string, read: (raw: unknown) => StyleValue | null): StyleColumn =>
             Array.from({ length: n }, (_u, i) => read(plainCell(table.value(name, i))));
         const { ext, ...given } = rule;
@@ -232,6 +265,28 @@ function withLostInputsCarried(
         }
     }
     return changed ? { ...extracted, styles: { ...extracted.styles, rules }, columns } : extracted;
+}
+
+/**
+ * Whether a data column can be copied into a style column: some value, and every value text, a finite number or a
+ * boolean.
+ * @param table - the table
+ * @param n - its row count
+ * @param name - the column
+ * @returns true when it can
+ */
+function carriable(table: GraphSnapshot["nodes"], n: number, name: string): boolean {
+    let some = false;
+    for (let i = 0; i < n; i++) {
+        const cell = plainCell(table.value(name, i));
+        if (cell !== null && cell !== undefined) {
+            if (!isStyleScalar(cell)) {
+                return false;
+            }
+            some = true;
+        }
+    }
+    return some;
 }
 
 /**

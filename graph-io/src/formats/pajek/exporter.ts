@@ -107,6 +107,8 @@ export const PAJEK_LOSS = Object.freeze({
      * reads back with that role.
      */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
+    /** The label column, when a role-less column named `label` is read over it on import. */
+    COLUMN_DROPPED: LOSS.COLUMN_DROPPED,
     /**
      * With `sanitizeIds: "mangle"`: an original id that reads back as a different type, such as the text "7" as the
      * number 7.
@@ -331,6 +333,17 @@ function labelNotes(snapshot: GraphSnapshot, nodePlan: readonly PlannedColumn[],
                 plain.length - plain.nullCount,
             ),
         );
+        // the labels written second on each vertex line are then read over by that parameter
+        if (labels !== null && labels !== plain) {
+            notes.push(
+                note(
+                    PAJEK_LOSS.COLUMN_DROPPED,
+                    `node column "${labels.meta.name}" (the labels) reads back replaced by the parameter "${LABEL_COLUMN}"`,
+                    labels.meta.name,
+                    labels.length - labels.nullCount,
+                ),
+            );
+        }
     }
     if (carried === 0) {
         return;

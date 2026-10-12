@@ -1382,6 +1382,7 @@ export function dotStyledExport(
         return null;
     }
     const approximated = new Map<string, { count: number; samples: Set<string> }>();
+    const replaced: LossNote[] = [];
     const out = snapshot.withColumns();
     const written = onMixedDirection === "directed" || onMixedDirection === "undirected";
     const cx = contexts(snapshot, written ? onMixedDirection === "directed" : null);
@@ -1418,9 +1419,22 @@ export function dotStyledExport(
         }
         const attributes = target === "node" ? NODE_ATTRIBUTES : EDGE_ATTRIBUTES;
         // Graphviz reads these names as how to draw: the picture writes them, so a data column of the same name
-        // (a `label` attribute graphty does not draw) would draw something graphty does not.
+        // (a `label` attribute graphty does not draw) would draw something graphty does not. One a rule reads, whose
+        // values the picture does not write, is lost to the rule, and said so.
+        const read = dataRead(input.rules.styles.rules, target);
         for (const name of [...table.names()]) {
             if (attributes.includes(name) || name === LABEL_ATTRIBUTE || name.startsWith("graphty.style.")) {
+                const differs = read.has(name) ? replacedRows(table, name, columns.get(name)) : 0;
+                if (differs > 0) {
+                    replaced.push(
+                        Object.freeze({
+                            code: DOT_ATTRIBUTE_CLASH_CODE,
+                            message: `${target} column "${name}" is not written: the ${name} attribute holds what graphty draws (${String(differs)} ${target}${differs === 1 ? "" : "s"} differ)`,
+                            column: name,
+                            count: differs,
+                        }),
+                    );
+                }
                 table.remove(name);
             }
         }
@@ -1476,5 +1490,56 @@ export function dotStyledExport(
             }),
         );
     }
-    return { snapshot: out, notes: losses };
+    return { snapshot: out, notes: [...replaced, ...losses] };
+}
+
+/**
+ * The data columns the rules of a target read.
+ * @param rules - the rules
+ * @param target - nodes or edges
+ * @returns the column names
+ */
+function dataRead(rules: readonly StyleRule[], target: StyleTarget): Set<string> {
+    const out = new Set<string>();
+    for (const { ext: _ext, ...rule } of rules.filter((r) => r.target === target)) {
+        JSON.stringify(rule, (_k, v: unknown) => {
+            if (typeof v === "object" && v !== null && !Array.isArray(v) && Object.keys(v).length === 1) {
+                const { data } = v as { data?: unknown };
+                if (typeof data === "string") {
+                    out.add(data);
+                }
+            }
+            return v;
+        });
+    }
+    return out;
+}
+
+/**
+ * A data column named like an attribute the export writes is not written: the exporter's `DOT_LOSS.ATTRIBUTE_CLASH`.
+ */
+export const DOT_ATTRIBUTE_CLASH_CODE = "W_DOT_ATTRIBUTE_CLASH";
+
+/**
+ * How many rows of a data column the attribute written in its place does not hold as it is.
+ * @param table - the table
+ * @param name - the column
+ * @param written - the attribute's values, or undefined when none is written
+ * @returns the rows that differ
+ */
+function replacedRows(
+    table: GraphSnapshot["nodes"],
+    name: string,
+    written: readonly (Written | null)[] | undefined,
+): number {
+    const column = table.get(name);
+    let n = 0;
+    for (let i = 0; column !== null && i < column.length; i++) {
+        const cell = column.isSet(i) ? plainCell(column.value(i)) : null;
+        const w = written?.[i] ?? null;
+        if (cell !== null && (w === null || String(w) !== String(cell))) {
+            n++;
+        }
+    }
+    return n;
 }

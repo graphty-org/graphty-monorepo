@@ -151,7 +151,7 @@ export function readXgmmlFileStyles(snapshot: GraphSnapshot, context: StyleReadC
  * @param target - nodes or edges
  * @param values - the values per property, changed in place
  */
-function exactFromBlock(
+export function exactFromBlock(
     snapshot: GraphSnapshot,
     target: StyleTarget,
     values: Partial<Record<string, StyleColumn>>,

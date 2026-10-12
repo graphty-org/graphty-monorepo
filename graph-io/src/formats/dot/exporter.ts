@@ -39,7 +39,7 @@ import {
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "./names.js";
-import { DOT_STYLE_CAPABILITIES, dotStyledExport, isHtmlString } from "./styles.js";
+import { DOT_ATTRIBUTE_CLASH_CODE, DOT_STYLE_CAPABILITIES, dotStyledExport, isHtmlString } from "./styles.js";
 
 /**
  * The DOT exporter's format-specific options.
@@ -84,7 +84,7 @@ export const DOT_LOSS = Object.freeze({
      */
     TEXT_INFERRED: LOSS.TEXT_INFERRED,
     /** A plain column named like an attribute the exporter writes for a role (weight, key, pos) is not written. */
-    ATTRIBUTE_CLASH: "W_DOT_ATTRIBUTE_CLASH",
+    ATTRIBUTE_CLASH: DOT_ATTRIBUTE_CLASH_CODE,
     /** A mutual pair is written as two directed edges. */
     MUTUAL_EXPANDED: LOSS.MUTUAL_EXPANDED,
     /** A parents (multi-parent) column cannot be written; DOT clusters nest. */
@@ -108,6 +108,26 @@ export const DOT_LOSS = Object.freeze({
 
 /** A graph `charset` that names the encoding the exporter writes (Graphviz accepts both spellings). */
 const UTF8_CHARSET = /^utf-?8$/i;
+
+/**
+ * W_DOT_CHARSET_REWRITTEN for a graph `charset` naming another encoding than the UTF-8 the file is written in.
+ * @param column - a graph column
+ * @returns the note, or none
+ */
+function charsetNotes(column: Column): LossNote[] {
+    const declared = isCharset(column) && column.isSet(0) ? cellText(column, 0) : null;
+    if (declared === null || UTF8_CHARSET.test(declared)) {
+        return [];
+    }
+    return [
+        Object.freeze({
+            code: DOT_LOSS.CHARSET_REWRITTEN,
+            message: `graph attribute charset ${JSON.stringify(declared)} is written as "UTF-8", the encoding the file is written in`,
+            column: column.meta.name,
+            count: 1,
+        }),
+    ];
+}
 
 /**
  * Whether a graph column is the `charset` attribute, which must name the encoding the file is written in.
@@ -567,16 +587,8 @@ class ExportPlan {
             ["graph", this.graphColumns],
         ] as const) {
             for (const column of columns) {
-                if (label === "graph" && isCharset(column) && column.isSet(0)) {
-                    const declared = cellText(column, 0);
-                    if (declared !== null && !UTF8_CHARSET.test(declared)) {
-                        note(
-                            DOT_LOSS.CHARSET_REWRITTEN,
-                            `graph attribute charset ${JSON.stringify(declared)} is written as "UTF-8", the encoding the file is written in`,
-                            column.meta.name,
-                            1,
-                        );
-                    }
+                if (label === "graph") {
+                    notes.push(...charsetNotes(column));
                 }
                 if (label !== "graph" && column.nullCount === column.length) {
                     note(

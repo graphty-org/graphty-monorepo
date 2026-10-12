@@ -217,17 +217,20 @@ describe("degree", () => {
         checkPlan(ex, { node: { width } }, snapshot);
     });
 
-    it("fingerprints the ids in snapshot order", () => {
+    it("fingerprints the ids whatever their order, and tells other ids apart", () => {
         const a = randomGraph(10, 5, 1);
-        const b = new GraphBuilder({ directed: false });
+        const reversed = new GraphBuilder({ directed: false });
+        const other = new GraphBuilder({ directed: false });
         for (let i = 9; i >= 0; i--) {
-            b.addNode(`n${String(i)}`);
+            reversed.addNode(`n${String(i)}`);
+            other.addNode(`m${String(i)}`);
         }
         const fa = styleFingerprint(a);
         expect(fa).toEqual(styleFingerprint(randomGraph(10, 5, 1)));
         expect(fa.nodes).toBe(10);
         expect(fa.edges).toBe(5);
-        expect(styleFingerprint(b.freeze()).ids).not.toBe(fa.ids);
+        expect(styleFingerprint(reversed.freeze()).ids).toBe(fa.ids);
+        expect(styleFingerprint(other.freeze()).ids).not.toBe(fa.ids);
     });
 });
 

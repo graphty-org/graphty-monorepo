@@ -156,6 +156,33 @@ const network =
     };
 
 /**
+ * Adds a bundled dataset.
+ * @param name - the dataset
+ * @returns the loader
+ */
+const dataset =
+    (name: string) =>
+    async (cy: Core): Promise<void> => {
+        await cy.graphtyDataset(name);
+    };
+
+/**
+ * Adds Les Miserables with its characters in order of how many others each shares a scene with, most first (ties in
+ * the dataset's order): a layout that places nodes in node order then places them by rank.
+ * @param cy - the core
+ */
+async function byRank(cy: Core): Promise<void> {
+    await cy.graphtyDataset("les-miserables");
+    const nodes = cy
+        .nodes()
+        .sort((a, b) => b.degree(false) - a.degree(false))
+        .map((n) => n.json());
+    const edges = cy.edges().map((e) => e.json());
+    cy.elements().remove();
+    cy.add([...nodes, ...edges] as never);
+}
+
+/**
  * Adds a generated graph.
  * @param name - the generator
  * @param options - its options
@@ -191,8 +218,18 @@ export const LAYOUT_SHOWCASE: Record<string, LayoutShowcase> = {
             "A 60-node small-world ring placed on a circle in node order: the ring's edges run around the circle, its few rewired shortcuts across it.",
     },
     spiral: {
-        load: generated("path", { n: 80 }),
-        caption: "An 80-node path placed along a spiral in node order, so consecutive nodes sit side by side.",
+        load: byRank,
+        options: () => ({ equidistant: true }),
+        paint: (cy) => {
+            byDegree(cy);
+            cy.nodes()
+                .slice(0, 5)
+                .forEach((n) => {
+                    n.data("tag", n.id());
+                });
+        },
+        caption:
+            "Les Miserables' 77 characters along a spiral in order of how many others each shares a scene with, the most at the center (Valjean, then Gavroche, Marius, Javert, Thenardier): size and color show the count, so the spiral reads as a ranking from the center out.",
     },
     grid: {
         load: network("grid", 100),
@@ -239,11 +276,20 @@ export const LAYOUT_SHOWCASE: Record<string, LayoutShowcase> = {
             "A 5-layer random DAG: one column per layer (subsets: the layer field), each edge running to the next column.",
     },
     bfs: {
-        load: generated("grid", { rows: 7, cols: 7 }),
-        options: () => ({ root: "#0" }),
-        paint: (cy) => byHops(cy, "#0"),
+        load: dataset("les-miserables"),
+        options: () => ({ root: "#Valjean" }),
+        paint: (cy) => {
+            byHops(cy, "#Valjean");
+            // the columns as far apart as the longest is tall, so the names in neighboring columns do not overlap
+            const bb = cy.nodes().boundingBox();
+            const k = bb.h / Math.max(1, bb.w);
+            cy.nodes().forEach((n) => {
+                n.position("x", bb.x1 + (n.position("x") - bb.x1) * k);
+                n.data("tag", n.id());
+            });
+        },
         caption:
-            "A 7 x 7 grid searched breadth-first from a corner: one column per hop count (darker = farther), holding 1, 2, ..., 7, ..., 1 nodes.",
+            "Les Miserables' characters (joined when they share a scene) searched breadth-first from Valjean: one column per step away (darker = farther). 36 characters meet Valjean, 38 more are two steps away, and only Jondrette and Mother Plutarch are three.",
     },
     radial: {
         load: generated("balanced-tree", { branching: 3, height: 4 }),
@@ -258,9 +304,9 @@ export const LAYOUT_SHOWCASE: Record<string, LayoutShowcase> = {
             "A 20-node planar triangulation (a random Apollonian network) drawn with no two edges crossing; nodes sit on integer grid points.",
     },
     spectral: {
-        load: network("grid", 100),
+        ...groups,
         caption:
-            "A 10 x 10 grid placed by the two smallest nonzero eigenvectors of its Laplacian: the grid's rows and columns come back.",
+            "100 nodes in 4 planted groups (colors), placed by the two smallest nonzero eigenvectors of the graph's Laplacian: nodes that share neighbors get nearby coordinates, so each group gathers in its own corner, with no forces at all.",
     },
     "kamada-kawai": {
         load: network("grid", 100),

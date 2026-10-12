@@ -1436,6 +1436,24 @@ export interface ProjectConfig {
     /** What a selected node's halo looks like. */
     readonly selectionStyle: GraphSelectionStyleConfig;
     /**
+     * Whether the style tree starts with its three starting rows: Everything (pinned to the
+     * bottom, writing nothing), Selected (pinned to the top, drawing the selection look as a node
+     * halo and an edge band) and Hovered (pinned to the top, writing nothing). False by default.
+     * Turned on, the rows are added in the same step, and the selection settings
+     * ({@link ProjectConfig.selectionStyle}) draw nothing themselves; `styles.restoreStartingRows()`
+     * brings back any a reader deleted.
+     * @since 3.26.0
+     */
+    readonly startingRows: boolean;
+    /**
+     * Where the layer a finished run paints lands: `"beneath"` (the default), under the lowest
+     * layer somebody wrote that drives the same property, and not at all when such a layer covers
+     * every element; or `"top"`, on top of the unpinned rows, never held back by a layer somebody
+     * wrote.
+     * @since 3.26.0
+     */
+    readonly runPlacement: RunPlacement;
+    /**
      * The layout-behaviour settings a project file saves. The rest of the element's
      * `layoutBehavior` (label declutter, pin on drag, throughput tuning) is a preference of the
      * view and not a project setting.
@@ -1457,6 +1475,9 @@ export interface ProjectConfig {
     readonly name?: string;
 }
 
+/** Where a finished run's layer lands: see {@link ProjectConfig.runPlacement}. */
+export type RunPlacement = "beneath" | "top";
+
 /**
  * A partial {@link ProjectConfig}, nested: `{ data: { knownFields: { nodeIdPath: "key" } } }`.
  * Plain objects are merged key by key; `data.algorithms`, `background` and `selectionStyle` are
@@ -1471,6 +1492,10 @@ export interface ProjectConfigPatch {
     readonly runAlgorithmsOnLoad?: boolean;
     readonly background?: GraphBackgroundConfig;
     readonly selectionStyle?: GraphSelectionStyleInput;
+    /** See {@link ProjectConfig.startingRows}. */
+    readonly startingRows?: boolean;
+    /** See {@link ProjectConfig.runPlacement}. */
+    readonly runPlacement?: RunPlacement;
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
@@ -1671,6 +1696,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `style.pin-row` | `row`: its name, or its id; `pin`: `"top"`, `"bottom"` or `"none"` |
  * | `style.lock-row` | `row`: its name, or its id; `locked` |
  * | `style.hide-row` | `row`: its name, or its id; `hidden` |
+ * | `style.restore-starting-rows` | none |
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
  * | `visibility.show-context`, `visibility.hide-context` | none |
@@ -1734,6 +1760,7 @@ export type HistoryCode =
     | "style.lock-row"
     | "style.hide-row"
     | "style.delete-row"
+    | "style.restore-starting-rows"
     | "visibility.filter"
     | "visibility.clear-filter"
     | "visibility.window"

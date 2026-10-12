@@ -215,3 +215,88 @@ export function partPatch(
 
     return Object.keys(patch).length === 0 ? null : patch;
 }
+
+/** The template id a starting row's layers carry, which is how the element finds one again. */
+export type StartingRowId = "graphty:starting-everything" | "graphty:starting-selected" | "graphty:starting-hovered";
+
+/** One starting row: what it is, and where it is pinned. */
+export interface StartingRow {
+    readonly templateId: StartingRowId;
+    readonly pin: "top" | "bottom";
+    readonly spec: RowSpec;
+}
+
+/**
+ * The selection look a Selected row starts with, as the selection settings state it.
+ * @param look - The selection settings' node halo and edge band.
+ * @param look.color - The halo's colour.
+ * @param look.scale - The halo's size, as a multiple of the node's drawn radius.
+ * @param look.opacity - The halo's opacity.
+ * @param look.edgeColor - The band's colour.
+ * @param look.edgeScale - The band's width, as a multiple of twice the line's width.
+ * @param look.edgeOpacity - The band's opacity.
+ * @returns The three rows, in the order they are added: Everything, Selected, Hovered.
+ */
+export function startingRows(look: {
+    readonly color: string;
+    readonly scale: number;
+    readonly opacity: number;
+    readonly edgeColor: string;
+    readonly edgeScale: number;
+    readonly edgeOpacity: number;
+}): readonly StartingRow[] {
+    const source = (templateId: StartingRowId): RowSpec["source"] => ({ by: "template", templateId });
+
+    return [
+        {
+            templateId: "graphty:starting-everything",
+            pin: "bottom",
+            spec: {
+                name: "Everything",
+                target: "both",
+                selector: { match: "everything" },
+                source: source("graphty:starting-everything"),
+            },
+        },
+        {
+            templateId: "graphty:starting-selected",
+            pin: "top",
+            spec: {
+                name: "Selected",
+                target: "both",
+                selector: { match: "state", state: "selected" },
+                set: {
+                    "node.haloColor": look.color,
+                    "node.haloSize": look.scale,
+                    "node.haloOpacity": look.opacity,
+                    "edge.bandColor": look.edgeColor,
+                    "edge.bandWidth": look.edgeScale,
+                    "edge.bandOpacity": look.edgeOpacity,
+                },
+                source: source("graphty:starting-selected"),
+            },
+        },
+        {
+            templateId: "graphty:starting-hovered",
+            pin: "top",
+            spec: {
+                name: "Hovered",
+                target: "node",
+                selector: { match: "state", state: "hovered" },
+                source: source("graphty:starting-hovered"),
+            },
+        },
+    ];
+}
+
+/**
+ * Which starting row a layer is a part of.
+ * @param entry - A layer in the stack.
+ * @returns Its starting row's template id, or undefined.
+ */
+export function startingRowOf(entry: CompiledLayer): StartingRowId | undefined {
+    const { source } = entry.layer;
+    return source.by === "template" && source.templateId.startsWith("graphty:starting-")
+        ? (source.templateId as StartingRowId)
+        : undefined;
+}

@@ -125,7 +125,14 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.color": "instance",
     "edge.opacity": "instance",
 
-    // Drawn beside the mesh, and per element by nature.
+    // Drawn beside the mesh, and per element by nature: the halo is an overlay instance, the band
+    // its own line batch, each rebuilt by the paint that carries it.
+    "node.haloColor": "content",
+    "node.haloSize": "content",
+    "node.haloOpacity": "content",
+    "edge.bandColor": "content",
+    "edge.bandWidth": "content",
+    "edge.bandOpacity": "content",
     "node.label": "content",
     "node.labelStyle": "content",
     "node.tooltip": "content",

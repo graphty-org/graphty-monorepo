@@ -120,6 +120,18 @@ export const EdgeStyle = z.strictObject({
     line: LineStyle.optional(),
     label: RichTextStyle.prefault({ location: "top" }).optional(),
     /**
+     * A wider line drawn behind the edge's own, as a casing: the selection look, as a style.
+     * Drawn only when it names a colour. `scale` is a multiple of twice the line's width; the
+     * `edge.band*` channels write it.
+     */
+    band: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            scale: z.number().nonnegative().optional(),
+            opacity: z.number().min(0).max(1).optional(),
+        })
+        .optional(),
+    /**
      * False stops drawing the edge (its line, caps and words) and nothing else: it stays in the
      * graph, counted, selectable and measured. The `edge.visible` channel writes it.
      * @since 3.26.0

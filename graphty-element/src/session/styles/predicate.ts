@@ -165,6 +165,15 @@ export interface SelectorSource {
      * @returns Its live membership.
      */
     readonly scope?: (scope: Scope) => LiveScope;
+    /**
+     * Whether a reader is pointing at one element now: selected, or under the pointer. Read per
+     * element, live, by a `{match:"state"}` selector. Absent, that selector is refused.
+     * @param state - Which state.
+     * @param target - Nodes or edges.
+     * @param index - The dense index.
+     * @returns True when the element is in that state.
+     */
+    readonly inState?: (state: "selected" | "hovered", target: SelectorTarget, index: number) => boolean;
 }
 
 /** The live membership of one scope, as a `{match:"member"}` selector reads it. */
@@ -260,7 +269,7 @@ export type ElementPredicate = (index: number) => boolean;
 /** A selector, reduced to the test a repaint runs and the columns that test reads. */
 export interface CompiledSelector {
     /** Which selector kind this was compiled from. */
-    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member" | "rule";
+    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member" | "rule" | "state";
     /** Which kind of element it speaks about. */
     readonly target: SelectorTarget;
     /**

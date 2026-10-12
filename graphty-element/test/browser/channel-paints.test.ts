@@ -220,7 +220,8 @@ describe("every channel the table says is renderable", () => {
                     name: "channel probe prerequisites",
                     target: "node",
                     selector: { match: "everything" },
-                    set: { "node.label": "WORDS" },
+                    // A halo's size and opacity have nothing to change until a color draws one.
+                    set: { "node.label": "WORDS", "node.haloColor": "#FFD700" },
                 });
                 await session.styles.add({
                     name: "channel probe prerequisites",
@@ -242,6 +243,8 @@ describe("every channel the table says is renderable", () => {
                         // still has something to move.
                         "edge.arrowHeadText": "HEAD",
                         "edge.arrowTailText": "TAIL",
+                        // A band's width and opacity, likewise, need a color that draws one.
+                        "edge.bandColor": "#0077BB",
                     },
                 });
                 await operationQueueOf(graph).waitForCompletion();

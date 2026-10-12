@@ -410,6 +410,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "style.patch", action: "deleteRow", id: "folder:fixture-folder_1" },
     },
     {
+        name: "style.patch restoreStartingRows",
+        variant: "restoreStartingRows",
+        tags: BOTH,
+        command: { op: "style.patch", action: "restoreStartingRows" },
+    },
+    {
         name: "style.encode",
         tags: BOTH,
         before: (session) => runQuietly(session, "degree", "deg"),
@@ -695,6 +701,18 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         variant: "selectionStyle",
         tags: BOTH,
         command: { op: "config.set", values: { selectionStyle: { color: "#00ff00", scale: 2 } } },
+    },
+    {
+        name: "config.set startingRows",
+        variant: "startingRows",
+        tags: BOTH,
+        command: { op: "config.set", values: { startingRows: true } },
+    },
+    {
+        name: "config.set runPlacement",
+        variant: "runPlacement",
+        tags: BOTH,
+        command: { op: "config.set", values: { runPlacement: "top" } },
     },
     {
         name: "config.set author",

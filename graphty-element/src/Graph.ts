@@ -817,14 +817,14 @@ export class Graph implements GraphContext {
                 this.updateManager.meshesAdded();
             }
 
-            if (changed("selectionStyle")) {
+            if (changed("selectionStyle") || changed("startingRows")) {
                 for (const node of this.dataManager.nodes.values()) {
                     node.refreshSelectionOverlay();
                 }
             }
 
             // A selected edge's halo is drawn from the selection style: redraw it.
-            if (changed("selectionStyle")) {
+            if (changed("selectionStyle") || changed("startingRows")) {
                 for (const edge of this.dataManager.edges.values()) {
                     if (edge.isSelected()) {
                         edge.updateStyle();
@@ -1999,6 +1999,7 @@ export class Graph implements GraphContext {
                 twoD: layout.dimension === "2d",
                 background: project.background,
                 selection: project.selectionStyle,
+                ...(project.startingRows ? { startingRows: true } : {}),
             },
             data: project.data,
             behavior: GraphBehaviorOpts.parse({

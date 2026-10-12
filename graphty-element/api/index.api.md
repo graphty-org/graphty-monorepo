@@ -1348,6 +1348,11 @@ export const EdgeStyle: z.ZodObject<{
         maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     }, z.core.$strict>>>;
+    band: z.ZodOptional<z.ZodObject<{
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        scale: z.ZodOptional<z.ZodNumber>;
+        opacity: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
     visible: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>;
 
@@ -3346,6 +3351,11 @@ export const NodeStyle: z.ZodObject<{
         outline: z.ZodOptional<z.ZodObject<{
             color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         }, z.core.$strict>>;
+        halo: z.ZodOptional<z.ZodObject<{
+            color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            scale: z.ZodOptional<z.ZodNumber>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>>;
         wireframe: z.ZodOptional<z.ZodBoolean>;
         flatShaded: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strict>>;
@@ -4404,8 +4414,10 @@ export class SelectionManager implements Manager {
     deselect(): void;
     dispose(): void;
     getSelectedNode(): Node_2 | null;
+    hover(id: NodeIdType | null): void;
     init(): Promise<void>;
     isSelected(node: Node_2): boolean;
+    leave(id: NodeIdType): void;
     onEdgesRemoved(ids: readonly EdgeId[]): void;
     onNodeRemoved(node: Node_2): void;
     select(node: Node_2): void;

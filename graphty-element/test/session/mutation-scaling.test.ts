@@ -272,6 +272,19 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "SelectionApi.hover",
+        growth: "constant",
+        prepare: async (session, size) => {
+            await session.config.set({ startingRows: true });
+            const [first, last] = [ids(size)[0], ids(size)[size - 1]];
+            session.selection.hover(first);
+            return async () => {
+                session.selection.hover(last);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
         method: "SelectionApi.promote",
         growth: "linear",
         prepare: async (session, size) => {
@@ -499,6 +512,15 @@ const CASES: readonly Case[] = [
                 await session.styles.settled();
             };
         },
+    },
+    {
+        method: "StylesApi.restoreStartingRows",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(async () => {
+                await session.styles.restoreStartingRows();
+                await session.styles.settled();
+            }),
     },
     {
         method: "StylesApi.deleteRow",

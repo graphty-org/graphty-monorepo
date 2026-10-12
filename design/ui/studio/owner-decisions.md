@@ -47,6 +47,42 @@ say "edited" and offer each changed field back without comparing anything itself
 
 **Not breaking.** New exports and one new optional label style field.
 
+## 2026-10-12 -- Decided by the team: starting rows (Everything, Selected, Hovered) and run placement
+
+**What.** All in graphty-element, additive; every default keeps today's behavior.
+
+- Two project settings: `startingRows` (false by default) and `runPlacement` (`"beneath"` by
+  default, or `"top"`), set with `session.config.set` and saved with the project. Turning
+  `startingRows` on adds, in the same undo step, Everything (nodes and edges, pinned to the bottom,
+  writing nothing), Selected (nodes and edges, pinned to the top, drawing the selection look) and
+  Hovered (nodes, pinned to the top, writing nothing). With it on, the selection settings
+  (`selectionStyle`) draw nothing themselves, so a node never carries two halos.
+- `styles.restoreStartingRows()` adds back whichever of the three a reader deleted, as one undo
+  step (nothing when all three are there). A starting row is known by its template source
+  (`graphty:starting-everything`, `-selected`, `-hovered`), so renaming one keeps it found.
+- A selector kind `{ match: "state", state: "selected" | "hovered" }`: the selection's nodes and
+  edges, or the node under the pointer. It follows each change with no step and repaints only the
+  elements whose state moved. `selection.hovered` and `selection.hover(id)`: the element writes
+  the node under the pointer; any consumer may too.
+- Six channels for the selection look as a style: `node.haloColor`, `node.haloSize`,
+  `node.haloOpacity` and `edge.bandColor`, `edge.bandWidth`, `edge.bandOpacity`, defaults the
+  selection settings' own; each color takes the effect off value `"none"`.
+- With `runPlacement: "top"`, a finished run's suggested layer lands on top of the unpinned rows
+  and no layer somebody wrote holds it back.
+
+**Why.** The model's default rows (design/ui/studio/tier3/design.md, section 5) and its rule that
+provenance never changes behavior: a fixed color on Everything must not stop a Louvain run from
+painting its groups.
+
+**Not breaking.** New settings, a new method, a new selector kind, six new channels and two new
+selection members, all off or unused until a consumer asks. One narrow exception to an existing
+refusal: a starting row may be a layer that writes nothing; every other layer that writes nothing is
+still refused (`E_BAD_LAYER`). Whether to lift that refusal for every layer, so a reader can clear a
+row's last value, belongs with the breaking items above.
+
+**Rule kinds.** "Selected" and "Hovered" are selector kinds, not rule-tree leaves: a rule that
+combines them with another condition ("selected and in community 3") is not built yet.
+
 ## 2026-10-12 -- Decided by the team: colors across rows (`styles.colors`, `styles.replaceColor`) and an off value for effects
 
 **What.** All in graphty-element, additive.

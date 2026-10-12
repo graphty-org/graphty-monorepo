@@ -4,7 +4,13 @@ import * as jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 
-import { type AdHocData, DEFAULT_SELECTION_STYLE, type EdgeStyleConfig, type RichTextStyleType } from "./config";
+import {
+    type AdHocData,
+    DEFAULT_SELECTION_STYLE,
+    type EdgeStyleConfig,
+    type GraphSelectionStyleConfig,
+    type RichTextStyleType,
+} from "./config";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
@@ -810,9 +816,19 @@ export class Edge {
      * @param style - The line's resolved style; the band follows its width and its curve.
      */
     private paintHalo(style: EdgeStyleConfig): void {
-        const selection = this.selected
-            ? (this.context.getStyles().config.graph.selection ?? DEFAULT_SELECTION_STYLE)
-            : null;
+        const { graph } = this.context.getStyles().config;
+        // A band a layer painted; else, while selected, the selection settings' band -- unless the
+        // starting rows are on, where the Selected row draws it as a style instead.
+        let selection: Pick<GraphSelectionStyleConfig, "edgeColor" | "edgeScale" | "edgeOpacity"> | null = null;
+        if (style.band?.color !== undefined) {
+            selection = {
+                edgeColor: style.band.color,
+                edgeScale: style.band.scale ?? DEFAULT_SELECTION_STYLE.edgeScale,
+                edgeOpacity: style.band.opacity ?? DEFAULT_SELECTION_STYLE.edgeOpacity,
+            };
+        } else if (this.selected && graph.startingRows !== true) {
+            selection = graph.selection ?? DEFAULT_SELECTION_STYLE;
+        }
         const width = (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) * 2 * (selection?.edgeScale ?? 0);
         const curve = style.line?.bezier === true;
         const key =

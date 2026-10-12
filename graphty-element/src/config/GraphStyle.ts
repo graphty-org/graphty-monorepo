@@ -110,6 +110,11 @@ export const GraphStyle = z.strictObject({
     background: GraphBackground.prefault({ backgroundType: "color", color: "whitesmoke" }),
     selection: GraphSelectionStyle.optional(),
     /**
+     * Whether the starting rows draw the selection look: the project setting `startingRows`,
+     * copied here for the renderer. True, the selection settings above draw nothing themselves.
+     */
+    startingRows: z.boolean().optional(),
+    /**
      * How far the camera starts from the graph, in scene units. Set, it places the camera and
      * turns off the element's automatic zoom-to-fit; unset, the graph is framed to fit.
      */

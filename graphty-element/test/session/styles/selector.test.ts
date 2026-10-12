@@ -309,6 +309,7 @@ describe("selector refusals", () => {
             "top",
             "member",
             "rule",
+            "state",
         ]);
     });
 

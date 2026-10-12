@@ -126,6 +126,7 @@ export type {
     ResultColumnDescriptor,
     ResultSort,
     RowUpdate,
+    RunPlacement,
     SessionAttributes,
     SessionCatalogApi,
     SessionConfig,

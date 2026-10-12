@@ -260,10 +260,16 @@ export interface ChannelValues {
     "node.glowStrength": number;
     "node.wireframe": boolean;
     "node.flat": boolean;
+    "node.haloColor": ColorValue;
+    "node.haloSize": number;
+    "node.haloOpacity": number;
     "node.marker": never;
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.opacity": number;
+    "edge.bandColor": ColorValue;
+    "edge.bandWidth": number;
+    "edge.bandOpacity": number;
     "edge.style": EdgeLineValue;
     "edge.patternCount": number;
     "edge.curvature": boolean;
@@ -312,7 +318,9 @@ export type ColorChannel =
     | "node.color"
     | "node.outline"
     | "node.glow"
+    | "node.haloColor"
     | "edge.color"
+    | "edge.bandColor"
     | "edge.arrowHeadColor"
     | "edge.arrowTailColor"
     | "node.labelColor"
@@ -416,6 +424,16 @@ export const EFFECT_OFF = "none";
  * black) is ever mistaken for it.
  */
 export const OFF_COLOR: ColorValue = Object.freeze({ r: 0, g: 0, b: 0, a: 0, hex: EFFECT_OFF });
+
+/** What a node halo is, read by `node.haloColor`. */
+const HALO_CAVEAT =
+    "A see-through sphere around the node, sized from the node as drawn. Every halo in one colour " +
+    "and opacity shares one material, so many distinct halo colours build one source each.";
+
+/** What an edge band is, read by `edge.bandColor`. */
+const BAND_CAVEAT =
+    "A wider line drawn behind the edge's own, so the line keeps its paint down the middle and " +
+    "the band shows on both sides as a casing.";
 
 /** The colour an outline is drawn in when a style switches one on without naming a colour. */
 export const DEFAULT_OUTLINE_COLOR = "#FFFF00";
@@ -881,6 +899,46 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "effect.flatShaded",
         renderable: true,
     },
+    "node.haloColor": {
+        channel: "node.haloColor",
+        target: "node",
+        plainName: "Node Halo Colour",
+        shortName: "Halo",
+        group: "effects",
+        // The selection look's gold: a halo is drawn only once a layer names a colour.
+        default: "#FFD700",
+        accepts: "color",
+        stylePath: "effect.halo.color",
+        off: EFFECT_OFF,
+        renderable: true,
+        caveat: HALO_CAVEAT,
+    },
+    "node.haloSize": {
+        channel: "node.haloSize",
+        target: "node",
+        plainName: "Node Halo Size",
+        shortName: "Halo size",
+        group: "effects",
+        // How many times the node's own drawn radius the halo reaches, as the selection look's.
+        default: 1.45,
+        accepts: "number",
+        min: 0,
+        stylePath: "effect.halo.scale",
+        renderable: true,
+    },
+    "node.haloOpacity": {
+        channel: "node.haloOpacity",
+        target: "node",
+        plainName: "Node Halo Opacity",
+        shortName: "Halo opacity",
+        group: "effects",
+        default: 0.4,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "effect.halo.opacity",
+        renderable: true,
+    },
     "node.marker": {
         channel: "node.marker",
         target: "node",
@@ -927,6 +985,46 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         min: 0,
         max: 1,
         stylePath: "line.opacity",
+        renderable: true,
+    },
+    "edge.bandColor": {
+        channel: "edge.bandColor",
+        target: "edge",
+        plainName: "Edge Band Colour",
+        shortName: "Band",
+        group: "line",
+        // The selection look's blue: a band is drawn only once a layer names a colour.
+        default: "#0077BB",
+        accepts: "color",
+        stylePath: "band.color",
+        off: EFFECT_OFF,
+        renderable: true,
+        caveat: BAND_CAVEAT,
+    },
+    "edge.bandWidth": {
+        channel: "edge.bandWidth",
+        target: "edge",
+        plainName: "Edge Band Width",
+        shortName: "Band width",
+        group: "line",
+        // A multiple of twice the line's own width, as the selection look's edgeScale.
+        default: 2.5,
+        accepts: "number",
+        min: 0,
+        stylePath: "band.scale",
+        renderable: true,
+    },
+    "edge.bandOpacity": {
+        channel: "edge.bandOpacity",
+        target: "edge",
+        plainName: "Edge Band Opacity",
+        shortName: "Band opacity",
+        group: "line",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "band.opacity",
         renderable: true,
     },
     "edge.style": {

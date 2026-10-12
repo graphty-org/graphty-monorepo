@@ -282,7 +282,7 @@ export interface CatalogApi {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "node.visible" | "node.labelSize" | "node.labelColor" | "node.labelBackground" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelSize" | "edge.labelColor" | "edge.labelBackground" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextSize" | "edge.arrowTailTextColor" | "edge.arrowTailTextBackground";
+export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.haloColor" | "node.haloSize" | "node.haloOpacity" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "node.visible" | "node.labelSize" | "node.labelColor" | "node.labelBackground" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelSize" | "edge.labelColor" | "edge.labelBackground" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextSize" | "edge.arrowTailTextColor" | "edge.arrowTailTextBackground";
 
 // @public
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>>;
@@ -1611,6 +1611,16 @@ export type Selector = {
     match: "rule";
     where: RuleTree;
     edges?: EdgeReading;
+}
+/**
+* The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
+* edges) or under the pointer (`"hovered"`, one node at most). View state: the layer follows
+* each change with no step.
+* @since 3.26.0
+*/
+| {
+    match: "state";
+    state: "selected" | "hovered";
 };
 
 // @public

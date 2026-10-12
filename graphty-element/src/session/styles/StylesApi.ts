@@ -91,6 +91,7 @@ import type {
     StaticStyle,
     StyleDocument,
 } from "../../catalog/types";
+import { DEFAULT_SELECTION_STYLE } from "../../config/GraphStyle";
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { GraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
@@ -188,7 +189,17 @@ import {
 import { stopsProblem } from "./palettes";
 import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate";
 import { stackChange } from "./repaint";
-import { assertRouted, partPatch, rowOf, type RowParts, rowParts, type RowSpec, type RowWrite } from "./rows";
+import {
+    assertRouted,
+    partPatch,
+    rowOf,
+    type RowParts,
+    rowParts,
+    type RowSpec,
+    type RowWrite,
+    startingRowOf,
+    startingRows,
+} from "./rows";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
 import {
     arrange,
@@ -827,6 +838,17 @@ export interface StylesApi {
      */
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     /**
+     * Add back whichever of the three starting rows the tree lacks: Everything (nodes and edges,
+     * pinned to the bottom, writing nothing), Selected (nodes and edges, pinned to the top,
+     * drawing the selection look as a node halo and an edge band) and Hovered (nodes, pinned to
+     * the top, writing nothing). One undo step; nothing when all three are there. Setting the
+     * project setting `startingRows` to true adds them the same way.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the rows added, bottom first.
+     * @since 3.26.0
+     */
+    restoreStartingRows(options?: RunOptions): Run<readonly RowParts[]>;
+    /**
      * Choose the palette a colour binding uses when it names none, one per palette kind: a
      * binding on groups takes the categorical default, one on amounts the sequential default, and
      * one with a `midpoint` the diverging default. A kind left out keeps its current default.
@@ -1283,6 +1305,7 @@ function protectedLayer(layer: Layer, verb: string): GraphtyError {
         details: { id: layer.id, source: layer.source, verb },
     });
 }
+
 /**
  * The refusal a call that would change a layer the reader locked gets.
  * @param layer - The layer it named.
@@ -2670,9 +2693,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * part, both carrying the node part's id as their row.
      * @param spec - The row.
      * @param at - Which neighbour to sit next to.
+     * @param into - A stack to add it to at an index, when an edit adds several rows in one step.
+     * @param into.stack - That stack.
+     * @param into.index - Where in it.
      * @returns The plan.
      */
-    const planAddRow = (spec: RowSpec, at: LayerPosition | undefined): EditPlan<RowParts> => {
+    const planAddRow = (
+        spec: RowSpec,
+        at: LayerPosition | undefined,
+        into?: { readonly stack: readonly CompiledLayer[]; readonly index: number },
+    ): EditPlan<RowParts> => {
         const kinds: SelectorTarget[] = spec.target === "both" ? ["edge", "node"] : [spec.target];
         assertRouted(spec.set, kinds, "set");
         assertRouted(spec.encode, kinds, "encode");
@@ -2703,8 +2733,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             added.push(checked.layer);
         });
 
-        const next = [...current()];
-        next.splice(insertionIndex(at), 0, ...added);
+        const next = [...(into?.stack ?? current())];
+        next.splice(into?.index ?? insertionIndex(at), 0, ...added);
 
         return {
             stack: next,
@@ -2712,6 +2742,62 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             layers: added.map((entry) => entry.layer.id),
             unresolvedPaths: Object.freeze([...unresolved]),
             warnings: Object.freeze(warnings),
+            reason: "add",
+        };
+    };
+
+    /**
+     * Whether a run's layer goes beneath the reader's: only when it asked to, and the project's
+     * `runPlacement` is not `"top"` (on top it lands above the unpinned rows, as a call does).
+     * @param asked - The command's `beneathAuthored`.
+     * @returns True to place it beneath.
+     */
+    const runBeneath = (asked: boolean | undefined): boolean | undefined =>
+        asked === true && dispatcher.services.config?.().runPlacement === "top" ? false : asked;
+
+    /**
+     * The plan that adds back whichever starting rows the stack lacks, each pinned where it
+     * belongs: Everything at the very bottom of the reader's rows, Selected just below Hovered.
+     * @returns The plan; the stack unchanged when every starting row is there.
+     */
+    const planStartingRows = (): EditPlan<readonly RowParts[]> => {
+        const look = dispatcher.services.config?.().selectionStyle ?? DEFAULT_SELECTION_STYLE;
+        let stack = current();
+        let rows = rowsOf(stack);
+        const added: RowParts[] = [];
+        const layers: LayerId[] = [];
+        const pins: [LayerId, "top" | "bottom"][] = [];
+
+        for (const starting of startingRows(look)) {
+            if (stack.some((entry) => startingRowOf(entry) === starting.templateId)) {
+                continue;
+            }
+
+            const firstOwn = stack.findIndex((entry) => !entry.layer.locked);
+            const hovered = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
+            // Everything at the very bottom of the reader's rows; Selected just below Hovered.
+            const below = starting.pin === "bottom" ? firstOwn : hovered;
+            const index = below === -1 ? stack.length : below;
+            const plan = planAddRow(starting.spec, undefined, { stack, index });
+            ({ stack } = plan);
+            rows = reconcile(rows, stack);
+            pins.push([plan.result.id, starting.pin]);
+            added.push(plan.result);
+            layers.push(...plan.layers);
+        }
+
+        // Pinned once every row is placed: a pin taken earlier would band a row before the next
+        // one is placed by its stack neighbors, and Hovered would land below Selected.
+        for (const [id, pin] of pins) {
+            rows = mapRow(rows, id, (row) => ({ ...row, pin }));
+        }
+
+        return {
+            stack,
+            rows: normalize(rows),
+            result: Object.freeze(added),
+            layers,
+            unresolvedPaths: NO_PATHS,
             reason: "add",
         };
     };
@@ -2763,11 +2849,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         };
     };
 
-    /**
-     * The plan a style command asks for, against the stack as it stands now.
-     * @param command - The command.
-     * @returns The plan. Throws a `GraphtyError` to refuse it.
-     */
     /**
      * A minter of folder ids free of every folder id in some rows, which remembers what it handed out.
      * @param rows - The rows whose folder ids are taken.
@@ -2960,9 +3041,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
     };
 
+    /**
+     * The plan a style command asks for, against the stack as it stands now.
+     * @param command - The command.
+     * @returns The plan. Throws a `GraphtyError` to refuse it.
+     */
     const planOf = (command: StyleCommand): EditPlan<unknown> => {
         if (command.op === "style.encode") {
-            return planEncode(command.spec, command.beneathAuthored);
+            return planEncode(command.spec, runBeneath(command.beneathAuthored));
         }
 
         if (command.op === "style.template") {
@@ -2997,8 +3083,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 return planUpdate(command.id, command.patch);
             case "addRow":
                 return planAddRow(command.spec, command.at);
-            case "writeRow":
-                return planWriteRow(command.id, command.write);
+            case "restoreStartingRows":
+                return planStartingRows();
             case "addFolder":
             case "renameRow":
             case "moveRow":
@@ -3007,6 +3093,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             case "hideRow":
             case "deleteRow":
                 return planTree(command);
+            case "writeRow":
+                return planWriteRow(command.id, command.write);
             case "remove":
                 return planRemove(command.id);
             case "move":
@@ -3014,7 +3102,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             case "removeBySource":
                 return planSweep(command.ids);
             case "highlight":
-                return planHighlight(command.spec, command.beneathAuthored);
+                return planHighlight(command.spec, runBeneath(command.beneathAuthored));
             case "resolveToStatic":
                 // The value and the patch are worked out by the same reading that reported the
                 // channel uneditable, and applied by the same update any other patch goes through.
@@ -3208,6 +3296,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 "update",
                 `Hide row ${id}`,
                 { op: "style.patch", action: "hideRow", id, hidden },
+                options,
+            );
+        },
+
+        restoreStartingRows(options: RunOptions = {}): Run<readonly RowParts[]> {
+            return edit<readonly RowParts[]>(
+                "add",
+                "Restore the starting rows",
+                { op: "style.patch", action: "restoreStartingRows" },
                 options,
             );
         },

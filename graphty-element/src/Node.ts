@@ -73,6 +73,13 @@ const CONTEXT_POINT_ALPHA = 0.18;
 /** The smallest size an overlay is drawn at, so a zero-sized style still leaves something to see. */
 const MIN_OVERLAY_SIZE = 0.2;
 
+/** What a halo is drawn with: the selection settings' three, or a layer's `node.halo*`. */
+interface HaloLook {
+    readonly color: string;
+    readonly scale: number;
+    readonly opacity: number;
+}
+
 interface NodeOpts {
     pinOnDrag?: boolean;
 }
@@ -247,6 +254,12 @@ export class Node {
      * that possible needs the state the mesh is actually in.
      */
     private renderState: NodeRenderState = "visible";
+
+    /** The halo a layer painted on this node (`node.halo*`), or null when none names a colour. */
+    private styleHalo: HaloLook | null = null;
+
+    /** The source mesh the halo instance was made from, so a new look makes a new instance. */
+    private haloSource: string | null = null;
 
     /** Whether the style stack hid this node (`node.visible` false), which only stops drawing it. */
     private styleHidden = false;
@@ -625,6 +638,7 @@ export class Node {
         this.applyInstanceColor(color);
         NodeEffects.applyOutlineEffect(this.mesh, style.effect);
         NodeEffects.applyGlowEffect(this.mesh, style.effect);
+        this.paintStyleHalo(style.effect?.halo);
         const hidden = style.visible === false;
         if (hidden !== this.styleHidden) {
             this.styleHidden = hidden;
@@ -1015,7 +1029,7 @@ export class Node {
         this.showOverlay("context", state === "context");
         // A hidden node draws no halo: the selection is still the selection, but there is nothing
         // on screen for it to ring.
-        this.showOverlay("halo", drawn && this.selected);
+        this.showOverlay("halo", drawn && this.haloWanted());
     }
 
     /**
@@ -1031,6 +1045,61 @@ export class Node {
     }
 
     /**
+     * Whether this node draws a halo: a layer painted one, or it is selected and the selection
+     * settings still draw the selection look. With the starting rows on, the Selected row draws
+     * it as a style instead, so the settings draw nothing and a node never carries two.
+     * @returns True when a halo is wanted.
+     */
+    private haloWanted(): boolean {
+        return (
+            this.styleHalo !== null || (this.selected && this.context.getStyles().config.graph.startingRows !== true)
+        );
+    }
+
+    /**
+     * The halo's look: the one a layer painted, else the selection settings'.
+     * @returns The colour, scale and opacity, and the source mesh that look is drawn from.
+     */
+    private haloLook(): HaloLook & { readonly source: string } {
+        if (this.styleHalo !== null) {
+            const { color, scale, opacity } = this.styleHalo;
+            // One source per colour and opacity, because instances share their source's material.
+            // ponytail: a colour picker dragged across many colours leaves one cached source per
+            // colour it passed; evict sources with no instances if that ever shows in a profile.
+            return { ...this.styleHalo, source: `${SELECTION_HALO_MESH}|${color}|${String(opacity)}|${String(scale)}` };
+        }
+
+        const { color, scale, opacity } = this.selectionStyle();
+        return { color, scale, opacity, source: SELECTION_HALO_MESH };
+    }
+
+    /**
+     * Take the halo a layer painted, and redraw the overlay when it changed.
+     * @param halo - The resolved style's halo block.
+     */
+    private paintStyleHalo(halo: { color?: string; scale?: number; opacity?: number } | undefined): void {
+        const next: HaloLook | null =
+            halo?.color === undefined
+                ? null
+                : {
+                      color: halo.color,
+                      scale: halo.scale ?? DEFAULT_SELECTION_STYLE.scale,
+                      opacity: halo.opacity ?? DEFAULT_SELECTION_STYLE.opacity,
+                  };
+        const same =
+            next === this.styleHalo ||
+            (next !== null &&
+                this.styleHalo !== null &&
+                next.color === this.styleHalo.color &&
+                next.scale === this.styleHalo.scale &&
+                next.opacity === this.styleHalo.opacity);
+        if (!same) {
+            this.styleHalo = next;
+            this.refreshSelectionOverlay();
+        }
+    }
+
+    /**
      * Redraw this node's selection halo from the configuration as it now stands.
      *
      * Called for every node when `graph.setSelectionStyle()` changes it. A node that is not
@@ -1041,7 +1110,7 @@ export class Node {
             return;
         }
 
-        this.showOverlay("halo", this.getRenderState() === "visible" && this.selected);
+        this.showOverlay("halo", this.getRenderState() === "visible" && this.haloWanted());
     }
 
     /**
@@ -1060,26 +1129,32 @@ export class Node {
             return;
         }
 
-        const selection = this.selectionStyle();
-        const overlay = existing && !existing.isDisposed() ? existing : this.createOverlay(kind);
+        const look = this.haloLook();
+        let reusable = existing && !existing.isDisposed() ? existing : null;
+        if (kind === "halo" && reusable !== null && this.haloSource !== look.source) {
+            // A new look is another source mesh: this instance cannot be repainted into it.
+            reusable.dispose();
+            reusable = null;
+        }
+
+        const overlay = reusable ?? this.createOverlay(kind, look);
 
         if (kind === "halo") {
             this.halo = overlay;
+            this.haloSource = look.source;
             // WRITTEN ON EVERY PASS, not only when the halo is built. Every halo in the graph is
             // an instance of ONE source mesh and shares ONE material, so a selection restyled
             // while a selection is on screen is this one write -- and it is the same write for
             // one selected node and for forty thousand. Minting a source mesh per appearance
             // instead would leave one behind in the cache for every colour a colour picker
             // passed through.
-            Node.paintHalo(overlay, selection);
+            Node.paintHalo(overlay, look);
         } else {
             this.contextPoint = overlay;
         }
 
         const scale =
-            kind === "halo"
-                ? this.haloScale(selection.scale)
-                : Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE;
+            kind === "halo" ? this.haloScale(look.scale) : Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE;
         overlay.scaling.setAll(scale);
         overlay.position.copyFrom(this.mesh.position);
         overlay.setEnabled(true);
@@ -1144,14 +1219,14 @@ export class Node {
      * one sphere and one material per overlay kind: turning the context layer on for 40,000 hidden
      * nodes allocates 40,000 instances of one mesh, not 40,000 meshes.
      * @param kind - Which overlay.
+     * @param look - The halo's look, which names its source mesh.
      * @returns The instance, parented and ready to be positioned.
      */
-    private createOverlay(kind: "halo" | "context"): AbstractMesh {
+    private createOverlay(kind: "halo" | "context", look: HaloLook & { readonly source: string }): AbstractMesh {
         const scene = this.context.getScene();
-        const selection = this.selectionStyle();
-        const name = kind === "halo" ? SELECTION_HALO_MESH : CONTEXT_POINT_MESH;
-        const color = kind === "halo" ? selection.color : CONTEXT_POINT_COLOR;
-        const alpha = kind === "halo" ? selection.opacity : CONTEXT_POINT_ALPHA;
+        const name = kind === "halo" ? look.source : CONTEXT_POINT_MESH;
+        const color = kind === "halo" ? look.color : CONTEXT_POINT_COLOR;
+        const alpha = kind === "halo" ? look.opacity : CONTEXT_POINT_ALPHA;
         const overlay = this.context
             .getMeshCache()
             .get(name, () => Node.createOverlaySource(name, color, alpha, scene));
@@ -1171,9 +1246,9 @@ export class Node {
     /**
      * Bring the shared halo material into line with the configured appearance.
      * @param overlay - Any halo instance; its material is the shared one.
-     * @param selection - The configured colour and opacity.
+     * @param selection - The colour and opacity to draw it in.
      */
-    private static paintHalo(overlay: AbstractMesh, selection: GraphSelectionStyleConfig): void {
+    private static paintHalo(overlay: AbstractMesh, selection: HaloLook): void {
         const { material } = overlay;
 
         if (!(material instanceof StandardMaterial)) {

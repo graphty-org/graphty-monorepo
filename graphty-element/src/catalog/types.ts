@@ -533,10 +533,16 @@ export type Channel =
     | "node.glowStrength"
     | "node.wireframe"
     | "node.flat"
+    | "node.haloColor"
+    | "node.haloSize"
+    | "node.haloOpacity"
     | "node.marker"
     | "edge.color"
     | "edge.width"
     | "edge.opacity"
+    | "edge.bandColor"
+    | "edge.bandWidth"
+    | "edge.bandOpacity"
     | "edge.style"
     | "edge.patternCount"
     | "edge.curvature"
@@ -737,7 +743,14 @@ export type Selector =
      * `clipped`, the edges between its nodes, as the visibility filter reads it). "Top N by" any
      * number is a `threshold` leaf: `{ kind: "threshold", path: "data.age", top: 10 }`.
      */
-    | { match: "rule"; where: RuleTree; edges?: EdgeReading };
+    | { match: "rule"; where: RuleTree; edges?: EdgeReading }
+    /**
+     * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
+     * edges) or under the pointer (`"hovered"`, one node at most). View state: the layer follows
+     * each change with no step.
+     * @since 3.26.0
+     */
+    | { match: "state"; state: "selected" | "hovered" };
 
 /** Who put a layer in the stack. Every layer names its source. */
 export type LayerSource =
@@ -790,7 +803,9 @@ export type GroupMatchCode = "group.new" | "group.gone";
  */
 export interface LayerUnmatchedGroup {
     /** Whether the group is new after the re-run or gone from it. */
+    /** Whether the group is new after the re-run or gone from it. */
     readonly code: GroupMatchCode;
+    /** Which group, of which value. */
     /** Which group, of which value. */
     readonly params: {
         /** The value path the group is a value of, such as `results.louvain.group`. */

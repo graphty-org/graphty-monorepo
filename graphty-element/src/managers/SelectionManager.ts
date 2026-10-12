@@ -96,6 +96,26 @@ export class SelectionManager implements Manager {
     }
 
     /**
+     * Say which node the pointer is over, or null, so a `{ match: "state", state: "hovered" }`
+     * style layer paints it.
+     * @param id - The node, or null.
+     */
+    hover(id: NodeIdType | null): void {
+        this.selection?.hover(id);
+    }
+
+    /**
+     * The pointer left a node: nothing is hovered, unless the pointer is already over another
+     * (each node hears the pointer on its own, so the next node's arrival can come first).
+     * @param id - The node the pointer left.
+     */
+    leave(id: NodeIdType): void {
+        if (this.selection?.hovered === id) {
+            this.selection.hover(null);
+        }
+    }
+
+    /**
      * Get the currently selected node.
      * @returns The first selected node, or null if nothing is selected.
      */

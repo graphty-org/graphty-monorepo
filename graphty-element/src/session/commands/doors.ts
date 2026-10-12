@@ -495,6 +495,8 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     apply: SELECTION,
     count: READ,
     clear: SELECTION,
+    hovered: READ,
+    hover: exempt("The pointer resting on a node is view state, not a step, like the selection."),
     // The doors test selects node "d1" before calling it.
     promote: calls(
         ["door set"],
@@ -649,6 +651,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     lockRow: calls(["no-such-row", true], [{ op: "style.patch", action: "lockRow", id: "no-such-row", locked: true }]),
     hideRow: calls(["no-such-row", true], [{ op: "style.patch", action: "hideRow", id: "no-such-row", hidden: true }]),
     deleteRow: calls(["no-such-row"], [{ op: "style.patch", action: "deleteRow", id: "no-such-row" }]),
+    restoreStartingRows: calls([], [{ op: "style.patch", action: "restoreStartingRows" }]),
     setDefaultPalettes: PALETTE_DEFAULTS,
     setHighlightColor: HIGHLIGHT_DEFAULT,
 };
@@ -1983,6 +1986,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             runAlgorithmsOnLoad: READ,
             background: READ,
             selectionStyle: READ,
+            startingRows: READ,
+            runPlacement: READ,
             layoutBehavior: READ,
             author: READ,
             name: READ,

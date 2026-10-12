@@ -137,6 +137,18 @@ export const NodeStyle = z.strictObject({
                     color: ColorStyle.optional(),
                 })
                 .optional(),
+            /**
+             * A see-through sphere around the node: the selection look, as a style. Drawn only
+             * when it names a colour. `scale` is how many times the node's drawn radius it
+             * reaches; the `node.halo*` channels write it.
+             */
+            halo: z
+                .strictObject({
+                    color: ColorStyle.optional(),
+                    scale: z.number().nonnegative().optional(),
+                    opacity: z.number().min(0).max(1).optional(),
+                })
+                .optional(),
             wireframe: z.boolean().optional(),
             flatShaded: z.boolean().optional(),
         })

@@ -96,13 +96,29 @@ export type Selector =
      * the data the same way. `edges` defaults to `clipped`, the edges between the rule's nodes.
      * "Top N by" any number column is a `threshold` leaf with `top`.
      */
-    | { readonly match: "rule"; readonly where: RuleTree; readonly edges?: EdgeReading };
+    | { readonly match: "rule"; readonly where: RuleTree; readonly edges?: EdgeReading }
+    /**
+     * The elements a reader is pointing at now: in the selection (`"selected"`, nodes and edges as
+     * the selection holds them), or under the pointer (`"hovered"`, one node at most; no edge is
+     * ever hovered). View state, never data: the layer follows each change without a step.
+     * @since 3.26.0
+     */
+    | { readonly match: "state"; readonly state: ElementState };
+
+/**
+ * What a reader is doing to an element now, which a `{ match: "state" }` selector reads.
+ * @since 3.26.0
+ */
+export type ElementState = "selected" | "hovered";
+
+/** Every element state, for a refusal that lists what was allowed. */
+const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered"];
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Every selector kind, for a refusal that lists what was allowed. */
-const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member", "rule"] as const;
+const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member", "rule", "state"] as const;
 
 /** The prefix of the only paths a top selector ranks: a run's published fields. */
 const RESULT_PATH_PREFIX = "results.";
@@ -256,6 +272,15 @@ function assertSelector(selector: Selector): void {
             }
 
             return;
+        case "state":
+            if (!ELEMENT_STATES.includes(selector.state)) {
+                throw badShape("unknown-state", `A "state" selector reads one of ${ELEMENT_STATES.join(", ")}.`, {
+                    state: selector.state,
+                    states: ELEMENT_STATES,
+                });
+            }
+
+            return;
         case "member":
         case "rule":
             try {
@@ -360,6 +385,20 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
                 test: topPredicate(columns, path, () => topCut(path, target, n)),
                 paths: Object.freeze([path]),
             };
+        }
+        case "state": {
+            const { inState } = source;
+            const { state } = selector;
+            if (inState === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message: 'This session cannot evaluate a "state" selector, because it has no selection to read.',
+                    source: "style",
+                    details: { match: "state" },
+                });
+            }
+
+            return { match: "state", target, test: (index) => inState(state, target, index), paths: EMPTY_PATHS };
         }
         case "member":
         case "rule": {

@@ -270,6 +270,20 @@ export interface SelectionApi {
      */
     clear(): SelectionDelta;
     /**
+     * The node under the pointer now, or null. Not part of the selection and never a step: the
+     * element writes it as the pointer moves, and a `{ match: "state", state: "hovered" }` style
+     * layer paints it.
+     * @since 3.26.0
+     */
+    readonly hovered: NodeId | null;
+    /**
+     * Say which node is under the pointer, or null for none. The element calls it as the pointer
+     * moves over its canvas; a consumer pointing at a node elsewhere (a table row) may call it too.
+     * @param id - The node, or null.
+     * @since 3.26.0
+     */
+    hover(id: NodeId | null): void;
+    /**
      * Keep this selection under a name, as a kept set created from the selection, so it can be
      * named as `{ set: id }` later.
      *
@@ -407,6 +421,12 @@ export interface SelectionSources {
     readonly onOriginChange?: (origin: SelectionTarget | null) => void;
     /** Called on every version bump of either mask, which is what advances the session input tick. */
     readonly onMaskVersion?: () => void;
+    /**
+     * Called when the node under the pointer changes.
+     * @param before - The node that was hovered, or null.
+     * @param after - The node hovered now, or null.
+     */
+    readonly onHover?: (before: NodeId | null, after: NodeId | null) => void;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -549,6 +569,9 @@ class Selection implements SelectionOwner {
     #frameStale = false;
 
     #truncated = false;
+
+    /** The node under the pointer. */
+    #hovered: NodeId | null = null;
 
     /** The target the selection is exactly, while nothing else has changed it. */
     #origin: SelectionTarget | null = null;
@@ -820,6 +843,20 @@ class Selection implements SelectionOwner {
      * Empty the selection.
      * @returns What changed.
      */
+    get hovered(): NodeId | null {
+        return this.#hovered;
+    }
+
+    hover(id: NodeId | null): void {
+        const before = this.#hovered;
+        if (before === id) {
+            return;
+        }
+
+        this.#hovered = id;
+        this.#sources.onHover?.(before, id);
+    }
+
     clear(): SelectionDelta {
         this.#sync();
         const before = this.#capture();

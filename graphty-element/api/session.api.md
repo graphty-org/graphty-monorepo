@@ -250,7 +250,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "node.visible" | "node.labelSize" | "node.labelColor" | "node.labelBackground" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelSize" | "edge.labelColor" | "edge.labelBackground" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextSize" | "edge.arrowTailTextColor" | "edge.arrowTailTextBackground";
+export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.haloColor" | "node.haloSize" | "node.haloOpacity" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "node.visible" | "node.labelSize" | "node.labelColor" | "node.labelBackground" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelSize" | "edge.labelColor" | "edge.labelBackground" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextSize" | "edge.arrowTailTextColor" | "edge.arrowTailTextBackground";
 
 // @public
 export type ChannelAgreement = {
@@ -1396,7 +1396,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -2241,7 +2241,9 @@ export interface ProjectConfig {
     };
     readonly name?: string;
     readonly runAlgorithmsOnLoad: boolean;
+    readonly runPlacement: RunPlacement;
     readonly selectionStyle: GraphSelectionStyleConfig;
+    readonly startingRows: boolean;
 }
 
 // @public
@@ -2260,8 +2262,10 @@ export interface ProjectConfigPatch {
     readonly name?: string | null;
     // (undocumented)
     readonly runAlgorithmsOnLoad?: boolean;
+    readonly runPlacement?: RunPlacement;
     // (undocumented)
     readonly selectionStyle?: GraphSelectionStyleInput;
+    readonly startingRows?: boolean;
 }
 
 // @public
@@ -2891,6 +2895,9 @@ export interface RunPainting {
 export type RunPhase = (typeof RUN_PHASES)[number];
 
 // @public
+export type RunPlacement = "beneath" | "top";
+
+// @public
 export interface RunProgressReport {
     readonly completed?: number;
     readonly message?: string;
@@ -3088,6 +3095,8 @@ export interface SelectionApi {
     edgeMask(): Uint8Array;
     readonly edges: readonly EdgeId[];
     has(id: NodeId | EdgeId): boolean;
+    hover(id: NodeId | null): void;
+    readonly hovered: NodeId | null;
     nodeMask(): Uint8Array;
     readonly nodes: readonly NodeId[];
     readonly origin: SelectionTarget | null;
@@ -3271,6 +3280,16 @@ export type Selector = {
     match: "rule";
     where: RuleTree;
     edges?: EdgeReading;
+}
+/**
+* The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
+* edges) or under the pointer (`"hovered"`, one node at most). View state: the layer follows
+* each change with no step.
+* @since 3.26.0
+*/
+| {
+    match: "state";
+    state: "selected" | "hovered";
 };
 
 // @public
@@ -3834,6 +3853,7 @@ export interface StylesApi {
     renameRow(id: StyleRowId, name: string, options?: RunOptions): Run<StyleRow>;
     replaceColor(rowIds: readonly StyleRowId[], from: string, to: string, options?: RunOptions): Run<readonly Layer[]>;
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
+    restoreStartingRows(options?: RunOptions): Run<readonly RowParts[]>;
     setDefaultPalettes(palettes: DefaultPalettes, options?: {
         readonly reapply?: boolean;
     }): void;

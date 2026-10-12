@@ -25,7 +25,7 @@ import {
     toColorValue,
 } from "../../../src/session/styles/channels";
 
-/** The fifty-two channels the element publishes, in the order the table declares them. */
+/** The fifty-eight channels the element publishes, in the order the table declares them. */
 const DECLARED = [
     "node.color",
     "node.size",
@@ -40,10 +40,16 @@ const DECLARED = [
     "node.glowStrength",
     "node.wireframe",
     "node.flat",
+    "node.haloColor",
+    "node.haloSize",
+    "node.haloOpacity",
     "node.marker",
     "edge.color",
     "edge.width",
     "edge.opacity",
+    "edge.bandColor",
+    "edge.bandWidth",
+    "edge.bandOpacity",
     "edge.style",
     "edge.patternCount",
     "edge.curvature",
@@ -105,9 +111,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into twenty-one node channels and thirty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 21);
-        assert.strictEqual(channelsFor("edge").length, 31);
+    it("splits into twenty-four node channels and thirty-four edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 24);
+        assert.strictEqual(channelsFor("edge").length, 34);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -403,12 +409,14 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the sixteen that carry a colour, and the type says the same sixteen", () => {
+    it("are the eighteen that carry a colour, and the type says the same eighteen", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.outline",
             "node.glow",
+            "node.haloColor",
             "edge.color",
+            "edge.bandColor",
             "edge.arrowHeadColor",
             "edge.arrowTailColor",
             "node.labelColor",

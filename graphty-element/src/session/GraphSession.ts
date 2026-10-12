@@ -142,7 +142,13 @@ import {
 } from "./styles";
 import { atStylePath, channelsFor } from "./styles/channels";
 import type { CompiledLayer } from "./styles/Layer";
-import { createLayerRepaint, type ElementPaint, type ElementRemaps, type RepaintEngine } from "./styles/repaint";
+import {
+    createLayerRepaint,
+    type ElementIndices,
+    type ElementPaint,
+    type ElementRemaps,
+    type RepaintEngine,
+} from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
 import { selectorScope } from "./styles/selector";
 import { createSelectorSource, edgeEndpointOf, type SessionSelectorSource } from "./styles/sources";
@@ -1232,6 +1238,12 @@ function configOf(
         get selectionStyle() {
             return read().selectionStyle;
         },
+        get startingRows() {
+            return read().startingRows;
+        },
+        get runPlacement() {
+            return read().runPlacement;
+        },
         get layoutBehavior() {
             return read().layoutBehavior;
         },
@@ -1977,6 +1989,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Assigned below, and read only from inside a callback: a store this session built delivers
     // its freeze remaps here, and a freeze cannot happen before the store exists.
     let selection: SelectionOwner | null = null;
+    // Set once the style stack exists: what a selection change repaints.
+    let repaintSelected = (): void => undefined;
 
     // The style stack, late-bound because the runs are built before it and the auto-apply policy
     // hands a run's derived layer to it. A thunk rather than a captured object for the reason the
@@ -2402,6 +2416,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // one API, and a decision made at the doors is a decision made more than once.
         styling: createAutoApplyPolicy({
             styles: () => stack ?? undefined,
+            placement: () => readProject().runPlacement,
             // WHERE A REFUSAL GOES WHEN NOBODY ASKED FOR THE LAYER. The element paints a run's
             // suggestion in the step that records the run, which nobody called for layer by
             // layer, so a refused suggestion has no call site to arrive at. The run is still
@@ -2572,7 +2587,17 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         records,
         onChange: (delta) => {
             notifier.notify({ kind: "selection" });
+            repaintSelected();
             publish(watchers, "selection:changed", delta);
+        },
+        onHover: (before, after) => {
+            const nodes = [before, after].flatMap((id) => {
+                const at = id === null ? undefined : nodeIndex(id);
+                return at === undefined ? [] : [at];
+            });
+            // An input moved: what a count read before the move is stale now.
+            advanceTick();
+            repaintStates({ node: nodes, edge: [] });
         },
         // The origin moved with no member: `selection:changed` stays a membership event, so the
         // origin has its own.
@@ -2604,6 +2629,49 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     );
 
     const teardown = new AbortController();
+    // A `{match:"state"}` layer reads the selection and the pointer live, which change with no
+    // step: each change repaints exactly the elements whose state moved, when a layer reads one.
+    const readsState = (): boolean =>
+        stack !== null && stack.compiled().some((entry) => entry.layer.selector.match === "state");
+    const repaintStates = (dirty: ElementIndices): void => {
+        if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0) || !readsState()) {
+            return;
+        }
+
+        painter
+            .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
+            .catch((error: unknown) => {
+                if (!teardown.signal.aborted) {
+                    console.error("[graphty] Could not repaint the layers reading the selection.", error);
+                }
+            });
+    };
+    // The selection as last repainted, so a change repaints what moved: one byte per element.
+    let paintedSelection: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
+    const changedBytes = (before: Uint8Array | undefined, after: Uint8Array): number[] => {
+        const changed: number[] = [];
+        for (let index = 0; index < after.length; index++) {
+            if (before === undefined || before.length !== after.length || before[index] !== after[index]) {
+                changed.push(index);
+            }
+        }
+
+        return changed;
+    };
+    repaintSelected = (): void => {
+        // No layer reads the selection: nothing to repaint, and nothing remembered, so the first
+        // change after one is added repaints every element once rather than trusting old bytes.
+        if (!readsState()) {
+            paintedSelection = null;
+            return;
+        }
+
+        const owner = requireSelection(selection);
+        const now = { node: owner.nodeMask(), edge: owner.edgeMask() };
+        const before = paintedSelection;
+        paintedSelection = now;
+        repaintStates({ node: changedBytes(before?.node, now.node), edge: changedBytes(before?.edge, now.edge) });
+    };
     // The live scopes `{match:"member"}` layers test (design/sets 11): each watches its scope and
     // repaints exactly the elements that moved, or both halves whole after a freeze.
     const layerScopes = new LayerScopes({
@@ -2635,7 +2703,20 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const edgeIndex = edgeIndexOf(snapshot);
     const styles = createStylesApi({
         dispatcher,
-        elements: { ...elements, nodeIndex, edgeIndex, scope: (spec: Scope) => layerScopes.live(spec) },
+        elements: {
+            ...elements,
+            nodeIndex,
+            edgeIndex,
+            scope: (spec: Scope) => layerScopes.live(spec),
+            inState: (state, target, index) => {
+                const owner = requireSelection(selection);
+                if (state === "hovered") {
+                    return target === "node" && owner.hovered !== null && nodeIndex(owner.hovered) === index;
+                }
+
+                return (target === "node" ? owner.nodeMembers() : owner.edgeMembers()).has(index);
+            },
+        },
         admitScope: (spec: unknown) => scope.admit(spec),
         base: elementBaseLayers(),
         paths,

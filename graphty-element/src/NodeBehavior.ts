@@ -591,6 +591,7 @@ export class NodeDragHandler {
                 this.node.showTooltip();
 
                 const context = this.getContext();
+                context.getSelectionManager?.()?.hover(this.node.id);
                 const eventManager = context.getEventManager?.();
                 if (eventManager) {
                     eventManager.emitNodeEvent("node-hover", {
@@ -602,6 +603,7 @@ export class NodeDragHandler {
                 // Reset hover state when leaving
                 this.isHovered = false;
                 this.node.hideTooltip();
+                this.getContext().getSelectionManager?.()?.leave(this.node.id);
             }
         });
     }

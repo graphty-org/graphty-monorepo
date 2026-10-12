@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * test-slots.mjs -- a machine-wide limit on how many test runs execute at once (issue #1316).
  *

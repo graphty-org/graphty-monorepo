@@ -41,7 +41,7 @@ import { channelDescriptor, labelFieldOf, labelPatchOf, mergeLabelStyle, toColor
 import { quotePath } from "../predicate";
 import { FILE_STYLE_TRANSLATION_ISSUE, type FileStyleNoteCode } from "./codes";
 import { type FoldableLayer, foldToCap } from "./fold";
-import { type FileStyleMeaning, type FileStyleOrigin, fileStyleUserData } from "./origin";
+import type { FileStyleMeaning, FileStyleOrigin } from "./origin";
 import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from "./path";
 import { ARROW_SHAPES, FILE_STYLE_SHAPES, type FileStyleShapeTable, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
 import type { FileStyleScalar } from "./store";
@@ -90,7 +90,9 @@ export interface FileStyleNote {
     readonly code: FileStyleNoteCode;
     /**
      * The facts: `property` (the file's property or construct, or null), `target` (`node`,
-     * `edge`, `graph`, or null), `count` (how many times) and `samples` (up to 8 examples).
+     * `edge`, `graph`, or null), `count` (how many times), `samples` (up to 8 of the file's own
+     * values) and, on `W_STYLE_LAYER_SPEC_IGNORED`, `reason`: why the layer was not rebuilt
+     * (`INVALID`, `SELECTOR`, `SELECTOR_TERMS`, `PATH`, or `REFUSED` when the element refused it).
      */
     readonly params: Readonly<Record<string, CodedFactParam>>;
 }
@@ -176,7 +178,14 @@ interface Building extends FoldableLayer {
 class Notes {
     readonly #held = new Map<
         string,
-        { code: FileStyleNoteCode; property: string | null; target: string | null; count: number; samples: string[] }
+        {
+            code: FileStyleNoteCode;
+            property: string | null;
+            target: string | null;
+            count: number;
+            samples: string[];
+            reason?: string;
+        }
     >();
 
     /**
@@ -185,9 +194,17 @@ class Notes {
      * @param target - The kind, or null.
      * @param property - The property, or null.
      * @param count - How many times.
-     * @param sample - An example.
+     * @param sample - An example of the file's own values.
+     * @param reason - Why, as a code (`SELECTOR`, `PATH`); the first one given is kept.
      */
-    add(code: FileStyleNoteCode, target: string | null, property: string | null, count = 1, sample?: string): void {
+    add(
+        code: FileStyleNoteCode,
+        target: string | null,
+        property: string | null,
+        count = 1,
+        sample?: string,
+        reason?: string,
+    ): void {
         const key = `${code}\u0000${target ?? ""}\u0000${property ?? ""}`;
         let held = this.#held.get(key);
         if (held === undefined) {
@@ -196,6 +213,7 @@ class Notes {
         }
 
         held.count += count;
+        held.reason ??= reason;
         if (sample !== undefined && held.samples.length < 8 && !held.samples.includes(sample.slice(0, 80))) {
             held.samples.push(sample.slice(0, 80));
         }
@@ -228,6 +246,7 @@ class Notes {
                     target: held.target,
                     count: held.count,
                     samples: Object.freeze([...held.samples]),
+                    ...(held.reason === undefined ? {} : { reason: held.reason }),
                 }),
             }),
         );
@@ -556,7 +575,7 @@ function inRuleOrder(
     const ranks = (kind: StyleTarget): number[] => {
         let last = -1;
         return byKind[kind].map((layer) => {
-            const key = layer.spec.userData?.ruleKey;
+            const key = layer.spec.fileStyle?.ruleId;
             last = (typeof key === "string" ? at.get(`${kind}\u0000${key}`) : undefined) ?? last;
             return last;
         });
@@ -1079,7 +1098,7 @@ class KindTranslation {
         const same = this.#built.filter(
             (layer) =>
                 layer.bucket === bucket &&
-                (layer.spec.userData?.ruleKey as string | undefined) === rule.id &&
+                layer.spec.fileStyle?.ruleId === rule.id &&
                 this.#rebuilt.get(rule) !== layer,
         );
         const found = same.find((layer) => JSON.stringify(layer.spec.selector) === key);
@@ -1105,7 +1124,7 @@ class KindTranslation {
                 selector,
                 set: {},
                 encode: {},
-                userData: { ...fileStyleUserData(origin), ruleKey: rule.id },
+                fileStyle: origin,
             },
             paint: new Map(),
             worth: kind === "custom" ? 0 : 1000,
@@ -1147,7 +1166,7 @@ class KindTranslation {
                 ...spec,
                 set: { ...spec.set },
                 encode: { ...spec.encode },
-                userData: { ...spec.userData, ...fileStyleUserData(origin), ruleKey: rule.id },
+                fileStyle: origin,
             },
             paint: null,
             worth: 1000,
@@ -1187,7 +1206,7 @@ class KindTranslation {
         }
 
         const ignored = (reason: string): null => {
-            this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.LAYER_SPEC_IGNORED, this.#kind, rule.id, 1, reason);
+            this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.LAYER_SPEC_IGNORED, this.#kind, rule.id, 1, undefined, reason);
             return null;
         };
         if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -1286,7 +1305,13 @@ class KindTranslation {
             paths.push(selector.path);
         } else if (selector?.match === "expression" && typeof selector.where === "string") {
             for (const match of selector.where.matchAll(DATA_SEGMENT)) {
-                paths.push(`data.${match[1].startsWith('"') ? String(JSON.parse(match[1])) : match[1]}`);
+                const name = match[1].startsWith('"') ? quotedName(match[1]) : match[1];
+                if (name === undefined) {
+                    // a quoted name JSON cannot read: the layer names no column this load holds
+                    return false;
+                }
+
+                paths.push(`data.${name}`);
             }
         }
 
@@ -1354,14 +1379,14 @@ class KindTranslation {
         const segment = String.raw`(?:"(?:[^"\\]|\\.)*"|[A-Za-z_][A-Za-z0-9_]*|\d+)`;
         const pattern = new RegExp(String.raw`graphty\.style\.${segment}\.(node|edge)((?:\.${segment})+)`, "g");
         return where.replace(pattern, (whole: string, kind: string, rest: string) => {
-            const key = splitSegments(rest.slice(1)).join(".");
-            const values = kind === this.#kind ? held.get(key) : undefined;
+            const key = splitSegments(rest.slice(1))?.join(".");
+            const values = kind === this.#kind && key !== undefined ? held.get(key) : undefined;
             if (values === undefined) {
                 missing();
                 return whole;
             }
 
-            return quotePath(this.#keep(key, values));
+            return quotePath(this.#keep(key as string, values));
         });
     }
 
@@ -2103,7 +2128,7 @@ class KindTranslation {
                 selector: this.#scoped({ match: "everything" }),
                 set: {},
                 encode,
-                userData: { ...fileStyleUserData(origin), folded: run.map((layer) => layer.spec.name) },
+                fileStyle: origin,
             },
             paint: new Map(paint as Map<Channel, unknown[]>),
             worth: 0,
@@ -2128,11 +2153,25 @@ const LOCATIONS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * A quoted name read back as its text.
+ * @param quoted - The name with its quotes, escaped as JSON.
+ * @returns The text, or undefined when it holds an escape JSON rejects.
+ */
+function quotedName(quoted: string): string | undefined {
+    try {
+        const text: unknown = JSON.parse(quoted);
+        return typeof text === "string" ? text : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
  * The segments of a dotted path, each quoted name read back as its text.
  * @param text - The path's segments, joined with dots.
- * @returns The segments.
+ * @returns The segments, or undefined when a quoted name holds an escape JSON rejects.
  */
-function splitSegments(text: string): string[] {
+function splitSegments(text: string): string[] | undefined {
     const out: string[] = [];
     let at = 0;
     while (at < text.length) {
@@ -2142,7 +2181,12 @@ function splitSegments(text: string): string[] {
                 end += text[end] === "\\" ? 2 : 1;
             }
 
-            out.push(JSON.parse(text.slice(at, end + 1)) as string);
+            const name = quotedName(text.slice(at, end + 1));
+            if (name === undefined) {
+                return undefined;
+            }
+
+            out.push(name);
             at = end + 2;
         } else {
             const end = text.indexOf(".", at);
@@ -2204,7 +2248,5 @@ function factsOf(rule: StyleRule): Partial<FileStyleOrigin> {
  * @param facts - The facts.
  */
 function setFacts(layer: Building, facts: Partial<FileStyleOrigin>): void {
-    const data = layer.spec.userData as Record<string, unknown>;
-    const key = Object.keys(fileStyleUserData({} as FileStyleOrigin))[0];
-    data[key] = { ...(data[key] as object), ...facts };
+    layer.spec.fileStyle = { ...(layer.spec.fileStyle as FileStyleOrigin), ...facts };
 }

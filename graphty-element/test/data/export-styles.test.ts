@@ -313,10 +313,7 @@ describe("a layer that selects by id", () => {
         const notes = back.data.lastImport()?.styles?.notes ?? [];
         assert.isTrue(
             notes.some(
-                (note) =>
-                    note.code === FILE_STYLE_ISSUE.LAYER_SPEC_IGNORED &&
-                    Array.isArray(note.params.samples) &&
-                    note.params.samples.includes("SELECTOR"),
+                (note) => note.code === FILE_STYLE_ISSUE.LAYER_SPEC_IGNORED && note.params.reason === "SELECTOR",
             ),
         );
         assert.deepEqual(picture(back), picture(session));

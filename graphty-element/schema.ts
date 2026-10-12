@@ -70,6 +70,14 @@ export type {
     ThemeDescriptor,
 } from "./src/catalog/types";
 export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
+export type {
+    FileStyleMappingKind,
+    FileStyleMeaning,
+    FileStyleOrigin,
+    FileStyleReason,
+    FileStyleRole,
+    FileStyleRuleOrigin,
+} from "./src/session/styles/fileStyles/origin";
 
 // ---------------------------------------------------------------------------------------------
 // The style configuration: the shapes, the defaults and the helpers

@@ -19,6 +19,7 @@ import {
     computedPath,
     fileStyleNamespace,
     fileStylePath,
+    isFileStyleNamespace,
     parseFileStylePath,
 } from "../../../src/session/styles/fileStyles/path";
 
@@ -97,6 +98,20 @@ describe("the file-style paths", () => {
         assert.strictEqual(fileStyleNamespace("gexf", new Set(["gexf"])), "gexf-2");
         assert.strictEqual(fileStyleNamespace("gexf", new Set(["gexf", "gexf-2"])), "gexf-3");
         assert.strictEqual(fileStyleNamespace("cytoscape-js", new Set(["gexf"])), "cytoscape-js");
+    });
+
+    it("turn any format id into a namespace the store accepts", () => {
+        for (const format of ["", "_x", "-x", "__", "My Format!", "f".repeat(80)]) {
+            const taken = new Set<string>();
+            for (let i = 0; i < 3; i++) {
+                const namespace = fileStyleNamespace(format, taken);
+                assert.isTrue(isFileStyleNamespace(namespace), `${format} -> ${namespace}`);
+                taken.add(namespace);
+            }
+        }
+
+        assert.strictEqual(fileStyleNamespace("", new Set()), "file");
+        assert.strictEqual(fileStyleNamespace("_x", new Set()), "x");
     });
 });
 
@@ -408,7 +423,7 @@ describe("where applyTemplate puts a document's layers", () => {
 });
 
 describe("fileStyleOf", () => {
-    it("reads the facts a layer carries, and survives a saved document", async () => {
+    it("reads the facts a layer carries, through a userData update and a saved document", async () => {
         const session = await loaded();
         const origin = {
             format: "gexf",
@@ -427,12 +442,16 @@ describe("fileStyleOf", () => {
             target: "node",
             selector: { match: "has", path: MEMBER },
             set: { "node.color": "#ff0000" },
-            userData: { "graphty.fileStyle": origin },
+            fileStyle: origin,
         });
 
         assert.deepEqual(fileStyleOf(layer), origin);
+        // the consumer's own bag is the consumer's: replacing it keeps the facts
+        const updated = await session.styles.update(layer.id, { userData: { mine: true } });
+        assert.deepEqual(fileStyleOf(updated), origin);
+        assert.deepEqual(updated.userData, { mine: true });
         const reread = JSON.parse(JSON.stringify(session.styles.toDocument())) as {
-            layers: { userData?: Record<string, unknown> }[];
+            layers: { fileStyle?: unknown }[];
         };
         assert.deepEqual(fileStyleOf(reread.layers.at(-1) ?? {}), origin);
         session.dispose();
@@ -440,18 +459,17 @@ describe("fileStyleOf", () => {
 
     it("answers null for a layer not made from a file, and drops a malformed optional fact", () => {
         assert.isNull(fileStyleOf({}));
-        assert.isNull(fileStyleOf({ userData: { "graphty.fileStyle": { format: "gexf" } } }));
+        assert.isNull(fileStyleOf({ fileStyle: { format: "gexf" } }));
+        assert.isNull(fileStyleOf({ userData: { "graphty.fileStyle": { format: "gexf" } } } as never));
         const read = fileStyleOf({
-            userData: {
-                "graphty.fileStyle": {
-                    format: "gexf",
-                    importId: "i1",
-                    ruleId: "r",
-                    role: "defaults",
-                    origin: "tool",
-                    elements: -1,
-                    meanings: [{ value: {}, name: "x" }],
-                },
+            fileStyle: {
+                format: "gexf",
+                importId: "i1",
+                ruleId: "r",
+                role: "defaults",
+                origin: "tool",
+                elements: -1,
+                meanings: [{ value: {}, name: "x" }],
             },
         });
         assert.isNotNull(read);

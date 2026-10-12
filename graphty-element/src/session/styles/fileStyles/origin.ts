@@ -3,9 +3,9 @@
  * and {@link fileStyleOf}, so an application words "Colors from the file, by Modularity Class (9
  * values)" from data and never reads a layer's `userData` by shape or parses a path.
  *
- * The facts ride on the layer's `userData` under one reserved key, so they are saved and restored
- * with the layer wherever the layer goes (a style document, a project file). The element never
- * reads them to paint.
+ * The facts ride on the layer's own `fileStyle` field, apart from the consumer's `userData`, so
+ * they are saved and restored with the layer wherever the layer goes (a style document, a project
+ * file). The element never reads them to paint.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -103,9 +103,6 @@ export interface FileStyleOrigin {
     readonly reason?: FileStyleReason;
 }
 
-/** The `userData` key the facts ride under. Reserved: a consumer's own key never starts `graphty.`. */
-export const FILE_STYLE_USER_DATA_KEY = "graphty.fileStyle";
-
 /** The optional count fields. */
 const COUNTS = ["entries", "elements", "classes", "distinctValues"] as const;
 
@@ -160,7 +157,7 @@ function meaningsOf(value: unknown): readonly FileStyleMeaning[] | undefined {
  * A layer saved in a document can be edited by hand, so the facts are checked as they are read:
  * a malformed required field reads as no facts at all, and a malformed optional one is left out.
  * @param layer - The layer, or its specification.
- * @param layer.userData - Its `userData`, where the facts ride.
+ * @param layer.fileStyle - Its `fileStyle`, where the facts ride.
  * @returns The facts, or null for a layer that was not made from a file's styles.
  * @example
  * ```ts
@@ -172,8 +169,8 @@ function meaningsOf(value: unknown): readonly FileStyleMeaning[] | undefined {
  * }
  * ```
  */
-export function fileStyleOf(layer: { readonly userData?: Readonly<Record<string, unknown>> }): FileStyleOrigin | null {
-    const held = layer.userData?.[FILE_STYLE_USER_DATA_KEY];
+export function fileStyleOf(layer: { readonly fileStyle?: unknown }): FileStyleOrigin | null {
+    const held = layer.fileStyle;
     if (!isRecord(held)) {
         return null;
     }
@@ -214,13 +211,4 @@ export function fileStyleOf(layer: { readonly userData?: Readonly<Record<string,
     }
 
     return Object.freeze(facts) as unknown as FileStyleOrigin;
-}
-
-/**
- * The `userData` that carries a layer's facts, for the translation that builds the layer.
- * @param origin - The facts.
- * @returns The bag to give the layer.
- */
-export function fileStyleUserData(origin: FileStyleOrigin): Record<string, unknown> {
-    return { [FILE_STYLE_USER_DATA_KEY]: origin };
 }

@@ -395,6 +395,24 @@ describe("a file graphty wrote", () => {
     });
 });
 
+describe("a graphty layer whose expression holds an escape JSON rejects", () => {
+    it("is ignored with a note, and the file's own colors still load", async () => {
+        // each holds one backslash before characters JSON does not accept as an escape
+        for (const where of [`data.label == 'see data."\\q"'`, `graphty.style.gexf.node."\\u12" == 1`]) {
+            const text = await graphtyWritten("a", where);
+            const session = createGraphSession();
+            await session.data.import({ type: "gexf", config: { data: text } }, { styles: "file" });
+            assert.strictEqual(drawn(session, { node: "a1" }, "node.color"), "#ff0000", where);
+            const notes = session.data.lastImport()?.styles?.notes ?? [];
+            assert.isTrue(
+                notes.some((note) => note.code === FILE_STYLE_ISSUE.LAYER_SPEC_IGNORED),
+                where,
+            );
+            session.dispose();
+        }
+    });
+});
+
 describe("a load's notes", () => {
     it("count each element once, however many of the file's rules give it a value drawn as the nearest", async () => {
         // Gephi's default disc applies to all three nodes and the file's own square to one: both

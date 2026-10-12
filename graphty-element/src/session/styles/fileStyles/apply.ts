@@ -242,7 +242,8 @@ async function applyRead(
                     property: layer.spec.name,
                     target: layer.spec.target ?? null,
                     count: 1,
-                    samples: ["REFUSED"],
+                    samples: [],
+                    reason: "REFUSED",
                 },
             });
         }

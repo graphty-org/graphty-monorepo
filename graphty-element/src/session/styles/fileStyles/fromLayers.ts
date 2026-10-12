@@ -44,7 +44,6 @@ import type { Binding, Channel, EdgeId, LayerSpec, NodeId, Path, Rgba } from "..
 import { toColorValue } from "../channels";
 import type { ExplainTarget, StyleExplanation } from "../explain";
 import type { CompiledLayer } from "../Layer";
-import { FILE_STYLE_USER_DATA_KEY } from "./origin";
 import { computedOf, parseFileStylePath } from "./path";
 import { ARROW_SHAPES, FILE_STYLE_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
 import { fileStyleColumn, type FileStyleStore } from "./store";
@@ -778,7 +777,7 @@ class KindExport {
             selector,
             ...(layer.set === undefined ? {} : { set: layer.set }),
             ...(layer.encode === undefined ? {} : { encode: layer.encode }),
-            ...ownUserData(layer.userData),
+            ...(layer.userData === undefined ? {} : { userData: layer.userData }),
         };
     }
 
@@ -853,27 +852,6 @@ class KindExport {
 
 /** A selector a load scoped: `(<inner>) && <path> != \`null\``, the path a file-style path. */
 const SCOPED = /^\((.*)\) && (graphty\.style\..+) != `null`$/s;
-
-/**
- * A layer's user data without what a load of a file put there about that load (its facts and its
- * rule key): a load of the written file puts its own, so writing them would only make the file
- * differ from load to load.
- * @param userData - The layer's user data.
- * @returns `{ userData }` without those keys, or nothing when none is left.
- */
-function ownUserData(userData: Readonly<Record<string, unknown>> | undefined): { userData?: Record<string, unknown> } {
-    if (userData === undefined) {
-        return {};
-    }
-
-    const own = Object.fromEntries(
-        Object.entries(userData).filter(([key]) => key !== FILE_STYLE_USER_DATA_KEY && key !== RULE_KEY),
-    );
-    return Object.keys(own).length === 0 ? {} : { userData: own };
-}
-
-/** The user-data key a translated layer names its rule under. */
-const RULE_KEY = "ruleKey";
 
 /**
  * A path as an expression writes it, each quoted segment read back as its text.

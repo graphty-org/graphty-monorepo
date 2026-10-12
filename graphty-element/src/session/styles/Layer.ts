@@ -67,6 +67,7 @@ import { trimTrailingSeparators } from "../runs/runId";
 import type { CodedFact } from "../shared";
 import { type ChannelDescriptor, channelDescriptor, channelsFor, labelFieldOf, toColorValue } from "./channels";
 import { stopsProblem } from "./encoding";
+import type { FileStyleOrigin } from "./fileStyles/origin";
 import type { CompiledSelector, SelectorSource, SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
 import { compileSelector, type Selector } from "./selector";
@@ -125,11 +126,14 @@ export interface Layer {
      * control is pinned, where the layer came from in its own model -- has a documented place to
      * keep it. Without one, every consumer invents a place, and that place is a name collision
      * with the next release.
-     *
-     * Keys starting `graphty.` are the element's: a layer made from a file's styles carries its
-     * facts under `graphty.fileStyle`, read with `fileStyleOf(layer)`. Never used to paint.
      */
     readonly userData?: Record<string, unknown>;
+    /**
+     * Where a layer made from a file's styles came from, read with `fileStyleOf(layer)`; absent
+     * on every other layer. The element's own facts, kept apart from `userData` so a consumer's
+     * bag is never shared with them. Never used to paint.
+     */
+    readonly fileStyle?: FileStyleOrigin;
 }
 
 /**
@@ -1117,6 +1121,7 @@ function buildLayer(
         // Stored by reference and never copied: "round-trips untouched" is not a figure of speech,
         // and a consumer keeping a live object in here gets the same object back.
         ...(spec.userData === undefined ? {} : { userData: spec.userData }),
+        ...(spec.fileStyle === undefined ? {} : { fileStyle: frozen(spec.fileStyle) }),
     });
 
     return Object.freeze({ layer, selector, reads: Object.freeze([...reads]) });
@@ -1138,5 +1143,6 @@ export function specOf(layer: Layer): LayerSpec {
         ...(layer.set === undefined ? {} : { set: layer.set }),
         ...(layer.encode === undefined ? {} : { encode: layer.encode }),
         ...(layer.userData === undefined ? {} : { userData: layer.userData }),
+        ...(layer.fileStyle === undefined ? {} : { fileStyle: layer.fileStyle }),
     };
 }

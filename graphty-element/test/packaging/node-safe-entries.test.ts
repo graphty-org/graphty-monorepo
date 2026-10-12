@@ -216,7 +216,7 @@ describe("the Node-safe entry points", () => {
             origin: "declared",
         };
 
-        assert.deepEqual(session.fileStyleOf({ userData: { "graphty.fileStyle": origin } }), origin);
+        assert.deepEqual(session.fileStyleOf({ fileStyle: origin }), origin);
         assert.isNull(session.fileStyleOf({}));
     });
 

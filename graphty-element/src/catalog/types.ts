@@ -21,6 +21,7 @@
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { LabelStyle } from "./label-style";
 
 /**
@@ -495,6 +496,10 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
+ *
+ * OPEN UNION: later releases add channels as the element learns to paint more. A consumer that
+ * keeps a table over every channel (`Record<Channel, ...>`) adds an entry for each new one, or
+ * types the table `Partial<Record<Channel, ...>>` and words an unknown channel generically.
  */
 export type Channel =
     | "node.color"
@@ -738,6 +743,12 @@ export interface LayerSpec {
     source?: LayerSource;
     enabled?: boolean;
     userData?: Record<string, unknown>;
+    /**
+     * Where a layer made from a file's styles came from: the element's facts about it, set when
+     * a load makes the layer, saved and restored with it, and read with `fileStyleOf(layer)`.
+     * Absent on every other layer. An update that does not name it keeps it.
+     */
+    fileStyle?: FileStyleOrigin;
 }
 
 /** A portable stack of layers, with any palettes it depends on travelling beside it. */

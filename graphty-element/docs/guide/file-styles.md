@@ -28,7 +28,9 @@ export async function openAndSave(el: Graphty, url: string): Promise<string> {
 
 Without `styles: "file"` a load reads the data alone, exactly as it always has: the default is
 `"none"`. Without `styles: true` an export writes the file it always wrote, and says what it left
-out (see [Exporting with styles](#exporting-with-styles)).
+out (see [Exporting with styles](#exporting-with-styles)). The two are spelled differently on
+purpose: a load names whose styles to draw (`"file"`, the only source today, with room for more),
+while an export only says whether to write the graph's own styles, so it takes `true`.
 
 The same choice is accepted everywhere a load starts:
 

@@ -478,6 +478,23 @@ tools vitest.* eslint.config.js compact-mantine/eslint` into a temp tree, the co
   the item did not list. Data files the tests read (design/documents, studio tool files) are not
   in such a tree: those failures are the tree's, not the change's.
 
+- (2026-10-12) WORKED: a two-dimensional grid inside Mantine's Select without replacing it.
+  `StyleSelect` takes `layout="grid"`, `columns` and a `glyph` per option. The grid's arrows are
+  caught in a capture-phase keydown on the wrapper (React's `stopPropagation` there keeps
+  Mantine's own one-step arrow from running), and the highlight is walked to the target cell
+  with the listbox module's `walkHighlight` (now exported), which presses Mantine's own arrows as
+  untrusted events, so the store, `aria-activedescendant`, Enter and the theme's type-ahead all
+  keep working. Guard on `isTrusted` or the walk's own presses recurse. The cells are the theme's
+  options with `classNames={{ options: "cm-listbox-grid" }}` (Mantine adds it beside the theme's
+  classes) and an inline `gridTemplateColumns`; cell CSS lives in `inputs.css.ts`. Every new prop
+  is undefined by default and Mantine drops undefined props, so existing selects keep the theme's
+  renderer and look. `ControlSection` takes `headingLevel`: a `display: contents` heading around
+  the lead, named by `aria-labelledby` the section's name (else the heading is named "Collapse
+  Nodes" after the button inside it). jsdom paints Mantine's open list `display: none`: query
+  options with `hidden: true`; prove keyboard behavior in a `*.browser.test.tsx`
+  (`userEvent` from `vitest/browser`). No story was added: a new story is an unapproved image that
+  blocks merging until the owner accepts it; add one when the app's panel uses the grid.
+
 ## Sources
 
 - Digests in `design/ui/studio/digests/` (`tier1.md`, `decisions.md`, `study-rounds.md`,

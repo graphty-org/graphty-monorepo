@@ -7,6 +7,7 @@ import { useLabels } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
 import { useControlAnnotation, VISUALLY_HIDDEN_STYLE } from "../utils/control-annotation";
+import { ListboxCheck, walkHighlight } from "./inputs/listbox";
 
 // One of the "style" trio (StyleSelect, StyleNumberInput, CompactColorInput):
 // the older half of the library, brought to the same standard as the row types.
@@ -25,6 +26,9 @@ import { useControlAnnotation, VISUALLY_HIDDEN_STYLE } from "../utils/control-an
  */
 const CONTROL_GAP = PANEL_GRID.TRAIL_GAP;
 
+/** The chosen option's glyph in the closed control: 16px, the field's own ink. */
+const GLYPH_STYLE: React.CSSProperties = { display: "inline-flex", width: 16, height: 16 };
+
 /**
  * One choice in a {@link StyleSelect}.
  */
@@ -33,6 +37,12 @@ export interface StyleSelectOption {
     value: string;
     /** The words drawn for this choice, in the reader's own language. */
     label: string;
+    /**
+     * A small picture of this choice, drawn before its name in the list, in a grid cell above
+     * its name, and in the closed control while it is the chosen one. A 24 x 24 SVG drawn in
+     * `currentColor` fits best. It is decoration: the choice is still named by `label`.
+     */
+    glyph?: React.ReactNode;
 }
 
 /**
@@ -89,6 +99,19 @@ export interface StyleSelectProps {
      * again, not as a restatement that it is off.
      */
     disabledReason?: string;
+    /**
+     * How the open list is laid out. `"grid"` puts the choices in rows of `columns` cells, each
+     * a glyph over its name, for many look-alike choices (shapes, arrowheads, line patterns).
+     * The arrow keys then move in two dimensions: left and right by one cell, up and down by a
+     * row. Type-ahead, Home, End, Enter and Escape work as in the list.
+     * @default "list"
+     */
+    layout?: "list" | "grid";
+    /**
+     * How many cells a row of the grid holds. Read only when `layout` is `"grid"`.
+     * @default 5
+     */
+    columns?: number;
     /** Called when the control takes focus. Forwarded unchanged. */
     onFocus?: React.FocusEventHandler<HTMLInputElement>;
     /** Called when the control loses focus. Forwarded unchanged. */
@@ -120,6 +143,8 @@ export interface StyleSelectProps {
  * @param props.onChange - Called with the new choice, or with `undefined` when the control is reset
  * @param props.disabled - Whether the control cannot be used at all
  * @param props.disabledReason - One sentence saying why the control is off, drawn only while it is off
+ * @param props.layout - Whether the open list is a list or a grid of glyphs
+ * @param props.columns - How many cells a row of the grid holds
  * @param props.onFocus - Called when the control takes focus
  * @param props.onBlur - Called when the control loses focus
  * @returns The dropdown, and its reset button when a choice has been made
@@ -148,6 +173,8 @@ export function StyleSelect({
     onChange,
     disabled = false,
     disabledReason,
+    layout = "list",
+    columns = 5,
     onFocus,
     onBlur,
 }: StyleSelectProps): React.JSX.Element {
@@ -174,6 +201,78 @@ export function StyleSelect({
 
     const isDefault = selected === undefined;
     const displayValue = selected ?? defaultValue;
+    const grid = layout === "grid";
+    const glyphs = new Map(options.map((option) => [option.value, option.glyph]));
+    const hasGlyphs = options.some((option) => option.glyph !== undefined);
+    const shownGlyph = glyphs.get(displayValue);
+
+    /**
+     * Draw one option: the theme's check column, then the glyph and the name; in a grid, the
+     * glyph over the name. Used only when there are glyphs or a grid, so every other select
+     * keeps the theme's own renderer.
+     * @param input - Mantine's option
+     * @param input.option - the option
+     * @param input.option.value - what the option stores
+     * @param input.option.label - the option's name
+     * @returns the option's content
+     */
+    const renderOption = ({ option }: { option: { value: string; label: string } }): React.ReactNode => {
+        const glyph = glyphs.get(option.value);
+        return (
+            <>
+                {!grid && <ListboxCheck />}
+                {glyph !== undefined && (
+                    <span className="cm-listbox-glyph" aria-hidden="true">
+                        {glyph}
+                    </span>
+                )}
+                <span className="cm-listbox-label">{option.label}</span>
+            </>
+        );
+    };
+
+    /**
+     * The grid's arrow keys. Mantine's list moves one option per arrow; in a grid, up and down
+     * move a row and left and right one cell (mirrored right to left). The highlight is walked
+     * there with Mantine's own arrows, so its store, `aria-activedescendant` and Enter stay in
+     * step. A move off the grid's edge stays put. A closed list opens as usual.
+     * @param event - a key pressed inside the control
+     */
+    const handleGridKeys = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+        const input = event.target;
+        // The walk's own presses are untrusted; they go to Mantine untouched.
+        if (!grid || !event.nativeEvent.isTrusted || !(input instanceof HTMLInputElement)) {
+            return;
+        }
+        const listId = input.getAttribute("aria-controls");
+        const list = input.hasAttribute("data-expanded") && listId ? document.getElementById(listId) : null;
+        const rtl = getComputedStyle(input).direction === "rtl";
+        const across = rtl ? -1 : 1;
+        const steps: Record<string, number> = {
+            ArrowRight: across,
+            ArrowLeft: -across,
+            ArrowDown: columns,
+            ArrowUp: -columns,
+        };
+        const step = steps[event.key];
+        if (list === null || step === undefined) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const items = [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")];
+        const at = items.findIndex((item) => item.hasAttribute("data-combobox-selected"));
+        const from = at === -1 ? items.findIndex((item) => item.hasAttribute("data-checked")) : at;
+        const next = from === -1 ? 0 : from + step;
+        const sameRow = Math.floor(next / columns) === Math.floor(from / columns);
+        const target = items.at(next);
+        if (next < 0 || target === undefined || (Math.abs(step) === 1 && from !== -1 && !sameRow)) {
+            return;
+        }
+        if (!target.hasAttribute("data-combobox-disabled")) {
+            walkHighlight(input, list, target);
+        }
+    };
 
     /**
      * Record the reader's choice.
@@ -204,6 +303,7 @@ export function StyleSelect({
             align="flex-end"
             title={annotation.title}
             data-disabled={disabled ? "true" : undefined}
+            onKeyDownCapture={grid ? handleGridKeys : undefined}
         >
             <Select
                 data-testid="style-select-field"
@@ -214,7 +314,16 @@ export function StyleSelect({
                 onChange={handleSelectChange}
                 onFocus={onFocus}
                 onBlur={onBlur}
-                data={options}
+                data={options.map((option) => ({ value: option.value, label: option.label }))}
+                renderOption={hasGlyphs || grid ? renderOption : undefined}
+                leftSection={
+                    shownGlyph === undefined ? undefined : (
+                        <span className="cm-style-select-glyph" aria-hidden="true" style={GLYPH_STYLE}>
+                            {shownGlyph}
+                        </span>
+                    )
+                }
+                classNames={grid ? { options: "cm-listbox-grid" } : undefined}
                 disabled={disabled}
                 data-is-default={isDefault ? "true" : "false"}
                 allowDeselect={false}
@@ -224,6 +333,7 @@ export function StyleSelect({
                     // panel of these out of the 32px pitch the grid is built
                     // on.
                     description: VISUALLY_HIDDEN_STYLE,
+                    ...(grid ? { options: { gridTemplateColumns: `repeat(${String(columns)}, auto)` } } : {}),
                 }}
                 style={{ flex: 1 }}
             />

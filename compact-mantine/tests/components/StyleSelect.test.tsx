@@ -343,6 +343,35 @@ describe("StyleSelect", () => {
 
     // Every value editor in the library takes `disabled` and means the same
     // thing by it: unusable, skipped by Tab, and announced as unavailable.
+    describe("glyphs", () => {
+        const glyphOptions = [
+            { value: "circle", label: "Circle", glyph: <svg data-testid="glyph-circle" /> },
+            { value: "square", label: "Square", glyph: <svg data-testid="glyph-square" /> },
+        ];
+
+        it("draws the chosen option's glyph in the closed control, hidden from the accessible name", () => {
+            renderSelect(<StyleSelect label="Shape" defaultValue="square" options={glyphOptions} />);
+            const glyph = document.querySelector(".cm-style-select-glyph");
+            expect(glyph).toHaveAttribute("aria-hidden", "true");
+            expect(glyph?.querySelector("[data-testid='glyph-square']")).not.toBeNull();
+            expect(screen.getByRole("combobox", { name: "Shape" })).toHaveAttribute("value", "Square");
+        });
+
+        it("keeps the check column and names each option by its label in the list", async () => {
+            renderSelect(<StyleSelect label="Shape" defaultValue="circle" options={glyphOptions} />);
+            await userEvent.click(screen.getByRole("combobox", { name: "Shape" }));
+            // In the tree but painted `display: none` in jsdom (see "reports the chosen option").
+            const option = await screen.findByRole("option", { name: "Square", hidden: true });
+            expect(option.querySelector(".cm-menu-row-check")).not.toBeNull();
+            expect(option.querySelector(".cm-listbox-glyph")).toHaveAttribute("aria-hidden", "true");
+        });
+
+        it("draws no glyph slot for options without glyphs", () => {
+            renderSelect(<StyleSelect label="Select" defaultValue="option1" options={options} />);
+            expect(document.querySelector(".cm-style-select-glyph")).toBeNull();
+        });
+    });
+
     describe("disabled", () => {
         it("refuses the dropdown and its reset together", () => {
             render(

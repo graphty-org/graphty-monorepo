@@ -239,6 +239,44 @@ const css = `
 .cm-listbox .cm-menu-row[data-checked] .cm-menu-row-check {
     opacity: 1;
 }
+/* A StyleSelect laid out as a grid (layout="grid"): one cell per option, its glyph over its name.
+   The columns are set inline by the select; the fill keeps 2px from the cell's sides, and the
+   chosen cell carries a ring, since a grid has no check column. */
+.cm-listbox .cm-listbox-grid {
+    display: grid;
+    padding: 0 8px;
+}
+.cm-listbox .cm-listbox-grid .cm-listbox-option {
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    width: 64px;
+    height: 52px;
+    padding: 4px;
+}
+.cm-listbox .cm-listbox-grid .cm-menu-row::before {
+    inset: 0 2px;
+}
+.cm-listbox .cm-listbox-grid .cm-menu-row[data-checked]::before {
+    box-shadow: inset 0 0 0 1px var(--cm-text-menu);
+}
+.cm-listbox .cm-listbox-grid .cm-listbox-label {
+    max-width: 100%;
+    font-size: 11px;
+}
+.cm-listbox .cm-listbox-glyph {
+    display: inline-flex;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    align-items: center;
+    justify-content: center;
+}
+.cm-style-select-glyph > svg,
+.cm-listbox .cm-listbox-glyph > svg {
+    width: 100%;
+    height: 100%;
+}
 .cm-listbox .cm-listbox-label {
     min-width: 0;
     overflow: hidden;

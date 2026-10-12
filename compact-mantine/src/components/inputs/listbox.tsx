@@ -311,7 +311,7 @@ function openSelectList(input: EventTarget | null): HTMLElement | null {
  * @param list - its open list
  * @param target - the enabled option to highlight
  */
-function walkHighlight(input: HTMLInputElement, list: HTMLElement, target: HTMLElement): void {
+export function walkHighlight(input: HTMLInputElement, list: HTMLElement, target: HTMLElement): void {
     const items = [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")];
     const goal = items.indexOf(target);
     const enabled = items.filter((item) => !item.hasAttribute("data-combobox-disabled"));

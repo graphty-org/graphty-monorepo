@@ -115,6 +115,41 @@ export interface ControlSectionProps extends DisclosureProps {
      * @default false
      */
     wrapLabel?: boolean;
+    /**
+     * Makes the section's name a heading of this level, so a screen reader can move from
+     * section to section by heading ("Nodes", "Edges"). Pick the level that follows the
+     * headings around the panel. Without it the section is a named group and no heading.
+     */
+    headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
+}
+
+/**
+ * The heading around a section's lead, when the section asks for one: the APG accordion's
+ * heading-around-the-button, named by the section's name rather than by the expand button's
+ * "Collapse ..." name. `display: contents` leaves the header's layout as it is.
+ * @param props - the heading level, the name's id and the lead
+ * @param props.level - the heading level, or undefined for no heading
+ * @param props.nameId - the id of the section's name
+ * @param props.children - the lead
+ * @returns the lead, inside a heading when a level is given
+ */
+function SectionHeading({
+    level,
+    nameId,
+    children,
+}: {
+    level: number | undefined;
+    nameId: string;
+    children: React.ReactNode;
+}): React.JSX.Element {
+    if (level === undefined) {
+        return <>{children}</>;
+    }
+    return (
+        <Box role="heading" aria-level={level} aria-labelledby={nameId} style={{ display: "contents" }}>
+            {children}
+        </Box>
+    );
 }
 
 /**
@@ -211,6 +246,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
         children,
         collapsible = true,
         wrapLabel = false,
+        headingLevel,
     } = props;
 
     const labels = useLabels();
@@ -318,48 +354,50 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
                     paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
                 }}
             >
-                {toggles ? (
-                    <UnstyledButton
-                        type="button"
-                        data-testid="control-section-toggle"
-                        data-collapsible="true"
-                        className="cm-section-lead cm-focus-inside"
-                        aria-label={toggleName}
-                        aria-expanded={isOpen}
-                        aria-controls={contentId}
-                        aria-describedby={summaryShown ? summaryId : undefined}
-                        onClick={handleToggle}
-                    >
-                        {/* The 16px slot in the gutter at x 0..16. A closed
+                <SectionHeading level={headingLevel} nameId={nameId}>
+                    {toggles ? (
+                        <UnstyledButton
+                            type="button"
+                            data-testid="control-section-toggle"
+                            data-collapsible="true"
+                            className="cm-section-lead cm-focus-inside"
+                            aria-label={toggleName}
+                            aria-expanded={isOpen}
+                            aria-controls={contentId}
+                            aria-describedby={summaryShown ? summaryId : undefined}
+                            onClick={handleToggle}
+                        >
+                            {/* The 16px slot in the gutter at x 0..16. A closed
                             section's caret points the way text runs. */}
-                        <Box data-testid="control-section-chevron-slot" className="cm-section-chevron">
-                            <Caret open={isOpen} rtl={isRtl(direction)} />
-                        </Box>
-                        {name}
-                        {summaryShown && (
-                            <Box
-                                component="span"
-                                id={summaryId}
-                                data-testid="control-section-summary"
-                                className="cm-section-summary"
-                            >
-                                {summary}
+                            <Box data-testid="control-section-chevron-slot" className="cm-section-chevron">
+                                <Caret open={isOpen} rtl={isRtl(direction)} />
                             </Box>
-                        )}
-                    </UnstyledButton>
-                ) : (
-                    // An empty section's title adds, as Figma's does. The
-                    // pointer route only: the "+" is the keyboard route and
-                    // the named control, so the title stays out of the tab
-                    // order rather than being a second button with one name.
-                    <Box
-                        className="cm-section-lead"
-                        data-testid="control-section-lead"
-                        onClick={empty && onAdd !== undefined ? onAdd : undefined}
-                    >
-                        {name}
-                    </Box>
-                )}
+                            {name}
+                            {summaryShown && (
+                                <Box
+                                    component="span"
+                                    id={summaryId}
+                                    data-testid="control-section-summary"
+                                    className="cm-section-summary"
+                                >
+                                    {summary}
+                                </Box>
+                            )}
+                        </UnstyledButton>
+                    ) : (
+                        // An empty section's title adds, as Figma's does. The
+                        // pointer route only: the "+" is the keyboard route and
+                        // the named control, so the title stays out of the tab
+                        // order rather than being a second button with one name.
+                        <Box
+                            className="cm-section-lead"
+                            data-testid="control-section-lead"
+                            onClick={empty && onAdd !== undefined ? onAdd : undefined}
+                        >
+                            {name}
+                        </Box>
+                    )}
+                </SectionHeading>
 
                 {hasConfiguredValues && (
                     <Box

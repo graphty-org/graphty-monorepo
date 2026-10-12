@@ -784,6 +784,26 @@ conditions.ts` (a `.tsx` exporting functions trips react-refresh), the rows in `
   `RowWrite.target` that adds or drops a part, with an empty part allowed until its first write.
   The draft's kind choice (`StyleTree.tsx`) already covers new layers.
 
+- (2026-10-12) WORKED: the owner's review pictures from stories, not from the study tool.
+  `graphty/src/workspace/style/StylePanel.stories.tsx` builds one Les Miserables scene in each play
+  function (data, runs and the Annotations folder through the session, as the other stories load
+  their fixtures) and reaches each reviewed state by clicks and typing; the storybook project runs
+  all 19 in about 20 s. `design/ui/studio/tool/capture-review-stories.mjs` shoots a built
+  Storybook (`npx storybook build -o <dir>` in graphty, about 1 minute) at 1440 x 900 and
+  900 x 700 through the browser gate, reusing visual-review's `serve` and Chromium switches, and
+  waits for `__STORYBOOK_PREVIEW__.currentRender.phase` to reach "completed" so the play function
+  has finished. Traps: a layer inside a folder is not a tree item until the folder opens (click it,
+  then ArrowRight); the theme's tooltips open after 1 s, past `waitFor`'s default 1 s, and are
+  mounted hidden before then (query with `hidden: true`, assert `toBeVisible`); a held modifier
+  needs one `userEvent.setup()` instance, since each direct `userEvent.*` call starts fresh.
+  Order runs bottom first so the canvas shows them: the last run paints over the others' colors.
+  `tier3/build/` is gitignored: the pictures and their index (`owner-review/README.md`) stay local.
+- (2026-10-12) SEEN in those pictures, not fixed (each is its own unit's to fix): the legend
+  overlay is open in every story and lists "Selected" six times, once per channel of the Selected
+  row; Louvain's category rows in the color popover show only a hex, not which community (the
+  legend says "Group 3"); at 900 x 700 the open legend squeezes the canvas to a small circle; the
+  Mixed color field shows a purple swatch, which reads as a value.
+
 ## Sources
 
 - Digests in `design/ui/studio/digests/` (`tier1.md`, `decisions.md`, `study-rounds.md`,

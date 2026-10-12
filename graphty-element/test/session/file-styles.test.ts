@@ -395,6 +395,30 @@ describe("a file graphty wrote", () => {
     });
 });
 
+describe("a load's notes", () => {
+    it("count each element once, however many of the file's rules give it a value drawn as the nearest", async () => {
+        // Gephi's default disc applies to all three nodes and the file's own square to one: both
+        // are drawn as the nearest 3D shape, but only three nodes are drawn that way.
+        const gexf = `<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
+<graph defaultedgetype="undirected"><nodes>
+<node id="a"><viz:color r="255" g="0" b="0"/><viz:size value="20"/></node>
+<node id="b"><viz:color r="0" g="128" b="255"/><viz:size value="10"/></node>
+<node id="c"><viz:color r="0" g="200" b="0"/><viz:size value="5"/><viz:shape value="square"/></node>
+</nodes><edges><edge source="a" target="b"/><edge source="b" target="c"/></edges></graph></gexf>`;
+        const session = createGraphSession();
+        await session.data.import({ type: "gexf", config: { data: gexf } }, { styles: "file" });
+        const notes = session.data.lastImport()?.styles?.notes ?? [];
+        const nearest = notes.filter((note) => note.code === FILE_STYLE_ISSUE.DRAWN_NEAREST);
+        assert.isAbove(nearest.length, 0);
+        for (const note of nearest) {
+            assert.isAtMost(Number(note.params.count), 3, JSON.stringify(note.params));
+        }
+
+        session.dispose();
+    });
+});
+
 describe("a layer the element refuses", () => {
     it("is left out with a note, and the rest apply", async () => {
         const original = DataSource.prototype.fileStyles;

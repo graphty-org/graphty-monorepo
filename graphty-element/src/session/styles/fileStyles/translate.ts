@@ -572,6 +572,8 @@ class KindTranslation {
     readonly #input: TranslateInput;
     readonly #kind: StyleTarget;
     readonly #notes: Notes;
+    /** Per code and property, the elements a conversion note already counted, so an element counts once. */
+    readonly #counted = new Map<string, Set<number>>();
     readonly #columns: Map<string, (FileStyleScalar | null)[]>;
     readonly #factor: number;
     readonly #n: number;
@@ -1489,15 +1491,34 @@ class KindTranslation {
         let none = 0;
         let nearest = 0;
         let sample: string | undefined;
+        // Several rules can give one element a value for the property; the element counts once.
+        const first = (code: string, i: number): boolean => {
+            const key = `${code}\u0000${property}`;
+            let seen = this.#counted.get(key);
+            if (seen === undefined) {
+                seen = new Set();
+                this.#counted.set(key, seen);
+            }
+
+            if (seen.has(i)) {
+                return false;
+            }
+
+            seen.add(i);
+            return true;
+        };
         truth.forEach((value, i) => {
             if (value === null) {
                 return;
             }
 
             if (drawn[i] === null || drawnAs(plan.channel, drawn[i]) === null) {
-                none++;
+                if (first("none", i)) {
+                    none++;
+                }
+
                 sample ??= String(value);
-            } else if (plan.nearest?.(value) === true) {
+            } else if (plan.nearest?.(value) === true && first("nearest", i)) {
                 nearest++;
             }
         });

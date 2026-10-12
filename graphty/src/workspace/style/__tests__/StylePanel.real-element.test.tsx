@@ -416,8 +416,13 @@ describe("the Style tab's rows on the real element", () => {
         });
         await userEvent.click(await varyGlyph("Node size"));
         const sizes = await screen.findByRole("dialog", { name: "From data" });
-        const refused = within(sizes).getByRole("group", { name: "Cannot be used: Holds groups, not amounts" });
-        assert.equal(within(refused).getByRole("option", { name: "dept" }).getAttribute("aria-disabled"), "true");
+        await userEvent.click(within(sizes).getByRole("option", { name: /that do not fit size$/ }));
+        const dept = await within(sizes).findByRole("option", { name: "dept" });
+        assert.equal(dept.getAttribute("aria-disabled"), "true");
+        assert.equal(
+            document.getElementById(dept.getAttribute("aria-describedby") ?? "")?.textContent,
+            "Holds groups, not amounts",
+        );
     });
 
     it("a run's row shows the run's varied color, and sizing it by its result stores the range 1 to 3", async () => {
@@ -519,7 +524,9 @@ describe("the Style tab's rows on the real element", () => {
         assert.equal(document.activeElement?.getAttribute("aria-label"), "Node color by attribute");
         await userEvent.keyboard("{Enter}");
         const list = await screen.findByRole("dialog", { name: "From data" });
-        const first = within(list).getAllByRole("option")[0].textContent;
+        // Named by aria-label: a row's text also holds its fact ("4 values").
+        const firstOption = within(list).getAllByRole("option")[0];
+        const first = firstOption.getAttribute("aria-label") ?? firstOption.textContent;
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             const bound = readerLayers(session)[0]?.encode?.["node.color"] as { by?: string } | undefined;

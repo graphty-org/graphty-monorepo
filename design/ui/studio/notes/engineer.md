@@ -11,6 +11,29 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **The value picker is built** (`style/ValuePicker.tsx`, replacing `FromDataList.tsx`;
+  test `ValuePicker.real-element.test.tsx`). Still compact-mantine's `QuickActions` (search focused
+  on open, arrows and Enter, flat results while searching), now with its second line: each row
+  carries one fact from the column's descriptor ("20 to 40", "6 values", "84% have a value") and a
+  glyph for what it measures (`typeOf`, now exported from `data-place/words.ts`). Groups: In use
+  (a column's `usedBy`, plus the caller's `inUse` paths for run results), Data, one per run. What
+  the channel cannot take folds into one row, "N that do not fit size", counted from
+  `styles.proposeEncoding`; running it lists each refused column, disabled, its reason as the
+  second line; a search finds them anyway. Why fold and not a "Cannot be used: <reason>" heading per
+  reason: on 200 columns those headings pushed the usable list off the panel. "=" in a number
+  field opens it: the open state moved from `VaryButton` up into `Field` (the capture-phase key
+  handler sets it), so the glyph stays the popout's anchor. Only fields with a vary glyph react
+  (`bindsAtRest`: size and width among numbers). The dialog keeps the accessible name "From data"
+  so every existing test and story still finds it. NOT built: the Facts group (is selected, is
+  hovered): no binding reads a state, and Selected and Hovered are layers already; a fact per run
+  result (a run's `FieldDescriptor` carries no range; the element would need one, additive).
+  Measured: the 200-column fixture opens with zero calls to `data.nodes`, `edges`, `nodePage`,
+  `edgePage`, `node` and `histogram`. A row's `textContent` now includes its fact: tests read an
+  option's name from `aria-label`.
+- (2026-10-12) Seen again: the first real-element run after vite's "Forced re-optimization of
+  dependencies" fails every file with "Failed to fetch dynamically imported module"; the same run
+  again passes. Not a code failure; rerun once before reading anything into it.
+
 - (2026-10-12) **Folders, several rows at once, and the draft are built** (`style/FolderPanel.tsx`,
   `style/MultiRowPanel.tsx`, `style/SelectionColors.tsx`, the draft in `StylePanel.tsx`; test
   `style/__tests__/RowKinds.real-element.test.tsx`). The old one-line panels in `StyleTree.tsx` are

@@ -14,7 +14,6 @@ import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { FromDataList } from "./FromDataList";
 import { LabelSettings } from "./LabelSettings";
 import {
     type DataBinding,
@@ -30,6 +29,7 @@ import {
     writeLine,
 } from "./row";
 import { focusLineNext, focusSectionNext } from "./useFocusLine";
+import { ValuePicker } from "./ValuePicker";
 import { labelStatement, positionWord } from "./words";
 
 /** Props for LabelSection. */
@@ -337,7 +337,7 @@ function SourcePicker({
         <Popout opened={opened} onOpenChange={onOpenChange}>
             <Popout.Trigger>{children}</Popout.Trigger>
             <Popout.Panel width={LIST_WIDTH} placement="left" alignment="start" header={{ variant: "title", title }}>
-                <FromDataList
+                <ValuePicker
                     target={target}
                     channel={channel}
                     inUse={inUse}

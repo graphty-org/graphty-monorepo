@@ -16,7 +16,6 @@ import React, { useId, useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
-import { FromDataList } from "./FromDataList";
 import {
     type DataBinding,
     type DataChoice,
@@ -33,6 +32,7 @@ import {
     writeLine,
 } from "./row";
 import { focusLineNext, listOpensNext, openListNext } from "./useFocusLine";
+import { ValuePicker } from "./ValuePicker";
 import {
     type Beneath,
     bindLabel,
@@ -208,13 +208,23 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
         }
     };
 
+    // "=" in a number field opens the value picker, as Figma's "apply variable" does. A Tooltip
+    // entry just added opens it at once: an empty tooltip says nothing.
+    const varies = bindsAtRest(descriptor) && own?.binding === undefined;
+    const [varyOpen, setVaryOpen] = useState(() => listOpensNext(channel));
     // The keyboard's Clear: empty a typed field and press Enter, or Delete / Backspace on a closed
     // select or a color chit.
     const onKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+        const target = event.target as HTMLElement;
+        if (event.key === "=" && varies && descriptor.accepts === "number" && target instanceof HTMLInputElement) {
+            event.preventDefault();
+            event.stopPropagation();
+            setVaryOpen(true);
+            return;
+        }
         if (own === undefined) {
             return;
         }
-        const target = event.target as HTMLElement;
         const typed = target instanceof HTMLInputElement && !target.readOnly;
         const closed = target.getAttribute("aria-expanded") !== "true";
         if (event.key === "Enter" && typed && target.value.trim() === "") {
@@ -352,11 +362,17 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
             )}
             <div className="ws-field-line">
                 <div className="ws-field-control">{control}</div>
-                {bindsAtRest(descriptor) && own?.binding === undefined && (
+                {varies && (
                     // On hover and focus only, as Figma's "Apply variable" (always on touch): at rest
                     // the field keeps its width for the value.
                     <span className="ws-vary">
-                        <VaryButton ctx={ctx} descriptor={descriptor} onPick={bind} />
+                        <VaryButton
+                            ctx={ctx}
+                            descriptor={descriptor}
+                            onPick={bind}
+                            open={varyOpen}
+                            onOpenChange={setVaryOpen}
+                        />
                     </span>
                 )}
                 {own !== undefined && (
@@ -417,20 +433,25 @@ function setWordsOf(session: GraphSession, descriptor: ChannelDescriptor, line: 
  * @param props.ctx - the row
  * @param props.descriptor - the property
  * @param props.onPick - binds the property to the picked value
+ * @param props.open - whether the picker is open
+ * @param props.onOpenChange - opens or closes it
  * @returns The button and its pop-out
  */
 function VaryButton({
     ctx,
     descriptor,
     onPick,
+    open,
+    onOpenChange: setOpen,
 }: Readonly<{
     ctx: RowContext;
     descriptor: ChannelDescriptor;
     onPick: (choice: DataChoice) => void;
+    /** Whether the picker is open; the field opens it on "=" too. */
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
 }>): React.JSX.Element {
     const { channel } = descriptor;
-    // A Tooltip entry just added asks at once what it reads: an empty tooltip says nothing.
-    const [open, setOpen] = useState(() => listOpensNext(channel));
     const openList = (next: boolean): void => {
         if (!next) {
             openListNext(null);
@@ -458,7 +479,7 @@ function VaryButton({
                 alignment="start"
                 header={{ variant: "title", title: label }}
             >
-                <FromDataList
+                <ValuePicker
                     target={ctx.side}
                     channel={channel}
                     fixedLabel={FIXED_LABELS[channel]}

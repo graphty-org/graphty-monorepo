@@ -295,7 +295,7 @@ export function sourcesWords(sources: readonly LoadedSource[]): string | undefin
  * @param measurement - `AttributeDescriptor.measurement`.
  * @returns the glyph and its word.
  */
-function typeOf(measurement: string | undefined): { glyph: TypeGlyph; typeWord: string } {
+export function typeOf(measurement: string | undefined): { glyph: TypeGlyph; typeWord: string } {
     switch (measurement) {
         case "categorical":
             return { glyph: "category", typeWord: "Category" };

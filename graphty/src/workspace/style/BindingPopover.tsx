@@ -5,8 +5,8 @@ import { Button, Checkbox, Group, Select, Stack, Text } from "@mantine/core";
 import React, { useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
-import { FromDataList } from "./FromDataList";
 import { type DataBinding, type DataChoice, startingValue } from "./row";
+import { ValuePicker } from "./ValuePicker";
 import { channelWord, enumWords, paletteWord } from "./words";
 
 /** What `toColorValue` reads. */
@@ -117,7 +117,7 @@ export function BindingPopover({
                 </Button>
             </Group>
             {choosing ? (
-                <FromDataList
+                <ValuePicker
                     target={descriptor.target}
                     channel={descriptor.channel}
                     inUse={[binding.by]}

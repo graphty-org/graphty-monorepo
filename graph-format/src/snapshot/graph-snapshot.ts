@@ -582,7 +582,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
     edgeIndexOf(id: EdgeId): number {
         const { state } = this;
         const version = columnSetVersion(this.edges);
-        if (state.edgeIds === null || state.edgeIds.version !== version) {
+        if (state.edgeIds?.version !== version) {
             // the role lookup is repeated only when the column set changed
             const column = this.edges.byRole("id");
             state.edgeIds = { version, column, index: column === null ? null : new EdgeIdIndex(column) };
@@ -1473,7 +1473,7 @@ export function seedView<K extends ViewName>(
     value: NonNullable<ViewCache[K]>,
 ): boolean {
     const state = STATES.get(snapshot);
-    if (state === undefined || state.views[name] !== null) {
+    if (state?.views[name] !== null) {
         return false;
     }
     state.views[name] = value;

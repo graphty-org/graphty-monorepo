@@ -6,7 +6,7 @@ import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 import { aliases } from "./vite.aliases";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -45,7 +45,7 @@ export default defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
-        reporters: ["default", ...ciJunitReporter()],
+        reporters: ["default", ...ciReporters()],
         globals: true,
         exclude: BASE_EXCLUDE,
         // The tests that mount the real graphty-element get a project of their own, run after
@@ -60,6 +60,12 @@ export default defineConfig({
                     name: "browser",
                     include: ["src/**/*.test.{ts,tsx}"],
                     exclude: [...BASE_EXCLUDE, REAL_ELEMENT_TESTS],
+                    // Three pages at a time, as on a 4-core CI runner. Vitest's browser mode opens
+                    // min(12, cores - 1) pages by default, and a --maxWorkers flag does not reach a
+                    // browser project: only the project's own maxWorkers does.
+                    maxWorkers: 3,
+                    // Vitest refuses two projects with different maxWorkers in one group order.
+                    sequence: { groupOrder: 2 },
                     browser: chromium(),
                     setupFiles: "./src/test/setup.ts",
                 },
@@ -72,6 +78,11 @@ export default defineConfig({
                     sequence: { groupOrder: 1 },
                     browser: chromium(),
                     setupFiles: "./src/test/setup.ts",
+                    // One file at a time. Every file mounts a real element, and the files share
+                    // the renderer's main thread: in parallel, nine files took 158 s and single
+                    // tests up to 29 s (past the 15 s test timeout), against 90 s and at most
+                    // 4.5 s one after another.
+                    fileParallelism: false,
                 },
             },
             {

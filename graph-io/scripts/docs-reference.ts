@@ -575,12 +575,34 @@ function usedOptionsOf(formats: readonly string[]): Map<string, Set<string>> {
     return out;
 }
 
+let sourceOnce: Source | undefined;
+
 /**
- * Builds the context once per run.
+ * The type checker over the package source, built once per process: building it is the slow step.
+ * @returns the shared source
+ */
+function source(): Source {
+    sourceOnce ??= new Source();
+    return sourceOnce;
+}
+
+let contextOnce: Promise<Context> | undefined;
+
+/**
+ * The context, built once per process and shared by every page and check (nothing mutates it).
  * @returns the context
  */
-async function context(): Promise<Context> {
-    const src = new Source();
+function context(): Promise<Context> {
+    contextOnce ??= buildContext();
+    return contextOnce;
+}
+
+/**
+ * Builds the context.
+ * @returns the context
+ */
+async function buildContext(): Promise<Context> {
+    const src = source();
     const runtime = (await import("../src/index.js")) as Record<string, unknown>;
     const index = src.exportsOf(ENTRIES["graph-io"]);
     // The JSON exporter writes several dialects, each with its own fidelity; the json barrel says which.
@@ -1518,7 +1540,7 @@ export function mentionsInternals(text: string): boolean {
  * @returns `<entry>: <name>` per offending comment
  */
 export function internalReferences(): string[] {
-    return [...new Source().publishedDocs()].filter(([, doc]) => mentionsInternals(doc)).map(([k]) => k);
+    return [...source().publishedDocs()].filter(([, doc]) => mentionsInternals(doc)).map(([k]) => k);
 }
 
 /**

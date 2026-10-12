@@ -340,6 +340,7 @@ The codes `checkExport(snapshot, "json", options)` can return before a save, als
 - `W_OBOGRAPHS_EDGE_COLUMN_AS_META` (warning): Obographs: an edge column (or the explicit weights) is written into each edge's meta and reads back inside the meta column.
 - `W_OBOGRAPHS_ID_CHANGED` (warning): Obographs: a node id or relation is written as an IRI the importer's default oboIds "curie" reads back as another id.
 - `W_OBOGRAPHS_DATATYPE_DROPPED` (warning): Obographs: a property_value's xsd datatype has no place in basicPropertyValues and reads back unset.
+- `W_OBOGRAPHS_TYPE_GAINED` (warning): Obographs: a graph without a node type column is written with CLASS nodes and reads back with a type column holding Term.
 - `W_COLUMN_AS_PROPERTY_VALUE` (warning): Obographs: a node column outside the OBO vocabulary reads back inside the property_value column.
 - `W_RELATION_ASSUMED` (warning): Obographs: an edge without a relation is written with the pred is_a.
 - `W_TYPEDEF_NODES` (warning): Obographs: Typedef nodes are written as PROPERTY nodes, which read back as nodes only under typedefs: "nodes".

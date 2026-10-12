@@ -1,3 +1,56 @@
+## 2.4.2 (2026-10-12)
+
+### 🩹 Fixes
+
+- **layout:** animate edges with their nodes in the layout stories ([#2073](https://github.com/graphty-org/graphty-monorepo/issues/2073))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.4.1 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.28
+- Updated graph-format to 1.3.13
+- Updated algorithms to 3.4.3
+
+## 2.4.0 (2026-10-11)
+
+### 🚀 Features
+
+- **layout:** add NetworkX's rotate to shell and radial, and opt-in sector placement ([#1664](https://github.com/graphty-org/graphty-monorepo/issues/1664))
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🩹 Fixes
+
+- **layout:** give every radial node its own angle inside its parent's sector ([#1664](https://github.com/graphty-org/graphty-monorepo/issues/1664))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.27
+- Updated graph-format to 1.3.12
+- Updated algorithms to 3.4.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.3.1 (2026-10-11)
+
+### 🩹 Fixes
+
+- **layout:** draw spectral layouts from the smallest non-zero eigenvectors ([#1663](https://github.com/graphty-org/graphty-monorepo/issues/1663))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.4.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.3.0 (2026-10-10)
 
 ### 🚀 Features

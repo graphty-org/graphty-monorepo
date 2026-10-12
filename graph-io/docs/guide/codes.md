@@ -319,6 +319,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_OBOGRAPHS_DATATYPE_DROPPED"></a>`W_OBOGRAPHS_DATATYPE_DROPPED`: Obographs: a property_value's xsd datatype has no place in basicPropertyValues and reads back unset. Save: [json](./formats/json.md).
 - <a id="W_OBOGRAPHS_EDGE_COLUMN_AS_META"></a>`W_OBOGRAPHS_EDGE_COLUMN_AS_META`: Obographs: an edge column (or the explicit weights) is written into each edge's meta and reads back inside the meta column. Save: [json](./formats/json.md).
 - <a id="W_OBOGRAPHS_ID_CHANGED"></a>`W_OBOGRAPHS_ID_CHANGED`: Obographs: a node id or relation is written as an IRI the importer's default oboIds "curie" reads back as another id. Save: [json](./formats/json.md).
+- <a id="W_OBOGRAPHS_TYPE_GAINED"></a>`W_OBOGRAPHS_TYPE_GAINED`: Obographs: a graph without a node type column is written with CLASS nodes and reads back with a type column holding Term. Save: [json](./formats/json.md).
 - <a id="W_OBO_CARDINALITY"></a>`W_OBO_CARDINALITY`: A frame has only one `intersection_of` or `union_of` clause, where OBO needs at least two. Import: [obo](./formats/obo.md).
 - <a id="W_OBO_DEPRECATED_SYNTAX"></a>`W_OBO_DEPRECATED_SYNTAX`: A backslash line continuation (deprecated in 1.4). Import: [obo](./formats/obo.md).
 - <a id="W_OBO_DEPRECATED_TAG"></a>`W_OBO_DEPRECATED_TAG`: An OBO 1.0 / 1.2 tag read as its 1.4 meaning (exact_synonym, xref_analog, use_term, typeref, version). Import: [obo](./formats/obo.md).
@@ -336,6 +337,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_OBO_RELATION_RENAMED"></a>`W_OBO_RELATION_RENAMED`: A relation that is not an OBO id (empty, or holding a space, `!`, `{` or `}`) is written with `_` in place of those characters. Save: [obo](./formats/obo.md).
 - <a id="W_OBO_SYNONYM_SCOPE"></a>`W_OBO_SYNONYM_SCOPE`: A synonym without a scope in a file that does not say 1.2, or with a scope that is not one of the four. Import: [obo](./formats/obo.md).
 - <a id="W_OBO_SYNTAX"></a>`W_OBO_SYNTAX`: A line without a colon, an unterminated quote, a def without its xref list, a qualifier block that does not parse, an unescaped brace. Import: [obo](./formats/obo.md).
+- <a id="W_OBO_TYPE_GAINED"></a>`W_OBO_TYPE_GAINED`: A graph without a node `type` column is written as `[Term]` frames and reads back with a `type` column holding Term. Save: [obo](./formats/obo.md).
 - <a id="W_OBO_UNDECLARED"></a>`W_OBO_UNDECLARED`: A relation, subset or synonym type that nothing declares. Import: [obo](./formats/obo.md).
 - <a id="W_OBO_UNDIRECTED_AS_DIRECTED"></a>`W_OBO_UNDIRECTED_AS_DIRECTED`: Every edge is written from its source to its target, so an undirected graph reads back as directed. Save: [obo](./formats/obo.md).
 - <a id="W_OPEN_INTERVAL"></a>`W_OPEN_INTERVAL`: An open-interval column in a format without open intervals. Save: any format.

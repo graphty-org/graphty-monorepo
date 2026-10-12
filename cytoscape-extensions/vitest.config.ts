@@ -2,6 +2,8 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vitest/config";
 
+import { ciReporters } from "../vitest.ci-junit.mjs";
+
 // Standalone rather than vitest.shared.config.ts, like graph-format: the shared factory runs happy-dom, and
 // headless Cytoscape needs no DOM. @graphty/* resolve through their dist/, so build them first (nx does).
 export default defineConfig({
@@ -27,7 +29,11 @@ export default defineConfig({
         },
         environment: "node",
         include: ["test/**/*.test.ts"],
-        reporters: process.env.CI ? ["default"] : ["verbose"],
+        // The monorepo's suite limit (vitest.shared.config.ts): the slowest tests spawn tsc, a Vite build or a
+        // child Node and wait for it to exit (6 s for the strict-consumer tsc run on an idle machine).
+        testTimeout: 30000,
+        hookTimeout: 30000,
+        reporters: [...(process.env.CI ? ["default"] : ["verbose"]), ...ciReporters()],
         coverage: {
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],

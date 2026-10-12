@@ -140,7 +140,6 @@ const config: KnipConfig = {
                 "@storybook/html",
                 // Build/dev tools
                 "gh-pages",
-                "chromatic",
                 // Benchmark tooling
                 "benchmark",
                 "@types/benchmark",
@@ -169,7 +168,6 @@ const config: KnipConfig = {
             project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js}"],
             ignoreDependencies: [
                 "@storybook/html",
-                "chromatic",
                 // Three.js for 3D examples/demos
                 "three",
                 "@types/three",

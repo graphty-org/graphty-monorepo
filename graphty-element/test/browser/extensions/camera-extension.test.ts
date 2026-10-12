@@ -49,6 +49,7 @@ import {
 } from "../../../extend";
 import { Graph } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
+import { assertPlaced } from "../../helpers/placed-position";
 import { nextFrame } from "../../helpers/real-input";
 
 /** Three nodes at known coordinates, so every box in this file can be checked by eye. */
@@ -250,11 +251,22 @@ describe("a third party's camera view", () => {
     let graph: Graph;
 
     /**
+     * Where the element has drawn a node, refused while its mesh is still at the template's position.
+     * @param node - The node.
+     * @returns Its position.
+     */
+    function placedPosition(node: { readonly id: string | number; getPosition(): Coords }): Coords {
+        const at = node.getPosition();
+        assertPlaced(at, `node ${String(node.id)}`);
+        return at;
+    }
+
+    /**
      * Where the element currently has every node, which is the box a view frames by default.
      * @returns The centre of the graph and its longest side.
      */
     function graphBox(): { center: Coords; maxDimension: number } {
-        return boxAround(graph.getNodes().map((node) => node.getPosition()));
+        return boxAround(graph.getNodes().map((node) => placedPosition(node)));
     }
 
     /**
@@ -270,7 +282,7 @@ describe("a third party's camera view", () => {
                     throw new Error(`the graph has no node "${id}"`);
                 }
 
-                return node.getPosition();
+                return placedPosition(node);
             }),
         );
     }
@@ -292,7 +304,9 @@ describe("a third party's camera view", () => {
         await graph.setLayout("fixed");
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.waitForSettled();
+        // A drawn frame, not just an empty queue: the boxes below are measured off the meshes,
+        // which only a frame moves from the template's position to the layout's.
+        await graph.waitForStableFrame();
     });
 
     afterEach(() => {

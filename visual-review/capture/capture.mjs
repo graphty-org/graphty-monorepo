@@ -5,7 +5,8 @@
  * `parameters.chromatic` from the preview's own `extract()`, then opens each story and mode in a
  * fresh browser context: a fixed start time, SwiftShader WebGL, a 1200 x 900 viewport at device
  * scale factor 2, as Chromatic captures. Each PNG is the whole canvas, never cropped to the content:
- * the full page of the story iframe, which is the viewport unless the story overflows it. It waits
+ * the full page of the story iframe, which is the viewport unless the story overflows it, however
+ * tall (see screenshotWholePage). It waits
  * for Storybook's render (play functions included) and, when the project's config names a
  * `waitFor` (an element selector and a method returning a promise, such as graphty-element's
  * `waitForStableFrame()`), for that; a story that errors or never settles is `failed`, never a picture,
@@ -43,6 +44,7 @@ import { dirname, extname, join, normalize, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright";
+import { PNG } from "pngjs";
 
 import { classify, DEFAULT_THRESHOLD, readBaseline, sha256 } from "../trusted/lib/compare.mjs";
 import { validateResults } from "../trusted/lib/results.mjs";
@@ -414,13 +416,76 @@ async function shootOnce(browser, url, { delay, waitFor }) {
         // full page of the story iframe -- the viewport, or everything a scroll would reach when
         // the story is taller or wider -- so every story of a project is the same size unless
         // it overflows.
-        const png = await page.screenshot({ animations: "disabled", caret: "hide", fullPage: true });
+        const png = await screenshotWholePage(page);
         return { png, reason: null, console: lines };
     } catch (e) {
         return fail(e.message);
     } finally {
         await context.close();
     }
+}
+
+/**
+ * Chromium's tallest screenshot in device pixels (8192 device px is 4096 CSS px at scale 2). A
+ * taller full-page screenshot either repeats the top of the page below this row instead of
+ * drawing the rest, or fails with "Unable to capture screenshot".
+ */
+export const MAX_SHOT_HEIGHT = 8192;
+
+/**
+ * A full-page screenshot of the whole page, however tall. A page within MAX_SHOT_HEIGHT is the
+ * one screenshot Playwright takes, byte for byte; a taller one is shot in slices of at most
+ * MAX_SHOT_HEIGHT device px, clipped from the full page, and stitched row for row into one PNG.
+ * @param {import("playwright").Page} page the page, at device scale factor SCALE
+ * @returns {Promise<Buffer>} the PNG
+ */
+export async function screenshotWholePage(page) {
+    const options = /** @type {const} */ ({ animations: "disabled", caret: "hide", fullPage: true });
+    // Chromium's first screenshot beyond the viewport lays text out again, and line boxes of
+    // 'normal' height can come out a pixel shorter for good (11px monospace: 21 CSS px a line
+    // before, 20 after), so a page measured before it is taller than the page it draws: the image
+    // gets background rows below the story (#1982), and later slices of a tall page come back
+    // short (#1976). One throwaway capture settles the layout; everything below measures after it.
+    // A full-page capture also resizes the page while it runs, and a story that redraws on resize
+    // (Cytoscape's canvases) draws again in the next frames: wait for them, or the real capture
+    // catches that redraw half done and two captures of the story differ.
+    await page.screenshot({ ...options, clip: { x: 0, y: 0, width: 1, height: 1 } });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    // The page's size as Playwright measures it for a full-page screenshot.
+    const size = await page.evaluate(() => {
+        const [b, d] = [document.body, document.documentElement];
+        return {
+            width: Math.max(b.scrollWidth, d.scrollWidth, b.offsetWidth, d.offsetWidth, b.clientWidth, d.clientWidth),
+            height: Math.max(
+                b.scrollHeight,
+                d.scrollHeight,
+                b.offsetHeight,
+                d.offsetHeight,
+                b.clientHeight,
+                d.clientHeight,
+            ),
+        };
+    });
+    const width = size.width * SCALE;
+    const height = size.height * SCALE;
+    if (height <= MAX_SHOT_HEIGHT) {
+        return page.screenshot(options);
+    }
+    const out = new PNG({ width, height });
+    for (let top = 0; top < height; top += MAX_SHOT_HEIGHT) {
+        const rows = Math.min(MAX_SHOT_HEIGHT, height - top);
+        const clip = { x: 0, y: top / SCALE, width: size.width, height: rows / SCALE };
+        const slice = PNG.sync.read(await page.screenshot({ ...options, clip }));
+        if (slice.width !== width || slice.height !== rows) {
+            throw new Error(
+                `screenshot slice at ${top} px is ${slice.width} x ${slice.height}, not ${width} x ${rows}`,
+            );
+        }
+        slice.data.copy(out.data, top * width * 4);
+    }
+    // Paeth on every row: the same size as pngjs's default (try all five filters per row) on
+    // screenshots, at a third of the time.
+    return PNG.sync.write(out, { filterType: 4 });
 }
 
 /**

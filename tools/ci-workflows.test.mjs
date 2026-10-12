@@ -54,6 +54,7 @@ import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 // config: a commit there must never reach their signing key.
 isolateGit();
 
+const PUSHOVER_SECRETS = ["secrets.PUSHOVER_APP_TOKEN", "secrets.PUSHOVER_USER_KEY"];
 const workflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
 const job = (text, name) => {
     const start = text.indexOf(`\n    ${name}:\n`);
@@ -141,7 +142,7 @@ describe("the pre-push gate matches CI", () => {
         assert.match(prepush, /nx show projects --affected --base="\$BASE" --head=HEAD --json/);
         assert.match(
             prepush,
-            /run_step "[^"]+" \\\n\s+"timeout --foreground --kill-after=60s '\$\{PREPUSH_TESTS_TIMEOUT:-90m\}' node tools\/prepush-tests.mjs '\$PROJECTS' '\$\{BASE:-\}'"/,
+            /run_step "[^"]+" \\\n\s+"timeout --foreground --kill-after=60s '\$\{PREPUSH_TESTS_TIMEOUT:-90m\}' PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'"/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
         const nvidia = /\n {4}run_step "webgpu-graph-algorithms on the local NVIDIA GPU" \\\n.*\n/;
@@ -261,6 +262,7 @@ describe("the pre-push gate matches CI", () => {
             // The runner wraps every shard in the machine-wide test slot (it imports only node builtins).
             copyFileSync(new URL("./test-slots.mjs", import.meta.url), join(dir, "tools/test-slots.mjs"));
             copyFileSync(new URL("./prepush-inputs.mjs", import.meta.url), join(dir, "tools/prepush-inputs.mjs"));
+            copyFileSync(new URL("./shard-verdict.mjs", import.meta.url), join(dir, "tools/shard-verdict.mjs"));
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
             writeFileSync(
                 join(dir, "tools/ci-test-matrix.mjs"),
@@ -285,6 +287,39 @@ describe("the pre-push gate matches CI", () => {
             });
             assert.match(run.stdout, /\[FAIL\] broken \(exit 1/);
             assert.match(run.stdout, /Stopped after broken failed/);
+            assert.equal(run.status, 1, run.stdout + run.stderr);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("fails a shard that exits 0 with no vitest run summary in its log", () => {
+        // A pnpm older than 10.29.1 reports a pnpm exec killed by a signal as exit 0 (issue #2116).
+        const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs", "shard-verdict.mjs"]) {
+                copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
+            }
+            const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
+            writeFileSync(
+                join(dir, "tools/ci-test-matrix.mjs"),
+                `export const SHARDS = ${JSON.stringify([shard("killed")])};\n`,
+            );
+            writeFileSync(join(dir, "tools/run-tests.sh"), "echo ' RUN  v4'\nexit 0\n");
+            assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
+            const run = spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["killed"]'], {
+                cwd: dir,
+                encoding: "utf8",
+                timeout: 60_000,
+                env: {
+                    ...process.env,
+                    GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
+                    GRAPHTY_TEST_SLOTS: "1",
+                    GRAPHTY_TEST_SLOT_HELD: "",
+                },
+            });
+            assert.match(run.stdout, /\[FAIL\] killed \(exit 0 but 0 of 1 vitest run summaries/);
             assert.equal(run.status, 1, run.stdout + run.stderr);
         } finally {
             rmSync(dir, { recursive: true, force: true });
@@ -316,7 +351,7 @@ describe("the pre-push gate matches CI", () => {
 
     it("runs webgpu-graph-algorithms on the local NVIDIA GPU after the CI shards, requiring nvidia", () => {
         const prepush = code(tool("prepush.sh"));
-        const tests = prepush.indexOf("node tools/prepush-tests.mjs");
+        const tests = prepush.indexOf("prepush-tests.mjs' '$PROJECTS'");
         const gpu = prepush.indexOf('run_step "webgpu-graph-algorithms on the local NVIDIA GPU"');
         assert.ok(tests > 0 && gpu > tests, "after the Tests step");
         assert.match(
@@ -330,12 +365,12 @@ describe("the pre-push gate matches CI", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(
             prepush,
-            /setsid env VISUAL_PREVIEW_TIMEOUT="\$\{PREPUSH_SCREENSHOTS_TIMEOUT:-45m\}" \.\/tools\/visual-preview.sh --head "\$PUSH_HEAD" /,
+            /setsid env VISUAL_PREVIEW_TIMEOUT="\$\{PREPUSH_SCREENSHOTS_TIMEOUT:-45m\}" PREPUSH_ROOT="\$ROOT_DIR" "\$SCRIPT_DIR\/visual-preview.sh" --head "\$PUSH_HEAD" /,
         );
         assert.match(prepush, /if wait "\$SCREENSHOTS_PGID"; then[\s\S]*?else[\s\S]*?FAILED=1\n/);
         assert.match(
             prepush,
-            /\.\/tools\/visual-preview.sh --promote "\$PUSH_HEAD" && SCREENSHOTS_STAGED=0\n\s+echo -e "\$\{GREEN\}All pre-push checks passed/,
+            /PREPUSH_ROOT="\$ROOT_DIR" "\$SCRIPT_DIR\/visual-preview.sh" --promote "\$PUSH_HEAD" && SCREENSHOTS_STAGED=0\n\s+echo -e "\$\{GREEN\}All pre-push checks passed/,
         );
         // The EXIT trap, run for real: a failed step exits; the capture's process group dies and its
         // staged preview is discarded.
@@ -349,7 +384,7 @@ describe("the pre-push gate matches CI", () => {
             writeFileSync(join(dir, "tools/visual-preview.sh"), `#!/bin/sh\necho "$@" > ${dir}/called\n`, {
                 mode: 0o755,
             });
-            const script = `cd ${dir}\nPUSH_HEAD=abc\n${fn}\ntrap cleanup EXIT\nsetsid bash -c 'timeout 300 sleep 300 & echo $! > ${dir}/inner; wait' &\nSCREENSHOTS_PGID=$!\nuntil [ "$(ps -o pgid= -p $SCREENSHOTS_PGID | tr -d " ")" = $SCREENSHOTS_PGID ] && [ -s ${dir}/inner ]; do sleep 0.05; done\nSCREENSHOTS_STAGED=1\necho $SCREENSHOTS_PGID > ${dir}/pid\nexit 1\n`;
+            const script = `cd ${dir}\nSCRIPT_DIR=${dir}/tools\nROOT_DIR=${dir}\nPUSH_HEAD=abc\n${fn}\ntrap cleanup EXIT\nsetsid bash -c 'timeout 300 sleep 300 & echo $! > ${dir}/inner; wait' &\nSCREENSHOTS_PGID=$!\nuntil [ "$(ps -o pgid= -p $SCREENSHOTS_PGID | tr -d " ")" = $SCREENSHOTS_PGID ] && [ -s ${dir}/inner ]; do sleep 0.05; done\nSCREENSHOTS_STAGED=1\necho $SCREENSHOTS_PGID > ${dir}/pid\nexit 1\n`;
             const r = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 20_000 });
             assert.equal(r.status, 1);
             const pid = Number(readFileSync(join(dir, "pid"), "utf8"));
@@ -560,7 +595,8 @@ exec ${realGit} "$@"
             .split("\n")
             .map((l) => l.trim())
             .filter((l) => l && !l.startsWith("#!"));
-        assert.equal(commands[0], './tools/lfs-pre-push.sh "$@" || exit 1');
+        assert.equal(commands[0], 'GATE_DIR="$(cd "$(dirname "$0")/.." && pwd)"');
+        assert.equal(commands[1], '"$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1');
     });
 });
 
@@ -630,7 +666,7 @@ describe("ci.yml", () => {
             job(ci, "cost-accuracy"),
             /if: contains\(fromJSON\(needs.packages.outputs.affected\), 'graphty-element'\)/,
         );
-        assert.match(job(ci, "all-checks"), /\n\s+cost-accuracy,\n/);
+        assert.ok(parseJobs(ci)["all-checks"].needs.includes("cost-accuracy"));
     });
 
     it("runs no security audit on pull requests or merge-queue runs", () => {
@@ -1086,9 +1122,9 @@ jobs:
 describe("the summary checks fail as soon as a required job fails", () => {
     const ci = workflow("ci.yml");
     const jobs = parseJobs(ci);
-    // The jobs "All Checks Pass" fails on: every job it needs but the opt-in Chromatic jobs and the
-    // visual job, whose results the gate step judges at the end.
-    const deciding = jobs["all-checks"].needs.filter((n) => !n.startsWith("chromatic-") && n !== "visual");
+    // The jobs "All Checks Pass" fails on: every job it needs but the visual job, whose results the
+    // gate step judges at the end.
+    const deciding = jobs["all-checks"].needs.filter((n) => n !== "visual");
 
     it("ends every job whose failure fails them with the early-verdict step, on pull requests only", () => {
         assert.deepEqual([...deciding].sort(), [
@@ -1589,6 +1625,12 @@ describe("the re-run of a T4 run whose spot runner was lost", () => {
         );
         assert.match(rerun, /if tools\/gpu-runner-lost.sh "\$RUN" 1; then\n[^\n]*\n\s+gh run rerun "\$RUN" --failed /);
         assert.equal(rerun.match(/gh run rerun/g).length, 1);
+        // a Release run re-run this way tells the owner's phone it is retrying, never failing the re-run
+        assert.match(
+            rerun,
+            /gh run rerun "\$RUN" --failed [^\n]*\n[^\n]*\n\s+\[ "\$WORKFLOW" != Release \] \|\| node tools\/release-status.mjs started --attempt 2 [^\n]*\n[^\n]*\|\| true\n/,
+        );
+        assert.match(rerun, /tools\/release-status.mjs\n/, "in its sparse checkout");
     });
 
     it("opens no Release held issue for a first attempt the re-run will repeat, using the same test", () => {
@@ -2582,6 +2624,63 @@ describe("release.yml", () => {
         assert.match(publish, /echo "tags=\$\(IFS=,; echo "\$\{tags\[\*\]\}"\)" >> "\$GITHUB_OUTPUT"/);
     });
 
+    it("sends a phone notice when a train starts testing a candidate, RETRYING after a fix or on a re-run", () => {
+        // after the pending and nothing-releasable checks, only when there is something to release
+        assert.ok(pick.indexOf("- name: Announce the train attempt") > pick.indexOf("id: releasable"));
+        assert.match(
+            pick,
+            /- name: Announce the train attempt\n\s+if: \$\{\{ steps.releasable.outputs.release == 'true' \}\}\n\s+continue-on-error: true\n/,
+        );
+        assert.match(pick, /TAGS: \$\{\{ steps.releasable.outputs.tags \}\}/);
+        assert.match(
+            pick,
+            /if \[ "\$TRIGGER" = workflow_run \]; then\n\s+restart=\(--restart --issue "\$\(tools\/release-held.sh find --train\)" --fix /,
+        );
+        assert.match(
+            pick,
+            /node tools\/release-status.mjs started --sha "\$SHA" --tags "\$TAGS" "\$\{restart\[@\]\}" \\\n\s+--attempt "\$GITHUB_RUN_ATTEMPT"/,
+        );
+        // a re-run of a failed publish says it is retrying, before anything else in the job
+        assert.match(
+            publish,
+            /fetch-depth: 0\n\n[^\n]*\n\s+- name: Announce a re-run of the publish\n\s+if: \$\{\{ github.run_attempt > 1 \}\}\n\s+continue-on-error: true\n/,
+        );
+        assert.match(
+            publish,
+            /node tools\/release-status.mjs started --sha "\$GITHUB_SHA" --attempt "\$GITHUB_RUN_ATTEMPT"/,
+        );
+    });
+
+    it("hands the Pushover secrets only to the steps that run tools/release-status.mjs", () => {
+        for (const name of [
+            "release.yml",
+            "release-watch.yml",
+            "release-dequeued.yml",
+            "gpu-rerun-on-runner-loss.yml",
+        ]) {
+            const steps = workflow(name).split(/\n(?=\s+- (?:name|uses): )/);
+            const announcing = steps.filter((st) => /node tools\/release-status.mjs /.test(st));
+            assert.ok(announcing.length > 0, name);
+            for (const st of steps) {
+                const secrets = st.match(/secrets\.PUSHOVER_\w+/g) ?? [];
+                if (announcing.includes(st)) {
+                    assert.match(
+                        st,
+                        /\n\s+PUSHOVER_APP_TOKEN: \$\{\{ secrets.PUSHOVER_APP_TOKEN \}\}\n/,
+                        `${name}: ${st}`,
+                    );
+                    assert.match(
+                        st,
+                        /\n\s+PUSHOVER_USER_KEY: \$\{\{ secrets.PUSHOVER_USER_KEY \}\}\n/,
+                        `${name}: ${st}`,
+                    );
+                } else {
+                    assert.deepEqual(secrets, [], `${name}: only an announcing step gets the Pushover secrets`);
+                }
+            }
+        }
+    });
+
     it("has a backstop that announces a run that ended badly without announcing itself", () => {
         const watch = workflow("release-watch.yml");
         // workflow_run matches the watched workflow by its name
@@ -2591,7 +2690,7 @@ describe("release.yml", () => {
             watch,
             /if: \$\{\{ !contains\(fromJSON\('\["success","skipped","neutral"\]'\), github.event.workflow_run.conclusion\) \}\}/,
         );
-        assert.doesNotMatch(watch, /secrets\./, "GITHUB_TOKEN only");
+        assert.deepEqual(watch.match(/secrets\.\w+/g), PUSHOVER_SECRETS, "GITHUB_TOKEN and Pushover only");
         assert.deepEqual(watch.match(/\w+: write/g), ["issues: write"], "it writes only the comment");
         assert.match(watch, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
         assert.match(watch, /node tools\/release-status.mjs run-ended --run "\$RUN_URL" --attempt "\$ATTEMPT"/);
@@ -2613,7 +2712,7 @@ describe("release.yml", () => {
         assert.match(mergify, /- head~=\^release\/train-\n\s+- author=github-actions\[bot\]/);
         // it runs nothing from the pull request
         assert.match(dq, /- uses: actions\/checkout@v4\n\s+with:\n\s+ref: master\n/);
-        assert.doesNotMatch(dq, /secrets\./, "GITHUB_TOKEN only");
+        assert.deepEqual(dq.match(/secrets\.\w+/g), PUSHOVER_SECRETS, "GITHUB_TOKEN and Pushover only");
         assert.deepEqual(dq.match(/\w+: write/g), ["issues: write"], "it writes only the comment");
         assert.match(dq, /checks: read/, "it reads the Mergify Merge Queue check run");
         assert.match(dq, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
@@ -3111,7 +3210,7 @@ describe("a failed pre-push test shard (#1562)", () => {
         try {
             mkdirSync(join(dir, "tools"));
             mkdirSync(join(dir, "tmp"));
-            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs"]) {
+            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs", "shard-verdict.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             const shard = { shard: "fake", package: "fake", "test-command": "true", "needs-browser": false };
@@ -3303,6 +3402,12 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
     });
 });
 
+// Every `pnpm run <script>` the source-only checks run, as package.json scripts, so none is skipped.
+function sourceCheckScripts() {
+    const checks = readFileSync(new URL("./prepush-source-checks.sh", import.meta.url), "utf8");
+    return Object.fromEntries([...checks.matchAll(/"pnpm run ([\w:-]+)/g)].map((m) => [m[1], "true"]));
+}
+
 describe("the source-only checks before the queue (tools/prepush-source-checks.sh)", () => {
     it("skip only on the exact checkout they passed on, and run again after any edit", () => {
         // The script and the fingerprint tool in a throwaway repository, every check behind a fake
@@ -3325,6 +3430,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             );
             writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
             writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
+            writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: sourceCheckScripts() }));
             writeFileSync(join(dir, ".gitignore"), "node_modules/\ncalls\n");
             writeFileSync(join(dir, "a.ts"), "a\n");
             const git = (...args) => assert.equal(spawnSync("git", args, { cwd: dir }).status, 0, args.join(" "));
@@ -3361,6 +3467,84 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             assert.equal(run().calls, "");
         } finally {
             rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("run from the gate's live copy, use the copy's scripts and check the checkout in PREPUSH_ROOT", () => {
+        // gate/: the real scripts, a sonar step and a link check that log "gate-...". root/: the checkout
+        // being pushed, with a different tools/ (its own link check, sonar step and a decoy copy of the
+        // source checks) and no check:legacy-use script, as a branch from before that check would have.
+        const dir = mkdtempSync(join(tmpdir(), "prepush-gate-dir-"));
+        try {
+            const gate = join(dir, "gate");
+            const root = join(dir, "root");
+            const log = (name) => `#!/bin/sh\necho "${name} $PWD" >> ${dir}/calls\n`;
+            const sonar = (name) =>
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "${name}\\n");\n`;
+            for (const d of [
+                join(gate, "tools"),
+                join(root, "tools"),
+                join(root, "node_modules/.pnpm"),
+                join(dir, "bin"),
+            ]) {
+                mkdirSync(d, { recursive: true });
+            }
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs"]) {
+                copyFileSync(new URL(`./${f}`, import.meta.url), join(gate, "tools", f));
+            }
+            writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });
+            writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
+            writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
+            writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));
+            writeFileSync(join(root, "tools/prepush-source-checks.sh"), log("root-copy"), { mode: 0o755 });
+            writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$* $PWD" >> ${dir}/calls\n`, { mode: 0o755 });
+            const scripts = sourceCheckScripts();
+            delete scripts["check:legacy-use"];
+            writeFileSync(join(root, "package.json"), JSON.stringify({ scripts }));
+            writeFileSync(join(root, "pnpm-lock.yaml"), "lock\n");
+            writeFileSync(join(root, "node_modules/.pnpm/lock.yaml"), "lock\n");
+            writeFileSync(join(root, ".gitignore"), "node_modules/\n");
+            const git = (...args) => assert.equal(spawnSync("git", args, { cwd: root }).status, 0, args.join(" "));
+            git("init", "-q");
+            git("add", ".");
+            git("commit", "-q", "-m", "a");
+            const r = spawnSync("bash", [join(gate, "tools/prepush-source-checks.sh")], {
+                cwd: gate,
+                encoding: "utf8",
+                env: { ...process.env, PREPUSH_ROOT: root, PATH: `${join(dir, "bin")}:${process.env.PATH}` },
+            });
+            assert.equal(r.status, 0, r.stdout + r.stderr);
+            const calls = readFileSync(join(dir, "calls"), "utf8");
+            assert.match(calls, /^gate-sonar$/m, "the gate's own scripts run");
+            assert.match(calls, new RegExp(`^root-links ${root}$`, "m"), "the checkout's own checks run, in it");
+            assert.match(calls, new RegExp(`^run format:check ${root}$`, "m"));
+            assert.doesNotMatch(calls, /gate-links|root-sonar|root-copy/);
+            assert.doesNotMatch(calls, /check:legacy-use/);
+            assert.match(r.stdout, /\[SKIP\] Legacy graph API use: this checkout has no `check:legacy-use` script/);
+            assert.ok(existsSync(join(root, ".git/prepush-source-checks")), "the pass is recorded in the checkout");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("the hook and tools/prepush.sh run the gate's scripts from their own copy", () => {
+        const code = (text) => text.replace(/^\s*#.*$/gm, "");
+        const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
+        const hook = code(readFileSync(new URL("../.husky/pre-push", import.meta.url), "utf8"));
+        assert.match(hook, /PREPUSH_ROOT="\$PWD" "\$GATE_DIR\/tools\/prepush.sh"/);
+        assert.doesNotMatch(hook, /\.\/tools\/|pnpm run prepush/);
+        const prepush = code(repoFile("tools/prepush.sh"));
+        for (const s of [
+            "queued-push-guard.mjs",
+            "visual-preview.sh",
+            "prepush-tests.mjs",
+            "prepush-source-checks.sh",
+        ]) {
+            assert.doesNotMatch(
+                prepush,
+                new RegExp(`(\\./|[ "'])tools/${s.replace(".", "\\.")}`),
+                `${s} from SCRIPT_DIR`,
+            );
         }
     });
 });

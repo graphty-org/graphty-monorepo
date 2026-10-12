@@ -111,7 +111,7 @@ export class Graphty extends LitElement {
         }
     `;
 
-    #graph: Graph;
+    #builtGraph: Graph | undefined;
     #element: Element;
     #resizeObserver: ResizeObserver | null = null;
     #capabilitiesMirrored = false;
@@ -137,13 +137,28 @@ export class Graphty extends LitElement {
         // the host's box, never from the canvas's intrinsic 2:1 ratio; being positioned also
         // anchors the absolutely positioned XR UI overlay.
         this.#element.setAttribute("style", "position: absolute; inset: 0; display: block;");
-        this.#graph = new Graph(this.#element);
-        // The graph is never rebuilt, so this subscription lives as long as the element.
-        this.#graph.onNodeLabelCounts.add((counts) => {
-            this.dispatchEvent(
-                new CustomEvent("graphty-label-change", { detail: counts, bubbles: true, composed: true }),
-            );
-        });
+    }
+
+    /**
+     * The graph this element draws, built the first time anything needs it: being attached, or a
+     * property, attribute, method or `session` reached before that. Building it opens a Babylon
+     * engine and so a WebGL context, and a browser keeps only about 16 of those per page, evicting
+     * the oldest live one -- so an element that is created and never used opens none.
+     * @returns The graph.
+     */
+    get #graph(): Graph {
+        if (this.#builtGraph === undefined) {
+            const graph = new Graph(this.#element);
+            this.#builtGraph = graph;
+            // The graph is never rebuilt, so this subscription lives as long as the element.
+            graph.onNodeLabelCounts.add((counts) => {
+                this.dispatchEvent(
+                    new CustomEvent("graphty-label-change", { detail: counts, bubbles: true, composed: true }),
+                );
+            });
+        }
+
+        return this.#builtGraph;
     }
 
     /**
@@ -3311,6 +3326,11 @@ export class Graphty extends LitElement {
      * The QUEUE only -- data loading, layout changes, algorithm runs. The layout may still be
      * running and the camera may still be moving when this resolves. For a picture that will not
      * change again, wait for {@link Graphty.waitForStableFrame}.
+     *
+     * It does not wait for a frame either, and only a frame moves a new node's mesh to its layout
+     * position: {@link Graphty.nodeScreenPosition} read right after this can still report a new
+     * node at its mesh template's position, off screen. Wait for
+     * {@link Graphty.waitForStableFrame} before reading where nodes are drawn.
      * @returns Promise that resolves when all operations are complete
      * @since 1.5.0
      * @example
@@ -3653,12 +3673,15 @@ export class Graphty extends LitElement {
      * same pixels {@link worldToScreen} returns: a click there selects the node. `visible` is
      * false when the centre is outside the element, behind the camera, or the node is hidden by
      * a filter. `radius` is how big the node is drawn, in pixels. Read it again after the camera
-     * or the layout moves; it is not a live value.
+     * or the layout moves; it is not a live value. It reads where a frame drew the node, so a node
+     * no frame has drawn yet reports its mesh template's position, off screen and not visible:
+     * wait for {@link Graphty.waitForStableFrame} first.
      * @param nodeId - The node's id.
      * @returns The position, or undefined for an id the graph does not hold.
      * @since 3.15.0
      * @example
      * ```typescript
+     * await element.waitForStableFrame();
      * const at = element.nodeScreenPosition("Valjean");
      * if (at?.visible) {
      *     marker.style.left = `${at.x - at.radius}px`;

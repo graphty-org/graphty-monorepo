@@ -1,0 +1,18 @@
+{
+    "tests": [
+        {
+            "file": "graphty/src/components/shell/__tests__/AppShell.real-element.test.tsx",
+            "name": "the shell's main flows, by real input, on the real graphty-element > keeps a second metric's layers over the first's on the element",
+            "durationMs": 7790,
+            "limitMs": 15000,
+            "issue": 1786
+        },
+        {
+            "file": "graphty/src/components/shell/__tests__/AppShell.real-element.test.tsx",
+            "name": "the shell's main flows, by real input, on the real graphty-element > keeps the image format the reader picks in the Present panel and captures in it",
+            "durationMs": 9480,
+            "limitMs": 15000,
+            "issue": 1786
+        }
+    ]
+}

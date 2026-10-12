@@ -12,7 +12,7 @@
  * Usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json>
  *   both are the JSON arrays `nx show projects --json` prints (with or without --affected).
  * Prints three GITHUB_OUTPUT lines:
- *   affected=<JSON array of package directory names>   (Chromatic jobs test membership in it)
+ *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
  *   test-count=<number of shards>   (0 means skip the test job: an empty matrix is an error)
  *
@@ -64,7 +64,9 @@ export const SHARDS = [
     // needs: ["subgroups"] (they call wg_reduce_vec4) and their tests live there, so without that
     // path the twin would never exercise the PageRank reduction on a device without the feature.
     // the node suite runs through scripts/run-node-shard.js: it forwards every argument and exits with
-    // vitest's own code. On a non-zero exit its FIRST line is the [missing-files] block -- how many test
+    // vitest's own code, except that an exit of 0 still fails (a [shard-verdict] line names why) when the run
+    // went 90 seconds silent and was signalled, printed no vitest summary, or did not write its --outputFile
+    // (issue #2111). On a non-zero exit its FIRST line is the [missing-files] block -- how many test
     // files started, how many reported, and the names of the difference, which is what a dead worker
     // swallowed; after it, and after 90 seconds of silence, the process table with each process's kernel
     // wait channel and a Node diagnostic report per surviving process (G4-F14).
@@ -209,7 +211,7 @@ export const SHARDS = [
         shard: "graphty-element-default",
         package: "graphty-element",
         "test-command":
-            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} --coverage",
+            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} --coverage",
         "needs-browser": false,
     },
     // graphty-element browser tests (5 shards)
@@ -217,7 +219,7 @@ export const SHARDS = [
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} --coverage`,
         "needs-browser": true,
         // 935 s for the ten browser and storybook shards together (2026-10-06); a push that changes
         // only the element's source is left to CI here.
@@ -236,7 +238,7 @@ export const SHARDS = [
     ...[1, 2, 3, 4].map((n) => ({
         shard: `graphty-element-storybook-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/4 --reporter=blob --reporter=default \${CI:+--reporter=junit} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/4 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} --coverage`,
         "needs-browser": true,
         local: "when-paths-change",
         // Storybook's own config (the vitest project's configDir) and the story helpers.

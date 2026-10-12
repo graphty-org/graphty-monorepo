@@ -13,7 +13,17 @@ import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { isolatedGitEnv } from "../isolated-git-env.mjs";
-import { decide, globToRegExp, lineHash, mapOldLine, nosonarComment, parseHunks } from "../sonar-gate.mjs";
+import { ApiError } from "./api.mjs";
+import {
+    decide,
+    globToRegExp,
+    isNetworkError,
+    lineHash,
+    mapOldLine,
+    nosonarComment,
+    parseHunks,
+    scannerFailure,
+} from "../sonar-gate.mjs";
 
 const GATE = join(dirname(fileURLToPath(import.meta.url)), "..", "sonar-gate.mjs");
 const TOKEN = "squ_fake_token_0123456789abcdef";
@@ -69,9 +79,24 @@ console.log("INFO: fake scan done");
 );
 chmodSync(scanner, 0o755);
 
+// A scanner that fails: prints the recorded output named by SCANNER_FIXTURE (plus, to check the
+// redaction, the token it was given and a URL with credentials in it) and exits 1.
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
+const failingScanner = join(scratch, "failing-scanner.mjs");
+writeFileSync(
+    failingScanner,
+    `#!/usr/bin/env node
+import { readFileSync } from "node:fs";
+process.stdout.write(readFileSync(process.env.SCANNER_FIXTURE, "utf8"));
+console.log("[ERROR] Bootstrapper: token " + process.env.SONAR_TOKEN + " at http://user:" + process.env.SONAR_TOKEN + "@host/");
+process.exit(1);
+`,
+);
+chmodSync(failingScanner, 0o755);
+
 // A fake SonarQube. `local` are <key>-local's issues, `master` master's issues by file, `hotspots`
 // <key>-local's hotspots. Records every request with whether it carried the token.
-async function server({ local = [], master = {}, hotspots = [], admin = false } = {}) {
+async function server({ local = [], master = {}, hotspots = [], admin = false, fail = {} } = {}) {
     const seen = [];
     const json = (res, code, body) => {
         res.writeHead(code, { "Content-Type": "application/json" });
@@ -83,6 +108,7 @@ async function server({ local = [], master = {}, hotspots = [], admin = false } 
         const authed = req.headers.authorization === `Bearer ${TOKEN}`;
         seen.push({ path: url.pathname, authed, auth: req.headers.authorization ?? "" });
         const page = (field, items) => json(res, 200, { paging: { total: items.length }, [field]: items });
+        if (fail[url.pathname]) return json(res, fail[url.pathname], { errors: [{ msg: "failed" }] });
         switch (url.pathname) {
             case "/api/system/status":
                 return json(res, 200, { id: SERVER_ID, status: "UP" });
@@ -201,6 +227,73 @@ describe("sonar-gate: when it cannot check", () => {
     });
 });
 
+// Every recorded scanner failure: the gate's verdict, and a line of the cause it must print.
+// bootstrap-* are the Node bootstrapper's own errors, engine-* the Java engine's. The first, and the
+// two non-network engine ones, come from pre-push logs of 2026-10-03 to 2026-10-10 (the old gate kept
+// only the last 20 lines); the rest were recorded on 2026-10-10 against the real server through a
+// proxy that answered 503 or closed the connection on one request. Host names and home directories
+// are replaced.
+const SCANNER_FAILURES = [
+    ["bootstrap-enotfound.txt", "skipped:server-fault", /getaddrinfo ENOTFOUND sonarqube\.example\.lan/],
+    ["bootstrap-econnrefused.txt", "skipped:server-fault", /connect ECONNREFUSED 127\.0\.0\.1:9/],
+    ["bootstrap-socket-hang-up.txt", "skipped:server-fault", /socket hang up/],
+    ["engine-unknown-host.txt", "skipped:server-fault", /Caused by: java\.net\.UnknownHostException/],
+    ["engine-http-503.txt", "skipped:server-fault", /Caused by: org\.sonarqube\.ws\.client\.HttpException: Error 503/],
+    ["engine-http-503-on-submit.txt", "skipped:server-fault", /Failed to upload report: Error 503/],
+    ["engine-end-of-stream.txt", "skipped:server-fault", /Caused by: java\.io\.IOException: unexpected end of stream/],
+    ["engine-connection-refused-on-submit.txt", "skipped:server-fault", /Caused by: java\.net\.ConnectException/],
+    ["bootstrap-http-401.txt", "blocked", /Request failed with status code 401/],
+    ["engine-nosuchfile.txt", "blocked", /Caused by: java\.nio\.file\.NoSuchFileException/],
+    ["engine-bridge-timeout.txt", "blocked", /Failed to start the bridge server/],
+];
+
+describe("sonar-gate: when the scanner fails", () => {
+    for (const [fixture, outcome, cause] of SCANNER_FAILURES) {
+        it(`${fixture}: ${outcome}, printing the cause`, async () => {
+            const s = await server();
+            const r = await gate(repo(HEAD_NEW), {
+                SONAR_HOST_URL: s.url,
+                SONAR_SCAN_TOKEN: TOKEN,
+                SONAR_GATE_SCANNER: failingScanner,
+                SCANNER_FIXTURE: join(FIXTURES, fixture),
+            });
+            assert.equal(r.code, outcome === "blocked" ? 1 : 0, r.out);
+            assert.match(r.log, new RegExp(` ${outcome} `));
+            assert.match(r.out, cause);
+            if (outcome === "blocked") assert.match(r.out, /SonarQube step cannot run: the scanner failed \(exit 1\)/);
+            else assert.match(r.out, /SonarQube did NOT check this push/);
+            assert.doesNotMatch(r.out, /^\s+at /m, "no stack frames");
+            assert.ok(!r.out.includes(TOKEN), "the token is not in the output");
+        });
+    }
+
+    it("passes with the warning when the server fails after the scan (HTTP 503 on api/ce/task)", async () => {
+        const s = await server({ fail: { "/api/ce/task": 503 } });
+        const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /SonarQube did NOT check this push/);
+        assert.match(r.log, / skipped:server-fault /);
+    });
+
+    it("blocks when the server refuses a read (HTTP 403 on api/issues/search)", async () => {
+        const s = await server({ fail: { "/api/issues/search": 403 } });
+        const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.log, / blocked /);
+    });
+
+    it("blocks when the scratch project is missing, and passes when the server fails on that check", async () => {
+        const missing = await server({ fail: { "/api/components/show": 404 } });
+        const r1 = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: missing.url, SONAR_SCAN_TOKEN: TOKEN });
+        assert.equal(r1.code, 1, r1.out);
+        assert.match(r1.out, /project proj-local is missing/);
+        const down = await server({ fail: { "/api/components/show": 502 } });
+        const r2 = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: down.url, SONAR_SCAN_TOKEN: TOKEN });
+        assert.equal(r2.code, 0, r2.out);
+        assert.match(r2.log, / skipped:server-fault /);
+    });
+});
+
 describe("sonar-gate: the verdict", () => {
     it("blocks a new issue on a changed line, and never leaks the token", async () => {
         const s = await server({ local: [issue(2, "    return 1 + 1;")] });
@@ -294,6 +387,29 @@ describe("sonar-gate: the verdict", () => {
 });
 
 describe("sonar-gate: helpers", () => {
+    it("keeps only the scanner's error and cause lines, credentials masked", () => {
+        const { cause, network } = scannerFailure(
+            readFileSync(join(FIXTURES, "engine-connection-refused-on-submit.txt"), "utf8") +
+                "[ERROR] see http://user:secret@host/x\n",
+        );
+        assert.ok(network);
+        assert.equal(cause[0], "[ERROR] ScannerEngine: Error during SonarScanner Engine execution");
+        assert.match(cause[1], /^java\.lang\.IllegalStateException: Failed to upload report/);
+        assert.ok(cause.every((l) => !/^at /.test(l)));
+        assert.ok(cause.includes("Caused by: java.net.ConnectException: Connection refused"));
+        assert.equal(cause.at(-1), "[ERROR] see http://***@host/x");
+        assert.deepEqual(scannerFailure("no errors here\n"), { cause: [], network: false });
+    });
+
+    it("tells a network or server fault of an API call from a refusal", () => {
+        assert.ok(isNetworkError(new ApiError(503, "api/ce/task", "")));
+        assert.ok(!isNetworkError(new ApiError(401, "api/users/current", "")));
+        assert.ok(isNetworkError(new TypeError("fetch failed", { cause: { code: "ENOTFOUND" } })));
+        assert.ok(isNetworkError(new TypeError("fetch failed", { cause: { code: "UND_ERR_SOCKET" } })));
+        assert.ok(isNetworkError(new DOMException("timed out", "TimeoutError")));
+        assert.ok(!isNetworkError(new TypeError("Cannot read properties of undefined")));
+    });
+
     it("computes SonarQube's line hash (whitespace removed)", () => {
         assert.equal(lineHash("  a = 1;"), lineHash("a=1;"));
         // Two lines of graph-io/src/formats/json/importer.ts at 5ba15bb7 and the `hash` the server's

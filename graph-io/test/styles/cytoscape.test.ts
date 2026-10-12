@@ -688,6 +688,47 @@ describe("emit then translate returns the same rules", () => {
         expect(codes(cx2)).toContain("W_STYLE_NOT_WRITTEN edge tooltip");
     });
 
+    it("writes another program's shape as its nearest Cytoscape shape, and Cytoscape's own other values as they are", () => {
+        const s = graph(3, rng(1));
+        const ex = extracted(s, [
+            {
+                id: "x",
+                target: "node",
+                role: "defaults",
+                origin: "declared",
+                where: { all: true },
+                set: { shape: "other:invtrapezium", borderStyle: "other:cylinder" },
+            },
+            {
+                id: "y",
+                target: "edge",
+                role: "defaults",
+                origin: "declared",
+                where: { all: true },
+                set: {
+                    targetArrow: "other:open-square",
+                    sourceArrow: "other:lcurve",
+                    lineStyle: "other:backward-slash",
+                },
+            },
+        ]);
+        const desktop = new StyleNotes();
+        const out = emitCytoscapeStyle(ex, s, { dialect: "desktop", notes: desktop });
+        expect(out.style.node.defaults.get("NODE_SHAPE")).toBe("PARALLELOGRAM");
+        expect(out.style.node.defaults.get("NODE_BORDER_LINE_TYPE")).toBe("SOLID");
+        expect(out.style.edge.defaults.get("EDGE_TARGET_ARROW_SHAPE")).toBe("OPEN_SQUARE");
+        expect(out.style.edge.defaults.get("EDGE_SOURCE_ARROW_SHAPE")).toBe("NONE");
+        expect(out.style.edge.defaults.get("EDGE_LINE_TYPE")).toBe("BACKWARD_SLASH");
+        const approximated = desktop
+            .list()
+            .filter((n) => n.code === "W_STYLE_APPROXIMATED")
+            .map((n) => String(n.params.property));
+        expect(approximated).toEqual(expect.arrayContaining(["shape", "borderStyle", "sourceArrow"]));
+        const cx2 = emitCytoscapeStyle(ex, s, { dialect: "cx2" });
+        expect(cx2.style.node.defaults.get("NODE_SHAPE")).toBe("parallelogram");
+        expect(cx2.style.edge.defaults.get("EDGE_TARGET_ARROW_SHAPE")).toBe("open-square");
+    });
+
     it("writes a mapping over a style column or a degree into an added column", () => {
         const s = graph(5, rng(2));
         const ex = extracted(s, [

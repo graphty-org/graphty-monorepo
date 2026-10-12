@@ -100,19 +100,23 @@ const colorOut: Write = (v) => String(v).toUpperCase();
  * @param table - canonical value to the dialect's spelling
  * @param near - canonical value to the nearest spelling, for values the dialect does not have
  * @param upper - whether an `other:` value is written uppercase with underscores
+ * @param cytoscape - the `other:` values (lowercase, hyphenated) that are Cytoscape's own names, written as they
+ *     are; any other `other:` value (another program's, such as Graphviz's `invtrapezium`) is no Cytoscape value and
+ *     is written as its nearest
  * @returns the writer
  */
 function enumOut(
     table: Readonly<Record<string, string>>,
     near: Readonly<Record<string, string>>,
     upper: boolean,
+    cytoscape: ReadonlySet<string> = new Set(),
 ): Write {
     return (v, approx) => {
         const s = String(v);
         if (Object.hasOwn(table, s)) {
             return table[s];
         }
-        if (s.startsWith("other:")) {
+        if (s.startsWith("other:") && cytoscape.has(s.slice("other:".length).toLowerCase().replace(/_/g, "-"))) {
             const raw = s.slice("other:".length);
             const out = upper ? raw.toUpperCase().replace(/-/g, "_") : raw;
             if (out !== raw) {
@@ -137,7 +141,16 @@ const DESKTOP_SHAPES = {
     parallelogram: "PARALLELOGRAM",
     vee: "V",
 };
-const NEAR_SHAPES = { pentagon: "hexagon", star: "octagon", trapezoid: "parallelogram", none: "ellipse" };
+const NEAR_SHAPES = {
+    pentagon: "hexagon",
+    star: "octagon",
+    trapezoid: "parallelogram",
+    none: "ellipse",
+    // Graphviz shapes no canonical shape names
+    "other:invtrapezium": "parallelogram",
+    "other:house": "hexagon",
+    "other:invhouse": "hexagon",
+};
 const lower = (t: Readonly<Record<string, string>>): Record<string, string> =>
     Object.fromEntries(Object.entries(t).map(([k, v]) => [k, v === "V" ? "vee" : v.toLowerCase()]));
 const nearIn = (t: Readonly<Record<string, string>>, near: Readonly<Record<string, string>>): Record<string, string> =>
@@ -182,6 +195,19 @@ const CX2_ARROWS = {
     half: "half-top",
 };
 const NEAR_ARROWS = { crow: "vee", inverted: "triangle" };
+
+/** The Cytoscape arrow names no canonical arrow names, which Cytoscape's readers keep as `other:` values. */
+const CY_OTHER_ARROWS: ReadonlySet<string> = new Set(["open-square", "open-half-circle", "half-circle"]);
+/** The Cytoscape line types no canonical line style names. */
+const CY_OTHER_LINES: ReadonlySet<string> = new Set([
+    "backward-slash",
+    "forward-slash",
+    "vertical-slash",
+    "separate-arrow",
+    "contiguous-arrow",
+]);
+/** The Cytoscape line types a border can take that no canonical border style names. */
+const CY_OTHER_BORDERS: ReadonlySet<string> = new Set([...CY_OTHER_LINES, "zigzag", "sinewave"]);
 
 /** A label position: the node's anchor and the label's opposite anchor. */
 const DESKTOP_POSITIONS = {
@@ -231,7 +257,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
                 "borderStyle",
                 {
                     vp: "NODE_BORDER_LINE_TYPE",
-                    write: enumOut(DESKTOP_BORDERS, nearIn(DESKTOP_BORDERS, NEAR_LINES), true),
+                    write: enumOut(DESKTOP_BORDERS, nearIn(DESKTOP_BORDERS, NEAR_LINES), true, CY_OTHER_BORDERS),
                 },
             ],
             ["shape", { vp: "NODE_SHAPE", write: enumOut(DESKTOP_SHAPES, nearIn(DESKTOP_SHAPES, NEAR_SHAPES), true) }],
@@ -250,20 +276,23 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["width", { vp: "EDGE_WIDTH", write: desktopNumber }],
             [
                 "lineStyle",
-                { vp: "EDGE_LINE_TYPE", write: enumOut(DESKTOP_LINES, nearIn(DESKTOP_LINES, NEAR_LINES), true) },
+                {
+                    vp: "EDGE_LINE_TYPE",
+                    write: enumOut(DESKTOP_LINES, nearIn(DESKTOP_LINES, NEAR_LINES), true, CY_OTHER_LINES),
+                },
             ],
             [
                 "sourceArrow",
                 {
                     vp: "EDGE_SOURCE_ARROW_SHAPE",
-                    write: enumOut(DESKTOP_ARROWS, nearIn(DESKTOP_ARROWS, NEAR_ARROWS), true),
+                    write: enumOut(DESKTOP_ARROWS, nearIn(DESKTOP_ARROWS, NEAR_ARROWS), true, CY_OTHER_ARROWS),
                 },
             ],
             [
                 "targetArrow",
                 {
                     vp: "EDGE_TARGET_ARROW_SHAPE",
-                    write: enumOut(DESKTOP_ARROWS, nearIn(DESKTOP_ARROWS, NEAR_ARROWS), true),
+                    write: enumOut(DESKTOP_ARROWS, nearIn(DESKTOP_ARROWS, NEAR_ARROWS), true, CY_OTHER_ARROWS),
                 },
             ],
             ["sourceArrowColor", { vp: "EDGE_SOURCE_ARROW_UNSELECTED_PAINT", write: colorOut }],
@@ -284,7 +313,10 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["borderWidth", { vp: "NODE_BORDER_WIDTH", write: cx2Number }],
             [
                 "borderStyle",
-                { vp: "NODE_BORDER_STYLE", write: enumOut(CX2_LINES, nearIn(CX2_LINES, NEAR_LINES), false) },
+                {
+                    vp: "NODE_BORDER_STYLE",
+                    write: enumOut(CX2_LINES, nearIn(CX2_LINES, NEAR_LINES), false, CY_OTHER_BORDERS),
+                },
             ],
             [
                 "shape",
@@ -305,14 +337,26 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["color", { vp: "EDGE_LINE_COLOR", write: colorOut }],
             ["opacity", { vp: "EDGE_OPACITY", write: cx2Number }],
             ["width", { vp: "EDGE_WIDTH", write: cx2Number }],
-            ["lineStyle", { vp: "EDGE_LINE_STYLE", write: enumOut(CX2_LINES, nearIn(CX2_LINES, NEAR_LINES), false) }],
+            [
+                "lineStyle",
+                {
+                    vp: "EDGE_LINE_STYLE",
+                    write: enumOut(CX2_LINES, nearIn(CX2_LINES, NEAR_LINES), false, CY_OTHER_LINES),
+                },
+            ],
             [
                 "sourceArrow",
-                { vp: "EDGE_SOURCE_ARROW_SHAPE", write: enumOut(CX2_ARROWS, nearIn(CX2_ARROWS, NEAR_ARROWS), false) },
+                {
+                    vp: "EDGE_SOURCE_ARROW_SHAPE",
+                    write: enumOut(CX2_ARROWS, nearIn(CX2_ARROWS, NEAR_ARROWS), false, CY_OTHER_ARROWS),
+                },
             ],
             [
                 "targetArrow",
-                { vp: "EDGE_TARGET_ARROW_SHAPE", write: enumOut(CX2_ARROWS, nearIn(CX2_ARROWS, NEAR_ARROWS), false) },
+                {
+                    vp: "EDGE_TARGET_ARROW_SHAPE",
+                    write: enumOut(CX2_ARROWS, nearIn(CX2_ARROWS, NEAR_ARROWS), false, CY_OTHER_ARROWS),
+                },
             ],
             ["sourceArrowColor", { vp: "EDGE_SOURCE_ARROW_COLOR", write: colorOut }],
             ["targetArrowColor", { vp: "EDGE_TARGET_ARROW_COLOR", write: colorOut }],

@@ -35,7 +35,7 @@ import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { hasIllegalXmlChar } from "../../common/xml.js";
 import { writeZip, type ZipWriteEntry } from "../../common/zip.js";
 import { type CytoscapeEmitted, cytoscapeVizmapXml, emitCytoscapeStyle } from "../../styles/cytoscape/emit.js";
-import { STYLE_BLOCK_NAME, writeStyleBlock } from "../../styles/io/block.js";
+import { STYLE_BLOCK_NAME, styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import type { StyleValue, StyleWriteCapabilities } from "../../styles/types.js";
@@ -1135,6 +1135,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions, styles?: E
     const name = snapshot.meta.name ?? DEFAULT_NAME;
     const networkTable = planTable("network", networkCandidates(snapshot, name), 1, note);
     const rootTable: TableColumn[] = [{ name: "name", javaClass: STRING, cell: () => name }];
+    const inlineBlock = styles === undefined ? null : writeStyleBlock(styles.rules, { inlineColumns: true, snapshot });
     return {
         notes,
         fatal,
@@ -1154,9 +1155,13 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions, styles?: E
         z: placed ? z : null,
         positionZ,
         styled,
-        styleNotes: emitNotes.list().map(lossOf),
-        block:
-            styles === undefined ? blockOf(snapshot) : writeStyleBlock(styles.rules, { inlineColumns: true, snapshot }),
+        styleNotes: [
+            ...emitNotes.list().map(lossOf),
+            ...(inlineBlock === null
+                ? []
+                : styleBlockLosses(inlineBlock, styles?.rules.styles.rules.length ?? 0, "size")),
+        ],
+        block: styles === undefined ? blockOf(snapshot) : inlineBlock,
     };
 }
 

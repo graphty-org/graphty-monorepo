@@ -19,7 +19,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
 import type { CanonSite } from "../../styles/canon/site.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
-import { blockStyles, parseStyleBlock, writeStyleBlock } from "../../styles/io/block.js";
+import { blockStyles, parseStyleBlock, styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { styleFingerprint } from "../../styles/plan/features.js";
@@ -555,6 +555,7 @@ export function pajekStyledExport(
             }),
         );
     }
-    const comment = PAJEK_STYLE_COMMENT + writeStyleBlock(input.rules, { inlineColumns: true, snapshot });
-    return { snapshot: out, comment, notes };
+    const block = writeStyleBlock(input.rules, { inlineColumns: true, snapshot });
+    notes.push(...styleBlockLosses(block, input.rules.styles.rules.length, "size"));
+    return { snapshot: out, comment: PAJEK_STYLE_COMMENT + block, notes };
 }

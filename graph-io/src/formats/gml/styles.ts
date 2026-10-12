@@ -23,7 +23,14 @@ import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt, scalarText } from "../.
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { CYTOSCAPE_LEXICON } from "../../styles/cytoscape/lexicon.js";
-import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME, styleTag, writeStyleBlock } from "../../styles/io/block.js";
+import {
+    blockStyles,
+    parseStyleBlock,
+    STYLE_BLOCK_NAME,
+    styleBlockLosses,
+    styleTag,
+    writeStyleBlock,
+} from "../../styles/io/block.js";
 import { dataRead, type ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { styleFingerprint } from "../../styles/plan/features.js";
@@ -1053,7 +1060,10 @@ export function gmlStyledExport(
         }
     }
     out.graph.set(GML_STYLE_BLOCK_KEY, [block], { dtype: "string" });
-    const notes: LossNote[] = [...renames];
+    const notes: LossNote[] = [
+        ...renames,
+        ...(block === input.block ? [] : styleBlockLosses(block, input.rules.styles.rules.length, "size")),
+    ];
     for (const [key, a] of approximated) {
         const [target, property] = key.split(".") as [StyleTarget, string];
         notes.push(

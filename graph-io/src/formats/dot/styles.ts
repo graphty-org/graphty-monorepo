@@ -37,7 +37,13 @@ import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/can
 import { type DotEscapeNames, dotLabelText, htmlLabelText, recordLabelText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { toolDefaults } from "../../styles/defaults.js";
-import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME, writeStyleBlock } from "../../styles/io/block.js";
+import {
+    blockStyles,
+    parseStyleBlock,
+    STYLE_BLOCK_NAME,
+    styleBlockLosses,
+    writeStyleBlock,
+} from "../../styles/io/block.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { styleFingerprint } from "../../styles/plan/features.js";
@@ -1494,6 +1500,9 @@ export function dotStyledExport(
                 style: Object.freeze({ target, property: property as never }),
             }),
         );
+    }
+    if (inline) {
+        losses.push(...styleBlockLosses(block, input.rules.styles.rules.length, "size"));
     }
     return { snapshot: out, notes: [...replaced, ...losses] };
 }

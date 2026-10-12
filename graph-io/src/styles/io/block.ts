@@ -8,6 +8,8 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import type { LossNote } from "../../types.js";
+import { STYLE_ISSUE } from "../codes.js";
 import { toolDefaults } from "../defaults.js";
 import { featuresOf, heldEdgeRows, styleFingerprint } from "../plan/features.js";
 import { plainCell, refSource, resolveRules, within } from "../plan/resolve.js";
@@ -187,7 +189,10 @@ export function writeStyleBlock(extracted: ExtractedStyles, options: WriteStyleB
         const hashes = (target: StyleTarget): Record<string, string> => {
             const table = target === "node" ? snapshot.nodes : snapshot.edges;
             const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-            const read = dataNames(styles.rules.filter((r) => r.target === target)).filter((c) => table.has(c));
+            // a name the reader refuses as a key is left out: its rules then find the column by its name alone
+            const read = dataNames(styles.rules.filter((r) => r.target === target))
+                .filter((c) => table.has(c) && !FORBIDDEN_KEYS.has(c) && c.length <= MAX_NAME)
+                .slice(0, MAX_RULES);
             return Object.fromEntries(read.map((c) => [c, columnHash(table, c, n)]));
         };
         out.data = { node: hashes("node"), edge: hashes("edge") };
@@ -198,6 +203,40 @@ export function writeStyleBlock(extracted: ExtractedStyles, options: WriteStyleB
         ids: fingerprint.ids,
     };
     return JSON.stringify(out).replace(/\\(.)/g, (escape, c: string) => SAFE_ESCAPES[c] ?? escape);
+}
+
+/**
+ * The loss when graph-io would ignore a block it has just written: one longer than `MAX_STYLE_BLOCK_LENGTH`, or one
+ * past another limit the reader enforces (too many rules, a name too long). The format's own styles are still
+ * written, so importing the file back infers the rules again from them.
+ * @param text - the block's text, as `writeStyleBlock()` wrote it
+ * @param rules - how many rules the block holds
+ * @param check - "size" to check only the length: a block rewritten with its columns inline, whose rules were
+ * checked already
+ * @returns one `W_STYLE_RULES_NOT_KEPT` note naming the reason, or none when the block reads back
+ * @category Styles
+ */
+export function styleBlockLosses(text: string, rules: number, check: "all" | "size" = "all"): LossNote[] {
+    let reason: StyleBlockIgnoredReason | null = null;
+    if (text.length > MAX_STYLE_BLOCK_LENGTH) {
+        reason = "TOO_LARGE";
+    } else if (check === "all") {
+        const top = JSON.parse(text) as { fingerprint: { nodes: number; edges: number; ids: string } };
+        const { nodes, edges, ids } = top.fingerprint;
+        const parsed = parseStyleBlock(text, { nodes, edges, ids });
+        reason = parsed.ok ? null : parsed.reason;
+    }
+    if (reason === null) {
+        return [];
+    }
+    return [
+        Object.freeze({
+            code: STYLE_ISSUE.RULES_NOT_KEPT,
+            message: `the ${STYLE_BLOCK_NAME} block would not read back (${reason}): the styles are written as the format's own, and importing the file infers the rules again`,
+            column: null,
+            count: rules,
+        }),
+    ];
 }
 
 /**

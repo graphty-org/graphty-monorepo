@@ -21,7 +21,7 @@ import type {
     StyleValue,
     StyleWriteCapabilities,
 } from "../types.js";
-import { STYLE_BLOCK_NAME, styleTag, writeStyleBlock } from "./block.js";
+import { STYLE_BLOCK_NAME, styleBlockLosses, styleTag, writeStyleBlock } from "./block.js";
 
 /**
  * What an exporter with a `styles` member receives as `options.styles` when styles are being written.
@@ -404,7 +404,9 @@ function lossNotes(
             );
         }
     }
-    if (!kept && extracted.styles.rules.length > 0) {
+    if (kept) {
+        notes.push(...styleBlockLosses(writeStyleBlock(extracted, { snapshot }), extracted.styles.rules.length));
+    } else if (extracted.styles.rules.length > 0) {
         notes.push(
             Object.freeze({
                 code: STYLE_ISSUE.RULES_NOT_KEPT,

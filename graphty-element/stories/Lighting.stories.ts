@@ -305,12 +305,13 @@ function modeFrom(mode: Lighting, view: View): Story {
         play: async ({ canvasElement }) => {
             const scene = await litFrom(canvasElement, story, mode, view);
 
-            if (mode !== "flat") {
+            if (mode !== "flat" || view !== "Front") {
                 return;
             }
 
             // Unlit means the exact style colour, so a tight window around each one finds it on
-            // screen from any angle.
+            // screen. Read once, from the front: each read renders and copies the whole canvas,
+            // and the angle does not change what an unlit pixel is.
             for (const [name, hex] of Object.entries(COLORS)) {
                 const count = await pixelsOfColour(scene, hex, 4);
 

@@ -6,6 +6,7 @@
         "AI Control::Helpers",
         "AI Control::Question",
         "AI Control::RememberedConversation",
+        "AI Control::RunCode",
         "Algorithms/Centrality::Betweenness",
         "Algorithms/Centrality::Closeness",
         "Algorithms/Centrality::Degree",

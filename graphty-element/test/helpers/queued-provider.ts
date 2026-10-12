@@ -11,12 +11,15 @@ import type { LlmResponse, Message, ToolDefinition } from "../../src/ai/provider
 export class QueuedProvider extends MockLlmProvider {
     /** The responses still to give, in order. */
     readonly queue: LlmResponse[] = [];
+    /** The messages each turn was sent, in order, queued answers included. */
+    readonly sent: Message[][] = [];
 
     override generate(
         messages: Message[],
         tools: ToolDefinition[],
         options?: { signal?: AbortSignal },
     ): Promise<LlmResponse> {
+        this.sent.push([...messages]);
         const next = this.queue.shift();
         return next === undefined ? super.generate(messages, tools, options) : Promise.resolve(next);
     }

@@ -89,25 +89,53 @@ marked "open" may gain values in a minor release, so a reader treats an unknown 
 
 A message is `{ id, role, parts }`, with `role` one of `"user"`, `"assistant"` or `"tool"`. Each
 part has a `type` and an `origin`, which says where its content came from: `"reader"`, `"model"`,
-`"graph-data"` (the graph's own data, as a tool read it) or `"graphty"` (the element).
+`"graph-data"` (the graph's own data, as a tool read it), `"graphty"` (the element) or `"web"`
+(something a [web tool](./ai-assistant#web-search-web-pages-and-code) read on the web).
 
 A `tool-call` is `"model"`, or `"graphty"` for a hand-off a router's plan made (a `delegate` call
 the model did not write). A `tool-result` is `"graph-data"`, or `"reader"` for the reader's answer
-to a question, with `code: "AI_COMPLETED"` and the chosen values in `content`.
+to a question, with `code: "AI_COMPLETED"` and the chosen values in `content`, or `"web"` for the
+answer of a helper that read the web (the `research` helper's, or one of yours with web tools).
+A `text` part may carry `"web"` too: read it as web content, as below.
 
-| `type`        | Fields                                                                                                           |
-| ------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `text`        | `text`; `via` (`"text"` or `"voice"`) for the reader's words, when the page said how they were given             |
-| `tool-call`   | `callId`, `command` (the tool), `arguments`                                                                      |
-| `tool-result` | `callId`, `code`, `params`, `content` (the text the model read, at most 8,000 characters)                        |
-| `agent-ref`   | `agent` (the helper's name), `callId` (the `delegate` call it answers), `messages` (the helper's conversation)   |
-| `reasoning`   | `text`, when the provider returned the model's reasoning in the clear                                            |
-| `outcome`     | `code`, `params`: how a message that failed or was taken back ended, in place of an answer (`origin: "graphty"`) |
+| `type`        | Fields                                                                                                                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `text`        | `text`; `via` (`"text"` or `"voice"`) for the reader's words, when the page said how they were given                                                                         |
+| `tool-call`   | `callId`, `command` (the tool), `arguments`                                                                                                                                  |
+| `tool-result` | `callId`, `code`, `params`, `content` (the text the model read, at most 8,000 characters)                                                                                    |
+| `agent-ref`   | `agent` (the helper's name), `callId` (the `delegate` call it answers), `messages` (the helper's conversation)                                                               |
+| `reasoning`   | `text`, when the provider returned the model's reasoning in the clear                                                                                                        |
+| `outcome`     | `code`, `params`: how a message that failed or was taken back ended, in place of an answer (`origin: "graphty"`)                                                             |
+| `hosted-tool` | `tool` (`"web-search"`, `"web-fetch"`; open), `status` (`"done"` or `"result-unavailable"`), `sources` (`{ url, title? }`, `url` http or https only); always `origin: "web"` |
 
 **Helpers.** A [helper's](./ai-assistant#helpers-and-plans) conversation is saved inside the
 message that handed it a task: an `agent-ref` part (`origin: "graphty"`) in the tool message that
 holds the `delegate` call's result. Its `messages` are messages as above, one level deep: a helper's
 messages never hold an `agent-ref`, and a record that nests one is invalid.
+
+**Web tools.** A web search or a web page read is saved as a `hosted-tool` part of the helper's
+assistant message, in the helper's conversation inside its `agent-ref`, with the pages it found:
+
+```json
+{
+    "origin": "web",
+    "sources": [{ "title": "Eiffel Tower", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower" }],
+    "status": "done",
+    "tool": "web-search",
+    "type": "hosted-tool"
+}
+```
+
+A record whose `sources` hold an address that is not `http` or `https` is invalid. `"web"` parts
+are what makes a message hold web content (see
+[what web content may not do](./ai-assistant#what-web-content-may-not-do)), so that survives a
+reload. When the model reads them again, they are marked as data, never as instructions.
+`getAiConversation()` gathers each assistant message's sources from these parts into its
+`sources`.
+
+**Code.** A `run_code` call is an ordinary `tool-call` (`command: "run_code"`,
+`arguments: { code }`), and its result an ordinary `tool-result` (`origin: "graph-data"`) whose
+`content` holds what the program returned and logged.
 
 Text the element adds for the model is saved too: facts about the graph beside the reader's
 words (`origin: "graph-data"`) and instructions (`origin: "graphty"`). `getAiConversation()` leaves

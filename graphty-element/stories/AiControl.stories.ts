@@ -1431,14 +1431,14 @@ const assistantPages = new WeakMap<Element, AssistantPage>();
 /**
  * Draw the page and enable the assistant. With `questions` the page also draws a question card from
  * `ai-question-asked`; with `agents`, a list of what each helper did from `ai-agent-start` and
- * `ai-agent-end`.
+ * `ai-agent-end`; with `tools.inPageCode`, the programs the model ran, from the conversation.
  * @param config - The assistant's history, approvals, questions and helpers.
  * @param scripted - The mock provider's answers: by a phrase of the reader's message, or every
  *     model turn in order (the main model's and its helpers'), for a message with several turns.
  * @returns The page's root.
  */
 function assistantPage(
-    config: Pick<AiManagerConfig, "history" | "approvals" | "questions" | "agents">,
+    config: Pick<AiManagerConfig, "history" | "approvals" | "questions" | "agents" | "tools">,
     scripted: Readonly<Record<string, ScriptedResponse>> | readonly ScriptedResponse[],
 ): HTMLElement {
     const root = document.createElement("div");
@@ -1522,8 +1522,27 @@ function assistantPage(
         helpers.append(item);
     });
 
+    // The programs the model ran (`run_code` calls), as text.
+    const programs = document.createElement("div");
+    programs.id = "programs";
+    programs.style.cssText = "display:flex;flex-direction:column;gap:6px;";
+    if (config.tools?.inPageCode !== undefined) {
+        panel.append(programs);
+    }
+
     // The transcript: the reader's words and the assistant's, with the tools each answer used.
     element.addEventListener("ai-conversation-changed", () => {
+        programs.replaceChildren(
+            ...(element.getAiConversation()?.messages ?? [])
+                .flatMap((message) => (message.role === "assistant" ? message.calls : []))
+                .filter((call) => call.command === "run_code")
+                .map((call) => {
+                    const program = document.createElement("pre");
+                    program.style.cssText = "margin:0;white-space:pre-wrap;background:#f3f3f3;padding:6px;";
+                    program.textContent = `${String(call.arguments.code)}\n-> ${call.code}`;
+                    return program;
+                }),
+        );
         transcript.replaceChildren(
             ...(element.getAiConversation()?.messages ?? []).map((message) => {
                 const item = document.createElement("li");
@@ -1927,5 +1946,63 @@ export const Question: Story = {
             `the answer is not the reader's message: ${JSON.stringify(said)}`,
         );
         await drawn(canvasElement, "AI Control Question");
+    },
+};
+
+/** The program the model writes: the mean degree from the query tool's counts. */
+const MEAN_DEGREE = `const seen = await tools.query({ action: "overview" });
+return (2 * seen.data.edges) / seen.data.nodes;`;
+
+/**
+ * The model runs a program in the page (`tools: { inPageCode: true }`): the reader asks for the
+ * average degree, the model writes a short program that reads the graph's counts through
+ * `tools.query` and returns the mean degree, the program runs in the page's sandbox, and the model
+ * answers from its value. The page shows the program beside the transcript. Every model turn is
+ * scripted, in order; the program itself really runs.
+ */
+export const RunCode: Story = {
+    name: "Run code",
+    render: () =>
+        assistantPage({ history: "memory", tools: { inPageCode: true } }, [
+            {
+                text: "",
+                toolCalls: [{ id: "code1", name: "run_code", arguments: { code: MEAN_DEGREE } }],
+            },
+            // After the program's value.
+            { text: "The average degree is 3.33.", toolCalls: [] },
+        ]),
+    play: async ({ canvasElement }) => {
+        const page = await readyPage(canvasElement);
+        const before = await drawn(canvasElement, "AI Control Run code");
+        const element = canvasElement.querySelector("graphty-element");
+        await holds(
+            element?.getAiCapabilities()?.tools["in-page-code"] === "available",
+            "in-page code is not available on this page",
+        );
+
+        const result = await ask(canvasElement, page, "Use code to compute the average degree");
+        await holds(result.code === "AI_COMPLETED", `the message ended ${String(result.code)}`);
+
+        // The model was sent the program's value, and it is the graph's own mean degree.
+        const provider = element?.getAiManager()?.getProvider() as QueuedProvider | undefined;
+        const sent = (provider?.sent.at(-1) ?? []).find((message) => message.toolCallId === "code1")?.content ?? "";
+        const json = sent.slice(sent.indexOf("{"), sent.lastIndexOf("}") + 1);
+        const value = (JSON.parse(json === "" ? "{}" : json) as { data?: { value?: unknown } }).data?.value;
+        const { nodes, edges } = before.session.status.counts;
+        await holds(
+            typeof value === "number" && Math.abs(value - (2 * edges) / nodes) < 1e-5,
+            `the program returned ${JSON.stringify(value)}, not the mean degree ${String((2 * edges) / nodes)}`,
+        );
+
+        await holds(
+            canvasElement.querySelector("#programs pre")?.textContent?.includes("tools.query") === true,
+            "the page does not show the program the model ran",
+        );
+        await holds(
+            canvasElement.querySelector("#transcript")?.textContent?.includes("[run_code]") === true,
+            "the page's transcript does not show the run_code call",
+        );
+        await holds(before.session.status.counts.nodes === 12, "running code changed the graph");
+        await drawn(canvasElement, "AI Control Run code");
     },
 };

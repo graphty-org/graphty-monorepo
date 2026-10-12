@@ -533,6 +533,20 @@ name is offered as `app_<name>`). Helpers, routers and plans live in `src/ai/pla
 `import()` when `agents` is set, so `./ai` keeps its size budget. The consumer guide is
 `docs/guide/ai-assistant.md` ("Questions", "Helpers and plans").
 
+**Web tools and in-page code** (`AiManagerConfig.tools`, guide section "Web search, web pages and
+code"). Web search and web fetch run at the provider, and only in the built-in read-only helper
+`research` (a reserved role name), which the loop adds to `delegate` when a web tool is on and
+available (`src/ai/tools/hosted.ts`); a message holding a part with `origin: "web"` holds or refuses
+every call that does not only read (`ToolExecutor` judge, gate and reason `"web-content"`).
+`run_code` is loop-owned like `delegate` (`profiles: []` in `ASSISTANT_TOOLS`), declared only with
+`tools.inPageCode`; its program runs in the page in QuickJS (`src/ai/engine/tanstack/program.ts`),
+its own chunk plus a `.wasm` asset, loaded by `loadProgramRunner()` and never reached statically
+from `./ai` or `index.js`; `./bundle` leaves it out (`programBuild.ts`). Bindings are the read
+actions that hand the host nothing (`src/ai/tools/program.ts`). Which provider offers which tool is
+`AI_HOSTED_TOOL_CAPABILITIES` in `src/catalog/ai.ts`; after changing it, build and run
+`node scripts/generate-ai-feature-matrix.mjs`, which rewrites `docs/guide/ai-provider-features.md`
+(`test/documentation/ai-provider-features.test.ts` fails until you do).
+
 Framework pins are exact (`test/packaging/ai-pins.test.ts`) and upgraded together with the
 contract suite and the paid `llm-regression` run; peers change only in a major
 (`tools/check-peer-deps-stable.mjs`). Design: `design/ai/tanstack-ai-harness-design.md`.

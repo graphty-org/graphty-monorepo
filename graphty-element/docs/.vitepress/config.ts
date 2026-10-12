@@ -91,6 +91,7 @@ export default defineConfig({
                         { text: "VR/AR", link: "/guide/vr-ar" },
                         { text: "AI Assistant", link: "/guide/ai-assistant" },
                         { text: "The Conversation Format", link: "/guide/ai-conversation-format" },
+                        { text: "AI Provider Features", link: "/guide/ai-provider-features" },
                     ],
                 },
                 {

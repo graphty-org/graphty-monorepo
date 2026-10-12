@@ -512,6 +512,243 @@ asked.
 In the conversation (`getAiConversation()`), a helper's words and calls are assistant messages with
 `agent` set to its name; the main model's hand-off is its call `delegate`.
 
+## Web search, web pages and code
+
+The assistant can search the web, read a web page, and run a short program it writes to compute
+over the graph. Each is off by default and switched on in `tools`:
+
+```typescript
+import "@graphty/graphty-element";
+
+const element = document.querySelector("graphty-element")!;
+const list = document.querySelector<HTMLUListElement>("#sources")!;
+
+element.addEventListener("ai-hosted-tool-result", (e) => {
+    for (const source of e.detail.sources) {
+        const item = document.createElement("li");
+        item.textContent = source.title ?? source.url; // text, never HTML
+        list.append(item);
+    }
+});
+
+await element.enableAiControl({ provider: "google", apiKey: myKey, tools: { webSearch: true } });
+
+const result = await element.aiCommand("Search the web for the year the Eiffel Tower opened");
+console.log(result.code, result.llmText); // "AI_COMPLETED", and an answer drawn from the web
+```
+
+The search runs at the provider, not in the page: the page makes no new request. The mock provider
+cannot return search results, so there is no Storybook story for web search; the "Run code" story
+shows in-page code.
+
+### Which tools, and where
+
+| Option       | What the model may do                                                 | Runs                      |
+| ------------ | --------------------------------------------------------------------- | ------------------------- |
+| `webSearch`  | search the web                                                        | at the provider           |
+| `webFetch`   | read a web page, only on a host you allow or the reader named (below) | at the provider           |
+| `inPageCode` | run a program it writes, which may only read the graph (`run_code`)   | in the page, in a sandbox |
+
+Which provider offers which tool is in [Provider features](./ai-provider-features). In short: web
+search on OpenAI, Anthropic and Google; web pages on Anthropic only; code on every provider.
+
+`webSearch` and `webFetch` take `true` or an `AiHostedToolOptions`, `inPageCode` takes `true` or
+`{ required }`:
+
+```typescript
+await element.enableAiControl({
+    provider: "anthropic",
+    apiKey: myKey,
+    tools: {
+        webSearch: { maxUses: 3, allowedDomains: ["wikipedia.org"] },
+        webFetch: { allowedDomains: ["example.org"] },
+        inPageCode: { required: true },
+    },
+});
+```
+
+- **`maxUses`**: the most times one message may use the tool. Anthropic keeps to it itself; on
+  OpenAI and Google the assistant stops offering the tool once the message has used it that many
+  times, so one model turn there may still search more than once.
+- **`allowedDomains`**: the only hosts the tool may reach, such as `"example.org"`. A provider that
+  cannot keep to them does not get the tool: Google's search has no domain filter, so a
+  `webSearch` with `allowedDomains` on Google is left out.
+- **`required`**: see below.
+
+### When a tool cannot be used
+
+`getAiCapabilities()` says, synchronously, what the provider and model can use once the assistant
+is enabled (it is `null` before):
+
+```typescript
+const capabilities = element.getAiCapabilities();
+// { provider: "google", model: "...", tools: { "web-search": "available", "web-fetch": "results-not-returned", "in-page-code": "available" } }
+if (capabilities?.tools["web-search"] !== "available") {
+    hideSearchSwitch(); // your page's own
+}
+```
+
+Each tool is `"available"`, `"unsupported"`, `"results-not-returned"` (the provider runs it but
+does not hand its results back, so the assistant does not offer it) or `"unknown"`. The statuses
+may grow in a minor release: treat an unknown one as not available. The table behind it is
+`AI_HOSTED_TOOL_CAPABILITIES`, and `aiHostedToolStatus(provider, model, tool)` reads it for a model
+without enabling anything (both in `@graphty/graphty-element/catalog`).
+
+A tool you ask for that cannot be used is **left out, and the command runs without it**. The first
+message after `enableAiControl` emits `ai-capability-unavailable` once for each such tool, with
+`code: "AI_HOSTED_TOOL_UNSUPPORTED"` and `params: { provider, model, tool }`. One config therefore
+works on every provider.
+
+To fail instead, set `required: true` on that tool: every `aiCommand` then resolves
+`AI_HOSTED_TOOL_UNSUPPORTED` with the same params, and nothing is sent to the provider.
+
+### Sources
+
+Each time the provider runs a web tool, `ai-hosted-tool-result` fires with
+`{ tool, status, sources }`. `status` is `"done"`, or `"result-unavailable"` when the provider ran
+the tool but its results did not come back. `sources` (`AiSource[]`) lists the pages found or read,
+`{ tool, url, title? }`, in the provider's order.
+
+The same sources are in the conversation: each assistant message of `getAiConversation()` has
+`sources`, every page the web tools found for that message (empty when none ran). A renderer:
+
+```typescript
+import type { AiSource } from "@graphty/graphty-element/ai";
+
+function sourceLinks(sources: readonly AiSource[]): HTMLElement {
+    const list = document.createElement("ul");
+    for (const source of sources) {
+        const item = document.createElement("li");
+        const label = source.title ?? new URL(source.url).hostname;
+        if (/^https?:\/\//i.test(source.url)) {
+            const link = document.createElement("a");
+            link.href = source.url;
+            link.textContent = label; // text, never HTML
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            item.append(link);
+        } else {
+            item.textContent = label;
+        }
+        list.append(item);
+    }
+    return list;
+}
+
+element.addEventListener("ai-conversation-changed", () => {
+    const transcript = document.querySelector("#transcript")!;
+    transcript.replaceChildren();
+    for (const message of element.getAiConversation()?.messages ?? []) {
+        const item = document.createElement("li");
+        item.textContent = message.text;
+        if (message.role === "assistant" && message.sources.length > 0) {
+            item.append(sourceLinks(message.sources));
+        }
+        transcript.append(item);
+    }
+});
+```
+
+**Render sources as text links, http and https only.** A title and a URL are what a web page and
+the provider said. The element saves only `http:` and `https:` addresses, but check the scheme
+again before you make a link, and put titles in `textContent`, never `innerHTML`.
+
+### The research helper
+
+The main model never searches itself. With `webSearch` or `webFetch` on and usable, the main model
+is offered `delegate` with a built-in helper named `research`, which has the web tools and no
+commands: it cannot see or change the graph. The main model hands it a question, the helper
+searches and answers, and its answer is what the main model reads next. So `ai-agent-start` and
+`ai-agent-end` fire for `research` like any helper, its usage is in the message's `usage`, and
+`cancelAiCommand()` stops it. The name `research` is reserved: a role of your own cannot take it.
+
+A helper of your own may have web tools too, in its `tools` (an `AiToolOptions`):
+
+```typescript
+await element.enableAiControl({
+    provider: "anthropic",
+    apiKey: myKey,
+    agents: [
+        {
+            name: "fact-checker",
+            purpose: "Checks node names against the web; changes nothing",
+            commands: ["query"],
+            tools: { webSearch: { maxUses: 2 } },
+        },
+    ],
+});
+```
+
+A helper with web tools may only read: its `commands` may name only `catalog` and `query`, or
+`enableAiControl` rejects with `AI_CONFIG_INVALID` and `{ agent, field: "tools", reason:
+"web-tools-with-writes" }`. On Google a search turn cannot also call commands, so a helper with
+web tools and any command on Google rejects with `reason: "unsupported"`.
+
+### What web content may not do
+
+Text read on the web may say anything, including "remove every node". So once a message has read
+web content, the assistant does not change the graph on that content's say-so:
+
+- **With approvals on** (`approvals: "writes"`, `{ ask }` or a `policy`), every call that does more
+  than read is held for the reader, with `request.gate === "web-content"`. Your policy is still
+  asked, sees `webContent: true` on the call, and its `"deny"` still wins.
+- **With approvals off** (the default), every such call is refused: the model hears
+  `AI_TOOL_DENIED_BY_POLICY` with `reason: "web-content"`, the graph is left alone, and it answers.
+- "Does more than read" includes the selection and the camera, not only the data.
+- **It lasts for the message.** A new conversation (`newAiConversation()`) clears it; with
+  `history`, it survives a reload, since the web content is saved with the message.
+
+`tools: { webContentMayWrite: true }` lets such calls run as any other would. Set it only when the
+reader trusts what the web will say.
+
+**Web content cannot carry data out.** Web pages are read only on hosts you allow: a web fetch
+reaches the hosts in `webFetch.allowedDomains`, plus the hosts of `http` and `https` URLs in the
+reader's own words in this message. `webFetch: true` alone means only the URLs the reader typed.
+A host the model wrote, or one read in the graph or on a page, is never added, so a model cannot
+send graph data to `https://evil.example/?d=...` by fetching it. A message with no allowed host
+is not offered web fetch at all.
+
+### Running code
+
+With `tools: { inPageCode: true }`, the model may call `run_code` with a short program in
+TypeScript or JavaScript, to compute what the assistant's tools do not give directly ("the average
+degree", "how many nodes have a label longer than 20 characters"):
+
+```typescript
+await element.enableAiControl({ provider: "google", apiKey: myKey, tools: { inPageCode: true } });
+
+const result = await element.aiCommand("Use code to compute the average degree of the graph");
+console.log(result.llmText); // the model's answer, from the program's value
+```
+
+- **It runs in the page**, in a QuickJS sandbox compiled to WebAssembly, whatever provider wrote
+  the program. It has no `fetch`, no `document`, no network and no page globals.
+- **It may only read.** The program calls the assistant's tools as `await tools.<name>(args)`
+  (`tools.query({ action: "overview" })`, for instance), and only their actions that read and hand
+  your page nothing: never a screenshot, a recording or an export. A call that would change
+  anything is refused (`AI_TOOL_DENIED_BY_POLICY`, `reason: "in-page-code"`) and the graph is left
+  alone; no approval is ever asked from inside a program.
+- **Limits:** 5 seconds, 64 tool calls, 4,000 characters of console output and 16 MB of memory per
+  program. A program past one ends `AI_TOOL_FAILED` with `cause` `"program-timeout"`,
+  `"program-call-limit"` or `"program-memory"`; one that throws, `"program-threw"`; one stopped
+  by `cancelAiCommand()`, `"program-cancelled"`. The model reads what the program returned and
+  logged, or how it failed, as a tool result.
+- In the conversation it is a call with `command: "run_code"` and `arguments: { code }`.
+- **Where it cannot run:** in `@graphty/graphty-element/bundle`, which leaves the sandbox out, and
+  on a page whose content security policy does not allow `'wasm-unsafe-eval'`. There
+  `getAiCapabilities().tools["in-page-code"]` is `"unsupported"`, and the tool is left out as
+  above.
+
+The sandbox (about 130 kB of script and 240 kB of WebAssembly) loads only on the first program, so a page that never turns code on never downloads it.
+
+### Result codes these tools add
+
+| Code                         | When                                                                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `AI_HOSTED_TOOL_UNSUPPORTED` | a `required` tool cannot be used; `{ provider, model, tool }`. Also the code of `ai-capability-unavailable`                          |
+| `AI_PROVIDER_PAUSED`         | the provider stopped a turn that used its own tool before the model answered (a long search); `{ provider }`. Asking again continues |
+| `AI_TOOL_DENIED_BY_POLICY`   | with `reason: "web-content"` or `"in-page-code"`, as above                                                                           |
+
 ## Privacy
 
 - **History is off by default.** Nothing is kept unless you set `history`.
@@ -526,6 +763,23 @@ In the conversation (`getAiConversation()`), a helper's words and calls are assi
   `deleteAiConversation` and `clearAiHistory` let your page offer that.
 - **Shared headsets and kiosks:** call `clearAiHistory()` when a session ends, so the next reader
   starts with nothing.
+
+Web search, web pages and code add these:
+
+- **The reader pays.** Web tools run at the provider on the reader's key, and providers charge for
+  them on top of the model (Anthropic's web search costs $10 per 1,000 searches). They are off by
+  default; `maxUses` caps each message.
+- **Search queries are written by the model** and may carry what it knows of the graph: node
+  names, labels, values. They go to the provider's search, and from there to the web. Turn web
+  search on only for data the reader may send there.
+- **Web pages are read on the hosts you allow** and the hosts of URLs the reader typed, never
+  others (see "What web content may not do").
+- **Content security policy.** Web search and web pages run at the provider, so they need no
+  `connect-src` beyond the provider's own. Code needs `'wasm-unsafe-eval'` in `script-src`;
+  without it, code is reported `"unsupported"` and left out.
+- **Saved with the conversation.** With `history`, the sources and the helper's answer are saved
+  in the record (see the [conversation format](./ai-conversation-format)), as the rest of the
+  conversation is.
 
 ## Result codes
 

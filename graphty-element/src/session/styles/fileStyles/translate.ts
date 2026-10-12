@@ -623,6 +623,8 @@ class KindTranslation {
     readonly #matchCache = new Map<string, readonly boolean[]>();
     /** The layers rebuilt from layers graphty wrote, by the rule they stand for. */
     readonly #rebuilt = new Map<StyleRule, Building>();
+    /** The kind a layer graphty wrote had, by rule id, where its rule is drawn by the neutral rule. */
+    readonly #kinds = new Map<string, LayerKind>();
     #scopeKey: string | null = null;
     /** The column marking the elements the file hides, once the visibility pass has run. */
     hidden: { key: string; count: number } | null = null;
@@ -1080,7 +1082,7 @@ class KindTranslation {
             return found;
         }
 
-        const kind = layerKindOf(rule);
+        const kind = this.#kinds.get(rule.id) ?? layerKindOf(rule);
         const origin: FileStyleOrigin = {
             format: this.#input.format,
             importId: this.#input.importId,
@@ -1214,7 +1216,23 @@ class KindTranslation {
             return this.#keep(parts.key, values);
         };
         let moved: Selector = selector;
-        if (selector.match === "has" || selector.match === "top") {
+        if (selector.match === "ids" || selector.match === "member") {
+            // A few node ids stay a selector by id; edge ids, more ids and a set's members do not
+            // reach this load, so the file's membership values select instead, as the same kind.
+            const ids = selector.match === "ids" ? selector.nodes : undefined;
+            if (
+                selector.match === "member" ||
+                selector.edges !== undefined ||
+                ids === undefined ||
+                ids.length > MAX_TERMS
+            ) {
+                if (given.kind === "encoding" || given.kind === "highlight" || given.kind === "custom") {
+                    this.#kinds.set(rule.id, given.kind);
+                }
+
+                return ignored("SELECTOR");
+            }
+        } else if (selector.match === "has" || selector.match === "top") {
             moved = { ...selector, path: move(selector.path) as Path };
         } else if (selector.match === "expression") {
             if (typeof selector.where !== "string" || expressionTerms(selector.where) > MAX_TERMS) {

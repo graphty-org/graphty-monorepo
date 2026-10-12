@@ -769,10 +769,8 @@ class KindExport {
             return null;
         }
 
-        if (selector.match === "ids" || selector.match === "member") {
-            return null;
-        }
-
+        // A selector by ids or by a set's members goes as it is: a load keeps a few node ids, and
+        // sets the rest aside with a note, keeping the layer's name and kind.
         return {
             name: layer.name,
             target: layer.target,

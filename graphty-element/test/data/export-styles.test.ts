@@ -11,6 +11,7 @@ import {
     createGraphSession,
     EXPORT_STYLE_LOSS_CODES,
     FILE_STYLE_CODES,
+    FILE_STYLE_ISSUE,
     type GraphSession,
     type LayerSpec,
 } from "../../session";
@@ -48,6 +49,12 @@ async function chain(): Promise<GraphSession> {
 /** A stack covering every kind of layer a file keeps as a layer, edge and node layers interleaved. */
 const STACK: readonly LayerSpec[] = [
     { name: "fixed", target: "node", selector: { match: "everything" }, set: { "node.color": "#ff8800" } },
+    {
+        name: "small group",
+        target: "node",
+        selector: { match: "ids", nodes: ["n1", "n2", "n3"] },
+        set: { "node.size": 3 },
+    },
     // an edge layer between node layers stays where it is
     {
         name: "edge kind",
@@ -231,6 +238,34 @@ describe("styles written into a file come back as the same layers", () => {
         );
 
         const back = await loadBack(await result.text(), "gexf");
+        assert.deepEqual(picture(back), picture(session));
+        session.dispose();
+        back.dispose();
+    });
+});
+
+describe("a layer that selects by id", () => {
+    it("comes back selecting more than a few ids by the values written onto them, with a note, as the same kind", async () => {
+        const session = await chain();
+        const nodes = Array.from({ length: 8 }, (_unused, i) => `n${String(i)}`).concat(["n7"]);
+        await session.styles.add({
+            name: "many",
+            target: "node",
+            kind: "highlight",
+            selector: { match: "ids", nodes },
+            set: { "node.color": "#123456" },
+        });
+        const result = exportSession(session, "gexf", { styles: true });
+        const back = createGraphSession();
+        await back.data.import({ type: "gexf", config: { data: await result.text() } }, { styles: "file" });
+        const layer = back.styles.list().find((one) => one.name === "many");
+        assert.strictEqual(layer?.kind, "highlight");
+        const notes = back.data.lastImport()?.styles?.notes ?? [];
+        assert.isTrue(
+            notes.some(
+                (note) => note.code === FILE_STYLE_ISSUE.LAYER_SPEC_IGNORED && note.params.samples.includes("SELECTOR"),
+            ),
+        );
         assert.deepEqual(picture(back), picture(session));
         session.dispose();
         back.dispose();

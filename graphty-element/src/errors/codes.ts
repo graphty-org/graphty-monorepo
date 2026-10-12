@@ -199,6 +199,12 @@ export type GraphtyErrorCode =
      */
     | "E_PROTECTED"
     /**
+     * The target is locked by the reader: a style layer whose row, or a folder holding it, has
+     * the reader's lock on (`styles.lockRow`). `details` name the layer and the locked row. The
+     * caller unlocks the row first, or leaves the layer as it is.
+     */
+    | "E_LOCKED"
+    /**
      * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
      * unreadable file. `details` carry the url and the status where there was one, and `cause`
      * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
@@ -444,6 +450,7 @@ const CODE_TABLE = {
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",
     E_DUPLICATE_PLUGIN: "E_DUPLICATE_PLUGIN",
     E_PROTECTED: "E_PROTECTED",
+    E_LOCKED: "E_LOCKED",
     E_FETCH_FAILED: "E_FETCH_FAILED",
     E_PARSE_FAILED: "E_PARSE_FAILED",
     E_EDGE_ENDPOINTS_UNRESOLVED: "E_EDGE_ENDPOINTS_UNRESOLVED",

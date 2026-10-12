@@ -25,6 +25,7 @@ import { retentionOf } from "../results/RunResult";
 import { recordBytes } from "../sets/prepare";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
+import { ownRows } from "../styles/tree";
 import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
 import type { TouchedIds } from "./graphOps";
 import type { Counted } from "./History";
@@ -142,7 +143,12 @@ function wroteNothing(entry: PatchEntry): boolean {
 
     const prior = entry.prior as readonly CompiledLayer[];
     const next = entry.next as readonly CompiledLayer[];
-    return prior.length === next.length && prior.every((layer, at) => sameValue(layer.layer, next[at].layer));
+    // The style tree rides on the stack: a tree verb changes it and no layer.
+    return (
+        prior.length === next.length &&
+        prior.every((layer, at) => sameValue(layer.layer, next[at].layer)) &&
+        sameValue(ownRows(prior), ownRows(next))
+    );
 }
 
 /**

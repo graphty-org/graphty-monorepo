@@ -183,6 +183,31 @@ import { stackChange } from "./repaint";
 import { assertRouted, partPatch, rowOf, type RowParts, rowParts, type RowSpec, type RowWrite } from "./rows";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
 import { childrenOf, overridePatch, type SplitChild, splitPatch, unsplitPatch } from "./split";
+import {
+    arrange,
+    documentRows,
+    findRow,
+    folderIdsOf,
+    insertRow,
+    layerIdsOf,
+    lockedByReader,
+    mapRow,
+    normalize,
+    paintedStack,
+    pruneRows,
+    publicRow,
+    publicRows,
+    readDocumentRows,
+    reconcile,
+    rowKeyOf,
+    type RowNode,
+    type Rows,
+    rowsOf,
+    type StyleRow,
+    type StyleRowId,
+    type StyleRowPin,
+    type StyleRowPlace,
+} from "./tree";
 
 // ---------------------------------------------------------------------------------------------
 // The surface
@@ -684,6 +709,85 @@ export interface StylesApi {
      */
     toDocument(): StyleDocument;
     /**
+     * The style tree: the consumer's layers as rows, with folders, pins, the reader's locks and
+     * hidden rows, BOTTOM FIRST at every level.
+     *
+     * Flattening it gives the consumer's layers in exactly {@link StylesApi.list}'s order, so the
+     * tree order is the paint order. The element's own layers are not rows: they are the floor.
+     * Within one folder, rows pinned to the bottom come first and rows pinned to the top last. A
+     * folder's eye and lock reach every row in it. The same array comes back until the stack
+     * changes.
+     * @returns The top-level rows, bottom first.
+     */
+    tree(): readonly StyleRow[];
+    /**
+     * Add an empty folder.
+     * @param name - What to call it.
+     * @param at - The folder to put it in and its index there, bottom first; the top of the
+     *     unpinned top-level rows when absent.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the folder's row, and rejects with `E_UNKNOWN_LAYER` for a
+     *     parent the tree does not hold and `E_BAD_COMMAND` for a parent that is not a folder.
+     */
+    addFolder(name: string, at?: StyleRowPlace, options?: RunOptions): Run<StyleRow>;
+    /**
+     * Rename a row: a folder, or a layer (which renames the layer). Allowed on a locked row.
+     * @param id - The row.
+     * @param name - The new name.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the row, and rejects with `E_UNKNOWN_LAYER` for a row the
+     *     tree does not hold.
+     */
+    renameRow(id: StyleRowId, name: string, options?: RunOptions): Run<StyleRow>;
+    /**
+     * Move a row, with everything in it, to a folder (or the top level) and an index there. The
+     * layers it holds move in the paint order with it.
+     * @param id - The row.
+     * @param to - The folder and the index, bottom first, counted without the row itself. A pinned
+     *     row stays in its pin band.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the row, and rejects with `E_UNKNOWN_LAYER` for a row or
+     *     parent the tree does not hold, and `E_BAD_COMMAND` for a parent that is not a folder or
+     *     lies inside the row.
+     */
+    moveRow(id: StyleRowId, to: StyleRowPlace, options?: RunOptions): Run<StyleRow>;
+    /**
+     * Pin a row to the top or the bottom of its folder, or unpin it. A row pinned to the bottom
+     * stays beneath every unpinned row, including those added later.
+     * @param id - The row.
+     * @param pin - Where to pin it.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the row.
+     */
+    pinRow(id: StyleRowId, pin: StyleRowPin, options?: RunOptions): Run<StyleRow>;
+    /**
+     * Set the reader's lock on a row. While it, or a folder holding it, is locked, `update` (and
+     * every verb that changes a layer's look) refuses the layer with `E_LOCKED`. Renaming, moving,
+     * pinning, hiding and deleting still work. Not {@link Layer.locked}, which marks the
+     * element's own layers.
+     * @param id - The row.
+     * @param locked - True to lock it.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the row.
+     */
+    lockRow(id: StyleRowId, locked: boolean, options?: RunOptions): Run<StyleRow>;
+    /**
+     * Hide or show a row. A hidden row, and every row in a hidden folder, paints nothing and keeps
+     * its place; {@link StylesApi.list} still reports its layers as their authors wrote them.
+     * @param id - The row.
+     * @param hidden - True to hide it.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the row.
+     */
+    hideRow(id: StyleRowId, hidden: boolean, options?: RunOptions): Run<StyleRow>;
+    /**
+     * Delete a row: a layer, or a folder with every row and layer in it.
+     * @param id - The row.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the ids of the layers removed, bottom first.
+     */
+    deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
+    /**
      * Choose the palette a colour binding uses when it names none, one per palette kind: a
      * binding on groups takes the categorical default, one on amounts the sequential default, and
      * one with a `midpoint` the diverging default. A kind left out keeps its current default.
@@ -1015,6 +1119,10 @@ interface EditPlan<T> {
      * stack.
      */
     readonly reason: RepaintReason;
+    /** The style tree the edit leaves, when it changes the tree itself; else worked out from the stack. */
+    readonly rows?: Rows;
+    /** A layer the edit moved, whose tree row is placed again by its new neighbours. */
+    readonly moved?: LayerId;
 }
 
 /** What a style command's dispatch resolves with. */
@@ -1052,6 +1160,12 @@ const PASS_CONTEXT: RepaintContext = {
 
 /** What a pass paints when the stack it is handed is the one it already shows. */
 const NOTHING_PAINTED: RepaintReport = Object.freeze({ nodes: 0, edges: 0 });
+
+/** What every folder id starts with, which no layer id can (a layer id has no colon). */
+const FOLDER = "folder:";
+
+/** The tree a consumer reads, per stack, so the same array comes back until the stack changes. */
+const treeCache = new WeakMap<readonly CompiledLayer[], readonly StyleRow[]>();
 
 /** One layer of a style document, in both the form it was written in and the form it compiled to. */
 interface ImportedLayer {
@@ -1123,6 +1237,44 @@ function protectedLayer(layer: Layer, verb: string): GraphtyError {
         source: "style",
         target: { kind: "layer", id: layer.id },
         details: { id: layer.id, source: layer.source, verb },
+    });
+}
+/**
+ * The refusal a call that would change a layer the reader locked gets.
+ * @param layer - The layer it named.
+ * @param row - The locked row: the layer's own, or a folder holding it.
+ * @returns The error to reject with.
+ */
+function readerLocked(layer: Layer, row: StyleRowId): GraphtyError {
+    return new GraphtyError({
+        code: "E_LOCKED",
+        message: `"${layer.name}" is locked. Unlock it before changing it.`,
+        source: "style",
+        target: { kind: "layer", id: layer.id },
+        details: { id: layer.id, row },
+    });
+}
+
+/**
+ * The refusal a call naming a row the style tree does not hold gets.
+ * @param id - The id that was named.
+ * @param rows - The tree.
+ * @returns The error to reject with.
+ */
+function unknownRow(id: StyleRowId, rows: Rows): GraphtyError {
+    const known: string[] = [];
+    const walk = (list: Rows): void => {
+        for (const row of list) {
+            known.push(row.id);
+            walk(row.children ?? []);
+        }
+    };
+    walk(rows);
+    return new GraphtyError({
+        code: "E_UNKNOWN_LAYER",
+        message: `There is no style row with the id "${id}".`,
+        source: "style",
+        details: { id, known },
     });
 }
 
@@ -1542,7 +1694,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /** What an explanation, an unbound report and a resolved rule are read from. */
     const explainSources: ExplainSources = {
-        stack: current,
+        stack: () => paintedStack(current()),
         encoding: encodingOf,
         elements: sources.elements,
         nodeIndex: sources.nodeIndex ?? NO_INDEX,
@@ -1566,7 +1718,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /** What a legend is read from. */
     const legendSources: LegendSources = {
-        layers: listLayers,
+        layers: () => paintedStack(current()).map((entry) => entry.layer),
         encoding: encodingOf,
         scales,
         ...(sources.field === undefined ? {} : { field: sources.field }),
@@ -1977,6 +2129,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             throw protectedLayer(existing.layer, "changed");
         }
 
+        const key = rowKeyOf(existing);
+        if (lockedByReader(rowsOf(current()), key)) {
+            const found = findRow(rowsOf(current()), key);
+            const holder = [...(found?.ancestors ?? []), ...(found === undefined ? [] : [found.row])].find(
+                (row) => row.locked,
+            );
+            throw readerLocked(existing.layer, holder?.id ?? key);
+        }
+
         const merged: LayerSpec = { ...specOf(existing.layer), ...patch };
 
         if (isElementSource(sourceOf(merged))) {
@@ -2077,6 +2238,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             layers: parts.map((entry) => entry.layer.id),
             unresolvedPaths: NO_PATHS,
             reason: "move",
+            moved: rowKeyOf(existing),
         };
     };
 
@@ -2337,7 +2499,28 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return off.layer;
         });
 
+        const written = document.tree;
+        let rows: Rows | undefined;
+        if (written !== undefined) {
+            const read = readDocumentRows(
+                written,
+                (index) => {
+                    const entry = final[index];
+                    return entry === undefined ? undefined : rowKeyOf(entry);
+                },
+                folderMinter(rowsOf(current())),
+            );
+            if (read === null) {
+                throw badCommand("The style document's tree names a layer it does not hold, or one twice.", {
+                    layers: document.layers.length,
+                });
+            }
+
+            rows = Object.freeze([...rowsOf(current()), ...read]);
+        }
+
         return {
+            ...(rows === undefined ? {} : { rows }),
             stack: [...current(), ...final],
             result: Object.freeze({
                 applied: Object.freeze(
@@ -2455,6 +2638,198 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param command - The command.
      * @returns The plan. Throws a `GraphtyError` to refuse it.
      */
+    /**
+     * A minter of folder ids free of every folder id in some rows, which remembers what it handed out.
+     * @param rows - The rows whose folder ids are taken.
+     * @returns A function that mints one free folder id per call.
+     */
+    const folderMinter = (rows: Rows): ((name: string) => StyleRowId) => {
+        const taken = new Set(folderIdsOf(rows).map((id) => id.slice(FOLDER.length)));
+        return (name: string): StyleRowId => {
+            const id = mintLayerId(name, taken);
+            taken.add(id);
+            return `${FOLDER}${id}`;
+        };
+    };
+
+    /**
+     * A layer row's name: its layer's.
+     * @param stack - The stack.
+     * @returns The lookup.
+     */
+    const namesIn =
+        (stack: readonly CompiledLayer[]) =>
+        (key: LayerId): string =>
+            stack.find((entry) => entry.layer.id === key)?.layer.name ?? key;
+
+    /**
+     * The plan for a change to the tree alone, which leaves every layer as it is.
+     * @param rows - The tree it leaves.
+     * @param id - The row it changed, which the run resolves with.
+     * @param reason - What the change announcement says it was.
+     * @param stack - The stack, when the change also changed a layer (a rename).
+     * @returns The plan.
+     */
+    const treePlan = (
+        rows: Rows,
+        id: StyleRowId,
+        reason: RepaintReason,
+        stack: readonly CompiledLayer[] = current(),
+    ): EditPlan<StyleRow> => {
+        const banded = normalize(rows);
+        const found = findRow(banded, id);
+        if (found === undefined) {
+            throw unknownRow(id, banded);
+        }
+
+        return {
+            stack,
+            rows: banded,
+            result: publicRow(found.row, namesIn(stack)),
+            layers: found.row.kind === "layer" ? [id] : layerIdsOf(found.row.children ?? []),
+            unresolvedPaths: NO_PATHS,
+            reason,
+        };
+    };
+
+    /**
+     * The row at an id, or the refusal for naming one the tree does not hold.
+     * @param id - The row.
+     * @returns The row.
+     */
+    const requireRow = (id: StyleRowId): RowNode => {
+        const found = findRow(rowsOf(current()), id);
+        if (found === undefined) {
+            throw unknownRow(id, rowsOf(current()));
+        }
+
+        return found.row;
+    };
+
+    /**
+     * The folder a place names, checked.
+     * @param at - The place.
+     * @param moving - The row being moved there, which may not hold the folder.
+     * @returns The folder's id, or null for the top level.
+     */
+    const parentOf = (at: StyleRowPlace | undefined, moving?: RowNode): StyleRowId | null => {
+        const parent = at?.parent ?? null;
+        if (parent === null) {
+            return null;
+        }
+
+        const folder = requireRow(parent);
+        if (folder.kind !== "folder") {
+            throw badCommand(`"${parent}" is a layer, not a folder, so nothing can be put in it.`, { parent });
+        }
+
+        if (moving !== undefined && (moving.id === parent || findRow(moving.children ?? [], parent) !== undefined)) {
+            throw badCommand("A folder cannot be moved into itself.", { id: moving.id, parent });
+        }
+
+        return parent;
+    };
+
+    /**
+     * The number of rows a place's folder holds.
+     * @param rows - The tree.
+     * @param parent - The folder, or null for the top level.
+     * @returns How many rows it holds.
+     */
+    const sizeOf = (rows: Rows, parent: StyleRowId | null): number =>
+        parent === null ? rows.length : (findRow(rows, parent)?.row.children?.length ?? 0);
+
+    /**
+     * The plan a tree verb asks for.
+     * @param command - The command.
+     * @returns The plan.
+     */
+    const planTree = (
+        command: Extract<
+            StylePatchCommand,
+            { action: "addFolder" | "renameRow" | "moveRow" | "pinRow" | "lockRow" | "hideRow" | "deleteRow" }
+        >,
+    ): EditPlan<unknown> => {
+        const rows = rowsOf(current());
+        switch (command.action) {
+            case "addFolder": {
+                const parent = parentOf(command.at);
+                const id = folderMinter(rows)(command.name);
+                const folder: RowNode = Object.freeze({
+                    id,
+                    kind: "folder",
+                    name: command.name,
+                    pin: "none",
+                    locked: false,
+                    hidden: false,
+                    children: Object.freeze([]),
+                });
+                return treePlan(insertRow(rows, parent, command.at?.index ?? sizeOf(rows, parent), folder), id, "add");
+            }
+            case "renameRow": {
+                const row = requireRow(command.id);
+                if (row.kind === "folder") {
+                    return treePlan(
+                        mapRow(rows, command.id, (each) => ({ ...each, name: command.name })),
+                        command.id,
+                        "update",
+                    );
+                }
+
+                const stack = current().map((entry) =>
+                    rowKeyOf(entry) === command.id
+                        ? Object.freeze({ ...entry, layer: Object.freeze({ ...entry.layer, name: command.name }) })
+                        : entry,
+                );
+                return treePlan(rows, command.id, "update", stack);
+            }
+            case "moveRow": {
+                const row = requireRow(command.id);
+                const parent = parentOf(command.to, row);
+                const without = pruneRows(rows, (each) => each.id === command.id);
+                const index = command.to.index ?? sizeOf(without, parent);
+                return treePlan(insertRow(without, parent, index, row), command.id, "move");
+            }
+            case "pinRow":
+                requireRow(command.id);
+                return treePlan(
+                    mapRow(rows, command.id, (each) => ({ ...each, pin: command.pin })),
+                    command.id,
+                    "move",
+                );
+            case "lockRow":
+                requireRow(command.id);
+                return treePlan(
+                    mapRow(rows, command.id, (each) => ({ ...each, locked: command.locked })),
+                    command.id,
+                    "update",
+                );
+            case "hideRow":
+                requireRow(command.id);
+                return treePlan(
+                    mapRow(rows, command.id, (each) => ({ ...each, hidden: command.hidden })),
+                    command.id,
+                    "update",
+                );
+            default: {
+                // deleteRow
+                const row = requireRow(command.id);
+                const keys = new Set(row.kind === "layer" ? [row.id] : layerIdsOf(row.children ?? []));
+                const removed = current()
+                    .filter((entry) => !entry.layer.locked && keys.has(rowKeyOf(entry)))
+                    .map((entry) => entry.layer.id);
+                return {
+                    stack: current().filter((entry) => entry.layer.locked || !keys.has(rowKeyOf(entry))),
+                    rows: pruneRows(rows, (each) => each.id === command.id),
+                    result: Object.freeze(removed),
+                    layers: removed,
+                    unresolvedPaths: NO_PATHS,
+                    reason: "remove",
+                };
+            }
+        }
+    };
+
     const planOf = (command: StyleCommand): EditPlan<unknown> => {
         if (command.op === "style.encode") {
             return planEncode(command.spec, command.beneathAuthored);
@@ -2494,6 +2869,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 return planAddRow(command.spec, command.at);
             case "writeRow":
                 return planWriteRow(command.id, command.write);
+            case "addFolder":
+            case "renameRow":
+            case "moveRow":
+            case "pinRow":
+            case "lockRow":
+            case "hideRow":
+            case "deleteRow":
+                return planTree(command);
             case "remove":
                 return planRemove(command.id);
             case "move":
@@ -2521,11 +2904,19 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         execute(command, draft) {
             const planned = planOf(command);
             const stack = current();
-            if (planned.stack.length === stack.length && planned.stack.every((entry, at) => entry === stack[at])) {
+            // The tree follows the stack another verb planned, or is the one a tree verb planned;
+            // the stack then takes the tree's order.
+            const rows = reconcile(planned.rows ?? rowsOf(stack), planned.stack, planned.moved);
+            const next = arrange(planned.stack, rows);
+            if (
+                rows === rowsOf(stack) &&
+                next.length === stack.length &&
+                next.every((entry, at) => entry === stack[at])
+            ) {
                 // Nothing moved (a sweep that matched nothing): no step, and a pass only to say so.
                 dispatcher.lane.touch("styles", "");
             } else {
-                draft.styles = Object.freeze([...planned.stack]);
+                draft.styles = next;
             }
 
             let settle: (painted: RepaintReport | null) => void = () => undefined;
@@ -2555,7 +2946,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     // redo or a rollback -- from the stack the picture shows to the one state holds.
     dispatcher.lane.register("styles", async (rendered, target) => {
         const told = announcements.splice(0);
-        const request = stackChange(rendered.styles, target.styles);
+        // A hidden row's layers repaint as disabled, keeping their places.
+        const request = stackChange(paintedStack(rendered.styles), paintedStack(target.styles));
         let painted: RepaintReport | null = null;
         let failure: unknown = null;
 
@@ -2631,7 +3023,72 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         compiled(): readonly CompiledLayer[] {
-            return current();
+            // As it paints: a hidden row's layers read as disabled.
+            return paintedStack(current());
+        },
+
+        tree(): readonly StyleRow[] {
+            const stack = current();
+            let rows = treeCache.get(stack);
+            if (rows === undefined) {
+                rows = publicRows(rowsOf(stack), namesIn(stack));
+                treeCache.set(stack, rows);
+            }
+
+            return rows;
+        },
+
+        addFolder(name: string, at?: StyleRowPlace, options: RunOptions = {}): Run<StyleRow> {
+            return edit<StyleRow>(
+                "add",
+                `Add folder "${name}"`,
+                { op: "style.patch", action: "addFolder", name, ...(at === undefined ? {} : { at }) },
+                options,
+            );
+        },
+
+        renameRow(id: StyleRowId, name: string, options: RunOptions = {}): Run<StyleRow> {
+            return edit<StyleRow>(
+                "update",
+                `Rename row ${id}`,
+                { op: "style.patch", action: "renameRow", id, name },
+                options,
+            );
+        },
+
+        moveRow(id: StyleRowId, to: StyleRowPlace, options: RunOptions = {}): Run<StyleRow> {
+            return edit<StyleRow>("move", `Move row ${id}`, { op: "style.patch", action: "moveRow", id, to }, options);
+        },
+
+        pinRow(id: StyleRowId, pin: StyleRowPin, options: RunOptions = {}): Run<StyleRow> {
+            return edit<StyleRow>("move", `Pin row ${id}`, { op: "style.patch", action: "pinRow", id, pin }, options);
+        },
+
+        lockRow(id: StyleRowId, locked: boolean, options: RunOptions = {}): Run<StyleRow> {
+            return edit<StyleRow>(
+                "update",
+                `Lock row ${id}`,
+                { op: "style.patch", action: "lockRow", id, locked },
+                options,
+            );
+        },
+
+        hideRow(id: StyleRowId, hidden: boolean, options: RunOptions = {}): Run<StyleRow> {
+            return edit<StyleRow>(
+                "update",
+                `Hide row ${id}`,
+                { op: "style.patch", action: "hideRow", id, hidden },
+                options,
+            );
+        },
+
+        deleteRow(id: StyleRowId, options: RunOptions = {}): Run<readonly LayerId[]> {
+            return edit<readonly LayerId[]>(
+                "remove",
+                `Delete row ${id}`,
+                { op: "style.patch", action: "deleteRow", id },
+                options,
+            );
         },
 
         get(id: LayerId): Layer | undefined {
@@ -3019,10 +3476,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         toDocument(): StyleDocument {
-            const layers = current()
-                .filter((entry) => !entry.layer.locked)
-                .map((entry) => specOf(entry.layer));
+            const mine = current().filter((entry) => !entry.layer.locked);
+            const layers = mine.map((entry) => specOf(entry.layer));
             const carried = carriedPalettes(layers);
+            // Saved by place, since an opened document mints new layer ids.
+            const tree = documentRows(rowsOf(current()), (key) => mine.findIndex((entry) => entry.layer.id === key));
 
             return Object.freeze({
                 version: DOCUMENT_VERSION,
@@ -3030,6 +3488,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 // Written only when there is something to write, so a look that uses nothing but
                 // the element's own palettes saves byte for byte what it saved before.
                 ...(carried.length === 0 ? {} : { palettes: Object.freeze(carried) }),
+                ...(tree === undefined ? {} : { tree }),
             });
         },
     };

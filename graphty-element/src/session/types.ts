@@ -1665,6 +1665,12 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `style.encode` | `channel`; `run` |
  * | `style.template` | none |
  * | `style.suggested` | `algorithms`: the algorithms whose suggested styles were applied |
+ * | `style.add-folder` | `name`: the folder's name |
+ * | `style.rename-row` | `row`: its name before, or its id; `name`: the new name |
+ * | `style.move-row`, `style.delete-row` | `row`: its name, or its id |
+ * | `style.pin-row` | `row`: its name, or its id; `pin`: `"top"`, `"bottom"` or `"none"` |
+ * | `style.lock-row` | `row`: its name, or its id; `locked` |
+ * | `style.hide-row` | `row`: its name, or its id; `hidden` |
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
  * | `visibility.show-context`, `visibility.hide-context` | none |
@@ -1721,6 +1727,13 @@ export type HistoryCode =
     | "style.encode"
     | "style.template"
     | "style.suggested"
+    | "style.add-folder"
+    | "style.rename-row"
+    | "style.move-row"
+    | "style.pin-row"
+    | "style.lock-row"
+    | "style.hide-row"
+    | "style.delete-row"
     | "visibility.filter"
     | "visibility.clear-filter"
     | "visibility.window"

@@ -1062,6 +1062,12 @@ export type GraphtyErrorCode =
 */
 | "E_PROTECTED"
 /**
+* The target is locked by the reader: a style layer whose row, or a folder holding it, has
+* the reader's lock on (`styles.lockRow`). `details` name the layer and the locked row. The
+* caller unlocks the row first, or leaves the layer as it is.
+*/
+| "E_LOCKED"
+/**
 * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
 * unreadable file. `details` carry the url and the status where there was one, and `cause`
 * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
@@ -1351,7 +1357,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -3706,9 +3712,22 @@ export interface StyleDocument {
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
+    tree?: readonly StyleDocumentRow[];
     // (undocumented)
     version: 1;
 }
+
+// @public
+export type StyleDocumentRow = ({
+    layer: number;
+} | {
+    folder: string;
+    children: readonly StyleDocumentRow[];
+}) & {
+    pin?: "top" | "bottom" | "none";
+    locked?: boolean;
+    hidden?: boolean;
+};
 
 // @public
 export interface StyleExplanation {
@@ -3724,25 +3743,55 @@ export interface StyleProblem {
 }
 
 // @public
+export interface StyleRow {
+    readonly children: readonly StyleRow[];
+    readonly hidden: boolean;
+    readonly id: StyleRowId;
+    readonly kind: "layer" | "folder";
+    readonly locked: boolean;
+    readonly name: string;
+    readonly pin: StyleRowPin;
+}
+
+// @public
+export type StyleRowId = string;
+
+// @public
+export type StyleRowPin = "top" | "bottom" | "none";
+
+// @public
+export interface StyleRowPlace {
+    readonly index?: number;
+    readonly parent?: StyleRowId | null;
+}
+
+// @public
 export interface StylesApi {
     add(spec: LayerSpec, at?: LayerPosition, options?: RunOptions): Run<Layer>;
+    addFolder(name: string, at?: StyleRowPlace, options?: RunOptions): Run<StyleRow>;
     addRow(spec: RowSpec, at?: LayerPosition, options?: RunOptions): Run<RowParts>;
     agreement(scope: Scope, channel?: Channel): StyleAgreement;
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
     counts(id: LayerId): StyleCounts;
+    deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
+    hideRow(id: StyleRowId, hidden: boolean, options?: RunOptions): Run<StyleRow>;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
     highlightStyle(target: SelectorTarget): StaticStyle;
     legend(): readonly LegendBlock[];
     legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];
+    lockRow(id: StyleRowId, locked: boolean, options?: RunOptions): Run<StyleRow>;
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
+    moveRow(id: StyleRowId, to: StyleRowPlace, options?: RunOptions): Run<StyleRow>;
     parts(id: LayerId): RowParts | undefined;
+    pinRow(id: StyleRowId, pin: StyleRowPin, options?: RunOptions): Run<StyleRow>;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;
     removeBySource(predicate: (source: LayerSource) => boolean, options?: RunOptions): Run<readonly LayerId[]>;
+    renameRow(id: StyleRowId, name: string, options?: RunOptions): Run<StyleRow>;
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
     setDefaultPalettes(palettes: DefaultPalettes, options?: {
         readonly reapply?: boolean;
@@ -3754,6 +3803,7 @@ export interface StylesApi {
     split(id: LayerId, by?: Path, options?: RunOptions): Run<Layer>;
     splitChildren(id: LayerId): readonly SplitChild[];
     toDocument(): StyleDocument;
+    tree(): readonly StyleRow[];
     unsplit(id: LayerId, options?: RunOptions): Run<Layer>;
     update(id: LayerId, patch: Partial<LayerSpec>, options?: RunOptions): Run<Layer>;
     validate(spec: LayerSpec): ValidationResult;

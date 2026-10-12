@@ -73,6 +73,7 @@ export { quotePath, rulePath } from "./predicate";
 export type { ElementPaint } from "./repaint";
 export type { RowEncoding, RowParts, RowSpec, RowStyle, RowTarget, RowWrite } from "./rows";
 export type { Selector } from "./selector";
+export type { StyleRow, StyleRowId, StyleRowPin, StyleRowPlace } from "./tree";
 export type { SplitChild } from "./split";
 export type {
     DefaultPalettes,

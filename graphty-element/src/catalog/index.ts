@@ -80,6 +80,7 @@ export type {
     SplitMatchCode,
     StaticStyle,
     StyleDocument,
+    StyleDocumentRow,
     SuggestedName,
     ThemeDescriptor,
 } from "./types";

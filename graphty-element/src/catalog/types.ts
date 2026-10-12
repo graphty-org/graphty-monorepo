@@ -765,7 +765,29 @@ export interface StyleDocument {
     version: 1;
     layers: readonly LayerSpec[];
     palettes?: readonly PaletteDescriptor[];
+    /**
+     * The style tree: folders, pins, the reader's locks and hidden rows, bottom first. A layer row
+     * names its layer by its place in `layers`. Absent when the tree is one plain row per layer.
+     */
+    tree?: readonly StyleDocumentRow[];
 }
+
+/** One row of a saved style tree: a layer, by its place in the document, or a folder. */
+export type StyleDocumentRow = (
+    | { layer: number }
+    | {
+          folder: string;
+          /** The folder's rows, bottom first. */
+          children: readonly StyleDocumentRow[];
+      }
+) & {
+    /** Where the row is pinned among its siblings; absent means not pinned. */
+    pin?: "top" | "bottom" | "none";
+    /** The reader's lock. */
+    locked?: boolean;
+    /** Whether the row is hidden. */
+    hidden?: boolean;
+};
 
 // ---------------------------------------------------------------------------------------------
 // The catalogue descriptors

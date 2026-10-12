@@ -1715,6 +1715,7 @@ export interface StyleDocument {
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
+    tree?: readonly StyleDocumentRow[];
     // (undocumented)
     version: 1;
 }

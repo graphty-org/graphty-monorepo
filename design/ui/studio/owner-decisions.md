@@ -57,6 +57,37 @@ row is the additive form, and `styles.list()` keeps one layer per part with its 
 **Not breaking.** New methods, types, an optional field on a layer and its spec, and a new member of
 the open `EdgeReading` union.
 
+## 2026-10-12 -- Decided by the team: the style tree (`styles.tree`, folders, pins, a reader's lock)
+
+**What.** For the unified style panel's layer tree, all in graphty-element.
+
+- `styles.tree()` returns the consumer's layers as rows, bottom first at every level: `StyleRow`
+  (`id`, `kind` "layer" or "folder", `name`, `pin` "top" / "bottom" / "none", `locked`, `hidden`,
+  `children`). A layer row's id is its layer's id (a two-kind row's id for a node-and-edge row); a
+  folder's id starts with `folder:`. The element's own base and selection layers are not rows.
+- `addFolder(name, at?)`, `renameRow`, `moveRow(id, { parent, index })`, `pinRow`, `lockRow`,
+  `hideRow` and `deleteRow` (a folder with everything in it), each one `style.patch` step with its
+  own history code (`style.add-folder`, `style.rename-row`, `style.move-row`, `style.pin-row`,
+  `style.lock-row`, `style.hide-row`, `style.delete-row`) and one `style:changed` event.
+- The tree order is the paint order: `list()` follows it. Rows within one folder sit in pin bands
+  (bottom, unpinned, top), so a layer added later lands above a row pinned to the bottom. A hidden
+  row, or one in a hidden folder, paints nothing; `list()` keeps its layers as written, and what the
+  renderer, the legend and `explain` read treat them as disabled.
+- The reader's lock (on a row or a folder holding it) refuses `update`, and every verb that goes
+  through it, with the new error code `E_LOCKED`. Rename, move, pin, hide and delete still work, as
+  in Figma. `Layer.locked` keeps its meaning (the element's own layers).
+- `StyleDocument.tree` (new `StyleDocumentRow`) saves the tree, naming each layer by its place in
+  `layers`, since reopening mints new ids. It is written only when the tree has a folder, a pin, a
+  lock or a hidden row, so every existing document saves byte for byte as before.
+
+**Why.** The panel's tree needs folders that change paint order, pins that keep Everything at the
+bottom and Selected and Hovered at the top, and an eye and a lock that reach a folder's rows, saved
+with the project and undone like any edit. Keeping the tree on the element means every consumer
+gets the same paint order the panel shows.
+
+**Not breaking.** New methods, a new error code, new history codes, new types and a new optional
+document field. `list()`, `Layer.target` and `Layer.locked` are unchanged for an existing stack.
+
 ## 2026-10-12 -- Decided by the team: split a layer by value (`styles.split`)
 
 **What.** For the unified style panel's split parents (a Louvain layer shown as one row per

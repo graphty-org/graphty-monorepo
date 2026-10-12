@@ -855,10 +855,9 @@ async function clearInto(tx: TransactionScope): Promise<void> {
         tx.notes.remove(note.id);
     }
 
-    for (const layer of tx.styles.list()) {
-        if (!layer.locked) {
-            await tx.styles.remove(layer.id);
-        }
+    // Every row of the style tree, folders with their layers; the element's own layers stay.
+    for (const row of tx.styles.tree()) {
+        await tx.styles.deleteRow(row.id);
     }
 
     for (const set of tx.sets.list()) {

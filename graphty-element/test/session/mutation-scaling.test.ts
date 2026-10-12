@@ -445,6 +445,85 @@ const CASES: readonly Case[] = [
             };
         },
     },
+    {
+        method: "StylesApi.addFolder",
+        growth: "linear",
+        prepare: async (session) => {
+            await everyNodeLayer(session);
+            return async () => {
+                await session.styles.addFolder("Folder");
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.renameRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.renameRow(id, "Renamed");
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.moveRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            const folder = await session.styles.addFolder("Folder");
+            return async () => {
+                await session.styles.moveRow(id, { parent: folder.id });
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.pinRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session, "First");
+            await everyNodeLayer(session, "Second");
+            return async () => {
+                await session.styles.pinRow(id, "top");
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.lockRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.lockRow(id, true);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.hideRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.hideRow(id, true);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.deleteRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.deleteRow(id);
+                await session.styles.settled();
+            };
+        },
+    },
     // Notes: one note per node, so a write that walks every note grows with the graph. The write
     // itself no longer does (#1890, test/session/notes/scaling.test.ts); what still grows here is
     // the history re-charge after it (#1891, one step per note added) and the derivation pass's

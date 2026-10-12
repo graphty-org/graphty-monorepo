@@ -348,6 +348,68 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "style.patch", action: "resolveToStatic", id: "fixture-encoding_1", channel: "node.color" },
     },
     {
+        name: "style.patch addFolder",
+        variant: "addFolder",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000")),
+        command: { op: "style.patch", action: "addFolder", name: "Fixture folder" },
+    },
+    {
+        name: "style.patch renameRow",
+        variant: "renameRow",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000")),
+        command: { op: "style.patch", action: "renameRow", id: "fixture-a_1", name: "Renamed" },
+    },
+    {
+        name: "style.patch moveRow: a layer into a folder",
+        variant: "moveRow",
+        tags: BOTH,
+        before: async (session) => {
+            await session.styles.add(nodeLayer("Fixture A", "#ff0000"));
+            await session.styles.add(nodeLayer("Fixture B", "#0000ff"));
+            await session.styles.addFolder("Fixture folder", { index: 0 });
+        },
+        command: {
+            op: "style.patch",
+            action: "moveRow",
+            id: "fixture-b_1",
+            to: { parent: "folder:fixture-folder_1" },
+        },
+    },
+    {
+        name: "style.patch pinRow",
+        variant: "pinRow",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000"), nodeLayer("Fixture B", "#0000ff")),
+        command: { op: "style.patch", action: "pinRow", id: "fixture-a_1", pin: "top" },
+    },
+    {
+        name: "style.patch lockRow",
+        variant: "lockRow",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000")),
+        command: { op: "style.patch", action: "lockRow", id: "fixture-a_1", locked: true },
+    },
+    {
+        name: "style.patch hideRow",
+        variant: "hideRow",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000")),
+        command: { op: "style.patch", action: "hideRow", id: "fixture-a_1", hidden: true },
+    },
+    {
+        name: "style.patch deleteRow: a folder and its layer",
+        variant: "deleteRow",
+        tags: BOTH,
+        before: async (session) => {
+            await session.styles.add(nodeLayer("Fixture A", "#ff0000"));
+            const folder = await session.styles.addFolder("Fixture folder");
+            await session.styles.moveRow("fixture-a_1", { parent: folder.id });
+        },
+        command: { op: "style.patch", action: "deleteRow", id: "folder:fixture-folder_1" },
+    },
+    {
         name: "style.encode",
         tags: BOTH,
         before: (session) => runQuietly(session, "degree", "deg"),

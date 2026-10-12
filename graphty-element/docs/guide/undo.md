@@ -116,6 +116,12 @@ Every step's `fact.code` is one of the `HistoryCode` values, each documenting it
 | `style.encode`                                                                                                       | `channel`, `run`                                           |
 | `style.template`                                                                                                     | none                                                       |
 | `style.suggested`                                                                                                    | `algorithms`                                               |
+| `style.add-folder`                                                                                                   | `name`                                                     |
+| `style.rename-row`                                                                                                   | `row` (its name, or its id), `name`                        |
+| `style.move-row`, `style.delete-row`                                                                                 | `row` (its name, or its id)                                |
+| `style.pin-row`                                                                                                      | `row`, `pin` (`"top"`, `"bottom"` or `"none"`)             |
+| `style.lock-row`                                                                                                     | `row`, `locked`                                            |
+| `style.hide-row`                                                                                                     | `row`, `hidden`                                            |
 | `visibility.filter`                                                                                                  | `kind` (the filter's kind)                                 |
 | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window`                                            | none                                                       |
 | `visibility.show-context`, `visibility.hide-context`                                                                 | none                                                       |

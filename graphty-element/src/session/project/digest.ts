@@ -18,6 +18,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { stableDigest } from "../runs/runId";
+import { ownRows } from "../styles/tree";
 import type { ProjectState } from "./state";
 
 /** Which optional parts a digest includes. */
@@ -121,6 +122,10 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         `layout=${canonical(state.layout, path)}`,
         `runs=${canonical(state.runs, path)}`,
         `styles=${canonical(state.styles, path)}`,
+        // The style tree rides on the stack array, out of an array walk's reach; written only when
+        // it says more than the stack, so a stack with no folder, pin, lock or hidden row digests
+        // as it always did.
+        ...(ownRows(state.styles) === undefined ? [] : [`styleRows=${canonical(ownRows(state.styles), path)}`]),
         `visibility=${canonical(state.visibility, path)}`,
         // Each set by its revision, the canonical hash of its definition: a fixed set's edge
         // members are typed columns that a walk would materialise at 72 bytes a member.

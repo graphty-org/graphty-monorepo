@@ -11,6 +11,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **The style tree is built in graphty-element** (`src/session/styles/tree.ts`):
+  `styles.tree()` plus addFolder, renameRow, moveRow, pinRow, lockRow, hideRow, deleteRow; error
+  `E_LOCKED`; saved as `StyleDocument.tree`. The app's panel reads rows from it and never orders
+  layers itself. Not yet exercised in a browser or by the renderer twin of the history fixtures.
 - (2026-10-12) **Rows on both kinds are built in the element** (`styles.addRow`, `writeRow`,
   `parts`; `session/styles/rows.ts`): a "both" row is a node part and an edge part right under it,
   sharing a selector, tied by `Layer.row` (the node part's id). Writes route by channel kind
@@ -98,6 +102,23 @@ caseSensitive? }` on one matcher `textMatcher` (`session/text.ts`) that selectio
 
 ## Decisions and reasons
 
+- (2026-10-12) **The style tree rides on the stack array, not in a new project slice.** The
+  `styles` slice is the stack, and undo keeps it by reference, so a tree carried as a property of
+  that frozen array comes back with every undo, redo and rollback with no new slice, draft writer
+  or project-file member. The draft's no-op test and the state digest read it too (a tree-only
+  change is a step). A plain tree (no folder, pin, lock or hidden row) is not carried, so existing
+  stacks, digests and saved documents are byte for byte what they were.
+- (2026-10-12) **Order lives in the tree; other verbs' placements are reconciled into it.** A layer
+  another verb adds goes into the deepest folder holding both its stack neighbors, just above the
+  one beneath it; a legacy `move` re-places its row the same way. Then pin bands are restored, so
+  the stack always equals the flattened tree. Reason: one source of truth for paint order, and no
+  verb can leave the panel showing an order the canvas does not paint.
+- (2026-10-12) **A hidden row reads as disabled only where painting is decided** (repaint,
+  `compiled()`, legend, `explain`), never in `list()`. Reason: the eye is the reader's view, not
+  the author's `enabled`, and showing the row again must restore exactly what was written.
+- (2026-10-12) **The reader's lock refuses content edits only** (`update` and what goes through
+  it), not rename, move, pin, hide or delete, as Figma's lock does; a new code `E_LOCKED` because
+  `E_PROTECTED` means "the element owns this".
 - (2026-10-12) **Tier 3 recommendations, and why** (full text in `tier3/decide/engineer.md`):
   a 0-or-1 property is an always-present row whose empty field means off, because "+" promised
   many where one fits and a switch has no "not set" position; yes-or-no properties are two-word

@@ -606,6 +606,20 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ op: "style.template", document: { version: 1, layers: [] } }],
     ),
     toDocument: READ,
+    tree: READ,
+    addFolder: calls(["door folder"], [{ op: "style.patch", action: "addFolder", name: "door folder" }]),
+    renameRow: calls(
+        ["no-such-row", "renamed"],
+        [{ op: "style.patch", action: "renameRow", id: "no-such-row", name: "renamed" }],
+    ),
+    moveRow: calls(
+        ["no-such-row", { parent: null, index: 0 }],
+        [{ op: "style.patch", action: "moveRow", id: "no-such-row", to: { parent: null, index: 0 } }],
+    ),
+    pinRow: calls(["no-such-row", "top"], [{ op: "style.patch", action: "pinRow", id: "no-such-row", pin: "top" }]),
+    lockRow: calls(["no-such-row", true], [{ op: "style.patch", action: "lockRow", id: "no-such-row", locked: true }]),
+    hideRow: calls(["no-such-row", true], [{ op: "style.patch", action: "hideRow", id: "no-such-row", hidden: true }]),
+    deleteRow: calls(["no-such-row"], [{ op: "style.patch", action: "deleteRow", id: "no-such-row" }]),
     setDefaultPalettes: PALETTE_DEFAULTS,
     setHighlightColor: HIGHLIGHT_DEFAULT,
 };

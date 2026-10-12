@@ -451,6 +451,7 @@ export type {
     SplitMatchCode,
     StaticStyle,
     StyleDocument,
+    StyleDocumentRow,
 } from "./src/catalog/types";
 export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 
@@ -499,6 +500,10 @@ export type {
     StyleContribution,
     StyleCounts,
     StyleExplanation,
+    StyleRow,
+    StyleRowId,
+    StyleRowPin,
+    StyleRowPlace,
     StylesApi,
     StyleSuggestion,
     TemplateOptions,

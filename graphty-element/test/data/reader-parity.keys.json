@@ -1332,6 +1332,10 @@
         "nodes": ["color", "freq", "freqint", "freqintreverse", "hsklevel", "id", "isword", "label", "size"],
         "edges": ["gexfId", "source", "target", "weight"]
     },
+    "gexf/graphology-missing_nodes.gexf": {
+        "nodes": ["id", "label"],
+        "edges": ["gexfId", "source", "target"]
+    },
     "gexf/gsa-fpki-certs.gexf": {
         "nodes": ["color", "id", "label", "position"],
         "edges": ["gexfId", "label", "source", "target", "weight"]

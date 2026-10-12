@@ -41,7 +41,7 @@ interface LabelSettingsPopoutProps {
  * </div>
  * ```
  */
-export function LabelSettingsPopout({ anchorX }: LabelSettingsPopoutProps): JSX.Element {
+export function LabelSettingsPopout({ anchorX }: Readonly<LabelSettingsPopoutProps>): JSX.Element {
     // State for label settings
     const [showLabels, setShowLabels] = useState(true);
     const [fontSize, setFontSize] = useState(12);

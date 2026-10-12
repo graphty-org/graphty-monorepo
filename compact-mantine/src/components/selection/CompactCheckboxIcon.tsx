@@ -24,7 +24,7 @@ const DASH_GLYPH = "M5 8H10.5";
  * @param props.indeterminate - draw the dash instead of the tick
  * @returns the svg
  */
-export function CompactCheckboxIcon({ indeterminate, ...others }: CheckboxIconProps): React.JSX.Element {
+export function CompactCheckboxIcon({ indeterminate, ...others }: Readonly<CheckboxIconProps>): React.JSX.Element {
     const dash = indeterminate === true;
     const d = dash ? DASH : CHECK;
     const shapeRendering = dash ? "crispEdges" : "geometricPrecision";

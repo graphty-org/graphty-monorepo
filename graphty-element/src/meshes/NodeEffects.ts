@@ -21,8 +21,8 @@ import { readColor } from "./readColor";
 const DEFAULT_OUTLINE_COLOR = "#FFFF00";
 
 /**
- * Default glow colour, used when a style asks for `effect.glow` without naming a colour.
- * White reads as a neutral bloom over any node colour.
+ * Glow colour for a glowing mesh whose colour entry is missing from the selector's map. A style
+ * with no glow colour does not glow at all, so this is a defensive default only.
  */
 const DEFAULT_GLOW_COLOR = "#FFFFFF";
 
@@ -254,7 +254,8 @@ export class NodeEffects {
      * accepted, paid for, and dropped on the floor. That is the product owner's report "glow
      * doesn't work" exactly. This method is the missing renderer, and it is
      * deliberately shaped like `applyOutlineEffect` -- same call site in `Node.updateStyle`, same
-     * presence-means-enabled model, same try/catch -- so the two effects cannot drift apart.
+     * try/catch -- so the two effects cannot drift apart. Unlike the outline, glow is on only
+     * when the merged style names a glow colour: a strength on its own draws nothing.
      *
      * ORDERING TRAP, do not "fix" this by touching the material: `NodeMesh.createMaterial` calls
      * `mat.freeze()` immediately after building it. `customEmissiveColorSelector` is the right
@@ -272,10 +273,15 @@ export class NodeEffects {
         const scene = mesh.getScene();
         const renderedMesh = this.resolveRenderedMesh(mesh);
 
-        if (effect?.glow) {
+        // A COLOUR SWITCHES GLOW ON; a strength alone does not. `node.glowStrength` writes
+        // `effect.glow.strength`, so a layer that binds only a strength (to a metric, say) leaves
+        // an `effect.glow` with no colour on every node it paints. Treated as "glow on", that drew
+        // the white fallback on all of them (#2068). The strength only scales a colour some layer set.
+        const colorValue = this.extractColorValue(effect?.glow?.color);
+        if (effect?.glow && colorValue !== undefined) {
             const glowLayer = this.getOrCreateGlowLayer(scene);
-            const { rgb, alpha } = readColor(this.extractColorValue(effect.glow.color), DEFAULT_GLOW_COLOR);
             const glowColors = scene.metadata?.glowColors as Map<number, Color3> | undefined;
+            const { rgb, alpha } = readColor(colorValue, DEFAULT_GLOW_COLOR);
             // Scaled rather than given an alpha: the glow is ADDED to the frame, so a glow at half
             // alpha is a glow of half the light.
             glowColors?.set(renderedMesh.uniqueId, rgb.scale(alpha));

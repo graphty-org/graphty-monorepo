@@ -77,6 +77,12 @@ export interface KeyPersistenceConfig {
 export type AiVoiceMode = "auto" | "on" | "browser" | "provider" | "off";
 
 /**
+ * How a press of talk reaches the model (`AiVoiceOptions.mode`, `ai-voice-start`'s `mode`):
+ * `"turns"`, each utterance sent as a message, or `"live"`, a live conversation with the provider.
+ */
+export type AiVoiceConversationMode = "turns" | "live";
+
+/**
  * Speaking to the assistant and hearing it answer (`AiManagerConfig.voice`), driven by
  * `aiTalk(true)` and `aiTalk(false)`. Voice is never the only way to a command: every utterance
  * becomes the same `aiCommand` a typed message sends.
@@ -99,9 +105,14 @@ export interface AiVoiceOptions {
      * (`getAiVoiceSupport().live`); where it cannot, a press runs turn by turn and
      * `ai-voice-start` says why.
      */
-    mode?: "turns" | "live";
+    mode?: AiVoiceConversationMode;
     /** The model of a live conversation. Default: the provider's (`AI_VOICE_CAPABILITIES`). */
     liveModel?: string;
+    /**
+     * How long an open live conversation waits for the next press, in seconds, before it closes;
+     * the next press opens another. Default 120. Never while a spoken message still runs.
+     */
+    liveIdleSeconds?: number;
     /** The language spoken and heard, a BCP 47 tag (`"fr-FR"`). Default: the page's language. */
     language?: string;
     /** The voice the provider speaks with, by the provider's own name for it. */
@@ -710,6 +721,9 @@ export class AiManager {
                 },
             readerContext: (pointing) =>
                 (this.controller === null ? undefined : liveFacts(this.controller))?.readerContext(pointing) ?? "",
+            watch: (listener) =>
+                (this.controller === null ? undefined : liveFacts(this.controller))?.watch(listener) ??
+                ((): void => undefined),
         };
     }
 
@@ -925,6 +939,16 @@ export class AiManager {
     stopSpeech(): void {
         void this.voiceSession?.then((session) => {
             session.stopSpeech();
+        });
+    }
+
+    /**
+     * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
+     * `AI_CANCELLED`, and the next press opens another. Does nothing when none is open.
+     */
+    endLive(): void {
+        void this.voiceSession?.then((session) => {
+            session.endLiveConversation();
         });
     }
 

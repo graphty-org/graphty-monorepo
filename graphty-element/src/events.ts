@@ -1,7 +1,7 @@
 import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 
 import type { AiTokenUsage } from "./ai/agents";
-import type { AiVoiceSupport } from "./ai/AiManager";
+import type { AiVoiceConversationMode, AiVoiceSupport } from "./ai/AiManager";
 import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
 import type { AiSource } from "./ai/conversation/snapshot";
@@ -822,7 +822,7 @@ export interface AiVoiceStartEvent {
      * How the press reaches the model, when `AiVoiceOptions.mode` is set: `"live"`, or `"turns"`.
      * Live asked for but run turn by turn carries `code` and `params`.
      */
-    mode?: "turns" | "live";
+    mode?: AiVoiceConversationMode;
     /** Why a press asked to be live runs turn by turn: `AI_VOICE_UNAVAILABLE`. */
     code?: AiResultCode;
     /** The facts behind `code` (`{ path: "input", reason }`). */

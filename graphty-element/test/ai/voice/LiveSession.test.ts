@@ -2,8 +2,9 @@
  * @file Live presses on fakes: the page's speech (test/helpers/fake-speech.ts) and a scripted live
  * connection (`FakeEngine.scriptLive`). One connection per assistant, opened on the first live
  * press and reused; the microphone sent exactly while talk is held; barge-in; levels per animation
- * frame; the model's speaking state; a pending approval or question answered turn by turn; and every
- * way the connection closes.
+ * frame; the model's speaking state; a pending approval or question answered turn by turn; a press
+ * while a spoken message runs its tools answered turn by turn; and every way the connection closes,
+ * never for being idle while a message runs.
  */
 
 import { afterEach, assert, describe, it, vi } from "vitest";
@@ -36,8 +37,15 @@ interface Harness {
     readonly heard: [VoiceEventType, Record<string, unknown>][];
     /** The approvals the controller holds. */
     readonly approvals: AiApprovalRequest[];
-    /** Every text the turns path sent. */
+    /** Every text sent, by either path. */
     readonly sent: string[];
+    /**
+     * Hold every message sent from now on until the returned function is called.
+     * @returns Ends them.
+     */
+    block(): () => void;
+    /** Tell the open connection it no longer knows the conversation. */
+    stale(): void;
     /** The one connection opened so far. */
     connection(): FakeLiveConnection;
 }
@@ -56,10 +64,12 @@ function harness(options: AiVoiceOptions = {}, live?: Partial<ProviderLiveSpeech
     engine.scriptLive();
     const approvals: AiApprovalRequest[] = [];
     const sent: string[] = [];
+    let blocked: Promise<ExecutionResult> | undefined;
+    const watchers = new Set<() => void>();
     const controller: VoiceController = {
         execute: (text) => {
             sent.push(text);
-            return Promise.resolve(DONE);
+            return blocked ?? Promise.resolve(DONE);
         },
         getPendingApprovals: () => approvals,
         getPendingQuestions: () => [],
@@ -81,6 +91,12 @@ function harness(options: AiVoiceOptions = {}, live?: Partial<ProviderLiveSpeech
             engine: engine as Required<Pick<FakeEngine, "openLive">>,
             session: () => Promise.resolve({ instructions: "", tools: [] }),
             readerContext: () => "",
+            watch: (listener) => {
+                watchers.add(listener);
+                return () => {
+                    watchers.delete(listener);
+                };
+            },
             ...live,
         }),
     });
@@ -91,6 +107,21 @@ function harness(options: AiVoiceOptions = {}, live?: Partial<ProviderLiveSpeech
         heard,
         approvals,
         sent,
+        block() {
+            let end = (): void => undefined;
+            blocked = new Promise((resolve) => {
+                end = () => {
+                    blocked = undefined;
+                    resolve(DONE);
+                };
+            });
+            return end;
+        },
+        stale() {
+            for (const listener of [...watchers]) {
+                listener();
+            }
+        },
         connection() {
             assert.lengthOf(engine.liveConnections, 1, "one connection opened");
             return engine.liveConnections[0];
@@ -371,6 +402,96 @@ describe("closing the connection", () => {
         h.connection().emit({ type: "closed", code: "AI_COMPLETED", params: {} });
         await flushMicrotasks();
         assert.lengthOf(of(h, "ai-voice-end"), 1);
+        await hold(h);
+        assert.lengthOf(h.engine.liveConnections, 2);
+    });
+});
+
+describe("a spoken message on the connection", () => {
+    /**
+     * Speak a request whose message stays running (its tools, in the real loop) until `end` is called.
+     * @param h - The harness.
+     * @returns Ends the message.
+     */
+    async function running(h: Harness): Promise<() => void> {
+        const end = h.block();
+        await hold(h);
+        h.voice.talk(false);
+        h.connection().emit({ type: "reader-transcript", text: "make the servers red", final: true });
+        h.connection().emit({
+            type: "tool-calls",
+            calls: [{ id: "c1", name: "style", arguments: {} }],
+        });
+        await vi.waitFor(() => {
+            assert.deepStrictEqual(h.sent, ["make the servers red"]);
+        });
+        return end;
+    }
+
+    it("a press while it still runs its tools is heard turn by turn, says live-busy, and is sent as a message of its own", async () => {
+        const h = harness();
+        const end = await running(h);
+        h.voice.talk(true);
+        await vi.waitFor(() => {
+            assert.lengthOf(h.fake.recognizers, 1, "the press listens turn by turn");
+        });
+        h.fake.recognizers[0].hear("and make them bigger", true);
+        h.voice.talk(false);
+        await vi.waitFor(() => {
+            assert.deepStrictEqual(h.sent, ["make the servers red", "and make them bigger"]);
+        });
+        assert.deepStrictEqual(of(h, "ai-voice-start").at(-1), {
+            mode: "turns",
+            code: "AI_VOICE_UNAVAILABLE",
+            params: { path: "input", reason: "live-busy" },
+        });
+        assert.lengthOf(h.connection().captures.filter(Boolean), 1, "the microphone never reached the connection");
+        end();
+    });
+
+    it("never closes for being idle while it runs, and its end starts the idle time over", async () => {
+        const h = harness();
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        const end = await running(h);
+        vi.advanceTimersByTime(LIVE_IDLE_MS * 3 - 1000);
+        assert.isFalse(h.connection().closed, "a long batch is not idleness");
+        end();
+        await flushMicrotasks();
+        vi.advanceTimersByTime(LIVE_IDLE_MS - 1);
+        assert.isFalse(h.connection().closed, "the idle time counts from the message's end");
+        vi.advanceTimersByTime(1);
+        assert.isTrue(h.connection().closed);
+    });
+});
+
+describe("the connection's lifetime is the consumer's", () => {
+    it("liveIdleSeconds sets the idle close", async () => {
+        const h = harness({ liveIdleSeconds: 10 });
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        await hold(h);
+        h.voice.talk(false);
+        vi.advanceTimersByTime(9_999);
+        assert.isFalse(h.connection().closed);
+        vi.advanceTimersByTime(1);
+        assert.isTrue(h.connection().closed);
+    });
+
+    it("endLiveConversation closes it, and the next press opens another", async () => {
+        const h = harness();
+        await hold(h);
+        h.voice.talk(false);
+        h.voice.endLiveConversation();
+        assert.isTrue(h.connection().closed);
+        await hold(h);
+        assert.lengthOf(h.engine.liveConnections, 2);
+    });
+
+    it("a conversation the connection no longer knows closes it, and the next press opens another", async () => {
+        const h = harness();
+        await hold(h);
+        h.voice.talk(false);
+        h.stale();
+        assert.isTrue(h.connection().closed);
         await hold(h);
         assert.lengthOf(h.engine.liveConnections, 2);
     });

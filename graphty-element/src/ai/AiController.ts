@@ -367,8 +367,13 @@ export const LIVE_MESSAGE: unique symbol = Symbol("graphty.ai.live-message");
 /** A message spoken on a live connection, whose turns that connection answers. */
 export interface LiveMessage {
     readonly engine: AiEngine;
-    /** What the reader said, heard after the message started without it; "" while unheard. */
+    /** Every word heard for the message's press so far; "" while none. Saved when the message ends. */
     readonly heard: () => string;
+    /**
+     * The message was saved: words heard for its press after that are saved in place of its
+     * reader text with `reword`.
+     */
+    readonly saved?: (reword: (text: string) => void) => void;
 }
 
 /** What a live connection opens with, and what its `reader_context` tool reads. */
@@ -377,6 +382,12 @@ export interface LiveFacts {
     session(): Promise<{ readonly instructions: string; readonly tools: readonly ToolSpec[] }>;
     /** The facts block now, with what the reader pointed at. */
     readerContext(pointing?: AiPointing): string;
+    /**
+     * Hear when an open live connection no longer knows the conversation: another conversation
+     * was opened, started, deleted or cleared, or a message that was not spoken on it ran.
+     * @returns Stops listening.
+     */
+    watch(listener: () => void): () => void;
 }
 
 /** Each controller's live facts, kept off its public members. */
@@ -409,7 +420,7 @@ function withReaderText(message: SavedMessage, text: string): SavedMessage {
     return {
         ...message,
         parts: message.parts.map((part) =>
-            part.type === "text" && part.origin === "reader" && part.text === "" ? { ...part, text } : part,
+            part.type === "text" && part.origin === "reader" ? { ...part, text } : part,
         ),
     };
 }
@@ -588,6 +599,8 @@ export class AiController {
     private lastError: Error | null = null;
     /** The messages `cancel()` ended, so their results say cancelled, not undone. */
     private readonly cancelled = new WeakSet<AbortController>();
+    /** Who hears that an open live connection no longer knows the conversation. */
+    private readonly liveWatchers = new Set<() => void>();
     /** Batches held for approval, by request id, until an event ends each. */
     private readonly approvals = new Map<string, PendingApproval>();
     /** Questions asked of the reader, by id, until an event ends each. */
@@ -715,6 +728,12 @@ export class AiController {
         liveFactsOf.set(this, {
             session: () => this.liveSession(),
             readerContext: (pointing) => factsBlock(this.graph.getSession(), this.profile, pointing),
+            watch: (listener) => {
+                this.liveWatchers.add(listener);
+                return () => {
+                    this.liveWatchers.delete(listener);
+                };
+            },
         });
 
         // Subscribe to status changes to emit events
@@ -778,9 +797,10 @@ export class AiController {
                 return UNKNOWN_CONVERSATION;
             }
 
+            const live = (options as AiCommandOptions & { [LIVE_MESSAGE]?: LiveMessage })[LIVE_MESSAGE];
             let planned: AiPlan | undefined;
             try {
-                const refused = await this.refuseBeforeSending(input);
+                const refused = await this.refuseBeforeSending(input, live !== undefined);
                 if ("result" in refused) {
                     this.running.delete(abortController);
                     return refused.result;
@@ -801,10 +821,13 @@ export class AiController {
      * What fails a new message before anything is sent: a helper's provider with no key, or a
      * function router that throws, returns no plan it could run, or names no helper.
      * @param input - The reader's request.
+     * @param live - Spoken on a live connection: the live model already chose its tools, so no
+     * router plans it.
      * @returns The failure, or the function router's plan to run.
      */
     private async refuseBeforeSending(
         input: string,
+        live = false,
     ): Promise<{ readonly result: ExecutionResult } | { readonly planned: AiPlan | undefined }> {
         const fail = (code: AiResultCode, params: AiResultParams): { result: ExecutionResult } => ({
             result: { success: false, message: "", code, params },
@@ -826,7 +849,7 @@ export class AiController {
 
         // A function router's plan is the host's: one it cannot make, or one naming no helper, fails.
         const { router } = this;
-        if (typeof router !== "function" || this.roles.length === 0) {
+        if (typeof router !== "function" || this.roles.length === 0 || live) {
             return { planned: undefined };
         }
 
@@ -949,14 +972,16 @@ export class AiController {
         await this.supersedePending(true);
 
         this.emitAiEvent({ type: "ai-command-start", input, timestamp: Date.now() });
+        const live = (options as AiCommandOptions & { [LIVE_MESSAGE]?: LiveMessage })[LIVE_MESSAGE];
         return this.runMessage({
             input,
             message: uniqueId("msg_"),
             abortController,
             conversation: (session) => this.startConversation(input, session, options.via, options.pointing),
             conversationId: this.current?.id,
-            live: (options as AiCommandOptions & { [LIVE_MESSAGE]?: LiveMessage })[LIVE_MESSAGE],
-            ...(this.router === "model" || this.roles.length === 0
+            live,
+            // A live message is model-routed: the live model already chose its tools.
+            ...(this.router === "model" || this.roles.length === 0 || live !== undefined
                 ? {}
                 : { plan: (onUsage) => this.planFor(input, planned, abortController.signal, onUsage) }),
         });
@@ -971,6 +996,10 @@ export class AiController {
         const { input, message, abortController, decided, answer, resume } = run;
         const startTime = Date.now();
         this.lastError = null;
+        if (run.live === undefined) {
+            // A live connection never hears this message: the next press opens one that does.
+            this.liveStale();
+        }
 
         // Transition to submitted state
         this.statusManager.submit();
@@ -1121,18 +1150,15 @@ export class AiController {
                 result = { ...result, usage: addUsage(result.usage ?? NO_USAGE, routed) };
             }
 
-            // A spoken message that started before its transcript arrived keeps the words heard since.
-            const heard = run.live?.heard();
-            if (heard) {
-                running.messages[base - 1] = withReaderText(running.messages[base - 1], heard);
-            }
-
+            this.heardSoFar(run, running, base);
             // Saved again when the message ends: never per streamed piece of text.
             if (keep) {
                 await this.saveInto(run.conversationId, running.messages);
             } else {
                 await this.saveUnkept(run, running, base, result);
             }
+
+            this.hearLater(run, running, base);
 
             if (run.request !== undefined) {
                 result = { ...result, params: { request: run.request, ...result.params } };
@@ -1176,13 +1202,88 @@ export class AiController {
                 params: run.request === undefined ? params : { request: run.request, ...params },
             };
             if (conversation !== undefined) {
+                this.heardSoFar(run, conversation, base);
                 await this.saveUnkept(run, conversation, base, failed);
+                this.hearLater(run, conversation, base);
             }
 
             return failed;
         } finally {
             stopWatching();
             this.running.delete(abortController);
+        }
+    }
+
+    /**
+     * A spoken message keeps the words heard for its press so far, which may have come after it
+     * started (or started it without any).
+     * @param run - The message.
+     * @param conversation - Its conversation.
+     * @param base - How many messages it had once the run's own reader message was added.
+     */
+    private heardSoFar(run: MessageRun, conversation: Conversation, base: number): void {
+        const heard = run.live?.heard();
+        if (heard) {
+            conversation.messages[base - 1] = withReaderText(conversation.messages[base - 1], heard);
+        }
+    }
+
+    /**
+     * Words heard for a spoken message's press after it was saved replace its saved reader text,
+     * in their turn: they are never a message of their own.
+     * @param run - The message.
+     * @param conversation - Its conversation.
+     * @param base - How many messages it had once the run's own reader message was added.
+     */
+    private hearLater(run: MessageRun, conversation: Conversation, base: number): void {
+        const { id } = conversation.messages[base - 1];
+        run.live?.saved?.((text) => {
+            void this.enqueue(() => this.reword(run.conversationId, id, text));
+        });
+    }
+
+    /**
+     * Save a reader message's words again.
+     * @param conversationId - The saved conversation.
+     * @param id - The reader message.
+     * @param text - The words.
+     * @returns When saved; never rejects.
+     */
+    private async reword(conversationId: string | undefined, id: string, text: string): Promise<void> {
+        const { store } = this;
+        if (store === undefined || conversationId === undefined) {
+            return;
+        }
+
+        const base =
+            this.current?.id === conversationId
+                ? this.current
+                : await store.load(conversationId).catch(() => undefined);
+        if (base === undefined) {
+            return;
+        }
+
+        let saved: ConversationRecord = {
+            ...base,
+            messages: base.messages.map((message) => (message.id === id ? withReaderText(message, text) : message)),
+            updatedAt: new Date().toISOString(),
+        };
+        try {
+            saved = await store.save(saved);
+        } catch (error) {
+            logger.warn("Conversation not saved", { error: toSafeError(error).name });
+        }
+
+        if (this.current?.id === conversationId) {
+            this.current = saved;
+            this.emitChanged();
+        }
+    }
+
+    /** Tell an open live connection it no longer knows the conversation. */
+    private liveStale(): void {
+        for (const listener of [...this.liveWatchers]) {
+            listener();
         }
     }
 
@@ -2205,6 +2306,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         // The old conversation's requests end with it, saved there; the new one's are asked again.
         await this.supersedePending(true);
         this.current = record;
+        this.liveStale();
         this.emitChanged();
         this.reopenPending(record);
         return true;
@@ -2255,6 +2357,8 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      */
     newConversation(): Promise<AiConversationSnapshot | null> {
         return this.enqueue(async () => {
+            // A live connection remembers the old conversation, kept or not.
+            this.liveStale();
             if (this.store !== undefined) {
                 // The old conversation's requests end with it, as a new message would end them.
                 await this.supersedePending(true);
@@ -2294,6 +2398,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             if (this.current?.id === id) {
                 await this.supersedePending(false);
                 this.current = this.freshRecord();
+                this.liveStale();
                 this.emitChanged();
             }
         });
@@ -2306,6 +2411,8 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      */
     clearHistory(): Promise<void> {
         return this.enqueue(async () => {
+            // A live connection remembers what was said, kept or not: the next reader starts afresh.
+            this.liveStale();
             if (this.store === undefined) {
                 return;
             }

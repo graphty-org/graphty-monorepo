@@ -59,6 +59,7 @@ describe("the provider voice table", () => {
                 "live-custom-base-url",
                 "no-live-transport",
                 "output-off",
+                "live-busy",
             ],
         );
     });

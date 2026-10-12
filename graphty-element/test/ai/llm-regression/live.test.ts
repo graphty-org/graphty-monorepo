@@ -14,7 +14,7 @@ import { CommandRegistry } from "../../../src/ai/commands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import { ENGINE_OVERRIDE } from "../../../src/ai/engine/load";
 import { ProviderApiEngine } from "../../../src/ai/engine/ProviderApiEngine";
-import type { LiveEvent, LiveToolResult } from "../../../src/ai/engine/types";
+import type { LiveConnection, LiveEvent, LiveToolResult } from "../../../src/ai/engine/types";
 import { installAssistantTools } from "../../../src/ai/tools/install";
 import type { AiPointing } from "../../../src/ai/tools/prompt";
 import { LiveTurnEngine } from "../../../src/ai/voice/liveTurns";
@@ -34,10 +34,31 @@ const { clip, expectedWords } = JSON.parse(readFileSync(FIXTURE, "utf8")) as {
     expectedWords: string[];
 };
 
-/** Counts each request, as the harness does, so the run reports what it cost. */
+/** What a run cost, as the harness counts it and setup.ts prints it. */
+const cost = globalThis as {
+    __LLM_REGRESSION_API_CALLS__?: number;
+    __LLM_REGRESSION_TOKENS__?: { input: number; output: number };
+};
+
+/** Counts one request (a live token), as the harness does. */
 function counted(): void {
-    const counter = globalThis as { __LLM_REGRESSION_API_CALLS__?: number };
-    counter.__LLM_REGRESSION_API_CALLS__ = (counter.__LLM_REGRESSION_API_CALLS__ ?? 0) + 1;
+    cost.__LLM_REGRESSION_API_CALLS__ = (cost.__LLM_REGRESSION_API_CALLS__ ?? 0) + 1;
+}
+
+/**
+ * Count a live connection's cost: each response the model made is a request, with its tokens.
+ * @param connection - The connection.
+ */
+function metered(connection: LiveConnection): void {
+    connection.on((event) => {
+        if (event.type === "response-end") {
+            counted();
+        } else if (event.type === "usage") {
+            const tokens = (cost.__LLM_REGRESSION_TOKENS__ ??= { input: 0, output: 0 });
+            tokens.input += event.inputTokens;
+            tokens.output += event.outputTokens;
+        }
+    });
 }
 
 afterEach(() => {
@@ -64,6 +85,7 @@ describe.skipIf(skipIfNoApiKey() || getLlmRegressionProvider() !== "google")("a 
         }
 
         const { connection } = opened;
+        metered(connection);
         const events: LiveEvent[] = [];
         const answered = new Promise<void>((resolve, reject) => {
             connection.on((event) => {
@@ -165,6 +187,7 @@ async function speakToAssistant(clip: string, pointing?: AiPointing) {
     }
 
     const { connection } = opened;
+    metered(connection);
     const sent: LiveToolResult[][] = [];
     const send = connection.sendToolResults.bind(connection);
     connection.sendToolResults = (results) => {
@@ -178,11 +201,11 @@ async function speakToAssistant(clip: string, pointing?: AiPointing) {
             }
         });
         const live: LiveTurnEngine = new LiveTurnEngine(connection, "google", {
-            run: (text, pointed, heard) =>
+            run: (text, pointed, words) =>
                 controller.execute(text, {
                     via: "voice",
                     ...(pointed === undefined ? {} : { pointing: pointed }),
-                    [LIVE_MESSAGE]: { engine: live, heard },
+                    [LIVE_MESSAGE]: { engine: live, heard: words.heard, saved: words.saved },
                 } as never),
             pointing: () => pointing,
             readerContext: (pointed) => facts.readerContext(pointed),

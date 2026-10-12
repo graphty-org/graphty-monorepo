@@ -4073,6 +4073,16 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
+     * `AI_CANCELLED`, and the next press opens another, with the conversation as saved. Does
+     * nothing when none is open.
+     * @since 4.0.0
+     */
+    endAiLive(): void {
+        this.#graph.endAiLive();
+    }
+
+    /**
      * How speech would be carried in each direction now: the path, whether it is ready, why not,
      * and where the audio goes. It reads what the page and the provider offer, and starts nothing;
      * `ai-voice-support-change` says when the answer changes.

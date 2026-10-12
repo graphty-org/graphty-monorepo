@@ -373,7 +373,15 @@ describe("Gemini live (WebSocket)", () => {
         assert.strictEqual(token.url, "https://generativelanguage.googleapis.com/v1alpha/auth_tokens");
         assert.strictEqual(token.headers["x-goog-api-key"], KEYS.google);
         assert.isUndefined(token.headers.authorization);
-        assert.strictEqual((JSON.parse(token.body) as { uses: number }).uses, 1);
+        const body = JSON.parse(token.body) as {
+            uses: number;
+            bidiGenerateContentSetup: { model: string };
+            fieldMask: string;
+        };
+        assert.strictEqual(body.uses, 1);
+        // The token opens a session with the configured live model only.
+        assert.deepEqual(body.bidiGenerateContentSetup, { model: "models/gemini-3.8-live" });
+        assert.strictEqual(body.fieldMask, "model");
         const url = new URL(transport.sockets[0].url);
         assert.strictEqual(url.searchParams.get("access_token"), GOOGLE_TOKEN);
         assert.notInclude(transport.sockets[0].url, KEYS.google);
@@ -497,6 +505,20 @@ describe("Gemini live (WebSocket)", () => {
             events.map((event) => event.type),
             ["tool-calls", "response-end", "usage", "answer-text", "response-end"],
         );
+    });
+
+    it("words heard after the answer ended are settled as that press's when talk is pressed again", async () => {
+        installNetwork();
+        const transport = installFakeLiveTransport();
+        const { connection, events } = await open("google");
+        const socket = transport.sockets[0];
+        socket.receive({ serverContent: { outputTranscription: { text: "Done." } } });
+        socket.receive({ serverContent: { turnComplete: true } });
+        // Gemini's transcription of the press arrives after its answer ended.
+        socket.receive({ serverContent: { inputTranscription: { text: "make it red" } } });
+        assert.notDeepInclude(events, { type: "reader-transcript", text: "make it red", final: true });
+        connection.capture(true);
+        assert.deepEqual(events.at(-1), { type: "reader-transcript", text: "make it red", final: true });
     });
 
     it("reports a socket the provider closed, and a go-away, as closed with their codes", async () => {

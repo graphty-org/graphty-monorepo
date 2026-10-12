@@ -2352,6 +2352,9 @@ const liveEngines = new WeakMap<Element, ReturnType<typeof scriptedLiveEngine>>(
  * The provider is a scripted live connection (`src/testing/fakeLive.ts`), so nothing is sent
  * anywhere and no key is needed, on a device as in a test: on a headset it checks the talk
  * bindings (B or Y, the wrist orb) and the in-scene panel in live mode, not the provider's audio.
+ *
+ * Live voice needs a secure page: open this Storybook over HTTPS or on localhost. Over plain HTTP
+ * on a hostname, live is unavailable (`insecure-context`) and the play function fails.
  */
 export const LiveVoice: Story = {
     name: "Live voice",

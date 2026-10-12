@@ -6405,6 +6405,15 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
+     * `AI_CANCELLED`, and the next press opens another. Does nothing when none is open.
+     * @since 4.0.0
+     */
+    endAiLive(): void {
+        this.aiManager?.endLive();
+    }
+
+    /**
      * How speech would be carried in each direction now: the path, whether it is ready, why not,
      * and where the audio goes. May start the browser's recognition once to find out.
      * @returns Both directions; unavailable with `AI_NOT_ENABLED` without `voice`.

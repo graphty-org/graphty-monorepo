@@ -48,6 +48,7 @@ export { AiConfigError } from "./agents";
 // Manager (Phase 3)
 export type {
     AiManagerConfig,
+    AiVoiceConversationMode,
     AiVoiceMode,
     AiVoiceOptions,
     AiVoicePath,

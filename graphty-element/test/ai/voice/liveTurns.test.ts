@@ -3,7 +3,10 @@
  * runs its calls in one undo step and is saved as a voice message; a held batch or a question
  * hands off to the turns path; a response before its transcript, one with none, and one cut off
  * each save one whole message; the history seeds the next live session, and a typed message sees
- * the spoken ones.
+ * the spoken ones. A message cancelled or undone closes the connection and nothing it still sends
+ * runs; words heard after a message was saved are saved in its place; a press while a message runs
+ * its tools is busy; a router never plans a spoken message; a change of conversation, or a typed
+ * message, tells an open connection it is stale.
  */
 
 import { assert, describe, it, vi } from "vitest";
@@ -65,17 +68,18 @@ class LiveHarness {
             [ENGINE_OVERRIDE]: this.turns,
         } as never);
         const engine: LiveTurnEngine = new LiveTurnEngine(this.connection, "google", {
-            run: (text, pointing, heard) =>
+            run: (text, pointing, words) =>
                 this.controller.execute(text, {
                     via: "voice",
                     ...(pointing === undefined ? {} : { pointing }),
-                    [LIVE_MESSAGE]: { engine, heard },
+                    [LIVE_MESSAGE]: { engine, heard: words.heard, saved: words.saved },
                 } as never),
             pointing: () => ({ pointed: this.pointed, selected: [] }),
             readerContext: (pointing) => liveFacts(this.controller)?.readerContext(pointing) ?? "",
             close: () => {
                 this.closes++;
                 engine.closed("AI_CANCELLED", {});
+                this.connection.close();
             },
             answered: (result) => this.answered.push(result),
         });
@@ -110,6 +114,7 @@ class LiveHarness {
     async sayPaint(text: string, call: LiveToolCall): Promise<void> {
         const rounds = this.connection.sentResults.length;
         const done = this.answered.length;
+        this.engine.press();
         this.connection.emit({ type: "reader-transcript", text, final: true });
         this.connection.emit({ type: "tool-calls", calls: [call] });
         this.connection.emit({ type: "response-end" });
@@ -129,6 +134,30 @@ class LiveHarness {
             reader: messages.flatMap((m) => (m.role === "reader" ? [{ text: m.text, via: m.via }] : [])),
             assistant: messages.flatMap((m) => (m.role === "assistant" && m.text !== "" ? [m.text] : [])),
         };
+    }
+
+    /**
+     * Wait until every message already handed to the controller ran: a turn queued behind them.
+     */
+    async drained(): Promise<void> {
+        const id = this.controller.getConversation()?.id;
+        assert.exists(id);
+        await this.controller.openConversation(id);
+    }
+
+    /**
+     * Start a request whose first response paints nodes, and wait until its results went back:
+     * the message now waits for the provider's next response.
+     * @param text - What the reader says.
+     * @param call - The call the model makes.
+     */
+    async sayAndRun(text: string, call: LiveToolCall): Promise<void> {
+        const rounds = this.connection.sentResults.length;
+        this.engine.press();
+        this.connection.emit({ type: "reader-transcript", text, final: true });
+        this.connection.emit({ type: "tool-calls", calls: [call] });
+        this.connection.emit({ type: "response-end" });
+        await this.results(rounds + 1);
     }
 }
 
@@ -318,5 +347,185 @@ describe("one conversation across typing and talking", () => {
         const names = ((await liveFacts(live.controller)?.session())?.tools ?? []).map((tool) => tool.name);
         assert.includeMembers(names, ["catalog", "query", "style", "undo", "call", READER_CONTEXT, "ask_reader"]);
         assert.notInclude(names, "sets", "an on-demand tool is reached through call");
+    });
+});
+
+describe("a message cancelled or undone ends the connection, and nothing it still sends runs", () => {
+    it("Stop after the first batch: the batch is taken back, the next response runs no tool, and the connection closes", async () => {
+        const live = await harness();
+        await live.sayAndRun("make n3 red, then n2", paint("c1", "n3"));
+        assert.deepStrictEqual(redNodes(live.session, NODES), ["n3"]);
+
+        live.controller.cancel();
+        // The response the results asked for was already on its way.
+        live.connection.emit({ type: "tool-calls", calls: [paint("c2", "n2")] });
+        live.connection.emit({ type: "response-end" });
+        await live.messages(1);
+        await live.drained();
+
+        assert.strictEqual(live.answered[0].code, "AI_CANCELLED");
+        assert.lengthOf(live.answered, 1, "no message ran the later response");
+        assert.strictEqual(live.closes, 1, "the connection closed");
+        assert.deepStrictEqual(redNodes(live.session, NODES), []);
+        assert.lengthOf(live.saved().reader, 1);
+        assert.lengthOf(live.connection.sentResults, 1, "no cancelled results asked for another response");
+    });
+
+    it("an undo of the message's step while it runs: the same", async () => {
+        const live = await harness();
+        await live.sayAndRun("make n3 red, then n2", paint("c1", "n3"));
+
+        await live.session.undo();
+        live.connection.emit({ type: "tool-calls", calls: [paint("c2", "n2")] });
+        live.connection.emit({ type: "response-end" });
+        await live.messages(1);
+        await live.drained();
+
+        assert.strictEqual(live.answered[0].code, "AI_UNDONE");
+        assert.lengthOf(live.answered, 1);
+        assert.strictEqual(live.closes, 1);
+        assert.deepStrictEqual(redNodes(live.session, NODES), []);
+    });
+
+    it("tool calls with no press waiting for them never run", async () => {
+        const live = await harness();
+        await live.sayPaint("make n3 red", paint("c1", "n3"));
+        live.connection.emit({ type: "tool-calls", calls: [paint("c2", "n2")] });
+        live.connection.emit({ type: "response-end" });
+        await live.drained();
+
+        assert.lengthOf(live.answered, 1);
+        assert.strictEqual(live.closes, 1);
+        assert.deepStrictEqual(redNodes(live.session, NODES), ["n3"]);
+    });
+});
+
+describe("words heard after their message are its words", () => {
+    it("a transcript that comes after the message ended rewords it, starts nothing, and blocks nothing", async () => {
+        const live = await harness();
+        live.engine.press();
+        live.connection.emit({ type: "tool-calls", calls: [paint("c1", "n3")] });
+        live.connection.emit({ type: "response-end" });
+        await live.results(1);
+        live.connection.emit({ type: "answer-text", delta: "Done." });
+        live.connection.emit({ type: "response-end" });
+        await live.messages(1);
+        assert.deepStrictEqual(live.saved().reader, [{ text: "", via: "voice" }]);
+
+        live.connection.emit({ type: "reader-transcript", text: "make n3 red", final: true });
+        await vi.waitFor(() => {
+            assert.deepStrictEqual(live.saved().reader, [{ text: "make n3 red", via: "voice" }]);
+        });
+
+        // A typed message is not held behind a message waiting for a response that never comes.
+        live.turns.push(textTurn("One red node."));
+        const typed = await live.controller.execute("how many are red?");
+        assert.strictEqual(typed.code, "AI_COMPLETED");
+        assert.lengthOf(live.answered, 1, "the late words started no message");
+    });
+
+    it("a transcript in two pieces, the second after the message ended, is saved whole", async () => {
+        const live = await harness();
+        live.engine.press();
+        live.connection.emit({ type: "reader-transcript", text: "make n3", final: true });
+        live.connection.emit({ type: "tool-calls", calls: [paint("c1", "n3")] });
+        live.connection.emit({ type: "response-end" });
+        await live.results(1);
+        live.connection.emit({ type: "response-end" });
+        await live.messages(1);
+        live.connection.emit({ type: "reader-transcript", text: " red", final: true });
+
+        await vi.waitFor(() => {
+            assert.deepStrictEqual(live.saved().reader, [{ text: "make n3 red", via: "voice" }]);
+        });
+        assert.lengthOf(live.answered, 1);
+    });
+});
+
+describe("one message reads the responses at a time", () => {
+    it("is busy while a message runs its tools or waits for its response, and not once it read its answer", async () => {
+        const live = await harness();
+        assert.isFalse(live.engine.busy());
+        await live.sayAndRun("make n3 red", paint("c1", "n3"));
+        assert.isTrue(live.engine.busy(), "a press now would be read by this message");
+        assert.isTrue(live.engine.running());
+
+        live.connection.emit({ type: "answer-text", delta: "Done." });
+        assert.isFalse(live.engine.busy(), "a press while it answers cuts the answer off");
+        live.connection.emit({ type: "response-end" });
+        await live.messages(1);
+        assert.isFalse(live.engine.busy());
+        assert.isFalse(live.engine.running());
+    });
+
+    it("reader_context answers with what was pointed at when talk was released, not after", async () => {
+        const live = await harness();
+        live.engine.press();
+        live.pointed = ["n3"];
+        live.engine.released();
+        // The pointer moves on (or the next press points elsewhere) before the response comes.
+        live.pointed = ["n1"];
+        live.connection.emit({ type: "reader-transcript", text: "make this red", final: true });
+        live.connection.emit({ type: "tool-calls", calls: [{ id: "r1", name: READER_CONTEXT, arguments: {} }] });
+        live.connection.emit({ type: "response-end" });
+        await live.results(1);
+        const pointed = /Pointed at[^.]*\./.exec(live.connection.sentResults[0][0].content)?.[0] ?? "";
+        assert.include(pointed, "n3");
+        assert.notInclude(pointed, "n1");
+    });
+});
+
+describe("a router never plans a spoken message", () => {
+    it("a function router is not asked about a live message; the live model's calls run", async () => {
+        let routed = 0;
+        const live = await harness({
+            agents: {
+                roles: [{ name: "helper", purpose: "help", commands: ["query"] }],
+                router: () => {
+                    routed++;
+                    return { steps: [{ agents: ["helper"] }] };
+                },
+            },
+        });
+        await live.sayPaint("make n3 red", paint("c1", "n3"));
+
+        assert.strictEqual(routed, 0);
+        assert.strictEqual(live.answered[0].code, "AI_COMPLETED", JSON.stringify(live.answered[0]));
+        assert.deepStrictEqual(redNodes(live.session, NODES), ["n3"]);
+    });
+});
+
+describe("an open connection hears that it no longer knows the conversation", () => {
+    it("on a new conversation, another one opened, the open one deleted, the history cleared and a typed message", async () => {
+        const live = await harness();
+        let stale = 0;
+        const stop = liveFacts(live.controller)?.watch(() => {
+            stale++;
+        });
+        await live.sayPaint("make n3 red", paint("c1", "n3"));
+        assert.strictEqual(stale, 0, "a spoken message is the connection's own");
+
+        const first = live.controller.getConversation()?.id;
+        assert.exists(first);
+        await live.controller.newConversation();
+        assert.strictEqual(stale, 1);
+        await live.controller.openConversation(first);
+        assert.strictEqual(stale, 2);
+        live.turns.push(textTurn("Hi."));
+        await live.controller.execute("hello");
+        assert.strictEqual(stale, 3);
+        await live.controller.deleteConversation(first);
+        assert.strictEqual(stale, 4);
+        await live.controller.clearHistory();
+        assert.strictEqual(stale, 5);
+        stop?.();
+    });
+
+    it("a connection opened after a new conversation starts with none of the old one", async () => {
+        const live = await harness();
+        await live.sayPaint("make n3 red", paint("c1", "n3"));
+        await live.controller.clearHistory();
+        const next = await liveFacts(live.controller)?.session();
+        assert.notInclude(next?.instructions, "make n3 red");
     });
 });

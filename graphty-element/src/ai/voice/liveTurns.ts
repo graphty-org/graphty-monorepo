@@ -5,12 +5,16 @@
  * results the loop appended. So `runConversation` runs a spoken message as it runs a typed one:
  * ordered calls, policy and gates, one undo step, history and events.
  *
- * The reader's final transcript starts a message. The provider's response events are buffered, so
- * a response that comes before its transcript, or one whose transcript never comes, loses nothing:
- * tool calls start the message at once (the words heard later are saved with it), and an answer
- * with neither starts it at the next press or when the connection closes. A held batch or a
- * question hands off: the provider gets the message's code for its open calls and the connection
- * closes after that response, so the turns path answers what is pending. Reached only by `import()`.
+ * Each press of talk is one message. Its final transcript starts it, and every transcript until the
+ * next press is its words: words heard after the message was saved are saved in its place, never
+ * as another message. The provider's response events are buffered, so a response that comes before
+ * its transcript, or one whose transcript never comes, loses nothing: tool calls start the message
+ * at once (the words heard later are saved with it), and an answer with neither starts it at the
+ * next press or when the connection closes. Tool calls no press asked for never run. A held batch
+ * or a question hands off: the provider gets the message's code for its open calls and the
+ * connection closes after that response, so the turns path answers what is pending. A message
+ * cancelled, undone or failed before its last response closes the connection, so nothing the
+ * provider still sends runs. Reached only by `import()`.
  * @module ai/voice/liveTurns
  */
 
@@ -129,21 +133,38 @@ export interface LiveMessageHost {
      * Run one spoken message on this engine.
      * @param text - What the reader said; "" when not heard yet.
      * @param pointing - What they pointed at during the press.
-     * @param heard - The words heard after the message started without them.
+     * @param words - The words heard for the press, and where words heard after the message was
+     * saved go.
      */
-    run(text: string, pointing: AiPointing | undefined, heard: () => string): Promise<ExecutionResult>;
+    run(text: string, pointing: AiPointing | undefined, words: LiveWords): Promise<ExecutionResult>;
     /** What the reader points at in the press now. */
     pointing(): AiPointing | undefined;
     /** `reader_context`'s text. */
     readerContext(pointing: AiPointing | undefined): string;
-    /** Close the connection (a hand-off to the turns path). */
+    /** Close the connection: a hand-off to the turns path, or responses no press asked for. */
     close(): void;
     /** A spoken message's outcome. */
     answered?(result: ExecutionResult): void;
+    /** A spoken message ended: the connection's idle time starts over. */
+    settled?(): void;
+}
+
+/** The words of one press, as its message reads them. */
+export interface LiveWords {
+    /** Every final transcript of the press so far, joined; "" while none came. */
+    readonly heard: () => string;
+    /**
+     * The message was saved: words heard for the press after that go to `reword`, which saves
+     * them in place of the saved reader text.
+     */
+    readonly saved: (reword: (text: string) => void) => void;
 }
 
 /** The codes after which something waits on the reader, answered on the turns path. */
 const HAND_OFF: ReadonlySet<string> = new Set(["AI_CONFIRMATION_NEEDED", "AI_QUESTION_ASKED"]);
+
+/** The codes of a message whose changes were taken back: what the model remembers did not happen. */
+const TAKEN_BACK: ReadonlySet<string> = new Set(["AI_CANCELLED", "AI_UNDONE", "AI_ROLLBACK_PARTIAL"]);
 
 /**
  * A tool result the live engine writes itself.
@@ -164,7 +185,34 @@ function result(callId: string, code: AiResultCode, params: AiResultParams, data
     };
 }
 
-/** The messages spoken on one live connection, run through graphty's loop. */
+/** One press of talk on the connection. */
+interface Utterance {
+    /** Its final transcripts, joined. */
+    text: string;
+    /** What the reader pointed at, read when talk was released. */
+    pointing?: AiPointing;
+    /** `waiting` for its message to start, its message `running`, or `ended`. */
+    state: "waiting" | "running" | "ended";
+    /** Its message read its last response: the next press's responses may start the next message. */
+    read: boolean;
+    /** Saves words heard after its message was saved. */
+    reword?: (text: string) => void;
+}
+
+/**
+ * Whether queued events hold a whole response.
+ * @param queue - The events.
+ * @returns True when one ended.
+ */
+function whole(queue: readonly LiveEvent[]): boolean {
+    return queue.some((event) => event.type === "response-end" || event.type === "interrupted");
+}
+
+/**
+ * The messages spoken on one live connection, run through graphty's loop. Responses come in the
+ * order of the presses, and one press's message reads them at a time; a press made while a message
+ * still runs its tools is not live (`busy()`), so a response is never read by the wrong message.
+ */
 export class LiveTurnEngine implements AiEngine {
     readonly kind = "provider-api";
     /** Response events no turn has read yet. */
@@ -174,14 +222,12 @@ export class LiveTurnEngine implements AiEngine {
     private outstanding: LiveToolCall[] = [];
     /** `reader_context` results, sent with the loop's. */
     private own: LiveToolResult[] = [];
-    /** Counts spoken messages. */
-    private messages = 0;
-    /** The message that reads the responses now; 0 for none. */
-    private consumer = 0;
-    /** The running message started before its transcript: the words, once heard. */
-    private unheard: { text: string } | undefined;
-    /** What the running message's reader pointed at. */
-    private pointing: AiPointing | undefined;
+    /** Presses whose message has not started, oldest first. */
+    private readonly waiting: Utterance[] = [];
+    /** The newest press: every final transcript until the next press is its words. */
+    private latest: Utterance | undefined;
+    /** The press whose message reads the responses now. */
+    private reading: Utterance | undefined;
     /** The model is saying an answer. */
     private answering = false;
     /** An answer was cut off: the provider's end of that response is not a new one. */
@@ -208,14 +254,53 @@ export class LiveTurnEngine implements AiEngine {
     }
 
     /**
-     * Talk was pressed: an answer being said is cut off, and a response with no transcript runs.
+     * Talk was pressed: an answer being said is cut off, a whole response no message read runs,
+     * and the words heard from now on are this press's.
      */
     press(): void {
         if (this.answering) {
             this.heard({ type: "interrupted" });
         }
 
-        this.flush();
+        this.startNext(true);
+        const last = this.latest;
+        if (this.waiting.length === 0 && this.reading?.read !== false) {
+            // Nothing awaits a response: whatever is queued, no press asked for.
+            this.queue.length = 0;
+        } else if (
+            last?.state === "waiting" &&
+            last.text === "" &&
+            !(last === this.waiting[0] && this.queue.length > 0)
+        ) {
+            // Nothing came back for the last press: its silence gets no message.
+            this.waiting.splice(this.waiting.indexOf(last), 1);
+        }
+
+        this.latest = this.newUtterance();
+    }
+
+    /** Talk was released: what the reader pointed at during the press is its message's. */
+    released(): void {
+        if (this.latest?.state === "waiting") {
+            this.latest.pointing = this.host.pointing();
+        }
+    }
+
+    /**
+     * Whether a press now would be read by the wrong message: a message runs its tools, or waits
+     * for its response. Answering is not busy: a press then cuts the answer off and ends it.
+     * @returns True while it is.
+     */
+    busy(): boolean {
+        return this.reading !== undefined && !this.reading.read && !this.answering;
+    }
+
+    /**
+     * Whether a spoken message runs: the connection must not close for being idle.
+     * @returns True while one does.
+     */
+    running(): boolean {
+        return this.reading !== undefined;
     }
 
     /**
@@ -225,8 +310,18 @@ export class LiveTurnEngine implements AiEngine {
      */
     closed(code: AiResultCode, params: AiResultParams): void {
         this.closedWith ??= { type: "closed", code, params };
-        this.flush();
+        this.startNext(true);
         this.wake?.();
+    }
+
+    /**
+     * A press with no message yet.
+     * @returns It, waiting.
+     */
+    private newUtterance(): Utterance {
+        const utterance: Utterance = { text: "", state: "waiting", read: false };
+        this.waiting.push(utterance);
+        return utterance;
     }
 
     /**
@@ -246,12 +341,7 @@ export class LiveTurnEngine implements AiEngine {
         switch (event.type) {
             case "reader-transcript":
                 if (event.final && event.text.trim() !== "") {
-                    if (this.unheard === undefined) {
-                        this.start(event.text);
-                    } else {
-                        this.unheard.text = event.text;
-                        this.unheard = undefined;
-                    }
+                    this.words(event.text);
                 }
 
                 return;
@@ -261,11 +351,6 @@ export class LiveTurnEngine implements AiEngine {
                 break;
             case "tool-calls":
                 this.skipEnd = false;
-                // Calls cannot wait for the words: the message starts, and saves them when they come.
-                if (this.consumer === 0) {
-                    this.start("");
-                }
-
                 break;
             case "response-end":
                 this.answering = false;
@@ -292,60 +377,132 @@ export class LiveTurnEngine implements AiEngine {
 
         this.queue.push(event);
         this.wake?.();
+        if (event.type === "tool-calls") {
+            // Calls cannot wait for the words: the message starts, and saves them when they come.
+            this.startNext(false);
+        }
     }
 
-    /** A whole response no message reads: it runs as a message whose words were not heard. */
-    private flush(): void {
-        if (
-            this.consumer === 0 &&
-            this.queue.some((event) => event.type === "response-end" || event.type === "interrupted")
-        ) {
-            this.start("");
+    /**
+     * A final transcript: more of the newest press's words. Words that come after its message was
+     * saved are saved in its place; they never start another message.
+     * @param text - The words.
+     */
+    private words(text: string): void {
+        // A connection driven with no press: its first words are a press of their own.
+        this.latest ??= this.newUtterance();
+        const utterance = this.latest;
+        utterance.text += text;
+        if (utterance.state === "ended") {
+            utterance.reword?.(utterance.text.trim());
+        } else {
+            this.startNext(false);
+        }
+    }
+
+    /**
+     * Start the oldest press's message once its words or its response came, and only when no
+     * message still reads responses.
+     * @param force - A press or the close: a whole response with no words heard runs now.
+     */
+    private startNext(force: boolean): void {
+        if (this.reading?.read === false) {
+            return;
+        }
+
+        const calls = this.queue.some((event) => event.type === "tool-calls");
+        let head = this.waiting.at(0);
+        if (head === undefined && this.latest === undefined && (calls || (force && whole(this.queue)))) {
+            // A connection driven with no press: its first response is a press of its own.
+            head = this.newUtterance();
+            this.latest = head;
+        }
+
+        if (head === undefined) {
+            if (calls && this.closedWith === undefined) {
+                // Tool calls no press asked for are never run.
+                this.discard();
+            }
+
+            return;
+        }
+
+        // Once a newer press exists, the words of this one will not come.
+        if (head.text.trim() !== "" || calls || (whole(this.queue) && (force || head !== this.latest))) {
+            this.start(head);
         }
     }
 
     /**
      * Start one spoken message.
-     * @param text - What the reader said; "" when not heard.
+     * @param utterance - Its press.
      */
-    private start(text: string): void {
-        const id = ++this.messages;
-        this.consumer = id;
-        const unheard = text === "" ? { text: "" } : undefined;
-        this.unheard = unheard;
-        this.pointing = this.host.pointing();
+    private start(utterance: Utterance): void {
+        this.waiting.splice(this.waiting.indexOf(utterance), 1);
+        utterance.state = "running";
+        utterance.pointing ??= this.host.pointing();
+        this.reading = utterance;
         void this.host
-            .run(text, this.pointing, () => unheard?.text ?? "")
+            .run(utterance.text.trim(), utterance.pointing, {
+                heard: () => utterance.text.trim(),
+                saved: (reword) => {
+                    utterance.reword = reword;
+                },
+            })
             .then((outcome) => {
-                if (this.unheard === unheard) {
-                    this.unheard = undefined;
+                utterance.state = "ended";
+                if (this.reading === utterance) {
+                    this.reading = undefined;
+                    if (!utterance.read) {
+                        // What it left unread was its own: no later press's response came yet.
+                        this.queue.length = 0;
+                    }
                 }
 
-                if (this.consumer === id) {
-                    this.consumer = 0;
-                }
-
-                this.ended(outcome);
+                this.ended(utterance, outcome);
+                this.host.settled?.();
+                this.startNext(false);
             });
     }
 
     /**
-     * A message ended: calls still open get its code, and something pending hands off.
+     * A message ended. Something pending hands off: its open calls get the message's code and the
+     * connection closes after that response. A message that ended before reading its last response
+     * (cancelled, undone, failed), or whose changes were taken back, leaves the provider answering
+     * or remembering what no longer holds: the connection closes, and the next press opens another
+     * with the conversation as saved.
+     * @param utterance - Its press.
      * @param outcome - The message's result.
      */
-    private ended(outcome: ExecutionResult): void {
+    private ended(utterance: Utterance, outcome: ExecutionResult): void {
         const code = outcome.code ?? "AI_COMPLETED";
-        const open = this.outstanding.map((call) => result(call.id, code, outcome.params ?? {}));
-        this.send(open);
-        if (HAND_OFF.has(code) && this.closedWith === undefined) {
-            if (open.length === 0) {
-                this.host.close();
-            } else {
-                this.handingOff = true;
+        if (this.closedWith === undefined) {
+            if (HAND_OFF.has(code)) {
+                const open = this.outstanding.map((call) => result(call.id, code, outcome.params ?? {}));
+                this.send(open);
+                if (open.length === 0) {
+                    this.host.close();
+                } else {
+                    this.handingOff = true;
+                }
+            } else if (
+                (!utterance.read && code !== "AI_COMPLETED") ||
+                TAKEN_BACK.has(code) ||
+                outcome.params?.rolledBack !== undefined
+            ) {
+                this.discard();
             }
         }
 
         this.host.answered?.(outcome);
+    }
+
+    /** Drop what the provider sent and close the connection: no message reads it. */
+    private discard(): void {
+        this.queue.length = 0;
+        this.outstanding = [];
+        this.own = [];
+        this.host.close();
     }
 
     /**
@@ -407,7 +564,6 @@ export class LiveTurnEngine implements AiEngine {
         for (;;) {
             const event = await this.next(signal);
             if (event === undefined) {
-                this.consumer = 0;
                 return;
             }
 
@@ -421,7 +577,9 @@ export class LiveTurnEngine implements AiEngine {
                 case "tool-calls":
                     for (const call of event.calls) {
                         if (call.name === READER_CONTEXT) {
-                            this.own.push(result(call.id, "AI_COMPLETED", {}, this.host.readerContext(this.pointing)));
+                            this.own.push(
+                                result(call.id, "AI_COMPLETED", {}, this.host.readerContext(this.reading?.pointing)),
+                            );
                         } else {
                             this.outstanding.push(call);
                             yield { type: "tool-call", ...call };
@@ -441,16 +599,15 @@ export class LiveTurnEngine implements AiEngine {
                         break;
                     }
 
-                    this.consumer = 0;
+                    this.read();
                     yield { type: "finish", reason: "stop" };
                     return;
                 case "interrupted":
                     // Cut off: the answer is kept as far as it was heard.
-                    this.consumer = 0;
+                    this.read();
                     yield { type: "finish", reason: "stop" };
                     return;
                 case "closed":
-                    this.consumer = 0;
                     yield {
                         type: "error",
                         code: event.code,
@@ -462,6 +619,15 @@ export class LiveTurnEngine implements AiEngine {
                     break;
             }
         }
+    }
+
+    /** The message reading now read its last response: the next press's message may start. */
+    private read(): void {
+        if (this.reading !== undefined) {
+            this.reading.read = true;
+        }
+
+        this.startNext(false);
     }
 
     /**

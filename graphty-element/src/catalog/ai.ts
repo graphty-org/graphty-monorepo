@@ -355,7 +355,8 @@ export type AiVoiceDestination = "on-device" | "browser-vendor" | "provider" | "
  * API), `"live-custom-base-url"` (a `baseUrl` is set; live reaches only the provider's own host),
  * `"no-live-transport"` (the browser lacks what the provider's live API needs: WebRTC for OpenAI,
  * WebSocket and `AudioWorklet` for Google), `"output-off"` (`AiVoiceOptions.output` is `"off"`,
- * and a live answer is always spoken).
+ * and a live answer is always spoken), `"live-busy"` (a spoken message still runs its tools; the
+ * press is sent after it, turn by turn).
  */
 export const AI_VOICE_UNAVAILABLE_REASONS = Object.freeze([
     "no-recognition",
@@ -373,6 +374,7 @@ export const AI_VOICE_UNAVAILABLE_REASONS = Object.freeze([
     "live-custom-base-url",
     "no-live-transport",
     "output-off",
+    "live-busy",
 ] as const);
 
 /**

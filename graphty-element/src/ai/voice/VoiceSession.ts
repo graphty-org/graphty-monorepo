@@ -71,6 +71,12 @@ export interface ProviderLiveSpeech {
     session(): Promise<Pick<LiveOptions, "instructions" | "tools">>;
     /** What `reader_context` reads: the facts now, with what the reader pointed at. */
     readerContext(pointing?: AiPointing): string;
+    /**
+     * Hear when an open connection no longer knows the conversation (another one opened, a typed
+     * message ran); absent, never.
+     * @returns Stops listening.
+     */
+    watch?(listener: () => void): () => void;
 }
 
 /** What the assistant gives a session. */
@@ -137,6 +143,8 @@ export class VoiceSession {
     private livePress = false;
     /** What the reader pointed at in the last live press. */
     private livePointing: PointingRecord | undefined;
+    /** Stops hearing that the open connection no longer knows the conversation. */
+    private stopWatchingLive: (() => void) | undefined;
     private disposed = false;
 
     /**
@@ -267,6 +275,14 @@ export class VoiceSession {
         this.liveNow?.close();
     }
 
+    /**
+     * End the live conversation: the connection closes (a held press ends with `AI_CANCELLED`),
+     * and the next live press opens another with the conversation as saved.
+     */
+    endLiveConversation(): void {
+        this.liveNow?.close();
+    }
+
     /** Close the microphone and stop speaking; later presses do nothing. */
     dispose(): void {
         this.disposed = true;
@@ -280,6 +296,7 @@ export class VoiceSession {
         this.inputs.clear();
         this.input = undefined;
         this.stopSpeech();
+        this.stopWatchingLive?.();
         this.liveNow?.close();
     }
 
@@ -339,6 +356,14 @@ export class VoiceSession {
             if (controller.getPendingApprovals().length > 0 || controller.getPendingQuestions().length > 0) {
                 // A pending approval or question is answered turn by turn: the connection hands off.
                 this.liveNow?.close();
+            } else if (live.path === "provider" && this.liveNow?.busy() === true) {
+                // A spoken message still runs its tools: what the provider answered this press
+                // could not be told from that message's responses, so it is sent after it.
+                start = {
+                    mode: "turns",
+                    code: "AI_VOICE_UNAVAILABLE",
+                    params: { path: "input", reason: "live-busy" },
+                };
             } else if (live.path === "provider") {
                 await this.listenLive(press, pointing, facts);
                 return;
@@ -410,6 +435,7 @@ export class VoiceSession {
     private liveSession(): Promise<LiveSession> {
         this.live ??= Promise.all([import("./LiveSession"), import("./liveTurns")]).then(
             ([{ LiveSession: Live }, turns]) => {
+                const seconds = this.host.options.liveIdleSeconds;
                 const live = new Live({
                     open: (signal) => this.openLive(signal),
                     emit: (type, detail) => {
@@ -418,9 +444,14 @@ export class VoiceSession {
                     ended: (code, params) => {
                         this.endLive(code, params);
                     },
-                    attach: (connection) => this.liveMessages(connection, turns.LiveTurnEngine),
+                    attach: (connection, touch) => this.liveMessages(connection, turns.LiveTurnEngine, touch),
+                    ...(seconds !== undefined && seconds >= 0 ? { idleMs: seconds * 1000 } : {}),
                 });
                 this.liveNow = live;
+                // A connection that no longer knows the conversation closes; the next press opens one that does.
+                this.stopWatchingLive = this.host.liveEngine?.().watch?.(() => {
+                    live.close();
+                });
                 return live;
             },
         );
@@ -431,19 +462,21 @@ export class VoiceSession {
      * Run what is said on a connection as messages, through the assistant's own loop.
      * @param connection - The connection.
      * @param Engine - The live engine's class.
+     * @param touch - Starts the connection's idle time over.
      * @returns The engine.
      */
     private liveMessages(
         connection: LiveConnection,
         Engine: typeof import("./liveTurns").LiveTurnEngine,
+        touch: () => void,
     ): InstanceType<typeof import("./liveTurns").LiveTurnEngine> {
         const live = this.host.liveEngine?.();
         const engine: InstanceType<typeof Engine> = new Engine(connection, live?.provider ?? "mock", {
-            run: (text, pointing, heard) =>
+            run: (text, pointing, words) =>
                 this.host.controller.execute(text, {
                     via: "voice",
                     ...(pointing === undefined ? {} : { pointing }),
-                    [LIVE_MESSAGE]: { engine, heard },
+                    [LIVE_MESSAGE]: { engine, heard: words.heard, saved: words.saved },
                 } as AiCommandOptions),
             pointing: () => this.livePointing?.facts(),
             readerContext: (pointing) => live?.readerContext(pointing) ?? "",
@@ -453,6 +486,7 @@ export class VoiceSession {
             answered: (result) => {
                 this.host.answered?.(result);
             },
+            settled: touch,
         });
         return engine;
     }

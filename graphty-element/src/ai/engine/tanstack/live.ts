@@ -42,8 +42,11 @@ const LIVES: Partial<Record<ProviderApiId, () => Promise<ProviderLiveModule>>> =
     google: async () => (await import("./google")).googleLive,
 };
 
-/** How long a Gemini token stays good for messages, and how soon its one session must start. */
-const GOOGLE_TOKEN_MS = 30 * 60_000;
+/**
+ * How long a Gemini token stays good for messages (the longest audio session Gemini holds), and how
+ * soon its one session must start.
+ */
+const GOOGLE_TOKEN_MS = 15 * 60_000;
 const GOOGLE_SESSION_START_MS = 60_000;
 
 /**
@@ -93,6 +96,9 @@ async function getToken(settings: ProviderApiSettings, model: string, signal: Ab
             uses: 1,
             expireTime: new Date(now + GOOGLE_TOKEN_MS).toISOString(),
             newSessionExpireTime: new Date(now + GOOGLE_SESSION_START_MS).toISOString(),
+            // The token opens a session with this model only, whatever the socket's setup asks.
+            bidiGenerateContentSetup: { model: `models/${model}` },
+            fieldMask: "model",
         }),
         signal,
     });
@@ -317,6 +323,8 @@ function wrap(connection: RealtimeConnection, provider: string, cumulative: bool
             }
 
             if (on) {
+                // A new press: words still owed for the last one are its, not this one's.
+                settleHeard();
                 void connection.startAudioCapture().catch(() => undefined);
             } else {
                 connection.stopAudioCapture();

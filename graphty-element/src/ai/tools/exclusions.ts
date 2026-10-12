@@ -117,6 +117,7 @@ const ASSISTANT_VERBS = [
     "stopVoiceInput",
     "aiTalk",
     "stopAiSpeech",
+    "endAiLive",
     "getAiVoiceSupport",
 ] as const;
 

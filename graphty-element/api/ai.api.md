@@ -323,6 +323,7 @@ export class AiManager {
     clearHistory(): Promise<void>;
     deleteConversation(id: string): Promise<void>;
     dispose(): void;
+    endLive(): void;
     execute(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
     exportConversation(id: string): Promise<string | null>;
     getApiKeyManager(): ApiKeyManager;
@@ -505,6 +506,9 @@ export interface AiToolOptions {
 }
 
 // @public
+export type AiVoiceConversationMode = "turns" | "live";
+
+// @public
 export interface AiVoiceEndEvent {
     code?: AiResultCode;
     params?: AiResultParams;
@@ -528,9 +532,10 @@ export interface AiVoiceOptions {
     holdKey?: string;
     input?: AiVoiceMode;
     language?: string;
+    liveIdleSeconds?: number;
     liveModel?: string;
     maxPressSeconds?: number;
-    mode?: "turns" | "live";
+    mode?: AiVoiceConversationMode;
     output?: AiVoiceMode;
     push?: "hold" | "toggle";
     replies?: {
@@ -562,7 +567,7 @@ export interface AiVoicePath {
 // @public
 export interface AiVoiceStartEvent {
     code?: AiResultCode;
-    mode?: "turns" | "live";
+    mode?: AiVoiceConversationMode;
     params?: AiResultParams;
     // (undocumented)
     type: "ai-voice-start";

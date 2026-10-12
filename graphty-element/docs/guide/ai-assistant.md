@@ -839,6 +839,7 @@ params? }`:
 | `replies`         | `{ approve: ["yes"], deny: ["no"] }` | What the reader says to answer a [held approval](#remember-the-conversation-and-ask-before-changing-the-graph), compared with case and punctuation ignored. The defaults are English whatever `language` is: set your own words for another language. `gates`: see below     |
 | `mode`            | `"turns"`                            | `"turns"`: each press is heard as text and sent as a message. `"live"`: a [live conversation](#live-conversation), speech to speech, where the provider can hold one                                                                                                         |
 | `liveModel`       | the provider's live model            | The model of a live conversation (`gpt-realtime-2.1` on OpenAI, `gemini-3.8-live` on Google)                                                                                                                                                                                 |
+| `liveIdleSeconds` | `120`                                | How long an open live conversation waits for the next press before it closes; the next press opens another. It never closes while a spoken message still runs                                                                                                                |
 | `say`             | absent                               | `({ code, params }) => string \| undefined`: the words to speak for an outcome the model wrote no text for. Absent, such an outcome is not spoken                                                                                                                            |
 
 Which providers transcribe and speak, and which browsers and headsets recognize speech, is on
@@ -999,7 +1000,18 @@ What differs from turn by turn:
   interrupts it, as `stopAiSpeech()` does, and the cut-off answer is saved as far as it was heard.
 - **The same assistant.** What the reader says is one message of the conversation, with
   `via: "voice"`: the same tools, approvals, undo (one step per spoken message) and history. A
-  live conversation continues a typed one, and a typed message after it sees what was said.
+  live connection opens with the conversation so far, and a typed message after it sees what was
+  said. A typed message, or opening, starting, deleting or clearing a conversation, closes the
+  live connection, so the next press opens one that knows the conversation as it is now.
+- **One spoken message at a time.** A press while the model is still working on the last one
+  (running its tools, or waiting for its answer) runs turn by turn and is sent after it;
+  `ai-voice-start` says so with `AI_VOICE_UNAVAILABLE` `{ reason: "live-busy" }`. A press while it
+  is speaking cuts the answer off instead.
+- **Stop and undo end it.** Cancelling a spoken message (`cancelAiCommand()`), or undoing its step
+  while it runs, takes its changes back and closes the live connection, so nothing the model was
+  about to do runs.
+- **Routers do not plan a spoken message.** With `agents.router` set, a live message is routed by
+  the live model itself, which already chose its tools; typed messages are planned as before.
 - **Approvals and questions continue turn by turn.** When a change is held for approval or the
   model asks a question, the live connection closes, and every press runs turn by turn until it is
   answered ("yes", "no", a choice, or on screen). The next press after that is live again.
@@ -1007,8 +1019,13 @@ What differs from turn by turn:
   [Pointing](#pointing-color-this).
 
 The connection opens on the first press, stays open while the reader keeps talking, and closes on
-`disableAiControl()`, on leaving VR or AR, on a provider error, and two minutes after the last
-thing said or heard.
+`disableAiControl()`, on `endAiLive()` (an "end conversation" control), on leaving VR or AR, on a
+change of conversation or a typed message, on a provider error, and `liveIdleSeconds` (two
+minutes) after the last thing said or heard, never while a spoken message still runs.
+
+**Live voice needs a secure page.** Like the microphone itself, a live conversation runs only over
+HTTPS or on `localhost`; on a plain HTTP page `getAiVoiceSupport().live` is unavailable with
+`reason: "insecure-context"`, and every press runs turn by turn.
 
 **Where live cannot run, a press runs turn by turn and says why.** Read
 `getAiVoiceSupport().live`, an `AiVoicePath` like `input` (present whenever `voice` is set,
@@ -1030,7 +1047,8 @@ element.addEventListener("ai-voice-start", (e) => {
 mock), `"live-custom-base-url"` (a `baseUrl` is set; live reaches only the provider's own host),
 `"no-live-transport"` (the browser lacks WebRTC for OpenAI, or WebSocket and `AudioWorklet` for
 Google), `"output-off"`, `"no-key"`, or one of the microphone's reasons (`"no-microphone"`,
-`"permission-denied"`, `"insecure-context"`).
+`"permission-denied"`, `"insecure-context"`). A single press reports `"live-busy"` when a spoken
+message was still running.
 
 **Cost.** A live conversation is billed by the provider as audio in and audio out, on the reader's
 key, and audio costs more per minute than the same words as text. The microphone is sent only
@@ -1039,9 +1057,9 @@ while talk is held. The message's `usage` counts the tokens where the provider r
 
 ### Result codes voice adds
 
-| Code                   | When                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AI_VOICE_UNAVAILABLE` | speech cannot be heard or spoken; `{ path, reason }`. `path` is `"input"` or `"output"`; `reason` is one of `AI_VOICE_UNAVAILABLE_REASONS`: `"no-recognition"`, `"no-microphone"`, `"permission-denied"`, `"insecure-context"` (the page is not HTTPS), `"no-provider-transcription"`, `"no-provider-speech"`, `"no-key"`, `"no-synthesis"`, `"playback-failed"`, `"unknown-voice"` (the provider has no voice by that name), `"recognition-network"` (the browser's recognition service could not be reached; the next press tries again), and for a [live conversation](#live-conversation) `"no-provider-live"`, `"live-custom-base-url"`, `"no-live-transport"`, `"output-off"`. More may be added in a minor release |
+| Code                   | When                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AI_VOICE_UNAVAILABLE` | speech cannot be heard or spoken; `{ path, reason }`. `path` is `"input"` or `"output"`; `reason` is one of `AI_VOICE_UNAVAILABLE_REASONS`: `"no-recognition"`, `"no-microphone"`, `"permission-denied"`, `"insecure-context"` (the page is not HTTPS), `"no-provider-transcription"`, `"no-provider-speech"`, `"no-key"`, `"no-synthesis"`, `"playback-failed"`, `"unknown-voice"` (the provider has no voice by that name), `"recognition-network"` (the browser's recognition service could not be reached; the next press tries again), and for a [live conversation](#live-conversation) `"no-provider-live"`, `"live-custom-base-url"`, `"no-live-transport"`, `"output-off"`, `"live-busy"`. More may be added in a minor release |
 
 A live conversation that cannot open runs the press turn by turn, and `ai-voice-start` carries
 `mode: "turns"` and the code it failed with: `AI_KEY_REJECTED` (the key could not mint a live

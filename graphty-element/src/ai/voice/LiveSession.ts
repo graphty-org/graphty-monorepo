@@ -3,8 +3,9 @@
  * press and kept across presses; the microphone sent only while talk is held; barge-in; the
  * microphone's level once per animation frame while held; the model's speaking state as
  * `ai-speech-start` and `ai-speech-end`; and closing: by the host (disable, dispose, leaving XR, a
- * pending hand-off), by the provider (an error, `go_away`), or after `LIVE_IDLE_MS` with nothing
- * said. Reached only by `import()` on the first live press.
+ * pending hand-off, a change of conversation), by the provider (an error, `go_away`), or after the
+ * idle time (`LIVE_IDLE_MS` by default) with nothing said and no message running. Reached only by
+ * `import()` on the first live press.
  * @module ai/voice/LiveSession
  */
 
@@ -14,8 +15,9 @@ import type { LiveTurnEngine } from "./liveTurns";
 import type { VoiceEventType } from "./VoiceSession";
 
 /**
- * How long an open connection waits for the next press, in milliseconds, before it closes: an idle
- * socket costs little, but an open microphone stream should not linger.
+ * How long an open connection waits for the next press by default, in milliseconds, before it
+ * closes (`AiVoiceOptions.liveIdleSeconds`): an idle socket costs little, but an open microphone
+ * stream should not linger.
  */
 export const LIVE_IDLE_MS = 2 * 60_000;
 
@@ -26,9 +28,18 @@ export interface LiveHost {
     emit(type: VoiceEventType, detail: Record<string, unknown>): void;
     /** The held press ended without a release: the connection closed under it. */
     ended(code: AiResultCode, params: AiResultParams): void;
-    /** The engine that runs what is said on a new connection as messages; absent, none. */
-    attach?(connection: LiveConnection): Pick<LiveTurnEngine, "press" | "closed">;
+    /**
+     * The engine that runs what is said on a new connection as messages; absent, none.
+     * @param connection - The connection.
+     * @param touch - Starts the idle time over: a message ended.
+     */
+    attach?(connection: LiveConnection, touch: () => void): LiveMessages;
+    /** How long an open connection waits for the next press, in milliseconds. Default `LIVE_IDLE_MS`. */
+    readonly idleMs?: number;
 }
+
+/** What the live session asks of the messages of its connection. */
+type LiveMessages = Pick<LiveTurnEngine, "press" | "released" | "closed" | "busy" | "running">;
 
 /** One assistant's live connection. */
 export class LiveSession {
@@ -43,7 +54,7 @@ export class LiveSession {
     private frame = 0;
     private idle: ReturnType<typeof setTimeout> | undefined;
     /** The messages of the open connection. */
-    private messages: Pick<LiveTurnEngine, "press" | "closed"> | undefined;
+    private messages: LiveMessages | undefined;
 
     /**
      * A live conversation, not yet open.
@@ -91,7 +102,9 @@ export class LiveSession {
         this.stopListening = opened.connection.on((event) => {
             this.event(event);
         });
-        this.messages = this.host.attach?.(opened.connection);
+        this.messages = this.host.attach?.(opened.connection, () => {
+            this.touch();
+        });
         this.touch();
         return opened;
     }
@@ -104,8 +117,9 @@ export class LiveSession {
 
         this.held = true;
         clearTimeout(this.idle);
-        this.messages?.press();
+        // The capture first: words still owed for the last press are settled as that press's.
         this.connection.capture(true);
+        this.messages?.press();
         this.levels();
     }
 
@@ -117,8 +131,18 @@ export class LiveSession {
 
         this.held = false;
         this.stopLevels();
+        this.messages?.released();
         this.connection?.capture(false);
         this.touch();
+    }
+
+    /**
+     * Whether a press now would reach the model while a spoken message still runs its tools: such
+     * a press runs turn by turn instead.
+     * @returns True while one does.
+     */
+    busy(): boolean {
+        return this.messages?.busy() ?? false;
     }
 
     /** Cut off the answer being spoken: it ends with `AI_CANCELLED`. */
@@ -222,8 +246,13 @@ export class LiveSession {
         clearTimeout(this.idle);
         if (this.connection !== undefined && !this.held) {
             this.idle = setTimeout(() => {
-                this.close();
-            }, LIVE_IDLE_MS);
+                // A message running a long batch says nothing on the connection: it is not idle.
+                if (this.messages?.running() === true) {
+                    this.touch();
+                } else {
+                    this.close();
+                }
+            }, this.host.idleMs ?? LIVE_IDLE_MS);
         }
     }
 

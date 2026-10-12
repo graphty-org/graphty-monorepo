@@ -1557,6 +1557,7 @@ export class Graph implements GraphContext {
     enableAiControl(config: AiManagerConfig): Promise<void>;
     // (undocumented)
     enableDetailedProfiling?: boolean;
+    endAiLive(): void;
     // (undocumented)
     engine: WebGPUEngine | Engine;
     enterXR(mode: "immersive-vr" | "immersive-ar"): Promise<void>;
@@ -2003,6 +2004,7 @@ export class Graphty extends LitElement {
     enableAiControl(config: AiManagerConfig): Promise<void>;
     get enableDetailedProfiling(): boolean | undefined;
     set enableDetailedProfiling(value: boolean | undefined);
+    endAiLive(): void;
     estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<CaptureEstimate>;
     exitXR(): Promise<void>;
     exportAiConversation(id: string): Promise<string | null>;

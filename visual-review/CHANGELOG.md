@@ -1,3 +1,19 @@
+## 0.2.24 (2026-10-12)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.23 (2026-10-11)
+
+### 🩹 Fixes
+
+- **visual-review:** wait for the redraw the settling capture starts before measuring ([#1982](https://github.com/graphty-org/graphty-monorepo/issues/1982))
+- **visual-review:** size every capture to the settled page, not the page before the first capture ([#1982](https://github.com/graphty-org/graphty-monorepo/issues/1982))
+- **visual-review:** stitch tall captures whose page shrinks after the first slice ([#1976](https://github.com/graphty-org/graphty-monorepo/issues/1976))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.2.22 (2026-10-11)
 
 ### 🚀 Features

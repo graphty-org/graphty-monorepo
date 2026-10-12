@@ -587,14 +587,14 @@ export interface ExecutionResult extends CommandResult {
  */
 export class AiController {
     private readonly engine: AiEngine;
-    private commandRegistry: CommandRegistry;
-    private graph: CommandContext["graph"];
-    private statusManager: AiStatusManager;
-    private schemaManager: SchemaManager | null;
+    private readonly commandRegistry: CommandRegistry;
+    private readonly graph: CommandContext["graph"];
+    private readonly statusManager: AiStatusManager;
+    private readonly schemaManager: SchemaManager | null;
     /** The messages running now, each with its request: several may run at once. */
     private readonly running = new Map<AbortController, string>();
     private disposed = false;
-    private emitEvent: AiEventEmitter | undefined;
+    private readonly emitEvent: AiEventEmitter | undefined;
     private lastInput: string | null = null;
     private lastError: Error | null = null;
     /** The messages `cancel()` ended, so their results say cancelled, not undone. */

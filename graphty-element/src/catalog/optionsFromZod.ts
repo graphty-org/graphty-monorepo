@@ -225,7 +225,7 @@ const DEFINITION_PREFIX = "#/$defs/";
  */
 function resolve(node: JsonSchemaNode, root: JsonSchemaNode): JsonSchemaNode {
     const ref = node.$ref;
-    if (ref === undefined || !ref.startsWith(DEFINITION_PREFIX)) {
+    if (!ref?.startsWith(DEFINITION_PREFIX)) {
         return node;
     }
 

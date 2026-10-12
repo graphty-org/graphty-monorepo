@@ -21,7 +21,7 @@ const radialLayoutOptionsSchema = defineOptions({
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
             label: "Root Node",
-            description: "The node at the centre; empty picks the node with the most edges",
+            description: "The node at the center; empty picks the node with the most edges",
         },
     },
     scale: {

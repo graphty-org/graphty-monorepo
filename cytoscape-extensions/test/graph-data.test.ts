@@ -246,6 +246,30 @@ describe("adding to a core that already holds the graph's node ids", () => {
     });
 });
 
+describe("a destroyed core", () => {
+    it("graphtyGenerate, graphtyDataset and graphtyImport reject with E_CORE_DESTROYED when the core is destroyed before or during the load, and add nothing", async () => {
+        const calls: ((cy: cytoscape.Core) => Promise<unknown>)[] = [
+            (cy) => cy.graphtyGenerate("barabasi-albert", { n: 10, m: 2, seed: 1 }),
+            (cy) => cy.graphtyDataset("karate"),
+            (cy) => cy.graphtyImport("a,b\n", "csv"),
+        ];
+        for (const call of calls) {
+            for (const during of [false, true]) {
+                const cy = core();
+                if (!during) {
+                    cy.destroy();
+                }
+                const pending = call(cy);
+                if (during) {
+                    cy.destroy();
+                }
+                await expect(pending).rejects.toMatchObject({ code: "E_CORE_DESTROYED" });
+                expect(cy.elements()).toHaveLength(0);
+            }
+        }
+    });
+});
+
 describe("snapshotToElements", () => {
     it("never lets a column named __proto__ set the prototype of an element's data", async () => {
         const cy = core();

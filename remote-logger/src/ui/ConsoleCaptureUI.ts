@@ -51,7 +51,7 @@ const globalConsole = globalThis.console;
  */
 export class ConsoleCaptureUI {
     private logs: CapturedLogEntry[] = [];
-    private originalMethods: Record<ConsoleMethod, typeof globalConsole.log>;
+    private readonly originalMethods: Record<ConsoleMethod, typeof globalConsole.log>;
     private buttonContainer: HTMLElement | null = null;
 
     /**
@@ -552,7 +552,7 @@ export class ConsoleCaptureUI {
 
         try {
             // Try modern clipboard API first
-            if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
                 await navigator.clipboard.writeText(text);
                 this.showCopySuccess();
             } else {
@@ -603,7 +603,7 @@ export class ConsoleCaptureUI {
         globalConsole.debug = this.originalMethods.debug;
 
         // Remove UI elements
-        if (typeof document !== "undefined" && this.buttonContainer && this.buttonContainer.parentNode) {
+        if (typeof document !== "undefined" && this.buttonContainer?.parentNode) {
             this.buttonContainer.parentNode.removeChild(this.buttonContainer);
         }
 

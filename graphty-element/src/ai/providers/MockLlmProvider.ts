@@ -42,7 +42,7 @@ export class MockLlmProvider implements LlmProvider {
     readonly supportsStreaming = true;
     readonly supportsTools = true;
 
-    private responses = new Map<string, LlmResponse>();
+    private readonly responses = new Map<string, LlmResponse>();
     private defaultResponse: LlmResponse = {
         text: "This is a mock response.",
         toolCalls: [],

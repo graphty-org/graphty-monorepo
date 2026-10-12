@@ -180,6 +180,8 @@ A layout that runs emits `layoutstart`, `layoutready` and `layoutstop`, in that 
 
 When a simulation fails after `run()` has returned, for example `gpu: "require"` with no usable GPU, or `graphty-spring-electrical` (which has no CPU version) with no GPU for any reason, it emits `layouterror` with the error as the handler's second argument, then `layoutstop`. Your `ready` and `stop` options are not called, so do your cleanup in a `layoutstop` handler. Calling `stop()` before a simulation has started also emits `layoutstop` alone. The [WebGPU guide](./webgpu#requiring-or-refusing-the-gpu) has a `layouterror` handler example.
 
+Destroying the core (`cy.destroy()`, for example when a component unmounts) while a layout runs ends the run at its next step as `stop()` would: it emits `layoutstop` alone, writes no positions and releases its GPU work. Running a layout on a core that is already destroyed does nothing and emits `layouterror` with an error whose `code` is `"E_CORE_DESTROYED"`, then `layoutstop`.
+
 A failure the package can detect before anything starts throws from `run()` instead, and emits no events:
 
 - `graphty-planar` throws `G is not planar.` for K5, K3,3 and a connected graph with more than 3n - 6 distinct edges (n nodes). Other non-planar graphs are drawn with crossing edges.

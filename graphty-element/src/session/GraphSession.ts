@@ -2497,9 +2497,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         layerScopes.dispose();
         notifier.dispose();
     });
+    const nodeIndex = nodeIndexOf(snapshot);
+    const edgeIndex = edgeIndexOf(snapshot);
     const styles = createStylesApi({
         dispatcher,
-        elements: { ...elements, scope: (spec: Scope) => layerScopes.live(spec) },
+        elements: { ...elements, nodeIndex, edgeIndex, scope: (spec: Scope) => layerScopes.live(spec) },
         admitScope: (spec: unknown) => scope.admit(spec),
         base: elementBaseLayers(),
         paths,
@@ -2509,8 +2511,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             attributes: () => data.attributes(),
             declaration: (column) => dispatcher.state.attributes.get(declarationKey(column)),
         },
-        nodeIndex: nodeIndexOf(snapshot),
-        edgeIndex: edgeIndexOf(snapshot),
+        nodeIndex,
+        edgeIndex,
         field: fieldWordsOf(data, runs),
         groupRanks: groupRanksOf(runs),
         repaint: painter.repaint,

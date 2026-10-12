@@ -79,7 +79,7 @@ export class XmlTreeBuilder {
      * @param text - the text
      */
     text(text: string): void {
-        const frame = this.frames.length > 0 ? this.frames[this.frames.length - 1] : this.root;
+        const frame = this.frames.at(-1) ?? this.root;
         frame.text += text;
     }
 
@@ -91,7 +91,7 @@ export class XmlTreeBuilder {
                 reason: "tree builder underflow",
             });
         }
-        const parent = this.frames.length > 0 ? this.frames[this.frames.length - 1] : this.root;
+        const parent = this.frames.at(-1) ?? this.root;
         attachChild(parent, frame.name, valueOf(frame));
     }
 

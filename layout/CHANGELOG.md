@@ -1,3 +1,31 @@
+## 2.4.3 (2026-10-12)
+
+### 🩹 Fixes
+
+- **layout:** draw the 3D stories on demand instead of in an endless frame loop ([#2114](https://github.com/graphty-org/graphty-monorepo/issues/2114))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.4.2 (2026-10-12)
+
+### 🩹 Fixes
+
+- **layout:** animate edges with their nodes in the layout stories ([#2073](https://github.com/graphty-org/graphty-monorepo/issues/2073))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.4.1 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.28
+- Updated graph-format to 1.3.13
+- Updated algorithms to 3.4.3
+
 ## 2.4.0 (2026-10-11)
 
 ### 🚀 Features

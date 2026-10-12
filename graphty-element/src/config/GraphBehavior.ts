@@ -35,6 +35,17 @@ const LabelBehaviorOpts = z
          * the selection changes, and never on a frame where none of them did.
          */
         declutter: z.boolean().default(false),
+        /*
+         * Whether a node label moves off the other nodes and the edges it would cover.
+         *
+         * OFF BY DEFAULT, so a label is drawn where its style puts it. On, the element tries the
+         * label's own place first and then the places around its node (above, below, beside, the
+         * four corners) and draws it at the first one that covers no other label, node or edge;
+         * failing that, at one that covers no label or node. When none of them is clear of other
+         * labels and nodes, `declutter` hides the label; with `declutter` off it stays where its
+         * style puts it. Decided again whenever `declutter` is.
+         */
+        avoidNodesAndEdges: z.boolean().default(false),
     })
     .prefault({});
 

@@ -31,7 +31,6 @@
 import { Extractor, ExtractorConfig } from "@microsoft/api-extractor";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -104,7 +103,10 @@ export function apiReport(packageDir, check) {
     const entries = entryPoints(pkg.exports);
     // api-extractor silently writes nothing into a folder that does not exist
     if (!check) mkdirSync(apiDir, { recursive: true });
-    const temp = mkdtempSync(join(tmpdir(), "api-report-"));
+    // In the repository's own tmp/, not /tmp, which other processes on this machine clear.
+    const scratch = join(fileURLToPath(new URL("..", import.meta.url)), "tmp", "api-report");
+    mkdirSync(scratch, { recursive: true });
+    const temp = mkdtempSync(join(scratch, "run-"));
     let differ;
     try {
         differ = entries.map(([name, types]) => reportEntry(dir, name, types, temp, check)).filter(Boolean);

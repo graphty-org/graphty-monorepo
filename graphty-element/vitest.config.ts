@@ -32,6 +32,7 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { workerShare } from "../tools/test-slots.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
@@ -274,6 +275,9 @@ export default defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
+        // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
+        // projects keep their own maxWorkers or fileParallelism.
+        maxWorkers: workerShare(),
         reporters: ["default", ...ciReporters()],
         onConsoleLog: appendBenchRow,
         // Vitest 4 also copies each failure screenshot into an attachments directory, by default
@@ -448,7 +452,7 @@ export default defineConfig({
                         "test/browser/style-layer-ordering.test.ts",
                         "test/browser/first-paint-after-load.test.ts",
                         "test/browser/story-contract.test.ts",
-                        // Every story Chromatic snapshots is seeded, pre-stepped and settled. It
+                        // Every story the visual capture snapshots is seeded, pre-stepped and settled. It
                         // imports every story module, which is why it is here and not in "default".
                         "test/browser/story-determinism.test.ts",
                         // Proves a channel the table calls renderable really changes the picture,

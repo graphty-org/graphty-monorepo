@@ -73,6 +73,11 @@ rather than implied:
 { match: "member", of: { set: id } }           // the members of a set, or any other scope
 ```
 
+An `ids` selector finds an integer id in either spelling, as every other id lookup does: `["1", "3"]`
+paints nodes `1` and `3` of a graph whose ids are numbers. An id that names nothing paints nothing,
+and `styles.validate()` and the `style:changed` change report it as a `W_UNKNOWN_ID` warning, with
+`params.target` and `params.ids` (the ids as the layer named them).
+
 ### A set
 
 `{ match: "member", of: scope }` paints the members of a kept [set](./sets), or of anything else a
@@ -177,26 +182,26 @@ A channel is one visual property with one name. These are all of them:
 | `node.opacity`      | 0 to 1                                                             |
 | `node.outline`      | a colour                                                           |
 | `node.glow`         | a colour                                                           |
-| `node.glowStrength` | a number                                                           |
+| `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow   |
 | `node.wireframe`    | true or false                                                      |
 | `node.flat`         | true or false                                                      |
 
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |
 | `edge.color`              | any CSS colour                                                             |
-| `edge.width`              | a number                                                                   |
+| `edge.width`              | 0 or more; 0 draws no line (the caps and label still draw)                 |
 | `edge.opacity`            | 0 to 1                                                                     |
 | `edge.style`              | `solid`, `dash`, `dot`, `zigzag`, ...                                      |
 | `edge.patternCount`       | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
 | `edge.curvature`          | true or false (a bezier)                                                   |
 | `edge.arrowHead`          | `normal`, `inverted`, `diamond`, `none`, ...                               |
-| `edge.arrowHeadSize`      | a number, 1 being the element's own size                                   |
+| `edge.arrowHeadSize`      | 0 or more, 1 being the element's own size; 0 draws no head                 |
 | `edge.arrowHeadColor`     | a colour                                                                   |
 | `edge.arrowHeadOpacity`   | 0 to 1                                                                     |
 | `edge.arrowHeadText`      | words drawn beside the head cap                                            |
 | `edge.arrowHeadTextStyle` | as `node.labelStyle`                                                       |
 | `edge.arrowTail`          | the same arrows                                                            |
-| `edge.arrowTailSize`      | a number                                                                   |
+| `edge.arrowTailSize`      | 0 or more; 0 draws no tail                                                 |
 | `edge.arrowTailColor`     | a colour                                                                   |
 | `edge.arrowTailOpacity`   | 0 to 1                                                                     |
 | `edge.arrowTailText`      | words drawn beside the tail cap                                            |
@@ -204,6 +209,14 @@ A channel is one visual property with one name. These are all of them:
 | `edge.animationSpeed`     | a number                                                                   |
 | `edge.label`              | the words to draw                                                          |
 | `edge.labelStyle`         | as `node.labelStyle`                                                       |
+
+A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
+`edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so
+`#ff000080` draws as `#ff0000` at opacity 0.5; an arrow with no color of its own takes its line's
+color, alpha included. On `node.glow` it fades the glow. An outline cannot be drawn translucent:
+`node.outline` draws the color opaque, and `styles.validate()` and the `style:changed` change
+report it as a `W_ALPHA_IGNORED` warning, with `params.channel` and `params.path`. The selection
+halo's color (`setSelectionStyle`) works the same way, multiplied with its `opacity`.
 
 Writing `node.label` or `edge.label` is what switches a label on. To switch node labels on
 without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labelled

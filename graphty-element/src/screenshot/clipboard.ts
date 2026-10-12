@@ -15,7 +15,7 @@ interface ClipboardResult {
  */
 export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Promise<ClipboardResult> {
     // Check if we're in a secure context
-    if (!window.isSecureContext) {
+    if (!globalThis.isSecureContext) {
         return {
             status: "not-secure-context",
             error: new ScreenshotError(

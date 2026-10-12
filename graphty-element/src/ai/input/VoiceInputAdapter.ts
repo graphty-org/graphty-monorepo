@@ -98,7 +98,7 @@ export class VoiceInputAdapter implements InputAdapter {
     private errorCallbacks: ((error: string) => void)[] = [];
     private failed = false;
     private ending = false;
-    private SpeechRecognitionCtor: SpeechRecognitionConstructor | null = null;
+    private readonly SpeechRecognitionCtor: SpeechRecognitionConstructor | null = null;
 
     /**
      * Creates a new VoiceInputAdapter instance.

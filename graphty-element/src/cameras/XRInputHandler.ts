@@ -92,16 +92,16 @@ const ORB_REACH = 0.06;
  * Input is applied to a PivotController which manages scene transformation.
  */
 export class XRInputHandler {
-    private pivotController: PivotController;
-    private xr: WebXRDefaultExperience;
+    private readonly pivotController: PivotController;
+    private readonly xr: WebXRDefaultExperience;
     private enabled = false;
 
     // Controller state - track by uniqueId to handle controller switching
-    private setupControllers = new Map<string, boolean>();
-    private controllerCleanup = new Map<string, () => void>();
+    private readonly setupControllers = new Map<string, boolean>();
+    private readonly controllerCleanup = new Map<string, () => void>();
 
     // Gesture controllers - track controllers for trigger-based gestures
-    private gestureControllers = new Map<string, ControllerEntry>();
+    private readonly gestureControllers = new Map<string, ControllerEntry>();
 
     // Thumbstick values - updated every frame
     private leftStick = { x: 0, y: 0 };
@@ -164,7 +164,7 @@ export class XRInputHandler {
 
     // Debug
     private frameCount = 0;
-    private scene: Scene; // Reference to scene for onBeforeRenderObservable and picking
+    private readonly scene: Scene; // Reference to scene for onBeforeRenderObservable and picking
 
     /**
      * Creates a new XRInputHandler instance.

@@ -165,7 +165,7 @@ export class WebLlmProvider implements LlmProvider {
     private maxTokens?: number;
     private temperature?: number;
 
-    private progressCallbacks = new Set<ProgressCallback>();
+    private readonly progressCallbacks = new Set<ProgressCallback>();
     private initialized = false;
     private ready = false;
     private mockMode = false;

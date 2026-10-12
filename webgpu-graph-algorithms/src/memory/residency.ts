@@ -999,7 +999,7 @@ export class GraphResidency {
      */
     private ensureRecord(s: GraphSnapshot): ResidencyRecord {
         let record = this.records.get(s);
-        if (record !== undefined && record.released) {
+        if (record?.released) {
             record = undefined;
         }
         if (record === undefined) {

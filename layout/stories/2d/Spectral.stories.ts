@@ -78,8 +78,10 @@ function createSpectralStory(args: SpectralArgs): HTMLElement {
         isApplied = true;
 
         // Animate to final positions
-        updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250);
-        updateStatus(statusPanel, "Spectral layout applied! Nodes positioned using graph Laplacian eigenvectors.");
+        // The status says "applied" once the last frame is drawn; the play function waits on it
+        void updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250).then(() =>
+            updateStatus(statusPanel, "Spectral layout applied! Nodes positioned using graph Laplacian eigenvectors."),
+        );
     }
 
     /**

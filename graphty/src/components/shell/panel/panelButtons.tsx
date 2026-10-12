@@ -52,7 +52,7 @@ export interface PanelTextButtonProps
  * @param props - the verb and anything Mantine's button accepts.
  * @returns the outlined button.
  */
-export function PanelOutlineButton(props: PanelTextButtonProps): React.JSX.Element {
+export function PanelOutlineButton(props: Readonly<PanelTextButtonProps>): React.JSX.Element {
     const { children, ...rest } = props;
 
     return (
@@ -81,7 +81,7 @@ export function PanelOutlineButton(props: PanelTextButtonProps): React.JSX.Eleme
  * @param props - the verb and anything Mantine's button accepts.
  * @returns the quiet button.
  */
-export function PanelQuietButton(props: PanelTextButtonProps): React.JSX.Element {
+export function PanelQuietButton(props: Readonly<PanelTextButtonProps>): React.JSX.Element {
     const { children, ...rest } = props;
 
     return (

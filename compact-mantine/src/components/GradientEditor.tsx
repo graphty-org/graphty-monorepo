@@ -105,7 +105,7 @@ function UnitField({
     min,
     max,
     testId,
-}: UnitFieldProps): React.JSX.Element {
+}: Readonly<UnitFieldProps>): React.JSX.Element {
     const parse = useNumberParser();
     const [draft, setDraft] = useState(format(value));
 
@@ -189,7 +189,7 @@ interface StopHexFieldProps {
  * @param props.ariaLabel - the accessible name
  * @returns the field
  */
-function StopHexField({ color, onCommit, ariaLabel }: StopHexFieldProps): React.JSX.Element {
+function StopHexField({ color, onCommit, ariaLabel }: Readonly<StopHexFieldProps>): React.JSX.Element {
     const shown = color.replace("#", "").toUpperCase();
     const [draft, setDraft] = useState(shown);
 
@@ -835,7 +835,7 @@ export function GradientEditor({
                                         type="button"
                                         className="cm-paint-chit"
                                         data-testid="gradient-editor-stop-chit"
-                                        aria-label={labels.colorSwatch}
+                                        aria-label={labels.editColorStop(ordinal)}
                                         aria-pressed={isSelected}
                                         onClick={() => {
                                             setSelectedId(stop.id);
@@ -845,7 +845,7 @@ export function GradientEditor({
                                     </button>
                                     <StopHexField
                                         color={stop.color}
-                                        ariaLabel={labels.colorHexValue}
+                                        ariaLabel={labels.colorStopColor(ordinal)}
                                         onCommit={(color, event) => {
                                             stepStops(withStopColor(stop.id, color), event);
                                         }}

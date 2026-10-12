@@ -315,6 +315,10 @@ export interface GraphtyElementJSXProps {
      */
     "onai-approval-requested"?: (event: CustomEvent<EventOfType<"ai-approval-requested">>) => void;
     /**
+     * A tool the configuration asked for (`AiToolOptions`) cannot be used with this provider and model, so it is left out of every turn; emitted once each time the assistant is enabled.
+     */
+    "onai-capability-unavailable"?: (event: CustomEvent<EventOfType<"ai-capability-unavailable">>) => void;
+    /**
      * Emitted when an AI command is cancelled
      */
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
@@ -338,6 +342,10 @@ export interface GraphtyElementJSXProps {
      * The assistant exported the graph or captured a picture or a video: the document is handed to the application, which saves or shows it. The model receives only its size.
      */
     "onai-export-ready"?: (event: CustomEvent<EventOfType<"ai-export-ready">>) => void;
+    /**
+     * A tool the provider ran for the assistant (a web search, reading a web page) finished. Draw its sources as text or as links, http and https only.
+     */
+    "onai-hosted-tool-result"?: (event: CustomEvent<EventOfType<"ai-hosted-tool-result">>) => void;
     /**
      * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`), cancelled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
      */

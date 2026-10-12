@@ -51,11 +51,21 @@ export type {
     AiConversationMessage,
     AiConversationSnapshot,
     AiConversationSummary,
+    AiSource,
 } from "./src/ai/index";
 export { AiController } from "./src/ai/index";
 
 // Helpers the assistant hands tasks to, the plans that order them, and a configuration error
-export type { AiAgentRole, AiAgentsSetting, AiPlan, AiRouter, AiTokenUsage } from "./src/ai/index";
+export type {
+    AiAgentRole,
+    AiAgentsSetting,
+    AiCapabilities,
+    AiHostedToolOptions,
+    AiPlan,
+    AiRouter,
+    AiTokenUsage,
+    AiToolOptions,
+} from "./src/ai/index";
 export { MAX_AGENT_NAME_LENGTH, MAX_AGENT_PURPOSE_LENGTH, MAX_AGENTS, MAX_HELPERS_PER_TURN } from "./src/ai/index";
 export { AiConfigError } from "./src/ai/index";
 
@@ -73,8 +83,10 @@ export type {
     AiApprovalPreview,
     AiApprovalRequest,
     AiApprovalRequestedEvent,
+    AiCapabilityUnavailableEvent,
     AiConversationChangedEvent,
     AiExportReadyEvent,
+    AiHostedToolResultEvent,
     AiPendingResolvedEvent,
     AiQuestionAskedEvent,
     AiQuestionRequest,

@@ -35,6 +35,9 @@ export * from "./src/catalog/index";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    AiCapabilities,
+    AiCapabilityStatus,
+    AiHostedToolId,
     AiKeyShape,
     AiKeyShapeCheck,
     AiKeyShapeCode,
@@ -43,16 +46,20 @@ export type {
     AiProviderId,
     AiResultCode,
     AiResultParams,
+    AiToolCapabilities,
 } from "./src/catalog/ai";
 export {
     AI_CONVERSATION_FORMAT,
     AI_CONVERSATION_FORMAT_VERSION,
+    AI_HOSTED_TOOL_CAPABILITIES,
+    AI_HOSTED_TOOL_IDS,
     AI_PROVIDER_DESCRIPTORS,
     AI_PROVIDER_IDS,
     AI_RESULT_CODES,
     AI_STAGES,
     AI_STATES,
     AI_TOOL_CALL_STATUSES,
+    aiHostedToolStatus,
     aiProviderDescriptor,
     checkApiKeyShape,
 } from "./src/catalog/ai";

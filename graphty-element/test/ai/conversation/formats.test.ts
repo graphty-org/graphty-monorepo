@@ -64,17 +64,44 @@ function generatedSchema(): string {
 }
 
 /**
- * The part and pending kinds the format defines that a record does not use.
+ * Every part of a list of messages, a helper's included.
+ * @param messages - The messages.
+ * @returns Their parts, each helper's after the part that holds it.
+ */
+function allParts(messages: ConversationRecord["messages"]): ConversationRecord["messages"][number]["parts"][number][] {
+    return messages.flatMap((message) =>
+        message.parts.flatMap((part) => (part.type === "agent-ref" ? [part, ...allParts(part.messages)] : [part])),
+    );
+}
+
+/**
+ * The part kinds, the origins of each part kind and the pending kinds the format defines that a
+ * record does not use, a helper's messages included.
  * @param record - The record.
- * @returns One line per kind missing.
+ * @returns One line per kind or origin missing.
  */
 function uncoveredKinds(record: ConversationRecord): string[] {
-    const parts = new Set(record.messages.flatMap((message) => message.parts.map((part) => part.type)));
+    const parts = allParts(record.messages);
+    const used = new Set(parts.map((part) => `${part.type}/${part.origin}`));
     const pending = new Set(record.pending.map((entry) => entry.kind));
     return [
-        ...partSchema.options.map((option) => option.shape.type.value).filter((kind) => !parts.has(kind)),
-        ...pendingSchema.options.map((option) => option.shape.kind.value).filter((kind) => !pending.has(kind)),
-    ].map((kind) => `the fixture has no ${kind}`);
+        ...partSchema.options.flatMap((option) => {
+            const kind = option.shape.type.value;
+            const { origin } = option.shape;
+            const origins: readonly string[] = "options" in origin ? origin.options : [origin.value];
+            if (!parts.some((part) => part.type === kind)) {
+                return [`the fixture has no ${kind}`];
+            }
+
+            return origins
+                .filter((from) => !used.has(`${kind}/${from}`))
+                .map((from) => `the fixture has no ${kind} from ${from}`);
+        }),
+        ...pendingSchema.options
+            .map((option) => option.shape.kind.value)
+            .filter((kind) => !pending.has(kind))
+            .map((kind) => `the fixture has no ${kind}`),
+    ];
 }
 
 /**
@@ -264,6 +291,19 @@ describe("the saved conversation format", () => {
                 assert.deepEqual(uncoveredKinds(without), ["the fixture has no outcome"]);
             });
 
+            it("a fixture missing an origin of a kind, a helper's messages included", () => {
+                const object = goldenObject();
+                type Part = { type: string; origin: string; messages?: { parts: Part[] }[] };
+                const messages = object.messages as { id: string; parts: Part[] }[];
+                for (const helper of messages.find((message) => message.id === "m10")?.parts[0].messages ?? []) {
+                    helper.parts = helper.parts.filter((part) => !(part.type === "text" && part.origin === "web"));
+                }
+
+                const read = readConversation(object);
+                assert.isTrue(read.ok);
+                assert.deepEqual(read.ok ? uncoveredKinds(read.record) : [], ["the fixture has no text from web"]);
+            });
+
             it("a schema file that differs from the definition", () => {
                 assert.lengthOf(
                     schemaDrift(generatedSchema(), generatedSchema().replace('"minLength": 1', '"minLength": 2')),
@@ -367,6 +407,38 @@ describe("the saved conversation format", () => {
                 code: "AI_HISTORY_UNAVAILABLE",
                 params: { reason: "invalid-record" },
             });
+        });
+
+        it("a hosted-tool source that is not an http or https URL is an invalid record", () => {
+            for (const url of ["javascript:alert(1)", "ftp://example.org/x", "data:text/html,hi", "not a url"]) {
+                const record = goldenObject();
+                const messages = record.messages as { id: string; parts: Record<string, unknown>[] }[];
+                const ref = messages.find((message) => message.id === "m10")?.parts[0] as {
+                    messages: { parts: { type: string; sources?: { url: string }[] }[] }[];
+                };
+                const hosted = ref.messages
+                    .flatMap((message) => message.parts)
+                    .find((part) => part.type === "hosted-tool");
+                assert.isDefined(hosted?.sources?.[0]);
+                if (hosted?.sources?.[0]) {
+                    hosted.sources[0].url = url;
+                }
+
+                assert.deepEqual(
+                    readConversation(record),
+                    { ok: false, code: "AI_HISTORY_UNAVAILABLE", params: { reason: "invalid-record" } },
+                    url,
+                );
+            }
+        });
+
+        it("a hosted-tool part outside a helper's conversation reads, and one of an unknown tool too", () => {
+            const record = goldenObject();
+            const messages = record.messages as { id: string; parts: unknown[] }[];
+            messages
+                .find((message) => message.id === "m9")
+                ?.parts.push({ type: "hosted-tool", origin: "web", tool: "web-map", status: "done", sources: [] });
+            assert.isTrue(readConversation(record).ok);
         });
 
         it("a question with fewer than two choices, or more than ten, is an invalid record", () => {

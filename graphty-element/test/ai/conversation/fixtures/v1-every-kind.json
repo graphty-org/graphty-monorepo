@@ -232,6 +232,103 @@
                 }
             ],
             "role": "assistant"
+        },
+        {
+            "id": "m9",
+            "parts": [
+                {
+                    "arguments": {
+                        "agent": "research",
+                        "task": "When did the Eiffel Tower open?"
+                    },
+                    "callId": "d2",
+                    "command": "delegate",
+                    "origin": "model",
+                    "type": "tool-call"
+                },
+                {
+                    "arguments": {
+                        "agent": "counter",
+                        "task": "Count the nodes"
+                    },
+                    "callId": "d3",
+                    "command": "delegate",
+                    "origin": "graphty",
+                    "type": "tool-call"
+                }
+            ],
+            "role": "assistant"
+        },
+        {
+            "id": "m10",
+            "parts": [
+                {
+                    "agent": "research",
+                    "callId": "d2",
+                    "messages": [
+                        {
+                            "id": "h4",
+                            "parts": [
+                                {
+                                    "origin": "graphty",
+                                    "text": "When did the Eiffel Tower open?",
+                                    "type": "text"
+                                }
+                            ],
+                            "role": "user"
+                        },
+                        {
+                            "id": "h5",
+                            "parts": [
+                                {
+                                    "origin": "web",
+                                    "sources": [
+                                        {
+                                            "title": "Eiffel Tower",
+                                            "url": "https://en.wikipedia.org/wiki/Eiffel_Tower"
+                                        },
+                                        {
+                                            "url": "http://example.org/tower"
+                                        }
+                                    ],
+                                    "status": "done",
+                                    "tool": "web-search",
+                                    "type": "hosted-tool"
+                                },
+                                {
+                                    "origin": "web",
+                                    "sources": [],
+                                    "status": "result-unavailable",
+                                    "tool": "web-fetch",
+                                    "type": "hosted-tool"
+                                },
+                                {
+                                    "origin": "web",
+                                    "text": "The tower opened on 31 March 1889.",
+                                    "type": "text"
+                                },
+                                {
+                                    "origin": "model",
+                                    "text": "It opened in 1889.",
+                                    "type": "text"
+                                }
+                            ],
+                            "role": "assistant"
+                        }
+                    ],
+                    "origin": "graphty",
+                    "type": "agent-ref"
+                },
+                {
+                    "callId": "d2",
+                    "code": "AI_COMPLETED",
+                    "content": "\"It opened in 1889.\"",
+                    "origin": "web",
+                    "params": {},
+                    "type": "tool-result"
+                }
+            ],
+            "role": "tool"
         }
     ],
     "pending": [

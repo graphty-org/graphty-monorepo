@@ -7,15 +7,16 @@
 import { API_KEY_MISSING_ERROR } from "../safeError";
 import { providerFailure } from "./LlmProviderEngine";
 import { loadProviderApiTurn } from "./load";
-import type {
-    AiEngine,
-    EngineCapabilities,
-    EngineOutcome,
-    ProviderApiSettings,
-    ProviderApiTurn,
-    TurnError,
-    TurnEvent,
-    TurnRequest,
+import {
+    type AiEngine,
+    type EngineCapabilities,
+    type EngineOutcome,
+    NO_HOSTED_TOOLS,
+    type ProviderApiSettings,
+    type ProviderApiTurn,
+    type TurnError,
+    type TurnEvent,
+    type TurnRequest,
 } from "./types";
 
 /** Retries after the first attempt: the AI SDK 5's schedule, which the assistant keeps. */
@@ -94,11 +95,12 @@ export class ProviderApiEngine implements AiEngine {
     }
 
     /**
-     * What the provider can do with a model: every built-in provider calls tools.
+     * What the provider can do with a model: every built-in provider calls tools. The adapter does
+     * not offer the provider's own tools yet.
      * @returns Its capabilities.
      */
     capabilities(): EngineCapabilities {
-        return { toolCalls: "available" };
+        return { toolCalls: "available", hostedTools: NO_HOSTED_TOOLS };
     }
 
     /**

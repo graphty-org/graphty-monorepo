@@ -67,6 +67,7 @@ export interface AiAgentRole {
     readonly name: string;
     readonly provider?: AiProviderId;
     readonly purpose: string;
+    readonly tools?: AiToolOptions;
 }
 
 // @public
@@ -124,7 +125,7 @@ export interface AiApprovalRequest {
     }[];
     readonly conversationId?: string;
     readonly createdAt?: string;
-    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | (string & {});
+    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | (string & {});
     readonly id: string;
     readonly messageId?: string;
     readonly preview: AiApprovalPreview;
@@ -153,6 +154,21 @@ export interface AiCallRecord {
     readonly code: AiResultCode;
     readonly command: string;
     readonly params: AiResultParams;
+}
+
+// @public
+export interface AiCapabilities {
+    readonly model: string;
+    readonly provider: AiProviderId;
+    readonly tools: AiToolCapabilities;
+}
+
+// @public
+export interface AiCapabilityUnavailableEvent {
+    code: AiResultCode;
+    params: AiResultParams;
+    tool: AiHostedToolId;
+    type: "ai-capability-unavailable";
 }
 
 // @public
@@ -232,6 +248,7 @@ export type AiConversationMessage = {
     readonly role: "assistant";
     readonly text: string;
     readonly calls: readonly AiCallRecord[];
+    readonly sources: readonly AiSource[];
     readonly outcome?: {
         readonly code: AiResultCode;
         readonly params: AiResultParams;
@@ -277,6 +294,21 @@ export interface AiHistoryOptions {
     readonly dataKey?: string;
     readonly key?: string;
     readonly store: "memory" | "browser";
+}
+
+// @public
+export interface AiHostedToolOptions {
+    readonly allowedDomains?: readonly string[];
+    readonly maxUses?: number;
+    readonly required?: boolean;
+}
+
+// @public
+export interface AiHostedToolResultEvent {
+    sources: readonly AiSource[];
+    status: "done" | "result-unavailable";
+    tool: AiHostedToolId;
+    type: "ai-hosted-tool-result";
 }
 
 // @public
@@ -370,6 +402,13 @@ export interface AiQuestionRequest {
 export type AiRouter = "model" | "classifier" | ((input: string) => AiPlan);
 
 // @public
+export interface AiSource {
+    readonly title?: string;
+    readonly tool: AiHostedToolId;
+    readonly url: string;
+}
+
+// @public
 export type AiStage = (typeof AI_STAGES)[number];
 
 // @public
@@ -426,6 +465,14 @@ export interface AiToolCallFacts {
     readonly arguments: Readonly<Record<string, unknown>>;
     readonly command: string;
     readonly effect: ActionEffect;
+}
+
+// @public
+export interface AiToolOptions {
+    readonly inPageCode?: boolean;
+    readonly webContentMayWrite?: boolean;
+    readonly webFetch?: boolean | AiHostedToolOptions;
+    readonly webSearch?: boolean | AiHostedToolOptions;
 }
 
 // @public

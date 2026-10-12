@@ -27,10 +27,20 @@ export type {
     AiConversationMessage,
     AiConversationSnapshot,
     AiConversationSummary,
+    AiSource,
 } from "./conversation/snapshot";
 
 // Helpers, plans and their configuration errors
-export type { AiAgentRole, AiAgentsSetting, AiPlan, AiRouter, AiTokenUsage } from "./agents";
+export type { AiCapabilities } from "../catalog/ai";
+export type {
+    AiAgentRole,
+    AiAgentsSetting,
+    AiHostedToolOptions,
+    AiPlan,
+    AiRouter,
+    AiTokenUsage,
+    AiToolOptions,
+} from "./agents";
 export { MAX_AGENT_NAME_LENGTH, MAX_AGENT_PURPOSE_LENGTH, MAX_AGENTS, MAX_HELPERS_PER_TURN } from "./agents";
 export { AiConfigError } from "./agents";
 

@@ -212,9 +212,11 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
     },
     { name: "call", plainName: "Call a tool", core: true, profiles: ["small"], actions: [] },
     // The loop's own tools, offered by no profile: `delegate` when helpers are configured
-    // (`agents`), `ask_reader` when questions are switched on (`questions: true`).
+    // (`agents`), `ask_reader` when questions are switched on (`questions: true`), `run_code` when
+    // in-page code is (`tools: { inPageCode: true }`).
     { name: "delegate", plainName: "Delegate to a helper", core: true, profiles: [], actions: [] },
     { name: "ask_reader", plainName: "Ask the reader", core: true, profiles: [], actions: [] },
+    { name: "run_code", plainName: "Run code", core: true, profiles: [], actions: [] },
 ]);
 
 /**

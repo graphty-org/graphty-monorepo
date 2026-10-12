@@ -13,6 +13,41 @@ export interface AiTokenUsage {
     readonly outputTokens: number;
 }
 
+/** How the assistant may use one tool the provider runs (`AiToolOptions.webSearch`, `webFetch`). */
+export interface AiHostedToolOptions {
+    /** The most times one message may use it. */
+    readonly maxUses?: number;
+    /**
+     * The only hosts it may reach, such as `"example.org"`. A provider that cannot keep to them
+     * does not get the tool.
+     */
+    readonly allowedDomains?: readonly string[];
+    /**
+     * Fail every command with `AI_HOSTED_TOOL_UNSUPPORTED`, sending nothing, when the provider and
+     * model cannot use it. Default false: the tool is left out and the command runs.
+     */
+    readonly required?: boolean;
+}
+
+/**
+ * Tools beyond the assistant's own commands, each off by default. A tool the provider and model
+ * cannot use is left out and reported on `ai-capability-unavailable` (`getAiCapabilities()` says
+ * which can).
+ */
+export interface AiToolOptions {
+    /** Search the web, at the provider and on the reader's key. */
+    readonly webSearch?: boolean | AiHostedToolOptions;
+    /** Read web pages the reader gave or `allowedDomains` admits, at the provider. */
+    readonly webFetch?: boolean | AiHostedToolOptions;
+    /** Run a program the model writes, in a sandbox in the page, calling only commands that read. */
+    readonly inPageCode?: boolean;
+    /**
+     * Let commands that change the graph run while the message holds web content. Default false:
+     * they wait for the reader's approval, or are refused when approvals are off.
+     */
+    readonly webContentMayWrite?: boolean;
+}
+
 /** One helper the assistant may hand a task to. */
 export interface AiAgentRole {
     /**
@@ -30,6 +65,8 @@ export interface AiAgentRole {
      * it gets no others.
      */
     readonly commands: readonly string[];
+    /** The tools beyond the commands the helper may use. A helper with web tools may only read. */
+    readonly tools?: AiToolOptions;
     /** The provider it runs on, when not the assistant's own. */
     readonly provider?: AiProviderId;
     /**

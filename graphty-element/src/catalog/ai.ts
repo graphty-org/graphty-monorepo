@@ -181,6 +181,63 @@ export function aiProviderDescriptor(id: AiProviderId): AiProviderDescriptor {
     return found;
 }
 
+/**
+ * Every tool the assistant can use beyond its own commands (`AiToolOptions`): a web search and
+ * reading a given web page, both run by the provider, and running a program the model writes in a
+ * sandbox in the page. OPEN UNION: ids may be added in a minor release.
+ */
+export const AI_HOSTED_TOOL_IDS = Object.freeze(["web-search", "web-fetch", "in-page-code"] as const);
+
+/** One tool beyond the assistant's own commands; see {@link AI_HOSTED_TOOL_IDS}. OPEN UNION. */
+export type AiHostedToolId = (typeof AI_HOSTED_TOOL_IDS)[number];
+
+/**
+ * Whether a provider and model can use a tool: `"available"`; `"unsupported"` (no such tool);
+ * `"results-not-returned"` (the provider runs it, but does not hand its results back, so the
+ * assistant does not offer it); `"unknown"`. OPEN UNION: statuses may be added in a minor release.
+ */
+export type AiCapabilityStatus = "available" | "unsupported" | "results-not-returned" | "unknown";
+
+/** Each tool beyond the assistant's own commands, and whether it can be used. */
+export type AiToolCapabilities = Readonly<Record<AiHostedToolId, AiCapabilityStatus>>;
+
+/** What the assistant can use with a provider and model (`getAiCapabilities()`). */
+export interface AiCapabilities {
+    /** The provider. */
+    readonly provider: AiProviderId;
+    /** The model id. */
+    readonly model: string;
+    /** Each tool, and whether it can be used. */
+    readonly tools: AiToolCapabilities;
+}
+
+/**
+ * Which tools each provider offers, for its every model. In-page code runs in the page whatever
+ * model wrote it; it is still unavailable where the page forbids WebAssembly, which only the
+ * running page can tell (`getAiCapabilities()`). Web fetch on Google is URL context, whose
+ * results the provider does not hand back.
+ */
+export const AI_HOSTED_TOOL_CAPABILITIES: Readonly<Record<AiProviderId, AiToolCapabilities>> = Object.freeze({
+    openai: { "web-search": "available", "web-fetch": "unsupported", "in-page-code": "available" },
+    anthropic: { "web-search": "available", "web-fetch": "available", "in-page-code": "available" },
+    google: { "web-search": "available", "web-fetch": "results-not-returned", "in-page-code": "available" },
+    webllm: { "web-search": "unsupported", "web-fetch": "unsupported", "in-page-code": "available" },
+    mock: { "web-search": "unsupported", "web-fetch": "unsupported", "in-page-code": "available" },
+});
+
+/**
+ * Whether a provider and model can use a tool, as {@link AI_HOSTED_TOOL_CAPABILITIES} lists it. A
+ * model the table does not list has its provider's status.
+ * @param provider - The provider.
+ * @param model - The model id.
+ * @param tool - The tool.
+ * @returns Its status.
+ */
+export function aiHostedToolStatus(provider: AiProviderId, model: string, tool: AiHostedToolId): AiCapabilityStatus {
+    // ponytail: every listed model has its provider's tools; per-model rows when one differs.
+    return AI_HOSTED_TOOL_CAPABILITIES[provider][tool];
+}
+
 /** Why a key does not have the shape of its provider's keys. */
 export type AiKeyShapeCode = "E_KEY_EMPTY" | "E_KEY_PREFIX" | "E_KEY_TOO_SHORT";
 
@@ -258,7 +315,9 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *   `"commands"`, `"provider"`, `"model"`, `"classifierModel"`, `"router"`) and why
  *   (`"unknown-command"`, `"unknown-agent"`, `"duplicate"`, `"reserved"`, `"empty"`,
  *   `"too-long"`, `"too-many"`, `"unsupported"`, `"threw"`, `"invalid-plan"`), for an unknown
- *   command, `command`, and for a reason past a limit, `limit`.
+ *   command, `command`, and for a reason past a limit, `limit`. Field `"tools"` with reason
+ *   `"web-tools-with-writes"`: a helper given web tools may also run commands that change the
+ *   graph, which web content must not drive.
  * - `AI_ROLLBACK_PARTIAL` -- taking the message back stopped at someone else's step. `{ steps }`.
  * - `AI_APPROVAL_STALE` -- a held change was not run because its request ended without a
  *   decision. `{ request, reason }`: `"graph-changed"` (answered after the graph changed; the
@@ -267,8 +326,16 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_APPROVAL_DENIED` -- the reader declined a held change; the model is told and answers.
  *   `{ request }`.
  * - `AI_TOOL_DENIED_BY_POLICY` -- the host's approval policy refused a call, so none of its batch
- *   ran. `{ tool }`, and `reason: "parallel-helper"` for a call that does more than read a helper
- *   tried while other helpers ran beside it (helpers that run at once may only read).
+ *   ran. `{ tool }`, and `reason`: `"parallel-helper"` for a call that does more than read a helper
+ *   tried while other helpers ran beside it (helpers that run at once may only read);
+ *   `"web-content"` for a call that does more than read while the message holds web content
+ *   (`AiToolOptions.webContentMayWrite`); `"in-page-code"` for a call that does more than read
+ *   made from a program the model wrote (in-page code may only read).
+ * - `AI_HOSTED_TOOL_UNSUPPORTED` -- a tool the configuration marks `required` cannot be used with
+ *   this provider and model, so nothing was sent; it also states, on `ai-capability-unavailable`,
+ *   that a tool was left out. `{ provider, model, tool }` (`AiHostedToolId`).
+ * - `AI_PROVIDER_PAUSED` -- the provider stopped a turn that used one of its own tools before the
+ *   model answered (a long search). `{ provider }`: asking again continues.
  * - `AI_FAILED` -- anything else went wrong while the command ran.
  *
  * Carried by saved conversations and the conversation events rather than ending a command:
@@ -318,6 +385,8 @@ export const AI_RESULT_CODES = Object.freeze([
     "AI_QUESTION_ASKED",
     "AI_ANSWER_INVALID",
     "AI_CONFIG_INVALID",
+    "AI_HOSTED_TOOL_UNSUPPORTED",
+    "AI_PROVIDER_PAUSED",
 ] as const);
 
 /**

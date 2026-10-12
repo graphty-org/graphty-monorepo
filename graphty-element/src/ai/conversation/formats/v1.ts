@@ -42,8 +42,8 @@ const providerStateSchema = z.strictObject({
     data: z.unknown(),
 });
 
-/** Where a part of a message came from. */
-const originSchema = z.enum(["reader", "model", "graph-data", "graphty"]);
+/** Where a part of a message came from: `web` for what a tool the provider ran read on the web. */
+const originSchema = z.enum(["reader", "model", "graph-data", "graphty", "web"]);
 
 const textPart = z.strictObject({
     type: z.literal("text"),
@@ -65,8 +65,11 @@ const toolCallPart = z.strictObject({
 
 const toolResultPart = z.strictObject({
     type: z.literal("tool-result"),
-    /** `graph-data` for what a tool returned; `reader` for the reader's answer to a question. */
-    origin: z.enum(["graph-data", "reader"]),
+    /**
+     * `graph-data` for what a tool returned; `reader` for the reader's answer to a question; `web`
+     * for a helper's answer drawn from the web.
+     */
+    origin: z.enum(["graph-data", "reader", "web"]),
     callId: id,
     code: resultCode,
     params: resultParams,
@@ -90,13 +93,39 @@ const outcomePart = z.strictObject({
     params: resultParams,
 });
 
+/** A tool the provider ran in a model's turn (a web search, reading a web page), and what it found. */
+const hostedToolPart = z.strictObject({
+    type: z.literal("hosted-tool"),
+    origin: z.literal("web"),
+    /** The tool (`AiHostedToolId`). Open: a newer release may write a tool this one does not know. */
+    tool: id,
+    /** `result-unavailable` when the provider ran it but its results did not come back. */
+    status: z.enum(["done", "result-unavailable"]),
+    sources: z.array(
+        z.strictObject({
+            /** An http or https address. */
+            url: z.url({ protocol: /^https?$/ }).regex(/^https?:\/\//),
+            title: z.string().optional(),
+        }),
+    ),
+});
+
 const role = z.enum(["user", "assistant", "tool"]);
 
 /** One message of a helper's conversation: any part but another helper's (helpers do not delegate). */
 const helperMessageSchema = z.strictObject({
     id,
     role,
-    parts: z.array(z.discriminatedUnion("type", [textPart, toolCallPart, toolResultPart, reasoningPart, outcomePart])),
+    parts: z.array(
+        z.discriminatedUnion("type", [
+            textPart,
+            toolCallPart,
+            toolResultPart,
+            reasoningPart,
+            outcomePart,
+            hostedToolPart,
+        ]),
+    ),
 });
 
 /** A helper's conversation, run for one `delegate` call of the message it sits in. */
@@ -118,6 +147,7 @@ export const partSchema = z.discriminatedUnion("type", [
     reasoningPart,
     outcomePart,
     agentRefPart,
+    hostedToolPart,
 ]);
 
 /** One message of a conversation. */

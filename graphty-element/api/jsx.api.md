@@ -76,12 +76,14 @@ export interface GraphtyElementJSXProps {
     "onai-agent-end"?: (event: CustomEvent<EventOfType<"ai-agent-end">>) => void;
     "onai-agent-start"?: (event: CustomEvent<EventOfType<"ai-agent-start">>) => void;
     "onai-approval-requested"?: (event: CustomEvent<EventOfType<"ai-approval-requested">>) => void;
+    "onai-capability-unavailable"?: (event: CustomEvent<EventOfType<"ai-capability-unavailable">>) => void;
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
     "onai-command-complete"?: (event: CustomEvent<EventOfType<"ai-command-complete">>) => void;
     "onai-command-error"?: (event: CustomEvent<EventOfType<"ai-command-error">>) => void;
     "onai-command-start"?: (event: CustomEvent<EventOfType<"ai-command-start">>) => void;
     "onai-conversation-changed"?: (event: CustomEvent<EventOfType<"ai-conversation-changed">>) => void;
     "onai-export-ready"?: (event: CustomEvent<EventOfType<"ai-export-ready">>) => void;
+    "onai-hosted-tool-result"?: (event: CustomEvent<EventOfType<"ai-hosted-tool-result">>) => void;
     "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
     "onai-question-asked"?: (event: CustomEvent<EventOfType<"ai-question-asked">>) => void;
     "onai-status-change"?: (event: CustomEvent<EventOfType<"ai-status-change">>) => void;

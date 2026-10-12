@@ -503,6 +503,14 @@ export function runEngineContract(name: string, make: () => EngineFixture): void
             assert.deepStrictEqual(usage, { type: "usage", inputTokens: 12, outputTokens: 3 });
         });
 
+        it("states, for each tool the provider runs itself, whether it can offer it", () => {
+            const { hostedTools } = make().engine.capabilities("not-a-listed-model");
+            assert.sameMembers(Object.keys(hostedTools), ["web-search", "web-fetch"]);
+            for (const status of Object.values(hostedTools)) {
+                assert.include(["available", "unsupported"], status);
+            }
+        });
+
         it("takes a model id no table lists", async () => {
             const { engine, reply } = make();
             reply({ text: "ok" });

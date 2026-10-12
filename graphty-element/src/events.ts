@@ -3,7 +3,8 @@ import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 import type { AiTokenUsage } from "./ai/agents";
 import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
-import type { AiResultCode, AiResultParams } from "./catalog/ai";
+import type { AiSource } from "./ai/conversation/snapshot";
+import type { AiHostedToolId, AiResultCode, AiResultParams } from "./catalog/ai";
 import type { EdgeId, FormatId, NodeId } from "./catalog/types";
 import type { NodeIdType } from "./config";
 import type { ExportLoss } from "./data/export";
@@ -742,7 +743,9 @@ export type AiEvent =
     | AiPendingResolvedEvent
     | AiQuestionAskedEvent
     | AiAgentStartEvent
-    | AiAgentEndEvent;
+    | AiAgentEndEvent
+    | AiHostedToolResultEvent
+    | AiCapabilityUnavailableEvent;
 
 /** Main event for UI binding - single source of truth for AI status */
 export interface AiStatusChangeEvent {
@@ -843,9 +846,11 @@ export interface AiApprovalRequest {
     readonly id: string;
     /**
      * Why it was held; `"policy"` when the host's approval policy asked, `"plan"` for a hand-off
-     * to a helper while `confirmPlans` is set. OPEN UNION.
+     * to a helper while `confirmPlans` is set, `"web-content"` for a change asked for while the
+     * message holds web content. OPEN UNION.
      */
-    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | (string & {}); // NOSONAR(S4335): the open-union idiom
+    readonly gate:
+        "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | (string & {}); // NOSONAR(S4335): the open-union idiom
     /** The tool calls held, as the model made them. */
     readonly calls: readonly { readonly tool: string; readonly arguments: Readonly<Record<string, unknown>> }[];
     /** What the reader is shown before approving; empty for a `"policy"` hold. */
@@ -919,6 +924,36 @@ export interface AiAgentEndEvent {
     params: AiResultParams;
     /** The tokens the helper used. */
     usage: AiTokenUsage;
+}
+
+/**
+ * A tool the provider ran for the assistant (a web search, reading a web page) finished. Draw its
+ * sources as text or as links, http and https only.
+ */
+export interface AiHostedToolResultEvent {
+    /** The event's name. */
+    type: "ai-hosted-tool-result";
+    /** The tool. */
+    tool: AiHostedToolId;
+    /** `"done"`, or `"result-unavailable"` when the provider ran it but its results did not come back. */
+    status: "done" | "result-unavailable";
+    /** The pages it read or found, in the provider's order. */
+    sources: readonly AiSource[];
+}
+
+/**
+ * A tool the configuration asked for (`AiToolOptions`) cannot be used with this provider and
+ * model, so it is left out of every turn; emitted once each time the assistant is enabled.
+ */
+export interface AiCapabilityUnavailableEvent {
+    /** The event's name. */
+    type: "ai-capability-unavailable";
+    /** The tool. */
+    tool: AiHostedToolId;
+    /** Why: `AI_HOSTED_TOOL_UNSUPPORTED`. */
+    code: AiResultCode;
+    /** The facts behind `code`: `{ provider, model, tool }`. */
+    params: AiResultParams;
 }
 
 /**

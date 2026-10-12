@@ -11,7 +11,7 @@
 
 import type { z } from "zod";
 
-import type { AiProviderId, AiResultCode, AiResultParams } from "../../catalog/ai";
+import type { AiHostedToolId, AiProviderId, AiResultCode, AiResultParams } from "../../catalog/ai";
 import type { ProviderState, SavedMessage, SavedPart } from "../conversation/formats/v1";
 
 // One definition of a saved message: the saved conversation format's (formats/v1.ts).
@@ -20,23 +20,54 @@ export type { PartOrigin, ProviderState, SavedMessage, SavedPart } from "../conv
 /** A JSON Schema object, as a provider's tool declaration takes it. */
 export type JsonSchema = Readonly<Record<string, unknown>>;
 
-/** The envelope's own tags, in any case and spacing, which text inside it may not carry. */
-const ENVELOPE_TAG = /<[\s/]*graph-data\s*>/gi;
+/** Each envelope's own tags, in any case and spacing, which text inside it may not carry. */
+const ENVELOPE_TAGS = {
+    "graph-data": /<[\s/]*graph-data\s*>/gi,
+    "web-content": /<[\s/]*web-content\s*>/gi,
+} as const;
 
 /**
- * Text read from the graph as a model is shown it: inside a fixed envelope the system prompt
- * names as data, with any tag that would close or open the envelope taken out, so text planted in
- * a label or a note reads as data, never as an instruction.
+ * Text in a fixed envelope the system prompt names as data, with every tag that would open or
+ * close the envelope taken out (again until none is left, so a tag split by another cannot
+ * reassemble), so text planted in it reads as data, never as an instruction.
+ * @param tag - The envelope's tag.
+ * @param text - The text.
+ * @returns It, enveloped.
+ */
+function envelope(tag: keyof typeof ENVELOPE_TAGS, text: string): string {
+    let inside = text;
+    let before: string;
+    do {
+        before = inside;
+        inside = inside.replaceAll(ENVELOPE_TAGS[tag], "");
+    } while (inside !== before);
+
+    return `<${tag}>\n${inside}\n</${tag}>`;
+}
+
+/**
+ * Text read from the graph, as a model is shown it: in the `<graph-data>` envelope.
  * @param text - The text.
  * @returns It, enveloped.
  */
 export function graphData(text: string): string {
-    return `<graph-data>\n${text.replaceAll(ENVELOPE_TAG, "")}\n</graph-data>`;
+    return envelope("graph-data", text);
+}
+
+/**
+ * Text read on the web by a tool the provider ran, as a model is shown it: in the `<web-content>`
+ * envelope.
+ * @param text - The text.
+ * @returns It, enveloped.
+ */
+export function webContent(text: string): string {
+    return envelope("web-content", text);
 }
 
 /**
  * The text of a message's text parts as a model is shown it, a `graph-data` part (the facts block,
- * anything read from the graph) in the envelope. Every engine flattens text through this.
+ * anything read from the graph) and a `web` part in their envelopes. Every engine flattens text
+ * through this.
  * @param parts - The message's parts.
  * @returns The text.
  */
@@ -47,20 +78,25 @@ export function textOf(parts: readonly SavedPart[]): string {
                 return [];
             }
 
-            // Text from the graph is data, never an instruction.
-            return [part.origin === "graph-data" ? graphData(part.text) : part.text];
+            // Text from the graph or the web is data, never an instruction.
+            if (part.origin === "graph-data") {
+                return [graphData(part.text)];
+            }
+
+            return [part.origin === "web" ? webContent(part.text) : part.text];
         })
         .join("\n");
 }
 
 /**
- * A tool result as a model is shown it: in the envelope, since it carries labels, notes and
- * values read from the graph. Every engine sends tool results through this.
+ * A tool result as a model is shown it: in an envelope, since it carries labels, notes and values
+ * read from the graph, or a helper's answer drawn from the web. Every engine sends tool results
+ * through this.
  * @param part - The result.
  * @returns Its text.
  */
 export function toolResultText(part: Extract<SavedPart, { type: "tool-result" }>): string {
-    return graphData(part.content);
+    return part.origin === "web" ? webContent(part.content) : graphData(part.content);
 }
 
 /**
@@ -83,6 +119,24 @@ export interface ToolSpec {
     readonly jsonSchema: JsonSchema;
 }
 
+/** The tools a provider runs itself; in-page code runs in the page, not at the provider. */
+export type EngineHostedTool = Exclude<AiHostedToolId, "in-page-code">;
+
+/** One tool the provider runs itself, offered for a turn. */
+export interface HostedToolRequest {
+    readonly tool: EngineHostedTool;
+    /** The provider's own cap on uses in the turn, where it has one. */
+    readonly maxUses?: number;
+    /** The only hosts the tool may reach. */
+    readonly allowedDomains?: readonly string[];
+}
+
+/** A page a tool the provider ran found or read. */
+export interface HostedToolSource {
+    readonly url: string;
+    readonly title?: string;
+}
+
 /** Everything one model turn needs. */
 export interface TurnRequest {
     /** The model id; absent, or ignored by an engine that holds its own (an `LlmProvider`), the configured model. */
@@ -90,14 +144,19 @@ export interface TurnRequest {
     readonly system: string;
     readonly messages: readonly SavedMessage[];
     readonly tools: readonly ToolSpec[];
+    /** Tools the provider runs itself in the turn; absent, none. */
+    readonly hostedTools?: readonly HostedToolRequest[];
     /** "none": answer in text now. The tools stay declared, since the history may hold their calls. */
     readonly toolMode: "auto" | "none";
     readonly maxOutputTokens?: number;
     readonly temperature?: number;
 }
 
-/** Why a turn finished. */
-export type TurnFinishCode = "stop" | "tool-calls";
+/**
+ * Why a turn finished: `paused` when the provider stopped a turn that used one of its own tools
+ * before the model answered.
+ */
+export type TurnFinishCode = "stop" | "tool-calls" | "paused";
 
 /** What a turn streams back. */
 export type TurnEvent =
@@ -113,6 +172,13 @@ export type TurnEvent =
            */
           readonly invalidArguments?: true;
           readonly providerState?: ProviderState;
+      }
+    | {
+          /** A tool the provider ran in the turn finished; never a call for the loop to run. */
+          readonly type: "hosted-tool";
+          readonly tool: EngineHostedTool;
+          readonly status: "done" | "result-unavailable";
+          readonly sources: readonly HostedToolSource[];
       }
     | { readonly type: "usage"; readonly inputTokens: number; readonly outputTokens: number }
     | { readonly type: "finish"; readonly reason: TurnFinishCode }
@@ -140,7 +206,15 @@ export type EngineCapabilityStatus = "available" | "unsupported";
 /** What an engine can do with one model. */
 export interface EngineCapabilities {
     readonly toolCalls: EngineCapabilityStatus;
+    /** Each tool the provider runs itself, and whether this engine can offer it. */
+    readonly hostedTools: Readonly<Record<EngineHostedTool, EngineCapabilityStatus>>;
 }
+
+/** No tool the provider runs itself. */
+export const NO_HOSTED_TOOLS: EngineCapabilities["hostedTools"] = Object.freeze({
+    "web-search": "unsupported",
+    "web-fetch": "unsupported",
+});
 
 /** A coded outcome. */
 export interface EngineOutcome {

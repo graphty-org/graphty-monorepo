@@ -6,7 +6,7 @@
  * element wrote for a model, not for a reader.
  */
 
-import type { AiResultCode, AiResultParams } from "../../catalog/ai";
+import type { AiHostedToolId, AiResultCode, AiResultParams } from "../../catalog/ai";
 import type { AiApprovalRequest, AiQuestionRequest } from "../../events";
 import type { ConversationRecord } from "./formats";
 import type { SavedMessage, SavedPending } from "./formats/v1";
@@ -21,6 +21,16 @@ export interface AiCallRecord {
     readonly code: AiResultCode;
     /** The facts behind the code. */
     readonly params: AiResultParams;
+}
+
+/** A page a tool the provider ran (a web search, reading a web page) found or read. */
+export interface AiSource {
+    /** The tool. */
+    readonly tool: AiHostedToolId;
+    /** The page's address: http or https. */
+    readonly url: string;
+    /** The page's title, when the provider gave one. */
+    readonly title?: string;
 }
 
 /**
@@ -46,6 +56,8 @@ export type AiConversationMessage =
           readonly text: string;
           /** The calls it made, in order. */
           readonly calls: readonly AiCallRecord[];
+          /** The pages the provider's tools found or read for it, in order; empty when none ran. */
+          readonly sources: readonly AiSource[];
           /**
            * How the reader's message ended when it failed or was taken back, instead of an answer:
            * the code (and facts) `aiCommand` resolved with. Absent on an answer.
@@ -175,13 +187,18 @@ function snapshotMessages(
                       ]
                     : [],
             );
+            const sources = message.parts.flatMap((part): AiSource[] =>
+                part.type === "hosted-tool"
+                    ? part.sources.map((source) => ({ tool: part.tool as AiHostedToolId, ...source }))
+                    : [],
+            );
             const ended = message.parts.find((part) => part.type === "outcome");
             const outcome =
                 ended?.type === "outcome"
                     ? { outcome: { code: ended.code as AiResultCode, params: { ...ended.params } } }
                     : {};
-            if (text !== "" || calls.length > 0 || ended !== undefined) {
-                out.push({ id: message.id, role: "assistant", text, calls, ...outcome });
+            if (text !== "" || calls.length > 0 || sources.length > 0 || ended !== undefined) {
+                out.push({ id: message.id, role: "assistant", text, calls, sources, ...outcome });
             }
         }
     }

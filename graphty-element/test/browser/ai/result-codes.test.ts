@@ -35,6 +35,10 @@ const NOT_COMMAND_RESULTS = [
     "AI_HISTORY_UNAVAILABLE",
     "AI_HISTORY_NEWER_FORMAT",
     "AI_STORAGE_FAILED",
+    // Declared ahead of the web tools that return them (tools: { webSearch, webFetch }); remove
+    // both once those land, with a test here reaching each.
+    "AI_HOSTED_TOOL_UNSUPPORTED",
+    "AI_PROVIDER_PAUSED",
 ];
 
 /**

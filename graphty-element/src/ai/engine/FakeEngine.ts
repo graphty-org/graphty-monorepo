@@ -4,7 +4,14 @@
  */
 
 import { providerFailure } from "./LlmProviderEngine";
-import type { AiEngine, EngineCapabilities, EngineOutcome, TurnEvent, TurnRequest } from "./types";
+import {
+    type AiEngine,
+    type EngineCapabilities,
+    type EngineOutcome,
+    NO_HOSTED_TOOLS,
+    type TurnEvent,
+    type TurnRequest,
+} from "./types";
 
 /**
  * One scripted turn: its events, or a function that yields them (one that waits on the signal,
@@ -23,6 +30,11 @@ export class FakeEngine implements AiEngine {
     readonly requests: TurnRequest[] = [];
     /** What `checkKey` answers. */
     keyOutcome: EngineOutcome = { code: "AI_COMPLETED", params: {} };
+    /**
+     * What `capabilities` answers: tool calls, and none of the provider's own tools until a test
+     * scripts them (a scripted turn may then emit `hosted-tool` events).
+     */
+    capability: EngineCapabilities = { toolCalls: "available", hostedTools: NO_HOSTED_TOOLS };
     disposed = false;
     private readonly script: FakeTurn[];
 
@@ -43,11 +55,11 @@ export class FakeEngine implements AiEngine {
     }
 
     /**
-     * What the fake can do: everything a test asks of it.
-     * @returns Tool calls available.
+     * What the fake can do, as scripted.
+     * @returns `capability`.
      */
     capabilities(): EngineCapabilities {
-        return { toolCalls: "available" };
+        return this.capability;
     }
 
     /**

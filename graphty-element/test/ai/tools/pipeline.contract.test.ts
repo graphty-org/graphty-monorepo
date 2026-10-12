@@ -565,25 +565,27 @@ describe("the assistant's tool names and a consumer's commands", () => {
         assert.isDefined(assistant.registry.get("query"));
     });
 
-    it("offers a consumer command named like one of the loop's own tools as app_<name>", async () => {
-        const session = await assistantSession();
-        const assistant = new ScriptedAssistant(session);
-        assistant.registry.register({
-            name: "delegate",
-            description: "Our own delegate.",
-            parameters: z.object({ to: z.string() }),
-            examples: [],
-            effect: "read",
-            execute: (_graph, params) => Promise.resolve({ success: true, message: "", data: { to: params.to } }),
+    for (const name of ["delegate", "run_code"]) {
+        it(`offers a consumer command named like the loop's own ${name} as app_${name}`, async () => {
+            const session = await assistantSession();
+            const assistant = new ScriptedAssistant(session);
+            assistant.registry.register({
+                name,
+                description: "Our own tool.",
+                parameters: z.object({ to: z.string() }),
+                examples: [],
+                effect: "read",
+                execute: (_graph, params) => Promise.resolve({ success: true, message: "", data: { to: params.to } }),
+            });
+            await assistant.say("hand it on", [{ tool: `app_${name}`, args: { to: "ops" } }]);
+            const offered = ScriptedAssistant.offered(assistant.engine.requests[0]);
+            assert.include(offered, `app_${name}`);
+            assert.notInclude(offered, name);
+            const [mine] = assistant.lastResults();
+            assert.strictEqual(mine.code, "AI_OK", JSON.stringify(mine));
+            assert.deepStrictEqual(mine.data, { to: "ops" });
         });
-        await assistant.say("hand it on", [{ tool: "app_delegate", args: { to: "ops" } }]);
-        const offered = ScriptedAssistant.offered(assistant.engine.requests[0]);
-        assert.include(offered, "app_delegate");
-        assert.notInclude(offered, "delegate");
-        const [mine] = assistant.lastResults();
-        assert.strictEqual(mine.code, "AI_OK", JSON.stringify(mine));
-        assert.deepStrictEqual(mine.data, { to: "ops" });
-    });
+    }
 
     it("shows the model a consumer command's message when it sets no code", async () => {
         const session = await assistantSession();

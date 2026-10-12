@@ -12,7 +12,7 @@ import { AiStatusManager } from "../../src/ai/AiStatus";
 import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandContext } from "../../src/ai/commands/types";
 import { FakeEngine } from "../../src/ai/engine/FakeEngine";
-import type { AiEngine, TurnEvent } from "../../src/ai/engine/types";
+import { type AiEngine, NO_HOSTED_TOOLS, type TurnEvent } from "../../src/ai/engine/types";
 import { type Conversation, runConversation, TurnFailed } from "../../src/ai/runConversation";
 import type { AiEvent } from "../../src/events";
 import { createMessageGraph } from "../helpers/message-graph";
@@ -259,7 +259,7 @@ describe("runConversation", () => {
         const deaf: AiEngine = {
             kind: "fake",
             providerName: "deaf",
-            capabilities: () => ({ toolCalls: "available" }),
+            capabilities: () => ({ toolCalls: "available", hostedTools: NO_HOSTED_TOOLS }),
             async *turn(_request, signal) {
                 started.open();
                 await new Promise((resolve) => {

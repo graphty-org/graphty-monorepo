@@ -574,7 +574,9 @@ export class EventManager implements Manager {
             case "ai-pending-resolved":
             case "ai-question-asked":
             case "ai-agent-start":
-            case "ai-agent-end": {
+            case "ai-agent-end":
+            case "ai-hosted-tool-result":
+            case "ai-capability-unavailable": {
                 // The ai-* events travel on the graph observable too (see AiManager), so the
                 // element's DOM forwarder delivers them as well.
                 const observer = this.graphObservable.add((event) => {

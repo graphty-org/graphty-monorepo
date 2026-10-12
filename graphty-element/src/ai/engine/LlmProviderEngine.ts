@@ -9,6 +9,7 @@ import {
     type AiEngine,
     type EngineCapabilities,
     type EngineOutcome,
+    NO_HOSTED_TOOLS,
     type SavedMessage,
     textOf,
     toolResultText,
@@ -123,11 +124,11 @@ export class LlmProviderEngine implements AiEngine {
     }
 
     /**
-     * What the provider can do; it holds its own model.
+     * What the provider can do; it holds its own model. An `LlmProvider` has no tools of its own.
      * @returns Whether it calls tools.
      */
     capabilities(): EngineCapabilities {
-        return { toolCalls: this.provider.supportsTools ? "available" : "unsupported" };
+        return { toolCalls: this.provider.supportsTools ? "available" : "unsupported", hostedTools: NO_HOSTED_TOOLS };
     }
 
     /**

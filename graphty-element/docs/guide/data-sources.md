@@ -414,6 +414,14 @@ attribute declared `id="att1"` or `id#d1` for a GraphML key declared `id="d1"`.
 
 The GEXF `label=` attribute is overridden by a declared attribute titled `label`, and the
 `viz:` position, colour and size override attributes titled `position`, `color` or `size`.
+
+A GEXF node's `viz:` color and size arrive on its record as `color` (`{ r, g, b, a }`) and `size`,
+and a yEd GraphML file's graphics as `width`, `height`, `color`, `borderColor`, `borderWidth` and
+`shape` on nodes and `color`, `width`, `targetArrow` and `sourceArrow` on edges. These record keys
+are deprecated and go in the next major version. Load with `styles: "file"` to draw the file's
+colors, sizes and shapes as style layers instead: the records then leave those keys out, and an
+attribute the file declared under one of those names keeps its own value. The position, the label
+and an edge's direction stay on the records either way.
 Nodes arrive in the order the file declares them. A GraphML document with no `<graph>` element
 loads nothing and reports a loading error.
 

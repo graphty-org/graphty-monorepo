@@ -277,6 +277,7 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
+    styles?: "file" | "none";
     url?: string;
 }
 

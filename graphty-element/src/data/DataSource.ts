@@ -46,6 +46,13 @@ export interface BaseDataSourceConfig {
     graphIndex?: number;
     /** Which graph to read from a file that holds several, by its name. */
     graphName?: string;
+    /**
+     * Whether the load draws the file's own styles as layers (`"file"`) or leaves them out
+     * (`"none"`, the default). With `"file"`, a reader leaves style values out of the records,
+     * because the layers carry them: the GEXF reader writes no `color` or `size` keys and the
+     * GraphML reader no yEd style keys.
+     */
+    styles?: "file" | "none";
 }
 
 /**

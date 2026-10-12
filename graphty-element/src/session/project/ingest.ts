@@ -484,7 +484,8 @@ export class Ingest<K extends KnownEdge> {
         try {
             return await this.addDataFromSource(
                 type,
-                config,
+                // The reader leaves style values out of its records when the load draws the file's styles.
+                command.styles === undefined ? config : { ...config, styles: command.styles },
                 writer,
                 signal,
                 command.mode !== "merge",

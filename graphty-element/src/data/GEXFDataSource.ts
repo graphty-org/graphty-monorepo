@@ -17,6 +17,12 @@ import {
 // GEXF has no additional config currently, so just use the base config
 type GEXFDataSourceConfig = BaseDataSourceConfig;
 
+/** The node record keys the viz values are written under, over an attribute titled like one. */
+const VIZ_KEYS: ReadonlySet<string> = new Set(["position", "color", "size"]);
+
+/** The viz record keys a load that draws the file's styles still writes. */
+const VIZ_POSITION: ReadonlySet<string> = new Set(["position"]);
+
 /** The bits of graph-io's `open` column: which bound of an interval is open. */
 const OPEN_START = 1;
 const OPEN_END = 2;
@@ -111,7 +117,9 @@ function timeText(value: number, text: string | null, timeFormat: string | null)
  * The record mapping for GEXF: the keys the element has always given a GEXF node and edge.
  *
  * - `label`; `position` `{x, y, z}`, `color` `{r, g, b, a}` with 0-255 channels, and `size` from
- *   the viz namespace (nodes only);
+ *   the viz namespace (nodes only). `color` and `size` are deprecated and left out when the load
+ *   draws the file's styles, whose layers carry them; an attribute titled `color`
+ *   or `size` then keeps its own value;
  * - each declared attribute under its title, typed by its declared type;
  * - on an edge, its GEXF id under `gexfId` (never `id`, which on an edge record means the
  *   element's own identifier), and its own `type` when that differs from the graph's direction
@@ -121,9 +129,12 @@ function timeText(value: number, text: string | null, timeFormat: string | null)
  *   slices `{ value, start, end }`.
  * @param snapshot - the imported graph
  * @param graphDirected - the direction declared for the whole graph
+ * @param fileStyles - whether the load draws the file's styles, so no viz color or size is copied
  * @returns the mapping
  */
-function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMapping {
+function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles: boolean): RecordMapping {
+    // Deprecated (removed in the next major): the viz color and size copied into the records.
+    const vizKeys = fileStyles ? VIZ_POSITION : VIZ_KEYS;
     const { timeFormat } = snapshot.meta;
 
     /**
@@ -291,12 +302,19 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
                         break;
                     }
                     case "color": {
+                        if (fileStyles) {
+                            break;
+                        }
+
                         const [r, g, b, a] = components(column, row);
                         record.color = { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), a };
                         break;
                     }
                     case "size":
-                        record.size = cell(column, row);
+                        if (!fileStyles) {
+                            record.size = cell(column, row);
+                        }
+
                         break;
                     default:
                         break;
@@ -337,7 +355,7 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
 
                 const key = attributeKey(kind, attributeTitle(name, origin.id), origin.id);
                 // On a node, the viz values are written over an attribute titled like them.
-                const viz = kind === "node" && (key === "position" || key === "color" || key === "size");
+                const viz = kind === "node" && vizKeys.has(key);
                 return viz && table.byRole(key) !== null ? null : key;
             }
 
@@ -354,7 +372,7 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
                     // An attribute titled `label` is written over the file's label.
                     return titled("label") ? null : "label";
                 case "size":
-                    return kind === "node" ? "size" : null;
+                    return kind === "node" && !fileStyles ? "size" : null;
                 case "id":
                     return kind === "edge" ? "gexfId" : null;
                 default:
@@ -368,6 +386,11 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
  * Data source for loading graph data from GEXF (Graph Exchange XML Format) files, read by
  * `@graphty/graph-io`'s GEXF importer. Supports node and edge attributes, attribute types, the viz
  * namespace and dynamic graphs.
+ *
+ * A node's viz color and size are copied onto its record as `color` `{r, g, b, a}` and `size`.
+ * Those two keys are deprecated and removed in the next major version: load with
+ * `styles: "file"` to draw the file's colors and sizes as style layers instead, and the records
+ * then carry neither key.
  *
  * Dynamic graphs keep their time data on each record rather than acting on it:
  * - a node's or edge's `start` / `end` / `timestamp` go onto its data under those names, with
@@ -447,7 +470,8 @@ export class GEXFDataSource extends DataSource {
         // the builder while it is still empty -- which is the only moment the builder accepts one.
         this.declareDirection(direction.directed, direction.statedBy, direction.conflicts);
 
-        const { nodes, edges } = toRecords(imported, gexfMapping(snapshot, direction.directed), this);
+        const fileStyles = this.config.styles === "file";
+        const { nodes, edges } = toRecords(imported, gexfMapping(snapshot, direction.directed, fileStyles), this);
         yield* this.chunkData(nodes, edges);
     }
 

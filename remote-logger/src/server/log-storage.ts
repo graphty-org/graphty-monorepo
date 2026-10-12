@@ -529,9 +529,7 @@ export class LogStorage {
         // Build the search pattern
         let pattern: RegExp;
         try {
-            pattern = regex
-                ? new RegExp(query, "i")
-                : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`), "i");
+            pattern = regex ? new RegExp(query, "i") : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
         } catch {
             // Invalid regex, return empty results
             return [];

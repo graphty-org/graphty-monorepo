@@ -194,14 +194,14 @@ export class D3GraphEngine extends LayoutEngine {
         this.d3ForceLayout = forceSimulation()
             .numDimensions(this.dim)
             .alpha(1)
-            .force("link", fl as any)
-            .force("charge", forceManyBody() as any)
-            .force("center", forceCenter() as any)
+            .force("link", fl as any) // NOSONAR(S4325): tsc fails without it; SonarQube types d3-force-3d as any
+            .force("charge", forceManyBody() as any) // NOSONAR(S4325): tsc fails without it; SonarQube types d3-force-3d as any
+            .force("center", forceCenter() as any) // NOSONAR(S4325): tsc fails without it; SonarQube types d3-force-3d as any
             .force("dagRadial", null)
             .stop();
         /* eslint-enable @typescript-eslint/no-explicit-any */
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- d3-force-3d types are incompatible
-        (this.d3ForceLayout.force("link") as any).id((d: D3Node) => (d as D3InputNode).id);
+        (this.d3ForceLayout.force("link") as any).id((d: D3Node) => (d as D3InputNode).id); // NOSONAR(S4325): tsc fails without it; SonarQube types d3-force-3d as any
     }
 
     /**
@@ -248,7 +248,7 @@ export class D3GraphEngine extends LayoutEngine {
             let linkList: (D3Edge | D3InputEdge)[] = [...this.edgeMapping.values()];
             linkList = linkList.concat([...this.newEdgeMap.values()]);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- d3-force-3d types are incompatible
-            (this.d3ForceLayout.force("link") as any).links(linkList);
+            (this.d3ForceLayout.force("link") as any).links(linkList); // NOSONAR(S4325): tsc fails without it; SonarQube types d3-force-3d as any
 
             // copy over new edges
             for (const entry of this.newEdgeMap.entries()) {

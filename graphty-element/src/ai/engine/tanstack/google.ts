@@ -3,9 +3,9 @@
  */
 
 import { createGeminiChat, createGeminiSpeech, geminiRealtime } from "@tanstack/ai-gemini";
-import { googleSearchTool } from "@tanstack/ai-gemini/tools";
+import { googleSearchTool, urlContextTool } from "@tanstack/ai-gemini/tools";
 
-import type { ProviderApiSettings } from "../types";
+import type { ProviderApiSettings, TurnRequest } from "../types";
 import type { ProviderModule } from "./index";
 import type { ProviderLiveModule } from "./live";
 import type { ProviderVoiceModule } from "./voice";
@@ -57,6 +57,56 @@ function httpOptions(
     };
 }
 
+/** An http or https URL in a text, up to the first character a URL in prose cannot hold. */
+const URL_IN_TEXT = /https?:\/\/[^\s"'<>()]+/gi;
+/** A word that looks like a host name (`example.com`, `www.example.org`), outside any URL. */
+const HOST_IN_TEXT = /(?:[\w-]+\.)+[a-z]{2,}/gi;
+
+/**
+ * Every host a text names: those of its http and https URLs, and every other word that looks
+ * like a host name.
+ * @param text - The text.
+ * @returns The hosts, lower case.
+ */
+function hostsIn(text: string): string[] {
+    const hosts: string[] = [];
+    const rest = text.replaceAll(URL_IN_TEXT, (url) => {
+        hosts.push(URL.canParse(url) ? new URL(url).hostname : url);
+        return " ";
+    });
+    return [...hosts, ...(rest.match(HOST_IN_TEXT) ?? [])].map((host) => host.toLowerCase());
+}
+
+/**
+ * Every string a value holds, at any depth.
+ * @param value - The value.
+ * @returns The strings.
+ */
+function stringsIn(value: unknown): string[] {
+    if (typeof value === "string") {
+        return [value];
+    }
+
+    return typeof value === "object" && value !== null ? Object.values(value).flatMap(stringsIn) : [];
+}
+
+/**
+ * Whether URL context may run in a turn. It has no domain filter: Gemini reads whatever address
+ * the turn's messages hold, including one the model wrote into a helper's task. So it runs only
+ * when every host the messages name is one web fetch may reach (a domain or a subdomain of one).
+ * ponytail: a dotted word that is not a host ("node.js", "data.csv") also keeps URL context out of
+ * the turn; a finer test needs Gemini to say which addresses it would read before reading them.
+ * @param request - The turn.
+ * @param allowedDomains - The hosts web fetch may reach.
+ * @returns True when it may.
+ */
+function urlContextAllowed(request: TurnRequest, allowedDomains: readonly string[]): boolean {
+    const allowed = allowedDomains.map((domain) => domain.toLowerCase());
+    return stringsIn(request.messages)
+        .flatMap(hostsIn)
+        .every((host) => allowed.some((domain) => host === domain || host.endsWith(`.${domain}`)));
+}
+
 export const google: ProviderModule = {
     createAdapter: (settings, fetch) =>
         // Any model id the consumer names is passed on: the adapter's typed list is not the API's.
@@ -64,11 +114,27 @@ export const google: ProviderModule = {
             httpOptions: httpOptions(settings, fetch),
         }),
     // Google Search has no domain filter (`hostedToolLimits`) and no use cap: a request limited to
-    // some domains is left out rather than honored in part.
-    hostedTools: (requests) =>
-        requests.some(({ tool, allowedDomains }) => tool === "web-search" && allowedDomains === undefined)
+    // some domains is left out rather than honored in part. URL context has none either: it runs
+    // only when the turn names no host web fetch may not reach.
+    hostedTools: (requests, request) => [
+        ...(requests.some(({ tool, allowedDomains }) => tool === "web-search" && allowedDomains === undefined)
             ? [googleSearchTool()]
-            : [],
+            : []),
+        ...(requests.some(
+            ({ tool, allowedDomains }) =>
+                tool === "web-fetch" && allowedDomains !== undefined && urlContextAllowed(request, allowedDomains),
+        )
+            ? [urlContextTool()]
+            : []),
+    ],
+    // The adapter drops `urlContextMetadata`: each address URL context read and whether it loaded.
+    rawHostedCall: (chunk) => {
+        const metadata = (chunk as { candidates?: { urlContextMetadata?: unknown }[] } | undefined)?.candidates?.[0]
+            ?.urlContextMetadata;
+        return metadata === undefined
+            ? undefined
+            : { name: "url_context", metadata: { providerExecuted: true, gemini: { urlContextMetadata: metadata } } };
+    },
     modelOptions: (request, settings) => ({
         ...(request.tools.length > 0 && {
             toolConfig: { functionCallingConfig: { mode: request.toolMode === "none" ? "NONE" : "AUTO" } },

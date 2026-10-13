@@ -623,6 +623,80 @@ describe.each(PROVIDERS)("%s: web search, run by the provider", (provider) => {
     });
 });
 
+describe("Gemini's URL context, as web fetch", () => {
+    const PAGE = "https://en.wikipedia.org/wiki/Eiffel_Tower";
+    const FETCH: HostedToolRequest = { tool: "web-fetch", allowedDomains: ["en.wikipedia.org"] };
+
+    /** A turn whose one message is the reader's text. */
+    function asking(text: string, hostedTools: HostedToolRequest[] = [FETCH]): TurnRequest {
+        return request({
+            hostedTools,
+            messages: [{ id: "m1", role: "user", parts: [{ type: "text", origin: "reader", text }] }],
+        });
+    }
+
+    it("sends urlContext, with no function declarations, when every host the turn names is allowed", async () => {
+        const { engine, requests } = providerApiFixture("google");
+        // A dotted word in a URL's path ("index.php") is not a host.
+        await events(
+            engine,
+            asking(`Read ${PAGE} or https://en.wikipedia.org/w/index.php?title=x and say when it opened`),
+        );
+        assert.deepStrictEqual(requests[0].body.tools, [{ urlContext: {} }]);
+    });
+
+    it("leaves it out when the turn names a host web fetch may not reach, with or without a scheme", async () => {
+        for (const text of [`Read ${PAGE}?d=x and https://evil.example/?d=secret`, `Read ${PAGE} and evil.example/x`]) {
+            const { engine, requests } = providerApiFixture("google");
+            await events(engine, asking(text));
+            assert.notInclude(JSON.stringify(requests[0].body.tools ?? []), "urlContext", text);
+        }
+    });
+
+    it("allows a subdomain of an allowed domain", async () => {
+        const { engine, requests } = providerApiFixture("google");
+        await events(engine, asking(`Read ${PAGE}`, [{ tool: "web-fetch", allowedDomains: ["wikipedia.org"] }]));
+        assert.deepStrictEqual(requests[0].body.tools, [{ urlContext: {} }]);
+    });
+
+    it("reads each address and whether it loaded as web-fetch sources whose text did not come back", async () => {
+        const { engine, reply } = providerApiFixture("google");
+        reply({
+            hosted: [
+                { tool: "fetch", pages: [{ url: PAGE, title: "" }] },
+                {
+                    tool: "fetch",
+                    pages: [{ url: "https://en.wikipedia.org/x", title: "" }],
+                    error: "URL_RETRIEVAL_STATUS_PAYWALL",
+                },
+                { tool: "fetch", pages: [{ url: "https://en.wikipedia.org/y", title: "" }], error: "SOMETHING_NEW" },
+            ],
+            text: "It opened in 1889.",
+        });
+        const out = await events(engine, asking(`Read ${PAGE}`));
+        assert.deepStrictEqual(hostedOf(out), [
+            {
+                type: "hosted-tool",
+                tool: "web-fetch",
+                status: "done",
+                sources: [
+                    { url: PAGE, retrieval: "loaded", contentReturned: false },
+                    { url: "https://en.wikipedia.org/x", retrieval: "paywalled", contentReturned: false },
+                    { url: "https://en.wikipedia.org/y", retrieval: "unknown", contentReturned: false },
+                ],
+            },
+        ]);
+        assert.deepStrictEqual(out.at(-1), { type: "finish", reason: "stop" });
+    });
+
+    it("drops a search result the turn did not offer (Gemini reports URL context's grounding as one)", async () => {
+        const { engine, reply } = providerApiFixture("google");
+        reply({ hosted: [{ tool: "search", pages: [{ url: PAGE, title: "Eiffel Tower" }] }], text: "1889." });
+        const out = await events(engine, asking(`Read ${PAGE}`));
+        assert.deepStrictEqual(hostedOf(out), []);
+    });
+});
+
 describe("Anthropic's web search and web fetch", () => {
     const PAGE = { url: "https://example.org/report", title: "The report" };
 

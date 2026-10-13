@@ -104,6 +104,9 @@ export interface AiModelDescriptor {
 }
 
 // @public
+export type AiPageRetrieval = "loaded" | "failed" | "paywalled" | "unsafe" | "unknown";
+
+// @public
 export interface AiProviderDescriptor {
     readonly defaultModel: string;
     readonly id: AiProviderId;

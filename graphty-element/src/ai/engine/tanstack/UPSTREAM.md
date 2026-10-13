@@ -21,6 +21,19 @@ fixes the cause.
   carried as provider state, up to three times. To report: pass `pause_turn` through as its own
   finish reason.
 
+## Web fetch on Gemini (URL context): `@tanstack/ai-gemini` 0.37.2
+
+- **The adapter drops `urlContextMetadata`**, the only record of which addresses URL context read
+  and whether each loaded (`processStreamChunks` keeps a candidate's `groundingMetadata` and
+  nothing else). Workaround: `rawHostedCall` in `google.ts` reads it from each raw chunk, which
+  TanStack hands to the `debug` option's logger (`rawChunks()` in `index.ts`, every other log
+  category off), and `ChunkReader` reports it as a web fetch when the turn ends. To report: emit
+  a provider-executed `url_context` tool call with the metadata, as `google_search` is.
+- **URL context's grounding is reported as a `google_search` call.** A turn that read a page
+  without searching gets a search result naming that page. Workaround: `ChunkReader` drops a
+  provider-run result for a tool the turn did not offer. To report: name the grounding call after
+  the tool that produced it.
+
 ## Transcription and speech: `@tanstack/ai-openai` 0.29.1, `@tanstack/ai-gemini` 0.37.2
 
 `voice.ts` calls `generateTranscription` and `generateSpeech`; the provider's adapters come with

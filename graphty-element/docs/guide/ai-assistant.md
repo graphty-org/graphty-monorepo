@@ -551,7 +551,7 @@ shows in-page code.
 | `inPageCode` | run a program it writes, which may only read the graph (`run_code`)   | in the page, in a sandbox |
 
 Which provider offers which tool is in [Provider features](./ai-provider-features). In short: web
-search on OpenAI, Anthropic and Google; web pages on Anthropic only; code on every provider.
+search on OpenAI, Anthropic and Google; web pages on Anthropic and Google; code on every provider.
 
 `webSearch` and `webFetch` take `true` or an `AiHostedToolOptions`, `inPageCode` takes `true` or
 `{ required }`:
@@ -583,7 +583,7 @@ is enabled (it is `null` before):
 
 ```typescript
 const capabilities = element.getAiCapabilities();
-// { provider: "google", model: "...", tools: { "web-search": "available", "web-fetch": "results-not-returned", "in-page-code": "available" } }
+// { provider: "openai", model: "...", tools: { "web-search": "available", "web-fetch": "unsupported", "in-page-code": "available" } }
 if (capabilities?.tools["web-search"] !== "available") {
     hideSearchSwitch(); // your page's own
 }
@@ -608,7 +608,17 @@ To fail instead, set `required: true` on that tool: every `aiCommand` then resol
 Each time the provider runs a web tool, `ai-hosted-tool-result` fires with
 `{ tool, status, sources }`. `status` is `"done"`, or `"result-unavailable"` when the provider ran
 the tool but its results did not come back. `sources` (`AiSource[]`) lists the pages found or read,
-`{ tool, url, title? }`, in the provider's order.
+`{ tool, url, title?, retrieval?, contentReturned? }`, in the provider's order.
+
+A page a web fetch was asked to read says whether it loaded, when the provider says:
+`retrieval` is `"loaded"`, `"failed"`, `"paywalled"`, `"unsafe"` (the provider's safety check
+refused it) or `"unknown"`, and more values may come in a minor release. On Google, web fetch is
+Gemini's URL context: Gemini reads the page and answers from it, and reports each address and
+whether it loaded, but never hands the page's text back. Its sources carry
+`contentReturned: false`: a later turn, or another helper, cannot quote that page without reading
+it again. Google's URL context has no domain filter of its own, so the assistant offers it to a
+turn only when every host that turn's messages name is one web fetch may reach (below); a turn that
+names any other host, with or without `https://`, is not offered web fetch.
 
 A model may answer without searching, from what it already knows (Gemini decides for itself
 whether a question needs Google Search). Then `ai-hosted-tool-result` fires once for each web tool

@@ -11,6 +11,7 @@
 
 import { chat, EventType, type ModelMessage, type StreamChunk } from "@tanstack/ai";
 
+import type { AiPageRetrieval } from "../../../catalog/ai";
 import { providerFailure } from "../LlmProviderEngine";
 import {
     type EngineHostedTool,
@@ -51,8 +52,15 @@ export interface ProviderModule {
     /**
      * The provider's own tools for the turn's hosted tool requests, as TanStack's provider tools; a
      * request the provider cannot honor in full is left out.
+     * @param requests - The turn's hosted tool requests.
+     * @param request - The turn, whose messages a provider without a domain filter checks.
      */
-    hostedTools(requests: readonly HostedToolRequest[]): ChatTool[];
+    hostedTools(requests: readonly HostedToolRequest[], request: TurnRequest): ChatTool[];
+    /**
+     * A tool the provider ran that its adapter does not report, read from one raw provider chunk
+     * (Gemini's URL context, UPSTREAM.md): its provider name and its call's metadata, or undefined.
+     */
+    readonly rawHostedCall?: (chunk: unknown) => { name: string; metadata: Record<string, unknown> } | undefined;
     /**
      * The provider pauses a long turn of its own tools and continues it when the turn is sent
      * back (Anthropic's `pause_turn`): its provider-run calls are kept, and sent back.
@@ -395,6 +403,15 @@ const HOSTED_TOOL_IDS: Readonly<Record<string, EngineHostedTool>> = {
     web_search: "web-search",
     google_search: "web-search",
     web_fetch: "web-fetch",
+    url_context: "web-fetch",
+};
+
+/** Gemini's `UrlRetrievalStatus`, as graphty's `AiPageRetrieval`. */
+const GEMINI_RETRIEVAL: Readonly<Record<string, AiPageRetrieval>> = {
+    URL_RETRIEVAL_STATUS_SUCCESS: "loaded",
+    URL_RETRIEVAL_STATUS_ERROR: "failed",
+    URL_RETRIEVAL_STATUS_PAYWALL: "paywalled",
+    URL_RETRIEVAL_STATUS_UNSAFE: "unsafe",
 };
 
 /**
@@ -424,13 +441,39 @@ function source(item: unknown, title?: unknown): HostedToolSource[] {
 }
 
 /**
+ * The pages Gemini's URL context read: each address, whether it loaded, and that the page's text
+ * did not come back.
+ * @param metadata - Gemini's `urlContextMetadata`.
+ * @returns The sources.
+ */
+function urlContextSources(metadata: unknown): HostedToolSource[] {
+    const read = isObject(metadata) && Array.isArray(metadata.urlMetadata) ? metadata.urlMetadata : [];
+    return read.flatMap((item): HostedToolSource[] => {
+        if (!isObject(item)) {
+            return [];
+        }
+
+        const status = typeof item.urlRetrievalStatus === "string" ? item.urlRetrievalStatus : "";
+        return source({ url: item.retrievedUrl }).map((page) => ({
+            ...page,
+            retrieval: Object.hasOwn(GEMINI_RETRIEVAL, status) ? GEMINI_RETRIEVAL[status] : "unknown",
+            contentReturned: false,
+        }));
+    });
+}
+
+/**
  * The pages a provider-run tool found or read: OpenAI and Gemini put normalized `sources` on the
  * call; Anthropic hands the raw result block, a list of `web_search_result`s, a
- * `web_fetch_result`, or an error block.
+ * `web_fetch_result`, or an error block; Gemini's URL context its `urlContextMetadata`.
  * @param metadata - The call's metadata.
  * @returns The sources; none for an error or a result with nothing readable.
  */
 function hostedSources(metadata: Record<string, unknown>): HostedToolSource[] {
+    if (isObject(metadata.gemini) && metadata.gemini.urlContextMetadata !== undefined) {
+        return urlContextSources(metadata.gemini.urlContextMetadata);
+    }
+
     const result = isObject(metadata.anthropic) ? metadata.anthropic.result : undefined;
     if (Array.isArray(result)) {
         return result.flatMap((item) => (isObject(item) && item.type === "web_search_result" ? source(item) : []));
@@ -464,13 +507,27 @@ class ChunkReader {
      * @param response - What graphty's fetch saw, for an error's code.
      * @param signal - The turn's signal.
      * @param pausesTurns - The provider pauses its own tools' turns (`ProviderModule.pausesTurns`).
+     * @param offered - The provider's own tools the turn offered; a result for any other is dropped
+     *   (Gemini reports URL context's grounding as a Google Search).
      */
     constructor(
         private readonly settings: ProviderApiSettings,
         private readonly response: ResponseRecord,
         private readonly signal: AbortSignal,
         private readonly pausesTurns = false,
+        private readonly offered?: ReadonlySet<EngineHostedTool>,
     ) {}
+
+    /**
+     * A tool the provider ran that its adapter does not report, read from a raw chunk: reported
+     * when the turn ends, with the last metadata seen.
+     * @param call - Its provider name and metadata, or undefined for a chunk without one.
+     */
+    raw(call: { name: string; metadata: Record<string, unknown> } | undefined): void {
+        if (call !== undefined) {
+            this.hostedPending.set(`raw:${call.name}`, call);
+        }
+    }
 
     /**
      * The events one chunk makes.
@@ -540,7 +597,7 @@ class ChunkReader {
             started !== undefined && Object.hasOwn(HOSTED_TOOL_IDS, started.name)
                 ? HOSTED_TOOL_IDS[started.name]
                 : undefined;
-        if (started === undefined || tool === undefined) {
+        if (started === undefined || tool === undefined || (this.offered !== undefined && !this.offered.has(tool))) {
             return [];
         }
 
@@ -630,6 +687,34 @@ class ChunkReader {
 }
 
 /**
+ * TanStack's debug option that hands each raw provider chunk to `onChunk` and logs nothing else.
+ * @param onChunk - Called with each chunk.
+ * @returns The option.
+ */
+function rawChunks(onChunk: (chunk: unknown) => void): Parameters<typeof chat>[0]["debug"] {
+    const ignore = (): void => undefined;
+    return {
+        logger: {
+            debug: (_message, meta) => {
+                onChunk(meta?.chunk);
+            },
+            info: ignore,
+            warn: ignore,
+            error: ignore,
+        },
+        provider: true,
+        output: false,
+        middleware: false,
+        tools: false,
+        agentLoop: false,
+        config: false,
+        errors: false,
+        request: false,
+        sandbox: false,
+    };
+}
+
+/**
  * One model turn on TanStack AI: one request to the provider, no tool run.
  * @param settings - The provider, key, model and options, as they are now.
  * @param request - The turn.
@@ -654,10 +739,17 @@ export async function* providerApiTurn(
         }
 
         const module = await PROVIDERS[settings.provider]();
-        const hosted = module.hostedTools(request.hostedTools ?? []);
+        const hosted = module.hostedTools(request.hostedTools ?? [], request);
         // A provider that cannot mix its own tools with function tools gets only its own.
         const alone = hosted.length > 0 && !hostedToolLimits(settings.provider).withFunctionTools;
         const turn = alone ? { ...request, tools: [] } : request;
+        const reader = new ChunkReader(
+            settings,
+            response,
+            signal,
+            module.pausesTurns === true,
+            new Set((request.hostedTools ?? []).map(({ tool }) => tool)),
+        );
         const stream = chat({
             adapter: module.createAdapter(settings, recordingFetch(response), turn),
             messages: toModelMessages(turn.messages, settings, module),
@@ -672,10 +764,13 @@ export async function* providerApiTurn(
             ],
             modelOptions: module.modelOptions(turn, settings),
             abortController: controller,
-            debug: false,
+            debug:
+                hosted.length > 0 && module.rawHostedCall !== undefined
+                    ? rawChunks((chunk) => {
+                          reader.raw(module.rawHostedCall?.(chunk));
+                      })
+                    : false,
         }) as AsyncIterable<StreamChunk>;
-
-        const reader = new ChunkReader(settings, response, signal, module.pausesTurns === true);
         for await (const chunk of stream) {
             yield* reader.read(chunk);
             if (reader.done) {

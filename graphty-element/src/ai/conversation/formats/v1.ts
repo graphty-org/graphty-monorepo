@@ -106,6 +106,9 @@ const hostedToolPart = z.strictObject({
             /** An http or https address. */
             url: z.url({ protocol: /^https?$/ }).regex(/^https?:\/\//),
             title: z.string().optional(),
+            /** `AiPageRetrieval`. Open: a newer release may write a value this one does not know. */
+            retrieval: id.optional(),
+            contentReturned: z.literal(false).optional(),
         }),
     ),
     /** The call and its result as the provider wrote them, for the engine that wrote them only. */

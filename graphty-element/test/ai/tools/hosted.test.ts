@@ -9,21 +9,32 @@ import { assert, describe, it } from "vitest";
 import { NO_HOSTED_TOOLS } from "../../../src/ai/engine/types";
 import { capabilitiesOf, resolveTools, turnHostedTools } from "../../../src/ai/tools/hosted";
 import { readerGave, readerUrls } from "../../../src/ai/tools/readerUrls";
+import { AI_HOSTED_TOOL_CAPABILITIES, aiHostedToolStatus } from "../../../src/catalog/ai";
 
 const BOTH = { "web-search": "available", "web-fetch": "available" } as const;
 
 describe("capabilities", () => {
-    it("takes web tools from the engine and the reason one is missing from the catalog", () => {
-        // The provider-API engine offers only what the catalog lists as available.
-        const google = capabilitiesOf("google", "gemini-3.8-flash", {
+    it("takes web tools from the engine, and the catalog's table", () => {
+        // Google's web fetch is URL context: available, its page text never handed back.
+        assert.deepStrictEqual(AI_HOSTED_TOOL_CAPABILITIES.google, {
             "web-search": "available",
-            "web-fetch": "unsupported",
-        });
-        assert.deepStrictEqual(google.tools, {
-            "web-search": "available",
-            "web-fetch": "results-not-returned",
+            "web-fetch": "available",
             "in-page-code": "available",
         });
+        assert.strictEqual(aiHostedToolStatus("google", "gemini-3.8-flash", "web-fetch"), "available");
+        assert.strictEqual(aiHostedToolStatus("openai", "gpt-4o", "web-fetch"), "unsupported");
+        assert.deepStrictEqual(capabilitiesOf("google", "gemini-3.8-flash", BOTH).tools, {
+            "web-search": "available",
+            "web-fetch": "available",
+            "in-page-code": "available",
+        });
+        // The provider-API engine offers only what the catalog lists as available.
+        assert.strictEqual(
+            capabilitiesOf("openai", "gpt-4o", { "web-search": "available", "web-fetch": "unsupported" }).tools[
+                "web-fetch"
+            ],
+            "unsupported",
+        );
         assert.deepStrictEqual(capabilitiesOf("mock", "mock", NO_HOSTED_TOOLS).tools["web-search"], "unsupported");
         // A provider instance of the consumer's own: whatever its engine runs.
         assert.deepStrictEqual(capabilitiesOf("mine", "", BOTH).tools["web-fetch"], "available");

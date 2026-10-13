@@ -10,7 +10,7 @@ web search, reading web pages, and running code in the page. Switch each on in `
 | ------------------------- | ------------------------- | ----------------------- | ----------------------------- |
 | OpenAI (`"openai"`)       | `available`               | `unsupported`           | `available`                   |
 | Anthropic (`"anthropic"`) | `available`               | `available`             | `available`                   |
-| Google (`"google"`)       | `available`               | `results-not-returned`  | `available`                   |
+| Google (`"google"`)       | `available`               | `available`             | `available`                   |
 | WebLLM (`"webllm"`)       | `unsupported`             | `unsupported`           | `available`                   |
 | Mock (`"mock"`)           | `unsupported`             | `unsupported`           | `available`                   |
 

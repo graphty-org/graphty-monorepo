@@ -11,7 +11,7 @@
 
 import type { z } from "zod";
 
-import type { AiHostedToolId, AiProviderId, AiResultCode, AiResultParams } from "../../catalog/ai";
+import type { AiHostedToolId, AiPageRetrieval, AiProviderId, AiResultCode, AiResultParams } from "../../catalog/ai";
 import type { ProviderState, SavedMessage, SavedPart } from "../conversation/formats/v1";
 
 // One definition of a saved message: the saved conversation format's (formats/v1.ts).
@@ -135,6 +135,10 @@ export interface HostedToolRequest {
 export interface HostedToolSource {
     readonly url: string;
     readonly title?: string;
+    /** Whether the provider could load it; absent when the provider does not say (a search result). */
+    readonly retrieval?: AiPageRetrieval;
+    /** False when the provider read the page but did not hand its text back (Gemini's URL context). */
+    readonly contentReturned?: false;
 }
 
 /** Everything one model turn needs. */

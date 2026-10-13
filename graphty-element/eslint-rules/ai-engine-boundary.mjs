@@ -114,9 +114,9 @@ function rules({ allow = [], loader = false, anyImport = true, named = false }, 
                 message,
             },
             {
-                // The provider's own tools graphty offers: web search and web fetch.
+                // The provider's own tools graphty offers: web search and web fetch (Gemini's URL context).
                 regex: String.raw`^@tanstack\/ai-(?:openai|anthropic|gemini)\/tools$`,
-                allowImportNamePattern: String.raw`^(?:webSearchTool|webFetchTool|googleSearchTool)$`,
+                allowImportNamePattern: String.raw`^(?:webSearchTool|webFetchTool|googleSearchTool|urlContextTool)$`,
                 message,
             },
             {

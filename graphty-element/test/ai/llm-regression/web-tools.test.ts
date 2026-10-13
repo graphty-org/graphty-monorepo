@@ -1,8 +1,8 @@
 /**
  * @file Web tools on a real model: with `webSearch: true` the main model hands the question to the
  * built-in research helper, whose search at the provider returns https sources and the answer;
- * with `webFetch: true` on Google, whose URL context does not hand its results back, web fetch is
- * left out of every request and reported once. What the web said cannot change the graph: with
+ * with `webFetch: true` on Google, URL context reads the page the reader named and reports each
+ * address, whether it loaded, and that its text did not come back. What the web said cannot change the graph: with
  * approvals off, a write after research is refused (reason "web-content"), and an instruction
  * written into a node's label is never followed.
  */
@@ -55,7 +55,7 @@ describe.skipIf(skipIfNoApiKey())("web tools on a real model", () => {
     });
 
     it.skipIf(getLlmRegressionProvider() !== "google")(
-        "leaves web fetch out of every request on Google and reports it once",
+        "reads a page the reader named through URL context on Google, and reports whether it loaded",
         async () => {
             const events: AiEvent[] = [];
             harness = await LlmRegressionTestHarness.create({
@@ -67,18 +67,33 @@ describe.skipIf(skipIfNoApiKey())("web tools on a real model", () => {
                 "Read https://en.wikipedia.org/wiki/Eiffel_Tower and say when it opened",
             );
 
-            for (const request of result.requests ?? []) {
-                assert.isFalse(
+            assert.notOk(
+                events.some((event) => event.type === "ai-capability-unavailable"),
+                "web fetch is not left out",
+            );
+            assert.isTrue(
+                (result.requests ?? []).some((request) =>
                     (request.hostedTools ?? []).some((tool) => tool.tool === "web-fetch"),
-                    "no request carries web fetch (url_context)",
+                ),
+                "a request offers web fetch (url_context)",
+            );
+            const reported = events.filter(
+                (event): event is AiHostedToolResultEvent => event.type === "ai-hosted-tool-result",
+            );
+            assert.isNotEmpty(reported, "the research helper reports what web fetch did");
+            for (const event of reported.filter((each) => each.status === "done")) {
+                assert.strictEqual(event.tool, "web-fetch");
+                assert.isTrue(
+                    event.sources.some(
+                        (source) =>
+                            source.url.startsWith("https://en.wikipedia.org/") &&
+                            source.retrieval !== undefined &&
+                            source.contentReturned === false,
+                    ),
+                    `the page is a source with its retrieval status: ${JSON.stringify(event)}`,
                 );
             }
-
-            const unavailable = events.filter((event) => event.type === "ai-capability-unavailable");
-            assert.deepStrictEqual(
-                unavailable.map((event) => event.type === "ai-capability-unavailable" && event.tool),
-                ["web-fetch"],
-            );
+            assert.include(result.llmText ?? "", "1889");
         },
     );
 

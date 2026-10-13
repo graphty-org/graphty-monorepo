@@ -420,6 +420,8 @@ export type AiRouter = "model" | "classifier" | ((input: string) => AiPlan);
 
 // @public
 export interface AiSource {
+    readonly contentReturned?: false;
+    readonly retrieval?: AiPageRetrieval;
     readonly title?: string;
     readonly tool: AiHostedToolId;
     readonly url: string;

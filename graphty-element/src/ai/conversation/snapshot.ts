@@ -6,7 +6,7 @@
  * element wrote for a model, not for a reader.
  */
 
-import type { AiHostedToolId, AiResultCode, AiResultParams } from "../../catalog/ai";
+import type { AiHostedToolId, AiPageRetrieval, AiResultCode, AiResultParams } from "../../catalog/ai";
 import type { AiApprovalRequest, AiQuestionRequest } from "../../events";
 import type { ConversationRecord } from "./formats";
 import type { SavedMessage, SavedPending } from "./formats/v1";
@@ -31,6 +31,14 @@ export interface AiSource {
     readonly url: string;
     /** The page's title, when the provider gave one. */
     readonly title?: string;
+    /** Whether the provider could load the page it was asked to read; absent when it does not say (a search result). */
+    readonly retrieval?: AiPageRetrieval;
+    /**
+     * `false` when the provider read the page and answered from it but did not hand its text back
+     * (Gemini's URL context): a later turn, or another helper, cannot read that text again
+     * without reading the page again. Absent when the text came back, or for a search result.
+     */
+    readonly contentReturned?: false;
 }
 
 /**
@@ -278,7 +286,11 @@ function assistantEntry(
 function sourcesOf(parts: readonly SavedMessage["parts"][number][]): AiSource[] {
     return parts.flatMap((part): AiSource[] =>
         part.type === "hosted-tool"
-            ? part.sources.map((source) => ({ tool: part.tool as AiHostedToolId, ...source }))
+            ? part.sources.map(({ retrieval, ...source }) => ({
+                  tool: part.tool as AiHostedToolId,
+                  ...source,
+                  ...(retrieval !== undefined && { retrieval: retrieval as AiPageRetrieval }),
+              }))
             : [],
     );
 }

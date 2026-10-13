@@ -383,11 +383,28 @@ const STREAMS: Readonly<Record<ProviderApiId, (answer: Answer) => string>> = {
                                 ],
                             },
                             finishReason: answer.cutOff ? "MAX_TOKENS" : "STOP",
-                            ...(answer.hosted && {
+                            ...(answer.hosted?.some((hosted) => hosted.tool === "search") && {
                                 groundingMetadata: {
                                     webSearchQueries: ["the query"],
                                     groundingChunks: answer.hosted.flatMap((hosted) =>
-                                        (hosted.pages ?? []).map(({ url, title }) => ({ web: { uri: url, title } })),
+                                        hosted.tool === "search"
+                                            ? (hosted.pages ?? []).map(({ url, title }) => ({
+                                                  web: { uri: url, title },
+                                              }))
+                                            : [],
+                                    ),
+                                },
+                            }),
+                            // URL context: each address with its retrieval status, never the page.
+                            ...(answer.hosted?.some((hosted) => hosted.tool === "fetch") && {
+                                urlContextMetadata: {
+                                    urlMetadata: answer.hosted.flatMap((hosted) =>
+                                        hosted.tool === "fetch"
+                                            ? (hosted.pages ?? []).map(({ url }) => ({
+                                                  retrievedUrl: url,
+                                                  urlRetrievalStatus: hosted.error ?? "URL_RETRIEVAL_STATUS_SUCCESS",
+                                              }))
+                                            : [],
                                     ),
                                 },
                             }),

@@ -42,6 +42,7 @@ export type {
     AiKeyShapeCheck,
     AiKeyShapeCode,
     AiModelDescriptor,
+    AiPageRetrieval,
     AiProviderDescriptor,
     AiProviderId,
     AiProviderVoice,

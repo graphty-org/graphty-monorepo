@@ -198,6 +198,14 @@ export type AiHostedToolId = (typeof AI_HOSTED_TOOL_IDS)[number];
  */
 export type AiCapabilityStatus = "available" | "unsupported" | "results-not-returned" | "unknown";
 
+/**
+ * Whether the provider could load a page a tool was asked to read (`AiSource.retrieval`):
+ * `"loaded"`; `"failed"` (an error, or the address could not be reached); `"paywalled"`;
+ * `"unsafe"` (the provider's safety check refused it); `"unknown"` (the provider did not say).
+ * OPEN UNION: values may be added in a minor release.
+ */
+export type AiPageRetrieval = "loaded" | "failed" | "paywalled" | "unsafe" | "unknown";
+
 /** Each tool beyond the assistant's own commands, and whether it can be used. */
 export type AiToolCapabilities = Readonly<Record<AiHostedToolId, AiCapabilityStatus>>;
 
@@ -214,13 +222,14 @@ export interface AiCapabilities {
 /**
  * Which tools each provider offers, for its every model. In-page code runs in the page whatever
  * model wrote it; it is still unavailable where the page forbids WebAssembly, which only the
- * running page can tell (`getAiCapabilities()`). Web fetch on Google is URL context, whose
- * results the provider does not hand back.
+ * running page can tell (`getAiCapabilities()`). Web fetch on Google is URL context: Gemini reads
+ * the page and answers from it, and says which addresses it read and whether each loaded, but never
+ * hands the page's text back (`AiSource.contentReturned` is `false`).
  */
 export const AI_HOSTED_TOOL_CAPABILITIES: Readonly<Record<AiProviderId, AiToolCapabilities>> = Object.freeze({
     openai: { "web-search": "available", "web-fetch": "unsupported", "in-page-code": "available" },
     anthropic: { "web-search": "available", "web-fetch": "available", "in-page-code": "available" },
-    google: { "web-search": "available", "web-fetch": "results-not-returned", "in-page-code": "available" },
+    google: { "web-search": "available", "web-fetch": "available", "in-page-code": "available" },
     webllm: { "web-search": "unsupported", "web-fetch": "unsupported", "in-page-code": "available" },
     mock: { "web-search": "unsupported", "web-fetch": "unsupported", "in-page-code": "available" },
 });

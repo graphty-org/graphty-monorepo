@@ -570,6 +570,14 @@
                                                                             "items": {
                                                                                 "additionalProperties": false,
                                                                                 "properties": {
+                                                                                    "contentReturned": {
+                                                                                        "const": false,
+                                                                                        "type": "boolean"
+                                                                                    },
+                                                                                    "retrieval": {
+                                                                                        "minLength": 1,
+                                                                                        "type": "string"
+                                                                                    },
                                                                                     "title": {
                                                                                         "type": "string"
                                                                                     },
@@ -686,6 +694,14 @@
                                             "items": {
                                                 "additionalProperties": false,
                                                 "properties": {
+                                                    "contentReturned": {
+                                                        "const": false,
+                                                        "type": "boolean"
+                                                    },
+                                                    "retrieval": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    },
                                                     "title": {
                                                         "type": "string"
                                                     },

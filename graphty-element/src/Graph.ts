@@ -168,7 +168,6 @@ import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
 import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
 import { type XRSessionEndCause, XRSessionManager } from "./xr/XRSessionManager";
-// import {createXrButton} from "./xr-button";
 
 /**
  * A catalogue key the element can start as a run, and the parameters that go with it.

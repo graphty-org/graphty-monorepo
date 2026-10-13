@@ -115,7 +115,8 @@ const css = `
 [data-testid="field-row"]:has(.cm-paint-chit[aria-expanded="true"]):dir(rtl) {
     border-image-outset: 0 16px 0 8px;
 }
-.cm-paint-field[data-disabled] {
+/* Disabled by its own prop, by a disabled fieldset around it, or by aria-disabled around it. */
+.cm-paint-field:is([data-disabled], :has(:disabled), [aria-disabled="true"] *) {
     border-color: var(--cm-border-disabled);
     background-color: var(--cm-bg);
     color: var(--cm-text-disabled);
@@ -136,7 +137,27 @@ const css = `
     cursor: default;
 }
 .cm-paint-chit:focus-visible .cm-chit::after { box-shadow: inset 0 0 0 2px var(--cm-border-selected); }
-.cm-paint-chit:disabled .cm-chit { opacity: 0.4; }
+.cm-paint-chit:is(:disabled, [aria-disabled="true"] *) :is(.cm-chit, .cm-chit-mixed) { opacity: 0.4; }
+/* Mixed: no color of its own, so no color is drawn -- an outlined chit holding the mixed bar of
+   the checkbox, which a reader cannot take for a value. */
+.cm-chit-mixed {
+    position: relative;
+    box-sizing: border-box;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--cm-text-secondary);
+    border-radius: 2px;
+}
+.cm-chit-mixed::after {
+    content: "";
+    position: absolute;
+    inset-inline-start: 3px;
+    inset-block-start: 5px;
+    width: 6px;
+    height: 2px;
+    border-radius: 1px;
+    background-color: var(--cm-text-secondary);
+}
 .cm-paint-input {
     box-sizing: border-box;
     min-width: 0;
@@ -153,15 +174,17 @@ const css = `
     cursor: default;
 }
 .cm-paint-input:focus { cursor: text; }
-.cm-paint-input:disabled { color: var(--cm-text-disabled); }
-.cm-paint-input[data-is-default="true"]:not(:disabled) {
+.cm-paint-input[data-is-default="true"],
+.cm-paint-input[data-is-default="true"]::placeholder {
     color: var(--cm-text-secondary);
     font-style: italic;
+    opacity: 1;
 }
+.cm-paint-input:is(:disabled, [aria-disabled="true"] *),
+.cm-paint-input:is(:disabled, [aria-disabled="true"] *)::placeholder { color: var(--cm-text-disabled); }
 .cm-paint-hex {
     flex: 1 1 0;
     margin-inline-start: 5px;
-    text-transform: uppercase;
 }
 .cm-paint-opacity {
     position: relative;

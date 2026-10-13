@@ -2266,7 +2266,7 @@ describe("AppShell", () => {
 
             expect(colorGroups).toHaveLength(1);
 
-            const hex = within(colorGroups[0]).getByRole("textbox", { name: "Color" });
+            const hex = within(colorGroups[0]).getByRole("textbox", { name: /^Color(,|$)/ });
 
             fireEvent.change(hex, { target: { value: "FF0000" } });
             fireEvent.blur(hex);

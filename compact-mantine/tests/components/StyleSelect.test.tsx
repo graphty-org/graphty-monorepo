@@ -54,7 +54,7 @@ describe("StyleSelect", () => {
                 onChange={vi.fn()}
             />,
         );
-        const select = screen.getByRole("combobox", { name: "Select" });
+        const select = screen.getByRole("combobox", { name: /^Select/ });
         expect(select).toHaveAttribute("value", "Option 1");
     });
 
@@ -62,11 +62,11 @@ describe("StyleSelect", () => {
         renderSelect(
             <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={vi.fn()} />,
         );
-        const select = screen.getByRole("combobox", { name: "Select" });
+        const select = screen.getByRole("combobox", { name: /^Select/ });
         expect(select).toHaveAttribute("value", "Option 2");
     });
 
-    it("draws a default value like any other value (Figma has no default state)", () => {
+    it("draws a value it was not given as not set: marked, and named so", () => {
         renderSelect(
             <StyleSelect
                 label="Select"
@@ -76,9 +76,8 @@ describe("StyleSelect", () => {
                 onChange={vi.fn()}
             />,
         );
-        const select = screen.getByRole("combobox", { name: "Select" });
-        expect(getComputedStyle(select).fontStyle).not.toBe("italic");
-        expect(select.getAttribute("style") ?? "").not.toMatch(/italic|color/);
+        const select = screen.getByRole("combobox", { name: "Select, not set, Option 1" });
+        expect(select).toHaveAttribute("data-is-default", "true");
     });
 
     it("is an APG combobox: role, aria-expanded and aria-activedescendant follow the list", async () => {
@@ -92,7 +91,7 @@ describe("StyleSelect", () => {
                 onChange={vi.fn()}
             />,
         );
-        const select = screen.getByRole("combobox", { name: "Select" });
+        const select = screen.getByRole("combobox", { name: /^Select/ });
         expect(select).toHaveAttribute("aria-expanded", "false");
         await user.click(select);
         expect(select).toHaveAttribute("aria-expanded", "true");
@@ -106,7 +105,7 @@ describe("StyleSelect", () => {
         const { rerender } = renderSelect(
             <StyleSelect label="Select" defaultValue="option1" placeholder="Mixed" options={options} />,
         );
-        const select = screen.getByRole("combobox", { name: "Select" });
+        const select = screen.getByRole("combobox", { name: /^Select/ });
         expect(select).toHaveAttribute("value", "");
         expect(select).toHaveAttribute("placeholder", "Mixed");
         rerender(
@@ -121,7 +120,7 @@ describe("StyleSelect", () => {
                 />
             </MantineProvider>,
         );
-        expect(screen.getByRole("combobox", { name: "Select" })).toHaveAttribute("value", "Option 2");
+        expect(screen.getByRole("combobox", { name: /^Select/ })).toHaveAttribute("value", "Option 2");
         expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
     });
 
@@ -155,7 +154,7 @@ describe("StyleSelect", () => {
                 onChange={vi.fn()}
             />,
         );
-        const select = screen.getByRole("combobox", { name: "Select" });
+        const select = screen.getByRole("combobox", { name: /^Select/ });
         expect(select).toHaveAttribute("data-is-default", "true");
     });
 
@@ -163,7 +162,7 @@ describe("StyleSelect", () => {
         renderSelect(
             <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={vi.fn()} />,
         );
-        const select = screen.getByRole("combobox", { name: "Select" });
+        const select = screen.getByRole("combobox", { name: /^Select/ });
         expect(select).toHaveAttribute("data-is-default", "false");
     });
 
@@ -171,11 +170,11 @@ describe("StyleSelect", () => {
         // The control used to carry both a visible <label> and an aria-label
         // repeating it, which replaces name-from-content rather than adding to
         // it. The visible label is now the only source of the name.
-        it("takes its name from the visible label rather than an aria-label", () => {
+        it("takes its name from the visible label rather than an aria-label, once set", () => {
             renderSelect(
                 <StyleSelect
                     label="Select"
-                    value={undefined}
+                    value="option1"
                     defaultValue="option1"
                     options={options}
                     onChange={vi.fn()}
@@ -279,7 +278,7 @@ describe("StyleSelect", () => {
             const onChange = vi.fn();
             renderSelect(<StyleSelect label="Select" defaultValue="option1" options={options} onChange={onChange} />);
 
-            await user.click(screen.getByRole("combobox", { name: "Select" }));
+            await user.click(screen.getByRole("combobox", { name: /^Select/ }));
             // Mantine's dropdown is a Popover whose transition never completes
             // in jsdom, so the option is in the tree but painted `display:
             // none`; it is found with `hidden` and clicked directly.
@@ -306,7 +305,7 @@ describe("StyleSelect", () => {
                 </>,
             );
 
-            await user.click(screen.getByRole("combobox", { name: "Select" }));
+            await user.click(screen.getByRole("combobox", { name: /^Select/ }));
             expect(onFocus).toHaveBeenCalled();
 
             await user.click(screen.getByRole("button", { name: "elsewhere" }));
@@ -359,7 +358,7 @@ describe("StyleSelect", () => {
                 />,
                 "rtl",
             );
-            expect(screen.getByRole("combobox", { name: "Select" })).toBeInTheDocument();
+            expect(screen.getByRole("combobox", { name: /^Select/ })).toBeInTheDocument();
             expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
         });
     });
@@ -377,12 +376,12 @@ describe("StyleSelect", () => {
             const glyph = document.querySelector(".cm-style-select-glyph");
             expect(glyph).toHaveAttribute("aria-hidden", "true");
             expect(glyph?.querySelector("[data-testid='glyph-square']")).not.toBeNull();
-            expect(screen.getByRole("combobox", { name: "Shape" })).toHaveAttribute("value", "Square");
+            expect(screen.getByRole("combobox", { name: /^Shape/ })).toHaveAttribute("value", "Square");
         });
 
         it("keeps the check column and names each option by its label in the list", async () => {
             renderSelect(<StyleSelect label="Shape" defaultValue="circle" options={glyphOptions} />);
-            await userEvent.click(screen.getByRole("combobox", { name: "Shape" }));
+            await userEvent.click(screen.getByRole("combobox", { name: /^Shape/ }));
             // In the tree but painted `display: none` in jsdom (see "reports the chosen option").
             const option = await screen.findByRole("option", { name: "Square", hidden: true });
             expect(option.querySelector(".cm-menu-row-check")).not.toBeNull();
@@ -403,7 +402,7 @@ describe("StyleSelect", () => {
                 </MantineProvider>,
             );
 
-            expect(screen.getByRole("combobox", { name: "Select" })).toBeDisabled();
+            expect(screen.getByRole("combobox", { name: /^Select/ })).toBeDisabled();
             expect(screen.getByTestId("style-select-reset")).toBeDisabled();
         });
     });

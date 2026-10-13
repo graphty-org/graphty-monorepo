@@ -238,7 +238,7 @@ describe("CompactColorInput", () => {
 
             const group = screen.getByRole("group", { name: "Fill Color" });
             expect(group).toBeInTheDocument();
-            expect(group).toContainElement(screen.getByRole("textbox", { name: "Fill Color" }));
+            expect(group).toContainElement(screen.getByRole("textbox", { name: /^Fill Color(,|$)/ }));
             expect(group).toContainElement(screen.getByRole("button", { name: "Pick Fill Color" }));
             expect(group).toContainElement(screen.getByRole("textbox", { name: "Fill Color opacity" }));
         });
@@ -311,7 +311,7 @@ describe("CompactColorInput", () => {
             );
 
             expect(screen.getByRole("button", { name: "Nuancier" })).toBeInTheDocument();
-            expect(screen.getByRole("textbox", { name: "Valeur hexadecimale" })).toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: /^Valeur hexadecimale(,|$)/ })).toBeInTheDocument();
             expect(screen.getByRole("textbox", { name: "Opacite" })).toBeInTheDocument();
         });
 
@@ -331,7 +331,7 @@ describe("CompactColorInput", () => {
             );
 
             expect(screen.getByRole("button", { name: "Choisir Fond" })).toBeInTheDocument();
-            expect(screen.getByRole("textbox", { name: "Fond (couleur)" })).toHaveValue("FF0000");
+            expect(screen.getByRole("textbox", { name: /^Fond \(couleur\)(,|$)/ })).toHaveValue("FF0000");
             expect(screen.getByRole("textbox", { name: "Fond (opacite)" })).toBeInTheDocument();
         });
 
@@ -411,7 +411,7 @@ describe("CompactColorInput", () => {
                 </TestWrapper>,
             );
             expect(screen.getByRole("group", { name: "Fill Color" })).toBeInTheDocument();
-            expect(screen.getByRole("textbox", { name: "Fill Color" })).toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: /^Fill Color(,|$)/ })).toBeInTheDocument();
         });
     });
 
@@ -665,7 +665,7 @@ describe("CompactColorInput", () => {
                 </TestWrapper>,
             );
 
-            const hex = screen.getByRole("textbox", { name: "Fill color" });
+            const hex = screen.getByRole("textbox", { name: /^Fill color(,|$)/ });
             await user.clear(hex);
             await user.type(hex, "00FF00");
             await user.tab();
@@ -777,7 +777,7 @@ describe("CompactColorInput", () => {
                     </TestWrapper>,
                 );
 
-                const hex = screen.getByRole("textbox", { name: "Fill color" });
+                const hex = screen.getByRole("textbox", { name: /^Fill color(,|$)/ });
                 await user.clear(hex);
                 await user.type(hex, "00FF00");
                 await user.tab();

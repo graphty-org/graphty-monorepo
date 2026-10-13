@@ -27,7 +27,7 @@ describe("CompactColorInput accessible names", () => {
     it("names the hex box after the label, with the hex as its value, and the swatch after what it does", async () => {
         renderField(<CompactColorInput label="Fill" defaultColor="#3B82F6" defaultOpacity={100} />);
 
-        const hex = page.getByRole("textbox", { name: "Fill color", exact: true });
+        const hex = page.getByRole("textbox", { name: "Fill color, not set, #3B82F6", exact: true });
         await expect.element(hex).toHaveValue("3B82F6");
         await expect.element(page.getByRole("textbox", { name: "Fill opacity", exact: true })).toHaveValue("100");
 
@@ -39,14 +39,14 @@ describe("CompactColorInput accessible names", () => {
     it("does not double the word color when the label already says it", async () => {
         renderField(<CompactColorInput label="Text color" defaultColor="#000000" showOpacity={false} />);
 
-        await expect.element(page.getByRole("textbox", { name: "Text color", exact: true })).toHaveValue("000000");
+        await expect.element(page.getByRole("textbox", { name: /^Text color(,|$)/ })).toHaveValue("000000");
         await expect.element(page.getByRole("button", { name: "Pick Text color", exact: true })).toBeVisible();
     });
 
     it("names its controls from aria-label without drawing a label", async () => {
         renderField(<CompactColorInput aria-label="Edge color" defaultColor="#000000" />);
 
-        await expect.element(page.getByRole("textbox", { name: "Edge color", exact: true })).toHaveValue("000000");
+        await expect.element(page.getByRole("textbox", { name: /^Edge color(,|$)/ })).toHaveValue("000000");
         await expect.element(page.getByRole("button", { name: "Pick Edge color", exact: true })).toBeVisible();
         await expect.element(page.getByRole("textbox", { name: "Edge color opacity", exact: true })).toBeVisible();
         await expect.element(page.getByText("Edge color", { exact: true })).not.toBeInTheDocument();
@@ -55,7 +55,7 @@ describe("CompactColorInput accessible names", () => {
     it("announces a newly typed value on the same named box", async () => {
         renderField(<CompactColorInput label="Fill" defaultColor="#3B82F6" />);
 
-        const hex = page.getByRole("textbox", { name: "Fill color", exact: true });
+        const hex = page.getByRole("textbox", { name: /^Fill color(,|$)/ });
         await userEvent.click(hex);
         await userEvent.keyboard("FF0000{Enter}");
         await expect.element(hex).toHaveValue("FF0000");
@@ -93,7 +93,7 @@ describe("CompactColorInput empty words", () => {
             />,
         );
 
-        const hex = page.getByRole("textbox", { name: "Head color", exact: true });
+        const hex = page.getByRole("textbox", { name: /^Head color(,|$)/ });
         await expect.element(hex).toHaveValue("");
         await expect.element(hex).toHaveAttribute("placeholder", "Line color");
         await userEvent.click(hex);

@@ -119,6 +119,13 @@ export interface StyleSelectProps {
      */
     placeholder?: string;
     /**
+     * Whether the things this field stands for disagree: several selected rows, or elements the
+     * layers beneath draw differently. While the reader has chosen nothing, the control is empty
+     * under the word "Mixed" (`labels.mixed`), in place of `placeholder`.
+     * @default false
+     */
+    mixed?: boolean;
+    /**
      * Whether to offer the reset button once something is chosen. Turn it off when the caller
      * draws its own way back to "nothing chosen" beside the control.
      * @default true
@@ -158,6 +165,7 @@ export interface StyleSelectProps {
  * @param props.layout - Whether the open list is a list or a grid of glyphs
  * @param props.columns - How many cells a row of the grid holds
  * @param props.placeholder - Words shown while nothing is chosen, instead of `defaultValue`
+ * @param props.mixed - Whether the things the field stands for disagree, shown as "Mixed" while nothing is chosen
  * @param props.showReset - Whether to offer the reset button once something is chosen
  * @param props.onFocus - Called when the control takes focus
  * @param props.onBlur - Called when the control loses focus
@@ -189,7 +197,8 @@ export function StyleSelect({
     disabledReason,
     layout = "list",
     columns = 5,
-    placeholder,
+    placeholder: placeholderProp,
+    mixed = false,
     showReset = true,
     onFocus,
     onBlur,
@@ -216,6 +225,15 @@ export function StyleSelect({
     });
 
     const isDefault = selected === undefined;
+    const placeholder = mixed ? labels.mixed : placeholderProp;
+    // The state joins the name, so the gray italic is not the only sign of it. A caller's own
+    // `aria-label` is the whole name and is used as given.
+    let stateWords: string | undefined;
+    if (isDefault) {
+        const beneath = placeholder ?? options.find((option) => option.value === defaultValue)?.label ?? defaultValue;
+        stateWords = mixed ? labels.mixed : labels.fieldNotSet(beneath);
+    }
+    const name = ariaLabel ?? (stateWords === undefined || label === "" ? undefined : `${label}, ${stateWords}`);
     const displayValue = selected ?? (placeholder === undefined ? defaultValue : null);
     const grid = layout === "grid";
     const glyphs = new Map(options.map((option) => [option.value, option.glyph]));
@@ -331,7 +349,7 @@ export function StyleSelect({
             <Select
                 data-testid="style-select-field"
                 label={label}
-                aria-label={ariaLabel}
+                aria-label={name}
                 description={annotation.description}
                 value={displayValue}
                 placeholder={placeholder}

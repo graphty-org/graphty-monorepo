@@ -54,7 +54,7 @@ const OPTIONS = NAMES.map((name, i) => ({
  * @returns the highlighted option's accessible text
  */
 function highlighted(): string {
-    const combobox = screen.getByRole("combobox", { name: "Shape" });
+    const combobox = screen.getByRole("combobox", { name: /^Shape/ });
     const id = combobox.getAttribute("aria-activedescendant");
     return id === null ? "" : (document.getElementById(id)?.textContent ?? "");
 }
@@ -102,7 +102,7 @@ describe("StyleSelect grid", () => {
         await renderThemed(
             <StyleSelect label="Shape" defaultValue="shape-0" options={OPTIONS} layout="grid" columns={5} />,
         );
-        await userEvent.click(screen.getByRole("combobox", { name: "Shape" }));
+        await userEvent.click(screen.getByRole("combobox", { name: /^Shape/ }));
         const cells = await screen.findAllByRole("option");
         expect(cells).toHaveLength(25);
         const first = cells[0].getBoundingClientRect();
@@ -116,7 +116,7 @@ describe("StyleSelect grid", () => {
 
     it("names each cell by its option's name", async () => {
         await renderThemed(<StyleSelect label="Shape" defaultValue="shape-0" options={OPTIONS} layout="grid" />);
-        await userEvent.click(screen.getByRole("combobox", { name: "Shape" }));
+        await userEvent.click(screen.getByRole("combobox", { name: /^Shape/ }));
         for (const name of NAMES) {
             expect(await screen.findByRole("option", { name })).toBeInTheDocument();
         }
@@ -144,7 +144,7 @@ describe("StyleSelect grid", () => {
                 <StyleSelect label="Shape" defaultValue="shape-0" options={OPTIONS} layout="grid" columns={4} />
             </div>,
         );
-        await userEvent.click(screen.getByRole("combobox", { name: "Shape" }));
+        await userEvent.click(screen.getByRole("combobox", { name: /^Shape/ }));
         const cells = await screen.findAllByRole("option");
         expect(cells).toHaveLength(NAMES.length);
         cells.forEach((cell, i) => {

@@ -71,6 +71,19 @@ export interface StyleNumberInputProps {
      */
     emptyText?: string;
     /**
+     * Whether the things this field stands for disagree: several selected rows, or elements the
+     * layers beneath size differently. While the reader has entered nothing, the box is empty
+     * under the word "Mixed" (`labels.mixed`). Typing a number writes one number, as usual.
+     * @default false
+     */
+    mixed?: boolean;
+    /**
+     * Whether to offer the reset button once a number is entered. Turn it off when the caller
+     * draws its own way back to "nothing entered" beside the control, such as one Clear per row.
+     * @default true
+     */
+    showReset?: boolean;
+    /**
      * Called when the reader commits a number, and with `undefined` when they
      * reset the control to its default.
      *
@@ -162,6 +175,8 @@ export interface StyleNumberInputProps {
  * @param props.value - The number, when you drive the control from your own state
  * @param props.defaultValue - What is shown while the reader has entered nothing of their own
  * @param props.emptyText - Words shown in an empty box while nothing is entered, for a default that is no number
+ * @param props.mixed - Whether the things the field stands for disagree, shown as "Mixed" while nothing is entered
+ * @param props.showReset - Whether to offer the reset button once a number is entered
  * @param props.onChange - Called with the committed number, or with `undefined` when the control is reset
  * @param props.min - The smallest number accepted
  * @param props.max - The largest number accepted
@@ -194,6 +209,8 @@ export function StyleNumberInput(props: Readonly<StyleNumberInputProps>): React.
         value,
         defaultValue,
         emptyText,
+        mixed = false,
+        showReset = true,
         onChange,
         min,
         max,
@@ -232,13 +249,22 @@ export function StyleNumberInput(props: Readonly<StyleNumberInputProps>): React.
     const committed = "value" in props ? value : own;
 
     const isDefault = committed === undefined;
-    // With emptyText, nothing entered is an empty box: no number, its words as the placeholder.
-    const empty = isDefault && emptyText !== undefined;
+    // With words for it ("Mixed", emptyText), nothing entered is an empty box under those words.
+    const emptyWords = mixed ? labels.mixed : emptyText;
+    const empty = isDefault && emptyWords !== undefined;
     const displayValue = committed ?? defaultValue;
+    const shownText = writeNumber(displayValue) + (suffix ?? "");
+    // The state joins the field's name, so the gray italic is not the only sign of it; an empty
+    // box says its words as its value, never a number nobody set (a spinbutton with no value is
+    // read as 0).
+    let stateWords: string | undefined;
+    if (isDefault) {
+        stateWords = mixed ? labels.mixed : labels.fieldNotSet(emptyWords ?? shownText);
+    }
 
     const field = useNumberField({
         value: empty ? null : displayValue,
-        display: empty ? "" : writeNumber(displayValue) + (suffix ?? ""),
+        display: empty ? "" : shownText,
         onCommit: (next, event) => {
             setCommitted(next, event);
         },
@@ -275,7 +301,9 @@ export function StyleNumberInput(props: Readonly<StyleNumberInputProps>): React.
                 label={label}
                 description={annotation.description}
                 {...field.inputProps}
-                placeholder={empty ? emptyText : undefined}
+                aria-label={stateWords === undefined ? undefined : `${label}, ${stateWords}`}
+                aria-valuetext={empty ? emptyWords : undefined}
+                placeholder={empty ? emptyWords : undefined}
                 disabled={disabled}
                 data-is-default={isDefault ? "true" : "false"}
                 styles={{
@@ -291,7 +319,7 @@ export function StyleNumberInput(props: Readonly<StyleNumberInputProps>): React.
                 panel of untouched controls stays quiet. Its 24px box is the
                 WCAG 2.2 (2.5.8) target-size minimum, and the same height as
                 the field, so bottom alignment puts the two level. */}
-            {!isDefault && (
+            {showReset && !isDefault && (
                 // An icon-only button says what it does on hover, not only to a screen reader.
                 <Tooltip label={labels.resetToDefault(label)}>
                     <ActionIcon

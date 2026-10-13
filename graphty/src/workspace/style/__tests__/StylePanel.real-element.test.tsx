@@ -360,7 +360,7 @@ function hexOf(value: unknown): string | null {
  */
 async function typeColor(field: string, hex: string): Promise<void> {
     const group = await within(styleTab()).findByRole("group", { name: new RegExp(`^${field}, `) });
-    const input = within(group).getByRole("textbox", { name: field });
+    const input = within(group).getByRole("textbox", { name: new RegExp(`^${field}(,|$)`) });
     await userEvent.clear(input);
     await userEvent.type(input, `${hex}{Enter}`);
 }
@@ -519,7 +519,9 @@ describe("the Style tab's rows on the real element", () => {
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         // The vary glyph is the next tab stop after the field's controls.
         const color = within(styleTab()).getByRole("group", { name: /^Node color, / });
-        within(color).getByRole("textbox", { name: "Node color" }).focus();
+        within(color)
+            .getByRole("textbox", { name: /^Node color(,|$)/ })
+            .focus();
         await userEvent.tab();
         assert.equal(document.activeElement?.getAttribute("aria-label"), "Node color by attribute");
         await userEvent.keyboard("{Enter}");

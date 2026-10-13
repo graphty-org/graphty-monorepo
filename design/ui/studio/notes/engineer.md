@@ -11,6 +11,25 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **One look for not set, set, mixed and disabled** in compact-mantine's three style
+  fields (test `tests/components/FieldStates.browser.test.tsx`). Not set and Mixed are the secondary
+  ink in italic whether the beneath value stands as the value or as the placeholder (rules keyed on
+  `data-is-default`, in `inputs.css.ts` and `color.css.ts`); the hex box's uppercase transform is
+  gone (it turned "Mixed" into "MIXED"; the typed hex is uppercased in code already). New, additive:
+  `mixed` on all three (the word from `labels.mixed`, and an outlined chit with the checkbox's mixed
+  bar instead of a color), `showReset` on StyleNumberInput, `labels.fieldNotSet`. The accessible
+  name now carries the state ("Size, not set, 10", "Node color, Mixed"); a StyleSelect caller's own
+  `aria-label` is still used whole, so PropertyRow's state names are not doubled. An empty number
+  box carries `aria-valuetext` (its words), so "Default" is not read as 0. Disabled ink also follows
+  a disabled fieldset and an `aria-disabled` ancestor. Number fields refuse a typed letter (only a
+  new one, so a unit or a caller's word can still be deleted). Reason: decision 1.1 needs the three
+  states to read the same in every field by two cues. Cost: exact-name queries for not-set fields
+  break; seven graphty test files and one story moved to `/^Name(,|$)/`. Unselected segments were already
+  body ink at 4.5:1 (`SegmentedControl.browser.test.tsx`), so nothing changed there.
+  Seen failing in graphty, not from this change: `row.test.ts` (no starting value for
+  `node.labelBackground`), treeitem "PageRank"/"Selection" missing in Replace, Notes and undoWords,
+  and the shortcuts-sheet test timing out -- all reproduce alone; likely the in-flight element work.
+
 - (2026-10-12) **Pop-outs fit the window and give focus back** (compact-mantine, test
   `tests/popout/PopoutFitAndFocus.browser.test.tsx`). A Popout panel is at most the window's
   height; its header stays and its body (`.cm-popout-body`) scrolls, so Label settings' lower

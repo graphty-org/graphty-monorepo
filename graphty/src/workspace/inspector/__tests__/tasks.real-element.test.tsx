@@ -335,7 +335,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         assert.isAbove(rowButtons(top).length, 0);
 
         const madeWith = inspector().getByRole("group", { name: "Made with" });
-        const field = within(madeWith).getByRole("spinbutton", { name: "Damping factor" });
+        const field = within(madeWith).getByRole("spinbutton", { name: /^Damping factor(,|$)/ });
         const before = field.getAttribute("value");
         await userEvent.clear(field);
         await userEvent.type(field, "0.5{Enter}");
@@ -346,13 +346,13 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         });
         assert.equal(
             within(inspector().getByRole("group", { name: "Made with" }))
-                .getByRole("spinbutton", { name: "Damping factor" })
+                .getByRole("spinbutton", { name: /^Damping factor(,|$)/ })
                 .getAttribute("value"),
             before,
         );
 
         const again = within(inspector().getByRole("group", { name: "Made with" })).getByRole("spinbutton", {
-            name: "Damping factor",
+            name: /^Damping factor(,|$)/,
         });
         await userEvent.clear(again);
         await userEvent.type(again, "0.5{Enter}");

@@ -33,7 +33,7 @@ describe("StyleNumberInput", () => {
                 onChange={onChange}
             />,
         );
-        const box = screen.getByRole("spinbutton", { name: "Sample size" });
+        const box = screen.getByRole("spinbutton", { name: "Sample size, not set, Every node" });
         expect(box).toHaveValue("");
         expect(box).toHaveAttribute("placeholder", "Every node");
         // A number the reader types is committed as usual.
@@ -46,10 +46,12 @@ describe("StyleNumberInput", () => {
         expect(screen.getByRole("spinbutton")).toHaveValue("20");
     });
 
-    it("draws a default value like any other value (Figma has no default state)", () => {
+    it("draws a value it was not given as not set: marked, and named so", () => {
         renderInput(<StyleNumberInput label="Size" value={undefined} defaultValue={10} onChange={vi.fn()} />);
-        expect(getComputedStyle(screen.getByRole("spinbutton")).fontStyle).not.toBe("italic");
-        expect(screen.getByRole("spinbutton").getAttribute("style") ?? "").not.toMatch(/italic|color/);
+        expect(screen.getByRole("spinbutton", { name: "Size, not set, 10" })).toHaveAttribute(
+            "data-is-default",
+            "true",
+        );
     });
 
     it("hides reset button when using default", () => {
@@ -131,8 +133,8 @@ describe("StyleNumberInput", () => {
         // The control used to carry both a visible <label> and an aria-label
         // repeating it, which replaces name-from-content rather than adding to
         // it. The visible label is now the only source of the name.
-        it("takes its name from the visible label rather than an aria-label", () => {
-            renderInput(<StyleNumberInput label="Size" defaultValue={10} onChange={vi.fn()} />);
+        it("takes its name from the visible label rather than an aria-label, once set", () => {
+            renderInput(<StyleNumberInput label="Size" value={10} defaultValue={10} onChange={vi.fn()} />);
             const input = screen.getByRole("spinbutton", { name: "Size" });
             expect(input).not.toHaveAttribute("aria-label");
         });

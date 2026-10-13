@@ -86,7 +86,7 @@ async function newLayerFromSelection(hex: string): Promise<void> {
     const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
     // Node color is always drawn; typing its hex writes it.
     const field = within(await within(tab).findByRole("group", { name: /^Node color, / })).getByRole("textbox", {
-        name: "Node color",
+        name: /^Node color(,|$)/,
     });
     await userEvent.clear(field);
     await userEvent.type(field, `${hex}{Enter}`);

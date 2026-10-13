@@ -60,6 +60,14 @@ export interface CompactColorInputProps {
      */
     emptyText?: string;
     /**
+     * Whether the things this field stands for disagree: several selected rows, or elements the
+     * layers beneath paint in different colors. While the reader has chosen nothing, the hex box
+     * is empty under the word "Mixed" (`labels.mixed`) and the chit is the mixed chit, not a color.
+     * Picking or typing a color writes one color, as in any field.
+     * @default false
+     */
+    mixed?: boolean;
+    /**
      * The opacity as a percentage from 0 to 100, when you drive the control
      * from your own state. `undefined` means the reader has set none and the
      * control is showing `defaultOpacity`.
@@ -205,7 +213,8 @@ export interface CompactColorInputProps {
      */
     width?: number | string;
     /**
-     * Whether to offer the reset button once something is chosen.
+     * Whether to offer the reset button once something is chosen. Turn it off when the caller
+     * draws its own way back to "nothing chosen" beside the control, such as one Clear per row.
      * @default true
      */
     showReset?: boolean;
@@ -228,6 +237,7 @@ export interface CompactColorInputProps {
  * @param props.color - The color, when you drive the control from your own state
  * @param props.defaultColor - The color shown while the reader has chosen none of their own
  * @param props.emptyText - Words shown in the hex box in place of `defaultColor` while nothing is chosen
+ * @param props.mixed - Whether the things the field stands for disagree, shown as "Mixed" while nothing is chosen
  * @param props.opacity - The opacity as a percentage, when you drive the control from your own state
  * @param props.defaultOpacity - The opacity shown while the reader has set none of their own
  * @param props.onColorChange - Called with the new color, or with `undefined` when the control is reset
@@ -258,6 +268,7 @@ export function CompactColorInput({
     color,
     defaultColor,
     emptyText,
+    mixed = false,
     opacity,
     defaultOpacity = MAX_OPACITY,
     onColorChange,
@@ -315,8 +326,19 @@ export function CompactColorInput({
     const displayColor = chosenColor ?? defaultColor;
     const displayOpacity = chosenOpacity ?? defaultOpacity;
 
-    // While nothing is chosen and there are words for that, the hex box is empty under them.
-    const shownHex = isColorDefault && emptyText !== undefined ? "" : displayColor.replace("#", "").toUpperCase();
+    // While nothing is chosen and there are words for that ("Mixed", "Line color"), the hex box
+    // is empty under them.
+    const showsMixed = mixed && isColorDefault;
+    const emptyWords = showsMixed ? labels.mixed : emptyText;
+    const shownHex = isColorDefault && emptyWords !== undefined ? "" : displayColor.replace("#", "").toUpperCase();
+    // The state joins the hex box's name, so the gray italic is not the only sign of it.
+    const hexName = name === undefined ? labels.colorHexValue : labels.colorValue(name);
+    let hexState: string | undefined;
+    if (showsMixed) {
+        hexState = labels.mixed;
+    } else if (isColorDefault) {
+        hexState = labels.fieldNotSet(emptyText ?? displayColor.toUpperCase());
+    }
     const [hexDraft, setHexDraft] = useState(shownHex);
 
     useEffect(() => {
@@ -425,7 +447,11 @@ export function CompactColorInput({
                             aria-label={name === undefined ? labels.colorSwatch : labels.pickColor(name)}
                             aria-describedby={annotation.describedBy}
                         >
-                            <Chit color={showOpacity ? hexaValue : displayColor} variant="field" />
+                            {showsMixed ? (
+                                <span className="cm-chit-mixed" data-testid="compact-color-input-mixed" aria-hidden />
+                            ) : (
+                                <Chit color={showOpacity ? hexaValue : displayColor} variant="field" />
+                            )}
                         </button>
                     </Popout.Trigger>
                     <Popout.Panel
@@ -449,11 +475,11 @@ export function CompactColorInput({
                     spellCheck={false}
                     data-testid="compact-color-input-hex"
                     data-is-default={isColorDefault ? "true" : "false"}
-                    aria-label={name === undefined ? labels.colorHexValue : labels.colorValue(name)}
+                    aria-label={hexState === undefined ? hexName : `${hexName}, ${hexState}`}
                     aria-describedby={annotation.describedBy}
                     disabled={disabled}
                     value={hexDraft}
-                    placeholder={emptyText}
+                    placeholder={emptyWords}
                     onChange={(event) => {
                         setHexDraft(event.currentTarget.value.toUpperCase());
                     }}

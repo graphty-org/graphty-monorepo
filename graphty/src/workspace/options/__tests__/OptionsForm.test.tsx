@@ -56,7 +56,7 @@ describe("the options form", () => {
     it("draws PageRank's key options, and its advanced ones only once Advanced opens", async () => {
         const options = await renderFor("pagerank");
 
-        assert.isNotNull(screen.getByRole("spinbutton", { name: "Damping factor" }));
+        assert.isNotNull(screen.getByRole("spinbutton", { name: /^Damping factor(,|$)/ }));
         assert.isNotEmpty(screen.getAllByLabelText("Weight"));
         const fold = screen.getByRole("button", { name: /Advanced/ });
         assert.equal(fold.getAttribute("aria-expanded"), "false");
@@ -64,8 +64,8 @@ describe("the options form", () => {
         assert.isNull(screen.queryByText("Max iterations"));
 
         await userEvent.click(fold);
-        assert.isNotNull(screen.getByRole("spinbutton", { name: "Max iterations" }));
-        assert.isNotNull(screen.getByRole("spinbutton", { name: "Tolerance" }));
+        assert.isNotNull(screen.getByRole("spinbutton", { name: /^Max iterations(,|$)/ }));
+        assert.isNotNull(screen.getByRole("spinbutton", { name: /^Tolerance(,|$)/ }));
         // useDelta is internal: never drawn, open or closed.
         assert.isNull(screen.queryByText(/Delta/));
 
@@ -106,7 +106,7 @@ describe("the options form", () => {
         }
         render(<Form />);
         const user = userEvent.setup();
-        const box = screen.getByRole("spinbutton", { name: "Damping factor" });
+        const box = screen.getByRole("spinbutton", { name: /^Damping factor(,|$)/ });
         assert.strictEqual((box as HTMLInputElement).value, "0.85");
         assert.isNull(screen.queryByRole("button", { name: /reset/i }));
         await user.clear(box);
@@ -123,7 +123,7 @@ describe("the options form", () => {
 
         assert.isNull(screen.queryByText("Sample size"));
         await userEvent.click(screen.getByRole("button", { name: /Advanced/ }));
-        assert.isNotNull(screen.getByRole("spinbutton", { name: "Sample size" }));
+        assert.isNotNull(screen.getByRole("spinbutton", { name: /^Sample size(,|$)/ }));
     });
 
     it("draws no fold for an algorithm with no advanced options", async () => {

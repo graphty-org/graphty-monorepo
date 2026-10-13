@@ -111,7 +111,7 @@ function labelStyle(session: GraphSession): LabelStyle {
  * @param within_ - where the select is.
  */
 async function choose(name: string, option: string, within_: HTMLElement): Promise<void> {
-    await userEvent.click(within(within_).getByRole("combobox", { name }));
+    await userEvent.click(within(within_).getByRole("combobox", { name: new RegExp(`^${name}(,|$)`) }));
     await userEvent.click(await screen.findByRole("option", { name: option }));
 }
 
@@ -121,7 +121,7 @@ async function choose(name: string, option: string, within_: HTMLElement): Promi
  * @returns its text.
  */
 function shown(name: string): string {
-    return within(textList()).getByRole<HTMLInputElement>("combobox", { name }).value;
+    return within(textList()).getByRole<HTMLInputElement>("combobox", { name: new RegExp(`^${name}(,|$)`) }).value;
 }
 
 describe("label entries on the real element", () => {

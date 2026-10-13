@@ -58,7 +58,22 @@ const css = `
     color: var(--cm-text-disabled);
     cursor: default;
 }
+/* The field states of StyleSelect and StyleNumberInput, drawn as the paint field draws them
+   (color.css.ts): not set, and Mixed, show what lies beneath in gray italic -- two cues, never the
+   color alone -- whether it stands as the value or as the placeholder; a set value is the body ink. */
+.cm-input-wrapper .cm-input[data-is-default="true"],
+.cm-input-wrapper .cm-input[data-is-default="true"]::placeholder {
+    color: var(--cm-text-secondary);
+    font-style: italic;
+}
+/* Disabled by its own prop, by a disabled fieldset around it (its inputs match :disabled), or by
+   aria-disabled on it or around it. */
+.cm-input-wrapper .cm-input:is(:disabled, [data-disabled], [aria-disabled="true"], [aria-disabled="true"] *),
+.cm-input-wrapper .cm-input:is(:disabled, [data-disabled], [aria-disabled="true"], [aria-disabled="true"] *)::placeholder {
+    color: var(--cm-text-disabled);
+}
 .cm-input-wrapper[data-disabled],
+.cm-input-wrapper:is([aria-disabled="true"] *),
 .cm-input-wrapper:has(:disabled) {
     --input-color: var(--cm-text-disabled);
     --input-section-color: var(--cm-text-disabled);

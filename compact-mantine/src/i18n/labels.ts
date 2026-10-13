@@ -147,6 +147,13 @@ export interface CompactMantineLabels {
      * @returns The button's accessible name
      */
     resetToDefault: (label: string) => string;
+    /**
+     * What a screen reader hears after a field's name while nothing is set on it, so the gray
+     * placeholder is not the only sign: "Node color, not set, #3388FF".
+     * @param beneath - What the field shows in its place (the value beneath), or "" for nothing
+     * @returns The words joined to the field's name
+     */
+    fieldNotSet: (beneath: string) => string;
 
     // CompactColorInput
 
@@ -387,6 +394,7 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     about: (label: string): string => `About ${label}`,
 
     resetToDefault: (label: string): string => `Reset ${label} to default`,
+    fieldNotSet: (beneath: string): string => (beneath === "" ? "not set" : `not set, ${beneath}`),
 
     colorSwatch: "Pick color",
     colorHexValue: "Color hex value",

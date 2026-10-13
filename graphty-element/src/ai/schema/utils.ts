@@ -71,6 +71,20 @@ export function getNestedProperty(obj: unknown, path: string): unknown {
 }
 
 /**
+ * A field of a node's or edge's own data, read by the path a tool was given. The selector
+ * language every tool shares writes a record's fields under `data.` (`data.weight`), so a model
+ * names them that way here too; read literally, `data.weight` looks for a field called `data`
+ * and finds nothing, and the model is told the property does not exist.
+ * @param data - The node's or edge's data.
+ * @param path - Dot-notation path, with or without the selector's leading `data.`.
+ * @returns The value, or undefined when there is none under either spelling.
+ */
+export function getDataField(data: unknown, path: string): unknown {
+    const value = getNestedProperty(data, path);
+    return value === undefined && path.startsWith("data.") ? getNestedProperty(data, path.slice(5)) : value;
+}
+
+/**
  * Recursively truncate all string values in an object.
  * @param obj - The object to process
  * @param maxLength - Maximum length for string values (default 100)
@@ -239,7 +253,7 @@ export function collectPropertyValues(
     let nullCount = 0;
 
     for (const item of items) {
-        const value = getNestedProperty(item.data, propertyPath);
+        const value = getDataField(item.data, propertyPath);
         if (value === null || value === undefined) {
             nullCount++;
         } else {

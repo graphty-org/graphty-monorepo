@@ -118,10 +118,14 @@ says so, until `pause` false or `githerd resume-offers`. A session whose githerd
 step of a job from its shell with `githerd next`, `claim`, `status-answer` and `done` (the tools of
 the same names, for the session the command runs under); every message githerd sends prints them. It stays a worker. A session has room while it is idle, or while the
 `capacity` it last gave in `githerd_expect` (how many more jobs it can work in parallel) is above
-the jobs it claimed since. No fixed allowance limits a session; the shared resources do: while
-more pushes wait in the push queue than it has gate slots, the repository's Actions runs wait for a
-runner, or more test runs wait than there are test slots, githerd invites no session to new work and its status question says to
-take none; the board names the constraint. `workers.maxActive` (working, starting, or waiting on its
+the jobs it claimed since. No fixed allowance limits a session; the shared resources do (the
+owner's rule of 2026-10-08): while more pushes wait in the push queue than it has gate slots, the
+repository's Actions runs wait for a runner, or more test runs wait than there are test slots,
+githerd invites no session that is actively working a job to new work and its status question
+says to take none; the board names the constraint. A session actively working no job (nothing it
+holds is working, starting or waiting on its own task, or all of that only waits to push, for CI,
+for the owner's review or to merge) still gets work (the owner's rule of 2026-10-13): githerd
+invites it and asks its capacity as usual, and tells it it may take one job. `workers.maxActive` (working, starting, or waiting on its
 own task; blocked, parked and verifying jobs do not count) is only a runaway guard: a session at it
 is not invited, and `githerd_claim` refuses it another until it finishes or reports one. The number
 of queued issue jobs follows the room the sessions reported (at least one, at most twice

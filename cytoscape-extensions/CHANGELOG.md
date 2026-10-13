@@ -1,3 +1,18 @@
+## 0.0.17 (2026-10-13)
+
+### 🚀 Features
+
+- **cytoscape-extensions:** draw shortest paths in the Dijkstra and Bellman-Ford stories ([#2044](https://github.com/graphty-org/graphty-monorepo/issues/2044))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.52
+- Updated layout to 2.5.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.16 (2026-10-13)
 
 ### 🩹 Fixes

@@ -235,13 +235,17 @@ export default tseslint.config(
             "@typescript-eslint/no-unsafe-return": "error",
         },
         "cytoscape-extensions": {
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
             "@typescript-eslint/no-unsafe-return": "error",
         },
         layout: {
             "@typescript-eslint/no-unsafe-call": "error",
         },
         "remote-logger": {
+            "@typescript-eslint/no-unsafe-argument": "error",
             "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
         },
         "compact-mantine": {
             "@typescript-eslint/no-unsafe-argument": "error",

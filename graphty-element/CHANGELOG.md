@@ -1,3 +1,20 @@
+## 3.25.5 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** implement setRenderSettings and getAvailableAlgorithms ([#2342](https://github.com/graphty-org/graphty-monorepo/issues/2342))
+- **graphty-element:** report a layout's refusal by its code and place nothing ([#2275](https://github.com/graphty-org/graphty-monorepo/issues/2275))
+- **graphty-element:** zoom the 3D camera by a fraction of its distance on W, S and pinch ([#2291](https://github.com/graphty-org/graphty-monorepo/issues/2291))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.51
+- Updated layout to 2.5.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.25.4 (2026-10-13)
 
 ### 🩹 Fixes

@@ -142,6 +142,16 @@ export function suggestedExactMaxNodes(
 }
 
 /**
+ * Whether `value` is a non-empty list of integers >= 1. Checked at run time, since a JavaScript caller may pass
+ * anything; written as a guard because `Array.isArray` on a readonly array narrows it to `any[]`.
+ * @param value - the probe sizes
+ * @returns true for a valid list
+ */
+function isSizeList(value: unknown): value is readonly number[] {
+    return Array.isArray(value) && value.length > 0 && value.every((n) => Number.isInteger(n) && n >= 1);
+}
+
+/**
  * Spec 2.2 calibrateLayout, verbatim: measures ms per iteration of the exact and the grid repulsion tier at every
  * probed size on THIS device and suggests `exactMaxNodes` by the spec 7.8 rule (`suggestedExactMaxNodes` above, with
  * its below-the-range answer when no probed size qualifies). Every probe graph is built here and released before the
@@ -156,7 +166,7 @@ export async function calibrateLayout(ctx: GpuContext, options?: CalibrateOption
     ctx.assertReady();
     await assertDeviceComputes(ctx);
     const sizes = options?.sizes ?? CALIBRATE_SIZES;
-    if (!Array.isArray(sizes) || sizes.length === 0 || !sizes.every((n) => Number.isInteger(n) && n >= 1)) {
+    if (!isSizeList(sizes)) {
         throw new WebGpuGraphError("E_INVALID_ARGUMENT", "sizes must be a non-empty list of integers >= 1", {
             argument: "sizes",
             value: sizes,

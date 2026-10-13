@@ -83,6 +83,15 @@ export default meta;
 type Story = StoryObj<StoryArgs>;
 
 /**
+ * The nodes and edges a file declares. Named, so the helper below has no braces in its signature:
+ * the determinism check finds a helper's body at the first brace after its name.
+ */
+interface FileCounts {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
+/**
  * Wait for the story's graph, and check the file's styles were drawn as layers.
  * @param canvasElement - Where the story rendered.
  * @param story - The story, for failure messages.
@@ -96,10 +105,10 @@ type Story = StoryObj<StoryArgs>;
 async function drewFileStyles(
     canvasElement: HTMLElement,
     story: string,
-    counts: { readonly nodes: number; readonly edges: number },
+    counts: FileCounts,
     colors: Readonly<Record<string, string>>,
     larger: readonly (readonly [string, string])[] = [],
-    labels: Readonly<Record<string, string>> = {},
+    labels?: Readonly<Record<string, string>>,
 ): Promise<void> {
     await waitForGraphSettled(canvasElement);
     const element = await renderedElement(canvasElement, `${story}: no <graphty-element> rendered`);
@@ -119,7 +128,7 @@ async function drewFileStyles(
         `${story}: the file draws the first node of each pair larger, the element does not -- ${smaller.join(", ")}`,
     );
 
-    const unlabeled = Object.entries(labels)
+    const unlabeled = Object.entries(labels ?? {})
         .filter(([id, text]) => {
             const painted = (element.session.styles.explain({ node: id }).merged as Record<string, unknown>)[
                 "node.label"
@@ -345,7 +354,8 @@ export const Cx2: Story = {
  * yellow by each gene's expression, and nodes sized by their degree, so the hubs are the largest.
  */
 export const CytoscapeSession: Story = {
-    args: fileArgs("cys", { url: absolute(annotationSessionUrl) }, true),
+    // No setup: its render is its own, and a circular layout takes no pre-steps.
+    args: { ...fileArgs("cys", { url: absolute(annotationSessionUrl) }, true), setup: undefined },
     render: (args, context) => {
         const element = renderFn(args, context) as Awaited<ReturnType<typeof renderedElement>>;
         // TEMPORARY, graphty-element defect #2249: 359 curved edges take over 15 s to settle, so a

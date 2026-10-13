@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import axe from "axe-core";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { cdp, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -101,6 +101,33 @@ function backgroundBehind(element: HTMLElement): string {
         }
     }
     return "rgb(255, 255, 255)";
+}
+
+/**
+ * Turns the real mouse wheel over the middle of an element, through the DevTools protocol, so the
+ * browser's own input pipeline delivers it.
+ * @param element - the element.
+ * @param deltaY - how far; negative zooms in.
+ */
+async function wheelOver(element: HTMLElement, deltaY: number): Promise<void> {
+    const box = element.getBoundingClientRect();
+    let x = box.left + box.width / 2;
+    let y = box.top + box.height / 2;
+    // The test page is an iframe of the runner's page, possibly scaled: map into the top page.
+    for (
+        let frame = window.frameElement;
+        frame !== null;
+        frame = frame.ownerDocument.defaultView?.frameElement ?? null
+    ) {
+        const outer = frame.getBoundingClientRect();
+        const scale = outer.width / ((frame as HTMLIFrameElement).contentWindow?.innerWidth ?? outer.width);
+        x = outer.left + x * scale;
+        y = outer.top + y * scale;
+    }
+    await (cdp() as unknown as { send: (method: string, params: object) => Promise<unknown> }).send(
+        "Input.dispatchMouseEvent",
+        { type: "mouseWheel", x, y, deltaX: 0, deltaY },
+    );
 }
 
 describe("the canvas key on the real element", () => {
@@ -225,5 +252,61 @@ describe("the canvas key on the real element", () => {
             );
         });
         await page.screenshot({ path: `${SHOTS}/key-200-percent.png` });
+    });
+
+    it("leaves the reader's zoom alone when a restyle brings the key up over the drawing", async () => {
+        await page.viewport(1440, 900);
+        const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
+        render(<Workspace store={store} />);
+        const element = await waitFor(
+            () => {
+                const found = document.querySelector("graphty-element");
+                assert.isDefined(found?.session);
+                return found;
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const session = element?.session;
+        if (element === null || session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
+        await session.config.set({ startingRows: true });
+        await element.waitForStableFrame();
+        assert.isNull(screen.queryByRole("region", { name: "Legend" }), "no key yet: nothing is keyed");
+
+        await wheelOver(element, -600);
+        await waitFor(() => {
+            assert.isTrue(element.cameraPlaced, "the reader's wheel placed the camera");
+        });
+        await element.waitForStableFrame();
+        // What the reader sees: where each node is drawn. (The camera's own numbers move when the
+        // key reserves its room, by design, with nothing drawn moving.)
+        const drawn = (): number[] =>
+            session.data.nodes().flatMap((node) => {
+                const at = element.nodeScreenPosition(node.id);
+                return at === undefined ? [] : [at.x, at.y];
+            });
+        const zoomed = drawn();
+        // The owner's report: with a node selected, changing the Selected row's halo color brought
+        // the key up, and the key coming up reframed the graph.
+        await session.selection.apply({ ids: [session.data.nodes()[0]?.id ?? ""] });
+        const selected = session.styles.list().find((layer) => layer.name === "Selected" && layer.target === "node");
+        assert.isDefined(selected);
+        await session.styles.update(selected?.id ?? "", { set: { ...selected?.set, "node.haloColor": "#ff00ff" } });
+        await waitFor(
+            () => {
+                assert.isNotEmpty(Object.keys(store.get().viewInsets), "the key came up and reserved its room");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await element.waitForStableFrame();
+
+        const now = drawn();
+        assert.strictEqual(now.length, zoomed.length);
+        now.forEach((value, at) => {
+            assert.closeTo(value, zoomed[at] ?? Number.NaN, 1, "every node is drawn where the reader's zoom put it");
+        });
     });
 });

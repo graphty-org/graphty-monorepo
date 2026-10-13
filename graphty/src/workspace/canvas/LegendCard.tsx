@@ -106,14 +106,16 @@ function useReservedMargin(): React.RefObject<HTMLElement | null> {
             if (now.left !== next.left || now.top !== next.top || now.bottom !== next.bottom) {
                 store.set({ viewInsets: next });
                 // The drawing stays put unless the card now hides a node; then it is framed clear of
-                // the card. The fit lands on the next frame, after the new insets reach the element.
+                // the card, unless the reader placed the camera (a zoom in the middle of restyling
+                // was taken away each time the card grew). The fit lands on the next frame, after
+                // the new insets reach the element.
                 const box = {
                     x: card.offsetLeft,
                     y: card.offsetTop,
                     width: card.offsetWidth,
                     height: card.offsetHeight,
                 };
-                if (element?.autoFrame === true && element.nodesInRect(box).length > 0) {
+                if (element?.autoFrame === true && !element.cameraPlaced && element.nodesInRect(box).length > 0) {
                     element.zoomToFit();
                 }
             }

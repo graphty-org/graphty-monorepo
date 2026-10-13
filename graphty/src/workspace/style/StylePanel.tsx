@@ -23,6 +23,7 @@ import {
     EVERYTHING_LAYER,
     everythingRow,
     type NewLayer,
+    paintedOverOf,
     rowLayers,
     runColorOf,
     selectionLayer,
@@ -310,7 +311,7 @@ export function StateLine({
  * @param props.below - the tree row whose beneath the placeholders read
  * @param props.head - what the tab shows above the groups (a layer's Which elements)
  * @param props.many - for several rows edited together, per kind: what they share and how a
- *   write reaches each; the groups then hold the core properties only
+ *   write reaches each
  * @returns The tab
  */
 export function RowStyle({
@@ -332,9 +333,12 @@ export function RowStyle({
 }>): React.JSX.Element {
     const scope = useFocusLine<HTMLDivElement>();
     const sides = offered.filter((t) => fresh !== undefined || rowLayers(session, row, t).length > 0);
-    // Beneath the row: its tree row, else its lowest layer's, else (a row not written yet) the stack.
+    // Beneath the row, over its own elements: its tree row, else its lowest layer's, else (a row
+    // not written yet) the stack as it is.
     const lowest = session.styles.list().find((layer) => row.includes(layer.id));
-    const beneath = beneathOf(session, below ?? (lowest === undefined ? undefined : (lowest.row ?? lowest.id)));
+    const treeRow = below ?? (lowest === undefined ? undefined : (lowest.row ?? lowest.id));
+    const beneath = beneathOf(session, treeRow);
+    const paintedOver = treeRow === undefined || many !== undefined ? undefined : paintedOverOf(session, treeRow, row);
     const colors = documentColors(session);
     return (
         <Stack ref={scope} gap={0} data-testid="style-tab" className="ws-style-panel">
@@ -347,6 +351,7 @@ export function RowStyle({
                     layers: rowLayers(session, row, side),
                     fresh,
                     beneath,
+                    paintedOver,
                     documentColors: colors,
                     ...many?.(side),
                 };
@@ -358,13 +363,11 @@ export function RowStyle({
                             collapsible={false}
                             headingLevel={3}
                         >
-                            <Stack gap={2}>
+                            <Stack gap={0}>
                                 {CORE_ROWS[side].map((spec) => (
                                     <PropertyRow key={spec.id} ctx={ctx} spec={spec} descriptors={descriptors} />
                                 ))}
-                                {/* ponytail: several rows show no lists yet ("Click + to replace mixed
-                                    content"); each would need its own several-row write. */}
-                                {(many === undefined ? LISTS[side] : []).map((list) =>
+                                {LISTS[side].map((list) =>
                                     list.id === "effects" ? (
                                         <Effects key={list.id} ctx={ctx} />
                                     ) : (

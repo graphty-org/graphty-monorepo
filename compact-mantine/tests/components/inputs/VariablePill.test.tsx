@@ -38,6 +38,13 @@ describe("VariablePill", () => {
         expect(container.querySelector(".cm-var-chit")).toHaveStyle({ background: "#0d99ff" });
     });
 
+    it("draws a wider swatch for a ramp or several colors when given swatchWidth", () => {
+        const { container } = renderPill(
+            <VariablePill swatch="linear-gradient(to right, #000, #fff)" swatchWidth={36} name="Degree" />,
+        );
+        expect(container.querySelector(".cm-var-chit")).toHaveStyle({ width: "36px" });
+    });
+
     it("takes a caller's accessible name for the pill and the fill row, and a fill row's tooltip says the name whole", async () => {
         renderPill(<VariablePill name="Degree rank" value="1 to 3" aria-label="Node size: Degree rank, 1 to 3" />);
         expect(screen.getByRole("button", { name: "Node size: Degree rank, 1 to 3" })).toHaveTextContent("1 to 3");

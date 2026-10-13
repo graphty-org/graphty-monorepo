@@ -194,7 +194,7 @@ describe("effects and arrow ends on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
         const entry = document.querySelector<HTMLElement>('[data-effect="Glow"]');
-        const field = document.querySelector<HTMLElement>('[data-line="node.color"] .ws-field-line');
+        const field = document.querySelector<HTMLElement>('.ws-field[data-line="node.color"] > .ws-field-control');
         assert.isNotNull(entry);
         assert.isNotNull(field);
         assert.equal(

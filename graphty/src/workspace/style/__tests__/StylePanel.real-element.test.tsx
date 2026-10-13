@@ -511,7 +511,7 @@ describe("the Style tab's rows on the real element", () => {
         });
     });
 
-    it("binds with the keyboard alone: Tab from the field past its opacity to the vary glyph, then the list", async () => {
+    it("binds with the keyboard alone: Tab from the field to the vary glyph, then the list", async () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
@@ -520,9 +520,6 @@ describe("the Style tab's rows on the real element", () => {
         within(color)
             .getByRole("textbox", { name: /^Node color(,|$)/ })
             .focus();
-        // Past the opacity percent, which is part of the color field.
-        await userEvent.tab();
-        assert.equal(document.activeElement?.getAttribute("aria-label"), "Node color opacity");
         await userEvent.tab();
         assert.equal(document.activeElement?.getAttribute("aria-label"), "Node color by attribute");
         await userEvent.keyboard("{Enter}");

@@ -11,6 +11,34 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-13) **One line per property, scoped beneath, Undo after Clear** (graphty app; tests in
+  `style/__tests__/OneLineRows.real-element.test.tsx`, `keys/__tests__/keys.test.ts`,
+  `style/__tests__/words.test.ts`). `Field` is one CSS grid line: a 56 px label column (name,
+  painted-over mark, and the group's settings button on its first line), the control, vary, Clear;
+  `named={false}` drops the label column. `--ws-label` / `--ws-gutter` live on `.ws-style-panel`.
+  MEASURED: a color with its inline opacity percent needs 121 px (chit 18, hex 47, percent 54,
+  borders 2); a field line is 215 px wide, 200 px once the inspector shows a classic 15 px
+  scrollbar, so no label column fits beside it. Opacity moved behind the color line's settings
+  button (`CORE_ROWS` settings, shown as its own line once set); `OPACITY_OF` is gone. Fit,
+  MEASURED: Selected fits at 900 x 700 (660/660) and 1366 x 768; the route with a label, a band and
+  motion fits at 1366 x 768 (728/728) and is 722 px in 660 px at 900 x 700 (its Text entry 146 px,
+  Effects 76 px) -- reported, no accordions. What lies beneath reads `styles.agreement` with
+  `{ below: row, over: row }` (`beneathOf`, `sharesBeneath`; LabelSection's `writtenBeneath` now
+  uses `sharesBeneath`); base layers are named "the default" (`layerWord`); several values beneath
+  are `{ varies }` ("Varies", the chit shows the commonest), `{ mixed }` only from MultiRowPanel.
+  Painted over per field: `paintedOverOf` reads `agreement` with `over` and the whole stack; an
+  element whose deciding layer is not the row's counts. Undo: `trackPendingEdits` (keys.ts) marks
+  a field on `input` and unmarks on focus, Enter and `change`; Mod+Z / Shift+Mod+Z / Mod+Y go to the
+  app when the field holds no edit. Detach sits in the vary column (Figma's variable field), so the
+  pill never changes width; `focusLineNext(channel, "fixed")` waits for the unbound line.
+  `VariablePill.swatchWidth` (compact-mantine, additive) draws a 36 px strip. Colors are spoken by
+  `colorName` (words.ts, hue bands). Several rows: every kind any row paints, Text and Effects
+  included; list writes go through `writeIn(ctx, ...)` (row.ts), which reaches every row.
+  Seen, not mine: `coverage.ts` lacks `sizeUnit` (tsc and `coverage.test.ts` fail), `row.test.ts`
+  fails on `node.labelBackground` having no starting value, and `StyleTab.real-element` "edge band
+  beside the node halo" looks for a hex box named "Color hex value", which compact-mantine's field
+  states commit renamed ("..., set here").
+
 - (2026-10-13) **Tree one Tab stop, right-click selects, pop-outs open upward, menu shortcuts out
   of names, ramp Home/End** (compact-mantine; tests in `tests/components/tree/Tree.browser.test.tsx`
   "one Tab stop with row toggles", `tests/popout/PopoutFitAndFocus.browser.test.tsx`,

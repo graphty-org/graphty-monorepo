@@ -145,6 +145,20 @@ Clear columns; in the default 240 px inspector they stack one field per line. Re
 reserved 24 px columns and two whole controls do not fit in 240 px, and the owner asked that
 values never be cut.
 
+_Superseded on 2026-10-13:_ pairs no longer share a row. Every property is one line of about
+28 px: its short name in a fixed left column, then the field, the vary column and the Clear
+column, so every field of the Style tab starts at one left edge (Figma's property rows). The
+caption over each field is gone, which is what made the stacked pairs long. A color line holds
+its swatch and hex only: its opacity moved behind the line's settings button and shows as a line
+of its own once set, because a swatch, a whole hex and a percent box need 121 px and a line beside
+a name has 96 px once the inspector shows a scrollbar (the owner asked that values never be cut).
+
+**Also in that change (no public API).** A bound value's Detach sits in its vary column, where the
+vary glyph sat before it was bound (Figma's variable field), so the pill keeps one width when its
+popover opens; the pill shows its colors at rest as a 36 px strip (a ramp, or up to six group
+colors), through `VariablePill`'s new optional `swatchWidth` (compact-mantine, additive; 14, a
+square chit, when left out).
+
 ## 2026-10-12 -- Decided by the team: select what a layer paints, and who paints over it
 
 **What.** graphty-element's session, additive.

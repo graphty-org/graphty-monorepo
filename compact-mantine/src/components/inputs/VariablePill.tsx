@@ -24,6 +24,11 @@ export interface VariablePillProps {
      */
     swatch?: string;
     /**
+     * The swatch's width in pixels, so a bound color can show its colors at rest: a ramp as a
+     * strip, or several category colors side by side. @default 14, a square chit
+     */
+    swatchWidth?: number;
+    /**
      * `"variable"` (default) or `"property"`: a layer property bound to a component property,
      * drawn as a chip on the component tint.
      */
@@ -86,6 +91,7 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
         onDetach,
         onClick,
         swatch,
+        swatchWidth,
         kind = "variable",
         glyph,
         width,
@@ -146,7 +152,14 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
                         }}
                     >
                         {swatch !== undefined && (
-                            <span className="cm-var-chit" style={{ background: swatch }} aria-hidden="true" />
+                            <span
+                                className="cm-var-chit"
+                                style={{
+                                    background: swatch,
+                                    ...(swatchWidth === undefined ? {} : { width: swatchWidth }),
+                                }}
+                                aria-hidden="true"
+                            />
                         )}
                         <span className="cm-var-name">{name}</span>
                     </button>

@@ -14,11 +14,17 @@ let pending: string | null = null;
  * to the page body (WCAG 2.4.3). The line appears only after the element applies the write, and
  * the first line a row sets makes a new layer, which remounts the tab.
  * @param channel - the line's channel, or null to withdraw the ask (the write failed).
- * @param bound - wait until the line is bound (its pill drawn, not its old value).
+ * @param bound - wait until the line is bound (its pill drawn, not its old value), or with
+ *   "fixed" until it holds one value again (a detach).
  */
-export function focusLineNext(channel: Channel | null, bound = false): void {
-    const boundOnly = bound ? "[data-bound]" : "";
-    pending = channel === null ? null : `[data-line="${channel}"]${boundOnly}`;
+export function focusLineNext(channel: Channel | null, bound: boolean | "fixed" = false): void {
+    let state = "";
+    if (bound === "fixed") {
+        state = ":not([data-bound])";
+    } else if (bound) {
+        state = "[data-bound]";
+    }
+    pending = channel === null ? null : `[data-line="${channel}"]${state}`;
 }
 
 /**
@@ -52,7 +58,11 @@ export function useFocusLine<T extends HTMLElement>(): RefObject<T | null> {
         if (pending === null) {
             return;
         }
-        const control = scope.current?.querySelector(pending)?.querySelector<HTMLElement>(CONTROL);
+        const line = scope.current?.querySelector(pending);
+        // A property row's field before its label column's settings button.
+        const control =
+            line?.querySelector<HTMLElement>(`.ws-field-control :is(${CONTROL})`) ??
+            line?.querySelector<HTMLElement>(CONTROL);
         if (control !== undefined && control !== null) {
             handed.current = pending;
             pending = null;

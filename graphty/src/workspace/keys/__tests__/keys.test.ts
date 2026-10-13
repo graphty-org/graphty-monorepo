@@ -1,7 +1,17 @@
 import { assert, describe, it } from "vitest";
 
 import { tabFor } from "../../state/store";
-import { firesWhileTyping, formatKey, isPanelEscape, isSingleKey, isTypingTarget, matchesKey, parseKey } from "../keys";
+import {
+    firesWhileTyping,
+    formatKey,
+    hasPendingEdit,
+    isPanelEscape,
+    isSingleKey,
+    isTypingTarget,
+    matchesKey,
+    parseKey,
+    trackPendingEdits,
+} from "../keys";
 
 /**
  * A key press with nothing held.
@@ -55,6 +65,26 @@ describe("workspace keys", () => {
         assert.isFalse(firesWhileTyping("Mod+A"));
         assert.isFalse(firesWhileTyping("G"));
         assert.isFalse(firesWhileTyping("Escape"));
+    });
+
+    it("hands Undo and Redo to the app while the field holds no edit of its own", () => {
+        assert.isTrue(firesWhileTyping("Mod+Z", false));
+        assert.isTrue(firesWhileTyping("Shift+Mod+Z", false));
+        assert.isFalse(firesWhileTyping("Mod+A", false), "select all stays the field's");
+        const stop = trackPendingEdits();
+        const input = document.createElement("input");
+        document.body.append(input);
+        try {
+            input.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+            assert.isFalse(hasPendingEdit(input), "focus alone is no edit");
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            assert.isTrue(hasPendingEdit(input), "typing is");
+            input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+            assert.isFalse(hasPendingEdit(input), "Enter commits it");
+        } finally {
+            stop();
+            input.remove();
+        }
     });
 
     it("knows a field from a button", () => {

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 import type { WorkspaceValue } from "../state/WorkspaceContext";
-import { firesWhileTyping, isSingleKey, isTypingTarget, matchesKey } from "./keys";
+import { firesWhileTyping, hasPendingEdit, isSingleKey, isTypingTarget, matchesKey, trackPendingEdits } from "./keys";
 
 /**
  * An open menu, popover list or dialog keeps its own keys (Esc closes the innermost first). Only
@@ -25,6 +25,7 @@ function overlayShown(): boolean {
  */
 export function useCommandKeys(workspace: WorkspaceValue): void {
     useEffect(() => {
+        const stopTracking = trackPendingEdits();
         const onKeyDown = (event: KeyboardEvent): void => {
             if (event.defaultPrevented || event.isComposing) {
                 return;
@@ -38,7 +39,7 @@ export function useCommandKeys(workspace: WorkspaceValue): void {
                     continue;
                 }
                 const blocked =
-                    (typing && !firesWhileTyping(key)) ||
+                    (typing && !firesWhileTyping(key, hasPendingEdit(event.target))) ||
                     (overlayOpen && !firesWhileTyping(key)) ||
                     (!singleKeyShortcuts && isSingleKey(key));
                 if (blocked) {
@@ -51,6 +52,7 @@ export function useCommandKeys(workspace: WorkspaceValue): void {
         };
         globalThis.addEventListener("keydown", onKeyDown);
         return () => {
+            stopTracking();
             globalThis.removeEventListener("keydown", onKeyDown);
         };
     }, [workspace]);

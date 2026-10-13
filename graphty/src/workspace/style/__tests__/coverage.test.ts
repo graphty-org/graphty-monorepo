@@ -9,7 +9,7 @@ import {
     LABEL_FIELD_HOMES,
     publishedGraphSettings,
 } from "../coverage";
-import { CORE_ROWS, LISTS, OPACITY_OF } from "../words";
+import { CORE_ROWS, LISTS } from "../words";
 
 describe("every style has a home", () => {
     it("gives every channel graphty-element publishes a control or a reason", () => {
@@ -35,8 +35,7 @@ describe("every style has a home", () => {
             ...[...CORE_ROWS.node, ...CORE_ROWS.edge].flatMap((row) => [...row.fields, ...row.settings]),
             ...[...LISTS.node, ...LISTS.edge].flatMap((list) => list.channels),
         ];
-        // A color's opacity is drawn as the color field's percent box.
-        const drawn = new Set<string>([...fields, ...fields.flatMap((c) => OPACITY_OF[c] ?? [])]);
+        const drawn = new Set<string>(fields);
         for (const channel of CHANNELS) {
             assert.strictEqual("place" in CHANNEL_HOMES[channel], drawn.has(channel), channel);
         }

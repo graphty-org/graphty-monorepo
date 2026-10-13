@@ -6,6 +6,7 @@ import {
     cellOfLocation,
     channelWord,
     clearWords,
+    colorName,
     CORE_ROWS,
     enumWords,
     fieldStateName,
@@ -56,15 +57,25 @@ describe("the Style tab's words and arrangement", () => {
             "Node color, not set, Degree gives #3388FF",
         );
         assert.equal(
-            fieldStateName("node.color", undefined, { mixed: ["Degree"] }),
-            "Node color, not set, mixed beneath",
+            fieldStateName("node.color", undefined, { varies: ["Degree", "the default"] }),
+            "Node color, not set, varies beneath, from Degree and the default",
         );
         assert.equal(
             clearWords({ value: "Icosphere", from: "Everything" }),
             "Clear: back to Icosphere, from Everything",
         );
-        assert.equal(clearWords({ mixed: ["Degree", "Louvain"] }), "Clear: back to mixed, from Degree and Louvain");
+        assert.equal(
+            clearWords({ varies: ["Degree", "Louvain"] }),
+            "Clear: back to values that vary, from Degree and Louvain",
+        );
         assert.equal(clearWords(undefined), "Clear: back to the default");
+    });
+
+    it("says a color by name", () => {
+        const names = ["#E8590C", "#2F9E44", "#1971C2", "#000000", "#FFFFFF", "#868E96", "#5C3A00", "#F783AC"].map(
+            colorName,
+        );
+        assert.deepEqual(names, ["orange", "green", "blue", "black", "white", "gray", "brown", "pink"]);
     });
 
     it("draws the vary glyph on every channel that takes a binding, never on a yes-or-no one", () => {

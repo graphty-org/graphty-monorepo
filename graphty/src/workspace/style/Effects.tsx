@@ -1,6 +1,6 @@
 import { ComboInput, CompactColorInput, Popout, PopoutButton, ToggleIconButton } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
-import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
+import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
@@ -8,7 +8,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { Field, type RowContext, VarySlot } from "./PropertyRow";
-import { lineOf, removeLine, sharesBeneath, type Target, writeLine } from "./row";
+import { lineIn, type lineOf, removeLine, sharesBeneath, type Target, writeIn } from "./row";
 import { hexOf } from "./words";
 
 /** The width of an entry's settings pop-out, as the property rows'. */
@@ -86,7 +86,7 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
     const { store } = useWorkspace();
     const [menuOpen, setMenuOpen] = useState(false);
     const [adding, setAdding] = useState<Channel | null>(null);
-    const { session, row, side: target, layers, fresh } = ctx;
+    const { session, side: target, layers } = ctx;
     const descriptors = channelsFor(target);
     const descriptorOf = (channel: Channel): ChannelDescriptor | undefined =>
         descriptors.find((d) => d.channel === channel);
@@ -94,13 +94,12 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
         store.set({ notice: { message: "The effect could not be changed" } });
     };
     const ownLine = (channel: Channel): ReturnType<typeof lineOf> => {
-        const line = lineOf(layers, channel);
+        const line = lineIn(ctx, channel);
         return line === undefined || line.layer.locked ? undefined : line;
     };
     const present = (kind: EffectKind): boolean =>
         [kind.channel, ...kind.settings].some((c) => ownLine(c) !== undefined);
-    const write = (channel: Channel, value: ChannelValue): Promise<LayerId> =>
-        writeLine(session, row, target, channel, { value }, fresh);
+    const write = (channel: Channel, value: ChannelValue): Promise<unknown> => writeIn(ctx, channel, { value });
     const kinds = KINDS[target];
     const shown = kinds.filter((kind) => present(kind) || adding === kind.channel);
     const empty = shown.length === 0;

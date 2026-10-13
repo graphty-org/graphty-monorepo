@@ -69,6 +69,7 @@ import {
     Trash2,
     TriangleAlert,
     Undo2,
+    Unlink2,
     Upload,
     Workflow,
 } from "lucide-react";
@@ -139,6 +140,8 @@ export const GLYPHS = {
     // Delete a thing for good (a note).
     delete: Trash2,
     link: Link2,
+    // Take a property off the value it varies by, keeping one value.
+    unlink: Unlink2,
     back: ChevronLeft,
     // The current choice in a list.
     check: Check,

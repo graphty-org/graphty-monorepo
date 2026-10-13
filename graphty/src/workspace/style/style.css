@@ -1,4 +1,4 @@
-/* The Style tab (StylePanel): paired property rows, and group headings that stick while it scrolls. */
+/* The Style tab (StylePanel): one line per property, and group headings that stick while it scrolls. */
 
 /* Nodes and Edges stick to the top of the panel: "Color" is in both groups, and the heading says which. */
 .ws-style-group > .cm-section > .cm-section-header {
@@ -9,66 +9,68 @@
 }
 
 .ws-style-panel-which {
-    padding: 8px 8px 0;
+    padding: 8px 8px 0 var(--ws-gutter);
 }
 
-/* A row: the settings button's 24px slot, then its fields. The slot is reserved on every row, so
-   every field of a level starts at one left edge. */
+/* One gutter for the tab: Which elements, the section titles and every field start 16px in, as
+   the sections' own content does (Figma's panel). */
+.ws-style-panel {
+    --ws-gutter: 16px;
+    /* The label column every field of the tab shares, so every field starts at one left edge. */
+    --ws-label: 56px;
+}
+
+/* A group of core properties: one line each. */
 .ws-property-row {
     display: flex;
-    align-items: flex-end;
-    gap: 2px;
-    min-width: 0;
-}
-
-.ws-property-row-gap {
-    flex: 0 0 24px;
-}
-
-.ws-property-row-core {
-    align-items: flex-start;
-}
-
-.ws-property-row-lead {
-    display: flex;
     flex-direction: column;
-    gap: 2px;
-}
-
-/* Paired fields side by side while both fit whole, else one per line (each keeps its own Clear). */
-.ws-property-fields {
-    display: flex;
-    flex: 1 1 auto;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 2px 4px;
     min-width: 0;
 }
 
-/* The width a field needs whole: its control plus the two 24px columns. A color holds its chit,
-   a six-digit hex and an opacity percent; anything else a name like "Icosphere" or a number. */
+/* A field: one line of about 28px -- its name in the label column, the control, then the vary and
+   Clear columns. Without a name (a field its row already names), the control starts the line. */
 .ws-field {
+    display: grid;
+    grid-template-columns: var(--ws-label, 56px) minmax(0, 1fr) 24px 24px;
+    align-items: center;
+    min-width: 0;
+    min-height: 28px;
+}
+
+.ws-field:not([data-named]) {
+    grid-template-columns: minmax(0, 1fr) 24px 24px;
+}
+
+/* The name, its painted-over mark, and the settings button of a group's first line, at the
+   column's right. */
+.ws-field-label {
     display: flex;
-    flex: 1 1 120px;
-    flex-direction: column;
+    align-items: center;
     gap: 2px;
     min-width: 0;
+    padding-inline-end: 4px;
+    font-size: 11px;
+    color: var(--cm-text-secondary);
 }
 
-.ws-field[data-accepts="color"] {
-    flex-basis: 196px;
-}
-
-/* No gap: the two columns are 24px boxes around 22px buttons, which leaves their own margin, and
-   every pixel goes to the control (a six-digit hex beside an opacity percent in a 240px panel). */
-.ws-field-line {
-    display: flex;
-    align-items: flex-end;
+.ws-field-name {
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ws-field-over {
+    display: inline-flex;
+    flex: none;
+    color: var(--cm-icon-secondary, var(--mantine-color-dimmed));
+}
+
+.ws-field-label > :last-child:not(.ws-field-name, .ws-field-over) {
+    margin-inline-start: auto;
 }
 
 .ws-field-control {
-    flex: 1 1 auto;
     min-width: 0;
 }
 

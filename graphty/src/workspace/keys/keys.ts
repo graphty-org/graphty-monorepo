@@ -8,7 +8,9 @@
  * - A character key with no Mod and no Alt is a single-key shortcut, which the reader can switch
  *   off (WCAG 2.1.4).
  * - While the reader types in a field, only Mod keys fire, and never the field's own editing keys
- *   (Mod+Z, Mod+A, copy, cut, paste).
+ *   (Mod+A, copy, cut, paste). Undo and Redo are the field's only while it holds an edit of its
+ *   own; a field with none (focus just put there, or its edit committed) hands them to the app,
+ *   as Figma does, so Undo right after a Clear undoes the Clear.
  */
 
 /** A key string split into its parts. */
@@ -49,14 +51,68 @@ export function isSingleKey(combo: string): boolean {
 /** A field's own editing keys, which stay the field's while the reader types. */
 const FIELD_KEYS = new Set(["z", "y", "a", "c", "v", "x"]);
 
+/** The editing keys a field gives up while it holds no edit of its own: Undo and Redo. */
+const HISTORY_KEYS = new Set(["z", "y"]);
+
 /**
  * Whether a key string may fire while the reader types in a field.
  * @param combo - the key string.
- * @returns true for "Mod+S"; false for "G", "Escape", "Mod+Z".
+ * @param pendingEdit - whether the field holds an edit of its own (`hasPendingEdit`).
+ * @returns true for "Mod+S", and for "Mod+Z" in a field with no edit; false for "G", "Escape",
+ *   "Mod+A", and "Mod+Z" in a field being edited.
  */
-export function firesWhileTyping(combo: string): boolean {
+export function firesWhileTyping(combo: string, pendingEdit = true): boolean {
     const { mod, key } = parseKey(combo);
-    return mod && !FIELD_KEYS.has(key);
+    return mod && (!FIELD_KEYS.has(key) || (!pendingEdit && HISTORY_KEYS.has(key)));
+}
+
+/** The fields the reader has typed into since focusing them or committing (Enter, change). */
+const edited = new WeakSet<EventTarget>();
+
+/**
+ * Starts telling which fields hold an edit of their own: typing marks a field; focusing it,
+ * Enter in it and its change event (a commit) unmark it.
+ * @returns the function that stops it.
+ */
+export function trackPendingEdits(): () => void {
+    const mark = (event: Event): void => {
+        if (event.target !== null) {
+            edited.add(event.target);
+        }
+    };
+    const unmark = (event: Event): void => {
+        if (event.target !== null) {
+            edited.delete(event.target);
+        }
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+        if (event.key === "Enter") {
+            unmark(event);
+        }
+    };
+    const listeners = [
+        ["input", mark],
+        ["focusin", unmark],
+        ["change", unmark],
+        ["keydown", onKeyDown],
+    ] as const;
+    for (const [type, listener] of listeners) {
+        document.addEventListener(type, listener as EventListener, true);
+    }
+    return () => {
+        for (const [type, listener] of listeners) {
+            document.removeEventListener(type, listener as EventListener, true);
+        }
+    };
+}
+
+/**
+ * Whether a field holds an edit of its own, which its own Undo should take back first.
+ * @param target - the key press's target.
+ * @returns true when the reader typed into it since focusing it or committing.
+ */
+export function hasPendingEdit(target: EventTarget | null): boolean {
+    return target !== null && edited.has(target);
 }
 
 /**

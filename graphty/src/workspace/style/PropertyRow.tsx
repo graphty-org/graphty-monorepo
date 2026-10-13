@@ -7,30 +7,31 @@ import {
     type StyleSelectOption,
     VariablePill,
 } from "@graphty/compact-mantine";
-import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
+import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, CombineMode, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Input, Stack, Text, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Stack, Text, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { findTreeRow } from "../graph-place/rows";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import {
     type DataBinding,
     type DataChoice,
+    layerWord,
     type Line,
-    lineOf,
+    lineIn,
     type LiteralWrite,
     type NewLayer,
+    type PaintedOver,
     propose,
     readsNothing,
     removeLine,
     sourceName,
     startingValue,
     type Target,
-    writeLine,
+    writeIn,
 } from "./row";
 import { focusLineNext, listOpensNext, openListNext } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
@@ -46,7 +47,6 @@ import {
     followsWords,
     GLYPH_TABLES,
     hexOf,
-    OPACITY_OF,
     paletteWord,
     type PropertyRowSpec,
     takesBinding,
@@ -85,6 +85,8 @@ export interface RowContext {
     readonly documentColors: readonly string[];
     /** Several rows edited together: what they share, and writes that reach every one of them. */
     readonly many?: ManyRows;
+    /** Which of the row's fields a layer above paints over, where the row is a tree row. */
+    readonly paintedOver?: (channel: Channel) => PaintedOver | undefined;
 }
 
 /** Several rows edited as one (tier3 design, section 2.2): each write reaches every row, one undo step. */
@@ -95,16 +97,6 @@ export interface ManyRows {
     readonly write: (channel: Channel, write: LiteralWrite | { readonly binding: DataBinding }) => Promise<unknown>;
     /** Takes the channel off every row. */
     readonly clear: (channel: Channel) => Promise<unknown>;
-}
-
-/**
- * What a row writes for a channel: the line several rows share, or the row's own topmost.
- * @param ctx - the row.
- * @param channel - the channel.
- * @returns the line, or undefined.
- */
-function lineIn(ctx: RowContext, channel: Channel): Line | undefined {
-    return ctx.many === undefined ? lineOf(ctx.layers, channel) : ctx.many.line(channel);
 }
 
 /**
@@ -133,12 +125,24 @@ function optionsOf(descriptor: ChannelDescriptor): StyleSelectOption[] {
 }
 
 /**
- * The first control in a field, where focus goes after a clear.
+ * The first control in a field's control column, where focus goes after a clear or a detach.
  * @param box - the field's box.
  * @returns the control, or null.
  */
 function firstControl(box: HTMLElement | null): HTMLElement | null {
-    return box?.querySelector<HTMLElement>("input:not([type=hidden]), button") ?? null;
+    return box?.querySelector<HTMLElement>(".ws-field-control :is(input:not([type=hidden]), button)") ?? null;
+}
+
+/**
+ * The words for a field a layer above paints over: "Painted over by Degree on 11 of 11 nodes".
+ * @param channel - the field's channel.
+ * @param over - who paints over it, and where.
+ * @returns the words.
+ */
+function paintedOverWords(channel: Channel, over: PaintedOver): string {
+    const kind = channel.startsWith("node.") ? "node" : "edge";
+    const by = over.by.length === 1 ? over.by[0] : `${over.by.slice(0, -1).join(", ")} and ${String(over.by.at(-1))}`;
+    return `Painted over by ${by} on ${String(over.count)} of ${String(over.of)} ${kind}${over.of === 1 ? "" : "s"}`;
 }
 
 /** Props for Field. */
@@ -147,8 +151,10 @@ interface FieldProps {
     readonly ctx: RowContext;
     /** The property. */
     readonly descriptor: ChannelDescriptor;
-    /** Whether the field draws its own name above it (off inside a popover that names it). */
+    /** Whether the field draws its name in the label column (off where its row names it). */
     readonly named?: boolean;
+    /** What the label column holds after the name: the row's settings button on its first field. */
+    readonly lead?: React.ReactNode;
 }
 
 /**
@@ -160,44 +166,44 @@ interface FieldProps {
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.descriptor - the property
- * @param props.named - whether to draw the field's name above it
+ * @param props.named - whether to draw the field's name in the label column
+ * @param props.lead - what the label column holds after the name
  * @returns The field
  */
-export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): React.JSX.Element {
+export function Field({ ctx, descriptor, named = true, lead }: Readonly<FieldProps>): React.JSX.Element {
     const { store } = useWorkspace();
     const box = useRef<HTMLDivElement>(null);
     const tipId = useId();
-    const { session, row, side, fresh } = ctx;
+    const { session } = ctx;
     const { channel } = descriptor;
     const line = lineIn(ctx, channel);
     // A line on a locked layer (the element's own base layers) is beneath, not this row's to clear.
     const own = line !== undefined && !line.layer.locked ? line : undefined;
-    // A color's opacity is its percent box; a varied opacity is drawn as a row of its own instead.
-    const opacity = opacityOf(ctx, descriptor);
-    const ownOpacity = opacity?.own?.binding === undefined ? opacity?.own : undefined;
-    // What Clear takes away: the value and, on a color, its opacity.
-    const cleared = [
-        ...(own === undefined ? [] : [{ layer: own.layer, channel }]),
-        ...(ownOpacity === undefined || opacity === undefined
-            ? []
-            : [{ layer: ownOpacity.layer, channel: opacity.descriptor.channel }]),
-    ];
+    // What Clear takes away: the value.
+    const cleared = own === undefined ? [] : [{ layer: own.layer, channel }];
     const beneath = ctx.beneath(channel);
     const setWords = own === undefined ? undefined : setWordsOf(session, descriptor, own);
-    const mixed = beneath.words !== undefined && "mixed" in beneath.words ? beneath.words.mixed : undefined;
-    const stateName =
-        ctx.many !== undefined && own === undefined && mixed !== undefined
-            ? `${fieldName(channel)}, mixed: ${mixed.join(", ")}`
-            : fieldStateName(channel, setWords, own === undefined ? beneath.words : undefined);
+    // "Mixed": several selected rows disagree. "Varies": the layers beneath give this row's
+    // elements different values.
+    const mixed = beneath.words !== undefined && "mixed" in beneath.words;
+    const stateName = fieldStateName(channel, setWords, own === undefined ? beneath.words : undefined);
     let placeholder: string | undefined;
     if (beneath.words !== undefined) {
-        placeholder = "mixed" in beneath.words ? "Mixed" : beneath.words.value;
+        if ("mixed" in beneath.words) {
+            placeholder = "Mixed";
+        } else if ("varies" in beneath.words) {
+            placeholder = "Varies";
+        } else {
+            placeholder = beneath.words.value;
+        }
     }
+    // A layer above paints over this row's value on some of its elements (a shown row only).
+    const over = own === undefined || !own.layer.enabled ? undefined : ctx.paintedOver?.(channel);
     const fail = (): void => {
         store.set({ notice: { message: `${channelWord(channel)} could not be changed` } });
     };
     const writeTo = (to: Channel, next: LiteralWrite | { binding: DataBinding }): Promise<unknown> =>
-        ctx.many === undefined ? writeLine(session, row, side, to, next, fresh) : ctx.many.write(to, next);
+        writeIn(ctx, to, next);
     const write = (next: LiteralWrite | { binding: DataBinding }): void => {
         writeTo(channel, next).catch(fail);
     };
@@ -220,7 +226,7 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
         // One step, named so Undo reads "Undid clearing node size on Key people".
         session
             .transaction(
-                `clearing ${fieldName(channel).toLowerCase()} on ${layerName(session, cleared[0].layer)}`,
+                `clearing ${fieldName(channel).toLowerCase()} on ${layerWord(session, cleared[0].layer.id) ?? "the default"}`,
                 async (tx) => {
                     for (const c of cleared) {
                         const layer = tx.styles.get(c.layer.id);
@@ -247,6 +253,10 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
     // select or a color chit.
     const onKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>): void => {
         const target = event.target as HTMLElement;
+        // The label column's settings button keeps its own keys.
+        if (target.closest(".ws-field-control") === null) {
+            return;
+        }
         if (event.key === "=" && varies && descriptor.accepts !== "text" && target instanceof HTMLInputElement) {
             event.preventDefault();
             event.stopPropagation();
@@ -283,9 +293,6 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
         );
     } else if (descriptor.accepts === "color") {
         const hex = own === undefined ? null : hexOf(own.value);
-        const defaultOpacity = percentOf(opacity?.beneath) ?? percentOf(opacity?.descriptor.default) ?? 100;
-        // The percent the box shows; a gesture that leaves it there writes no opacity.
-        const shownOpacity = percentOf(ownOpacity?.value) ?? defaultOpacity;
         control = (
             <div // NOSONAR(S6819): an ARIA group naming the paint field's controls; a fieldset would draw its own border and legend
                 role="group"
@@ -297,22 +304,14 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
                     color={hex ?? undefined}
                     defaultColor={hexOf(beneath.value) ?? hexOf(descriptor.default) ?? "#000000"}
                     emptyText={emptyColorWords(descriptor, beneath.words)}
-                    mixed={mixed !== undefined}
-                    showOpacity={opacity !== undefined && opacity.own?.binding === undefined}
-                    opacity={percentOf(ownOpacity?.value)}
-                    defaultOpacity={defaultOpacity}
+                    mixed={mixed}
+                    showOpacity={false}
                     showReset={false}
                     swatches={ctx.documentColors}
-                    onChangeEnd={(next, nextOpacity) => {
-                        // One write per half that moved, in turn, so a row's first edit adds one layer.
-                        void (async () => {
-                            if (next !== undefined && next.toUpperCase() !== hex) {
-                                await writeTo(channel, valueWrite(next.toUpperCase()));
-                            }
-                            if (opacity !== undefined && nextOpacity !== undefined && nextOpacity !== shownOpacity) {
-                                await writeTo(opacity.descriptor.channel, { value: nextOpacity / 100 });
-                            }
-                        })().catch(fail);
+                    onChangeEnd={(next) => {
+                        if (next !== undefined && next.toUpperCase() !== hex) {
+                            writeTo(channel, valueWrite(next.toUpperCase())).catch(fail);
+                        }
                     }}
                 />
             </div>
@@ -391,63 +390,95 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
     }
 
     const tip = clearWords(beneath.words);
+    const overWords = over === undefined ? undefined : paintedOverWords(channel, over);
+    let varySlot: React.ReactNode = null;
+    if (own?.binding !== undefined) {
+        // A bound field's Detach sits where its vary glyph sat (Figma's variable field), so the
+        // pill keeps one width whether its popover is open or not.
+        varySlot = (
+            <Tooltip label="Detach: use one value">
+                <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    aria-label={`Detach ${fieldName(channel).toLowerCase()}`}
+                    onClick={() => {
+                        const value = startingValue(descriptor, session, own.layer.selector);
+                        // Focus stays on the property: its field, now holding the one value.
+                        focusLineNext(channel, "fixed");
+                        store.set({
+                            announcement: `${fieldName(channel)} detached, now ${valueWords(descriptor, value)}`,
+                        });
+                        write({ value });
+                    }}
+                >
+                    <GLYPHS.unlink size={14} aria-hidden />
+                </ActionIcon>
+            </Tooltip>
+        );
+    } else if (varies) {
+        varySlot = (
+            <VaryButton ctx={ctx} descriptor={descriptor} onPick={bind} open={varyOpen} onOpenChange={setVaryOpen} />
+        );
+    }
     return (
         <div
             ref={box}
             className="ws-field ws-varies"
             data-line={channel}
+            data-named={named ? "" : undefined}
             data-set={cleared.length === 0 ? undefined : ""}
             data-accepts={descriptor.accepts}
             data-bound={own?.binding === undefined ? undefined : ""}
+            data-painted-over={over === undefined ? undefined : ""}
             onKeyDownCapture={onKeyDownCapture}
         >
+            {/* One line: the name in the label column, the field, then two reserved 24 px
+                columns, vary and Clear, drawn or not, so the field keeps its width when it is
+                set, cleared or focused (Figma's property row). */}
             {named && (
-                <Input.Label size="xs" component="div" aria-hidden>
-                    {channelWord(channel)}
-                </Input.Label>
+                <span className="ws-field-label">
+                    <span className="ws-field-name" title={channelWord(channel)} aria-hidden>
+                        {channelWord(channel)}
+                    </span>
+                    {overWords !== undefined && (
+                        <Tooltip label={overWords}>
+                            <span role="img" aria-label={overWords} className="ws-field-over">
+                                <GLYPHS.paintedOver size={12} aria-hidden />
+                            </span>
+                        </Tooltip>
+                    )}
+                    {lead}
+                </span>
             )}
-            {/* The field, then two reserved 24 px columns, vary and Clear, drawn or not, so the
-                field keeps its width when it is set, cleared or focused (Figma's icon column). */}
-            <div className="ws-field-line">
-                <div className="ws-field-control">{control}</div>
-                <span className="ws-slot ws-vary">
-                    {varies && (
-                        <VaryButton
-                            ctx={ctx}
-                            descriptor={descriptor}
-                            onPick={bind}
-                            open={varyOpen}
-                            onOpenChange={setVaryOpen}
-                        />
-                    )}
-                </span>
-                <span className="ws-slot">
-                    {cleared.length > 0 && (
-                        <>
-                            <Tooltip label={tip}>
-                                <ActionIcon
-                                    variant="subtle"
-                                    size="sm"
-                                    aria-label={`Clear ${fieldName(channel)}`}
-                                    aria-describedby={tipId}
-                                    onClick={clear}
-                                >
-                                    <GLYPHS.remove size={14} aria-hidden />
-                                </ActionIcon>
-                            </Tooltip>
-                            <VisuallyHidden id={tipId}>{tip}</VisuallyHidden>
-                        </>
-                    )}
-                </span>
-            </div>
+            <div className="ws-field-control">{control}</div>
+            <span className="ws-slot ws-vary">{varySlot}</span>
+            <span className="ws-slot">
+                {cleared.length > 0 && (
+                    <>
+                        <Tooltip label={tip}>
+                            <ActionIcon
+                                variant="subtle"
+                                size="sm"
+                                aria-label={`Clear ${fieldName(channel)}`}
+                                aria-describedby={tipId}
+                                onClick={clear}
+                            >
+                                <GLYPHS.remove size={14} aria-hidden />
+                            </ActionIcon>
+                        </Tooltip>
+                        <VisuallyHidden id={tipId}>{tip}</VisuallyHidden>
+                    </>
+                )}
+            </span>
         </div>
     );
 }
 
 /**
- * What an empty color field says when nothing beneath sets it and it follows another channel (an
- * arrowhead's "Line color"), else nothing (the swatch shows). Mixed beneath is the field's own
- * `mixed` state, which draws no swatch.
+ * What an empty color field says: "Varies" when the layers beneath give the row's elements
+ * different colors (the chit shows the color most of them get), "Line color" when nothing beneath
+ * sets it and it follows another channel, else nothing (the swatch shows). Mixed, several rows
+ * that disagree, is the field's own `mixed` state, which draws no swatch.
  * @param descriptor - the channel.
  * @param beneath - what lies beneath, in words.
  * @returns the words, or undefined.
@@ -456,52 +487,12 @@ function emptyColorWords(descriptor: ChannelDescriptor, beneath: Beneath | undef
     if (beneath !== undefined && "mixed" in beneath) {
         return undefined;
     }
+    if (beneath !== undefined && "varies" in beneath) {
+        return "Varies";
+    }
     return descriptor.follows !== undefined && beneath !== undefined && beneath.from === undefined
         ? followsWords(descriptor.follows)
         : undefined;
-}
-
-/**
- * A color field's opacity: the element's opacity channel for it, what the row writes for it and
- * what the layers beneath give.
- * @param ctx - the row.
- * @param descriptor - the color channel.
- * @returns the opacity, or undefined on a channel with no opacity of its own.
- */
-function opacityOf(
-    ctx: RowContext,
-    descriptor: ChannelDescriptor,
-): { descriptor: ChannelDescriptor; own: Line | undefined; beneath: unknown } | undefined {
-    const channel = OPACITY_OF[descriptor.channel];
-    const found = channel === undefined ? undefined : channelsFor(ctx.side).find((d) => d.channel === channel);
-    if (found === undefined) {
-        return undefined;
-    }
-    const line = lineIn(ctx, found.channel);
-    return {
-        descriptor: found,
-        own: line !== undefined && !line.layer.locked ? line : undefined,
-        beneath: ctx.beneath(found.channel).value,
-    };
-}
-
-/**
- * An opacity from 0 to 1 as the color field's percent.
- * @param value - the opacity.
- * @returns the percent, or undefined when it is not a number.
- */
-function percentOf(value: unknown): number | undefined {
-    return typeof value === "number" ? Math.round(value * 100) : undefined;
-}
-
-/**
- * A layer as its tree row names it, for the words of an undo step.
- * @param session - the element's session.
- * @param layer - the layer.
- * @returns the row's name, else the layer's.
- */
-function layerName(session: GraphSession, layer: Layer): string {
-    return findTreeRow(session.styles.tree(), layer.row ?? layer.id)?.row.name ?? layer.name;
 }
 
 /**
@@ -538,11 +529,7 @@ export function VarySlot({
         if (!proposal.ok) {
             return;
         }
-        const next = { binding: proposal.binding };
-        (ctx.many === undefined
-            ? writeLine(ctx.session, ctx.row, ctx.side, descriptor.channel, next, ctx.fresh)
-            : ctx.many.write(descriptor.channel, next)
-        ).catch(() => {
+        writeIn(ctx, descriptor.channel, { binding: proposal.binding }).catch(() => {
             store.set({ notice: { message: `${channelWord(descriptor.channel)} could not be changed` } });
         });
     };
@@ -694,10 +681,6 @@ function BoundValue({
     // What the pill says to a screen reader after the field's name: the source, then its range or
     // palette by name ("Node size: Degree rank, 1 to 3").
     const spoken = detail === undefined || detail === name ? source : `${source}, ${detail}`;
-    const detach = (): void => {
-        setOpen(false);
-        write({ value: startingValue(descriptor, session, layer.selector) });
-    };
     // The pill opens the popover itself (no Popout.Trigger), so it takes focus back itself: on
     // Escape or Done, while focus is still in the popover, never after a click elsewhere took it.
     const openChange = (next: boolean): void => {
@@ -717,10 +700,9 @@ function BoundValue({
                     name={source}
                     value={detail}
                     swatch={swatch}
+                    swatchWidth={swatch === undefined ? undefined : SWATCH_STRIP}
                     width="100%"
                     aria-label={`${fieldName(descriptor.channel)}: ${spoken}`}
-                    detachLabel={`Detach ${fieldName(descriptor.channel).toLowerCase()}`}
-                    onDetach={detach}
                     onClick={() => {
                         setOpen(true);
                     }}
@@ -754,13 +736,16 @@ function BoundValue({
     );
 }
 
+/** How wide a bound color's swatch is at rest: a ramp strip, or six group chits side by side. */
+const SWATCH_STRIP = 36;
+
 /**
- * Category colors as hard gradient stops, so each reads as its own chit: at most eight.
+ * Category colors as hard gradient stops, so each reads as its own chit: at most six.
  * @param colors - the colors.
  * @returns the stops.
  */
 function chits(colors: readonly string[]): string[] {
-    const shown = colors.slice(0, 8);
+    const shown = colors.slice(0, 6);
     const step = 100 / shown.length;
     return shown.map((c, i) => `${c} ${String(i * step)}% ${String((i + 1) * step)}%`);
 }
@@ -776,58 +761,44 @@ interface PropertyRowProps {
 }
 
 /**
- * One row of core properties: the settings button at its start where it has rare properties, its
- * fields side by side, and under it a row for each rare property this layer sets, with its minus,
- * so nothing a layer writes is hidden (tier3 design, decision 1.1).
+ * A group of core properties, one line each (Figma's property rows): its settings button sits in
+ * the label column of its first line where it has rare properties, and under its lines a line for
+ * each rare property this layer sets, with its minus, so nothing a layer writes is hidden (tier3
+ * design, decision 1.1).
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.spec - its fields and settings
  * @param props.descriptors - the element's descriptors for this side
- * @returns The row and its set rare properties
+ * @returns The lines
  */
 export function PropertyRow({ ctx, spec, descriptors }: Readonly<PropertyRowProps>): React.JSX.Element {
     const describe = (channels: readonly Channel[]): ChannelDescriptor[] =>
         channels.flatMap((c) => descriptors.filter((d) => d.channel === c && d.renderable));
     const fields = describe(spec.fields);
     const settings = describe(spec.settings);
-    // A varied opacity has no percent box to show in: it gets a row of its own, as a set rare property.
-    const opacities = describe(
-        [...spec.fields, ...spec.settings].flatMap((c) => {
-            const o = OPACITY_OF[c];
-            return o === undefined || lineIn(ctx, o)?.binding === undefined ? [] : [o];
-        }),
-    );
-    const written = [...settings, ...opacities].filter((d) => {
+    const written = settings.filter((d) => {
         const line = lineIn(ctx, d.channel);
         return line !== undefined && !line.layer.locked;
     });
+    const hasSettings = settings.length > 0 || fields.some((d) => d.accepts === "number");
     return (
-        <Stack gap={2} data-row={spec.id}>
-            <div className="ws-property-row ws-property-row-core">
-                {/* The settings button sits level with the first field's control, under a label's
-                    height, however the fields wrap. */}
-                <span className="ws-property-row-gap ws-property-row-lead">
-                    <Input.Label size="xs" component="div" aria-hidden>
-                        {"\u00a0"}
-                    </Input.Label>
-                    {settings.length > 0 || fields.some((d) => d.accepts === "number") ? (
-                        <RowSettings ctx={ctx} spec={spec} fields={fields} settings={settings} />
-                    ) : null}
-                </span>
-                {/* Paired fields wrap onto a line each when the panel is too narrow for both whole. */}
-                <div className="ws-property-fields">
-                    {fields.map((d) => (
-                        <Field key={d.channel} ctx={ctx} descriptor={d} />
-                    ))}
-                </div>
-            </div>
-            {written.map((d) => (
-                <div key={d.channel} className="ws-property-row ws-property-row-rare">
-                    <span className="ws-property-row-gap" />
-                    <Field ctx={ctx} descriptor={d} />
-                </div>
+        <div className="ws-property-row" data-row={spec.id}>
+            {fields.map((d, i) => (
+                <Field
+                    key={d.channel}
+                    ctx={ctx}
+                    descriptor={d}
+                    lead={
+                        i === 0 && hasSettings ? (
+                            <RowSettings ctx={ctx} spec={spec} fields={fields} settings={settings} />
+                        ) : undefined
+                    }
+                />
             ))}
-        </Stack>
+            {written.map((d) => (
+                <Field key={d.channel} ctx={ctx} descriptor={d} />
+            ))}
+        </div>
     );
 }
 
@@ -861,11 +832,7 @@ function RowSettings({
         if (line?.value === undefined) {
             return;
         }
-        const next = { value: line.value, combine: mode };
-        (ctx.many === undefined
-            ? writeLine(ctx.session, ctx.row, ctx.side, d.channel, next, ctx.fresh)
-            : ctx.many.write(d.channel, next)
-        ).catch(() => {
+        writeIn(ctx, d.channel, { value: line.value, combine: mode }).catch(() => {
             store.set({ notice: { message: `${channelWord(d.channel)} could not be changed` } });
         });
     };
@@ -883,7 +850,7 @@ function RowSettings({
             </Popout.Trigger>
             <Popout.Panel width={POPOUT_WIDTH} placement="left" alignment="start" header={{ variant: "title", title }}>
                 <Popout.Content>
-                    <Stack gap={6}>
+                    <Stack gap={0}>
                         {settings.map((d) => (
                             <Field key={d.channel} ctx={ctx} descriptor={d} />
                         ))}

@@ -27,7 +27,18 @@ import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LabelSettings, type VaryField } from "./LabelSettings";
 import { Field, type RowContext, VarySlot } from "./PropertyRow";
-import { type DataChoice, type Line, lineOf, propose, readsNothing, removeLine, sourceName, writeLine } from "./row";
+import {
+    type DataChoice,
+    type Line,
+    lineOf,
+    propose,
+    readsNothing,
+    removeLine,
+    sharesBeneath,
+    sourceName,
+    writeIn,
+    type writeLine,
+} from "./row";
 import { focusLineNext, focusSectionNext } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
 import { labelStatement, positionWord, TEXT_KINDS, type TextKindSpec } from "./words";
@@ -68,34 +79,15 @@ function styleOf(line: Line | undefined): LabelStyle {
 }
 
 /**
- * The names of the layers beneath the row that write a text's words: graphty-element's own answer
- * of what lies beneath the row (`styles.agreement` with `below`), over the whole graph.
- * ponytail: read over the whole graph, not the row's own elements (no scope names a layer's
- * matches); scope it when the element offers one.
+ * The names of the layers beneath the row that write a text's words, over the row's own elements
+ * (`sharesBeneath`), "the default" for graphty-element's base layers.
  * @param session - the element's session.
- * @param layers - the row's layers on this side, bottom first.
+ * @param layers - the row's layers on this side.
  * @param channel - the words channel.
- * @returns the layers' names, empty when nothing beneath writes one or the row has no layer yet.
+ * @returns the names, each once.
  */
 function writtenBeneath(session: GraphSession, layers: readonly Layer[], channel: Channel): string[] {
-    const own = layers.find((layer) => !layer.locked);
-    if (own === undefined) {
-        return [];
-    }
-    let channels: ReturnType<GraphSession["styles"]["agreement"]>["channels"];
-    try {
-        ({ channels } = session.styles.agreement("graph", channel, { below: own.row ?? own.id }));
-    } catch {
-        // A row the element's tree does not hold (a run's own layers) has no "beneath" to read.
-        return [];
-    }
-    const ids = channels.flatMap((found) => {
-        if (found.state === "agree") {
-            return found.value === undefined ? [] : [found.layerId];
-        }
-        return found.breakdown.filter((share) => share.value !== undefined).map((share) => share.layerId);
-    });
-    return [...new Set(ids)].map((id) => session.styles.get(id)?.name ?? id);
+    return [...new Set(sharesBeneath(session, layers, channel).map((share) => share.name))];
 }
 
 /**
@@ -145,7 +137,7 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
     const [picking, setPicking] = useState<string | null>(null);
     const [typing, setTyping] = useState<string | null>(null);
     const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
-    const { session, row, side: target, layers, fresh } = ctx;
+    const { session, side: target, layers } = ctx;
     const kinds = TEXT_KINDS[target];
     const kindWord = target === "node" ? "Node" : "Edge";
     const listName = `${kindWord} text`;
@@ -169,7 +161,7 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
         }
         focusLineNext(kind.words);
         // Only the words: the look, the size and the position stay what the layers beneath give.
-        writeLine(session, row, target, kind.words, next, fresh).catch(() => {
+        writeIn(ctx, kind.words, next).catch(() => {
             focusLineNext(null);
             fail();
         });
@@ -354,14 +346,7 @@ function BeneathLine({
                 checkedIcon={<GLYPHS.hide size={14} />}
                 onChange={(hide) => {
                     if (hide) {
-                        writeLine(
-                            ctx.session,
-                            ctx.row,
-                            ctx.side,
-                            kind.style,
-                            { value: { enabled: false } },
-                            ctx.fresh,
-                        ).catch(onFail);
+                        writeIn(ctx, kind.style, { value: { enabled: false } }).catch(onFail);
                     }
                 }}
             />
@@ -502,7 +487,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
     const [sourceOpen, setSourceOpen] = useState(false);
     const [sizeOpen, setSizeOpen] = useState(false);
     const [typing, setTyping] = useState(false);
-    const { session, row, side: target, layers, fresh } = ctx;
+    const { session, side: target, layers } = ctx;
     const noun = kind.name.toLowerCase();
     const kindWord = target === "node" ? "Node" : "Edge";
     const words = lineOf(layers, kind.words);
@@ -521,12 +506,12 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
         const done =
             Object.keys(next).length === 0 && styleLine !== undefined
                 ? removeLine(session, styleLine.layer, kind.style)
-                : writeLine(session, row, target, kind.style, { value: next }, fresh);
+                : writeIn(ctx, kind.style, { value: next });
         done.catch(onFail);
     };
     const writeSize = (write: Parameters<typeof writeLine>[4] | undefined): void => {
         if (write !== undefined) {
-            writeLine(session, row, target, kind.size, write, fresh).catch(onFail);
+            writeIn(ctx, kind.size, write).catch(onFail);
         } else if (size !== undefined) {
             removeLine(session, size.layer, kind.size).catch(onFail);
         }

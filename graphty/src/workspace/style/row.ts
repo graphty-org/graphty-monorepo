@@ -13,8 +13,9 @@ import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/ca
 import type { Binding, Channel, ChannelValue, CombineMode, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
 import type { ColumnRef, GraphSession, Layer } from "@graphty/graphty-element/session";
 
+import { findTreeRow } from "../graph-place/rows";
 import { runName } from "../runWords";
-import type { BeneathValue } from "./PropertyRow";
+import type { BeneathValue, RowContext } from "./PropertyRow";
 import { type Beneath, channelWord, resultWord, valueWords } from "./words";
 
 /** Which side of the Style tab: nodes or edges. */
@@ -409,6 +410,33 @@ export async function writeLine(
 }
 
 /**
+ * What a row writes for a channel: the line several rows share, or the row's own topmost.
+ * @param ctx - the row.
+ * @param channel - the channel.
+ * @returns the line, or undefined.
+ */
+export function lineIn(ctx: Pick<RowContext, "many" | "layers">, channel: Channel): Line | undefined {
+    return ctx.many === undefined ? lineOf(ctx.layers, channel) : ctx.many.line(channel);
+}
+
+/**
+ * Writes one value or binding to the row, or to every row of several edited together.
+ * @param ctx - the row.
+ * @param channel - the channel.
+ * @param write - the value or the binding.
+ * @returns when it is written.
+ */
+export function writeIn(
+    ctx: Pick<RowContext, "many" | "session" | "row" | "side" | "fresh">,
+    channel: Channel,
+    write: LiteralWrite | { readonly binding: DataBinding },
+): Promise<unknown> {
+    return ctx.many === undefined
+        ? writeLine(ctx.session, ctx.row, ctx.side, channel, write, ctx.fresh)
+        : ctx.many.write(channel, write);
+}
+
+/**
  * Removes a line (or every part of a compound line) from the layer that sets it. The reader's
  * Everything layer is removed when nothing is left on it. One undoable step of the element's.
  * @param session - the element's session, or a transaction's scope.
@@ -610,14 +638,56 @@ export async function writeGroupColor(
 /** What one layer beneath a row writes for a channel. */
 export interface BeneathShare {
     readonly value: unknown;
+    /** The layer's name, "the default" for graphty-element's own base layers. */
     readonly name: string;
 }
 
 /**
- * What the layers beneath a row write for one channel, each with its layer's name: graphty-element's
- * own answer (`styles.agreement` with `below`), over the whole graph.
- * ponytail: read over the whole graph, not the row's own elements (no scope names a layer's
- * matches), as the label's gray line does; scope it when the element offers one.
+ * A layer as the reader knows it: its tree row's name, or undefined for graphty-element's own base
+ * layers, which the tree never shows and the panel calls "the default".
+ * @param session - the element's session.
+ * @param id - the layer.
+ * @returns the name, or undefined for a base layer.
+ */
+export function layerWord(session: GraphSession, id: LayerId): string | undefined {
+    const layer = session.styles.get(id);
+    if (layer === undefined) {
+        return id;
+    }
+    if (layer.source.by === "element" && layer.source.reason === "default") {
+        return undefined;
+    }
+    return findTreeRow(session.styles.tree(), layer.row ?? layer.id)?.row.name ?? layer.name;
+}
+
+/**
+ * graphty-element's answer for what lies beneath a row, read over the row's own elements
+ * (`over`): a row that matches nothing (Selected with nothing selected, Hovered) is read over
+ * every element through the layers that match every element, its floor.
+ * @param session - the element's session.
+ * @param row - the tree row, or undefined for the stack as it is.
+ * @param channel - one channel, or every channel.
+ * @returns the answer.
+ */
+function agreementBeneath(
+    session: GraphSession,
+    row: string | undefined,
+    channel?: Channel,
+): ReturnType<GraphSession["styles"]["agreement"]> {
+    if (row === undefined) {
+        return session.styles.agreement("graph", channel);
+    }
+    try {
+        return session.styles.agreement("graph", channel, { below: row, over: row });
+    } catch {
+        // A row the element's tree does not hold (a run's own layers) has no "beneath" to read.
+        return session.styles.agreement("graph", channel);
+    }
+}
+
+/**
+ * What the layers beneath a row write for one channel over the row's own elements, each with its
+ * layer's name: graphty-element's own answer (`styles.agreement` with `below` and `over`).
  * @param session - the element's session.
  * @param layers - the row's layers on this side, bottom first.
  * @param channel - the channel.
@@ -628,43 +698,46 @@ export function sharesBeneath(session: GraphSession, layers: readonly Layer[], c
     if (own === undefined) {
         return [];
     }
+    const row = own.row ?? own.id;
     let channels: ReturnType<GraphSession["styles"]["agreement"]>["channels"];
     try {
-        ({ channels } = session.styles.agreement("graph", channel, { below: own.row ?? own.id }));
+        ({ channels } = session.styles.agreement("graph", channel, { below: row, over: row }));
     } catch {
-        // A row the element's tree does not hold (a run's own layers) has no "beneath" to read.
         return [];
     }
-    const nameOf = (id: string): string => session.styles.get(id)?.name ?? id;
     return channels.flatMap((found) => {
         if (found.state === "agree") {
-            return found.value === undefined ? [] : [{ value: found.value, name: nameOf(found.layerId) }];
+            return found.value === undefined
+                ? []
+                : [{ value: found.value, name: layerWords(session, [found.layerId])[0] }];
         }
         return found.breakdown
             .filter((share) => share.value !== undefined)
-            .map((share) => ({ value: share.value, name: nameOf(share.layerId) }));
+            .map((share) => ({ value: share.value, name: layerWords(session, [share.layerId])[0] }));
     });
 }
 
 /**
- * What the layers beneath a row give each channel, from graphty-element's own answer
- * (`styles.agreement` below the row): one value and the layer that paints it, the layers when the
- * value differs, or the channel's default when nothing beneath paints it.
+ * Names for a list of layers: each once, "the default" for graphty-element's base layers.
  * @param session - the element's session.
- * @param below - the tree row the answer reads beneath, or undefined for the stack as it is.
+ * @param ids - the layers, most elements first.
+ * @returns the names.
+ */
+function layerWords(session: GraphSession, ids: readonly LayerId[]): string[] {
+    return [...new Set(ids.map((id) => layerWord(session, id) ?? "the default"))];
+}
+
+/**
+ * What the layers beneath a row give each channel over the row's own elements, from
+ * graphty-element's own answer: one value and the layer that paints it ("the default" for the
+ * element's base layers), "Varies" with the layers when the elements get different values, or
+ * the channel's default when nothing beneath paints it.
+ * @param session - the element's session.
+ * @param row - the tree row the answer reads beneath and over, or undefined for the stack as it is.
  * @returns a reader by channel.
  */
-export function beneathOf(session: GraphSession, below: string | undefined): (channel: Channel) => BeneathValue {
-    // ponytail: read over the whole graph, not the row's own elements -- the element publishes no
-    // scope for "what a layer matches" yet (owed with "Select what it paints"); one pass per panel
-    // render over every element, fine at Les Miserables' size.
-    let agreement: ReturnType<GraphSession["styles"]["agreement"]>;
-    try {
-        agreement = session.styles.agreement("graph", undefined, below === undefined ? undefined : { below });
-    } catch {
-        agreement = session.styles.agreement("graph");
-    }
-    const nameOf = (id: string): string => session.styles.get(id)?.name ?? id;
+export function beneathOf(session: GraphSession, row: string | undefined): (channel: Channel) => BeneathValue {
+    const agreement = agreementBeneath(session, row);
     const descriptorOf = (channel: Channel): ChannelDescriptor | undefined =>
         channelsFor(channel.startsWith("node.") ? "node" : "edge").find((d) => d.channel === channel);
     return (channel) => {
@@ -684,16 +757,84 @@ export function beneathOf(session: GraphSession, below: string | undefined): (ch
         if (entry.state === "agree") {
             return {
                 value: entry.value,
-                words: { value: valueWords(descriptor, entry.value), from: nameOf(entry.layerId) },
+                words: { value: valueWords(descriptor, entry.value), from: layerWord(session, entry.layerId) },
             };
         }
         const values = new Set(entry.breakdown.map((share) => JSON.stringify(share.value)));
-        const layers = [...new Set(entry.breakdown.map((share) => nameOf(share.layerId)))];
-        // One value from several layers is still that value; only differing values are "Mixed".
+        const layers = layerWords(
+            session,
+            entry.breakdown.map((share) => share.layerId),
+        );
+        const top = entry.breakdown[0].value;
+        // One value from several layers is still that value; only differing values "Vary".
         const words: Beneath =
             values.size === 1
-                ? { value: valueWords(descriptor, entry.breakdown[0].value), from: layers.join(" and ") }
-                : { mixed: layers.slice(0, 3) };
-        return values.size === 1 ? { value: entry.breakdown[0].value, words } : { words };
+                ? { value: valueWords(descriptor, top), from: layers.join(" and ") }
+                : { varies: layers.slice(0, 3) };
+        // The value most of the elements get, for a color field's chit.
+        return { value: top, words };
+    };
+}
+
+/** A field a layer above paints over: who, and on how many of this row's elements. */
+export interface PaintedOver {
+    /** The rows that paint over it, the most elements first. */
+    readonly by: readonly string[];
+    /** On how many of the row's elements. */
+    readonly count: number;
+    /** How many elements of the field's kind the row matches. */
+    readonly of: number;
+}
+
+/**
+ * Which of a row's fields a layer above paints over, read from graphty-element's answer over the
+ * row's own elements with the whole stack (`styles.agreement` with `over`): an element whose
+ * deciding layer is not one of the row's. A row that matches nothing is never painted over.
+ * @param session - the element's session.
+ * @param row - the tree row.
+ * @param ids - the row's layers.
+ * @returns a reader by channel: the facts, or undefined where nothing paints over it.
+ */
+export function paintedOverOf(
+    session: GraphSession,
+    row: string,
+    ids: readonly LayerId[],
+): (channel: Channel) => PaintedOver | undefined {
+    let agreement: ReturnType<GraphSession["styles"]["agreement"]>;
+    try {
+        agreement = session.styles.agreement("graph", undefined, { over: row });
+    } catch {
+        return () => undefined;
+    }
+    if (agreement.readOver !== "row") {
+        return () => undefined;
+    }
+    const matchedOf = (kind: Target): number =>
+        rowLayers(session, ids, kind).reduce(
+            (most, layer) => Math.max(most, session.styles.counts(layer.id).matched),
+            0,
+        );
+    return (channel) => {
+        const entry = agreement.channels.find((c) => c.channel === channel);
+        if (entry === undefined) {
+            return undefined;
+        }
+        const of = matchedOf(channel.startsWith("node.") ? "node" : "edge");
+        const shares =
+            entry.state === "agree"
+                ? [{ layerId: entry.layerId, count: of - entry.unpainted }]
+                : entry.breakdown.map((share) => ({ layerId: share.layerId, count: share.count }));
+        const above = shares.filter((share) => !ids.includes(share.layerId) && share.count > 0);
+        if (above.length === 0) {
+            return undefined;
+        }
+        return {
+            by: layerWords(
+                session,
+                above.map((share) => share.layerId),
+            ),
+            count: above.reduce((sum, share) => sum + share.count, 0),
+            of,
+        };
     };
 }

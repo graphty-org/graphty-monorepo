@@ -45,12 +45,14 @@ function patchOf(
  * "Mixed" naming the rows that write it when they differ; and writes that reach each row's
  * topmost layer of that kind in one `session.transaction`, so one Undo takes them all back.
  * @param session - the element's session.
- * @param rows - the rows written, each unlocked.
+ * @param all - the rows written, each unlocked; a kind reads only those that paint it.
  * @param side - nodes or edges.
  * @returns the reader, the writer, and what lies beneath when none of them writes a channel.
  */
-function manyOf(session: GraphSession, rows: readonly FoundRow[], side: Target): Pick<RowContext, "many" | "beneath"> {
+function manyOf(session: GraphSession, all: readonly FoundRow[], side: Target): Pick<RowContext, "many" | "beneath"> {
     const layersOf = (row: FoundRow): Layer[] => rowLayers(session, treeRowLayers(session, row.row.id), side);
+    // Only the rows that paint this kind read and take its fields.
+    const rows = all.filter((row) => layersOf(row).length > 0);
     const linesOf = (channel: Channel): (Line | undefined)[] =>
         rows.map((row) => {
             const line = lineOf(layersOf(row), channel);
@@ -107,9 +109,10 @@ function manyOf(session: GraphSession, rows: readonly FoundRow[], side: Target):
 
 /**
  * The panel of several rows selected together (tier3 design, section 2.2), headed "N layers" by
- * the inspector: a line naming any locked row, which is left out of every write; the groups the
- * kinds of the other rows share, each field holding their shared value or "Mixed", and every
- * write reaching each of them in one undo step; then their Selection colors.
+ * the inspector: a line naming any locked row, which is left out of every write; a group for each
+ * kind any of the other rows paints, with its properties, Text and Effects, each field holding the
+ * value the rows of that kind share or "Mixed", and every write reaching each of them in one undo
+ * step; then their Selection colors.
  * @param props - Component props
  * @param props.ids - the rows' ids, top first
  * @returns The panel
@@ -132,7 +135,7 @@ export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): Re
     const sides = (["node", "edge"] as const).filter(
         (side) =>
             open.length > 0 &&
-            open.every((row) => rowLayers(session, treeRowLayers(session, row.row.id), side).length > 0),
+            open.some((row) => rowLayers(session, treeRowLayers(session, row.row.id), side).length > 0),
     );
     const layerIds = open.flatMap((row) => treeRowLayers(session, row.row.id));
     return (

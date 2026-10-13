@@ -40,8 +40,8 @@ export interface PropertyRowSpec {
 }
 
 /**
- * The seven core properties on four rows, in the design's fixed order: Nodes `Shape | Size` and
- * `Color`; Edges `Color | Width` and `Head | Tail` (tier3 design, decision 1.1).
+ * The seven core properties in four groups, one line each, in the design's fixed order: Nodes
+ * Shape, Size, Color; Edges Color, Width, Head, Tail (tier3 design, decision 1.1).
  */
 export const CORE_ROWS: Readonly<Record<Kind, readonly PropertyRowSpec[]>> = {
     node: [
@@ -51,21 +51,29 @@ export const CORE_ROWS: Readonly<Record<Kind, readonly PropertyRowSpec[]>> = {
             fields: ["node.shape", "node.size"],
             settings: ["node.wireframe", "node.visible"],
         },
-        // Opacity is the color field's own percent box (OPACITY_OF), so Color has no settings.
-        { id: "fill", title: "Color", fields: ["node.color"], settings: [] },
+        // Opacity sits behind Color's settings button: a color, a percent box and two columns do
+        // not fit beside a name in a 240 px panel with a scrollbar.
+        { id: "fill", title: "Color", fields: ["node.color"], settings: ["node.opacity"] },
     ],
     edge: [
         {
             id: "line",
             title: "Line",
             fields: ["edge.color", "edge.width"],
-            settings: ["edge.style", "edge.patternCount", "edge.curvature", "edge.visible"],
+            settings: ["edge.opacity", "edge.style", "edge.patternCount", "edge.curvature", "edge.visible"],
         },
         {
             id: "ends",
             title: "Ends",
             fields: ["edge.arrowHead", "edge.arrowTail"],
-            settings: ["edge.arrowHeadSize", "edge.arrowHeadColor", "edge.arrowTailSize", "edge.arrowTailColor"],
+            settings: [
+                "edge.arrowHeadSize",
+                "edge.arrowHeadColor",
+                "edge.arrowHeadOpacity",
+                "edge.arrowTailSize",
+                "edge.arrowTailColor",
+                "edge.arrowTailOpacity",
+            ],
         },
     ],
 };
@@ -197,9 +205,15 @@ export function fieldName(channel: Channel): string {
     return `${kind} ${channelWord(channel).toLowerCase()}`;
 }
 
-/** What the layers beneath a row give a field, in words: one value and its layer, or several layers. */
+/**
+ * What a field reads when the row does not set it, in words: one value and the layer it comes
+ * from (undefined: graphty-element's default); "varies", the layers beneath giving the row's
+ * elements different values; or "mixed", several selected rows that disagree.
+ */
 export type Beneath =
-    { readonly value: string; readonly from: string | undefined } | { readonly mixed: readonly string[] };
+    | { readonly value: string; readonly from: string | undefined }
+    | { readonly varies: readonly string[] }
+    | { readonly mixed: readonly string[] };
 
 /**
  * A field's accessible name, stating its state: "Node size, set here, 2" or "Node size, not set,
@@ -218,7 +232,10 @@ export function fieldStateName(channel: Channel, set: string | undefined, beneat
         return `${name}, not set`;
     }
     if ("mixed" in beneath) {
-        return `${name}, not set, mixed beneath`;
+        return `${name}, mixed: ${listWords(beneath.mixed)}`;
+    }
+    if ("varies" in beneath) {
+        return `${name}, not set, varies beneath, from ${listWords(beneath.varies)}`;
     }
     return beneath.from === undefined
         ? `${name}, not set, ${beneath.value} by default`
@@ -247,15 +264,18 @@ function listWords(names: readonly string[]): string {
 /**
  * What Clear says before it clears: the value that comes back and the layer it comes from.
  * @param beneath - what the layers beneath give.
- * @returns "Clear: back to Icosphere, from Everything", "Clear: back to mixed, from Degree and
- *   Louvain", or "Clear: back to the default".
+ * @returns "Clear: back to Icosphere, from Everything", "Clear: back to values that vary, from
+ *   Degree and Louvain", or "Clear: back to the default".
  */
 export function clearWords(beneath: Beneath | undefined): string {
     if (beneath === undefined) {
         return "Clear: back to the default";
     }
     if ("mixed" in beneath) {
-        return `Clear: back to mixed, from ${listWords(beneath.mixed)}`;
+        return `Clear: back to what each layer has, ${listWords(beneath.mixed)}`;
+    }
+    if ("varies" in beneath) {
+        return `Clear: back to values that vary, from ${listWords(beneath.varies)}`;
     }
     return beneath.from === undefined
         ? `Clear: back to ${beneath.value}, the default`
@@ -285,17 +305,6 @@ export function takesBinding(descriptor: ChannelDescriptor): boolean {
             descriptor.accepts === "text")
     );
 }
-
-/**
- * The opacity a color field carries as its percent box, as Figma's paint row does, so a color and
- * its opacity are one row and opacity needs no settings button of its own.
- */
-export const OPACITY_OF: Partial<Readonly<Record<Channel, Channel>>> = {
-    "node.color": "node.opacity",
-    "edge.color": "edge.opacity",
-    "edge.arrowHeadColor": "edge.arrowHeadOpacity",
-    "edge.arrowTailColor": "edge.arrowTailOpacity",
-};
 
 /**
  * The bind icon's tooltip, which is also its accessible name.
@@ -593,7 +602,7 @@ export function hexOf(value: unknown): string | null {
 }
 
 /**
- * A value as a reader reads it on its field: a color's hex, a shape's name, a yes-or-no
+ * A value as a reader hears it: a color's name, a shape's name, a yes-or-no
  * property's word, a number as itself.
  * @param descriptor - the channel.
  * @param value - the value.
@@ -601,7 +610,8 @@ export function hexOf(value: unknown): string | null {
  */
 export function valueWords(descriptor: ChannelDescriptor, value: unknown): string {
     if (descriptor.accepts === "color") {
-        return hexOf(value) ?? String(value);
+        const hex = hexOf(value);
+        return hex === null ? String(value) : colorName(hex);
     }
     const two = TWO_WORDS[descriptor.channel];
     if (two !== undefined && typeof value === "boolean") {
@@ -611,4 +621,59 @@ export function valueWords(descriptor: ChannelDescriptor, value: unknown): strin
         return GLYPH_TABLES[descriptor.channel]?.find((g) => g.id === value)?.plainName ?? enumWords(value);
     }
     return typeof value === "number" || typeof value === "string" ? String(value) : JSON.stringify(value);
+}
+
+/** Hue bands, by the hue each ends at, and their names. */
+const HUES: readonly (readonly [number, string])[] = [
+    [15, "red"],
+    [45, "orange"],
+    [70, "yellow"],
+    [160, "green"],
+    [195, "teal"],
+    [255, "blue"],
+    [290, "purple"],
+    [350, "pink"],
+    [360, "red"],
+];
+
+/**
+ * A color as a reader says it, for spoken names and Clear's words: "orange", "dark green",
+ * "light gray". The field itself shows the hex.
+ * @param hex - `#RRGGBB`.
+ * @returns the name.
+ */
+export function colorName(hex: string): string {
+    const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255);
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const light = (max + min) / 2;
+    const chroma = max - min;
+    if (chroma < 0.1 || Number.isNaN(light)) {
+        if (light < 0.1) {
+            return "black";
+        }
+        if (light > 0.94) {
+            return "white";
+        }
+        if (light < 0.4) {
+            return "dark gray";
+        }
+        return light > 0.75 ? "light gray" : "gray";
+    }
+    let hue: number;
+    if (max === r) {
+        hue = ((g - b) / chroma + 6) % 6;
+    } else if (max === g) {
+        hue = (b - r) / chroma + 2;
+    } else {
+        hue = (r - g) / chroma + 4;
+    }
+    const name = HUES.find(([end]) => hue * 60 < end)?.[1] ?? "red";
+    if ((name === "orange" || name === "yellow") && light < 0.35) {
+        return "brown";
+    }
+    if (light < 0.3) {
+        return `dark ${name}`;
+    }
+    return light > 0.75 ? `light ${name}` : name;
 }

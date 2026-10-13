@@ -40,12 +40,15 @@ function statusLine(out: Outcome): string {
 export interface Tile {
     /** The heading, such as the method call. */
     title: string;
-    /** A text panel beside the graph, filled from the outcome's `file`. */
+    /**
+     * A panel beside the graph: the outcome's `summary` on top, and under it the outcome's `file` in full, in a box
+     * that scrolls (shown scrolled to its start, so a capture is the same on every run).
+     */
     panel?: boolean;
     /** Puts the graph into the empty core. */
     load(cy: Core): Promise<void> | void;
     /** The work; returns which backend ran ("" when no backend is involved) and the panel's text. */
-    run(cy: Core): Promise<Outcome & { file?: string }>;
+    run(cy: Core): Promise<Outcome & { summary?: string; file?: string }>;
 }
 
 /**
@@ -90,16 +93,30 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
             title.append(again);
         }
         const body = document.createElement("div");
-        // a full tile leaves room for the line above it, its heading and its status line
-        body.style.cssText = `display:flex;${full ? "height:calc(100vh - 168px);" : "height:170px;"}`;
+        // a full tile leaves room for the line above it, its heading and its status line; a small tile with a panel is
+        // taller, so the panel's summary fits whole with room for the file under it
+        const small = t.panel === true ? "300px" : "170px";
+        body.style.cssText = `display:flex;height:${full ? "calc(100vh - 168px)" : small};`;
         const canvas = document.createElement("div");
         canvas.style.cssText = "flex:1;min-width:0;position:relative;";
         body.append(canvas);
+        const summary = document.createElement("div");
+        const lineCount = document.createElement("div");
         const file = document.createElement("pre");
         if (t.panel === true) {
+            const panel = document.createElement("div");
+            panel.style.cssText = `flex:none;width:42%;display:flex;flex-direction:column;border-left:1px solid #ddd;background:#fafafa;font:${full ? 11 : 7}px ui-monospace,monospace;`;
+            summary.dataset.testid = "summary";
+            // always whole: a long attribute list wraps
+            summary.style.cssText = "flex:none;padding:6px;white-space:pre-wrap;overflow-wrap:anywhere;";
+            // says how long the file is, and that it scrolls, so its cut-off edge does not read as a fault
+            lineCount.style.cssText = "flex:none;padding:2px 6px;border-top:1px solid #ddd;color:#666;";
             file.dataset.testid = "file";
-            file.style.cssText = `flex:none;width:42%;margin:0;padding:6px;overflow:hidden;border-left:1px solid #ddd;background:#fafafa;font:${full ? 11 : 7}px ui-monospace,monospace;`;
-            body.append(file);
+            // the whole file, lines unwrapped: it scrolls both ways inside the panel
+            file.style.cssText =
+                "flex:1;min-height:0;margin:0;padding:6px;overflow:auto;white-space:pre;background:#fff;font:inherit;";
+            panel.append(summary, lineCount, file);
+            body.append(panel);
         }
         const status = document.createElement("div");
         status.dataset.testid = "status";
@@ -110,12 +127,12 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
         status.textContent = "waiting...";
         cell.append(title, body, status);
         grid.append(cell);
-        return { canvas, status, file };
+        return { canvas, status, summary, lineCount, file };
     });
 
     const runAll = async (): Promise<void> => {
         for (const [i, t] of tiles.entries()) {
-            const { canvas, status, file } = cells[i];
+            const { canvas, status, summary, lineCount, file } = cells[i];
             try {
                 const cy = newCore(canvas);
                 await t.load(cy);
@@ -127,7 +144,16 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
                 const ms = Math.round(out.ms ?? performance.now() - t0);
                 // fitted to the main graph, not to far-flung isolated nodes; what the picture shows first, the backend after
                 const outside = fitToContainer(cy);
+                summary.textContent = out.summary ?? "";
+                summary.hidden = summary.textContent === "";
                 file.textContent = out.file ?? "";
+                // a run again starts at the top too
+                file.scrollTop = 0;
+                file.scrollLeft = 0;
+                const n = file.textContent === "" ? 0 : file.textContent.split("\n").length;
+                const scrolls = file.scrollHeight > file.clientHeight || file.scrollWidth > file.clientWidth;
+                lineCount.textContent = `${n.toLocaleString("en-US")} line${n === 1 ? "" : "s"}${scrolls ? "; scroll for the rest" : ""}`;
+                lineCount.hidden = n === 0;
                 const lines = [out.note, statusLine(out)];
                 if (full && !CAPTURE && out.ran !== "not run") {
                     // the time differs on every run, so a capture leaves it out

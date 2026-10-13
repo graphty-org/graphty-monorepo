@@ -359,27 +359,34 @@ workers need those made configurable first.
 
 ## What the committed project settings turn on
 
-Two files register githerd for every Claude Code session opened in a checkout that has them. Both
-point at `~/.githerd/graphty-org_graphty-monorepo/current/`, which `githerd install` (or the first
-daemon start) creates, so a branch's own edits never change its hooks or its MCP server:
+Two files register githerd for every Claude Code session opened in a checkout that has them, and
+neither runs a branch's own code, so a branch's edits never change its hooks or its MCP server:
 
 - `.mcp.json` registers the MCP server above. Claude Code asks once per project to approve a
   project's MCP servers. Once approved, every session's launcher finds the one daemon **and starts
   it through servherd when it is not running**: landing this file on the default branch is what
   makes githerd run whenever a session is open. Before githerd is installed, `node` finds no file
   and Claude Code lists the server as failed; nothing else happens.
-- `.claude/settings.json` registers a `SessionStart` hook for new sessions (`startup` only):
-  `bin/githerd-hook.mjs SessionStart` asks the daemon for its status and prints one line, banners
-  first (`githerd: master green; 0 waiting on the owner; 3 open pull requests; mode dry-run`), to
-  the person and into the session's context. It waits 2 s for the daemon and then prints why there
-  is no answer; it always exits 0, so a broken githerd never blocks a session. Before githerd is
-  installed, the command finds no file and prints nothing. Workers get every hook of design
-  section 4.10 (the Stop gate, steering, API failures, the guard) from their generated settings.
-  It also registers a `PreToolUse` hook on Bash: a shell check skips every command without
-  `gh `, and for the rest `bin/githerd-hook.mjs PreToolUse` logs each `gh` write to an issue or a
-  pull request in `session-writes.jsonl` in the state directory, so the daemon never reads a
-  comment, reopen or label removal a Claude session made with the owner's account as his own
-  input. It prints nothing and always exits 0.
+- `.claude/settings.json` registers its hooks through
+  `~/.githerd/graphty-org_graphty-monorepo.hook.mjs`, which the running daemon writes every time
+  it starts: the installed daemon and the development daemon of `githerd dev` alike. The file runs
+  that daemon's own `bin/githerd-hook.mjs` against that daemon's state directory, so the hooks reach
+  whichever githerd is running. A session that sets `GITHERD_STATE_DIR` itself keeps its own. Until
+  a daemon has started once, the file does not exist and the hooks do nothing; when its code is gone
+  (a removed worktree), the file exits 0 and prints nothing.
+    - A `SessionStart` hook for new sessions (`startup` only) asks the daemon for its status and
+      prints one line, banners first (`githerd: master green; 0 waiting on the owner; 3 open pull
+requests; mode dry-run`), to the person and into the session's context. It waits 2 s for the
+      daemon and then prints why there is no answer; it always exits 0, so a broken githerd never
+      blocks a session.
+    - A `PreToolUse` hook on Bash: a shell check skips every command without `gh ` before any
+      process starts, and for the rest the hook logs each `gh` write to an issue or a pull request in
+      `session-writes.jsonl` in the daemon's state directory, so the daemon never reads a comment,
+      reopen or label removal a Claude session made with the owner's account as his own input. A
+      read such as `gh issue view` logs nothing. It prints nothing and always exits 0.
+
+    Workers get every hook of design section 4.10 (the Stop gate, steering, API failures, the guard)
+    from their generated settings.
 
 On a branch that is not merged, both files act only in sessions started in that branch's own
 worktree.

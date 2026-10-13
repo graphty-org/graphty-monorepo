@@ -445,6 +445,18 @@ describe("HTTP endpoints", () => {
         expect(daemon.url).toBe(`http://127.0.0.1:${daemon.port}`);
     });
 
+    it("publishes itself to the project settings' hooks, unless it is a one-poll check", async () => {
+        const home = join(dir, "home");
+        const pointer = join(home, ".githerd", "o_r.hook.mjs");
+        await (await start({ env: { GITHERD_CONFIG: configFile, PATH: process.env.PATH, HOME: home } })).shutdown();
+        expect(existsSync(pointer)).toBe(false);
+        const env = { GITHERD_CONFIG: configFile, PATH: process.env.PATH, HOME: home, GITHERD_DEV: "1" };
+        await (await start({ env, autoPoll: true })).shutdown();
+        const text = readFileSync(pointer, "utf8");
+        expect(text).toContain(`process.env.GITHERD_DEV_STATE ??= ${JSON.stringify(join(dir, ".githerd"))};`);
+        expect(text).toContain("/bin/githerd-hook.mjs");
+    });
+
     it("lists the fourteen session tools on /rpc", async () => {
         const daemon = await start();
         const res = await fetch(`${daemon.url}/rpc`, {

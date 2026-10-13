@@ -817,6 +817,7 @@ export const EDGE_CONSTANTS: {
     readonly ZIGZAG_FREQUENCY_DEFAULT: 1;
     readonly BEZIER_CONTROL_POINT_OFFSET: 0.3;
     readonly BEZIER_POINT_DENSITY: 8;
+    readonly BEZIER_MAX_SEGMENTS: 64;
 };
 
 // @public (undocumented)

@@ -99,8 +99,10 @@ export class NodeMesh {
     private static readonly shapeCreators = new SharedImplementationMap<ShapeCreator>("shape");
 
     static {
-        NodeMesh.registerShapeCreator("box", (size) => NodeMesh.createBox(size));
-        NodeMesh.registerShapeCreator("sphere", (size) => NodeMesh.createSphere(size));
+        // Every creator passes the scene on. Without it Babylon builds the mesh in the scene created
+        // last on the page, so with several graphs every graph's mesh lands in one of them (#2257).
+        NodeMesh.registerShapeCreator("box", (size, scene) => NodeMesh.createBox(size, scene));
+        NodeMesh.registerShapeCreator("sphere", (size, scene) => NodeMesh.createSphere(size, scene));
         NodeMesh.registerShapeCreator("cylinder", (size, scene) => NodeMesh.createCylinder(size, scene));
         NodeMesh.registerShapeCreator("cone", (size, scene) => NodeMesh.createCone(size, scene));
         NodeMesh.registerShapeCreator("capsule", (size, scene) => NodeMesh.createCapsule(size, scene));

@@ -14,7 +14,7 @@
 # A commit whose gate already failed a check of its own (build, lint, tests, SonarQube ...) is not
 # queued again while nothing it depends on changed: same commit, same checkout fingerprint, same gate.
 # PUSH_QUEUE_RETRY=1 pushes it anyway, for a failure you believe was the machine's, not the commit's.
-# Settings, for tests: PUSH_QUEUE_SLOTS (3), PUSH_QUEUE_DIR (the tickets), PUSH_QUEUE_LOG (the push
+# Settings, for tests: PUSH_QUEUE_SLOTS (4), PUSH_QUEUE_DIR (the tickets), PUSH_QUEUE_LOG (the push
 # log), PUSH_QUEUE_GATE (the gate's live worktree), PUSH_QUEUE_POLL (seconds between looks, 10).
 # Run from a private copy: bash reads a script from disk as it runs, so editing this file would
 # otherwise change the code of every push already waiting.
@@ -32,7 +32,10 @@ if [ -z "${PUSH_QUEUE_COPY:-}" ]; then
         copy=$(mktemp "$main/tmp/push-queue-copies/push-queue.XXXXXX.sh") && cp "$0" "$copy" &&
         PUSH_QUEUE_COPY=$copy exec bash "$copy" "$@"
 fi
-SLOTS=${PUSH_QUEUE_SLOTS:-3}
+# 4 gates at once: since each Node test run is capped at its share of the cores (#2184) and the GPU
+# step has its own slot (#2267), 3 gates left the machine at load ~29 of 32 with 20 pushes waiting;
+# the 4 machine-wide test slots still keep the test stages from oversubscribing it.
+SLOTS=${PUSH_QUEUE_SLOTS:-4}
 dir=${PUSH_QUEUE_DIR:-$main/tmp/push-queue}
 mkdir -p "$dir"
 rank=1; [ "${PUSH_QUEUE_PRIORITY:-}" = critical ] && rank=0

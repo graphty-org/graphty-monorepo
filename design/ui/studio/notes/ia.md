@@ -7,6 +7,40 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
+00. (2026-10-13, build paused for the owner's review after iteration 3) Where the owner's three
+   questions stand, and what I watch:
+   - **Unset.** Decided and built: a set field draws a minus (Clear) and only a set field does;
+     Clear names what comes back, read over the layer's own elements ("back to 1, the default"),
+     and Undo after Clear works and says what it undid. "Off" is a value ("None", "Hidden"),
+     never the minus. A field painted over by a layer above is marked with that layer and how
+     many of this layer's elements it covers. Reason: the owner asked how a reader stops a layer
+     overriding the ones beneath; the answer must be visible at rest, not learned. Watch: focus
+     falls to the page after Clear on a bound value and after Undo (severity 3, iteration 3) --
+     a keyboard reader loses their place exactly at the unset moment; and the painted-over mark
+     sits in the 56 px name column that cuts names to "C." -- the fact is there but unreadable.
+   - **Split parent.** Gone. Two row kinds only, layer and folder. Per-group colors are entries
+     of the ordinary vary binding ("One color per value", category rows with chip, count, eye,
+     minus), and "New layer for <value>" makes an ordinary layer with an ordinary rule the rule
+     editor reads back. Reason: the owner's test is consistency of interaction; split added a
+     third row kind with private rules, and the per-value binding is reusable for any column,
+     not only communities. Watch: a numeric category column (College's conference) still paints
+     twelve oranges by default while the field says "Eight distinct colors" -- the reusable
+     path is only as good as its default on non-community data; and edge-end values filtered out
+     by the app keep "New layer for <value>" from working on edges.
+   - **Figma.** Decision 1.13 in `tier3/design.md`: adopted Figma's mixed values, "+" and "-" on
+     lists, eye per entry, settings per entry, the type-row header with "Select what it paints",
+     selection colors on a folder; departures (Clear drawn at rest instead of unmarked overrides,
+     no default entry on "+", sticky group titles) each have a reason in
+     `design/ui/framework/figma-crosswalk.md` section 4. Watch: Figma never cuts a property's
+     name and has one position for a settings button; we cut names and have two positions --
+     the first thing the owner will judge.
+   - In the study (after approval): do readers find the minus to unset and believe its "what
+     comes back"? Does anyone look for a split/group layer kind, or reach per-group color through
+     the vary picker unprompted? Does a kind change (Nodes to Edges) lose work without them
+     noticing -- today it drops the bindings while announcing success.
+   Lesson: answers to owner questions must be checked in the build at the edges (keyboard focus,
+   non-community data, edges), not only in the design text.
+
 0. (2026-10-13, iteration 3 review, `tier3/iterations/3/ia.md`) Style coverage is whole (every
    channel has a control; vary on 47 of 51, the four yes-or-no by recorded decision); generic
    picking works on three datasets including a reader's own GML file where "name contains Bob"

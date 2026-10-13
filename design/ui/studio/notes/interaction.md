@@ -15,6 +15,45 @@ save and reopen.
 
 ## Top of mind
 
+- 2026-10-13 **Tier 3 paused for the owner's review after build 3** (served as
+  `tier3-i3-617b43b270`; review `tier3/iterations/3/review.md`). Built and mine: unset is the minus
+  at rest on a set field, emptying + Enter, or Delete; its tooltip names what comes back read over
+  the layer's own elements ("back to 1, the default"); Undo right after Clear restores and names it;
+  a painted-over field names the layer above and its count. Covering something beneath is a
+  different act from unsetting: an ordinary entry of this layer set to nothing ("Hide label from
+  Key people" in the "+" menu). No split-parent layer exists: Louvain is an ordinary layer whose
+  color varies by Community, each group an entry with chip, eye and minus, "New layer for Group 3"
+  makes an ordinary layer; the same rows serve a number column of codes. Reason: two row kinds
+  only (layer, folder) -- the owner's consistency test. Figma taken: one-line rows, effect rows,
+  Mixed only for multi-select, Undo from an idle field, right-click selects. Kept graphty's own:
+  vary glyph at rest, painted-over mark (Figma does not stack paints).
+  Decided for iteration 4 and mine to verify on the served build: focus never falls to the page
+  (after Clear to the emptied field, after Remove to the next entry or "+", after Undo to the
+  restored control, one polite status region); a kind change keeps every setting (radios keep
+  select-on-arrow, nothing lost by passing through; each change one announced undo step); a layer
+  lists only its own entries; hiding an effect keeps its value; Tab past a pop-out's last control
+  closes it and moves on; a ramp handle can always step back; several selected layers show only
+  what all share, one undo step for their writes.
+  Watch at the owner review: does a dimmed painted-over value read as "not what is drawn"; is the
+  "+" menu where a reader looks to cover something beneath; does one settings button per section
+  read as Figma's Type settings. Watch in the study: do readers confuse Clear (stop covering) with
+  Hide-from-beneath (cover with nothing); does an empty field read as unset or as broken; does an
+  empty group layer from "New layer for" read as broken; does anyone press arrows through the kind
+  radios and trust what remains.
+
+- 2026-10-12 **Owner feedback 1 answered** in `tier3/decide/feedback-1-interaction.md`. (1) Unset =
+  the minus, or emptying / Delete on the focused control; set vs inherited by two cues (minus and
+  primary text vs placeholder), never color alone; the minus's tooltip names what comes back from
+  `agreement` plus an additive `from`; focus to the field after; inherited list entries shown as
+  secondary lines. "None"/"Hidden" are blocking values, not unset. (2) I reversed my own "split
+  parent is a layer with its own glyph": Split is a command making an ordinary folder of empty
+  ordinary layers above the unchanged original; the palette reaches unoverridden groups by plain
+  fall-through, "follow parent" is the minus, multi-select edits groups together. Reason: the
+  owner's consistency test (every row a layer or a folder) and the unset rule makes the special
+  inheritance unnecessary. Needs the element to keep a layer that sets nothing. (3) Figma pass:
+  adopt Mixed, multi-select, apply-variable placement, pill; reject Detach and click-title-adds.
+  Watch once built: do readers see an empty group layer as broken?
+
 - 2026-10-12 **Tier 3 (unified styles) answers proposed** in `tier3/decide/interaction.md`. Mine to
   watch once built: the six core fields always shown with a computed "beneath" placeholder ("+" only
   on lists) -- does an empty field read as unset or as broken? Which-elements as a find-style text
@@ -202,6 +241,13 @@ Each with its reason. A screen that breaks one is a defect.
   distribution with paint steps, named label looks, a RuleTree text leaf, `FindResult.rule`,
   bindable label size, color and background. Reason: one pattern per job, words at rest down,
   every element fact from the element.
+
+- 2026-10-12 Owner feedback 1, mine. Split parent replaced by Split into layers (ordinary folder,
+  empty ordinary layers above the original); minus is the one unset gesture for every field,
+  including label settings (drops "Edited"/Reset); inherited list entries visible; per-entry eye on
+  list entries only. Element asks (additive): keep a layer that sets nothing, `split`, a rule on an
+  arbitrary label that follows members across re-runs, `agreement` naming the source row. Given up:
+  a group's rule is copied at split time. Reason: two row kinds, one gesture per job.
 
 ## Tried: worked / did not work
 

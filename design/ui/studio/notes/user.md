@@ -12,6 +12,39 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
+- 2026-10-13 -- Tier 3 build paused for the owner's review after three iterations; the fourth is
+  planned (`design/ui/studio/tier3/iterations/3/review.md`). Built: one line per property, Clear
+  that names what comes back plus an announced Undo, a painted-over mark naming the layer above,
+  Figma-style effect and category rows, one name per value, kind changes that keep the layer, new
+  layers that say what they hold before painting, generic picking that gives true counts. No sev 4
+  findings; 9 sev 3 remain, and iteration 4 targets all of them.
+- 2026-10-13 -- My answers to the owner's three questions, and why. (1) Unset vs cover: an empty
+  field writes nothing, so "unset" is Clear (minus at rest, tooltip names what comes back, Undo).
+  Covering what a layer beneath draws is a different act: add your own entry set to nothing ("Hide
+  label from Key people" in the "+" menu). Two acts, two controls -- I accept this only if a layer
+  lists ONLY its own entries (iteration 4); today lower layers' entries appear on every layer
+  above, so Elena cannot tell "mine" from "beneath", and that is the real confusion behind the
+  owner's question. (2) No "split parent": it was never built; Louvain is an ordinary layer whose
+  color varies by Community, each group an ordinary category entry, and the same rows serve any
+  grouping column (College football's conference). Two row kinds only, layer and folder -- the
+  owner's consistency rule is mine too: one more row kind is one more thing Elena must learn.
+  (3) Figma: taken -- one-line rows, effect rows, Mixed only for multi-select, popovers beside the
+  panel; next -- never-cut names with one settings button per section (Type settings), opacity
+  inline, swatch borders, icon grid for shapes. Kept against Figma: the vary glyph at rest (hidden
+  doors were found only by guessing in tier 1) and the painted-over mark (Figma does not stack).
+- 2026-10-13 -- Watch at the owner's review: does a painted-over value drawn dimmed read as "not
+  what is drawn"; is the "+" menu where a reader looks to hide something beneath (my doubt: a
+  reader who sees a label they do not want looks at the label, not at "+"; if the owner agrees,
+  the beneath entry's own row menu could offer "Hide on this layer" -- same act, second door);
+  does one settings button per section read as Figma's.
+- 2026-10-13 -- Watch in the study: Elena unsetting a value she did not mean to set (does she find
+  Clear, or empty the field); Alex moving a layer between kinds and expecting nothing lost; trust
+  failures first -- twelve oranges for twelve conferences, a key reading "6" to "5", a font named
+  Verdana drawn in serif. Any picture that says one thing while the canvas shows another is sev 3.
+- 2026-10-12 -- Tier 3 (unified styles) started: build the style panel in the real app from the
+  mock, the owner approves the UI before any study. My answers to the owner's twelve questions:
+  `design/ui/studio/tier3/decide/user.md`. Watch: nothing looks set unless it is; a row's empty
+  placeholder must state what is really painted, not only the floor.
 - 2026-10-11 -- Round 4 closed (Director): 12 changes, study first. Round 5 waits until the gate
   refuses a gateless session and briefings name files and kinds only, each shown on a planted fault.
   Watch round 5: T22 A "10" on bus-stops (no refused suggestion; "is 10 or more" offered), T17
@@ -100,6 +133,29 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- 2026-10-13 (me, tier 3 pause) -- Agree with the iteration 4 plan. Additions I hold to: a layer
+  shows only its own entries; nothing is lost by passing through a kind; focus never falls to the
+  page; "one color per value" must give distinct colors. Reason: each is a screen that lies or a
+  loss of work, which Elena never forgives. No new row kind for runs, ever, without a second use.
+
+- 2026-10-12 (me, tier 3 open questions) -- Core single-value properties (node shape, size,
+  color; edge color, width, head, tail) always present as empty fields whose placeholder is what
+  the layers beneath paint, not "+" (Figma's always-present opacity); "+" only for lists (labels,
+  effects) and rare properties, its menus with pictures and the color picker opening at once.
+  Nodes and Edges as collapsible groups with a summary, never tabs; a group the rule cannot match
+  is hidden. Field picker ranked in use, then fits, with one fact per field. Gradient as one
+  picture (histogram, aligned ramp, handles) with the number fields kept. A run's categories
+  arrive unsplit; a split parent never looks like a folder. One "which elements" rule with an
+  edge clause (between / touching / none). Find-box value rows make live rules first; selection
+  and "=" expressions second (0 of 16 typed "=" in tier 2). Label looks as presets with previews
+  plus saved looks. Every field can vary where the element binds it, disabled with its reason
+  elsewhere. Reason: Elena fears breaking things and reads pictures; Alex wants fewer clicks and
+  saved patterns; no control may look set when it is not. Element asks, all additive: a
+  "beneath this layer" reading of `styles.agreement`, kind previews, the kinds a rule can match,
+  channel-fit codes per column, a binding preview (bins, colors, clamped count), a selector
+  taking a rule tree with an edge reading, a text leaf in rule trees, label looks as catalog
+  data, bindable label size and colors.
+
 - 2026-10-11 (Design Director, round 4 close; my position after) -- Twelve changes: study gate
   and slot start (sev 4); briefings name file and kind only, leak check reads briefings (sev 4);
   element refusal suggests only a rule the selector accepts; "is N or more" for a number in a
@@ -121,17 +177,11 @@ something, or change my mind. Summarize when it passes about 25 KB.
   load/direction/Degree/save item, Shift-click, Filters icon. Reason: each targets a confirmed
   failure on the route a returning user takes from memory (type the number; check the table).
 
-- 2026-10-11 (Design Director, round 3 close; my position after) -- Twelve changes, study first:
-  gate and leak check (sev 4), T24 prompt reworded to name the outcome (sev 4), element Shift-click
-  adds (Ctrl/Meta held: macOS Ctrl-click is a context menu), bars 8/9 fixed, "Made with" after
-  Undo (script first), two focus drops, find box "at least" row via element `atLeast`, Analyze name
-  ranking, toolbar Filters icon, Add page warning tied to Load, edge-filter steps counting edges
-  (script first), disabled reasons in compact-mantine Tooltip (check first). Where it differed from
-  my critique: prompt changed instead of widening the key -- I agree, the key measures what T24 is
-  for (a selection a next action applies to); toolbar icon instead of a layer row -- I agree, fewer
-  words at rest; no second-path notice -- I agree, cost 0 of 7; rows shortened instead of wrapped,
-  backticks wording held for the owner. Held: per-name hop distance (first in line if a second
-  session meets it), "4 hops" wording, Ctrl/Meta.
+- 2026-10-11 (Design Director, round 3 close; summarized 2026-10-12) -- Twelve changes, study
+  first: gate and leak check, T24 prompt reworded, Shift-click adds, find box "at least" row,
+  Analyze name ranking, toolbar Filters icon, focus fixes. I agreed with each difference from my
+  critique (prompt over key, icon over layer row, no second-path notice). Held: per-name hop
+  distance, "4 hops", Ctrl/Meta.
 
 - 2026-10-10 (me, tier 2 round 3 critique) -- Seven changes, smallest first; folded 2026-10-11 into
   the entry above (5 of 7 matched the final list).
@@ -153,22 +203,11 @@ something, or change my mind. Summarize when it passes about 25 KB.
   round 1's dry run cleared every walked route (0 broken controls met there), and every build
   fault participants did meet was on a detour (styling Edges while a run layer was open, the
   selection tint over a new fill).
-- 2026-10-08 (me, tier 2 criteria review) -- Asked for, most important first: (1) a bar 10 for
-  the per-round expert walkthrough and screenshot audit: 0 open confirmed severity 3+ visual or
-  pattern findings (truncation, text or key over a node, wrong component, one kind of control
-  behaving two ways, raw element strings), confirmed by a second expert or a script measure, and
-  the count not rising round over round; plus a script for clipped text (scrollWidth > clientWidth)
-  and raw strings on bar 8's screens. Reason: the owner said tier 1's study missed most of what a
-  real person saw on first use; my own re-pilot found "Node t..." truncation and raw file syntax
-  that no bar counted. (2) Rounds: no 3-round cap; a round with no gain on the core four stops and
-  reports to the owner (his launch words). (3) "Not scored" counts as not met. (4) A repeat-cost
-  measure: after success on T17/T18, a follow-up variant in the same session; steps on the repeat
-  vs the success path. (5) A first move to a history-named place that leads nowhere is a finding
-  (broken habit), confirmed at 2. (6) Bar 1 arithmetic for T4's 3-per-half spelled out; bar 5's
-  reference to an older build replaced by the mechanism. (7) Bar 4 adds the tie click, select
-  ends, and the load-time weight choice. (8) No door removed on fewer than 8 sessions across
-  rounds. Reason for all: a returning user's repeat work is judged by repeat cost and kept habits,
-  and every check the owner asked for must decide something.
+- 2026-10-08 (me, tier 2 criteria review; summarized 2026-10-12) -- Asked: a bar for expert and
+  screenshot findings (0 open sev 3+, scripted clipped-text and raw-string checks); no round cap,
+  stop on no gain; "not scored" is not met; a repeat-cost measure; a dead-end first move is a
+  finding; no door removed on fewer than 8 sessions. Reason: repeat cost and kept habits judge a
+  returning user.
 
 - 2026-10-07 (studio, tier 1 round 2 decisions; summarized 2026-10-11) -- Twelve fixes in their
   owning packages (menu focus, key omits covered layer, 2D Fit, finished announcements, "Show all
@@ -295,6 +334,10 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Sources
 
+- `design/ui/studio/tier3/decide/user.md`; mock design `design/ui/style-panel-organization.md`
+  (branch `mock/style-panel`); `tmp/style-catalog/catalog.md`; element `catalog/types.ts`
+  (Selector, RuleTree, AttributeDescriptor), `session/styles/StylesApi.ts` (agreement, counts)
+  (2026-10-12).
 - `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md`, `expert/*.md`; screenshots
   `expert/figma/find/08.png`, `sessions/r4-s27/09.png`, `sessions/r4-s08/02.png`; code
   `graphty/src/workspace/graph-place/FindBox.tsx` (ruleFromText, backtickSuggestion),

@@ -1353,24 +1353,26 @@ export class LayoutManager implements Manager {
 
         this.logger.error(`Layout could not be ${phase}`, thrown, { layoutType: type });
 
-        if (this.graphContext) {
-            this.eventManager.emitGraphError(this.graphContext, thrown, "layout", { layoutType: type, phase });
-        }
-
-        if (isGraphtyError(thrown)) {
-            return thrown;
-        }
-
         // An uncoded throw from an engine has no better code in the union than this one, and
         // inventing a code is not allowed. An engine that wants a consumer to be able to switch on
-        // its failure throws a `GraphtyError`, and the branch above hands that back untouched. A
-        // sibling package's coded throw (the layout package's E_TOO_LARGE) keeps its code and params.
-        return GraphtyError.wrap(thrown, {
-            code: "E_INTERNAL",
-            message: `the layout "${type}" could not be ${phase}: ${thrown.message}`,
-            source: "layout",
-            details: { layout: type, phase },
-        });
+        // its failure throws a `GraphtyError`, which comes back untouched. A sibling package's
+        // coded throw (the layout package's E_TOO_LARGE, planar's E_NOT_PLANAR) keeps its code and
+        // params. The error event carries the same coded error the caller is handed, so a
+        // consumer listening for refusals can switch on `code` there too.
+        const reported = isGraphtyError(thrown)
+            ? thrown
+            : GraphtyError.wrap(thrown, {
+                  code: "E_INTERNAL",
+                  message: `the layout "${type}" could not be ${phase}: ${thrown.message}`,
+                  source: "layout",
+                  details: { layout: type, phase },
+              });
+
+        if (this.graphContext) {
+            this.eventManager.emitGraphError(this.graphContext, reported, "layout", { layoutType: type, phase });
+        }
+
+        return reported;
     }
 
     /**

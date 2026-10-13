@@ -254,9 +254,9 @@ export function StyleNumberInput(props: Readonly<StyleNumberInputProps>): React.
     const empty = isDefault && emptyWords !== undefined;
     const displayValue = committed ?? defaultValue;
     const shownText = writeNumber(displayValue) + (suffix ?? "");
-    // The state joins the field's name, so the gray italic is not the only sign of it; an empty
-    // box says its words as its value, never a number nobody set (a spinbutton with no value is
-    // read as 0).
+    // The state joins the field's name, so the gray italic is not the only sign of it. An empty
+    // box is a text box (useNumberField), which says its words in its name and holds no number
+    // nobody set (a spinbutton with no value is read as 0).
     let stateWords: string | undefined;
     if (isDefault) {
         stateWords = mixed ? labels.mixed : labels.fieldNotSet(emptyWords ?? shownText);
@@ -302,10 +302,12 @@ export function StyleNumberInput(props: Readonly<StyleNumberInputProps>): React.
                 description={annotation.description}
                 {...field.inputProps}
                 aria-label={stateWords === undefined ? undefined : `${label}, ${stateWords}`}
-                aria-valuetext={empty ? emptyWords : undefined}
                 placeholder={empty ? emptyWords : undefined}
                 disabled={disabled}
                 data-is-default={isDefault ? "true" : "false"}
+                // The style fields share one surface, the select's outline: a gray fill reads as
+                // disabled, and a fill that differs by kind reads as a state.
+                variant="outlined"
                 styles={{
                     // Present in the accessibility tree, absent from the
                     // layout: a visible description would push every row in a

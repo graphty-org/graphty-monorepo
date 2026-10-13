@@ -253,7 +253,8 @@ export function StyleSelect({
     const renderOption = ({ option }: { option: { value: string; label: string } }): React.ReactNode => {
         const glyph = glyphs.get(option.value);
         // The whole name on hover, as Figma's icon grids do. While nothing is chosen, the option
-        // the placeholder names (what lies beneath) is marked as inherited, never as selected.
+        // the placeholder names (what lies beneath) carries the check as the value in force, the
+        // way the chosen one does, but is never announced as selected.
         const inherited = isDefault && placeholder !== undefined && placeholder === option.label;
         return (
             <span
@@ -261,7 +262,7 @@ export function StyleSelect({
                 title={option.label}
                 data-inherited={inherited ? "true" : undefined}
             >
-                {!grid && <ListboxCheck />}
+                <ListboxCheck />
                 {glyph !== undefined && (
                     <span className="cm-listbox-glyph" aria-hidden="true">
                         {glyph}

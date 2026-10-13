@@ -891,6 +891,7 @@ function Range({
                     key={label}
                     label={label}
                     numeric
+                    variant="outlined"
                     options={[]}
                     placeholder="Not set"
                     value={draft[index]}

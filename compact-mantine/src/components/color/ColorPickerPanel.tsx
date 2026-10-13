@@ -545,9 +545,14 @@ export function ColorPickerPanel({
                                         if (event.key === "Enter") {
                                             commitDraft();
                                         } else if (event.key === "Escape") {
-                                            leaveWithoutCommit(event, () => {
-                                                setDraft(formatValue(hsvaRef.current, format));
-                                            });
+                                            const shownValue = formatValue(hsvaRef.current, format);
+                                            leaveWithoutCommit(
+                                                event,
+                                                () => {
+                                                    setDraft(shownValue);
+                                                },
+                                                draft !== shownValue,
+                                            );
                                         }
                                     }}
                                 />

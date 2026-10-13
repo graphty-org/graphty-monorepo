@@ -64,8 +64,18 @@ export interface ComboInputProps {
     width?: number | string;
     /** The field cannot be used. */
     disabled?: boolean;
-    /** Text shown in an empty field. */
+    /**
+     * Text shown in an empty field. An empty field with a placeholder is drawn in the not-set
+     * look every style field shares (gray italic): what it shows is what is in force without it,
+     * such as the value the layers beneath give.
+     */
     placeholder?: string;
+    /**
+     * The field's surface: `"filled"`, Figma's gray number field, or `"outlined"`, the panel's
+     * background inside a 1px edge, as the select and the style fields draw it.
+     * @default "filled"
+     */
+    variant?: "filled" | "outlined";
     /** The chevron button's accessible name. @default "Open list" */
     openLabel?: string;
     /** Extra class on the field's outer element. */
@@ -115,6 +125,7 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
         width = PANEL_GRID.FIELD,
         disabled = false,
         placeholder,
+        variant = "filled",
         openLabel = "Open list",
         className,
         style,
@@ -332,7 +343,10 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                     autoComplete="off"
                     placeholder={placeholder}
                     disabled={disabled}
-                    variant="filled"
+                    variant={variant}
+                    data-is-default={
+                        placeholder !== undefined && currentText === "" && textDraft === null ? "true" : undefined
+                    }
                     className={className}
                     style={{ width, ...style }}
                     classNames={{ wrapper: ["cm-combo", divided ? "cm-combo-divided" : ""].filter(Boolean).join(" ") }}

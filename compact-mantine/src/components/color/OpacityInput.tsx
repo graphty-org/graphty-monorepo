@@ -102,9 +102,13 @@ export function OpacityInput({
             return;
         }
         if (event.key === "Escape") {
-            leaveWithoutCommit(event, () => {
-                setDraft(format.format(value));
-            });
+            leaveWithoutCommit(
+                event,
+                () => {
+                    setDraft(format.format(value));
+                },
+                draft !== format.format(value),
+            );
             return;
         }
         if (event.key === "ArrowUp" || event.key === "ArrowDown") {

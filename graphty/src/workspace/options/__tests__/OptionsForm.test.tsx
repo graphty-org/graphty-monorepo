@@ -123,7 +123,8 @@ describe("the options form", () => {
 
         assert.isNull(screen.queryByText("Sample size"));
         await userEvent.click(screen.getByRole("button", { name: /Advanced/ }));
-        assert.isNotNull(screen.getByRole("spinbutton", { name: /^Sample size(,|$)/ }));
+        // No default: the empty box is a text box until it holds a number (a spinbutton reads 0).
+        assert.isNotNull(screen.getByRole("textbox", { name: /^Sample size(,|$)/ }));
     });
 
     it("draws no fold for an algorithm with no advanced options", async () => {

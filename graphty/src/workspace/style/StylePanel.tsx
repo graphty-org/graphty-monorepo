@@ -524,6 +524,7 @@ export function SelectionStyle(): React.JSX.Element | null {
                             label="Size"
                             width="100%"
                             numeric
+                            variant="outlined"
                             options={[]}
                             value={current[part.scale]}
                             min={0.1}

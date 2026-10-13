@@ -328,9 +328,12 @@ function FieldControl({
                     // Keyed by the value, so Undo, Redo or another edit shows the new text.
                     key={typeof value === "string" ? value : ""}
                     size="xs"
+                    variant="outlined"
                     label={field.word}
                     placeholder={typeof look === "string" ? look : "Default"}
                     defaultValue={typeof value === "string" ? value : ""}
+                    // The not-set look every style field shares, while the box shows its placeholder.
+                    data-is-default={typeof value === "string" && value !== "" ? "false" : "true"}
                     onBlur={(event) => {
                         const next = event.currentTarget.value;
                         if (next !== (typeof value === "string" ? value : "")) {

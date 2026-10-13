@@ -154,6 +154,11 @@ export interface CompactMantineLabels {
      * @returns The words joined to the field's name
      */
     fieldNotSet: (beneath: string) => string;
+    /**
+     * What a screen reader hears after a field's name while a value is set on it: "Node color,
+     * set here".
+     */
+    fieldSet: string;
 
     // Tree
 
@@ -404,6 +409,7 @@ export const defaultLabels: Required<CompactMantineLabels> = {
 
     resetToDefault: (label: string): string => `Reset ${label} to default`,
     fieldNotSet: (beneath: string): string => (beneath === "" ? "not set" : `not set, ${beneath}`),
+    fieldSet: "set here",
 
     treeMoved: (name: string, parent: string | null, position: string, count: string): string =>
         parent === null

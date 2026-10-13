@@ -354,6 +354,7 @@ function EffectEntry({
             label={`${kind.name} speed`}
             width="100%"
             numeric
+            variant="outlined"
             options={[]}
             value={typeof value === "number" && !off ? value : ""}
             placeholder={String(typeof onValue === "number" ? onValue : 1)}

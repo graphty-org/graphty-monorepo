@@ -61,15 +61,21 @@ const css = `
     pointer-events: none;
 }
 
-/* A paint field's own label, the field-row legend (spec 6: 11/16 400, secondary, 4 below). */
+/* A paint field's own label: the same caption as every other field's label (.cm-field-label,
+   9/14 500, secondary, in a 16 band, 4 above the field), so a panel mixing kinds reads as one. */
 .cm-paint-label {
-    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    min-height: 16px;
+    margin: 0 0 4px 0;
     color: var(--cm-text-secondary);
-    ${cmFont("legend")}
+    ${cmFont("captionStrong")}
 }
 
-/* 7.2 Paint field: one 24-tall field, a 1px border in the fill color that hover and focus
-   repaint, the chit at x+5, hex from x+24, a 1px seam, then opacity and its "%" handle. */
+/* 7.2 Paint field: one 24-tall field, the chit at x+5, hex from x+24, a 1px seam, then opacity
+   and its "%" handle. Its surface is the select's and the number field's (the outlined field): the
+   panel color inside a 1px edge, so every style field shares one surface and a fill never reads as
+   a state (Figma fills it gray; a gray fill beside outlined selects read as disabled). */
 .cm-paint {
     display: flex;
     align-items: center;
@@ -85,17 +91,15 @@ const css = `
     align-items: center;
     box-sizing: border-box;
     height: 24px;
-    border: 1px solid var(--cm-bg-secondary);
+    border: 1px solid var(--cm-field-border);
     border-radius: 5px;
-    background-color: var(--cm-bg-secondary);
+    background-color: var(--cm-bg);
     color: var(--cm-text);
     ${cmFont("body")}
-    box-shadow: var(--cm-field-shadow);
 }
 .cm-paint-field:hover,
 .cm-paint-field[data-state="hover"] {
-    border-color: var(--cm-border);
-    box-shadow: var(--cm-field-shadow-hover);
+    border-color: var(--cm-field-edge-hover);
 }
 .cm-paint-field:focus-within,
 .cm-paint-field[data-state="focus"] {
@@ -140,27 +144,26 @@ const css = `
     cursor: default;
 }
 .cm-paint-chit:focus-visible .cm-chit::after { box-shadow: inset 0 0 0 2px var(--cm-border-selected); }
-.cm-paint-chit:is(:disabled, [aria-disabled="true"] *) :is(.cm-chit, .cm-chit-mixed) { opacity: 0.4; }
-/* Mixed: no color of its own, so no color is drawn -- an outlined chit holding the mixed bar of
-   the checkbox, which a reader cannot take for a value. */
-.cm-chit-mixed {
-    position: relative;
-    box-sizing: border-box;
-    width: 14px;
-    height: 14px;
-    border: 1px solid var(--cm-text-secondary);
-    border-radius: 2px;
+.cm-paint-chit:is(:disabled, [aria-disabled="true"] *) .cm-chit { opacity: 0.4; }
+/* Mixed: no color is in force, so no swatch is drawn; the word starts where the swatch would. */
+.cm-paint-field[data-mixed] .cm-paint-hex { margin-inline-start: 8px; }
+/* The chip form: the swatch alone, 24 square (WCAG 2.2, 2.5.8). Mixed draws a dash in an outline,
+   which cannot be taken for a color. */
+.cm-paint-chip-wrap { display: inline-flex; flex: none; }
+.cm-paint-chit.cm-paint-chip {
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    border-radius: 5px;
+    color: var(--cm-text-secondary);
 }
-.cm-chit-mixed::after {
-    content: "";
-    position: absolute;
-    inset-inline-start: 3px;
-    inset-block-start: 5px;
-    width: 6px;
-    height: 2px;
-    border-radius: 1px;
-    background-color: var(--cm-text-secondary);
-}
+.cm-paint-chip .cm-chit { width: 24px; height: 24px; border-radius: 5px; }
+.cm-paint-chip .cm-chit::after { border-radius: 10px; }
+.cm-paint-chip[data-mixed] { box-shadow: inset 0 0 0 1px var(--cm-border); }
+.cm-paint-chip[data-mixed]:focus-visible { box-shadow: inset 0 0 0 2px var(--cm-border-selected); }
+.cm-paint-chip:is(:disabled, [aria-disabled="true"] *) { color: var(--cm-text-disabled); }
 .cm-paint-input {
     box-sizing: border-box;
     min-width: 0;
@@ -206,7 +209,7 @@ const css = `
     inset-block: 0;
     inset-inline-start: -1px;
     width: 1px;
-    background-color: var(--cm-bg);
+    background-color: var(--cm-field-border);
 }
 .cm-paint-opacity .cm-paint-input {
     flex: none;
@@ -232,10 +235,15 @@ const css = `
 .cm-paint-opacity:not([data-disabled]) .cm-paint-suffix:hover {
     color: var(--cm-text);
 }
-.cm-paint-opacity[data-disabled] .cm-paint-suffix {
+.cm-paint-opacity[data-disabled] .cm-paint-suffix,
+[aria-disabled="true"] .cm-paint-suffix {
     color: var(--cm-text-disabled);
     cursor: default;
 }
+/* Under a locked panel (aria-disabled around it) the field's reset dims with its text, as a
+   disabled prop dims it. */
+.cm-paint { --cm-paint-reset-ink: var(--cm-text-secondary); }
+.cm-paint:is([data-disabled], [aria-disabled="true"] *) { --cm-paint-reset-ink: var(--cm-text-disabled); }
 
 /* 7.3 Color picker, the body of a light popover 240 wide. */
 .cm-color-picker {
@@ -536,6 +544,12 @@ const css = `
 /* A stop's color: a paint field (7.2) holding the chit button that selects the stop and its hex
    box; the color itself is picked in the editor's own picker, so nothing pops out. */
 .cm-gradient-color { flex: 1 1 0; min-width: 0; }
+/* Inside the picker the stop rows keep Figma's filled paint field: they are part of the picker,
+   not style fields beside the panel's selects. */
+.cm-paint-field.cm-gradient-color { background-color: var(--cm-bg-secondary); }
+.cm-paint-field.cm-gradient-color:not(:hover, :focus-within, [data-state="hover"], [data-state="focus"]) {
+    border-color: var(--cm-bg-secondary);
+}
 .cm-gradient-color .cm-paint-chit { width: 16px; height: 16px; border-radius: 20%; }
 /* The field chit writes --cs-size / --cs-radius inline, so the size is set directly. Its inner
    border is dropped at rest, as Figma's stop chit has none, and kept as the keyboard ring. */

@@ -161,9 +161,13 @@ export function UnitField({
                 if (event.key === "Enter") {
                     commitDraft(event);
                 } else if (event.key === "Escape") {
-                    leaveWithoutCommit(event, () => {
-                        setDraft(format(value));
-                    });
+                    leaveWithoutCommit(
+                        event,
+                        () => {
+                            setDraft(format(value));
+                        },
+                        draft !== format(value),
+                    );
                 } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
                     event.preventDefault();
                     const step = (event.shiftKey ? SHIFT_STEP : 1) * (event.key === "ArrowUp" ? 1 : -1);
@@ -232,9 +236,13 @@ function StopHexField({ color, onCommit, ariaLabel }: StopHexFieldProps): React.
                 if (event.key === "Enter") {
                     commit(event);
                 } else if (event.key === "Escape") {
-                    leaveWithoutCommit(event, () => {
-                        setDraft(shown);
-                    });
+                    leaveWithoutCommit(
+                        event,
+                        () => {
+                            setDraft(shown);
+                        },
+                        draft !== shown,
+                    );
                 }
             }}
         />

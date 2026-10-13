@@ -3,7 +3,7 @@ import { useUncontrolled } from "@mantine/hooks";
 import React, { useEffect, useId, useState } from "react";
 
 import { SWATCH_COLORS_HEXA } from "../constants/colors";
-import { PANEL_GRID, PANEL_INK } from "../constants/panel";
+import { PANEL_GRID } from "../constants/panel";
 import { useLabels } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
@@ -61,9 +61,10 @@ export interface CompactColorInputProps {
     emptyText?: string;
     /**
      * Whether the things this field stands for disagree: several selected rows, or elements the
-     * layers beneath paint in different colors. While the reader has chosen nothing, the hex box
-     * is empty under the word "Mixed" (`labels.mixed`) and the chit is the mixed chit, not a color.
-     * Picking or typing a color writes one color, as in any field.
+     * layers beneath paint in different colors. While the reader has chosen nothing, the field
+     * draws the word "Mixed" (`labels.mixed`) and no swatch, since no one color is in force.
+     * Typing a color writes one color, as in any field. In the chip form, the chip draws a dash in
+     * place of a color and its name says "Mixed"; pressing it opens the picker.
      * @default false
      */
     mixed?: boolean;
@@ -218,6 +219,15 @@ export interface CompactColorInputProps {
      * @default true
      */
     showReset?: boolean;
+    /**
+     * How the control is drawn. `"field"` is the whole paint field (swatch, hex and opacity).
+     * `"chip"` is the swatch alone, 24 px square, for a row that already names the color beside
+     * it (an effect, a category of a varied value): pressing it opens the picker. Its accessible
+     * name carries the field's name, its state and its color ("Group 3 color, set here,
+     * #E69F00"), and no label is drawn.
+     * @default "field"
+     */
+    variant?: "field" | "chip";
 }
 
 /**
@@ -254,6 +264,7 @@ export interface CompactColorInputProps {
  * @param props.width - The field's width
  * @param props.showReset - Whether to offer the reset button
  * @param props."aria-label" - The field's name when nothing draws it, which names its controls
+ * @param props.variant - The whole paint field, or the swatch alone as a chip
  * @returns The paint field, and its reset button when something has been set
  * @example
  * ```tsx
@@ -285,6 +296,7 @@ export function CompactColorInput({
     width = DEFAULT_WIDTH,
     showReset = true,
     "aria-label": ariaLabel,
+    variant = "field",
 }: CompactColorInputProps): React.JSX.Element {
     const labels = useLabels();
     // What names the controls: the drawn label, else the undrawn name.
@@ -333,11 +345,14 @@ export function CompactColorInput({
     const shownHex = isColorDefault && emptyWords !== undefined ? "" : displayColor.replace("#", "").toUpperCase();
     // The state joins the hex box's name, so the gray italic is not the only sign of it.
     const hexName = name === undefined ? labels.colorHexValue : labels.colorValue(name);
-    let hexState: string | undefined;
+    // Every state is spoken, set included, as the number and select fields say theirs.
+    let hexState: string;
     if (showsMixed) {
         hexState = labels.mixed;
     } else if (isColorDefault) {
         hexState = labels.fieldNotSet(emptyText ?? displayColor.toUpperCase());
+    } else {
+        hexState = labels.fieldSet;
     }
     const [hexDraft, setHexDraft] = useState(shownHex);
 
@@ -423,6 +438,54 @@ export function CompactColorInput({
 
     const hexaValue = `${displayColor}${opacityToAlphaHex(displayOpacity)}`.toUpperCase();
 
+    const pickerPanel = (
+        <Popout.Panel
+            width={PANEL_GRID.POPOVER_WIDTH}
+            header={{ variant: "title", title: label ?? labels.colorPanelTitle }}
+        >
+            <ColorPickerPanel
+                value={hexaValue}
+                onChange={handlePickerChange}
+                onChangeEnd={handlePickerChangeEnd}
+                withAlpha={showOpacity}
+                swatches={swatches}
+            />
+        </Popout.Panel>
+    );
+
+    if (variant === "chip") {
+        // The chip: the swatch alone, a 24px target (WCAG 2.2, 2.5.8), named with its state and color.
+        const chipName = `${name === undefined ? labels.colorSwatch : labels.colorValue(name)}, ${hexState}`;
+        return (
+            <span className="cm-paint-chip-wrap" title={annotation.title} data-disabled={disabled || undefined}>
+                <Popout>
+                    <Popout.Trigger>
+                        <button
+                            type="button"
+                            className="cm-paint-chit cm-paint-chip"
+                            data-testid="compact-color-input-chip"
+                            data-is-default={isColorDefault ? "true" : "false"}
+                            data-mixed={showsMixed || undefined}
+                            disabled={disabled}
+                            aria-label={isColorDefault ? chipName : `${chipName}, ${displayColor.toUpperCase()}`}
+                            aria-describedby={annotation.describedBy}
+                        >
+                            {showsMixed ? (
+                                <UiGlyph name="dash" size={PANEL_GRID.CHEVRON} />
+                            ) : (
+                                <Chit color={showOpacity ? hexaValue : displayColor} variant="field" />
+                            )}
+                        </button>
+                    </Popout.Trigger>
+                    {pickerPanel}
+                </Popout>
+                {annotation.description !== undefined && (
+                    <VisuallyHidden id={annotation.describedBy}>{annotation.description}</VisuallyHidden>
+                )}
+            </span>
+        );
+    }
+
     const controls = (
         <div
             className="cm-paint"
@@ -435,38 +498,28 @@ export function CompactColorInput({
                 className="cm-paint-field"
                 data-testid="compact-color-input-field"
                 data-disabled={disabled || undefined}
+                data-mixed={showsMixed || undefined}
                 style={{ width }}
             >
-                <Popout>
-                    <Popout.Trigger>
-                        <button
-                            type="button"
-                            className="cm-paint-chit"
-                            data-testid="compact-color-input-swatch"
-                            disabled={disabled}
-                            aria-label={name === undefined ? labels.colorSwatch : labels.pickColor(name)}
-                            aria-describedby={annotation.describedBy}
-                        >
-                            {showsMixed ? (
-                                <span className="cm-chit-mixed" data-testid="compact-color-input-mixed" aria-hidden />
-                            ) : (
+                {/* Mixed has no color in force, so no swatch is drawn: the field holds the word
+                    alone, and typing a color replaces it (Figma's mixed fill). */}
+                {!showsMixed && (
+                    <Popout>
+                        <Popout.Trigger>
+                            <button
+                                type="button"
+                                className="cm-paint-chit"
+                                data-testid="compact-color-input-swatch"
+                                disabled={disabled}
+                                aria-label={name === undefined ? labels.colorSwatch : labels.pickColor(name)}
+                                aria-describedby={annotation.describedBy}
+                            >
                                 <Chit color={showOpacity ? hexaValue : displayColor} variant="field" />
-                            )}
-                        </button>
-                    </Popout.Trigger>
-                    <Popout.Panel
-                        width={PANEL_GRID.POPOVER_WIDTH}
-                        header={{ variant: "title", title: label ?? labels.colorPanelTitle }}
-                    >
-                        <ColorPickerPanel
-                            value={hexaValue}
-                            onChange={handlePickerChange}
-                            onChangeEnd={handlePickerChangeEnd}
-                            withAlpha={showOpacity}
-                            swatches={swatches}
-                        />
-                    </Popout.Panel>
-                </Popout>
+                            </button>
+                        </Popout.Trigger>
+                        {pickerPanel}
+                    </Popout>
+                )}
 
                 <input
                     className="cm-paint-input cm-paint-hex"
@@ -475,7 +528,7 @@ export function CompactColorInput({
                     spellCheck={false}
                     data-testid="compact-color-input-hex"
                     data-is-default={isColorDefault ? "true" : "false"}
-                    aria-label={hexState === undefined ? hexName : `${hexName}, ${hexState}`}
+                    aria-label={`${hexName}, ${hexState}`}
                     aria-describedby={annotation.describedBy}
                     disabled={disabled}
                     value={hexDraft}
@@ -497,9 +550,13 @@ export function CompactColorInput({
                         if (event.key === "Enter") {
                             commitHex(event);
                         } else if (event.key === "Escape") {
-                            leaveWithoutCommit(event, () => {
-                                setHexDraft(shownHex);
-                            });
+                            leaveWithoutCommit(
+                                event,
+                                () => {
+                                    setHexDraft(shownHex);
+                                },
+                                hexDraft !== shownHex,
+                            );
                         }
                     }}
                 />
@@ -526,7 +583,8 @@ export function CompactColorInput({
                     <ActionIcon
                         variant="subtle"
                         size={PANEL_GRID.TRAIL}
-                        c={PANEL_INK.CHROME}
+                        // The ink is a variable the theme dims under a locked (aria-disabled) panel.
+                        c="var(--cm-paint-reset-ink)"
                         data-testid="compact-color-input-reset"
                         disabled={disabled}
                         aria-label={labels.resetToDefault(label ?? labels.colorGenericName)}

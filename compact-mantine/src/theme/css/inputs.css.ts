@@ -251,17 +251,19 @@ const css = `
 .cm-listbox .cm-menu-row .cm-menu-row-check {
     opacity: 0;
 }
-.cm-listbox .cm-menu-row[data-checked] .cm-menu-row-check {
+.cm-listbox .cm-menu-row[data-checked] .cm-menu-row-check,
+.cm-listbox .cm-menu-row:has([data-inherited]) .cm-menu-row-check {
     opacity: 1;
 }
 /* A StyleSelect laid out as a grid (layout="grid"): one cell per option, its glyph over its name.
-   The columns are set inline by the select; the fill keeps 2px from the cell's sides, and the
-   chosen cell carries a ring, since a grid has no check column. */
+   The columns are set inline by the select; the fill keeps 2px from the cell's sides. The value in
+   force carries the list's check, in the cell's top corner, so a grid and a list mark it alike. */
 .cm-listbox .cm-listbox-grid {
     display: grid;
     padding: 0 8px;
 }
 .cm-listbox .cm-listbox-grid .cm-listbox-option {
+    position: relative;
     flex-direction: column;
     justify-content: flex-start;
     align-items: center;
@@ -274,8 +276,10 @@ const css = `
 .cm-listbox .cm-listbox-grid .cm-menu-row::before {
     inset: 0 2px;
 }
-.cm-listbox .cm-listbox-grid .cm-menu-row[data-checked]::before {
-    box-shadow: inset 0 0 0 1px var(--cm-text-menu);
+.cm-listbox .cm-listbox-grid .cm-menu-row-check {
+    position: absolute;
+    inset-block-start: 2px;
+    inset-inline-start: 4px;
 }
 /* A name is never cut: it wraps between words, and the columns are as wide as the longest word
    (the label's min-content). */
@@ -288,12 +292,6 @@ const css = `
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
-}
-/* While nothing is chosen, the cell the placeholder names (what the layers beneath give) carries a
-   dashed ring: the value in force, not a choice made here. */
-.cm-listbox .cm-listbox-grid .cm-menu-row:has([data-inherited])::before {
-    outline: 1px dashed var(--cm-text-menu-secondary);
-    outline-offset: -1px;
 }
 .cm-listbox .cm-listbox-option-content {
     display: contents;

@@ -50,7 +50,7 @@ function letters(text: string): number {
 /** The props the field's `<input>` takes. */
 interface NumberFieldInputProps {
     value: string;
-    role: "spinbutton";
+    role: "spinbutton" | undefined;
     inputMode: "decimal";
     "aria-valuenow"?: number;
     "aria-valuemin"?: number;
@@ -126,7 +126,10 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
 
     const inputProps: NumberFieldInputProps = {
         value: draft ?? display,
-        role: "spinbutton",
+        // A spinbutton always has a value: Chromium reads one with no aria-valuenow as 0. An
+        // empty field (not set, Mixed) is a plain text box until it holds a number, so a screen
+        // reader hears its words and no number nobody set.
+        role: value === null ? undefined : "spinbutton",
         inputMode: "decimal",
         "aria-valuenow": value ?? undefined,
         "aria-valuemin": min,

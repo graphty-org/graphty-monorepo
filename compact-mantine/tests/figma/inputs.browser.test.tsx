@@ -251,14 +251,17 @@ describe.skipIf(!available)("6.1 scrubbable number input", () => {
         expectMeasured(input, { color: "#000000e5" }, { pseudo: "::placeholder" });
     });
 
-    it("StyleNumberInput is the same filled field with the reset in the trailing slot", async () => {
+    // The style fields draw the select's outlined surface, not Figma's gray fill: a gray fill read
+    // as disabled beside the outlined selects (design studio, tier 3). Height and radius stay Figma's.
+    it("StyleNumberInput is the outlined field with the reset in the trailing slot", async () => {
         const wrapper = await figmaElement("dt/light-number-input-x--default", { index: 27 });
         const { container } = await renderFigma(
             <div style={{ width: 88 + 8 + 24 }}>
                 <StyleNumberInput label="Size" value={20} defaultValue={10} onChange={() => undefined} />
             </div>,
         );
-        expectMeasured(field(container), figmaSpec(wrapper, ["height", "backgroundColor", "borderRadius"]));
+        expectMeasured(field(container), figmaSpec(wrapper, ["height", "borderRadius"]));
+        expectMeasured(field(container), { backgroundColor: "#ffffff", borderTopWidth: "1px" });
         const reset = part(container, "[data-testid=style-number-input-reset]");
         expectMeasured(reset, { width: 24, height: 24 });
         expect(reset.getBoundingClientRect().left - field(container).getBoundingClientRect().right).toBeCloseTo(8, 0);

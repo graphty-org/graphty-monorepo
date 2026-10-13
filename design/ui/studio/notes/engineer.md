@@ -11,6 +11,31 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-13) **One look for every style field, a chip-only color, Escape in a pop-out**
+  (compact-mantine; tests in `tests/components/FieldStates.browser.test.tsx`, story
+  `stories/components/inputs/FieldStates.stories.tsx`). Number, combo, color and text fields all
+  draw not set and Mixed in the select's gray italic on the select's outlined surface: the paint
+  field and `StyleNumberInput` lost Figma's gray fill (the gradient editor's stop rows keep it),
+  `ComboInput` got `variant` and marks itself `data-is-default` while it shows its placeholder, and
+  a Mantine `TextInput` takes the look with `data-is-default="true"` (the app's style text boxes
+  now pass it and `variant="outlined"`). Reason: a gray fill read as disabled beside outlined
+  selects, and the not-set look differed by kind. MEASURED: Chromium reports a spinbutton with no
+  `aria-valuenow` as value 0 (new browser command `axNodes(name)` in `vitest.config.ts` reads the
+  real accessibility tree over CDP), so `useNumberField` drops the spinbutton role while the field
+  is empty; `aria-valuetext` then had to go too (axe `aria-allowed-attr` on a text box). Mixed
+  color: no swatch at all, the word starts at 8 px; typing replaces it. `variant="chip"`: a 24 px
+  swatch named "<name> color, <state>, <hex>". `labels.fieldSet` ("set here") joins a set hex
+  box's name. Grid and list mark the value in force with one check (the inherited cell too);
+  the dashed ring is gone. `leaveWithoutCommit` takes a `dirty` flag: inside a pop-out
+  (`[data-popout-id]`) a clean Escape is left to the pop-out manager, a dirty one reverts and keeps
+  focus. The reset's ink is a CSS variable (`--cm-paint-reset-ink`), since Mantine's `c` prop is
+  an inline style no locked-panel rule could beat. The app now passes `mixed` to the panel's color
+  field instead of the word "Mixed" as `emptyText` (that was why the review saw a purple swatch).
+  Not done: the app does not use the chip yet (effect and category rows are another unit). Seen,
+  not mine: `tests/figma/tree.browser.test.tsx` toggles x 184 vs 188 and the Tree Keyboard story's
+  `aria-posinset` fail on this branch from the earlier tree commit; graphty's `coverage.test.ts`
+  and `row.test.ts` fail on `sizeUnit` from the label-size work.
+
 - (2026-10-13) **Readable values count numbers, mark colors, read an edge's ends; find reads them
   all** (graphty-element; tests in `test/session/readable-values.test.ts` and
   `test/catalog/sets/parse.test.ts`). `valueCount` now on numbers (from the attribute walk's

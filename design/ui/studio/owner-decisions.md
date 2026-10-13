@@ -4,6 +4,36 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-13 -- Decided by the team: one look for every style field, a chip-only color, and Escape in a pop-out (compact-mantine)
+
+Additive API in compact-mantine:
+
+- `CompactColorInput` `variant?: "field" | "chip"` (default `"field"`). `"chip"` draws the swatch
+  alone, 24 px square, for a row that names its color beside it (an effect, a category). Its name
+  says the state and the color: "Group 3 color, set here, #E69F00", "Group 3 color, not set,
+  #3388FF", "Group 3 color, Mixed" (a dash, no color).
+- `ComboInput` `variant?: "filled" | "outlined"` (default `"filled"`, Figma's look). An empty
+  ComboInput with a placeholder now takes the not-set look (gray italic).
+- `Labels.fieldSet` ("set here"), spoken after a set color's name, as the app's number and select
+  names already say it.
+
+Changed looks and behavior, asked for by the tier 3 review (not API shape):
+
+- Style fields share the select's outlined surface: `StyleNumberInput` and the paint field of
+  `CompactColorInput` are no longer gray-filled (the gradient editor's stop rows, inside the
+  picker, keep Figma's fill). Hover changes nothing on them, as on the select.
+- An empty number field (not set with words, or Mixed) is a text box, not a spinbutton: Chromium
+  reads a spinbutton with no value as 0. It also drops `aria-valuetext`, which a text box may not
+  carry. It becomes a spinbutton again once it holds a number.
+- A Mixed color draws the word and no swatch; it is replaced by typing a color (Figma's mixed fill).
+- The glyph grid marks the value in force with the list's check (top corner), not a ring or a
+  dashed outline; a list with a placeholder checks the value beneath the same way.
+- A color field's label is the 9 px caption every other field label uses.
+- Escape in a text field inside a pop-out closes the innermost layer: an edit in progress is taken
+  back and focus stays; with nothing typed the pop-out closes and focus goes back to its trigger.
+  Outside a pop-out it still reverts and leaves the field.
+- Under an `aria-disabled` ancestor the color field's reset and "%" handle dim with its text.
+
 ## 2026-10-13 -- Decided by the team: readable values count numbers, mark colors, read an edge's ends, and find reads them all
 
 **What.** graphty-element, additive:

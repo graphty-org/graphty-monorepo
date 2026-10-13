@@ -33,7 +33,7 @@ describe("StyleNumberInput", () => {
                 onChange={onChange}
             />,
         );
-        const box = screen.getByRole("spinbutton", { name: "Sample size, not set, Every node" });
+        const box = screen.getByRole("textbox", { name: "Sample size, not set, Every node" });
         expect(box).toHaveValue("");
         expect(box).toHaveAttribute("placeholder", "Every node");
         // A number the reader types is committed as usual.

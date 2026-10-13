@@ -117,6 +117,45 @@ const touchDrag: BrowserCommand<[selector: string, dx: number]> = async (ctx, se
     await cdp.detach();
 };
 
+/**
+ * What the browser's accessibility tree says about the nodes with this accessible name, in every
+ * frame: the role, the name and the value a screen reader reads (CDP `getFullAXTree`).
+ * @param ctx - the browser command context
+ * @param name - the accessible name to look for
+ * @returns one entry per node with that name
+ */
+const axNodes: BrowserCommand<[name: string]> = async (ctx, name) => {
+    const cdp = await ctx.page.context().newCDPSession(ctx.page);
+    const { frameTree } = (await cdp.send("Page.getFrameTree")) as {
+        frameTree: { frame: { id: string }; childFrames?: unknown[] };
+    };
+    type Tree = { frame: { id: string }; childFrames?: Tree[] };
+    const ids: string[] = [];
+    const walk = (tree: Tree): void => {
+        ids.push(tree.frame.id);
+        tree.childFrames?.forEach(walk);
+    };
+    walk(frameTree as Tree);
+    const found: { role: string; name: string; value: string | undefined }[] = [];
+    for (const frameId of ids) {
+        const { nodes } = (await cdp.send("Accessibility.getFullAXTree", { frameId })) as {
+            nodes: { role?: { value?: string }; name?: { value?: string }; value?: { value?: unknown } }[];
+        };
+        for (const node of nodes) {
+            if (node.name?.value === name) {
+                const value = node.value?.value;
+                found.push({
+                    role: String(node.role?.value),
+                    name,
+                    value: value === undefined ? undefined : String(value),
+                });
+            }
+        }
+    }
+    await cdp.detach();
+    return found;
+};
+
 /** Release the primary mouse button. */
 const mouseUp: BrowserCommand<[]> = async (ctx) => {
     await ctx.page.mouse.up();
@@ -134,6 +173,7 @@ const browserCommands = {
     mouseUp,
     touchDrag,
     emulateReducedMotion,
+    axNodes,
 };
 
 export default defineConfig({

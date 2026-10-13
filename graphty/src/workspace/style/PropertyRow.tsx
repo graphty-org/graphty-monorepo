@@ -297,6 +297,7 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
                     color={hex ?? undefined}
                     defaultColor={hexOf(beneath.value) ?? hexOf(descriptor.default) ?? "#000000"}
                     emptyText={emptyColorWords(descriptor, beneath.words)}
+                    mixed={mixed !== undefined}
                     showOpacity={opacity !== undefined && opacity.own?.binding === undefined}
                     opacity={percentOf(ownOpacity?.value)}
                     defaultOpacity={defaultOpacity}
@@ -346,6 +347,7 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
                 label={stateName}
                 width="100%"
                 numeric
+                variant="outlined"
                 options={[]}
                 value={typeof own?.value === "number" ? own.value : ""}
                 placeholder={placeholder}
@@ -367,9 +369,12 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
                 // Keyed by the value, so Undo, Redo or another edit shows the new text.
                 key={text}
                 size="xs"
+                variant="outlined"
                 aria-label={stateName}
                 placeholder={placeholder}
                 defaultValue={text}
+                // The not-set look every style field shares, while the box shows what lies beneath.
+                data-is-default={text === "" ? "true" : "false"}
                 onBlur={(event) => {
                     const next = event.currentTarget.value;
                     if (next !== "" && next !== text) {
@@ -440,15 +445,16 @@ export function Field({ ctx, descriptor, named = true }: Readonly<FieldProps>): 
 }
 
 /**
- * What an empty color field says: "Mixed" when the elements beneath differ, the color it follows
- * when nothing beneath sets it (an arrowhead's "Line color"), else nothing (the swatch shows).
+ * What an empty color field says when nothing beneath sets it and it follows another channel (an
+ * arrowhead's "Line color"), else nothing (the swatch shows). Mixed beneath is the field's own
+ * `mixed` state, which draws no swatch.
  * @param descriptor - the channel.
  * @param beneath - what lies beneath, in words.
  * @returns the words, or undefined.
  */
 function emptyColorWords(descriptor: ChannelDescriptor, beneath: Beneath | undefined): string | undefined {
     if (beneath !== undefined && "mixed" in beneath) {
-        return "Mixed";
+        return undefined;
     }
     return descriptor.follows !== undefined && beneath !== undefined && beneath.from === undefined
         ? followsWords(descriptor.follows)

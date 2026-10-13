@@ -59,8 +59,8 @@ export function isHeaderRecord(cells: readonly string[], count: number, quoted?:
     let quotedMarker = false;
     for (let i = 0; i < count; i++) {
         const cell = cells[i];
-        // every header marker holds a colon; the indexOf keeps the regex off the data rows
-        if (cell.indexOf(":") >= 0 && HEADER_MARKER.test(cell.trim())) {
+        // every header marker holds a colon; the includes keeps the regex off the data rows
+        if (cell.includes(":") && HEADER_MARKER.test(cell.trim())) {
             if (quoted?.[i] !== true) {
                 return true;
             }

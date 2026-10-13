@@ -482,7 +482,7 @@ function referencedOverrides(
         .replace(/^\s*override\s+\w+\s*:[^\n]*$/gm, " ");
     const referenced: Record<string, number | boolean> = {};
     for (const [name, value] of Object.entries(overrides)) {
-        if (new RegExp(`\\b${name}\\b`).test(stripped)) {
+        if (new RegExp(String.raw`\b${name}\b`).test(stripped)) {
             referenced[name] = value;
         }
     }

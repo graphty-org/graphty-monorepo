@@ -121,7 +121,7 @@ export class AttributeTable implements AttributeTableContract {
     private mutations = 0;
 
     /** Set by sealTable(): set / remove / rename throw E_FROZEN from then on. */
-    private sealed = false;
+    private readonly sealed = false;
 
     /**
      * Create a table from wrapped columns (the constructor the freeze pipeline, fromCsr and the wire

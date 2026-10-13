@@ -403,7 +403,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
     // after every load, so a freeze or an accelerator swap mid-drag would give the pointer's node
     // back to the forces; these nodes are OR-ed back in. They are held as nodes, not as indices,
     // because a freeze renumbers the rows underneath them.
-    #dragging = new Set<Node>();
+    readonly #dragging = new Set<Node>();
 
     /**
      * The node masses this simulation was built with, when the reader gave them as a record keyed

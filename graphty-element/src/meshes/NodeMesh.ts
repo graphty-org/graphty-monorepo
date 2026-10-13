@@ -95,7 +95,7 @@ interface GradientColor {
 export class NodeMesh {
     // Shared with every other copy of graphty-element on the page, so a shape registered through
     // one reaches them all; each copy still builds its own built-ins with its own Babylon.js.
-    private static shapeCreators = new SharedImplementationMap<ShapeCreator>("shape");
+    private static readonly shapeCreators = new SharedImplementationMap<ShapeCreator>("shape");
 
     static {
         NodeMesh.registerShapeCreator("box", (size) => NodeMesh.createBox(size));
@@ -207,6 +207,16 @@ export class NodeMesh {
 
         return cache.get(cacheKey, () => {
             const mesh = this.createMeshWithoutCache(options, createOptions, scene);
+
+            // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
+            // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
+            // every node sharing this style id shares the faceted geometry; `node.flat` is a mesh
+            // column in the style interner, so flat and smooth nodes never share a source mesh.
+            // An unindexed mesh (only a registered shape can be one) has no faces to split.
+            if (createOptions.effect?.flatShaded && !mesh.isUnIndexed && mesh.getTotalIndices() > 0) {
+                mesh.convertToFlatShadedMesh();
+            }
+
             const material = this.createMaterial(createOptions, options.is2D, scene);
             mesh.material = material;
 
@@ -592,12 +602,20 @@ export class NodeMesh {
         );
     }
 
-    private static createCapsule(_size: number, scene?: Scene): Mesh {
-        return MeshBuilder.CreateCapsule("capsule", {}, scene);
+    private static createCapsule(size: number, scene?: Scene): Mesh {
+        return MeshBuilder.CreateCapsule(
+            "capsule",
+            { height: size, radius: size * SHAPE_CONSTANTS.CAPSULE_RADIUS_MULTIPLIER },
+            scene,
+        );
     }
 
-    private static createTorus(_size: number, scene?: Scene): Mesh {
-        return MeshBuilder.CreateTorus("torus", {}, scene);
+    private static createTorus(size: number, scene?: Scene): Mesh {
+        return MeshBuilder.CreateTorus(
+            "torus",
+            { diameter: size, thickness: size * SHAPE_CONSTANTS.TORUS_THICKNESS_MULTIPLIER },
+            scene,
+        );
     }
 
     private static createTorusKnot(size: number, scene?: Scene): Mesh {

@@ -1,3 +1,41 @@
+## 3.25.3 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** pace a CPU simulation layout by time, like every other layout ([#2204](https://github.com/graphty-org/graphty-monorepo/issues/2204))
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+- **graphty-element:** draw capsule and torus nodes at node.size ([#2070](https://github.com/graphty-org/graphty-monorepo/issues/2070))
+- **graphty-element:** use American spelling in the catalog's published plain names and descriptions ([#2105](https://github.com/graphty-org/graphty-monorepo/issues/2105))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.49
+- Updated @graphty/remote-logger to 2.0.16
+- Updated graph-samples to 0.1.29
+- Updated graph-format to 1.3.14
+- Updated algorithms to 3.4.4
+- Updated graph-io to 0.3.37
+- Updated layout to 2.4.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.25.2 (2026-10-12)
+
+### 🩹 Fixes
+
+- **graphty-element:** let 0 draw nothing for glow strength, edge width and arrow size ([#2067](https://github.com/graphty-org/graphty-monorepo/issues/2067))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.48
+- Updated layout to 2.4.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.25.1 (2026-10-12)
 
 ### 🩹 Fixes

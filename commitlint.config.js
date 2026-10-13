@@ -17,6 +17,7 @@ export default {
                 "remote-logger",
                 "graphty",
                 "visual-review",
+                "githerd",
                 "gpu-3d-force-layout",
                 "deps",
                 "release",

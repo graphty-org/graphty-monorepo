@@ -82,6 +82,12 @@ import { LAYERS, Panel, STYLE_LAYERS } from "./fixtures";
  * - F2 or a double-click renames, while `onRename` is given. Enter commits, Escape cancels.
  * - Alt+ArrowUp / Alt+ArrowDown move the focused item one place among its siblings, while
  *   `onMove` is given. Focus stays on the item. Drag and drop is the pointer equivalent.
+ * - A row's toggles (its `actions`) are out of the Tab order, so the tree stays one Tab stop.
+ *   ArrowRight on a row without children, or Alt+ArrowRight on any row, moves focus to the
+ *   row's first toggle. There ArrowLeft / ArrowRight walk the toggles, Enter or Space presses
+ *   one, ArrowLeft on the first or Escape returns to the row, and ArrowUp / ArrowDown go to the
+ *   row above or below. Give each toggle a name that says what it does and its state
+ *   (`ToggleIconButton` sets `aria-pressed`).
  * - `role="tree"` named by `label`, rows `role="treeitem"` with `aria-level`, `aria-posinset`,
  *   `aria-setsize`, `aria-expanded` and `aria-selected`. A row is named by its name alone, not
  *   by the toggles inside it.
@@ -394,9 +400,9 @@ export const Playground: Story = {
         await expect(card).toHaveAttribute("aria-expanded", "false");
         await userEvent.keyboard("{ArrowRight}");
         await expect(card).toHaveAttribute("aria-expanded", "true");
-        // The row toggles work from the keyboard too.
-        const lock = within(card).getByRole("button", { name: "Lock layer" });
-        lock.focus();
+        // The row toggles work from the keyboard too: Alt+ArrowRight moves into them.
+        await userEvent.keyboard("{Alt>}{ArrowRight}{/Alt}");
+        await expect(within(card).getByRole("button", { name: "Lock layer" })).toHaveFocus();
         await userEvent.keyboard("{Enter}");
         await expect(within(card).getByRole("button", { name: "Lock layer" })).toHaveAttribute("aria-pressed", "true");
         await userEvent.keyboard(" ");
@@ -474,6 +480,11 @@ const KEYS: [string[], string][] = [
     [["Alt+L"], "Close everything"],
     [["F2"], "Rename the focused row (with onRename)"],
     [["Alt+ArrowUp", "Alt+ArrowDown"], "Move the focused row one place among its siblings (with onMove)"],
+    [["ArrowRight", "Alt+ArrowRight"], "Into the row's toggles: ArrowRight on a row without children, Alt on any row"],
+    [
+        ["ArrowLeft", "ArrowRight"],
+        "On a toggle: the previous or next toggle; ArrowLeft from the first, or Escape, returns to the row",
+    ],
 ];
 
 /**

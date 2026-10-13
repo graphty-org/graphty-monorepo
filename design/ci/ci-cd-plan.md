@@ -477,6 +477,26 @@ rule forbids.
 
 ## 10. Releases
 
+**Changed 2026-10-11: no release pull request.** The owner replaced steps 2 to 5 below: "when the
+release starts it should run the testing itself (without a PR) and then directly publish if the
+testing passes. putting things into the PR queue will be slow and put our releases behind anything
+else in the queue, which isn't desireable." The release pull request waited in the merge queue
+behind every batch, and a queue run that failed on an unrelated flake dropped a release that had
+already passed every lane. Now one release.yml run does it all: step 1 (pick, full suite, T4,
+Hosts, audit, LLM regression, holds and restarts) is unchanged; then the version job versions the
+tested commit, the land job merges that version commit into master's current tip and pushes the
+merge and the `{projectName}@{version}` tags in one atomic push with the release deploy key (step 5
+below said it would be removed; it never was, and is used again), and the publish job publishes
+from that run's builds. The tags point at the version commit -- the shipped source -- and the merge
+makes them reachable from master, so the next `nx release` bumps from every commit that reached
+master after the candidate. A conflict with master holds the release before anything is pushed; a
+failed publish after the push is the publish hold, cleared by re-running that run's failed jobs.
+The cost this section listed for direct pushes (a queue reset per release) is avoided with
+Mergify's `reset_on_external_merge: never`; the standing bypass of master's protection is back,
+limited to that one deploy key, used only by the land job, which runs no third-party code. What
+follows is kept as the record of the design it replaced; release.yml's header comment and
+CLAUDE.md "Release versioning" describe the flow in force.
+
 **Today:**
 
 - release.yml publishes after every merge, from the newest master commit green on CI, GPU and
@@ -589,6 +609,10 @@ sooner.
 - **Release cadence** is not a contract. It is reversible.
 
 ## 11. Ad hoc release
+
+**Changed 2026-10-11:** an ad hoc release is the same direct-publish run as the train (section 10's
+note): no release pull request, no queue, no `priority:critical` label. Steps 2 to 4 below are the
+record of the replaced design.
 
 The scheduled train is the default. When something must reach npm sooner -- a fix a consumer is
 waiting for, a broken release to supersede -- the owner cuts a release at once with the same
@@ -791,7 +815,7 @@ Each step is independently reversible unless marked. Each step is one pull reque
 | Windows / macOS                            | post-merge, nightly, release gate; short scope on PRs                                                                                                                                                    | per PR full                                                                                 | wgpu, Bevy, PyTorch periodic                                   | reversible                                                    |
 | Flakes                                     | no retries, issue per non-reproduced failure, owner-approved expiring quarantine                                                                                                                         | retry N times; auto-quarantine                                                              | Chromium without-patch, PyTorch DISABLED, Datadog expiry       | reversible                                                    |
 | Red master                                 | freeze + automatic revert                                                                                                                                                                                | sheriff by hand                                                                             | Chromium tree closer, LLVM revert-to-green, PyTorch autorevert | reversible                                                    |
-| Release cadence                            | an attempt every 6 h via release PR, skipped while the previous release is pending, plus ad hoc dispatch (owner, 2026-10-06; was daily)                                                                  | every merge; daily; weekly; tags only                                                       | Vite/Vitest, Changesets users, release-please                  | reversible                                                    |
+| Release cadence                            | an attempt every 6 h that tests and publishes in one run, no release PR (owner, 2026-10-11; release PR from 2026-10-06), skipped while a hold is open, plus ad hoc dispatch                              | every merge; daily; weekly; tags only                                                       | Vite/Vitest, Changesets users, release-please                  | reversible                                                    |
 | Master runs no tests                       | a push to master only builds for the deploy (the Build job, with its lint and source checks); the queue's full run is the merge-time test, the train's full run the release-time one (owner, 2026-10-06) | full CI again on every master commit (about 163 job-minutes a merge)                        | Rust bors (the tested merge commit is what lands)              | reversible                                                    |
 | Release testing                            | full un-selected CI + T4 + Hosts + production audit on the exact candidate, release builds from that run; any failure holds the whole release and opens one issue (owner, 2026-10-06)                    | reuse master's CI run and artifacts; T4 only                                                | Chromium release qualification, Rust's release channels        | reversible                                                    |
 | Dist-tags, tag pattern, changelog location | unchanged                                                                                                                                                                                                | add `next` channel                                                                          | Nx, Next.js, React canaries                                    | ONE-WAY if changed; not changed                               |

@@ -30,7 +30,7 @@ export class OrbitCameraController {
     public cameraDistance: number;
     public config: OrbitConfig;
 
-    private pivotController: PivotController;
+    private readonly pivotController: PivotController;
 
     /** Half the diagonal of the last bounding box fitted by zoomToBoundingBox. */
     #sceneRadius = 0;

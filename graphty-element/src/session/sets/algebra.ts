@@ -42,8 +42,8 @@ import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { ElementMask } from "../scope/ElementMask";
 import type { Offering } from "./offers";
-import { prebuiltListed } from "./prepare";
-import { deriveEdges, edgeMemberKey, type Resolution } from "./resolve";
+import { edgeMemberKey, prebuiltListed } from "./prepare";
+import { deriveEdges, type Resolution } from "./resolve";
 import type { SetOffer } from "./types";
 
 /** The four combinations, in the order the doors check them. */
@@ -564,7 +564,7 @@ function edgeIdsOf(graph: GraphSnapshot): (row: number) => EdgeId {
     const column = graph.edges.byRole("id");
 
     return (row: number): EdgeId => {
-        const counter = column !== null && column.isSet(row) ? column.value(row) : undefined;
+        const counter = column?.isSet(row) ? column.value(row) : undefined;
 
         return edgeIdOf(typeof counter === "number" ? counter : INVALID_INDEX);
     };

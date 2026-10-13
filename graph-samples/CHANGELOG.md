@@ -1,3 +1,42 @@
+## 0.1.29 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+- **graph-samples:** use American spelling in the dataset descriptions ([#2105](https://github.com/graphty-org/graphty-monorepo/issues/2105))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.28 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.13
+
+## 0.1.27 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🔥 Performance
+
+- **graph-samples:** unroll threefry and skip most Waxman logarithms ([#1805](https://github.com/graphty-org/graphty-monorepo/issues/1805))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.12
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.26 (2026-10-09)
 
 ### 🧱 Updated Dependencies

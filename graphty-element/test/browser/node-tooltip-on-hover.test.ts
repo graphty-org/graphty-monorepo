@@ -27,6 +27,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import type { LayerSpec } from "../../src/catalog/types";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { Node } from "../../src/Node";
+import { assertPlaced } from "../helpers/placed-position";
 import { nextFrame } from "../helpers/real-input";
 
 /** Two nodes far enough apart that a pointer over one is nowhere near the other. */
@@ -78,7 +79,8 @@ describe("a tooltip a layer asks for", () => {
      * Render a few frames so a texture upload and a shader compile can land.
      */
     async function settle(): Promise<void> {
-        await graph.waitForSettled();
+        // A drawn frame, not just an empty queue: only a frame moves a new mesh off the template.
+        await graph.waitForStableFrame();
         for (let frame = 0; frame < FRAMES; frame++) {
             graph.scene.render();
             await nextFrame();
@@ -94,6 +96,7 @@ describe("a tooltip a layer asks for", () => {
         const { engine } = graph;
         const camera = graph.scene.activeCamera;
         assert.isNotNull(camera, "a graph that has rendered has an active camera");
+        assertPlaced(node.mesh.position, `node ${String(node.id)}`);
 
         const point = Vector3.Project(
             node.mesh.absolutePosition,

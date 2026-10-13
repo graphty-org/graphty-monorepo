@@ -13,6 +13,6 @@ interface ErrorBoundaryProps {
  * @param root0.children - Child components to wrap
  * @returns The error boundary wrapper component
  */
-export function ErrorBoundary({ children }: ErrorBoundaryProps): React.JSX.Element {
+export function ErrorBoundary({ children }: Readonly<ErrorBoundaryProps>): React.JSX.Element {
     return <Sentry.ErrorBoundary fallback={(props) => <ErrorFallback {...props} />}>{children}</Sentry.ErrorBoundary>;
 }

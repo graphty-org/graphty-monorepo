@@ -11,7 +11,7 @@
  * this script (forwarded to vitest verbatim, e.g. --passWithNoTests for a config smoke).
  *
  * Exit-code rule (spec 11.6, contract 6.7):
- *   vitest exit 0                       -> exit 0
+ *   vitest exit 0                       -> exit 0 iff browser-results.json parses, else exit 1
  *   the limit hit (GNU timeout exit 124 -- the TERM stopped the run -- or 137, its exit when the
  *                  -k KILL was needed after the 10 s grace: coreutils timeout.c preserves 128 + 9 in that case)
  *                                       -> exit 0 iff browser-results.json parses and has
@@ -56,6 +56,8 @@ const VITEST_ARGS = [
     "--reporter=json",
     // in CI also the JUnit report for Mergify Test Insights (its path comes from vitest.config.ts)
     ...(process.env.CI ? ["--reporter=junit"] : []),
+    // and the time-budget check when it is on (tools/vitest-time-budget.mjs)
+    ...(process.env.VITEST_BUDGET_CHECK === "1" ? ["--reporter=../tools/vitest-time-budget.mjs"] : []),
     `--outputFile=${RESULTS_FILE}`,
 ];
 
@@ -93,6 +95,12 @@ export function readSummary(file) {
  */
 export function verdict(status, summary) {
     if (status === 0) {
+        // vitest writes the JSON report even for a run that matched no file, so its absence after an exit of 0 means
+        // the 0 came from something other than vitest finishing (issue #2111: pnpm's version switch exits 0 when the
+        // pnpm it started is killed).
+        if (summary === null) {
+            return { exitCode: 1, message: `exit 0 but ${RESULTS_FILE} is absent or unreadable: FAIL` };
+        }
         return { exitCode: 0, message: "vitest exited 0" };
     }
     if (status === EXIT_TIMED_OUT || status === EXIT_KILLED) {

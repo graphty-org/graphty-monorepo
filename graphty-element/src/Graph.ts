@@ -112,6 +112,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
+import { animatesEveryFrame } from "./managers/everyFrameAnimations";
 import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
@@ -374,7 +375,7 @@ export class Graph implements GraphContext {
     private wasSettled = false; // Track previous settlement state
     /** How many loads `addDataFromSource` has started; the last one's id. */
     private loadCount = 0;
-    private resizeHandler = (): void => {
+    private readonly resizeHandler = (): void => {
         this.engine.resize();
         // If we've already zoomed to fit, re-zoom after resize to ensure content still fits
         // if (this.updateManager.zoomToFitCompleted) {
@@ -423,7 +424,7 @@ export class Graph implements GraphContext {
     /** Told the node label counts once the view is still and they changed. */
     readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
-    private lifecycleManager: LifecycleManager;
+    private readonly lifecycleManager: LifecycleManager;
     /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
     private readonly managers: Map<string, Manager>;
     /** Whether input is mocked, kept so the input manager can be rebuilt on the renderer chosen at init. */
@@ -434,17 +435,31 @@ export class Graph implements GraphContext {
     #rendererStatus: RendererStatus | null = null;
     /** Set when {@link Graph.init} starts opening the renderer; from then on the request is fixed. */
     #rendererChosen = false;
-    private dataManager: DataManager;
-    private layoutManager: LayoutManager;
-    private statsManager: StatsManager;
-    private updateManager: UpdateManager;
-    private algorithmManager: AlgorithmManager;
+    private readonly dataManager: DataManager;
+    private readonly layoutManager: LayoutManager;
+    private readonly statsManager: StatsManager;
+    private readonly updateManager: UpdateManager;
+    private readonly algorithmManager: AlgorithmManager;
     private inputManager: InputManager;
     /** While an immersive session is active: its mode and when it started, stamped on steps. */
     private immersiveSince: string | null = null;
+
+    /**
+     * Whether drawing on demand is switched on (`layoutBehavior.rendering.onDemand`).
+     * @returns True when the render loop may skip frames.
+     */
+    private readonly drawsOnDemand = (): boolean => this.viewSettings.behavior.rendering?.onDemand === true;
+    /**
+     * Whether the picture the model describes is on screen and final, and no headset is showing
+     * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only
+     * while drawing on demand is on. See `RenderManager.mayRest`.
+     * @returns True when a frame that changes nothing may be skipped.
+     */
+    private readonly pictureIsFinal = (): boolean =>
+        this.updateManager.frameIsStable && (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
-    private selectionManager: SelectionManager;
+    private readonly selectionManager: SelectionManager;
 
     /**
      * What the session's style stack resolved for each element, and which stack owns the paint.
@@ -524,7 +539,10 @@ export class Graph implements GraphContext {
         this.element.appendChild(this.canvas);
 
         // Initialize RenderManager
-        this.renderManager = new RenderManager(this.canvas, this.eventManager);
+        this.renderManager = new RenderManager(this.canvas, this.eventManager, {
+            pictureIsFinal: this.pictureIsFinal,
+            drawsOnDemand: this.drawsOnDemand,
+        });
 
         // Get references from RenderManager for backward compatibility
         this.engine = this.renderManager.engine;
@@ -773,6 +791,7 @@ export class Graph implements GraphContext {
                 layers: change.layers.length,
                 painted: change.painted,
                 unresolvedPaths: [...change.unresolvedPaths],
+                warnings: change.warnings,
             });
         });
 
@@ -786,6 +805,12 @@ export class Graph implements GraphContext {
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
         this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
         this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesWaiting;
+
+        // Every change to project state reaches the picture through a pass, so a graph drawn on
+        // demand draws the frame after each one: a style, the data, a setting, an undo.
+        lane.passEnded = () => {
+            this.renderManager.requestFrame();
+        };
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
         // way, and the layout engine can place every drawn edge.
@@ -1358,7 +1383,11 @@ export class Graph implements GraphContext {
         // The engine was opened on a canvas not yet in the page, which sized it 300 by 150.
         opened.resize();
 
-        this.renderManager = new RenderManager(canvas, this.eventManager, { engine: opened });
+        this.renderManager = new RenderManager(canvas, this.eventManager, {
+            engine: opened,
+            pictureIsFinal: this.pictureIsFinal,
+            drawsOnDemand: this.drawsOnDemand,
+        });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
@@ -1467,6 +1496,10 @@ export class Graph implements GraphContext {
 
             // Initialize all managers through lifecycle manager
             await this.lifecycleManager.init();
+            // Shut down while the managers were initialising: they are disposed, so nothing starts.
+            if (this.#teardown.signal.aborted) {
+                return;
+            }
 
             // The configured background reaches the scene here, whether it was set through
             // `element.background` before the element was attached or left at its default.
@@ -1674,6 +1707,7 @@ export class Graph implements GraphContext {
             },
             node: { ...current.node, ...behavior.node },
             labels: { ...current.labels, ...behavior.labels },
+            rendering: { ...current.rendering, ...behavior.rendering },
         };
 
         // Checked whole, the project half over the settings in force, before anything is written.
@@ -1685,6 +1719,8 @@ export class Graph implements GraphContext {
         this.writeViewSettings((settings) => {
             settings.behavior = view;
         });
+        // A label declutter switched on or off changes the picture without moving anything.
+        this.renderManager.requestFrame();
 
         // ON-DEMAND EXPANSION IS SWITCHED ON HERE, and it is the only place it can be. The two
         // fetchers are declared in the behaviour schema, so a consumer sets them the same way
@@ -3887,7 +3923,8 @@ export class Graph implements GraphContext {
     private settleDimension(twoD: boolean, frame: boolean): void {
         if (twoD) {
             for (const node of this.getNodes()) {
-                node.mesh.position.z = 0;
+                const { x, y } = node.mesh.position;
+                node.setMeshPosition(x, y, 0);
             }
         } else {
             // The array kept every node's Z through the 2D view; a 3D engine that rebuilt has
@@ -4146,6 +4183,10 @@ export class Graph implements GraphContext {
 
     /**
      * Where a node is drawn on screen, in the same pixels {@link worldToScreen} returns.
+     * @remarks
+     * Read off the node's mesh, which a frame places: before the first frame after a node is
+     * created it reports the hidden mesh template's position, off screen and not visible. Wait
+     * for {@link Graph.waitForStableFrame} first.
      * @param nodeId - The node's id.
      * @returns The centre, whether it is drawn on screen, and its radius in pixels; undefined for
      *     an id the graph does not hold.
@@ -4257,6 +4298,11 @@ export class Graph implements GraphContext {
      * regression snapshot -- wait for {@link Graph.waitForStableFrame} instead, which waits for
      * this queue AND for the layout to converge AND for the camera to finish framing AND for a
      * frame to be drawn in that state.
+     *
+     * Nor does it wait for a frame, and a node's mesh is moved to its layout position only by a
+     * frame. So `Node.getPosition()` and {@link Graph.nodeScreenPosition} read right after this
+     * resolves can still see a new node at its mesh template's position; wait for
+     * {@link Graph.waitForStableFrame} before reading where nodes are drawn.
      * @returns Promise that resolves when all operations are complete
      * @since 1.0.0
      * @see {@link zoomToFit} to zoom after settling
@@ -4317,7 +4363,8 @@ export class Graph implements GraphContext {
      * @remarks
      * Resolves when all four of these are true, in this order: every queued operation has run,
      * the layout has converged, the camera has finished framing what the layout arrived at, and a
-     * frame has been drawn showing it.
+     * frame has been drawn showing it. Every node's mesh is then where the layout put it, so this
+     * is what to wait for before reading `Node.getPosition()` or {@link Graph.nodeScreenPosition}.
      *
      * The `graph-settled` event is NOT that moment. It fires the instant the layout engine
      * reports convergence, in the same update pass that merely ASKS for the final framing, so a
@@ -4331,7 +4378,8 @@ export class Graph implements GraphContext {
      * @param options - How the wait is bounded.
      * @param options.timeoutMs - How long to wait before giving up; 30 seconds by default.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
-     * @throws Error when the picture is still changing when the timeout expires.
+     * @throws Error when the picture is still changing when the timeout expires; the message names
+     *   what was still unfinished and how many frames were drawn while it waited.
      * @since 2.0.0
      * @example
      * ```typescript
@@ -4343,6 +4391,10 @@ export class Graph implements GraphContext {
      */
     async waitForStableFrame(options: { timeoutMs?: number } = {}): Promise<void> {
         const timeoutMs = options.timeoutMs ?? DEFAULT_STABLE_FRAME_TIMEOUT_MS;
+        // Counted so a timeout can tell a picture that kept changing from a page that stopped
+        // drawing: a GPU far behind blocks the page for seconds per frame, and whatever the last
+        // frame left unfinished is then all the reason names.
+        const firstFrame = this.scene.getRenderId();
         let listenerId: symbol | undefined;
         let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -4353,10 +4405,12 @@ export class Graph implements GraphContext {
                 }),
                 new Promise<never>((_resolve, reject) => {
                     timer = setTimeout(() => {
+                        const frames = this.scene.getRenderId() - firstFrame;
                         reject(
                             new Error(
                                 `The graph was still changing ${String(timeoutMs)} ms after ` +
-                                    `waitForStableFrame() was called: ${this.whyTheFrameIsNotStable()}.`,
+                                    `waitForStableFrame() was called: ${this.whyTheFrameIsNotStable()}; ` +
+                                    `${String(frames)} ${frames === 1 ? "frame was" : "frames were"} drawn while it waited.`,
                             ),
                         );
                     }, timeoutMs);
@@ -4546,6 +4600,10 @@ export class Graph implements GraphContext {
             this.eventManager.emit("animation-progress", { progress });
         };
 
+        // A recording takes a frame from the canvas only when one is drawn, so a graph drawn on
+        // demand draws every frame while it records: a still graph would otherwise record nothing.
+        const releaseFrames = animatesEveryFrame(this.scene);
+
         try {
             // Handle animated camera mode
             if (options.cameraMode === "animated") {
@@ -4560,6 +4618,7 @@ export class Graph implements GraphContext {
 
             return result;
         } finally {
+            releaseFrames();
             // Clear reference when done
             this.activeCapture = null;
         }

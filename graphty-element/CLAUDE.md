@@ -239,8 +239,7 @@ npm run storybook        # Start Storybook (PORT, HOST and HTTPS_* from the envi
 npm run dev:xr           # Start XR demo server
 
 # Testing
-npm test                 # Run the Vitest shards (publishes no Chromatic build)
-npm run chromatic        # Publish a Chromatic build (costs snapshots; only when asked)
+npm test                 # Run the Vitest shards
 npm run test:default     # Run default (unit) tests
 npm run test:browser     # Run browser tests (Playwright)
 npm run test:storybook   # Run Storybook component tests
@@ -359,7 +358,7 @@ importer of the GPU package. That section is superseded, not deleted; the decisi
 | ---------------- | ------------------- | -------------------------------------------------------------------------- |
 | `default`        | happy-dom           | Unit tests                                                                 |
 | `browser`        | Playwright/Chromium | Browser integration tests (5 CI shards)                                    |
-| `storybook`      | Playwright          | Component tests via stories (4 CI shards)                                  |
+| `storybook`      | Playwright          | Component tests via stories (5 CI shards)                                  |
 | `interactions`   | Playwright          | User interaction tests                                                     |
 | `xr`             | Playwright          | WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI |
 | `llm-regression` | Node                | AI/LLM regression tests: real, paid calls to an LLM provider               |
@@ -495,10 +494,10 @@ rather than inferred because every agent involved in it complied with every inst
 - Check `servherd_list` for a running Storybook before starting a new instance
 - Stories never fetch data from the network. A dataset or image lives in this repository and is
   imported through `stories/datasets.ts` (a Vite `?url` import made absolute against the page)
-- Visual regression via Chromatic, captured at the viewport pinned in `.storybook/preview.ts`
-- Only the owner accepts Chromatic changes. No agent, script or project setting accepts a
-  snapshot, on a pull request or on master; an agent explains a diff and waits. See
-  `design/decisions/2026-09-27-only-the-owner-accepts-chromatic-changes.md`
+- Visual regression via visual-review, captured at the viewport pinned in `.storybook/preview.ts`
+- Only the owner accepts visual changes. No agent, script or project setting accepts a
+  snapshot, on a pull request or on master; an agent explains a diff and waits. See "Visual
+  review" in the root CLAUDE.md
 - Label text is drawn in a pinned test font registered as "Verdana" (`test/helpers/pin-label-font.ts`),
   so a label snapshot does not depend on which fonts the machine has installed
 

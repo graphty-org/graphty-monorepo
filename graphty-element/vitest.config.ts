@@ -32,7 +32,8 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { workerShare } from "../tools/test-slots.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
 /**
@@ -62,6 +63,14 @@ const LODASH_FUNCTIONS = [
     "lodash/get.js",
     "lodash/isEqual.js",
 ];
+
+/**
+ * The workspace packages, which resolve to their built dist/ outside node_modules. Vitest
+ * transforms every module outside node_modules, so in the Node projects it would run each of
+ * these packages' megabytes of built code through its transform pipeline on first import; they
+ * are loaded as plain Node modules instead, like any other dependency.
+ */
+const WORKSPACE_DIST = /\/(graph-format|graph-io|graph-samples|algorithms|layout|webgpu-graph-algorithms)\/dist\//;
 
 /** Everything the browser projects pre-bundle up front. */
 const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS];
@@ -238,7 +247,10 @@ export default defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
-        reporters: ["default", ...ciJunitReporter()],
+        // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
+        // projects keep their own maxWorkers or fileParallelism.
+        maxWorkers: workerShare(),
+        reporters: ["default", ...ciReporters()],
         onConsoleLog: appendBenchRow,
         // Vitest 4 also copies each failure screenshot into an attachments directory, by default
         // .vitest-attachments/ beside this file. Same diagnostics, same place as the screenshots.
@@ -270,6 +282,7 @@ export default defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "default",
+                    server: { deps: { external: [WORKSPACE_DIST] } },
                     setupFiles: ["./test/setup.ts"],
                     // The shared config's figure. Tests that import a whole entry point take several
                     // seconds on a CI runner or under the pre-push gate, past vitest's default five.
@@ -359,6 +372,7 @@ export default defineConfig({
                 },
                 test: {
                     name: "mesh",
+                    server: { deps: { external: [WORKSPACE_DIST] } },
                     environment: "node",
                     setupFiles: ["./test/mesh-testing/test-setup.ts"],
                     include: ["test/mesh-testing/**/*.test.ts"],
@@ -410,7 +424,7 @@ export default defineConfig({
                         "test/browser/style-layer-ordering.test.ts",
                         "test/browser/first-paint-after-load.test.ts",
                         "test/browser/story-contract.test.ts",
-                        // Every story Chromatic snapshots is seeded, pre-stepped and settled. It
+                        // Every story the visual capture snapshots is seeded, pre-stepped and settled. It
                         // imports every story module, which is why it is here and not in "default".
                         "test/browser/story-determinism.test.ts",
                         // Proves a channel the table calls renderable really changes the picture,

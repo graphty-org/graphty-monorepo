@@ -124,7 +124,7 @@ export function isJsonObject(value: unknown): value is Record<string, unknown> {
  * @category Plugin helpers
  */
 export function hasKey(record: Readonly<Record<string, unknown>>, key: string): boolean {
-    return Object.prototype.hasOwnProperty.call(record, key);
+    return Object.hasOwn(record, key);
 }
 
 /**

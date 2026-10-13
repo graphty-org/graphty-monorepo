@@ -112,8 +112,8 @@ export class AlgorithmManager implements Manager {
      * @param graph - Graph instance to run algorithms on
      */
     constructor(
-        private eventManager: EventManager,
-        private graph: Graph,
+        private readonly eventManager: EventManager,
+        private readonly graph: Graph,
     ) {}
 
     /**

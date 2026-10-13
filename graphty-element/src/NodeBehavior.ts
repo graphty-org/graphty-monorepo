@@ -100,11 +100,11 @@ const CLICK_MAX_MOVEMENT_PX = 5; // Maximum pixels of movement for a click
  * Main drag handler class - unified for both desktop and XR
  */
 export class NodeDragHandler {
-    private node: GraphNode;
-    private dragState: DragState;
+    private readonly node: GraphNode;
+    private readonly dragState: DragState;
     private clickState: ClickState | null = null;
     private gesture: DragGesture | null = null;
-    private scene: Scene;
+    private readonly scene: Scene;
     private pointerObserver: Observer<PointerInfoPre> | null = null;
     private hoverObserver: Observer<PointerInfoPre> | null = null;
     private isHovered = false;
@@ -240,7 +240,7 @@ export class NodeDragHandler {
         const newPosition = this.dragState.dragStartMeshPosition.add(delta);
 
         // Update mesh position (triggers edge updates automatically)
-        this.node.mesh.position.copyFrom(newPosition);
+        this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
@@ -325,7 +325,7 @@ export class NodeDragHandler {
         }
 
         // Update mesh position
-        this.node.mesh.position.copyFrom(newPosition);
+        this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;

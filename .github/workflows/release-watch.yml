@@ -2,7 +2,7 @@
 # (failure, cancelled, timed_out, startup_failure, action_required...) and no comment on the "Release status"
 # issue already reports a failure of that run attempt, this comments there, mentioning RELEASE_NOTIFY. It catches
 # the runs that never reached their own announce step: a run that started no job, a job that never got a runner,
-# a whole run cancelled, an announce step that failed, a failure after the "release pull request opened" comment.
+# a whole run cancelled, an announce step that failed, a bookkeeping step that failed after the release landed.
 # It runs as its own workflow run, so a broken or cancelled release run still triggers it.
 #
 # Not news, so silent: success, skipped and neutral runs; a pending run the release-train concurrency group
@@ -41,6 +41,8 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
                   RUN_ID: ${{ github.event.workflow_run.id }}
                   RUN_URL: ${{ github.event.workflow_run.html_url }}
                   ATTEMPT: ${{ github.event.workflow_run.run_attempt }}

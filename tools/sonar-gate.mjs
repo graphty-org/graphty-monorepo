@@ -11,10 +11,17 @@
 //    `<key>-local` project): block, with the fix.
 // 3. Scan only those files into `<key>-local` (scratch; never `<key>`, which a partial scan would
 //    empty), wait for the server to process it, read its open issues and hotspots.
+//    A network or server fault after the server answered (a DNS failure, a refused, reset or
+//    timed-out connection, an HTTP 5xx, the server closing the connection mid-scan) passes with the
+//    boxed warning like an unreachable server; the scanner's own error and "Caused by" lines say
+//    which. Any other scanner failure blocks.
 // 4. A finding on a changed line (`git diff -M -U0 <merge-base> HEAD`) blocks, unless master's
-//    analysis in `<key>` already has it: an issue with the same rule and line hash in the same file
-//    (following renames); for S3776 and S107 the same rule in the same hunk with a score that did
-//    not rise; a hotspot with the same rule and line hash that is to review or reviewed SAFE.
+//    analysis in `<key>` already has it, in the same file (following renames), one master finding
+//    per finding: the same rule and line hash (a moved or reformatted line), or the same rule
+//    pointing at the same code on the line an edit in place made of master's line (issue #2166; not
+//    for a vulnerability); for S3776, S107 and S5843 the same rule in the same hunk with a score
+//    that did not rise. Master's issue counts when open, confirmed, accepted or a false positive;
+//    its hotspot when to review or reviewed SAFE.
 //    An issue on an UNCHANGED line whose rule and message master lacks for that file is a warning.
 // 5. `// NOSONAR(<rule>): <reason of 10+ chars>` is the only accepted NOSONAR form on a changed line,
 //    and it may not name a vulnerability rule. A `Sonar-Bypass: <reason>` trailer on HEAD passes a
@@ -190,13 +197,10 @@ function checkNosonar(files) {
     return { malformed, named };
 }
 
-// Does master already have this changed-line issue?
-function masterHasIssue(issue, f, masterIssues) {
-    if (!SCORE_RULES.test(issue.rule)) {
-        return masterIssues.some((m) => m.rule === issue.rule && m.hash && m.hash === issue.hash);
-    }
-    // S3776 / S107 are reported on the signature, and S5843 on the regex itself, which the edit
-    // usually changes: match by place, and let it through only when the score did not rise.
+// Is a master S3776 / S107 / S5843 issue the same one as this changed-line issue? These are reported
+// on the signature or on the regex itself, which the edit usually changes: match by place, and let
+// it through only when the score did not rise.
+function sameScoredIssue(issue, f, masterIssues) {
     const prior = masterIssues.find((m) => {
         if (m.rule !== issue.rule || !m.line) return false;
         const where = mapOldLine(f.hunks, m.line);
@@ -205,15 +209,69 @@ function masterHasIssue(issue, f, masterIssues) {
     return Boolean(prior) && scoreOf(issue.message) <= scoreOf(prior.message);
 }
 
-// Does master already have this changed-line hotspot, to review or reviewed SAFE?
-function masterHasHotspot(h, f, master) {
-    const hash = lineHash(f.lines[h.line - 1] ?? "");
-    return master.hotspotsByFile(f.oldPath).some((m) => {
-        const open = m.status === "TO_REVIEW" || (m.status === "REVIEWED" && m.resolution === "SAFE");
-        if (!open || m.ruleKey !== h.ruleKey || !m.line) return false;
-        const text = master.lineAt(f.oldPath, m.line);
-        return text !== null && lineHash(text) === hash;
-    });
+/**
+ * Where an old-side line is on the new side, line for line: an unchanged line shifts with the hunks
+ * above it, and a line inside a hunk that replaced exactly as many lines as it removed (an edit in
+ * place) keeps its offset in the hunk. Inside any other hunk a line has no one counterpart.
+ * @param hunks - The file's hunks, from parseHunks.
+ * @param line - A line number on the old side.
+ * @returns The new-side line number, or null.
+ */
+export function mapOldLineExact(hunks, line) {
+    const where = mapOldLine(hunks, line);
+    if (!where.hunk) return where.line;
+    const h = where.hunk;
+    return h.oldCount === h.newCount ? h.newStart + (line - h.oldStart) : null;
+}
+
+/**
+ * The code a finding points at: its `textRange` cut out of a file's lines.
+ * @param lines - The file's lines.
+ * @param range - `{ startLine, endLine, startOffset, endOffset }`, as the issues and hotspots APIs
+ *   report it.
+ * @returns The text, or null without a range, outside the file, or for an empty range.
+ */
+export function spanText(lines, range) {
+    if (!range || !lines) return null;
+    const rows = lines.slice(range.startLine - 1, range.endLine);
+    if (rows.length === 0 || rows.length !== range.endLine - range.startLine + 1) return null;
+    rows[rows.length - 1] = rows.at(-1).slice(0, range.endOffset);
+    rows[0] = rows[0].slice(range.startOffset);
+    return rows.join("\n") || null;
+}
+
+/**
+ * Which of a file's findings master already has. Each master finding vouches for at most ONE
+ * finding, so a rule that occurs N times where master had it fewer times blocks the rest. Findings
+ * on unchanged lines claim theirs first. Then a finding on a changed line is master's when an
+ * unclaimed master finding has the same rule and the same line hash (the line moved or was
+ * reformatted), else -- when the finding allows it -- the same rule pointing at the same code
+ * (`span`) on the line an edit in place made of master's line. Master's line is checked against
+ * the merge base's text (`baseLines`), since master's analysis may be of a later commit.
+ * @param found - The local findings, `{ rule, line, hash, span, inPlace }`.
+ * @param prior - Master's findings for the file, `{ rule, line, hash, span }` (`span` cut from the
+ *   merge base).
+ * @param f - The file: `{ hunks, baseLines }`.
+ * @returns The set of `found` entries master vouches for (changed lines only).
+ */
+export function vouchedFor(found, prior, f) {
+    const used = new Set();
+    const take = (x, ok) => {
+        const m = prior.find((c) => !used.has(c) && c.rule === x.rule && ok(c));
+        if (m) used.add(m);
+        return Boolean(m);
+    };
+    const sameHash = (x) => (m) => Boolean(m.hash) && m.hash === x.hash;
+    const landsOn = (x) => (m) => {
+        const text = f.baseLines?.[m.line - 1];
+        return text !== undefined && lineHash(text) === m.hash && mapOldLineExact(f.hunks, m.line) === x.line;
+    };
+    const sameCode = (x) => (m) => m.span !== null && m.span === x.span && landsOn(x)(m);
+    const changed = found.filter((x) => onChangedLine(f.hunks, x.line));
+    for (const x of found) if (!changed.includes(x)) take(x, landsOn(x)) || take(x, sameHash(x));
+    const vouched = new Set(changed.filter((x) => take(x, sameHash(x))));
+    for (const x of changed) if (!vouched.has(x) && x.inPlace && take(x, sameCode(x))) vouched.add(x);
+    return vouched;
 }
 
 /**
@@ -222,38 +280,153 @@ function masterHasHotspot(h, f, master) {
  * @param input.local - `{ issues, hotspots }` of <key>-local, each with a repository-relative `path`.
  * @param input.master - `issuesByFile(oldPath)` and `hotspotsByFile(oldPath)` (arrays) and
  *   `lineAt(oldPath, line)` (master's text of that line, or null), from <key>.
- * @param input.files - Map from each scanned path to `{ oldPath, hunks, lines }` (HEAD's lines).
+ * @param input.files - Map from each scanned path to `{ oldPath, hunks, lines, baseLines }` (HEAD's
+ *   lines and the merge base's lines of `oldPath`).
  * @returns `{ blocking, existing, warnings, named }`: findings as `{ path, line, rule, message, kind }`,
  *   and the rule each well-formed NOSONAR names, by `path:line`.
  */
 export function decide({ local, master, files }) {
     const { malformed, named } = checkNosonar(files);
-    const blocking = [...malformed];
-    const existing = [];
-    const warnings = [];
-    for (const issue of local.issues) {
-        const f = files.get(issue.path);
-        if (f && issue.line) judgeIssue(issue, f, master.issuesByFile(f.oldPath), { blocking, existing, warnings });
+    const out = { blocking: [...malformed], existing: [], warnings: [] };
+    for (const [path, f] of files) {
+        judgeIssues(
+            local.issues.filter((x) => x.path === path && x.line),
+            f,
+            master.issuesByFile(f.oldPath),
+            out,
+        );
+        const hotspots = local.hotspots.filter(
+            (h) => h.path === path && h.line && named.get(`${path}:${h.line}`) !== h.ruleKey.split(":")[1],
+        );
+        judgeHotspots(hotspots, f, master, out);
     }
-    for (const h of local.hotspots) {
-        const f = files.get(h.path);
-        if (!f || !h.line || !onChangedLine(f.hunks, h.line)) continue;
-        if (named.get(`${h.path}:${h.line}`) === h.ruleKey.split(":")[1]) continue;
-        const entry = { path: h.path, line: h.line, rule: h.ruleKey, message: h.message, kind: "hotspot" };
-        (masterHasHotspot(h, f, master) ? existing : blocking).push(entry);
-    }
-    return { blocking, existing, warnings, named };
+    return { ...out, named };
 }
 
-// Sort one issue into blocking, existing (on a changed line, master has it) or warnings.
-function judgeIssue(issue, f, masterIssues, out) {
-    const kind = isVulnerability(issue) ? "vulnerability" : "issue";
-    const entry = { path: issue.path, line: issue.line, rule: issue.rule, message: issue.message, kind };
-    if (onChangedLine(f.hunks, issue.line)) {
-        (masterHasIssue(issue, f, masterIssues) ? out.existing : out.blocking).push(entry);
-    } else if (!masterIssues.some((m) => m.rule === issue.rule && m.message === issue.message)) {
-        out.warnings.push(entry);
+// Sort a file's issues into blocking, existing (on a changed line, master has it) or warnings.
+// Master's issue counts when open, confirmed, accepted or marked a false positive. A vulnerability
+// is master's only by its line hash: an edit in place may change what it exposes.
+function judgeIssues(issues, f, masterIssues, out) {
+    const plain = (x) => !SCORE_RULES.test(x.rule);
+    const asFound = (x, lines) => ({
+        ref: x,
+        rule: x.rule,
+        line: x.line,
+        hash: x.hash,
+        span: spanText(lines, x.textRange),
+        inPlace: !isVulnerability(x),
+    });
+    const found = issues.filter(plain).map((x) => asFound(x, f.lines));
+    const prior = masterIssues.filter((m) => plain(m) && m.line).map((m) => asFound(m, f.baseLines));
+    const vouched = new Set([...vouchedFor(found, prior, f)].map((e) => e.ref));
+    for (const issue of issues) {
+        const kind = isVulnerability(issue) ? "vulnerability" : "issue";
+        const entry = { path: issue.path, line: issue.line, rule: issue.rule, message: issue.message, kind };
+        if (onChangedLine(f.hunks, issue.line)) {
+            const has = plain(issue) ? vouched.has(issue) : sameScoredIssue(issue, f, masterIssues);
+            (has ? out.existing : out.blocking).push(entry);
+        } else if (!masterIssues.some((m) => m.rule === issue.rule && m.message === issue.message)) {
+            out.warnings.push(entry);
+        }
     }
+}
+
+// Sort a file's hotspots on changed lines into blocking or existing. Master's counts when it is to
+// review or reviewed SAFE; through an edit in place only when it points at the same code, so a SAFE
+// review never covers code nobody reviewed.
+function judgeHotspots(hotspots, f, master, out) {
+    const asFound = (h, hash, lines) => ({
+        ref: h,
+        rule: h.ruleKey,
+        line: h.line,
+        hash,
+        span: spanText(lines, h.textRange),
+        inPlace: true,
+    });
+    const found = hotspots.map((h) => asFound(h, lineHash(f.lines[h.line - 1] ?? ""), f.lines));
+    const prior = master
+        .hotspotsByFile(f.oldPath)
+        .filter((m) => m.line && (m.status === "TO_REVIEW" || (m.status === "REVIEWED" && m.resolution === "SAFE")))
+        .map((m) => {
+            const text = master.lineAt(f.oldPath, m.line);
+            return asFound(m, text === null ? null : lineHash(text), f.baseLines);
+        });
+    const vouched = new Set([...vouchedFor(found, prior, f)].map((e) => e.ref));
+    for (const h of hotspots) {
+        if (!onChangedLine(f.hunks, h.line)) continue;
+        const entry = { path: h.path, line: h.line, rule: h.ruleKey, message: h.message, kind: "hotspot" };
+        (vouched.has(h) ? out.existing : out.blocking).push(entry);
+    }
+}
+
+// What a failed scanner run says about why: the bootstrapper's and the engine's ERROR lines, the
+// engine's top exception (the line after "Error during SonarScanner Engine execution") and every
+// "Caused by" line. The stack frames between them say nothing a reader can act on.
+const CAUSE_LINE = /^\s*(?:\[ERROR\]|Caused by: )/;
+const AFTER_ENGINE_ERROR = /Error during SonarScanner Engine execution/;
+// A network or server fault, as the Node bootstrapper (axios, node:net) and the Java engine (okhttp,
+// the SonarQube web service client) word it. Anything else -- a 401, a 403, a 404, a missing file, a
+// plugin that cannot start -- is not on this list and blocks.
+const NODE_CODES = [
+    "ENOTFOUND",
+    "EAI_AGAIN",
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "ECONNABORTED",
+    "ETIMEDOUT",
+    "EHOSTUNREACH",
+    "ENETUNREACH",
+    "EPIPE",
+    "UND_ERR_SOCKET",
+    "UND_ERR_CONNECT_TIMEOUT",
+    "UND_ERR_HEADERS_TIMEOUT",
+    "UND_ERR_BODY_TIMEOUT",
+];
+const JAVA_NET = [
+    "UnknownHostException",
+    "ConnectException",
+    "NoRouteToHostException",
+    "SocketTimeoutException",
+    "SocketException",
+];
+const NETWORK_FAULT = new RegExp(
+    [
+        String.raw`\b(?:${NODE_CODES.join("|")})\b`,
+        "socket hang up",
+        String.raw`status code 5\d\d\b`,
+        String.raw`timeout of \d+ms exceeded`,
+        String.raw`java\.net\.(?:${JAVA_NET.join("|")})`,
+        String.raw`java\.io\.(?:EOFException|InterruptedIOException)`,
+        "unexpected end of stream",
+        String.raw`HttpException: Error 5\d\d on `,
+    ].join("|"),
+);
+
+/**
+ * Why the scanner failed, from its own output.
+ * @param output - The scanner's output (the token already redacted by startScanner).
+ * @returns `{ cause, network }`: the lines that explain the failure (credentials in URLs masked), and
+ *   whether they name a network or server fault -- a DNS failure, a refused, reset or timed-out
+ *   connection, an HTTP 5xx, or the server closing the connection mid-scan.
+ */
+export function scannerFailure(output) {
+    const lines = output.split("\n");
+    const cause = lines
+        .filter((l, i) => CAUSE_LINE.test(l) || (i > 0 && AFTER_ENGINE_ERROR.test(lines[i - 1])))
+        .map((l) => l.trim().replaceAll(/\/\/[^/@\s]+@/g, "//***@"));
+    return { cause, network: cause.some((l) => NETWORK_FAULT.test(l)) };
+}
+
+/**
+ * Did a Web API call fail because the server or the network did (HTTP 5xx, no answer, a timeout),
+ * rather than because of what was asked?
+ * @param e - What `client().call` threw.
+ * @returns True for a network or server fault.
+ */
+export function isNetworkError(e) {
+    if (e instanceof ApiError) return e.status >= 500;
+    if (e?.name === "TimeoutError" || e?.name === "AbortError") return true;
+    return NETWORK_FAULT.test(String(e?.cause?.code ?? e?.code ?? ""));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -271,6 +444,8 @@ class Outcome extends Error {
 }
 const skip = (reason, why) =>
     new Outcome(`skipped:${reason}`, 0, [why, "The next push from the owner's network checks the whole branch."]);
+// The server or the network failed after the server had answered: the same as an unreachable server.
+const serverFault = (why) => skip("server-fault", `The SonarQube server or the network failed: ${why}`);
 
 const git = (args) => execFileSync("git", args, { encoding: "utf8", env: envWithoutToken(), maxBuffer: 256 << 20 });
 
@@ -338,6 +513,7 @@ async function checkSetup(run) {
 
     const api = client(cfg.host, cfg.token);
     const me = await api.call("api/users/current").catch((e) => ({ error: e }));
+    if (me.error && isNetworkError(me.error)) throw serverFault(`api/users/current: ${me.error.message}`);
     if (me.error || !me.isLoggedIn) {
         const why = me.error instanceof ApiError ? `HTTP ${me.error.status}` : (me.error?.message ?? "not logged in");
         throw run.blockSetup(`the token was rejected (${why})`, TOKEN_FIX);
@@ -355,6 +531,7 @@ async function checkSetup(run) {
     try {
         await api.call("api/components/show", { component: localKey });
     } catch (e) {
+        if (isNetworkError(e)) throw serverFault(`api/components/show: ${e.message}`);
         const missing = e instanceof ApiError && e.status === 404;
         throw run.blockSetup(
             missing ? `project ${localKey} is missing` : `api/components/show: ${e.message}`,
@@ -402,7 +579,10 @@ async function scan(run, setup, scanList) {
     const { code, error } = await scanner.done;
     run.scanner = null;
     if (code !== 0) {
-        console.log(output.trim().split("\n").slice(-20).join("\n"));
+        const { cause, network } = scannerFailure(output);
+        // No recognizable cause: the end of the output, as before.
+        console.log((cause.length ? cause : output.trim().split("\n").slice(-20)).join("\n"));
+        if (network) throw serverFault(`the scanner lost the server (exit ${code}; its errors are above)`);
         const detail = error ? `, ${error.message}` : "";
         throw run.blockSetup(`the scanner failed (exit ${code}${detail})`, "read the scanner output above");
     }
@@ -435,9 +615,17 @@ async function masterFindings(api, mainKey, oldPaths) {
         .catch(() => null);
     const issues = new Map();
     const hotspots = new Map();
-    const none = () => [];
+    // A file master never analyzed has nothing; a server that stopped answering is not "nothing".
+    const none = (e) => {
+        if (isNetworkError(e)) throw e;
+        return [];
+    };
     for (const old of oldPaths) {
-        const issueQuery = { components: `${mainKey}:${old}`, issueStatuses: "OPEN,CONFIRMED" };
+        // A false positive or an accepted issue is master's too: someone already decided it.
+        const issueQuery = {
+            components: `${mainKey}:${old}`,
+            issueStatuses: "OPEN,CONFIRMED,ACCEPTED,FALSE_POSITIVE",
+        };
         issues.set(old, await api.all("api/issues/search", issueQuery, "issues").catch(none));
         const toReview = { project: mainKey, files: old, status: "TO_REVIEW" };
         const safe = { project: mainKey, files: old, status: "REVIEWED", resolution: "SAFE" };
@@ -521,6 +709,15 @@ function verdictOutcome(verdict, host, bypass) {
     return new Outcome("blocked", 1, lines);
 }
 
+// A file's lines at a revision, or [] when it is not there (a file the push adds).
+function showOrEmpty(spec) {
+    try {
+        return git(["show", spec]).split("\n");
+    } catch {
+        return [];
+    }
+}
+
 async function check(run) {
     const scanList = changedFiles(run);
     if (scanList.length === 0) {
@@ -543,7 +740,12 @@ async function check(run) {
     const files = new Map(
         scanList.map((c) => [
             c.path,
-            { oldPath: c.oldPath, hunks: hunks.get(c.path) ?? [], lines: git(["show", `HEAD:${c.path}`]).split("\n") },
+            {
+                oldPath: c.oldPath,
+                hunks: hunks.get(c.path) ?? [],
+                lines: git(["show", `HEAD:${c.path}`]).split("\n"),
+                baseLines: showOrEmpty(`${run.base}:${c.oldPath}`),
+            },
         ]),
     );
     const withFindings = new Set([...local.issues, ...local.hotspots].map((x) => files.get(x.path)?.oldPath));
@@ -607,8 +809,9 @@ async function main() {
     try {
         outcome = await check(run);
     } catch (e) {
-        outcome =
-            e instanceof Outcome ? e : new Outcome("blocked", 1, [`${RED}SonarQube step failed: ${e.message}${NC}`]);
+        if (e instanceof Outcome) outcome = e;
+        else if (isNetworkError(e)) outcome = serverFault(e.message);
+        else outcome = new Outcome("blocked", 1, [`${RED}SonarQube step failed: ${e.message}${NC}`]);
     }
     clearTimeout(timer);
     return finish(outcome);

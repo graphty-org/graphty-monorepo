@@ -176,13 +176,13 @@ export const INSIGHT_ACTION_LABEL = "Try it";
  * unconditional in 7.3, and a card promising a run that cannot happen is worse than a short
  * strip.
  */
-const ABOVE_THRESHOLD_DETERMINISTIC_SET: readonly InsightCapability[] = [
+const ABOVE_THRESHOLD_DETERMINISTIC_SET: ReadonlySet<InsightCapability> = new Set([
     "data-validation",
     "narrow-the-view",
     "component-analysis",
     "centrality-degree",
     "search",
-];
+]);
 
 /**
  * Builds one card. Every string a caller sees passes through here, so the frozen copy
@@ -423,7 +423,7 @@ function mayBeOffered(shape: InsightsGraphShape, capability: InsightCapability, 
     const listed = elementListing(shape, capability);
 
     if (listed === undefined) {
-        return !aboveThreshold || ABOVE_THRESHOLD_DETERMINISTIC_SET.includes(capability);
+        return !aboveThreshold || ABOVE_THRESHOLD_DETERMINISTIC_SET.has(capability);
     }
 
     if (!listed.available) {
@@ -469,14 +469,11 @@ export function insightCandidates(shape: InsightsGraphShape): readonly InsightCa
             candidates.push(narrowViewCard());
         }
 
-        candidates.push(componentCard());
-        candidates.push(degreeCard());
-
         // Spec 7.3: "Between the threshold and 1M nodes Find groups may appear as a
         // fourth card only when its label-propagation estimate is under 60 s." The gate
-        // below refuses it outright when the element said nothing about it, so pushing it
-        // here is safe.
-        candidates.push(communityCard());
+        // below refuses it outright when the element said nothing about it, so pushing the
+        // community card here is safe.
+        candidates.push(componentCard(), degreeCard(), communityCard());
     } else {
         // Rule 1.
         if (shape.validationIssueTypeCount > 0) {

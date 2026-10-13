@@ -22,8 +22,8 @@ import { compareIds, runIdOfRef } from "../../catalog/sets/canonical";
 import type { EdgeMember, ItemKey, NodeId, ResultItem, RunId } from "../../catalog/types";
 import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import type { CapturedHalves, FilterRunResult } from "../visibility/filter";
-import { compactEdgeMembers, type EdgeMemberList } from "./prepare";
-import { addEdgeRow, bindEdgeMembers, edgeMemberKey, type ResolveContext } from "./resolve";
+import { compactEdgeMembers, edgeMemberKey, type EdgeMemberList } from "./prepare";
+import { addEdgeRow, bindEdgeMembers, type ResolveContext } from "./resolve";
 
 /** One held item's members, as a re-run captured them. Frozen. */
 export interface Capture {

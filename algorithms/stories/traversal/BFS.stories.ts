@@ -342,7 +342,7 @@ type Story = StoryObj<BFSArgs>;
  *
  * This story uses the actual `breadthFirstSearch()` function from @graphty/algorithms.
  *
- * The play function runs the animation to completion for Chromatic visual testing.
+ * The play function runs the animation to completion for the visual capture.
  */
 export const BFS: Story = {
     render: (args) => createBFSStory(args),

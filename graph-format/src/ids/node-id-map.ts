@@ -198,7 +198,7 @@ function storageDetached(storage: NodeIdMapStorage): boolean {
         (storage.denseValues !== null && storage.denseValues.length === 0) ||
         (storage.decoded === null && storage.numbers !== null && storage.numbers.length === 0) ||
         (storage.decoded === null && storage.tags !== null && storage.tags.length === 0) ||
-        (storage.decoded === null && storage.strings !== null && storage.strings.detached)
+        (storage.decoded === null && storage.strings?.detached === true)
     );
 }
 
@@ -986,7 +986,7 @@ export function idMapBuffers(map: NodeIdMap): ArrayBuffer[] {
             out.add(view.buffer);
         }
     }
-    if (storage.strings !== null && storage.strings.encoded) {
+    if (storage.strings?.encoded) {
         out.add(storage.strings.offsets.buffer);
         out.add(storage.strings.utf8.buffer);
     }

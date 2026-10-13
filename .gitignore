@@ -80,7 +80,7 @@ coverage/
 .env.*.local
 *.local
 # Backups a script makes before rewriting .env. One of these was sitting untracked and
-# unignored in the repository root on 2026-09-22 holding four Chromatic project tokens and
+# unignored in the repository root on 2026-09-22 holding four project tokens and
 # three LLM API keys, which `git add -A` would have staged.
 .env.bak
 .env.bak.*
@@ -116,10 +116,6 @@ playwright-report/
 **/playwright/visual/screenshots-diff/
 **/playwright/visual/screenshots-actual/
 **/playwright/generated/*.visual.spec.ts
-
-# Chromatic
-chromatic-diagnostics.json
-stories/auto-generated/
 
 # GitHub Pages build output
 gh-pages/
@@ -183,6 +179,10 @@ gpu-report.json
 # The Figma editor UI study (screenshots, HTML and measured styles, about 1.2 GB): kept
 # locally as design reference, never committed.
 design/ui/figma/
+
+# githerd's state (the shared daemon's in the main checkout, `githerd dev`'s in a worktree)
+/.githerd/
+/.githerd-dev/
 
 # The release scheduler Worker's local secrets (tools/release-scheduler/README.md)
 tools/release-scheduler/.dev.vars

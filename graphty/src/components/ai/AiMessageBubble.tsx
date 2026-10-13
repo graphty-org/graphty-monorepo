@@ -45,7 +45,7 @@ function getBackgroundColor(isUser: boolean, isError: boolean): string {
  * @param root0.onRetry - Callback to retry a failed message
  * @returns The message bubble component
  */
-export function AiMessageBubble({ message, onRetry }: AiMessageBubbleProps): React.JSX.Element {
+export function AiMessageBubble({ message, onRetry }: Readonly<AiMessageBubbleProps>): React.JSX.Element {
     const isUser = message.role === "user";
     const isError = message.isError ?? message.content.startsWith("Error:");
 

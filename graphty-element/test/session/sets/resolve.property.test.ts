@@ -24,10 +24,10 @@ import {
     nodeSpaceOf,
 } from "../../../src/session/scope/index";
 import { resolvePath } from "../../../src/session/sets/path";
+import { edgeMemberKey } from "../../../src/session/sets/prepare";
 import {
     type ComponentLabels,
     digestOf,
-    edgeMemberKey,
     type EdgeSeeds,
     type Resolution,
     resolveFixed,

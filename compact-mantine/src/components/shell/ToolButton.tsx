@@ -10,7 +10,10 @@ import { useShellStyles } from "./roving";
  * @param props.shortcut - The keyboard shortcut, if any
  * @returns The tooltip label
  */
-export function TipLabel({ label, shortcut }: { label: React.ReactNode; shortcut?: string }): React.JSX.Element {
+export function TipLabel({
+    label,
+    shortcut,
+}: Readonly<{ label: React.ReactNode; shortcut?: string }>): React.JSX.Element {
     return (
         <>
             {label}

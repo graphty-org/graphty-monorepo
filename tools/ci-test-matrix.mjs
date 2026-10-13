@@ -12,7 +12,7 @@
  * Usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json>
  *   both are the JSON arrays `nx show projects --json` prints (with or without --affected).
  * Prints three GITHUB_OUTPUT lines:
- *   affected=<JSON array of package directory names>   (Chromatic jobs test membership in it)
+ *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
  *   test-count=<number of shards>   (0 means skip the test job: an empty matrix is an error)
  *
@@ -64,7 +64,10 @@ export const SHARDS = [
     // needs: ["subgroups"] (they call wg_reduce_vec4) and their tests live there, so without that
     // path the twin would never exercise the PageRank reduction on a device without the feature.
     // the node suite runs through scripts/run-node-shard.js: it forwards every argument and exits with
-    // vitest's own code. On a non-zero exit its FIRST line is the [missing-files] block -- how many test
+    // vitest's own code, except that an exit of 0 still fails (a [shard-verdict] line names why) when the run
+    // printed no vitest summary or did not write its --outputFile whole (tools/shard-verdict.mjs, issue #2111),
+    // and a run still silent after its last 90-second snapshot is killed and fails; a snapshot alone fails
+    // nothing (issue #2181). On a non-zero exit its FIRST line is the [missing-files] block -- how many test
     // files started, how many reported, and the names of the difference, which is what a dead worker
     // swallowed; after it, and after 90 seconds of silence, the process table with each process's kernel
     // wait channel and a Node diagnostic report per surviving process (G4-F14).
@@ -84,15 +87,20 @@ export const SHARDS = [
     // same coverage it wrote in series: the coverage thresholds apply to the `node` invocation alone
     // (vitest.config.ts, thresholdsActive), exactly as before, and the device-error invocation's report
     // still uploads as coverage-webgpu-graph-algorithms-node-device-errors for coverage.yml to merge.
+    // `--project=node-gpu-alone` beside `--project=node` is the rest of the main suite: the files that hold the GPU
+    // for seconds per submission, run after the node project and one at a time (vitest.config.ts, issue #1884).
     ...[
-        ["webgpu-graph-algorithms-node", "node scripts/run-node-shard.js --project=node --coverage"],
+        [
+            "webgpu-graph-algorithms-node",
+            "node scripts/run-node-shard.js --project=node --project=node-gpu-alone --coverage",
+        ],
         [
             "webgpu-graph-algorithms-node-device-errors",
             "COVERAGE_DIR=.coverage-parts/device-errors node scripts/run-node-shard.js --project=node-device-errors --coverage",
         ],
         [
             "webgpu-graph-algorithms-node-no-subgroups",
-            "GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node test/primitives test/layouts test/algorithms --passWithNoTests",
+            "GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone test/primitives test/layouts test/algorithms --passWithNoTests",
         ],
         [
             "webgpu-graph-algorithms-node-no-subgroups-device-errors",
@@ -189,6 +197,13 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run visual-review:coverage",
         "needs-browser": true,
     },
+    // githerd - single shard (Node.js, no browser; coverage counts lib/)
+    {
+        shard: "githerd",
+        package: "githerd",
+        "test-command": "pnpm exec nx run githerd:coverage",
+        "needs-browser": false,
+    },
     // compact-mantine - single shard (uses Playwright for browser-based vitest)
     {
         shard: "compact-mantine",
@@ -204,7 +219,7 @@ export const SHARDS = [
         shard: "graphty-element-default",
         package: "graphty-element",
         "test-command":
-            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} --coverage",
+            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} --coverage",
         "needs-browser": false,
     },
     // graphty-element browser tests (5 shards)
@@ -212,15 +227,17 @@ export const SHARDS = [
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} --coverage`,
         "needs-browser": true,
-        // 935 s for the ten browser and storybook shards together (2026-10-06); a push that changes
+        // 935 s for the browser and storybook shards together (2026-10-06); a push that changes
         // only the element's source is left to CI here.
         local: "when-paths-change",
         // The helpers the browser and interaction tests import, which vitest does not list.
         "local-paths": ["graphty-element/test/helpers/", "graphty-element/test/interactions/"],
     })),
-    // graphty-element storybook tests (4 shards)
+    // graphty-element storybook tests (5 shards). Under v8 coverage a storybook browser session slows
+    // down as it runs more stories (after about 100 to 120, each takes ten times as long and they
+    // hit the 30 s timeout), so each shard is kept well under 100 stories.
     // Note: Using both blob and default reporters to capture test results and show failures in logs
     // These shards need no Storybook server and no storybook-static artifact: the
     // storybook vitest project composes each story through Vite in the browser via
@@ -228,10 +245,10 @@ export const SHARDS = [
     // a storybookScript, which graphty-element/vitest.config.ts does not set. A step that
     // served the static build on port 9026 was removed; nothing in the repository has
     // referred to that port since.
-    ...[1, 2, 3, 4].map((n) => ({
+    ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-storybook-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/4 --reporter=blob --reporter=default \${CI:+--reporter=junit} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} --coverage`,
         "needs-browser": true,
         local: "when-paths-change",
         // Storybook's own config (the vitest project's configDir) and the story helpers.
@@ -254,6 +271,7 @@ export const GROUPS = {
         "cytoscape-extensions-cytoscape-versions",
         "layout",
         "algorithms-default",
+        "githerd",
     ],
     "small-browser": [
         "algorithms-browser",

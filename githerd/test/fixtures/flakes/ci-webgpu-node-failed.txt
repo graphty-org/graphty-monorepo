@@ -1,0 +1,30 @@
+2026-10-06T00:43:50.0210869Z [90mstderr[2m | test/sabotage/all-pairs.test.ts[2m > [22m[2msabotage: apsp-init and apsp-fw (spec 11.9 item 1)[2m > [22m[2mapsp-fw/barrier-after-stage-removed: fails the check by >= 10x
+2026-10-06T00:43:50.0215684Z [22m[39m[sabotage] apsp-fw/barrier-after-stage-removed: factor Infinity at karate/uniform.dist[1] = 0, want 0.10062320530414581
+2026-10-06T00:43:50.0217718Z 
+2026-10-06T00:43:52.8671551Z [90mstderr[2m | test/kernel/dense-loop-guard.test.ts[2m > [22m[2mdense-row loops (G-ENV ENV-F8)[2m > [22m[2mcarry no tint_loop_idx guard in the SPIR-V Dawn generates
+2026-10-06T00:43:52.8744904Z [22m[39m[dense-loop-guard] this runtime guards loops
+2026-10-06T00:43:52.8794325Z 
+2026-10-06T00:43:52.9440327Z  [31m?[39m [30m[43m node [49m[39m test/kernel/dense-loop-guard.test.ts [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 3697[2mms[22m[39m
+2026-10-06T00:43:52.9443610Z [31m     [31m?[31m carry no tint_loop_idx guard in the SPIR-V Dawn generates[39m[33m 3659[2mms[22m[39m
+2026-10-06T00:43:53.0450485Z [90mstderr[2m | test/sabotage/all-pairs.test.ts[2m > [22m[2msabotage: apsp-init and apsp-fw (spec 11.9 item 1)[2m > [22m[2mapsp-fw/step-barrier-removed: fails the check by >= 10x
+2026-10-06T00:45:20.6812653Z 
+2026-10-06T00:45:20.6814286Z [31m?[39m[1m[41m Failed Tests 1 [49m[22m[31m?[39m
+2026-10-06T00:45:20.6815282Z 
+2026-10-06T00:45:20.6826825Z [41m[1m FAIL [22m[49m [30m[43m node [49m[39m test/kernel/dense-loop-guard.test.ts[2m > [22mdense-row loops (G-ENV ENV-F8)[2m > [22mcarry no tint_loop_idx guard in the SPIR-V Dawn generates
+2026-10-06T00:45:20.6832573Z [31m[1mAssertionError[22m: row_force_dense found in the dump (14 SPIR-V modules, 600010 bytes: scan_block, scan_add, segmented_reduce+row_node+row_fold+row_fold_dense, fill, spmv_pull+row_node+row_sum+row_sum_dense, pr_scale, pr_finalize, attraction+row_node+row_force+row_force_dense, stats_finalize, repulsion, integrate, speed_finalize, to_scene, main; stderr: Warning: maxDynamicUniformBuffersPerPipelineLayout artificially reduced from 500000 to 16 to fit dynamic offset allocation limit.
+2026-10-06T00:45:20.6836753Z Warning: maxDynamicStorageBuffersPerPipelineLayout artificially reduced from 500000 to 16 to fit dynamic offset allocation limit.
+2026-10-06T00:45:20.6837558Z ): expected 0 to be greater than 0[39m
+2026-10-06T00:45:20.6838140Z [36m [2m?[22m test/kernel/dense-loop-guard.test.ts:[2m75:74[22m[39m
+2026-10-06T00:45:20.6865477Z     [90m 73|[39m         for (const name of ["row_sum_dense", "row_fold_dense", "row_fo?
+2026-10-06T00:45:20.6867006Z     [90m 74|[39m             [35mconst[39m bodies [33m=[39m [34mfunctionBodies[39m(dump[33m,[39m name)[33m;[39m
+2026-10-06T00:45:20.6868463Z     [90m 75|[39m             expect(bodies.length, `${name} found in the dump (${seen})?
+2026-10-06T00:45:20.6869698Z     [90m   |[39m                                                                          [31m^[39m
+2026-10-06T00:45:20.6870761Z     [90m 76|[39m             [35mfor[39m ([35mconst[39m body [35mof[39m bodies) {
+2026-10-06T00:45:20.6871885Z     [90m 77|[39m                 expect(body.includes("tint_loop_idx"), `${name} is gua?
+2026-10-06T00:45:20.6872455Z 
+2026-10-06T00:45:20.6872883Z [31m[2m?[1/1]?[22m[39m
+2026-10-06T00:45:20.6873212Z 
+2026-10-06T00:45:20.6873271Z 
+2026-10-06T00:45:20.6883592Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m153 passed[39m[22m[90m (154)[39m
+2026-10-06T00:45:20.6916484Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m3306 passed[39m[22m[2m | [22m[33m6 skipped[39m[90m (3313)[39m
+2026-10-06T00:45:20.6917829Z [2m   Start at [22m 00:29:04

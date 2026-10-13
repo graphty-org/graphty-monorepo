@@ -1,4 +1,5 @@
 import { GraphBuilder } from "@graphty/graph-format";
+import { plantedPartitionGraph } from "@graphty/graph-samples/generators";
 import { describe, expect, it, vi } from "vitest";
 
 import { syncClustering } from "../../../src/indexed/sync.js";
@@ -20,12 +21,34 @@ import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 // node's step by its out-degree, still with 2.x's generator; "legacy" in the test names below now
 // means that re-taken record, and the loss records keep 2.x's way of reporting the loss and the
 // iteration count (the two loss tests check the port against it).
+//
+// The step of the fix for #1600 still pulled every node toward the origin, scaled by its degree, and
+// the run went on until the loss settled, so connected communities blurred together and k-means split
+// on degree (issue #1698); those records encoded that too. They were re-taken again, the same way,
+// from the port that leaves the origin pull out of the step and stops once the cluster assignment has
+// held for 10 iterations.
 vi.mock("../../../src/utils/math-utilities.js", async () => {
     const { legacySeededRandom } = await import("../../helpers/legacy-random.js");
     return { mulberry32: vi.fn(legacySeededRandom) };
 });
 
 const fixtures: FacadeFixture[] = [...undirectedFixtures(), ...directedFixtures()];
+
+/**
+ * Runs `body` with the package generator, not the legacy one this file replays for the records.
+ * @param body - The test body
+ */
+async function withPackageGenerator(body: () => void): Promise<void> {
+    const actual = await vi.importActual<typeof import("../../../src/utils/math-utilities.js")>(
+        "../../../src/utils/math-utilities.js",
+    );
+    vi.mocked(mulberry32).mockImplementation(actual.mulberry32);
+    try {
+        body();
+    } finally {
+        vi.mocked(mulberry32).mockImplementation((await import("../../helpers/legacy-random.js")).legacySeededRandom);
+    }
+}
 
 /**
  * The port's result in the legacy shape, less `loss` and `iterations`, which the port reports for
@@ -113,12 +136,7 @@ describe("indexed.syncClustering", () => {
     });
 
     it("splits two unconnected cliques of any size with the default options (issue #1600)", async () => {
-        // The package generator, not the legacy one this file replays for the records.
-        const actual = await vi.importActual<typeof import("../../../src/utils/math-utilities.js")>(
-            "../../../src/utils/math-utilities.js",
-        );
-        vi.mocked(mulberry32).mockImplementation(actual.mulberry32);
-        try {
+        await withPackageGenerator(() => {
             for (const m of [3, 4, 5, 8, 16, 30]) {
                 const b = new GraphBuilder({ directed: false });
                 for (const offset of [0, m]) {
@@ -142,15 +160,51 @@ describe("indexed.syncClustering", () => {
                     expect(r.converged, at).toBe(true);
                 }
             }
-        } finally {
-            vi.mocked(mulberry32).mockImplementation(
-                (await import("../../helpers/legacy-random.js")).legacySeededRandom,
-            );
-        }
+        });
+    });
+
+    it("finds planted communities with the default options instead of blurring them (issue #1698)", async () => {
+        // Run to a settled loss, smoothing blurred each connected community into its neighbors: mean purity
+        // 0.68 for 4 groups of 20, with every community spread over several clusters.
+        await withPackageGenerator(() => {
+            for (const groups of [2, 4]) {
+                let purity = 0;
+                const seeds = 10;
+                for (let seed = 1; seed <= seeds; seed++) {
+                    const sample = plantedPartitionGraph({ groups, groupSize: 20, pIn: 0.5, pOut: 0.02, seed });
+                    const community = sample.nodeColumns?.community;
+                    if (!(community instanceof Uint32Array)) {
+                        throw new Error("planted partition graph has no u32 community column");
+                    }
+                    const b = new GraphBuilder({ directed: false });
+                    for (let i = 0; i < sample.nodeCount; i++) {
+                        b.addNode(i);
+                    }
+                    for (let e = 0; e < sample.src.length; e++) {
+                        b.addEdge(sample.src[e], sample.dst[e]);
+                    }
+                    const s = b.freeze();
+                    const r = syncClustering(s, { numClusters: groups, seed });
+                    expect(r.converged, `groups=${String(groups)} seed=${String(seed)}`).toBe(true);
+                    // Purity: the nodes that share the label most common in their own community.
+                    for (let c = 0; c < groups; c++) {
+                        const counts = new Map<number, number>();
+                        for (let u = 0; u < s.nodeCount; u++) {
+                            if (community[Number(s.ids.idOf(u))] === c) {
+                                counts.set(r.labels[u], (counts.get(r.labels[u]) ?? 0) + 1);
+                            }
+                        }
+                        purity += Math.max(...counts.values()) / s.nodeCount;
+                    }
+                }
+                expect(purity / seeds, `groups=${String(groups)}`).toBeGreaterThan(0.95);
+            }
+        });
     });
 
     it("reports the loss of the converging iteration, not the one before it", () => {
-        // Legacy reports the loss of the iteration before; the two differ by less than the tolerance.
+        // Legacy reports the loss of the iteration before. The run ends when the loss settles within the
+        // tolerance or when the cluster assignment has held for 10 iterations, so the two may differ by more.
         const config = { numClusters: 2, tolerance: 1e-3 };
         let converged = 0;
         for (const { graph } of fixtures) {
@@ -160,7 +214,6 @@ describe("indexed.syncClustering", () => {
                 converged++;
                 const before = syncClustering(s, { ...config, maxIterations: port.iterations - 1 });
                 expect(port.loss).not.toBe(before.loss);
-                expect(Math.abs(port.loss - before.loss)).toBeLessThan(config.tolerance);
                 expect((legacyResult() as SynCResult).loss).toBe(before.loss);
                 expect(port.previousLoss).toBe(before.loss);
             }
@@ -170,8 +223,8 @@ describe("indexed.syncClustering", () => {
 
     it("reports the loss and the iteration count of the state it returns", () => {
         // Legacy returns the loss of the iteration BEFORE the converging one, and one iteration more
-        // than it ran when it hits maxIterations. The port reports the last loss it computed and the
-        // iterations it ran, so the two agree up to the convergence tolerance and that off-by-one.
+        // than it ran when it hits maxIterations. The port reports the last loss it computed (and the one
+        // before as previousLoss) and the iterations it ran, so the two agree up to that off-by-one.
         for (const { graph } of fixtures) {
             for (const config of [
                 { numClusters: 2, tolerance: 1e-3 },
@@ -182,7 +235,7 @@ describe("indexed.syncClustering", () => {
                 expect(port.converged).toBe(legacy.converged);
                 if (port.converged) {
                     expect(port.iterations).toBe(legacy.iterations);
-                    expect(Math.abs(port.loss - legacy.loss)).toBeLessThan(config.tolerance ?? 1e-6);
+                    expect(port.previousLoss).toBe(legacy.loss);
                 } else {
                     expect(port.iterations).toBe(config.maxIterations ?? 100);
                     expect(legacy.iterations).toBe(port.iterations + 1);

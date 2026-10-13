@@ -17,6 +17,7 @@ import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBu
 
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
@@ -342,11 +343,13 @@ void main() {
         options: ArrowHeadOptions,
         scene: Scene,
     ): ArrowCap | null {
-        if (!options.type || options.type === "none") {
+        // A SIZE OF 0 IS NO CAP (#2067), the same as type "none": a zero-scale slot would still be
+        // drawn, and the line runs as it would with no cap at that end.
+        const size = options.size ?? 1;
+        if (!options.type || options.type === "none" || size <= 0) {
             return null;
         }
 
-        const size = options.size ?? 1;
         const opacity = options.opacity ?? 1;
         const length = this.calculateArrowLength() * size;
 
@@ -680,9 +683,12 @@ void main() {
             texture.uOffset -= perFrame * scene.getAnimationRatio();
         });
 
+        const releaseFrames = animatesEveryFrame(scene);
+
         // The texture and the per-frame callback belong to this mesh alone; without this every
         // rebuilt animated line would leave both behind.
         mesh.onDisposeObservable.addOnce(() => {
+            releaseFrames();
             scene.onBeforeRenderObservable.remove(observer);
             texture.dispose();
         });

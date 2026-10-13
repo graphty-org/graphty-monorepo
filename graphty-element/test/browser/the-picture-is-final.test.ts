@@ -391,6 +391,10 @@ describe("knowing the picture is final", () => {
         // two blur passes and a merge -- and each of those fetches its shader source the same
         // way. Until they arrive the layer composes nothing, again silently, so the frame
         // shows the node without its glow.
+        //
+        // The layout plays no part here, so it is one that arrives finished: settling the
+        // physics layout first was most of this test's time.
+        await graph.setLayout("circular");
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
         await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
@@ -431,6 +435,25 @@ describe("knowing the picture is final", () => {
         assert.include(message, "1 ms", "the failure says how long it waited");
 
         await loading;
+    });
+
+    it("says how many frames were drawn while it waited", async () => {
+        // A page whose GPU is behind draws a frame every few seconds, and the picture then stays
+        // wherever the last frame left it -- the camera mid-framing, a shader still on its way.
+        // Naming only that state sent the reader after the camera (issue #1947); the frame count
+        // says the page stopped drawing.
+        await graph.addNodes(NODES);
+        graph.engine.stopRenderLoop();
+        let message = "";
+
+        try {
+            await graph.waitForStableFrame({ timeoutMs: 1 });
+            assert.fail("the wait resolved on a graph that never drew its picture");
+        } catch (error) {
+            message = error instanceof Error ? error.message : String(error);
+        }
+
+        assert.include(message, "0 frames were drawn while it waited", "the failure counts the frames drawn");
     });
 });
 

@@ -49,7 +49,7 @@ import {
 import type { SetsCache } from "./cache";
 import { referentReading } from "./dependencies";
 import { resolvePath } from "./path";
-import { type EdgeMemberList, listedEdgesOf, opaqueName } from "./prepare";
+import { edgeMemberKey, type EdgeMemberList, listedEdgesOf, opaqueName } from "./prepare";
 import { keptDefinition, scopeSignature } from "./signature";
 
 /**
@@ -231,7 +231,7 @@ const packed = new WeakMap<ElementMask<unknown>, { version: number; length: numb
  */
 function packMask(mask: ElementMask<unknown>, length: number): U32 {
     const cached = packed.get(mask);
-    if (cached !== undefined && cached.version === mask.version && cached.length === length) {
+    if (cached?.version === mask.version && cached.length === length) {
         return cached.bits;
     }
 
@@ -799,22 +799,6 @@ export const EDGE_AMBIGUOUS = -2;
 export interface EdgeSeeds {
     readonly counters: ReadonlyMap<string, number>;
     readonly version: number;
-}
-
-/**
- * The key a seed is filed under: the member's fields, types kept, so `1` and `"1"` differ.
- * @param member - The member.
- * @returns The key.
- */
-export function edgeMemberKey(member: EdgeMember): string {
-    return JSON.stringify([
-        member.source,
-        member.target,
-        member.id ?? null,
-        member.key ?? null,
-        member.ordinal ?? null,
-        member.among ?? null,
-    ]);
 }
 
 /**

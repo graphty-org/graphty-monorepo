@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "pr": 2019,
+  "subject": {
+    "builtMerge": "c7a4b683923b0ac46cc8aa15303194f5280df3ff",
+    "head": "d50724c41f79149ed22572ca35405280ecb705bb",
+    "runId": 38143719784,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V45 96-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "c7a4b683923b0ac46cc8aa15303194f5280df3ff"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/compact-mantine/components-app-shell-toolbar--keyboard.dark.png",
+      "from": "f225d84715cebfc3d89eea5ff92bce52dbbf0886e82f4c651cf57173b8656a74",
+      "to": "37934a22ed5eef0f02e5fc0ccbb73b0e68ba09760ef81a908fd416ecb38fec2b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-app-shell-toolbar--keyboard.light.png",
+      "from": "0c3d5436171a29536499a0df797ed47b3573f397557cccc729e3b57afecba723",
+      "to": "343992da8f6c619322d79bc9023ba3ace3d86cbc363038a2f3e554bd009b2cde",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--centrality.png",
+      "from": "12bd7adf8c32176108057369fe397d7c3d93b9eb65f6be9b8d8ecca2b4b9ccbd",
+      "to": "d4fdde99431c830a565d65bc8d545df6931aae340a8e9e669beab176aee75c7e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--communities.png",
+      "from": "e3d93e9d33dbf51e1aa071447a961a1f5823a2a87b775b4475066e98349984eb",
+      "to": "e9ed9b846d2d618c52e20b74aeac8ee2f9d80d68ef7615f0bb90958f8bbb3ee1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--datasets.png",
+      "from": "0180fe31fd7d27cb9e45b986e26629d2ba0fe972a65a1219bc62bafc7bbe9b99",
+      "to": "ea8e49ba5dbc0534bf6e5f2f1982ea6cdd8ee5ec62d6bd12e1d07139675629f2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--generators.png",
+      "from": "04f2874ce7635b16bb1447f4018194a107f2eccad7c3a00927c14f92275e7ab2",
+      "to": "8b00f59d960c2775d15b6029d1a52f57c9897d63ea34ebd655ddd6a2f696e59d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--layouts.png",
+      "from": "9e840ac76d542b8e617ccc4b8f2fdc57229b3b43b2faecd5c7d3af50b0effaff",
+      "to": "f30e16f13108370e9b966cd7e7b70e6742a51356f45a0e452a26c17be5e93fab",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-11T16:29:22.570Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZUl5QXJDTjlzQ0hsWW5Kcnp4TEwxck0xQy1NNFhnenp1bWhJbzBjYzZoTSIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCIGWTRi5qCEPQZxoSdvCZeBuHcTxIqr91h2MEs-8p2r2wAiAfJinnMgB1Dg0J0s5NwDDW-Mmr1cvOjBsAwl8L3yQbPQ"
+  }
+}

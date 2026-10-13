@@ -1593,6 +1593,31 @@ describe("gpu.yml", () => {
         );
     });
 
+    it("runs every T4 job in the ubuntu:24.04 container, since the 22.04 host cannot load Dawn", () => {
+        // The machine.dev host's libstdc++ lacks GLIBCXX_3.4.32, which webgpu 0.6.x's dawn.node needs: a T4 job on the
+        // bare host gets E_NO_WEBGPU at its adapter report (issue #2313: the weekly failed that way every week).
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        let checked = 0;
+        for (const file of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {
+            const code = readFileSync(new URL(file, dir), "utf8").replace(/^\s*#.*$/gm, "");
+            for (const body of code.split(/\n(?= {4}[a-z][\w-]*:\n)/)) {
+                if (!/\n {8}runs-on: .*gpu=t4/.test(body)) continue;
+                const where = `${file}: ${body.trim().split("\n")[0]}`;
+                assert.match(body, /\n {8}container:\n {12}image: ubuntu:24\.04\n {12}options: --gpus all\b/, where);
+                assert.match(body, /NVIDIA_DRIVER_CAPABILITIES: all\n/, where);
+                // the whole apt-get install command, with its backslash-continued lines
+                const install = body.match(/apt-get install(?:[^\n]*\\\n)*[^\n]*/)?.[0] ?? "";
+                assert.match(install, /\blibvulkan1 libegl1\b/, where);
+                assert.doesNotMatch(body, /modprobe/, `${where}: a container cannot load kernel modules`);
+                if (/\bgh (issue|api|pr|run) /.test(body)) {
+                    assert.match(install, /\sgh\s/, `${where}: calls gh, so installs it`);
+                }
+                checked++;
+            }
+        }
+        assert.ok(checked >= 2, `found the T4 jobs (${checked})`);
+    });
+
     it("leaves no pull request or master push able to start a paid T4 anywhere", () => {
         const dir = new URL("../.github/workflows/", import.meta.url);
         for (const file of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {

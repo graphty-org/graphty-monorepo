@@ -80,6 +80,13 @@ async function commitReasons(dir, sha, greenSha, env) {
  * made fast never cuts the next, cold one short.
  */
 const DEFAULT_GATE_MS = 30 * 60_000;
+
+/**
+ * How long a killed push's process group gets after SIGTERM before SIGKILL: the gate's exit trap
+ * ends the process groups it started on its own (tools/prepush.sh's GPU tests and screenshot
+ * capture, setsid), which a SIGKILL to the push's group never reaches.
+ */
+const KILL_GRACE_MS = 60_000;
 /** The longest a push waits in the machine's push queue before its gate starts. */
 const QUEUE_WAIT_MS = 4 * 3_600_000;
 /** How many recent successful gate durations are kept. */
@@ -134,13 +141,13 @@ export function livePushGroups(state, job) {
 }
 
 /**
- * Kills a process group, ignoring one that is already gone.
- * @param {number | null} pid the group's leader
+ * Signals a process group, ignoring one that is already gone.
+ * @param {number} pid the group's leader
+ * @param {NodeJS.Signals} sig the signal
  */
-function kill(pid) {
-    if (!pid) return;
+function signalGroup(pid, sig) {
     try {
-        process.kill(-pid, "SIGKILL");
+        process.kill(-pid, sig);
     } catch {
         // Already gone.
     }
@@ -200,6 +207,7 @@ const rank = (state, job) => {
  *   queueScript?: string,
  *   protectedPaths?: () => string[],
  *   defaultGateMs?: number,
+ *   killGraceMs?: number,
  *   now?: () => Date,
  *   others?: (job: string) => Promise<{job?: string, session?: string, files: string[]}[]>,
  * }} options `root` is the main checkout, where commits are checked; `mode` answers a write
@@ -239,6 +247,7 @@ export function createPushQueue({
     queueScript,
     protectedPaths = () => [],
     defaultGateMs = DEFAULT_GATE_MS,
+    killGraceMs = KILL_GRACE_MS,
     now = () => new Date(),
     others = async () => [],
 }) {
@@ -249,6 +258,22 @@ export function createPushQueue({
     /** @type {Promise<unknown> | null} */
     let running = null;
     let stopped = false;
+
+    /**
+     * Kills an entry's push: SIGTERM to its process group, so the gate's exit trap ends what it
+     * started outside the group, then SIGKILL to whatever of the group still runs `killGraceMs`
+     * later. The push's result is read on its close, after git and every process holding its
+     * output (the gate) have exited, so nothing is reported while the gate still runs.
+     * @param {PushEntry} e the entry
+     */
+    function kill(e) {
+        const pid = e.pid;
+        if (!pid) return;
+        signalGroup(pid, "SIGTERM");
+        // A push of this daemon clears its pid on close. The group's id cannot be reused while any
+        // process of the group lives, so a SIGKILL to it reaches only the push's own leftovers.
+        setTimeout(() => e.pid === pid && signalGroup(pid, "SIGKILL"), killGraceMs).unref();
+    }
 
     const gateMs = () => Math.max(defaultGateMs, ...q.gateRuns);
     /**
@@ -527,7 +552,7 @@ export function createPushQueue({
             e.startTime = e.pid ? (identify(e.pid)?.startTime ?? null) : null;
             const expire = () => {
                 timedOut = true;
-                kill(e.pid);
+                kill(e);
             };
             // ponytail: a push waits behind other sessions' gates for at most 4 hours; read the
             // queue's tickets if a longer wait must be told apart from a stuck queue.
@@ -614,7 +639,7 @@ export function createPushQueue({
         const t = now();
         const interrupted = q.entries.filter((/** @type {PushEntry} */ x) => x.status === "running");
         for (const e of interrupted) {
-            if (livePush(e)) kill(e.pid);
+            if (livePush(e)) kill(e);
             q.entries = q.entries.filter((/** @type {PushEntry} */ x) => x !== e);
             const job = state.jobs?.[e.job];
             ledger({ kind: "push-interrupted", job: e.job, branch: e.branch, head: e.head });
@@ -641,7 +666,7 @@ export function createPushQueue({
         drain,
         stop() {
             stopped = true;
-            for (const e of q.entries) if (livePush(e)) kill(e.pid);
+            for (const e of q.entries) if (livePush(e)) kill(e);
         },
     };
 }

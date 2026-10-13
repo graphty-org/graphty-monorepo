@@ -7,7 +7,20 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-0. (2026-10-12, iteration 1 review, `tier3/iterations/1/ia.md`) Generic picking works on both
+0. (2026-10-12, iteration 2 review, `tier3/iterations/2/ia.md`) Coverage is close to whole: every
+   channel has a control, vary on 43 of 51 bindable properties, generic picking works on both
+   datasets from the draft, run values reach the rule editor, "New layer for <value>" round-trips.
+   Hold the build to: (a) a number that names a category (College's conference) must be paintable
+   as categories -- the popover filters scales to numeric (severity 3); (b) find, the rule editor
+   and the vary picker must read ONE list with ONE set of names and groups (find misses run
+   values, the two pickers name "Rank" vs "Degree rank"); (c) Clear's "what comes back" must be
+   scoped to the layer's elements, not the whole graph (says "mixed" where one value returns --
+   the owner's unset question); (d) an edge's ends are not readable values, so edge-only layers
+   on data without edge columns read nothing. Decided my own view: yes-or-no properties get no
+   vary (a rule plus a fixed value is the one home); record it in `coverage.ts`. Lesson: a
+   coverage count ("every channel has a home") hides scale and palette coverage -- check what a
+   binding can be made INTO (categories, passthrough), not only what can be bound.
+1. (2026-10-12, iteration 1 review, `tier3/iterations/1/ia.md`) Generic picking works on both
    datasets (name contains, odd ids, by find and conditions, no favored run). Three structural
    gaps to hold the build to: (a) the rule editor reads only data columns while the vary picker
    reads runs -- two lists of "what can be read" composed in the app; ask the element for one;
@@ -16,7 +29,7 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
    <value>", my replacement for the split parent, is only as generic as the rule editor that must
    read it back -- check a proposal's round trip (made, then read and edited), not only that it
    can be made.
-1. (2026-10-12, owner feedback 1) I reversed my own "split parent stays a layer": the owner's
+2. (2026-10-12, owner feedback 1) I reversed my own "split parent stays a layer": the owner's
    test is consistency of interaction, and split added two row kinds with private rules. Proposed
    instead: per-value entries in the ordinary binding, "New layer for <value>", and multi-row
    editing with Mixed. Answer: `tier3/decide/feedback-1-ia.md`. Lesson: judge a new row type by how
@@ -24,7 +37,7 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
    0a. (2026-10-12) Unset is the minus, always drawn on set fields and only there; "off" is a value
    ("None", "Hidden", "No label"), never the same control. The minus's tooltip and name say what
    comes back from beneath.
-2. (2026-10-12) Tier 3 is unified styles; my answers to the owner's 12 questions are in
+3. (2026-10-12) Tier 3 is unified styles; my answers to the owner's 12 questions are in
    `tier3/decide/ia.md`. Core rule I am holding: "+" only adds to a list (labels, effects,
    conditions); single-valued properties are always-drawn rows showing the inherited value, rare
    ones behind the section's settings button. Reason: tier 1 round 2, Size behind "+" was found
@@ -35,39 +48,39 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
    0c. (2026-10-12) Watch when the build lands: does the route layer fit 900 px with both kind groups
    open? Does anyone look for edge color under a node-only layer, and do they find the kind
    choice?
-3. (2026-10-11) Round 4 closed: 53 of 53 valid succeeded, 3 owed re-runs (r4-s05b, s20b, s28b).
+4. (2026-10-11) Round 4 closed: 53 of 53 valid succeeded, 3 owed re-runs (r4-s05b, s20b, s28b).
    Bars 9 (b) and 10 fail. Round 5 does not start until the gate refuses in `real.mjs --start` and
    briefings name files by kind only.
-4. (2026-10-11) Decided for round 5 from my proposals: the element never suggests a rule its
+5. (2026-10-11) Decided for round 5 from my proposals: the element never suggests a rule its
    selector refuses (`suggestBackticks`, element-side, not an app guard -- my app-side check was
    overruled, rightly); `FindResult.atLeast` rows for a number inside a column's range; the table
    scoped "visible" with "12 of 41 edges". All three are IA doors or words for existing homes.
-5. (2026-10-11) New: element `rulePath(path)` names a column the way a typed rule does; the app's
+6. (2026-10-11) New: element `rulePath(path)` names a column the way a typed rule does; the app's
    `columnText` copy is deleted. Lesson: an app helper that "knows how a name resolves" is element
    logic copied -- look for these in FindBox.
-6. (2026-10-11) Watch in round 5: does "10" on bus stops reach the right selection without a
+7. (2026-10-11) Watch in round 5: does "10" on bus stops reach the right selection without a
    refusal? Credit by reaching the selection, not by the "or more" word matching the prompt.
-7. (2026-10-11) Watch in round 5: T17 with the table open under a step -- do the table's count and
+8. (2026-10-11) Watch in round 5: T17 with the table open under a step -- do the table's count and
    the top bar's now read as one fact? Is the table stale after toggling a step?
-8. (2026-10-11) Off filter step turning itself on when its editor closes (`Filters.tsx`) is fixed:
+9. (2026-10-11) Off filter step turning itself on when its editor closes (`Filters.tsx`) is fixed:
    the step's checkbox stays the one home for on/off; a leave without an edit changes nothing.
-9. (2026-10-11) Bar 9 (b): scope words (", full graph", "of nodes") stay if the diff names them;
-   a true fact is not cut to pass a count. Propose no word cuts before the diff exists.
-10. (2026-10-11) Do NOT change: toolbar Filters door, Shift-click, Replace in "...", Analyze search,
+10. (2026-10-11) Bar 9 (b): scope words (", full graph", "of nodes") stay if the diff names them;
+    a true fact is not cut to pass a count. Propose no word cuts before the diff exists.
+11. (2026-10-11) Do NOT change: toolbar Filters door, Shift-click, Replace in "...", Analyze search,
     Neighborhood in "...", second path replacing the first, key scope words, "Settings" rail label.
-11. (2026-10-11) Overlapping labels, dots and ties are graphty-element's (owner's list). No app
+12. (2026-10-11) Overlapping labels, dots and ties are graphty-element's (owner's list). No app
     fonts, offsets, seeds or setups that hide names.
-12. (2026-10-11) Study evidence is weaker than it looks: briefings leaked Mo, Nia, `s11`, "6 - w";
+13. (2026-10-11) Study evidence is weaker than it looks: briefings leaked Mo, Nia, `s11`, "6 - w";
     histories pointed at the toolbar; personas script count-checking. Discount "unprompted".
-13. (2026-10-11) Ask the element first, show second: every "same number, two answers" so far was
+14. (2026-10-11) Ask the element first, show second: every "same number, two answers" so far was
     the app showing something the element was never asked about.
-14. (2026-10-10) Readers type the prompt's most prominent data word first: a column name OR a bare
+15. (2026-10-10) Readers type the prompt's most prominent data word first: a column name OR a bare
     number, including a number no row holds.
-15. (2026-10-10) Rule of the round: no feature moves, no second door where one is measured, words
+16. (2026-10-10) Rule of the round: no feature moves, no second door where one is measured, words
     at rest go down; words shown only while typing are not "at rest".
-16. (2026-10-09) The column is a door to existing homes, never a home; a count names its unit and
+17. (2026-10-09) The column is a door to existing homes, never a home; a count names its unit and
     whole; under a filter it names whose numbers.
-17. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
+18. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
     in the Summary; a Style-tab pointer to Label; Size pre-bound to the row's result.
 
 ## Priorities and values
@@ -216,6 +229,14 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   Reason: every row behaves as a layer or a folder; one home per job.
 
 ## Tried: worked / did not work
+
+- 2026-10-12 (tier 3 iteration 2 build) -- worked: draft picks elements before anything paints;
+  Both plus "touching them" as the generic path to "edges of the nodes I named" (College 229 of
+  613, Les Miserables 26 of 254); "No element matches Bob"; layers named by their rule; "Node id"
+  vs "id". Did not work yet: the draft shows no count for its held rule; find reads data only; a
+  numeric category column paints as a ramp. Method that paid off: drive one generic "add every
+  list entry, open every settings pop-out, list every 'by attribute' name" script per dataset and
+  diff against the element's channel list (`tmp/ia-i2/cover*.mjs`).
 
 - 2026-09-28 to 10-02 (mock rounds, summarized 2026-10-09) -- tree tests rank where people look
   but hit the ceiling on correctness (only directness discriminates); frozen rules before a round

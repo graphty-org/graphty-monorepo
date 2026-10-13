@@ -1,6 +1,6 @@
 /**
  * ARF's `scalingFactor` is the number of scene units per layout unit: `@graphty/layout`'s arf puts the
- * farthest node 1 from the centre, and the engine multiplies by this option (default 100).
+ * farthest node 1 from the centre, and the engine multiplies by this option (default 50).
  */
 import "../../src/layout";
 
@@ -44,8 +44,8 @@ function run(opts: object): number[] {
 }
 
 describe("arf scalingFactor", () => {
-    it("scales the positions: 50 gives half of the default 100", () => {
-        const full = run({});
+    it("scales the positions: 50 gives half of 100", () => {
+        const full = run({ scalingFactor: 100 });
         const half = run({ scalingFactor: 50 });
         assert.isAbove(Math.max(...full.map(Math.abs)), 1);
         full.forEach((v, i) => {

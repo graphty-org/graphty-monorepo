@@ -656,11 +656,21 @@ export function DraftPanel({ paints }: Readonly<{ paints: DraftPaints | undefine
         return null;
     }
     const ruled = selector !== null && selector.match !== "everything";
+    // A rule begun and not finished is not "every element": the draft stays a draft until it is.
+    const unfinished = selector === null && !(form.mode === "where" && form.conditions.length === 0);
     const name = ruled ? ruleName(session, attributes, shown, paints ?? "node") : DRAFT_NAME;
     const choose = (kind: DraftPaints): void => {
         store.set((state) => ({ inspected: { ...state.inspected, kind: "draft-row", id: kind } }));
     };
     const hint = "added when a property is set";
+    const statusOf = (): string => {
+        if (unfinished) {
+            return "Finish the rule to set its properties";
+        }
+        return ruled && counted !== undefined && counted !== null
+            ? `${counted}, ${hint}`
+            : "Nothing is added until a property is set";
+    };
     return (
         <Stack
             gap={0}
@@ -691,14 +701,10 @@ export function DraftPanel({ paints }: Readonly<{ paints: DraftPaints | undefine
                         }
                     }}
                     sentence={ruled ? sentenceOf(session, attributes, shown, paints ?? "node") : undefined}
-                    status={
-                        ruled && counted !== undefined && counted !== null
-                            ? `${counted}, ${hint}`
-                            : "Nothing is added until a property is set"
-                    }
+                    status={statusOf()}
                 />
             </Stack>
-            {paints !== undefined && (
+            {paints !== undefined && !unfinished && (
                 <RowStyle
                     key={paints}
                     session={session}

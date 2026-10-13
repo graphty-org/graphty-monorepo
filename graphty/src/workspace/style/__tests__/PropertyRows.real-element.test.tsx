@@ -171,6 +171,48 @@ describe("the Style tab's property rows", () => {
         atRest(tab, "Edge color by attribute");
     });
 
+    it("shows what the element draws: an undirected graph's edges have no head, so Head reads None", async () => {
+        await openScene();
+        const tab = await openStyle("Everything");
+        const head = within(field(tab, "edge.arrowHead")).getByRole<HTMLInputElement>("combobox");
+        assert.equal(head.placeholder, "None");
+        assert.include(head.getAttribute("aria-label") ?? "", "None by default");
+    });
+
+    it("draws every property's whole name beside its settings button", async () => {
+        const { runs } = await openScene();
+        for (const name of ["Everything", "Key people", runs["shortest-path"]]) {
+            const tab = await openStyle(name);
+            for (const word of tab.querySelectorAll<HTMLElement>(".ws-field-name")) {
+                assert.isAtMost(word.scrollWidth, word.clientWidth, `${name}: "${word.textContent ?? ""}" is whole`);
+            }
+        }
+    });
+
+    it("gives a varied field its second line: a community's chits and the scale it is read on", async () => {
+        const { session, runs } = await openScene();
+        const louvain = await openStyle(runs.louvain);
+        await waitFor(
+            () => {
+                const chits = louvain.querySelectorAll("[data-varied-line] .ws-varied-chit");
+                assert.isAbove(chits.length, 0, "the groups' colors");
+                assert.isAtMost(chits.length, 8, "at most 8, then +N");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+
+        const degree = session.styles.list().find((l) => l.name === runs.degree);
+        const bound = Object.entries(degree?.encode ?? {}).find(([, b]) => "by" in b);
+        assert.isDefined(degree);
+        assert.isDefined(bound);
+        await session.styles.update(degree.id, {
+            encode: { ...degree.encode, [bound[0]]: { ...bound[1], scale: "log" } },
+        });
+        await session.styles.settled();
+        const tab = await openStyle(runs.degree);
+        await within(tab).findByText("Logarithmic scale", {}, { timeout: TIMEOUT_MS });
+    });
+
     it("shows Which elements on every layer, run or not, and draws no reset 'x' in the fields", async () => {
         const { runs } = await openScene();
         for (const name of ["Everything", runs.degree, runs.louvain, runs["edge-betweenness"], runs["shortest-path"]]) {

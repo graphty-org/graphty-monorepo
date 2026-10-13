@@ -199,6 +199,41 @@ describe("a new layer chooses its elements first", () => {
         }
     });
 
+    it("an unfinished condition keeps the draft a draft: no property to set until the rule is whole", async () => {
+        const { session } = await openCollegeFootball();
+        const before = readerLayers(session).length;
+        await addLayer();
+        await chooseKind("Nodes");
+        // Before any condition the draft paints every node, and offers its properties.
+        assert.isNotNull(await screen.findByTestId("style-tab"));
+
+        await choose(screen.getByRole("combobox", { name: "Rule" }), "Where a value");
+        await userEvent.click(screen.getByRole("button", { name: "Add condition" }));
+        await screen.findByText("Finish the rule to set its properties");
+        assert.isNull(screen.queryByTestId("style-tab"), "no property can be set, so none paints every node");
+        assert.equal(readerLayers(session).length, before, "nothing was written");
+    });
+
+    it("finds edges by an end's name: Edges and 'Florida' offers the games of the Florida teams", async () => {
+        const { session } = await openCollegeFootball();
+        // The teams are named by the file's label column, not their numbers.
+        assert.equal(session.data.name(0), "BrighamYoung");
+        await addLayer();
+        await chooseKind("Edges");
+        await userEvent.click(await screen.findByRole("combobox", { name: "Find elements" }));
+        await userEvent.keyboard("Florida");
+        const offer = await screen.findByRole("option", { name: /^These \d+ edges, an end's name contains Florida$/ });
+        await userEvent.click(offer);
+        const tab = await screen.findByTestId("style-tab");
+        await userEvent.click(await within(tab).findByRole("combobox", { name: /^Edge width, / }));
+        await userEvent.keyboard("4{Enter}");
+        await waitFor(() => {
+            const made = readerLayers(session).at(-1);
+            assert.equal(made?.selector.match, "ids");
+            assert.isAbove(made === undefined ? 0 : session.styles.counts(made.id).matched, 0);
+        });
+    });
+
     it("Escape on a fresh draft discards it and puts focus on the Add button", async () => {
         const { session } = await openCollegeFootball();
         const before = JSON.stringify(session.styles.tree());

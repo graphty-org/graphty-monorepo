@@ -143,6 +143,11 @@ describe("effects and arrow ends on the real element", () => {
         });
         // A new entry can vary by a value at once.
         assert.isNotNull(within(settings).getByRole("button", { name: "Node glow by attribute" }));
+        // It draws nothing yet, so its line shows no color, only the glow's glyph.
+        assert.isNull(
+            nodeEffects().querySelector('[data-effect="Glow"] [data-testid="compact-color-input-chip"]'),
+            "a pending entry shows no color chip",
+        );
         assert.isUndefined(written(session, nodeLayer, "node.glow"), "picking writes nothing");
 
         await userEvent.keyboard("{Escape}");
@@ -192,6 +197,15 @@ describe("effects and arrow ends on the real element", () => {
             () => {
                 assert.equal(written(session, nodeLayer, "node.glow"), "none");
                 assert.equal(glowOf(session), "none", "the element draws no glow");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        // Showing it again gives back the color it had, not the element's default.
+        await userEvent.click(within(nodeEffects()).getByRole("button", { name: "Hide glow" }));
+        await waitFor(
+            () => {
+                assert.equal(written(session, nodeLayer, "node.glow"), "#FF00FF");
+                assert.equal(glowOf(session), "#ff00ff", "the element draws the glow again");
             },
             { timeout: TIMEOUT_MS },
         );

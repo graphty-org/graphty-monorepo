@@ -1,14 +1,14 @@
 import { CompactColorInput, Popout, PopoutButton, ToggleIconButton } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
-import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
+import type { Binding, Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { Field, type RowContext } from "./PropertyRow";
-import { lineIn, type lineOf, removeLine, sharesBeneath, type Target, writeIn } from "./row";
+import { Field, MixedLine, type RowContext } from "./PropertyRow";
+import { lineIn, type lineOf, mixedRows, removeLine, sharesBeneath, type Target, without, writeIn } from "./row";
 import { channelWord, hexOf } from "./words";
 
 /** The width of an entry's settings pop-out, as the property rows'. */
@@ -53,6 +53,76 @@ const KINDS: Readonly<Record<Target, readonly EffectKind[]>> = {
 };
 
 /**
+ * The `userData` key under which a layer keeps what its hidden effects wrote, so the eye shows
+ * them again as they were (as a label's `enabled: false` keeps its look).
+ */
+const HIDDEN_KEY = "graphtyHiddenEffects";
+
+/** What a hidden effect wrote: its value, or the binding it varied by. */
+type Kept = Partial<Record<Channel, { readonly set?: ChannelValue; readonly encode?: Binding }>>;
+
+/**
+ * What a layer keeps of its hidden effects.
+ * @param layer - the layer.
+ * @returns the kept lines by channel.
+ */
+function keptOf(layer: Layer): Kept {
+    return layer.userData?.[HIDDEN_KEY] ?? {};
+}
+
+/**
+ * A layer's `userData` with its kept lines replaced.
+ * @param layer - the layer.
+ * @param kept - the kept lines.
+ * @returns the bag.
+ */
+function withKept(layer: Layer, kept: Kept): Record<string, unknown> {
+    const { [HIDDEN_KEY]: _, ...rest } = layer.userData ?? {};
+    return Object.keys(kept).length === 0 ? rest : { ...rest, [HIDDEN_KEY]: kept };
+}
+
+/**
+ * Hides an effect the layer writes: writes its off value and keeps what it wrote in the layer.
+ * @param session - the element's session.
+ * @param layer - the layer that writes it.
+ * @param channel - the effect's channel.
+ * @param off - the channel's off value.
+ * @returns when written.
+ */
+function hideEffect(session: GraphSession, layer: Layer, channel: Channel, off: ChannelValue): Promise<unknown> {
+    const bound = layer.encode?.[channel];
+    const line = bound === undefined ? { set: layer.set?.[channel] } : { encode: bound };
+    return Promise.resolve(
+        session.styles.update(layer.id, {
+            set: { ...layer.set, [channel]: off },
+            encode: without(layer.encode, channel),
+            userData: withKept(layer, { ...keptOf(layer), [channel]: line }),
+        }),
+    );
+}
+
+/**
+ * Shows a hidden effect again as the layer wrote it, when the layer kept it.
+ * @param session - the element's session.
+ * @param layer - the layer that hides it.
+ * @param channel - the effect's channel.
+ * @returns when written, or undefined when the layer kept nothing for it.
+ */
+function showKept(session: GraphSession, layer: Layer, channel: Channel): Promise<unknown> | undefined {
+    const { [channel]: line, ...rest } = keptOf(layer);
+    if (line === undefined || (line.set === undefined && line.encode === undefined)) {
+        return undefined;
+    }
+    return Promise.resolve(
+        session.styles.update(layer.id, {
+            set: line.set === undefined ? without(layer.set, channel) : { ...layer.set, [channel]: line.set },
+            encode: line.encode === undefined ? layer.encode : { ...layer.encode, [channel]: line.encode },
+            userData: withKept(layer, rest),
+        }),
+    );
+}
+
+/**
  * Whether a value is the channel's value that draws nothing (`ChannelDescriptor.off`): `"none"`
  * as written, a resolved color whose hex is `"none"`, or Motion's 0.
  * @param value - the value, as written or as resolved.
@@ -74,8 +144,9 @@ function isOff(value: unknown, off: string | number | undefined): boolean {
  * nodes, Band and Motion on edges, one of each. "+" (and the title, while the list is empty) opens
  * a menu with a glyph per effect; an effect already here is disabled with its reason. Picking one
  * opens its settings with focus in its value and writes nothing until a value is chosen; Escape
- * leaves nothing behind and puts focus back on "+". Each entry has an eye that writes the effect's off value (it covers what the
- * layers beneath write) and a minus that takes the entry away. An effect a layer beneath writes,
+ * leaves nothing behind and puts focus back on "+". Each entry has an eye that writes the effect's
+ * off value (it covers what the layers beneath write) and keeps what it wrote, so showing it again
+ * gives the same color back; and a minus that takes the entry away. An effect a layer beneath writes,
  * while this row has none, is a gray line whose eye adds an off entry here.
  * The settings behind an entry's button are fields like every other, each with its own Clear.
  * @param props - Component props
@@ -214,6 +285,9 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
                     return null;
                 }
                 const line = ownLine(kind.channel);
+                const beneath = sharesBeneath(session, layers, kind.channel).some(
+                    (share) => !isOff(share.value, descriptor.off),
+                );
                 return (
                     <EffectEntry
                         key={kind.channel}
@@ -231,6 +305,26 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
                         onWrite={(value) => {
                             write(kind.channel, value).catch(fail);
                         }}
+                        onHide={(hide) => {
+                            const { off } = descriptor;
+                            // One row: the eye keeps what the effect wrote, and gives it back.
+                            const own = ctx.many === undefined ? line?.layer : undefined;
+                            if (hide && off !== undefined && own !== undefined) {
+                                hideEffect(session, own, kind.channel, off).catch(fail);
+                                return;
+                            }
+                            const kept = !hide && own !== undefined ? showKept(session, own, kind.channel) : undefined;
+                            if (kept !== undefined) {
+                                kept.catch(fail);
+                            } else if (!hide && beneath && own !== undefined) {
+                                // Hidden over a layer beneath: showing it lets that layer's effect through.
+                                removeOwn([own], [kind.channel], session).catch(fail);
+                            } else {
+                                write(kind.channel, hide ? (off ?? startOf(descriptor)) : startOf(descriptor)).catch(
+                                    fail,
+                                );
+                            }
+                        }}
                         onRemove={() => {
                             removeOwn(layers, [kind.channel, ...kind.settings], session).catch(fail);
                         }}
@@ -240,6 +334,21 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
             {kinds
                 .filter((kind) => !shown.includes(kind))
                 .map((kind) => {
+                    const mixed = mixedRows(ctx, kind.channel, ...kind.settings);
+                    if (mixed !== undefined && ctx.many !== undefined) {
+                        const { many } = ctx;
+                        return (
+                            <MixedLine
+                                key={kind.channel}
+                                glyph={<kind.glyph size={14} />}
+                                name={kind.name}
+                                rows={mixed}
+                                onRemove={() => {
+                                    Promise.all([kind.channel, ...kind.settings].map((c) => many.clear(c))).catch(fail);
+                                }}
+                            />
+                        );
+                    }
                     const off = descriptorOf(kind.channel)?.off;
                     const names = [
                         ...new Set(
@@ -278,6 +387,15 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
 }
 
 /**
+ * The value an effect shows with when nothing kept one: the element's default for it.
+ * @param descriptor - the effect's channel.
+ * @returns the value.
+ */
+function startOf(descriptor: ChannelDescriptor): ChannelValue {
+    return descriptor.default ?? descriptor.min ?? 1;
+}
+
+/**
  * A setting's name inside its effect's pop-out: "Width" for "Band width".
  * @param channel - the setting.
  * @param kind - the effect.
@@ -300,6 +418,13 @@ async function removeOwn(layers: readonly Layer[], channels: readonly Channel[],
         if (!layer.locked && held.length > 0) {
             await removeLine(session, layer, ...held);
         }
+        // What a hidden one kept goes with it.
+        const kept = keptOf(layer);
+        const left = session.styles.get(layer.id);
+        if (!layer.locked && left !== undefined && channels.some((c) => kept[c] !== undefined)) {
+            const rest = Object.fromEntries(Object.entries(kept).filter(([c]) => !channels.includes(c as Channel)));
+            await session.styles.update(layer.id, { userData: withKept(left, rest) });
+        }
     }
 }
 
@@ -321,6 +446,8 @@ interface EffectEntryProps {
     onCancel: () => void;
     /** Writes the entry's own value. */
     onWrite: (value: ChannelValue) => void;
+    /** Hides the effect, keeping what it wrote, or shows it again. */
+    onHide: (hide: boolean) => void;
     onRemove: () => void;
 }
 
@@ -341,6 +468,7 @@ interface EffectEntryProps {
  * @param props.settings - its settings
  * @param props.onCancel - drops a pending entry
  * @param props.onWrite - writes its value
+ * @param props.onHide - hides or shows it
  * @param props.onRemove - takes the entry away
  * @returns The entry
  */
@@ -354,16 +482,15 @@ function EffectEntry({
     settings,
     onCancel,
     onWrite,
+    onHide,
     onRemove,
 }: Readonly<EffectEntryProps>): React.JSX.Element {
     const [settingsOpen, setSettingsOpen] = useState(pending);
     const off = isOff(value, descriptor.off);
     const noun = kind.name.toLowerCase();
-    // The value the eye turns back on to.
-    // ponytail: the eye forgets the color it turned off; it comes back as the element's default.
-    const onValue: ChannelValue = descriptor.default ?? descriptor.min ?? 1;
+    // A pending entry draws nothing yet, so it shows its glyph, not a color it does not draw.
     const lead =
-        descriptor.accepts === "color" && !bound ? (
+        descriptor.accepts === "color" && !bound && !pending ? (
             <CompactColorInput
                 variant="chip"
                 aria-label={kind.name}
@@ -452,9 +579,7 @@ function EffectEntry({
                         checked={off}
                         icon={<GLYPHS.show size={14} />}
                         checkedIcon={<GLYPHS.hide size={14} />}
-                        onChange={(hide) => {
-                            onWrite(hide ? (descriptor.off ?? onValue) : onValue);
-                        }}
+                        onChange={onHide}
                     />
                     <Tooltip label={`Remove ${noun}`}>
                         <ActionIcon variant="subtle" size="sm" aria-label={`Remove ${noun}`} onClick={onRemove}>

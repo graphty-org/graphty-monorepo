@@ -25,12 +25,13 @@ import React, { useEffect, useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LabelSettings, type VaryField } from "./LabelSettings";
-import { Field, type RowContext, VarySlot } from "./PropertyRow";
+import { Field, MixedLine, type RowContext, VarySlot } from "./PropertyRow";
 import {
     type DataBinding,
     type DataChoice,
     type Line,
-    lineOf,
+    lineIn,
+    mixedRows,
     propose,
     readsNothing,
     removeLine,
@@ -206,12 +207,13 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
         }
     }, [refocus]);
     const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
-    const { session, side: target, layers } = ctx;
+    const { session, side: target } = ctx;
     const kinds = TEXT_KINDS[target];
     const kindWord = target === "node" ? "Node" : "Edge";
     const listName = `${kindWord} text`;
+    // Several rows: an entry they all write alike; one they write differently is "Mixed".
     const hasEntry = (kind: TextKindSpec): boolean =>
-        lineOf(layers, kind.words) !== undefined || lineOf(layers, kind.style) !== undefined;
+        lineIn(ctx, kind.words) !== undefined || lineIn(ctx, kind.style) !== undefined;
     const addable = kinds.filter((kind) => !hasEntry(kind) && picking !== kind.id && typing !== kind.id);
     const empty = kinds.every((kind) => !hasEntry(kind)) && picking === null && typing === null;
     const fail = (): void => {
@@ -374,9 +376,24 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                 if (hasEntry(kind)) {
                     return <TextEntry key={kind.id} ctx={ctx} kind={kind} onWords={writeWords} onFail={fail} />;
                 }
+                const mixed = mixedRows(ctx, kind.words, kind.style);
+                if (mixed !== undefined && ctx.many !== undefined) {
+                    const { many } = ctx;
+                    return (
+                        <MixedLine
+                            key={kind.id}
+                            glyph={React.createElement(KIND_GLYPHS[kind.id] ?? GLYPHS.label, { size: 14 })}
+                            name={kind.name}
+                            rows={mixed}
+                            onRemove={() => {
+                                Promise.all([many.clear(kind.words), many.clear(kind.style)]).catch(fail);
+                            }}
+                        />
+                    );
+                }
                 return <BeneathLine key={kind.id} ctx={ctx} kind={kind} onFail={fail} />;
             })}
-            {target === "node" && lineOf(layers, "node.label") !== undefined && element !== null ? (
+            {target === "node" && lineIn(ctx, "node.label") !== undefined && element !== null ? (
                 <Group gap={8} pl={4} wrap="nowrap">
                     <Text size="xs" c="dimmed" aria-live="polite">
                         {labelStatement(element.nodeLabelCounts, !allLabelsShown)}
@@ -578,8 +595,8 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
     const { session, side: target, layers } = ctx;
     const noun = kind.name.toLowerCase();
     const kindWord = target === "node" ? "Node" : "Edge";
-    const words = lineOf(layers, kind.words);
-    const styleLine = lineOf(layers, kind.style);
+    const words = lineIn(ctx, kind.words);
+    const styleLine = lineIn(ctx, kind.style);
     const style = styleOf(styleLine);
     const locked = (words ?? styleLine)?.layer.locked === true;
     const hidden = style.enabled === false;
@@ -608,7 +625,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
         if (channel === undefined || descriptor === undefined) {
             return undefined;
         }
-        const line = lineOf(layers, channel);
+        const line = lineIn(ctx, channel);
         return line !== undefined && !line.layer.locked
             ? { field: <Field ctx={ctx} descriptor={descriptor} /> }
             : { slot: <VarySlot ctx={ctx} descriptor={descriptor} /> };

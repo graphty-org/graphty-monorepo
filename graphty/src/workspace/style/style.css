@@ -16,8 +16,9 @@
    the sections' own content does (Figma's panel). */
 .ws-style-panel {
     --ws-gutter: 16px;
-    /* The label column every field of the tab shares, so every field starts at one left edge. */
-    --ws-label: 56px;
+    /* The label column every field of the tab shares, so every field starts at one left edge: wide
+       enough for the longest name beside its settings button and painted-over mark ("Shape"). */
+    --ws-label: 80px;
 }
 
 /* A group of core properties: one line each. */
@@ -31,7 +32,7 @@
    Clear columns. Without a name (a field its row already names), the control starts the line. */
 .ws-field {
     display: grid;
-    grid-template-columns: var(--ws-label, 56px) minmax(0, 1fr) 24px 24px;
+    grid-template-columns: var(--ws-label, 80px) minmax(0, 1fr) 24px 24px;
     align-items: center;
     min-width: 0;
     min-height: 28px;
@@ -78,7 +79,7 @@
    column. */
 .ws-text-kind {
     display: flex;
-    flex: 0 0 calc(var(--ws-label, 56px) - 4px);
+    flex: 0 0 calc(var(--ws-label, 80px) - 4px);
     align-items: center;
     gap: 4px;
     min-width: 0;
@@ -145,4 +146,31 @@
     flex: none;
     margin-top: 2px;
     color: var(--mantine-color-dimmed);
+}
+
+/* A varied field's second line: category chits and "+N", a ramp's ends or a number's From / To,
+   then its notes ("Logarithmic scale"), under the value pill. */
+.ws-varied-line {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 2px 0 4px;
+}
+
+.ws-varied-chits {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.ws-varied-chit {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    border: 1px solid var(--cm-border, rgba(0, 0, 0, 0.15));
+}
+
+.ws-varied-ends {
+    display: flex;
+    justify-content: space-between;
 }

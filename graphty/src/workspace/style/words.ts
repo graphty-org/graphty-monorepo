@@ -260,7 +260,7 @@ export function followsWords(follows: Channel): string {
  * @param names - the names.
  * @returns the words.
  */
-function listWords(names: readonly string[]): string {
+export function listWords(names: readonly string[]): string {
     return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
 }
 
@@ -736,3 +736,16 @@ export function colorName(hex: string): string {
     }
     return light > 0.75 ? `light ${name}` : name;
 }
+
+/** A scale's name in words; the element publishes the ids. */
+export const SCALE_WORDS: Readonly<Record<string, string>> = {
+    linear: "Linear",
+    log: "Logarithmic",
+    neglog10: "Negative logarithmic",
+    sqrt: "Square root",
+    pow: "Power",
+    bins: "Equal bins",
+    quantile: "Equal counts",
+    ordinal: "One color per value",
+    passthrough: "As written",
+};

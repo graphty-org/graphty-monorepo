@@ -185,6 +185,33 @@ describe("folders, several rows and the draft on the real element", () => {
         });
     });
 
+    it("a label and a glow only one of two rows writes read Mixed, never as shared; the minus takes them off", async () => {
+        const { session, key, degree } = await openProject();
+        await session.styles.update(key, {
+            set: { "node.color": "#ff0000", "node.size": 3, "node.label": "Key", "node.glow": "#00FF00" },
+        });
+        await session.styles.settled();
+
+        await userEvent.click(await row("Key people"));
+        await userEvent.keyboard("{Control>}");
+        await userEvent.click(await row("Degree"));
+        await userEvent.keyboard("{/Control}");
+        await screen.findByRole("heading", { level: 2, name: "2 layers" });
+        const tab = await screen.findByTestId("style-tab");
+
+        const text = within(tab).getByRole("group", { name: "Node text" });
+        await within(text).findByText("Label, mixed: Key people");
+        assert.isNull(text.querySelector("[data-section='label'] input"), "no label entry reads as shared");
+        const effects = within(tab).getByRole("group", { name: "Node effects" });
+        await within(effects).findByText("Glow, mixed: Key people");
+
+        await userEvent.click(within(effects).getByRole("button", { name: "Remove glow from every row" }));
+        await waitFor(() => {
+            assert.isUndefined(written(session, key, "node.glow"));
+        });
+        assert.isUndefined(written(session, degree, "node.glow"));
+    });
+
     it("a draft with nothing selected opens on Nodes, showing only that kind's group", async () => {
         const { session } = await openProject();
         await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));

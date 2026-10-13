@@ -19,6 +19,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { findTreeRow } from "../graph-place/rows";
+import { edgeJoiner } from "../inspector/words";
 import { isPanelEscape } from "../keys/keys";
 import { allCompares, BLANK_CONDITION, type Field, isNumber, type ReadsGroup } from "../rules/conditions";
 import { RuleRows } from "../rules/RuleRows";
@@ -96,6 +97,34 @@ function offersOf(
             detail: `${column} ${test}`,
             selector: { match: "ids", nodes: ids ?? [], edges: edges ?? [] },
             kind: row.kind,
+        },
+    ];
+}
+
+/**
+ * The offer of the edges whose end's name holds the text (graphty-element finds an edge by its
+ * ends' names with `edgeNameJoiner`): a fixed list, since no rule reads an end's name.
+ * @param session - the element's session.
+ * @param text - the typed text.
+ * @param kinds - what the layer paints.
+ * @returns the offer, or none.
+ */
+function endsOffer(session: GraphSession, text: string, kinds: ReadonlySet<SelectorTarget>): Offer[] {
+    if (text.trim() === "" || !kinds.has("edge")) {
+        return [];
+    }
+    const edges = session
+        .find(text, { kinds: ["edge"], limit: Infinity, edgeNameJoiner: edgeJoiner(session) })
+        .records.flatMap((hit) => (hit.kind === "edge" && hit.match.path === "ends" ? [hit.id] : []));
+    if (edges.length === 0) {
+        return [];
+    }
+    return [
+        {
+            name: edges.length === 1 ? "This edge" : `These ${countWords(edges.length, "edge")}`,
+            detail: `an end's name contains ${text.trim()}`,
+            selector: { match: "ids", edges },
+            kind: "edge",
         },
     ];
 }
@@ -515,6 +544,7 @@ function FindOffers({
         ...(found?.values ?? [])
             .filter((row) => kinds.has(row.kind))
             .flatMap((row) => offersOf(row, column(row.path), `is ${String(row.value)}`, nameOf)),
+        ...endsOffer(session, text, kinds),
     ];
     const pick = (offer: Offer): void => {
         setText("");

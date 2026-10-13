@@ -195,15 +195,26 @@ async function editValue(
         assert.notEqual(colorOfValue(session, layer.id, value), "#00aa00");
     });
 
-    // "New layer for <value>": a layer directly above, its rule that value, matching as many.
+    // "New layer for <value>": a layer on top, over a layer above the binding's that would paint
+    // over it (an analysis layer above Everything), its rule that value, matching as many.
+    const over = await session.styles.add({
+        name: "Painted above",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.color": "#123456" },
+    });
     await userEvent.click(within(popover).getByRole("button", { name: new RegExp(` ${name} actions$`) }));
     await userEvent.click(await within(popover).findByRole("menuitem", { name: `New layer for ${name}` }));
     const binding = layer.encode?.["node.color"];
     const by = binding !== undefined && "by" in binding ? binding.by : "";
     const added = await waitFor(() => {
-        const ids = session.styles.list().map((l) => l.id);
-        const above = session.styles.list()[ids.indexOf(layer.id) + 1];
-        assert.deepEqual(above?.selector, {
+        const readers = session.styles.list().filter((l) => l.source.by !== "element");
+        const above = readers[readers.length - 1];
+        assert.isAbove(
+            readers.indexOf(above),
+            readers.findIndex((l) => l.id === over.id),
+        );
+        assert.deepEqual(above.selector, {
             match: "rule",
             where: { kind: "categories", attribute: by, values: [value] },
         });
@@ -221,7 +232,7 @@ async function editValue(
             "focus is in the new layer's Style tab",
         );
     });
-    assert.equal(store.get().announcement, `Layer ${added.name} added above`, "and it is announced");
+    assert.equal(store.get().announcement, `Layer ${added.name} added on top`, "and it is announced");
 }
 
 describe("the binding popover on the real element", () => {

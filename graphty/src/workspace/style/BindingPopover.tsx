@@ -18,10 +18,10 @@ import { swatchText } from "../canvas/legendWords";
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { type DataBinding, type DataChoice, startingValue } from "./row";
+import { type DataBinding, type DataChoice, startingValue, topmostRow } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
-import { channelWord, enumWords, paletteWord } from "./words";
+import { channelWord, enumWords, paletteWord, SCALE_WORDS } from "./words";
 
 /** What `toColorValue` reads. */
 type ColorInput = Parameters<typeof toColorValue>[0];
@@ -37,19 +37,6 @@ const PER_VALUE_MOST = 24;
 
 /** Past this many category rows, a search field filters them (tier3 design, section 4). */
 const SEARCH_PAST = 8;
-
-/** A scale's name in words; the element publishes the ids. */
-const SCALE_WORDS: Readonly<Record<string, string>> = {
-    linear: "Linear",
-    log: "Logarithmic",
-    neglog10: "Negative logarithmic",
-    sqrt: "Square root",
-    pow: "Power",
-    bins: "Equal bins",
-    quantile: "Equal counts",
-    ordinal: "One color per value",
-    passthrough: "As written",
-};
 
 /** What a categorical color binding does with more values than its palette tells apart. */
 const OVERFLOW_WORDS = [
@@ -282,8 +269,10 @@ interface PartProps {
 }
 
 /**
- * Adds a layer directly above the binding's layer whose rule is one value or one step of what the
- * binding reads, and opens it: "New layer from selection" with the rule filled in. It starts on the
+ * Adds a layer whose rule is one value or one step of what the binding reads, and opens it: "New
+ * layer from selection" with the rule filled in, so it goes where that door puts one, on top of
+ * the stack, and nothing above paints over it (a binding on Everything has every run's layer above
+ * it). It starts on the
  * color (or number) that value paints now, so nothing changes until the reader edits it: the
  * element refuses a layer that writes nothing.
  * @param session - the element's session
@@ -311,7 +300,7 @@ async function layerFor(
             selector: { match: "rule", where },
             ...(value === undefined ? {} : { set: { [channel]: value } }),
         },
-        { above: layerId },
+        { above: topmostRow(session)?.id ?? layerId },
     );
     return layer.id;
 }
@@ -338,7 +327,7 @@ function openLayerFor(
 ): void {
     layerFor(session, layerId, channel, name, where, paint)
         .then((id) => {
-            store.set({ inspected: { kind: "layer-row", id }, announcement: `Layer ${name} added above` });
+            store.set({ inspected: { kind: "layer-row", id }, announcement: `Layer ${name} added on top` });
             focusLineNext(channel);
         })
         .catch(() => {

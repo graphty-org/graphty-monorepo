@@ -11,7 +11,7 @@ import { MENUS } from "../inspector/kindMenus";
 import { useWorkspace } from "../state/WorkspaceContext";
 
 /** What a press on empty canvas offers. */
-const EMPTY_CANVAS = ["view.fit", "view.frame-selection", "selection.clear"] as const;
+const EMPTY_CANVAS = ["view.fit", "view.frame-selection", "style.layer-from-selection", "selection.clear"] as const;
 
 /** How long after Shift+F10 a `contextmenu` event is that key press, not a pointer (ms). */
 const KEYBOARD_ECHO_MS = 500;
@@ -20,7 +20,7 @@ const KEYBOARD_ECHO_MS = 500;
  * The canvas's context menu: a right-click, a touch-and-hold or Shift+F10 on the graph. Over a
  * node or an edge it first selects it (unless it is already selected), then lists the same commands
  * as the inspector's "..." for what is now selected; over empty canvas it lists Fit, Frame
- * selection and Clear selection. From the keyboard it lists the commands for the selection.
+ * selection, New layer from selection and Clear selection. From the keyboard it lists the commands for the selection.
  * @param props - Component props
  * @param props.children - The element the menu opens over
  * @returns The canvas, with the menu attached

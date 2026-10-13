@@ -5,6 +5,7 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession, NodeId } from "@graphty/graphty-element/session";
 import { assert, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { act, fireEvent, render, screen } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
@@ -112,6 +113,28 @@ describe("the canvas context menu", () => {
         assert.isTrue(labels[0].startsWith("Fit"));
         assert.isTrue(labels.some((label) => label.startsWith("Clear selection")));
         assert.isFalse(labels.some((label) => label.startsWith("Neighborhood")));
+    });
+
+    it("offers New layer from selection on a node and on empty canvas, from a real right-click", async () => {
+        for (const hit of ["n1", null] as const) {
+            const { session, element } = standIn(hit);
+            const value = makeWorkspaceValue(createWorkspaceStore({}), createRegistry(REGISTRATIONS), session, element);
+            const { unmount } = render(
+                <WorkspaceContext.Provider value={value}>
+                    <CanvasMenu>
+                        <div data-testid="graph" style={{ width: 400, height: 300 }} />
+                    </CanvasMenu>
+                </WorkspaceContext.Provider>,
+            );
+            await userEvent.click(screen.getByTestId("graph"), { button: "right" });
+            await screen.findByRole("menu");
+            assert.isTrue(
+                rows().some((label) => label.startsWith("New layer from selection")),
+                `the ${hit === null ? "canvas" : "node"} menu offers it`,
+            );
+            await userEvent.keyboard("{Escape}");
+            unmount();
+        }
     });
 
     it("keeps iOS's callout and text selection off the canvas", () => {

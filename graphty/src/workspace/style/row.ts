@@ -224,7 +224,7 @@ export const EVERYTHING_LAYER: NewLayer = {
  * @param session - the element's session.
  * @returns the layer, or undefined for an empty stack.
  */
-function topmostRow(session: GraphSession): Layer | undefined {
+export function topmostRow(session: GraphSession): Layer | undefined {
     return [...session.styles.list()]
         .reverse()
         .find((layer) => layer.source.by !== "element" || layer.source.reason === "default");
@@ -784,12 +784,11 @@ export function beneathOf(session: GraphSession, row: string | undefined): (chan
             return {};
         }
         if (entry === undefined) {
-            return descriptor.default === undefined
+            // What the element draws for it on this graph: an undirected graph's edges draw no head.
+            const drawn = session.styles.defaultValue(channel);
+            return drawn === undefined
                 ? {}
-                : {
-                      value: descriptor.default,
-                      words: { value: valueWords(descriptor, descriptor.default), from: undefined },
-                  };
+                : { value: drawn, words: { value: valueWords(descriptor, drawn), from: undefined } };
         }
         if (entry.state === "agree") {
             return {
@@ -874,4 +873,24 @@ export function paintedOverOf(
             of,
         };
     };
+}
+
+/**
+ * Which of several rows edited together write a channel while they do not write it alike, or
+ * undefined when they agree, none writes it, or one row is edited.
+ * @param ctx - the rows.
+ * @param channels - the channel, or each channel of one entry.
+ * @returns the rows' names.
+ */
+export function mixedRows(ctx: RowContext, ...channels: Channel[]): readonly string[] | undefined {
+    if (ctx.many === undefined) {
+        return undefined;
+    }
+    for (const channel of channels) {
+        const { words } = ctx.beneath(channel);
+        if (words !== undefined && "mixed" in words) {
+            return words.mixed;
+        }
+    }
+    return undefined;
 }

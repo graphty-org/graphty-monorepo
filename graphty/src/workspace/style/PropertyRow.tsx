@@ -9,10 +9,11 @@ import {
 } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, CombineMode, LayerId } from "@graphty/graphty-element/schema";
-import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Stack, Text, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
+import type { GraphSession, Layer, LegendBlock } from "@graphty/graphty-element/session";
+import { ActionIcon, Group, Stack, Text, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useId, useRef, useState } from "react";
 
+import { factSentence, swatchName } from "../canvas/legendWords";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
@@ -48,8 +49,10 @@ import {
     GLYPH_TABLES,
     hexOf,
     isPercent,
+    listWords,
     paletteWord,
     type PropertyRowSpec,
+    SCALE_WORDS,
     takesBinding,
     TWO_WORDS,
     valueWords,
@@ -705,7 +708,7 @@ function BoundValue({
         // No Popout.Trigger: its click would also fire for the pill's detach button inside it, so
         // the pill opens the panel itself and the panel docks to it.
         <Popout opened={open} onOpenChange={openChange}>
-            <div ref={pill}>
+            <div ref={pill} className="ws-varied">
                 <VariablePill
                     name={source}
                     value={detail}
@@ -716,6 +719,11 @@ function BoundValue({
                     onClick={() => {
                         setOpen(true);
                     }}
+                />
+                <VariedLine
+                    block={session.styles
+                        .legend()
+                        .find((b) => b.layerId === layer.id && b.channel === descriptor.channel)}
                 />
             </div>
             <Popout.Panel
@@ -739,6 +747,82 @@ function BoundValue({
                 </Popout.Content>
             </Popout.Panel>
         </Popout>
+    );
+}
+
+/** How many category chits a varied field's second line shows before "+N". */
+const MAX_CHITS = 8;
+
+/** The scales a varied field's second line says nothing about: the neutral ones. */
+const NEUTRAL_SCALES: ReadonlySet<string> = new Set(["linear", "ordinal", "passthrough"]);
+
+/**
+ * A varied field's second line (tier3 design, section 2.2): up to 8 category chits and "+N", a
+ * ramp's domain ends, or a number's From / To; then a note for each non-neutral setting ("Log
+ * scale", the element's legend facts), as plain secondary text. All of it from the element's
+ * legend block for the field.
+ * @param props - Component props
+ * @param props.block - the field's legend block, if the element has painted it
+ * @returns The line, or nothing before the element has painted the field
+ */
+function VariedLine({ block }: Readonly<{ block: LegendBlock | undefined }>): React.JSX.Element | null {
+    if (block === undefined) {
+        return null;
+    }
+    const notes = [
+        ...(block.scale === undefined || NEUTRAL_SCALES.has(block.scale.kind)
+            ? []
+            : [`${SCALE_WORDS[block.scale.kind] ?? enumWords(block.scale.kind)} scale`]),
+        ...block.facts.flatMap((fact) => {
+            const sentence = factSentence(fact);
+            return sentence === null ? [] : [sentence.charAt(0).toUpperCase() + sentence.slice(1)];
+        }),
+    ];
+    let summary: React.ReactNode = null;
+    if (block.kind === "categorical") {
+        const rows = block.swatches.filter((s) => s.role !== "other");
+        const shown = rows.slice(0, MAX_CHITS);
+        const more = rows.length - shown.length + (block.overflow?.hidden ?? 0);
+        summary = (
+            <span className="ws-varied-chits">
+                {shown.map((swatch) => (
+                    <span
+                        key={swatchName(block, swatch)}
+                        className="ws-varied-chit"
+                        title={swatchName(block, swatch)}
+                        style={{ background: swatch.color ?? "var(--mantine-color-gray-5)" }}
+                    />
+                ))}
+                {more > 0 && <Text span size="xs" c="var(--cm-text-secondary)">{`+${String(more)}`}</Text>}
+            </span>
+        );
+    } else if (block.range !== undefined) {
+        summary = `From ${String(block.range.min)} to ${String(block.range.max)}`;
+    } else if (block.domain !== undefined) {
+        const end = (n: number): string => String(Number(n.toPrecision(4)));
+        summary = (
+            <span className="ws-varied-ends">
+                <span>{end(block.domain.min)}</span>
+                <span>{end(block.domain.max)}</span>
+            </span>
+        );
+    }
+    if (summary === null && notes.length === 0) {
+        return null;
+    }
+    return (
+        <div className="ws-varied-line" data-varied-line>
+            {summary === null ? null : (
+                <Text size="xs" c="var(--cm-text-secondary)" component="div">
+                    {summary}
+                </Text>
+            )}
+            {notes.map((note) => (
+                <Text key={note} size="xs" c="var(--cm-text-secondary)" data-varied-note>
+                    {note}
+                </Text>
+            ))}
+        </div>
     );
 }
 
@@ -889,5 +973,44 @@ function RowSettings({
                 </Popout.Content>
             </Popout.Panel>
         </Popout>
+    );
+}
+
+/**
+ * An entry of a list (an effect, a kind of text) that several rows edited together do not write
+ * alike: its glyph, "Glow, mixed: A and B", and a minus that takes it off every one of them.
+ * @param props - Component props
+ * @param props.glyph - the entry's glyph
+ * @param props.name - the entry's name
+ * @param props.rows - the rows that write it
+ * @param props.onRemove - takes it off every row
+ * @returns The line
+ */
+export function MixedLine({
+    glyph,
+    name,
+    rows,
+    onRemove,
+}: Readonly<{
+    glyph: React.ReactNode;
+    name: string;
+    rows: readonly string[];
+    onRemove: () => void;
+}>): React.JSX.Element {
+    const noun = name.toLowerCase();
+    return (
+        <Group className="ws-effect" gap={4} pl={4} wrap="nowrap" align="center" data-mixed={name}>
+            <span className="ws-slot" aria-hidden>
+                {glyph}
+            </span>
+            <Text size="sm" style={{ flex: 1, minWidth: 0 }} truncate>
+                {`${name}, mixed: ${listWords(rows)}`}
+            </Text>
+            <Tooltip label={`Remove ${noun} from every row`}>
+                <ActionIcon variant="subtle" size="sm" aria-label={`Remove ${noun} from every row`} onClick={onRemove}>
+                    <GLYPHS.remove size={14} aria-hidden />
+                </ActionIcon>
+            </Tooltip>
+        </Group>
     );
 }

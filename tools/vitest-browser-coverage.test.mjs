@@ -3,7 +3,7 @@
 // Chromium the way @vitest/browser does: one page, a CDP session on it, and for each test file the
 // start command, an iframe that runs the file, a coverage take, and the iframe's removal.
 //
-//   node --test tools/vitest-browser-coverage.test.mjs   (part of pnpm run test:ci-workflows)
+//   node tools/vitest-browser-coverage.test.mjs   (part of pnpm run test:ci-workflows)
 /* global document -- read only inside page.evaluate, which runs in the browser */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";

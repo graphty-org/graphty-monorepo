@@ -1566,6 +1566,7 @@ export type JournalId = string;
 export interface Layer {
     readonly enabled: boolean;
     readonly encode?: Encoding;
+    readonly hidden?: true;
     readonly id: LayerId;
     readonly kind: LayerKind;
     readonly locked: boolean;

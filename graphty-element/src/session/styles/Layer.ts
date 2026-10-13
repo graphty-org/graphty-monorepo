@@ -142,6 +142,12 @@ export interface Layer {
      * the id of the row's node part. Absent, the layer is a row of its own. See `styles.addRow`.
      */
     readonly row?: LayerId;
+    /**
+     * Present, and true, while the layer's row or a folder holding it is hidden
+     * (`styles.hideRow`): the layer paints nothing, whatever `enabled` says, and paints again
+     * when the row is shown. Absent while the row is shown.
+     */
+    readonly hidden?: true;
 }
 
 /**

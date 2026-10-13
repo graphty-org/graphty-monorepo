@@ -126,6 +126,9 @@ describe("the style tree", () => {
 
         assert.strictEqual(colorOfA(session), red.id, "the hidden folder's layer no longer paints a");
         assert.isTrue(session.styles.get(blue.id)?.enabled, "list() still says what its author wrote");
+        assert.isTrue(session.styles.get(blue.id)?.hidden, "and that its row is hidden");
+        assert.isTrue(session.styles.list().find((layer) => layer.id === blue.id)?.hidden, "list() says so too");
+        assert.isUndefined(session.styles.get(red.id)?.hidden, "a shown row's layer says nothing");
         assert.isFalse(
             session.styles.explain({ node: "a" }).contributions.some((entry) => entry.layerId === blue.id),
             "it paints nothing at all",
@@ -133,6 +136,7 @@ describe("the style tree", () => {
 
         await session.styles.hideRow(folder.id, false);
         assert.strictEqual(colorOfA(session), blue.id);
+        assert.isUndefined(session.styles.get(blue.id)?.hidden, "shown again, the mark is gone");
         session.dispose();
     });
 

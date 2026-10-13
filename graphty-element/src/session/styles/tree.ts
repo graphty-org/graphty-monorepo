@@ -285,6 +285,15 @@ function hiddenLayers(rows: Rows, hidden = false, into = new Set<LayerId>()): Se
     return into;
 }
 
+/**
+ * The layers a hidden row, or a hidden folder above one, keeps from painting.
+ * @param stack - The stack.
+ * @returns The row keys ({@link rowKeyOf}) of the hidden layers.
+ */
+export function hiddenRowKeys(stack: readonly CompiledLayer[]): ReadonlySet<LayerId> {
+    return hiddenLayers(rowsOf(stack));
+}
+
 /** The stack as it paints, per stack, so the same array comes back until the stack changes. */
 const paintedStacks = new WeakMap<readonly CompiledLayer[], readonly CompiledLayer[]>();
 /** A hidden layer's disabled stand-in, per layer, so a repaint sees it as unchanged. */
@@ -294,12 +303,12 @@ const standIns = new WeakMap<CompiledLayer, CompiledLayer>();
  * The stack as it paints: a layer whose row is hidden reads as disabled, keeping its place.
  *
  * What the repaint, the legend and an explanation read, while `styles.list()` keeps answering with
- * the layers as their authors wrote them.
+ * the layers as their authors wrote them, each marked `hidden` while its row is.
  * @param stack - The stack.
  * @returns The stack itself when nothing is hidden.
  */
 export function paintedStack(stack: readonly CompiledLayer[]): readonly CompiledLayer[] {
-    const hidden = hiddenLayers(rowsOf(stack));
+    const hidden = hiddenRowKeys(stack);
     if (hidden.size === 0) {
         return stack;
     }

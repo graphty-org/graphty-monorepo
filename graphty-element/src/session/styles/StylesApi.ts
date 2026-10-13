@@ -208,6 +208,7 @@ import {
     documentRows,
     findRow,
     folderIdsOf,
+    hiddenRowKeys,
     insertRow,
     layerIdsOf,
     lockedByReader,
@@ -1712,7 +1713,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const scales = sources.scales ?? createScaleRegistry();
     const dispatcher = sources.dispatcher ?? new Dispatcher({ definitions: STYLE_DEFINITIONS });
 
-    let listCache: { readonly of: readonly CompiledLayer[]; readonly layers: readonly Layer[] } | null = null;
+    let listCache: {
+        readonly of: readonly CompiledLayer[];
+        readonly layers: readonly Layer[];
+        readonly byId: ReadonlyMap<LayerId, Layer>;
+    } | null = null;
     let indexCache: {
         readonly of: readonly CompiledLayer[];
         readonly byId: ReadonlyMap<LayerId, CompiledLayer>;
@@ -1754,14 +1759,25 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * The stack as data, cached until it changes.
      * @returns The layers, bottom first.
      */
-    const listLayers = (): readonly Layer[] => {
+    const listed = (): NonNullable<typeof listCache> => {
         const stack = current();
         if (listCache?.of !== stack) {
-            listCache = { of: stack, layers: Object.freeze(stack.map((entry) => entry.layer)) };
+            // A hidden row's layers keep their own `enabled` and say `hidden`, so a reader of the
+            // list sees what paints without losing what the author wrote.
+            const hidden = hiddenRowKeys(stack);
+            const layers = Object.freeze(
+                stack.map((entry) =>
+                    hidden.has(rowKeyOf(entry))
+                        ? Object.freeze({ ...entry.layer, hidden: true as const })
+                        : entry.layer,
+                ),
+            );
+            listCache = { of: stack, layers, byId: new Map(layers.map((layer) => [layer.id, layer])) };
         }
 
-        return listCache.layers;
+        return listCache;
     };
+    const listLayers = (): readonly Layer[] => listed().layers;
 
     /**
      * The bindings one layer was painted from, by the id its readers know it by.
@@ -3407,7 +3423,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         get(id: LayerId): Layer | undefined {
-            return byId().get(id)?.layer;
+            return listed().byId.get(id);
         },
 
         validate(spec: LayerSpec): ValidationResult {

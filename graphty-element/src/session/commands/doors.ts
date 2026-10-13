@@ -489,6 +489,7 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     truncated: READ,
     origin: READ,
     originPaths: READ,
+    layerSelector: READ,
     has: READ,
     nodeMask: READ,
     edgeMask: READ,
@@ -610,6 +611,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }],
     ),
     highlightStyle: READ,
+    defaultValue: READ,
     legend: READ,
     proposeEncoding: READ,
     settled: READ,
@@ -1648,7 +1650,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             clear: calls([], [CLEAR]),
             import: calls(
                 [{ type: "json", config: { data: TINY_JSON } }],
-                [imports("replace", { type: "json", config: { data: TINY_JSON } })],
+                [
+                    {
+                        op: "batch",
+                        steps: [
+                            { op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } },
+                            imports("replace", { type: "json", config: { data: TINY_JSON } }),
+                        ],
+                    },
+                    // A graph file names its nodes by its label column, as a draft's load does.
+                    { op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } },
+                    imports("replace", { type: "json", config: { data: TINY_JSON } }),
+                ],
             ),
         },
     },

@@ -3925,6 +3925,7 @@ export interface StylesApi {
     categories(id: LayerId, channel: Channel): readonly ValueCategory[];
     colors(rowIds: readonly StyleRowId[]): readonly StyleColor[];
     counts(id: LayerId): StyleCounts;
+    defaultValue(channel: Channel): ChannelValue | undefined;
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;

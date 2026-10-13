@@ -554,6 +554,22 @@ export interface StylesApi {
      */
     highlightStyle(target: SelectorTarget): StaticStyle;
     /**
+     * What the element draws for a channel when no layer writes it, on the graph as it is now:
+     * the channel's catalog default (`ChannelDescriptor.default`), except where the graph decides
+     * it. An edge's head is the one such channel today: a directed graph draws the catalog's
+     * default head, an undirected graph draws none (`"none"`).
+     *
+     * A consumer that shows a reader what an unwritten field gives reads it here rather than from
+     * the static catalog, which cannot know the graph.
+     *
+     * ```ts
+     * session.styles.defaultValue("edge.arrowHead"); // "none" on an undirected graph
+     * ```
+     * @param channel - The channel.
+     * @returns The value, or undefined for a channel with no default.
+     */
+    defaultValue(channel: Channel): ChannelValue | undefined;
+    /**
      * What the picture is telling a reader, derived from the encoding model and never from the
      * canvas.
      *
@@ -976,6 +992,8 @@ export interface StylesSources {
     readonly base?: readonly ElementLayerSpec[];
     /** Which paths this session answers. Absent means it cannot say, and none are reported. */
     readonly paths?: PathDirectory;
+    /** Whether the graph is directed now, which decides the head an edge draws when no layer sets one. */
+    readonly directed?: () => boolean;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
     /**
@@ -3592,6 +3610,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         highlightStyle(target: SelectorTarget): StaticStyle {
             return halfOfStyle(undefined, target, highlightColor) ?? {};
+        },
+
+        defaultValue(channel: Channel): ChannelValue | undefined {
+            // The painter draws a head no layer chose only on a directed graph (StylePainter).
+            if (channel === "edge.arrowHead" && sources.directed?.() === false) {
+                return "none";
+            }
+            return channelDescriptor(channel)?.default;
         },
 
         highlight(spec: HighlightSpec, options: RunOptions = {}): Run<readonly Layer[]> {

@@ -2786,6 +2786,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         admitScope: (spec: unknown) => scope.admit(spec),
         base: elementBaseLayers(),
+        directed: () => snapshot().directed,
         paths,
         scales,
         runs: encodingSourceOf(runs),

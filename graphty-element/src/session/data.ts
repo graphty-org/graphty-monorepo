@@ -551,18 +551,25 @@ export class SessionData implements SessionDataApi {
         const step = command(resolved instanceof Promise ? await resolved : resolved);
         // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
         // ponytail: only this door and the draft reset it; another replace route keeps the old one.
-        const resets = step.mode !== "merge" && this.readConfig().knownFields.edgeWeightMeaning !== null;
-        await send(
-            resets
-                ? {
-                      op: "batch",
-                      steps: [
-                          { op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } },
-                          step,
-                      ],
-                  }
-                : step,
-        );
+        const { knownFields } = this.readConfig();
+        const resets = step.mode !== "merge" && knownFields.edgeWeightMeaning !== null;
+        // A new graph from a graph file names its nodes by the file's label column, as a draft's
+        // load of it does, unless a label path is configured already. A node without one is still
+        // named by its id. A merge keeps how the graph it joins names its nodes.
+        const names =
+            step.mode !== "merge" &&
+            knownFields.nodeLabelPath === null &&
+            step.source.type !== undefined &&
+            step.source.type !== "csv";
+        const before: BatchCommand["steps"] = [
+            ...(resets
+                ? [{ op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } } as const]
+                : []),
+            ...(names
+                ? [{ op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } } as const]
+                : []),
+        ];
+        await send(before.length === 0 ? step : { op: "batch", steps: [...before, step] });
     }
 
     /**

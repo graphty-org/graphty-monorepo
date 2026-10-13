@@ -1684,7 +1684,18 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         // An empty graph has nothing to arrange, and an option that names a node -- a bfs start, a
         // radial root -- could only fail on it: a layout chosen before the data arrives waits for it.
         if (this._nodes.length > 0) {
-            this.doLayout();
+            try {
+                this.doLayout();
+            } catch (error) {
+                // A layout that refuses the graph (planar's E_NOT_PLANAR) places nothing: every node
+                // stays where it was, and no later publish puts back the answer it gave an earlier
+                // graph. The refused graph was not laid out, so an add to it is not an add either.
+                this.stale = false;
+                this.#column = new Float32Array(0);
+                this.#keep = null;
+                this.#laidOut = null;
+                throw error;
+            }
         }
 
         // doLayout() clears this itself in every engine that ships here, but an engine written

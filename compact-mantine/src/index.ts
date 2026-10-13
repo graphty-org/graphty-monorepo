@@ -308,6 +308,7 @@ export type {
     TreeMove,
     TreeNodeData,
     TreeProps,
+    TreeRowActions,
     TreeRowTint,
 } from "./types";
 export type {

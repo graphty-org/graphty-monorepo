@@ -282,6 +282,142 @@ export function computeDrop(
     return { move, boxRow, line };
 }
 
+/** Where an item sits in the whole tree, collapsed or not. */
+interface Located {
+    node: TreeNodeData;
+    parentId: string | null;
+    siblings: readonly TreeNodeData[];
+    index: number;
+}
+
+/**
+ * Find an item anywhere in the tree, including inside collapsed folders.
+ * @param items - the top-level items
+ * @param id - the item to find
+ * @returns the item, its parent's id, its siblings and its index among them, or undefined
+ */
+export function locateTreeItem(items: readonly TreeNodeData[], id: string): Located | undefined {
+    const walk = (nodes: readonly TreeNodeData[], parentId: string | null): Located | undefined => {
+        for (let index = 0; index < nodes.length; index++) {
+            const node = nodes[index];
+            if (node.id === id) {
+                return { node, parentId, siblings: nodes, index };
+            }
+            const found = node.children && walk(node.children, node.id);
+            if (found) {
+                return found;
+            }
+        }
+        return undefined;
+    };
+    return walk(items, null);
+}
+
+/**
+ * Whether a move is a real change the tree allows: the item exists, is movable, lands in a
+ * container (or the top level) that is not itself or inside it, at a valid index, somewhere it
+ * is not already, and `canDrop` agrees.
+ * @param items - the top-level items
+ * @param move - the move to check
+ * @param canDrop - the caller's rule for where an item may land
+ * @returns true when the move may be reported
+ */
+export function isValidMove(
+    items: readonly TreeNodeData[],
+    move: TreeMove,
+    canDrop?: (move: TreeMove) => boolean,
+): boolean {
+    const at = locateTreeItem(items, move.id);
+    if (!at || at.node.movable === false) {
+        return false;
+    }
+    let siblings: readonly TreeNodeData[] = items;
+    if (move.parentId !== null) {
+        const parent = locateTreeItem(items, move.parentId);
+        if (!parent?.node.children) {
+            return false;
+        }
+        siblings = parent.node.children;
+        // Never into itself or its own subtree.
+        for (let p: string | null = move.parentId; p !== null; p = locateTreeItem(items, p)?.parentId ?? null) {
+            if (p === move.id) {
+                return false;
+            }
+        }
+    }
+    const count = siblings.filter((n) => n.id !== move.id).length;
+    if (move.index < 0 || move.index > count) {
+        return false;
+    }
+    if (at.parentId === move.parentId && at.index === move.index) {
+        return false;
+    }
+    return canDrop?.(move) ?? true;
+}
+
+/**
+ * The move Alt+ArrowUp, Alt+ArrowDown or Alt+ArrowLeft makes: up or down past the neighboring
+ * sibling, or into it when it is a folder (an item with a `children` array) -- as its last child
+ * going up, its first going down; out to just after its folder. A move the tree refuses is
+ * skipped: a refused move into a folder falls back to stepping past it.
+ * @param items - the top-level items
+ * @param id - the item to move
+ * @param direction - which key: up, down, or out of its folder
+ * @param canDrop - the caller's rule for where an item may land
+ * @returns the move, or null when there is none
+ */
+export function keyboardMove(
+    items: readonly TreeNodeData[],
+    id: string,
+    direction: "up" | "down" | "out",
+    canDrop?: (move: TreeMove) => boolean,
+): TreeMove | null {
+    const at = locateTreeItem(items, id);
+    if (!at) {
+        return null;
+    }
+    const candidates: TreeMove[] = [];
+    if (direction === "out") {
+        const parent = at.parentId === null ? undefined : locateTreeItem(items, at.parentId);
+        if (parent) {
+            candidates.push({ id, parentId: parent.parentId, index: parent.index + 1 });
+        }
+    } else {
+        const step = direction === "up" ? -1 : 1;
+        const next = at.siblings[at.index + step] as TreeNodeData | undefined;
+        if (next?.children) {
+            candidates.push({ id, parentId: next.id, index: step < 0 ? next.children.length : 0 });
+        }
+        if (next) {
+            candidates.push({ id, parentId: at.parentId, index: at.index + step });
+        }
+    }
+    return candidates.find((move) => isValidMove(items, move, canDrop)) ?? null;
+}
+
+/**
+ * Where a move puts an item, for announcing it: its folder's name (null at the top level), its
+ * 1-based position there and how many items the folder then holds. Read before the move is
+ * applied.
+ * @param items - the top-level items, before the move
+ * @param move - the move
+ * @returns the item's name and its new place
+ */
+export function movePlace(
+    items: readonly TreeNodeData[],
+    move: TreeMove,
+): { name: string; parent: string | null; position: number; count: number } {
+    const moved = locateTreeItem(items, move.id);
+    const parent = move.parentId === null ? undefined : locateTreeItem(items, move.parentId)?.node;
+    const siblings = parent ? (parent.children ?? []) : items;
+    return {
+        name: moved?.node.name ?? move.id,
+        parent: parent?.name ?? null,
+        position: move.index + 1,
+        count: siblings.filter((n) => n.id !== move.id).length + 1,
+    };
+}
+
 /**
  * Where an item's glyph starts, px from the row's start, at a depth.
  * @param level - the depth, 1 for a top-level row

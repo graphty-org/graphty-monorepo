@@ -211,8 +211,9 @@ const css = `
     .cm-tree-progress[data-indeterminate] .cm-tree-progress-fill { width: 100%; opacity: 0.5; animation: none; }
 }
 
-/* Lock / eye: 24 hit targets on a 20 pitch, ending 8 from the panel edge. Hidden until the row
-   is hovered or focused; a toggle that is on stays visible. */
+/* Lock / eye / pin: 24 x 24 hit targets side by side, never overlapping (WCAG 2.5.8), ending 8
+   from the panel edge. Hidden until the row is hovered or focused; a toggle that is on stays
+   visible. */
 .cm-tree-actions {
     flex: none;
     display: flex;
@@ -228,15 +229,14 @@ const css = `
     flex: 0 4 auto;
     min-width: 0;
 }
-.cm-tree-actions > * + * { margin-inline-start: -4px; }
 .cm-tree-actions > [data-pinned]:not(button, :has(button, input)) {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-/* The buttons overlap by 4px (24 targets on a 20 pitch), so the shared button ring (1px outside the
-   24 box) would run into the neighbor's glyph. A focused row action rings its 20 pitch instead. */
+/* Neighboring buttons touch, so the shared button ring (1px outside the 24 box) would run into the
+   next one. A focused row action rings just inside its own box instead. */
 .cm-tree-actions :is(.cm-action-icon, .cm-button):is(:focus-visible, [data-state="focus"]) { outline-offset: -2px; }
 .cm-tree-actions > * {
     opacity: 0;

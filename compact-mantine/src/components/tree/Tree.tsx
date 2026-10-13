@@ -1,8 +1,10 @@
+import { VisuallyHidden } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { PANEL_GRID } from "../../constants/panel";
+import { useLabels, useNumberFormatter } from "../../i18n";
 import { UiGlyph } from "../../icons";
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import { shieldDragSelection } from "../chrome/dragSelectionShield";
@@ -15,6 +17,9 @@ import {
     flattenTree,
     type FlatTreeRow,
     iconOffset,
+    isValidMove,
+    keyboardMove,
+    movePlace,
     rowTints,
     type TreeDrop,
     type TreeMove,
@@ -258,6 +263,20 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
 });
 
 /**
+ * What a row menu can ask the tree to do for its row (see `TreeProps.rowMenu`).
+ */
+export interface TreeRowActions {
+    /**
+     * Move the row into a folder (an item with a `children` array), or to the top level with
+     * `null`, at `index` among that folder's children (default 0, the first). The tree checks the
+     * move as it checks a drop (`movable`, `canDrop`, never into the row's own subtree), reports it
+     * through `onMove`, opens the folder, keeps focus on the row and announces where it went.
+     * Returns false, doing nothing, for a move it refuses.
+     */
+    moveTo: (parentId: string | null, index?: number) => boolean;
+}
+
+/**
  * Props for the Tree component.
  */
 export interface TreeProps {
@@ -292,10 +311,13 @@ export interface TreeProps {
     /** Called when a rename opens (F2, a double-click) or closes, with the row's id or null. */
     onRenamingChange?: (id: string | null) => void;
     /**
-     * Called when a row is dropped somewhere new, or moved one place among its siblings with
-     * Alt+ArrowUp / Alt+ArrowDown. `index` counts the new parent's children with the moved item
-     * already removed. Giving it makes rows draggable and turns on the keyboard move; the tree
-     * never moves data itself, and focus stays on the moved item once the caller has moved it.
+     * Called when a row is dropped somewhere new, moved from the keyboard, or moved by a row
+     * menu's `moveTo`. Alt+ArrowUp / Alt+ArrowDown move the focused item one place among its
+     * siblings, or into the neighboring folder (its last child going up, its first going down);
+     * Alt+ArrowLeft moves it out of its folder to just after it. `index` counts the new parent's
+     * children with the moved item already removed. Giving it makes rows draggable and turns on
+     * the keyboard move; the tree never moves data itself, focus stays on the moved item once
+     * the caller has moved it, and a live region says where it went (`labels.treeMoved`).
      */
     onMove?: (move: TreeMove) => void;
     /** Keep an expanded top-level row pinned while its children scroll (not while virtualized). */
@@ -320,9 +342,10 @@ export interface TreeProps {
     /**
      * The row's context menu: its `Menu.Item` rows (see ContextMenu), or null for a row with
      * none. It opens on a right-click, Shift+F10 or the ContextMenu key, and a touch held still
-     * for half a second, always for the row it happened on.
+     * for half a second, always for the row it happened on. `actions.moveTo` moves the row, so a
+     * menu can offer "Move to folder".
      */
-    rowMenu?: (node: TreeNodeData) => React.ReactNode;
+    rowMenu?: (node: TreeNodeData, actions: TreeRowActions) => React.ReactNode;
     /**
      * Draw a band behind a selected, expanded parent's children (Figma's look). Default true. Pass
      * false when selecting a parent never selects its children, so the band would read as a
@@ -342,8 +365,9 @@ export interface TreeProps {
  * parent or moves to its first child; ArrowLeft closes an open parent or moves to the parent;
  * Home / End; type-ahead; Enter or Space selects (Shift extends, Control / Command toggles); `*`
  * opens every sibling; F2 renames; Alt+L closes everything; with `onMove`, Alt+ArrowUp /
- * Alt+ArrowDown move the focused item one place among its siblings. `onRowKeyDown` sees every
- * key first and can claim one with `preventDefault()`.
+ * Alt+ArrowDown move the focused item one place among its siblings or into the folder next to
+ * it, and Alt+ArrowLeft moves it out of its folder. `onRowKeyDown` sees every key first and can
+ * claim one with `preventDefault()`.
  * Pointer: click selects (Shift range, Control / Command toggle); the caret opens one row;
  * double-click renames; drag a row to move it (a mouse or pen after 4px of movement, a finger
  * after holding the row half a second; a quicker swipe scrolls). Escape cancels a drag, and the
@@ -407,6 +431,9 @@ export function Tree({
     childBand = true,
 }: TreeProps): React.JSX.Element {
     useCompactStyles();
+    const labels = useLabels();
+    const numbers = useNumberFormatter();
+    const [announcement, setAnnouncement] = useState("");
     const [selection, setSelection] = useUncontrolled<readonly string[]>({
         value: selected,
         defaultValue: defaultSelected,
@@ -453,8 +480,15 @@ export function Tree({
     const dropRef = useRef<TreeDrop | null>(null);
     const suppressClick = useRef(false);
     // The latest rows and rules, for the document listeners a drag installs.
-    const latest = useRef({ rows, canDrop, onMove });
-    latest.current = { rows, canDrop, onMove };
+    // Says where a move put an item, in the live region. Read before the caller applies it.
+    const announce = (move: TreeMove): void => {
+        const place = movePlace(items, move);
+        setAnnouncement(
+            labels.treeMoved(place.name, place.parent, numbers.format(place.position), numbers.format(place.count)),
+        );
+    };
+    const latest = useRef({ rows, canDrop, onMove, announce });
+    latest.current = { rows, canDrop, onMove, announce };
     const pendingFocus = useRef(false);
     const typeahead = useRef({ text: "", at: 0 });
     const rootRef = useRef<HTMLDivElement>(null);
@@ -526,6 +560,21 @@ export function Tree({
         setOpen(value ? [...open, id] : open.filter((x) => x !== id));
     };
 
+    // Report a keyboard or menu move: open the folder it goes into, keep focus on the item and
+    // say where it went.
+    const commitMove = (move: TreeMove): boolean => {
+        if (!onMove || !isValidMove(items, move, canDrop)) {
+            return false;
+        }
+        announce(move);
+        onMove(move);
+        if (move.parentId !== null) {
+            setExpanded(move.parentId, true);
+        }
+        moveFocus(move.id);
+        return true;
+    };
+
     const select = (id: string, mode: "replace" | "toggle" | "range", event: React.SyntheticEvent): void => {
         if (!multiselect || mode === "replace" || (mode === "range" && anchor.current === null)) {
             anchor.current = id;
@@ -563,15 +612,15 @@ export function Tree({
         if (event.defaultPrevented) {
             return;
         }
-        // Alt+ArrowUp / Alt+ArrowDown: move the focused item one place among its siblings. Reported
-        // through onMove like a drop; focus stays on the item wherever the caller puts it.
-        if (onMove && event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+        // Alt+ArrowUp / Alt+ArrowDown: move the focused item one place, into the folder next to it
+        // when there is one; Alt+ArrowLeft: out of its folder. Reported through onMove like a drop;
+        // focus stays on the item wherever the caller puts it.
+        const direction = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "out" } as const;
+        if (onMove && event.altKey && event.key in direction) {
             event.preventDefault();
-            const to = row.posInSet - 1 + (event.key === "ArrowUp" ? -1 : 1);
-            const move = { id: row.node.id, parentId: row.parentId, index: to };
-            if (to >= 0 && to < row.setSize && row.node.movable !== false && (canDrop?.(move) ?? true)) {
-                onMove(move);
-                moveFocus(row.node.id);
+            const move = keyboardMove(items, row.node.id, direction[event.key as keyof typeof direction], canDrop);
+            if (move) {
+                commitMove(move);
             }
             return;
         }
@@ -754,6 +803,7 @@ export function Tree({
             suppressClick.current = state.started;
             state.stop();
             if (done) {
+                latest.current.announce(done.move);
                 latest.current.onMove?.(done.move);
             }
         };
@@ -905,8 +955,11 @@ export function Tree({
         const id = (target as Element).closest<HTMLElement>(".cm-tree-row[data-id]")?.dataset.id;
         return id === undefined ? undefined : rows[indexOf.get(id) ?? -1]?.node;
     };
+    const rowActions = (node: TreeNodeData): TreeRowActions => ({
+        moveTo: (parentId, index = 0) => commitMove({ id: node.id, parentId, index }),
+    });
     const hasMenu = (node: TreeNodeData | undefined): node is TreeNodeData => {
-        const content = node && rowMenu?.(node);
+        const content = node && rowMenu?.(node, rowActions(node));
         return content !== undefined && content !== null && content !== false;
     };
     const tree = (
@@ -975,5 +1028,18 @@ export function Tree({
             </div>
         </div>
     );
-    return rowMenu ? <ContextMenu target={tree}>{menuNode ? rowMenu(menuNode) : null}</ContextMenu> : tree;
+    return (
+        <>
+            {rowMenu ? (
+                <ContextMenu target={tree}>{menuNode ? rowMenu(menuNode, rowActions(menuNode)) : null}</ContextMenu>
+            ) : (
+                tree
+            )}
+            {onMove && (
+                <VisuallyHidden role="status" aria-live="polite" data-testid="tree-status">
+                    {announcement}
+                </VisuallyHidden>
+            )}
+        </>
+    );
 }

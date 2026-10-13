@@ -11,6 +11,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Tree rows move into and out of folders from the keyboard** (compact-mantine,
+  tests `tests/components/tree/TreeFolderMove.browser.test.tsx` and `treeModel.test.ts`).
+  Alt+ArrowDown/Up onto a folder goes in (first child going down, last going up), Alt+ArrowLeft
+  goes out to just after the folder; the folder opens, focus stays, and a live region says where
+  it went (`labels.treeMoved`). `rowMenu(node, actions)` now passes `actions.moveTo(parentId,
+  index?)`, so the app's row menu offers "Move to folder" without moving data itself first; it
+  is checked like a drop. The pure rules are `keyboardMove`, `isValidMove`, `movePlace` in
+  `treeModel.ts` (not exported from the package; the component uses them). Row toggles lost their
+  4 px overlap: three 24 x 24 targets, so tree stories with toggles shift 4 px per extra toggle --
+  expect those images to change. Reason: Figma-style keyboard parity with drag, and WCAG 2.5.8.
+  For the app: wire "Move to folder" in the paint tree's row menu to `actions.moveTo`.
+
 - (2026-10-12) **One look for not set, set, mixed and disabled** in compact-mantine's three style
   fields (test `tests/components/FieldStates.browser.test.tsx`). Not set and Mixed are the secondary
   ink in italic whether the beneath value stands as the value or as the placeholder (rules keyed on

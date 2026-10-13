@@ -162,6 +162,7 @@ export type {
     TreeMove,
     TreeNodeData,
     TreeProps,
+    TreeRowActions,
     TreeRowTint,
 } from "../components/tree";
 

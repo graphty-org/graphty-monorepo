@@ -51,7 +51,28 @@ line one and a half node diameters tall) and pick a size for its framing.
 **Why.** A reader who types 72 and sees letters 8 px tall was told a number that does not match the
 picture.
 
-## 2026-10-12 -- Decided by the team: a legend block's painted count, a node size of 0 refused, a label size's unit, and a visible Selected ring
+## 2026-10-12 -- Decided by the team: moving layer rows into and out of folders from the keyboard and a row menu
+
+**What.** compact-mantine's `Tree`, additive.
+
+- Alt+ArrowDown on a row whose next sibling is a folder (an item with a `children` array) moves it
+  into that folder as its first child; Alt+ArrowUp onto a folder above makes it the last child.
+  Alt+ArrowLeft moves a row out of its folder to just after it. The folder opens and focus stays
+  on the row.
+- `rowMenu` gets a second argument, `TreeRowActions`, whose `moveTo(parentId, index = 0)` lets a
+  row menu offer "Move to folder". It is checked like a drop (`movable`, `canDrop`, never into its
+  own subtree) and returns false when refused.
+- Every move (keys, a drag, `moveTo`) is said in a polite live region beside the tree, worded by
+  the new `labels.treeMoved(name, parent, position, count)` ("Alpha moved into Folder, 1 of 3").
+- Row action buttons (eye, lock, pin) no longer overlap by 4 px: each is a whole 24 x 24 target
+  (WCAG 2.5.8), so a row with three toggles is 8 px wider at its trailing end.
+
+**Not breaking.** New optional argument, new label, new keys. One behavior shifts: Alt+ArrowDown on
+a row just above a folder used to step past the folder and now goes into it. A consumer who wants
+the old step refuses moves into folders with `canDrop`; the tree then steps past the folder as
+before.
+
+, a node size of 0 refused, a label size's unit, and a visible Selected ring
 
 **What.** Additive changes in graphty-element.
 

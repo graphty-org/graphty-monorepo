@@ -517,15 +517,16 @@ describe("Tree: keyboard move", () => {
         expect(order()).toEqual(["a", "b", "c"]);
     });
 
-    it("moves among siblings only, reporting the parent", async () => {
+    it("moves within its parent, reporting the parent, and into a neighboring folder", async () => {
         const onMove = vi.fn();
         await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} onMove={onMove} />);
         await tabIn();
         await userEvent.keyboard("{ArrowDown}");
         expect(focused()).toBe("rect");
 
+        // Group, below Rect, is a folder: Rect goes in as its first child.
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
-        expect(onMove).toHaveBeenCalledWith({ id: "rect", parentId: "frame", index: 1 });
+        expect(onMove).toHaveBeenCalledWith({ id: "rect", parentId: "group", index: 0 });
 
         // Group is the last child of Frame: Alt+ArrowDown does not carry it out of its parent.
         onMove.mockClear();

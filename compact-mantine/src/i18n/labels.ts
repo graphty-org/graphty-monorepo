@@ -155,6 +155,15 @@ export interface CompactMantineLabels {
      */
     fieldNotSet: (beneath: string) => string;
 
+    // Tree
+
+    /**
+     * Tree: said in a live region after a row moves (Alt+Arrow, a drag, or a
+     * row menu's move). `parent` is the name of the folder it now sits in, or
+     * null at the top level; `position` and `count` are already formatted.
+     */
+    treeMoved: (name: string, parent: string | null, position: string, count: string) => string;
+
     // CompactColorInput
 
     /**
@@ -395,6 +404,11 @@ export const defaultLabels: Required<CompactMantineLabels> = {
 
     resetToDefault: (label: string): string => `Reset ${label} to default`,
     fieldNotSet: (beneath: string): string => (beneath === "" ? "not set" : `not set, ${beneath}`),
+
+    treeMoved: (name: string, parent: string | null, position: string, count: string): string =>
+        parent === null
+            ? `${name} moved to the top level, ${position} of ${count}`
+            : `${name} moved into ${parent}, ${position} of ${count}`,
 
     colorSwatch: "Pick color",
     colorHexValue: "Color hex value",

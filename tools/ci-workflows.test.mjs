@@ -66,11 +66,11 @@ const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 16 jobs", () => {
+    it("runs every shard exactly once on a full run, in 17 jobs", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 16);
+        assert.equal(include.length, 17);
     });
 
     it("puts only the affected members into a group's job", () => {
@@ -171,7 +171,7 @@ describe("the pre-push gate matches CI", () => {
             }
             assert.deepEqual(long.sort(), [
                 ...[1, 2, 3, 4, 5].map((n) => `graphty-element-browser-${n}`),
-                ...[1, 2, 3, 4].map((n) => `graphty-element-storybook-${n}`),
+                ...[1, 2, 3, 4, 5].map((n) => `graphty-element-storybook-${n}`),
             ]);
             const ci = plan(["graphty-element"]).map((e) => e.shard);
             for (const shard of long) {
@@ -737,7 +737,7 @@ describe("ci.yml", () => {
         // light is set only on a push; every other event takes the affected (pull request) or full path
         assert.equal(build.match(/echo "light=true"/g).length, 1);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 16, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, 17, "a full run is every shard");
         // no test-type job is limited to pushes or to master
         for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);

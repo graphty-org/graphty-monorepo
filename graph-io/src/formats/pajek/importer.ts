@@ -386,7 +386,7 @@ class PajekParser {
 
     private readonly coercer: IdCoercer;
 
-    private readonly firstVertex: 0 | 1 | "auto";
+    private readonly firstVertex: NonNullable<PajekImportOptions["firstVertex"]>;
 
     private section: Section = "none";
 

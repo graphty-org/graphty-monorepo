@@ -145,8 +145,11 @@ const RESERVED_NODE_NAMES: ReadonlySet<string> = new Set([
 /** Edge column names the importer owns. */
 const RESERVED_EDGE_NAMES: ReadonlySet<string> = new Set([EDGE_ID_COLUMN, LABEL_COLUMN, GRAPHICS_COLUMN]);
 
+/** The table an attribute name belongs to. */
+type Domain = "graph" | "node" | "edge";
+
 /** The importer-owned names of each table. */
-const RESERVED_NAMES: Readonly<Record<"graph" | "node" | "edge", ReadonlySet<string>>> = {
+const RESERVED_NAMES: Readonly<Record<Domain, ReadonlySet<string>>> = {
     graph: new Set([GRAPHICS_COLUMN]),
     node: RESERVED_NODE_NAMES,
     edge: RESERVED_EDGE_NAMES,

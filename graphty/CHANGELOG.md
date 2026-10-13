@@ -1,3 +1,47 @@
+## 0.8.70 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.49
+- Updated compact-mantine to 0.9.21
+- Updated graphty-element to 3.25.3
+- Updated graph-samples to 0.1.29
+- Updated graph-format to 1.3.14
+- Updated graph-io to 0.3.37
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.69 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.48
+- Updated compact-mantine to 0.9.20
+- Updated graphty-element to 3.25.2
+
+## 0.8.68 (2026-10-12)
+
+### 🩹 Fixes
+
+- **compact-mantine:** name the color input's controls from its label ([#2100](https://github.com/graphty-org/graphty-monorepo/issues/2100))
+- **graphty:** drop the stale note that selectById("1") misses integer ids ([#2061](https://github.com/graphty-org/graphty-monorepo/issues/2061))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.47
+- Updated compact-mantine to 0.9.19
+- Updated graphty-element to 3.25.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.67 (2026-10-12)
 
 ### 🧱 Updated Dependencies

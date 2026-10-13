@@ -611,8 +611,9 @@ least 44 px tall.
 
 No key reverses a decision. A, R and E on an item that is already decided say "Already accepted.
 Undo it to change it."; press U (or Undo) first. A held A, R, E or U decides once, and an A, R or
-E that comes within a quarter second of an item's images appearing is ignored and says so, so the
-second tap of a double tap never decides the next item unseen. While a decision is being saved
+E pressed within a quarter second of an item's images being drawn is ignored and says so. The
+second click or tap of a double click never decides the next item unseen, however slowly the page
+runs: it is ignored when the first was on another item. While a decision is being saved
 the page says "Saving the last decision..." and waits for it before moving on; a save that fails
 leaves the item undecided, with its reason.
 
@@ -723,7 +724,10 @@ Finish fails, your decisions not yet published are kept and the page shows git's
 message:
 
 - **capture is stale, wait for CI**: someone pushed to the branch after the capture. Wait for the
-  new CI run, then decide again what still differs.
+  new CI run, then decide again what still differs. A merge of the default branch alone does not
+  stop Finish: when everything the branch changed since the capture is the default branch's
+  contents, and none of it is a file you decided, Finish commits your decisions on top of the
+  merge. The message says what else changed.
 - **failed to write commit object** or a signing error: unlock or plug in the signing key, then
   Finish again.
 - **the accepts were pushed ..., but the comment with the rejects failed**: the accepts are done
@@ -1029,6 +1033,12 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
   fails, an old-format record, or one copied from another pull request counts for nothing, so
   the baselines it names are reported as unreviewed. Keys are read only from the base branch,
   never from the pull request, and a pull request that would leave no key fails.
+- **An approval survives a merge of the default branch.** A record names the images, not the
+  commit: after the default branch is merged into an approved pull request, the gate still counts
+  the record when every file it takes still starts from the base branch's contents, and the new
+  capture must still equal the approved baselines. A baseline the default branch changed under a
+  file you approved, an image the capture shows differently, a reject and a record for another
+  pull request all need a new review.
 - **It does not prove you looked at every image.** It proves your device approved the record,
   which lists every accepted and rejected image by hash. A page altered on your machine could ask
   you to approve something other than what it shows; read the counts in Finish's question.
@@ -1095,7 +1105,8 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
 - **Every story is `new` on a pull request.** No reference capture of the default branch could be
   downloaded (none finished yet, or its artifacts expired after 30 days). Re-run the `visual` job
   once a run on the default branch has finished.
-- **Finish says "capture is stale, wait for CI".** Someone pushed to the branch after the capture.
+- **Finish says "capture is stale, wait for CI".** Someone pushed to the branch after the capture
+  (anything other than a merge of the default branch that leaves the files you decided alone).
   Wait for the new run, then decide again what still differs.
 - **Finish fails with "failed to write commit object"** or another signing error: unlock or plug
   in your signing key, then press Finish again. Your decisions are kept.

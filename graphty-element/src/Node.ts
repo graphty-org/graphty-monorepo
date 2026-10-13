@@ -26,6 +26,7 @@ import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
+import { readColor } from "./meshes/readColor";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
@@ -1163,8 +1164,11 @@ export class Node {
             return;
         }
 
-        material.emissiveColor = Color3.FromHexString(selection.color);
-        material.alpha = selection.opacity;
+        // The color's own alpha multiplies the configured opacity (issue #2071).
+        const { rgb, alpha } = readColor(selection.color, DEFAULT_SELECTION_STYLE.color);
+
+        material.emissiveColor = rgb;
+        material.alpha = selection.opacity * alpha;
     }
 
     /**
@@ -1182,10 +1186,12 @@ export class Node {
         // Unlit on purpose: an overlay is a marker, and a marker that changes shade as the camera
         // orbits reads as another node rather than as an annotation on one.
         material.disableLighting = true;
-        material.emissiveColor = Color3.FromHexString(color);
+        const painted = readColor(color, DEFAULT_SELECTION_STYLE.color);
+
+        material.emissiveColor = painted.rgb;
         material.diffuseColor = Color3.Black();
         material.specularColor = Color3.Black();
-        material.alpha = alpha;
+        material.alpha = alpha * painted.alpha;
         // Both faces, so a halo drawn around a node is still a ring when the camera is inside it.
         material.backFaceCulling = false;
         source.material = material;

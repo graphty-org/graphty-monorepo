@@ -14,7 +14,7 @@
  * skeleton one on the next `npm run docs:reference`.
  *
  * Usage: `tsx scripts/docs-reference.ts` rewrites the pages; `--check` fails when a page differs from what this
- * produces (test/docs-reference.test.ts runs the same check).
+ * produces; `--json` prints every fact test/docs-reference.test.ts checks (`Facts`) as one JSON document.
  */
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -193,9 +193,11 @@ class Source {
         if (config === undefined) {
             throw new Error("tsconfig.json could not be read");
         }
+        // `types: []`: the documented source needs none of the ambient packages tsconfig.json adds for the tests
+        // (node, vitest/globals), and parsing them was half the files and most of the time (issue #2131)
         this.program = ts.createProgram(
             Object.values(ENTRIES).map((e) => `${pkg}${e}`),
-            config.options,
+            { ...config.options, types: [] },
         );
         this.checker = this.program.getTypeChecker();
     }
@@ -1420,7 +1422,7 @@ export interface PageResult {
  * Every generated page as it is and as it should be.
  * @returns one result per page, plus a stray format page (one with no registered format) as an error
  */
-export async function pages(): Promise<PageResult[]> {
+async function pages(): Promise<PageResult[]> {
     const ctx = await context();
     const p = plan(ctx.formats.map((f) => f.name));
     const formatPages = existsSync(`${docsDir}guide/formats`) ? readdirSync(`${docsDir}guide/formats`) : [];
@@ -1453,7 +1455,7 @@ export async function pages(): Promise<PageResult[]> {
  * Every option and code that has no description, as `<where>: <name>` lines.
  * @returns the undocumented items, empty when every one has a description
  */
-export async function undocumented(): Promise<string[]> {
+async function undocumented(): Promise<string[]> {
     const ctx = await context();
     const out: string[] = [];
     const opts = (where: string, rows: readonly OptionRow[] | undefined): void => {
@@ -1489,7 +1491,7 @@ export async function undocumented(): Promise<string[]> {
  * and exporters, and the library's list of the functions' own names, must equal these.
  * @returns the names, sorted
  */
-export async function optionNames(): Promise<{
+async function optionNames(): Promise<{
     common: string[];
     formats: Record<string, { import: string[]; export: string[] }>;
 }> {
@@ -1531,7 +1533,7 @@ const INTERNAL_PATTERNS = [
  * @param text - a doc comment or a generated page
  * @returns true when it does
  */
-export function mentionsInternals(text: string): boolean {
+function mentionsInternals(text: string): boolean {
     return INTERNAL_PATTERNS.some((r) => r.test(text));
 }
 
@@ -1539,7 +1541,7 @@ export function mentionsInternals(text: string): boolean {
  * Every published doc comment that mentions the package's internal design documents.
  * @returns `<entry>: <name>` per offending comment
  */
-export function internalReferences(): string[] {
+function internalReferences(): string[] {
     return [...source().publishedDocs()].filter(([, doc]) => mentionsInternals(doc)).map(([k]) => k);
 }
 
@@ -1568,9 +1570,38 @@ async function main(check: boolean): Promise<void> {
     }
 }
 
+/** Everything test/docs-reference.test.ts checks, as `--json` prints it. */
+export interface Facts {
+    readonly pages: PageResult[];
+    readonly undocumented: string[];
+    readonly optionNames: Awaited<ReturnType<typeof optionNames>>;
+    readonly internalReferences: string[];
+    /** The generated pages that mention the internal design documents. */
+    readonly leakingPages: string[];
+}
+
+/**
+ * Every fact the documentation test checks.
+ * @returns the facts
+ */
+async function facts(): Promise<Facts> {
+    const all = await pages();
+    return {
+        pages: all,
+        undocumented: await undocumented(),
+        optionNames: await optionNames(),
+        internalReferences: internalReferences(),
+        leakingPages: all.filter((r) => mentionsInternals(r.expected)).map((r) => r.page),
+    };
+}
+
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]) {
     try {
-        await main(process.argv.includes("--check"));
+        if (process.argv.includes("--json")) {
+            process.stdout.write(JSON.stringify(await facts()));
+        } else {
+            await main(process.argv.includes("--check"));
+        }
     } catch (e) {
         console.error(e);
         process.exitCode = 1;

@@ -1,6 +1,6 @@
 import {
     AbstractMesh,
-    Color3,
+    type Color3,
     type Color4,
     type EffectLayer,
     GlowLayer,
@@ -13,6 +13,7 @@ import {
 } from "@babylonjs/core";
 
 import type { NodeStyleConfig } from "../config";
+import { readColor } from "./readColor";
 
 /**
  * Default outline configuration for selection highlight.
@@ -109,10 +110,12 @@ export class NodeEffects {
         const renderedMesh = this.resolveRenderedMesh(mesh);
 
         if (effect?.outline) {
-            const colorValue = this.extractColorValue(effect.outline.color);
-            const color = Color3.FromHexString(colorValue ?? DEFAULT_OUTLINE_COLOR);
+            // THE ALPHA IS DROPPED, because the highlight layer draws every outline with alpha 1
+            // (ThinHighlightLayer pins it) -- there is no translucent outline to draw. The layer
+            // check reports it as W_ALPHA_IGNORED, so the drop is said rather than silent.
+            const { rgb } = readColor(this.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
 
-            this.getOrCreateHighlightLayer(scene).addMesh(renderedMesh, color);
+            this.getOrCreateHighlightLayer(scene).addMesh(renderedMesh, rgb);
 
             return;
         }
@@ -194,7 +197,7 @@ export class NodeEffects {
             _material: Material,
             result: Color4,
         ): void => {
-            const color = glowColors.get(mesh.uniqueId) ?? Color3.FromHexString(DEFAULT_GLOW_COLOR);
+            const color = glowColors.get(mesh.uniqueId) ?? readColor(DEFAULT_GLOW_COLOR, DEFAULT_GLOW_COLOR).rgb;
             result.set(color.r, color.g, color.b, 1);
         };
 
@@ -250,12 +253,18 @@ export class NodeEffects {
         // `effect.glow.strength`, so a layer that binds only a strength (to a metric, say) leaves
         // an `effect.glow` with no colour on every node it paints. Treated as "glow on", that drew
         // the white fallback on all of them (#2068). The strength only scales a colour some layer set.
+        // A STRENGTH OF 0 IS NO GLOW (#2067), so it takes the removal branch and never creates or
+        // keeps alive the full-screen glow layer for a glow nobody can see.
         const colorValue = this.extractColorValue(effect?.glow?.color);
-        if (effect?.glow && colorValue !== undefined) {
+        const strength = effect?.glow?.strength ?? 1;
+        if (effect?.glow && colorValue !== undefined && strength > 0) {
             const glowLayer = this.getOrCreateGlowLayer(scene);
             const glowColors = scene.metadata?.glowColors as Map<number, Color3> | undefined;
-            glowColors?.set(renderedMesh.uniqueId, Color3.FromHexString(colorValue));
-            this.glowStrengths(scene).set(renderedMesh, effect.glow.strength ?? 1);
+            // A glow is added light, so its color's alpha fades it: `#ff000080` glows as
+            // `#800000` does, and the strength scales that as it scales any color.
+            const { rgb, alpha } = readColor(colorValue, DEFAULT_GLOW_COLOR);
+            glowColors?.set(renderedMesh.uniqueId, rgb.scale(alpha));
+            this.glowStrengths(scene).set(renderedMesh, strength);
 
             // Same defence as the outline path: the inclusion list is keyed by uniqueId and the
             // call is cheap, but a mesh in an unexpected state must not take down a repaint.

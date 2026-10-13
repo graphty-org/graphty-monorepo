@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * test-slots.mjs -- a machine-wide limit on how many test runs execute at once (issue #1316).
  *
@@ -7,8 +6,11 @@
  * work than it has cores and tests whose own work is a large part of their time limit failed at
  * random. Every vitest run therefore takes one of GRAPHTY_TEST_SLOTS slots before its tests start
  * (default: one per 8 cores, at least 2 -- 4 on a 32-thread machine) and gives it back
- * when it ends. A browser run and a Node run count the same: a Node run forks one worker per core,
- * so it can fill the machine on its own while it runs. A browser run is not lighter: Vitest opens
+ * when it ends. A browser run and a Node run count the same. A Node run would fork one worker per
+ * core by default, so four of them side by side asked for about 130 cores' work (load average 130
+ * on 2026-10-12) and CPU-bound tests ran past their time limits; every Node run therefore gets at
+ * most its share of the cores, workerShare() = cores / slots (8 on a 32-thread machine with 4
+ * slots), as its maxWorkers. A browser run is not lighter: Vitest opens
  * min(12, cores - 1) pages at once unless the project sets maxWorkers, and one page drawing a real
  * graphty-element through SwiftShader keeps about 1.75 cores busy, so an uncapped run on this
  * 32-thread machine asked for about 21 cores. Every browser project that runs files in parallel
@@ -24,6 +26,12 @@
  *  - In process: a script that runs tests under a time limit of its own (webgpu-graph-algorithms'
  *    scripts/run-browser-project.js) awaits acquire() before it starts the clock and passes HELD on.
  *
+ * The GPU slot: `node tools/test-slots.mjs --gpu <command...>` holds the one machine-wide GPU slot
+ * (<main checkout>/tmp/gpu-slots; this machine has one NVIDIA card) for the whole command INSTEAD of
+ * a test slot, and marks the command's environment HELD so its vitest runs take no test slot either.
+ * tools/prepush.sh runs its NVIDIA step that way, beside the CPU test shards: it waits on the card
+ * for most of its run and uses under one core, so it should not keep a CPU test slot from them.
+ *
  * Mechanism: a directory of tickets (<main checkout>/tmp/test-slots, shared by every worktree), one
  * per run, named by arrival time and pid. A run proceeds once its ticket is among the oldest
  * GRAPHTY_TEST_SLOTS live tickets, so runs start in arrival order. A ticket whose process is gone
@@ -36,6 +44,9 @@
  *  - A gate shard that needs a browser takes the browser slot (tmp/with-browser.sh) BEFORE this
  *    one, and nothing holding a test slot ever waits for a browser slot, so the two never wait on
  *    each other. The push queue is outside both.
+ *  - The GPU slot holder takes no test slot (HELD), and nothing holding a test slot waits for the
+ *    GPU slot (the gate starts its NVIDIA step outside any test slot), so those never wait on each
+ *    other either.
  *  - Liveness is a signal-0 check of the pid plus its start time from /proc, never pgrep (whose
  *    pattern matches its own command line).
  *
@@ -71,13 +82,31 @@ export function slotCount(env = process.env, cores = availableParallelism()) {
 }
 
 /**
- * The ticket directory: GRAPHTY_TEST_SLOTS_DIR, else the main checkout's tmp/test-slots (every
- * worktree shares it), else one under the system temp directory.
+ * How many workers one Node vitest run may use: its share of the machine, so that `slotCount()`
+ * runs side by side ask for about one worker per core between them instead of one per core each.
+ * Every package's vitest config sets it as the root `maxWorkers`; a browser project's own
+ * `maxWorkers: 3` (or `fileParallelism: false`) still applies to that project, and `--maxWorkers`
+ * on the command line still overrides it.
+ * @param env the environment (GITHUB_ACTIONS, GRAPHTY_TEST_SLOTS)
+ * @param cores the machine's cores
+ * @returns max(1, floor(cores / slots)), or undefined (Vitest's own default) when slots are off
+ */
+export function workerShare(env = process.env, cores = availableParallelism()) {
+    const slots = env.GITHUB_ACTIONS === "true" ? 0 : slotCount(env, cores);
+    return slots === 0 ? undefined : Math.max(1, Math.floor(cores / slots));
+}
+
+/**
+ * The ticket directory: GRAPHTY_TEST_SLOTS_DIR (GRAPHTY_GPU_SLOTS_DIR for the GPU slot), else the
+ * main checkout's tmp/test-slots (tmp/gpu-slots; every worktree shares it), else one under the system
+ * temp directory.
+ * @param kind "test" or "gpu"
  * @returns an absolute path
  */
-export function slotDir() {
-    if (process.env.GRAPHTY_TEST_SLOTS_DIR) {
-        return process.env.GRAPHTY_TEST_SLOTS_DIR;
+export function slotDir(kind = "test") {
+    const set = process.env[kind === "gpu" ? "GRAPHTY_GPU_SLOTS_DIR" : "GRAPHTY_TEST_SLOTS_DIR"];
+    if (set) {
+        return set;
     }
     try {
         const common = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
@@ -85,9 +114,9 @@ export function slotDir() {
             encoding: "utf8",
             stdio: ["ignore", "pipe", "ignore"],
         }).trim();
-        return join(dirname(common), "tmp/test-slots");
+        return join(dirname(common), `tmp/${kind}-slots`);
     } catch {
-        return join(tmpdir(), "graphty-test-slots");
+        return join(tmpdir(), `graphty-${kind}-slots`);
     }
 }
 
@@ -263,14 +292,21 @@ export default async function setup(project) {
     return release;
 }
 
-// The command wrapper: node tools/test-slots.mjs <command...>
+// The command wrapper: node tools/test-slots.mjs [--gpu] <command...>
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-    const [cmd, ...args] = process.argv.slice(2);
+    const gpu = process.argv[2] === "--gpu";
+    const [cmd, ...args] = process.argv.slice(gpu ? 3 : 2);
     if (!cmd) {
-        console.error("usage: node tools/test-slots.mjs <command...>");
+        console.error("usage: node tools/test-slots.mjs [--gpu] <command...>");
         process.exit(2);
     }
-    const release = off() ? () => {} : await acquire({ label: labelOf([cmd, ...args]) });
+    const label = labelOf([cmd, ...args]);
+    // The GPU slot is one card, not a share of the cores: one holder, whatever GRAPHTY_TEST_SLOTS
+    // says (0 still turns every limit off), and HELD (a test slot) does not stand in for it.
+    const take = gpu
+        ? () => acquire({ label, dir: slotDir("gpu"), slots: Math.min(1, slotCount()), env: {} })
+        : () => acquire({ label });
+    const release = off() ? () => {} : await take();
     process.on("exit", release);
     const child = spawn(cmd, args, { stdio: "inherit", env: { ...process.env, [HELD]: String(process.pid) } });
     child.on("error", (err) => {

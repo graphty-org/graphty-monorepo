@@ -139,11 +139,6 @@ two.
   and the report has a `W_EDGE_ID_DROPPED` warning. An edge id that is also a node id gets the same
   warning and a new id in every format.
 - A compound parent (GraphML nested graph, DOT cluster) becomes `data.parent`.
-- A GEXF `viz:color` (Gephi's node and edge color) becomes `data.color` as a CSS color: `#rrggbb`,
-  or `rgba(r, g, b, a)` when it is not opaque. On export to GEXF, a `color` field whose every value
-  is a hex, `rgb()`, `rgba()`, `hsl()` or `hsla()` color is written as `viz:color`, so it reads back
-  as `data.color` (in hex form); a field holding a named color such as `red` is written as a plain
-  attribute and reads back renamed (`color#color`).
 - Positions become node positions; nodes without one sit at the origin. CX, CX2 and XGMML put a
   z coordinate in `data.z`. CX, CX2, XGMML and Cytoscape JSON keep Cytoscape's own coordinates, so
   a node sits where Cytoscape drew it. GEXF, GML, DOT and Pajek are y-up, so y is negated on import
@@ -250,7 +245,7 @@ const gexf = await exportElements(eles, "gexf");
 
 ## Next
 
-- [Export and import demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-graphs--export-and-import): try every format in the browser.
+- [Karate club story](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-datasets--karate): pick a format in its round-trip control to write the graph and read it back in the browser.
 
 - [Load a GraphML file](./recipes/load-graphml-file): let a user pick a file, show it, and save it back.
 - [Generators, datasets and formats](../reference/graphs): every option, size and license, and the galleries.

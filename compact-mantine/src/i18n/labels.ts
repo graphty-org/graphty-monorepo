@@ -86,8 +86,10 @@ export interface CompactMantineLabels {
      */
     details: string;
     /**
-     * Accessible name and tooltip of the warning glyph beside a line that
-     * states how a reading departs from being exact and complete.
+     * The severity word a screen reader says before a ProseBlock departure
+     * line (the warning line stating how a reading departs from being exact
+     * and complete). The line is a note named by this word followed by its own
+     * text, such as "Warning Approximate (sample of 8)."
      */
     departure: string;
 
@@ -150,10 +152,38 @@ export interface CompactMantineLabels {
 
     // CompactColorInput
 
-    /** Accessible name of the swatch button that opens the color picker. */
+    /**
+     * Accessible name of the swatch button that opens the color picker, when
+     * the control has no label. With a label, `pickColor` names it instead.
+     */
     colorSwatch: string;
-    /** Accessible name of the text box holding the color's hex value. */
+    /**
+     * Accessible name of the text box holding the color's hex value, when the
+     * control has no label. With a label, `colorValue` names it instead.
+     */
     colorHexValue: string;
+    /**
+     * Accessible name of the swatch button that opens the color picker, saying
+     * what pressing it does: "Pick Fill color".
+     * @param label - The control's own label, as drawn above it
+     * @returns The button's accessible name
+     */
+    pickColor: (label: string) => string;
+    /**
+     * Accessible name of the text box holding the color's hex value, naming
+     * the property it sets: "Fill color". The box's own value, the hex, is
+     * announced after it.
+     * @param label - The control's own label, as drawn above it
+     * @returns The text box's accessible name
+     */
+    colorValue: (label: string) => string;
+    /**
+     * Accessible name of the number box holding the color's opacity
+     * percentage, when the control has a label: "Fill opacity".
+     * @param label - The control's own label, as drawn above it
+     * @returns The number box's accessible name
+     */
+    colorOpacity: (label: string) => string;
     /** Accessible name of the number box holding the color's opacity percentage. */
     opacity: string;
     /** Title of the color picker pop-out when the caller supplied no label. */
@@ -183,6 +213,19 @@ export interface CompactMantineLabels {
      * @returns The button's accessible name
      */
     removeColorStop: (position: string) => string;
+    /**
+     * Accessible name of the swatch button that selects one stop so the
+     * picker edits its color.
+     * @param position - The stop's position in the list, counting from one, already formatted for the active locale
+     * @returns The button's accessible name
+     */
+    editColorStop: (position: string) => string;
+    /**
+     * Accessible name of the text box holding one stop's hex color.
+     * @param position - The stop's position in the list, counting from one, already formatted for the active locale
+     * @returns The text box's accessible name
+     */
+    colorStopColor: (position: string) => string;
     /** Heading above the gradient editor's direction slider. */
     direction: string;
     /** Accessible name of the gradient editor's direction slider. */
@@ -307,6 +350,16 @@ export interface CompactMantineLabels {
 }
 
 /**
+ * A color control's label as a name for its color: "Fill" becomes "Fill
+ * color", and a label that already says color ("Text color") stands as it is.
+ * @param label - The control's label
+ * @returns The label with "color" after it unless it already has it
+ */
+function withColorNoun(label: string): string {
+    return /\bcolou?r\b/i.test(label) ? label : `${label} color`;
+}
+
+/**
  * The English strings this library ships with.
  *
  * `useLabels` returns these when there is no `LabelsProvider` above, so a
@@ -324,7 +377,7 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     scaleLog: "Logarithmic scale",
 
     details: "Details",
-    departure: "Departure",
+    departure: "Warning",
 
     percentile: (ordinal: string): string => `${ordinal} percentile`,
 
@@ -337,8 +390,11 @@ export const defaultLabels: Required<CompactMantineLabels> = {
 
     resetToDefault: (label: string): string => `Reset ${label} to default`,
 
-    colorSwatch: "Color swatch",
+    colorSwatch: "Pick color",
     colorHexValue: "Color hex value",
+    pickColor: (label: string): string => `Pick ${withColorNoun(label)}`,
+    colorValue: (label: string): string => withColorNoun(label),
+    colorOpacity: (label: string): string => `${label} opacity`,
     opacity: "Opacity",
     colorPanelTitle: "Color",
     colorGenericName: "color",
@@ -347,6 +403,8 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     addColorStop: "Add color stop",
     colorStopPosition: (position: string): string => `Stop ${position} position`,
     removeColorStop: (position: string): string => `Remove color stop ${position}`,
+    editColorStop: (position: string): string => `Edit stop ${position} color`,
+    colorStopColor: (position: string): string => `Stop ${position} color`,
     direction: "Direction",
     gradientDirection: "Gradient direction",
 

@@ -493,7 +493,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
         },
         {
             ...id("Color"),
-            plainName: `Arrow ${end} Colour`,
+            plainName: `Arrow ${end} Color`,
             shortName: `${end} color`,
             group: "arrows",
             default: EDGE_LINE_DEFAULT_COLOR,
@@ -548,7 +548,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     "node.color": {
         channel: "node.color",
         target: "node",
-        plainName: "Node Colour",
+        plainName: "Node Color",
         shortName: "Color",
         group: "color",
         accepts: "color",
@@ -685,6 +685,12 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "boolean",
         stylePath: "effect.flatShaded",
         renderable: true,
+        caveat:
+            "Flat shading gives every triangle one normal, so a curved shape (sphere, cylinder, " +
+            "cone, capsule, torus) is lit as visible facets; on a sphere they are a few pixels wide " +
+            "until a node is drawn large. A shape already drawn with flat faces " +
+            "(box, the polyhedra, icosphere, goldberg, geodesic) looks the same either way, and in " +
+            "2D nodes are drawn unlit, so it changes nothing there.",
     },
     "node.marker": {
         channel: "node.marker",
@@ -703,7 +709,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     "edge.color": {
         channel: "edge.color",
         target: "edge",
-        plainName: "Edge Colour",
+        plainName: "Edge Color",
         shortName: "Color",
         group: "line",
         accepts: "color",

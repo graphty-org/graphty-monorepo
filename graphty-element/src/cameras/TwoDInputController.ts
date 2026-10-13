@@ -34,15 +34,15 @@ export class InputController {
     private pointerObserverHandle: Observer<PointerInfo> | null = null;
     private prePointerObserverHandle: Observer<PointerInfoPre> | null = null;
 
-    private pointerDownHandler = (): void => {
+    private readonly pointerDownHandler = (): void => {
         this.cam.canvas.focus({ preventScroll: true });
     };
 
-    private keyDownHandler = (e: KeyboardEvent): void => {
+    private readonly keyDownHandler = (e: KeyboardEvent): void => {
         this.keyState[e.key] = true;
     };
 
-    private keyUpHandler = (e: KeyboardEvent): void => {
+    private readonly keyUpHandler = (e: KeyboardEvent): void => {
         this.keyState[e.key] = false;
     };
 
@@ -53,9 +53,9 @@ export class InputController {
      * @param config - Configuration options for 2D camera controls
      */
     constructor(
-        private cam: TwoDCameraController,
-        private canvas: HTMLCanvasElement,
-        private config: TwoDCameraControlsConfigType,
+        private readonly cam: TwoDCameraController,
+        private readonly canvas: HTMLCanvasElement,
+        private readonly config: TwoDCameraControlsConfigType,
     ) {
         this.canvas.setAttribute("tabindex", "0"); // Make focusable
         // Note: setupMouse() and setupTouch() are called in enable() to allow re-enabling

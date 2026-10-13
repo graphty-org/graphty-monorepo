@@ -159,12 +159,14 @@ The synchronous methods always run on the CPU. The 17 algorithms in the exported
 
 ## Try it
 
-- [Centrality](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--centrality)
-- [Communities](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--communities)
-- [Paths and trees](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--paths-and-trees)
-- [Structure](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--structure)
-- [Flows and cuts](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--flows-and-cuts)
-- [Link prediction](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--link-prediction)
+Every algorithm has its own story, with controls for the network (its example graph or a generated one of 100 to 50,000 nodes), the seed, the backend, more options and a round trip through a file format:
+
+- [Centrality: PageRank](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-centrality--page-rank)
+- [Communities: Louvain](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-communities--louvain)
+- [Paths and trees: Dijkstra](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-paths-and-trees--dijkstra)
+- [Structure: weakly connected components](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-structure--weakly-connected-components)
+- [Flows and cuts: maximum flow](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-flows-and-cuts--max-flow)
+- [Link prediction: common neighbors score](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-link-prediction--common-neighbors-score)
 
 ## See also
 

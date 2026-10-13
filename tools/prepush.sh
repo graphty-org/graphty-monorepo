@@ -48,6 +48,15 @@ echo "Pre-push validation"
 echo "========================================"
 echo ""
 
+# A global pnpm older than 10.29.1 runs the pinned one through a version switch that exits 0 when the
+# pnpm it started dies by a signal (issue #2116). The test stage does not trust that exit 0
+# (tools/shard-verdict.mjs), but every other step does, so say so. Turning the switch off shows the
+# global version, not the pinned one.
+GLOBAL_PNPM="$(npm_config_manage_package_manager_versions=false pnpm --version 2>/dev/null | tail -1)"
+if [ -n "$GLOBAL_PNPM" ] && [ "$(printf '%s\n' "$GLOBAL_PNPM" 10.29.1 | sort -V | head -1)" != 10.29.1 ]; then
+    echo "WARNING: the pnpm on PATH is $GLOBAL_PNPM, older than 10.29.1, so a pnpm exec killed by a signal exits 0; run pnpm self-update"
+fi
+
 # The source-only checks (formatting, links, the tool and config checks, SonarQube's changed-lines
 # scan), and run_step, the colors and SONAR_LOG every step below uses.
 # tools/prepush-source-checks.sh says why they come first and when they are skipped.
@@ -70,7 +79,12 @@ MAIN_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 PUSH_HEAD="$(git rev-parse HEAD)"
 SCREENSHOTS_PGID=""
 SCREENSHOTS_STAGED=0
+GPU_PGID=""
 cleanup() {
+    if [ -n "$GPU_PGID" ]; then
+        kill -- -"$GPU_PGID" 2>/dev/null
+        wait "$GPU_PGID" 2>/dev/null
+    fi
     if [ -n "$SCREENSHOTS_PGID" ]; then
         # Its whole session too: the capture's time limits (timeout) put its steps in groups of their own.
         pkill -s "$SCREENSHOTS_PGID" 2>/dev/null
@@ -88,6 +102,11 @@ if [ "${PREPUSH_ALL:-0}" = "1" ]; then
 else
     BASE=$(git merge-base origin/master HEAD)
     PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$BASE" --head=HEAD --json 2>/dev/null)
+fi
+# An empty answer is nx (or the pnpm in front of it) cut short, not "nothing affected", which is "[]".
+if [[ "$PROJECTS" != "["* ]]; then
+    echo "nx show projects printed no project list, so the affected packages are unknown; stopping" >&2
+    exit 1
 fi
 PROJECT_LIST=$(echo "$PROJECTS" | tr -d '[]" ')
 affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }
@@ -204,10 +223,29 @@ SCREENSHOTS_PGID=$!
 SCREENSHOTS_STAGED=1
 echo ""
 
+# The real-GPU half: the paid T4 runs only on the daily release, so this is the only NVIDIA run before it.
+# CI's webgpu-graph-algorithms-node shard (below, through run-tests.sh) runs on Mesa lavapipe; this runs
+# the same node projects on this machine's NVIDIA card through the libEGL tree (GRAPHTY_EGL_LIB_DIR, else
+# the main checkout's gitignored tmp/egl/; webgpu-graph-algorithms/CLAUDE.md). GRAPHTY_GPU_REQUIRE=nvidia,
+# not any: a missing EGL tree fails loudly here instead of passing on lavapipe a second time. "Affected"
+# is nx's, so a change to graph-format or the lockfile runs it too. It runs in the background beside the
+# CPU test shards, holding the machine's one GPU slot instead of a CPU test slot (tools/test-slots.mjs
+# --gpu): it waits on the card most of the time and uses under one core. Its own process group, killed
+# by the EXIT trap; its verdict is read after the Tests step.
+if affected webgpu-graph-algorithms; then
+    EGL_LIB_DIR="${GRAPHTY_EGL_LIB_DIR:-$MAIN_DIR/tmp/egl/root/usr/lib/x86_64-linux-gnu}"
+    GPU_LOG="$MAIN_DIR/tmp/prepush-gpu/$(basename "$ROOT_DIR").log"
+    mkdir -p "$(dirname "$GPU_LOG")"
+    echo -e "${YELLOW}> webgpu-graph-algorithms on the local NVIDIA GPU, in the background (log: $GPU_LOG)${NC}"
+    setsid bash -c "cd webgpu-graph-algorithms && LD_LIBRARY_PATH='$EGL_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}' GRAPHTY_GPU_REQUIRE=nvidia node '$SCRIPT_DIR/test-slots.mjs' --gpu npm run test:run" >"$GPU_LOG" 2>&1 &
+    GPU_PGID=$!
+    echo ""
+fi
+
 # Tests: the test shards CI's test job runs for this push, with CI's commands and environment, read
 # from tools/ci-test-matrix.mjs (the list ci.yml plans from) by tools/prepush-tests.mjs, so this gate
 # and CI cannot drift -- except the shards whose "local" policy there leaves them to CI: graphty-element's
-# ten browser and storybook shards (about 15 minutes) run here only when the push changes a file they
+# eleven browser and storybook shards (about 15 minutes) run here only when the push changes a file they
 # test, compared with $BASE (PREPUSH_ALL=1 has no base and runs them all). Browser shards share the machine's four-browser cap; the first failing shard
 # stops the rest. Each shard's log is in tmp/prepush-tests/. The whole stage fails past
 # PREPUSH_TESTS_TIMEOUT (default 90m), counted from its start, so time spent queued for a browser slot
@@ -216,16 +254,18 @@ echo ""
 run_step "Tests (the CI shards of the affected packages)" \
     "timeout --foreground --kill-after=60s '${PREPUSH_TESTS_TIMEOUT:-90m}' PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'"
 
-# The real-GPU half: the paid T4 runs only on the daily release, so this is the only NVIDIA run before it.
-# CI's webgpu-graph-algorithms-node shard (above, through run-tests.sh) runs on Mesa lavapipe; this runs
-# the same node projects on this machine's NVIDIA card through the libEGL tree (GRAPHTY_EGL_LIB_DIR, else
-# the main checkout's gitignored tmp/egl/; webgpu-graph-algorithms/CLAUDE.md). GRAPHTY_GPU_REQUIRE=nvidia,
-# not any: a missing EGL tree fails loudly here instead of passing on lavapipe a second time. "Affected"
-# is nx's, so a change to graph-format or the lockfile runs it too.
-if affected webgpu-graph-algorithms; then
-    EGL_LIB_DIR="${GRAPHTY_EGL_LIB_DIR:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/tmp/egl/root/usr/lib/x86_64-linux-gnu}"
-    run_step "webgpu-graph-algorithms on the local NVIDIA GPU" \
-        "(cd webgpu-graph-algorithms && LD_LIBRARY_PATH='$EGL_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}' GRAPHTY_GPU_REQUIRE=nvidia npm run test:run)"
+if [ -n "$GPU_PGID" ]; then
+    echo -e "${YELLOW}> webgpu-graph-algorithms on the local NVIDIA GPU${NC}"
+    if wait "$GPU_PGID"; then
+        cat "$GPU_LOG"
+        echo -e "${GREEN}[PASS] webgpu-graph-algorithms on the local NVIDIA GPU passed${NC}"
+        echo ""
+    else
+        cat "$GPU_LOG"
+        echo -e "${RED}[FAIL] webgpu-graph-algorithms on the local NVIDIA GPU failed (above; the log is $GPU_LOG)${NC}"
+        exit 1
+    fi
+    GPU_PGID=""
 fi
 
 echo -e "${YELLOW}> Screenshots${NC}"

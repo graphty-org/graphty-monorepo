@@ -1176,6 +1176,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             undirected: READ,
             positions: LANE,
             seededNodeCount: READ,
+            positionScale: READ,
             directionSettledBy: READ,
             lastImport: READ,
             updateStyles: RENDER,

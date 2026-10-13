@@ -224,11 +224,22 @@ describe("the 2D view", () => {
  * after it saw each key. Animation frames are not that count: the render loop skips a tick while
  * the GPU is still drawing the last frame (on SwiftShader, every CI runner), and a skipped tick
  * runs no input update.
+ *
+ * With a limit, the input sees the key held for exactly that many updates: once it has, the input's
+ * updates wait until the key is up. The release is a round trip to the browser driver, and the
+ * render loop keeps running during it -- about 100 updates on a slow CI runner (issue #2446) --
+ * so without the limit the camera could reach a zoom limit, or turn past where its angle can be
+ * read back, before the key comes up.
  * @param element - The element.
  * @param name - The camera whose input to count: "orbit" (3D) or "2d".
+ * @param limit - The most updates the input may see a key held; unlimited when left out.
  * @returns How many updates have run so far, and in how many of them a key was held.
  */
-function countUpdates(element: Graphty, name: "orbit" | "2d"): { all: () => number; held: () => number } {
+function countUpdates(
+    element: Graphty,
+    name: "orbit" | "2d",
+    limit = Infinity,
+): { all: () => number; held: () => number } {
     const { canvas } = element.graph;
     const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(name);
     assert.isDefined(input);
@@ -239,6 +250,10 @@ function countUpdates(element: Graphty, name: "orbit" | "2d"): { all: () => numb
     input.update = (): void => {
         all++;
         if (held) {
+            if (heldFrames >= limit) {
+                return;
+            }
+
             heldFrames++;
         }
 
@@ -290,16 +305,25 @@ async function settled(element: Graphty, updates: () => number): Promise<void> {
 }
 
 /**
- * Hold a key for a number of the camera input's updates, then let the camera coast to a stop.
+ * How many of the camera input's updates {@link hold} holds a key for. Every limit is out of reach
+ * in that many: W from distance 6 ends at 6 x 0.985^30 = 3.8, above minZoomDistance 2; S from 600
+ * ends at 600 / 0.985^30 = 945, under maxZoomDistance 2000 (both in RenderManager.ts); an arrow
+ * turns 30 x 0.02 = 0.6 radians, short of the quarter turn where a pitch angle reads back folded.
+ */
+const HELD_UPDATES = 30;
+
+/**
+ * Hold a key for {@link HELD_UPDATES} of the camera input's updates, then let the camera coast to
+ * a stop.
  * @param element - The element.
  * @param key - The key, as userEvent names it.
  * @param name - The camera whose input reads the key.
  * @returns How many frames the key was held.
  */
 async function hold(element: Graphty, key: string, name: "orbit" | "2d"): Promise<number> {
-    const updates = countUpdates(element, name);
+    const updates = countUpdates(element, name, HELD_UPDATES);
     await userEvent.keyboard(`{${key}>}`);
-    await updatesReach(updates.held, 30);
+    await updatesReach(updates.held, HELD_UPDATES);
     await userEvent.keyboard(`{/${key}}`);
     await settled(element, updates.all);
     return updates.held();
@@ -405,17 +429,13 @@ describe("the keyboard", () => {
             await element.setCameraState({ cameraDistance: start });
             await click(element, EMPTY);
 
-            const { held: heldFrames } = countUpdates(element, "orbit");
             const before = element.getCameraState().cameraDistance ?? Number.NaN;
             assert.closeTo(before, start, 1e-6, "the camera starts at the distance set");
 
-            await userEvent.keyboard(`{${key.toLowerCase()}>}`);
-            await updatesReach(heldFrames, 10);
-            await userEvent.keyboard(`{/${key.toLowerCase()}}`);
-            await frames();
+            const heldFrames = await hold(element, key.toLowerCase(), "orbit");
 
             const after = element.getCameraState().cameraDistance ?? Number.NaN;
-            assert.closeTo(after / before, perFrame ** heldFrames(), 1e-9, "one factor per frame held");
+            assert.closeTo(after / before, perFrame ** heldFrames, 1e-9, "one factor per frame held");
         });
     });
 });

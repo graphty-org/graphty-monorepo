@@ -19,6 +19,7 @@ import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
 import { type Caveats, ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
+import { edgeSpaceOf } from "./scope/spaces";
 import type { CodedFact } from "./shared";
 import type {
     DataSourceInput,
@@ -426,31 +427,108 @@ function checkedExtensions(extensions: Readonly<Record<string, unknown>>): Recor
     return copy;
 }
 
+/** What the member builders read: the session, its dispatcher, and which run ids the element minted. */
+export interface ProjectSources {
+    readonly session: GraphSession;
+    /** The dispatcher, whose `runs` slice holds each finished run's command. */
+    readonly dispatcher: Dispatcher;
+    /** Whether the element minted a run's id. */
+    readonly isDerived: (id: RunId) => boolean;
+}
+
 /**
- * Write the session as a graphty document.
- * @param session - The session.
- * @param dispatcher - Its dispatcher, whose `runs` slice holds each finished run's command.
- * @param isDerived - Whether the element minted a run's id.
- * @param options - What to leave out, and the caller's extensions.
- * @returns The document and what was left out.
+ * The node and edge ids every member but the data names, in the graph's order. Read from the
+ * snapshot and the store's edge ids, never from `session.data.nodes()` or `edges()`, whose frozen
+ * records cost most of a save: only the data member pays for them.
  */
-function write(
-    session: GraphSession,
-    dispatcher: Dispatcher,
-    isDerived: (id: RunId) => boolean,
-    options: ProjectSaveOptions,
-): { document: Record<string, unknown>; leftOut: ProjectProblem[] } {
+export interface GraphIds {
+    readonly nodes: readonly NodeId[];
+    readonly edges: readonly EdgeId[];
+}
+
+/**
+ * The graph's node and edge ids, in the order the data member lists the records.
+ * @param session - The session.
+ * @returns The ids.
+ */
+export function graphIdsOf(session: GraphSession): GraphIds {
+    const snapshot = session.data.snapshot();
+    const space = edgeSpaceOf(snapshot);
+    return {
+        nodes: snapshot.ids.toArray(),
+        edges: Array.from({ length: snapshot.edgeCount }, (_unused, at) => space.idOf(at)),
+    };
+}
+
+/** The version of the column declarations the session member carries. */
+const DECLARATIONS_VERSION = 1;
+
+/**
+ * The `graphty-data` member: the records, the direction and the source. The only builder that
+ * reads the records.
+ * @param session - The session.
+ * @returns The member.
+ */
+export function dataMember(session: GraphSession): Record<string, unknown> {
     const nodes = session.data.nodes();
     const edges = session.data.edges();
-    const nodeIds = nodes.map((node) => node.id);
-    const edgeAt = new Map(edges.map((edge, at) => [edge.id, at]));
+    // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
+    const source = session.data.source();
+    return {
+        kind: "graphty-data",
+        version: VERSION,
+        format: "json",
+        dialect: "node-link",
+        // The node-link convention's `directed` key, written only once something settled the
+        // direction, so a graph nobody described still opens with nothing said.
+        graph: {
+            ...(session.data.store.directionSettledBy.by === "unsettled" ? {} : { directed: session.status.directed }),
+            nodes,
+            links: edges.map(({ id: _id, ...edge }) => edge),
+        },
+        ...(source === null ? {} : { source }),
+    };
+}
 
+/**
+ * The `graphty-session` member: the settings, layout, filter, sets, views and, when any column
+ * was declared, what each declared column measures (a field with its own version, so a file
+ * without it still opens).
+ * @param sources - The session and its dispatcher.
+ * @returns The member.
+ */
+export function sessionMember(sources: ProjectSources): Record<string, unknown> {
+    const { session, dispatcher } = sources;
+    const { layout, visibility } = session;
+    const columns = [...dispatcher.state.attributes].map(([key, declaration]) => {
+        const split = key.indexOf(":");
+        return { kind: key.slice(0, split), name: key.slice(split + 1), ...declaration };
+    });
+    return {
+        kind: "graphty-session",
+        version: VERSION,
+        config: configOf(session),
+        layout: { id: layout.id, engine: layout.engine, options: layout.options, dimension: layout.dimension },
+        visibility: { filter: visibility.filter, window: visibility.window, showContext: visibility.showContext },
+        sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
+        views: [...session.views].map(([name, camera]) => ({ name, camera })),
+        ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
+    };
+}
+
+/**
+ * The `graphty-arrangement` member: where each placed node stands, and which are pinned.
+ * @param session - The session.
+ * @param ids - The graph's ids.
+ * @returns The member.
+ */
+export function arrangementMember(session: GraphSession, ids: GraphIds): Record<string, unknown> {
     const placed: NodeId[] = [];
     const xs: number[] = [];
     const ys: number[] = [];
     const zs: number[] = [];
     const at = { x: 0, y: 0, z: 0 };
-    nodeIds.forEach((id, index) => {
+    ids.nodes.forEach((id, index) => {
         if (session.positions.isPlaced(index)) {
             session.positions.read(index, at);
             placed.push(id);
@@ -460,90 +538,121 @@ function write(
         }
     });
 
-    const runs = [...dispatcher.state.runs].map(([id, entry]) => {
-        const { result } = entry;
-        const { op: _op, as: _as, applySuggestedStyles: _style, ...command } = entry.command;
-        const nodeColumn: NodeId[] = [];
-        const nodeValues: Readonly<Record<string, unknown>>[] = [];
-        for (const node of nodeIds) {
-            const values = result.node(node);
-            if (values !== undefined) {
-                nodeColumn.push(node);
-                nodeValues.push(values);
-            }
+    return {
+        kind: "graphty-arrangement",
+        version: VERSION,
+        ids: placed,
+        x: encodeColumn(xs),
+        y: encodeColumn(ys),
+        z: encodeColumn(zs),
+        pins: [...session.positions.pinned],
+    };
+}
+
+/**
+ * One finished run as the results member keeps it: its command, its result as columns.
+ * @param sources - The session and its dispatcher.
+ * @param id - The run.
+ * @param ids - The graph's ids.
+ * @returns The run, or undefined for one that has not finished.
+ */
+export function runEntry(sources: ProjectSources, id: RunId, ids: GraphIds): Record<string, unknown> | undefined {
+    const entry = sources.dispatcher.state.runs.get(id);
+    if (entry === undefined) {
+        return undefined;
+    }
+
+    const { result } = entry;
+    const { op: _op, as: _as, applySuggestedStyles: _style, ...command } = entry.command;
+    const nodeColumn: NodeId[] = [];
+    const nodeValues: Readonly<Record<string, unknown>>[] = [];
+    for (const node of ids.nodes) {
+        const values = result.node(node);
+        if (values !== undefined) {
+            nodeColumn.push(node);
+            nodeValues.push(values);
         }
+    }
 
-        const edgeValues = edges.map((edge) => result.edge(edge.id));
-        return {
-            id,
-            derived: isDerived(id),
-            ...command,
-            shape: result.shape,
-            fields: result.fields,
-            measured: result.measured,
-            graph: result.graph,
-            caveats: entry.record.caveats,
-            durationMs: entry.record.durationMs ?? 0,
-            nodes: { ids: nodeColumn, columns: columns(nodeValues) },
-            edges: { columns: columns(edgeValues) },
-        };
-    });
+    return {
+        id,
+        derived: sources.isDerived(id),
+        ...command,
+        shape: result.shape,
+        fields: result.fields,
+        measured: result.measured,
+        graph: result.graph,
+        caveats: entry.record.caveats,
+        durationMs: entry.record.durationMs ?? 0,
+        nodes: { ids: nodeColumn, columns: columns(nodeValues) },
+        edges: { columns: columns(ids.edges.map((edge) => result.edge(edge))) },
+    };
+}
 
-    const { layout, visibility, selection } = session;
-    // Where the graph was loaded from, and what the reader named it: not the rows, which are above.
-    const source = session.data.source();
-    const leaveOut = new Set<string>(options.leaveOut ?? []);
-    const members: Record<string, unknown>[] = [
-        {
-            kind: "graphty-data",
-            version: VERSION,
-            format: "json",
-            dialect: "node-link",
-            // The node-link convention's `directed` key, written only once something settled
-            // the direction, so a graph nobody described still opens with nothing said.
-            graph: {
-                ...(session.data.store.directionSettledBy.by === "unsettled"
-                    ? {}
-                    : { directed: session.status.directed }),
-                nodes,
-                links: edges.map(({ id: _id, ...edge }) => edge),
-            },
-            ...(source === null ? {} : { source }),
-        },
-        {
-            kind: "graphty-session",
-            version: VERSION,
-            config: configOf(session),
-            layout: { id: layout.id, engine: layout.engine, options: layout.options, dimension: layout.dimension },
-            visibility: { filter: visibility.filter, window: visibility.window, showContext: visibility.showContext },
-            sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
-            views: [...session.views].map(([name, camera]) => ({ name, camera })),
-        },
-        {
-            kind: "graphty-arrangement",
-            version: VERSION,
-            ids: placed,
-            x: encodeColumn(xs),
-            y: encodeColumn(ys),
-            z: encodeColumn(zs),
-            pins: [...session.positions.pinned],
-        },
-        { kind: "graphty-results", version: VERSION, fingerprint: session.data.fingerprint(), runs },
-        { kind: "graphty-style", ...session.styles.toDocument() },
-        session.notes.toDocument() as unknown as Record<string, unknown>,
-        {
-            kind: "graphty-view-state",
-            version: VERSION,
-            selection: {
-                nodes: [...selection.nodes],
-                edges: [...selection.edges].flatMap((edge) => edgeAt.get(edge) ?? []),
-            },
-        },
-    ].filter((member) => !leaveOut.has(member.kind as string));
+/**
+ * The `graphty-results` member around its runs.
+ * @param session - The session.
+ * @param runs - The runs, each as {@link runEntry} builds it, in the dispatcher's order.
+ * @returns The member.
+ */
+export function resultsMember(
+    session: GraphSession,
+    runs: readonly Record<string, unknown>[],
+): Record<string, unknown> {
+    return { kind: "graphty-results", version: VERSION, fingerprint: session.data.fingerprint(), runs };
+}
 
-    const extensions = checkedExtensions(options.extensions ?? {});
+/**
+ * The `graphty-style` member.
+ * @param session - The session.
+ * @returns The member.
+ */
+export function styleMember(session: GraphSession): Record<string, unknown> {
+    return { kind: "graphty-style", ...session.styles.toDocument() };
+}
+
+/**
+ * The `graphty-notes` member.
+ * @param session - The session.
+ * @returns The member.
+ */
+export function notesMember(session: GraphSession): Record<string, unknown> {
+    return session.notes.toDocument() as unknown as Record<string, unknown>;
+}
+
+/**
+ * The `graphty-view-state` member: the selection, its edges by position in the data member.
+ * @param session - The session.
+ * @param ids - The graph's ids.
+ * @returns The member.
+ */
+export function viewStateMember(session: GraphSession, ids: GraphIds): Record<string, unknown> {
+    const { selection } = session;
+    const edgeAt = new Map(ids.edges.map((edge, at) => [edge, at]));
+    return {
+        kind: "graphty-view-state",
+        version: VERSION,
+        selection: {
+            nodes: [...selection.nodes],
+            edges: [...selection.edges].flatMap((edge) => edgeAt.get(edge) ?? []),
+        },
+    };
+}
+
+/**
+ * The document around its members.
+ * @param session - The session, for the project's name.
+ * @param members - The members, in file order.
+ * @param extensions - The caller's extensions, checked.
+ * @returns The document.
+ */
+export function documentAround(
+    session: GraphSession,
+    members: readonly Record<string, unknown>[],
+    extensions: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
     const { name } = session.project;
-    const document = {
+    return {
         kind: DOCUMENT_KIND,
         version: VERSION,
         ...(name === null ? {} : { name }),
@@ -552,12 +661,43 @@ function write(
         members,
         ...(Object.keys(extensions).length === 0 ? {} : { extensions }),
     };
+}
+
+/**
+ * Write the session as a graphty document: every member's builder, in file order.
+ * @param sources - The session, its dispatcher and which run ids the element minted.
+ * @param options - What to leave out, and the caller's extensions.
+ * @returns The document and what was left out.
+ */
+function write(
+    sources: ProjectSources,
+    options: ProjectSaveOptions,
+): { document: Record<string, unknown>; leftOut: ProjectProblem[] } {
+    const { session, dispatcher } = sources;
+    const extensions = checkedExtensions(options.extensions ?? {});
+    const ids = graphIdsOf(session);
+    const leaveOut = new Set<string>(options.leaveOut ?? []);
+    const members = [
+        dataMember(session),
+        sessionMember(sources),
+        arrangementMember(session, ids),
+        resultsMember(
+            session,
+            [...dispatcher.state.runs.keys()].flatMap((id): Record<string, unknown>[] => {
+                const run = runEntry(sources, id, ids);
+                return run === undefined ? [] : [run];
+            }),
+        ),
+        styleMember(session),
+        notesMember(session),
+        viewStateMember(session, ids),
+    ].filter((member) => !leaveOut.has(member.kind as string));
 
     const leftOut: ProjectProblem[] = session.runs
         .list()
         .filter((run) => !dispatcher.state.runs.has(run.id))
         .map((run) => ({ code: "W_RUN_PENDING", params: { slice: "runs", id: run.id } }));
-    return { document, leftOut };
+    return { document: documentAround(session, members, extensions), leftOut };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -988,6 +1128,7 @@ async function readProject(
     const edgeIds = await importInto(tx, graph, source);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
+    await readDeclarations(opening, state.declarations);
 
     const layout = state.layout as
         { id: string; engine: string; options: Record<string, unknown>; dimension: "2d" | "3d" } | undefined;
@@ -1142,6 +1283,39 @@ async function readProject(
     const views = (state.views ?? []) as never[];
     if (views.length > 0) {
         await attempt(opening, "views", () => tx.views.save(views));
+    }
+}
+
+/**
+ * Declare the columns the session member says were declared. A file written before declarations
+ * were saved has none; a newer version of the field is reported and skipped.
+ * @param opening - The open.
+ * @param declarations - The session member's `declarations` field.
+ */
+async function readDeclarations(opening: Opening, declarations: unknown): Promise<void> {
+    if (!isObject(declarations)) {
+        return;
+    }
+
+    if (declarations.version !== DECLARATIONS_VERSION) {
+        opening.problems.push({
+            code: "E_UNSUPPORTED_VERSION",
+            params: { slice: "attributes", found: declarations.version as number },
+        });
+        return;
+    }
+
+    for (const column of Array.isArray(declarations.columns) ? (declarations.columns as unknown[]) : []) {
+        const { kind, name, ...declaration } = (isObject(column) ? column : {}) as {
+            kind?: unknown;
+            name?: unknown;
+        } & Record<string, unknown>;
+        await attempt(
+            opening,
+            "attributes",
+            () => opening.tx.data.declare({ kind, name } as never, declaration as never),
+            `${String(kind)}:${String(name)}`,
+        );
     }
 }
 
@@ -1316,7 +1490,7 @@ export function projectOf(
             return session.config.set({ name });
         },
         save(options = {}) {
-            const { document, leftOut } = write(session, dispatcher, isDerived, options);
+            const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
             const text = JSON.stringify(document);
             const saved: SavedProject = Object.freeze({
                 text,

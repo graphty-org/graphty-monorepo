@@ -23,7 +23,7 @@
  * it; this one invoked it from 27 scripts and relied on hoisting.
  */
 
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { hostname } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -250,6 +250,17 @@ function appendBenchRow(log: string): undefined {
     return undefined;
 }
 
+/**
+ * The version a project file's `generator` names (src/session/runs/engine.ts), as the builds set
+ * it. Every project sets it, since an inline project does not inherit the root's `define`, and each
+ * gets its own copy, since vitest deletes the keys from the object it is handed.
+ */
+const define = {
+    __GRAPHTY_ELEMENT_VERSION__: JSON.stringify(
+        (JSON.parse(readFileSync(path.join(dirname, "package.json"), "utf8")) as { version: string }).version,
+    ),
+};
+
 export default defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
@@ -264,6 +275,7 @@ export default defineConfig({
         attachmentsDir: path.resolve(dirname, "tmp/vitest-attachments"),
         projects: [
             {
+                define: { ...define },
                 test: {
                     // Timing benchmarks, kept out of the coverage-collecting "default" project
                     // because instrumentation makes a stopwatch measure the instrumentation. Run
@@ -286,6 +298,7 @@ export default defineConfig({
                 },
             },
             {
+                define: { ...define },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "default",
@@ -376,6 +389,7 @@ export default defineConfig({
                     // window over the real global.
                     global: "globalThis",
                     window: "globalThis",
+                    ...define,
                 },
                 test: {
                     name: "mesh",
@@ -401,6 +415,7 @@ export default defineConfig({
                 },
             },
             {
+                define: { ...define },
                 resolve: {
                     alias: {
                         // Mock @mlc-ai/web-llm in browser tests - the package is CDN-only
@@ -478,6 +493,7 @@ export default defineConfig({
                 },
             },
             {
+                define: { ...define },
                 resolve: {
                     alias: {
                         // Mock @mlc-ai/web-llm in browser tests - the package is CDN-only
@@ -506,6 +522,7 @@ export default defineConfig({
                 },
             },
             {
+                define: { ...define },
                 // Timing benchmarks on a real graph in the browser, kept out of "browser" for the
                 // reason "bench" is kept out of "default": nothing here runs under coverage, which
                 // would time the instrumentation. Like "bench", it gates no push: CI runs it in
@@ -531,6 +548,7 @@ export default defineConfig({
                 },
             },
             {
+                define: { ...define },
                 // The env vars that cross into the page. The first is which flag set the run asked for.
                 // Naming it as a prefix is what puts it on `import.meta.env` in the browser --
                 // Vite copies every matching variable out of the process environment -- and
@@ -593,6 +611,7 @@ export default defineConfig({
                 },
             },
             {
+                define: { ...define },
                 // Browser timing rows for the sets work (design/sets/sets-plan.md 1.4): rows that need
                 // the element's store, a DataManager or a run, which the Node runner in benchmarks/
                 // cannot reach. Never asserts, never in CI or the pre-push gate, and its suffix is one
@@ -616,6 +635,7 @@ export default defineConfig({
                 },
             },
             {
+                define: { ...define },
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "interactions",
@@ -646,6 +666,7 @@ export default defineConfig({
                 },
             },
             {
+                define: { ...define },
                 extends: "vite.config.ts",
                 plugins: [
                     // The plugin will run tests for the stories defined in your Storybook config
@@ -700,6 +721,7 @@ export default defineConfig({
             // files sit inside describe.skipIf(skipIfNoApiKey()), so without a key they skip; the release
             // job checks the key is set first and fails if it is not.
             {
+                define: { ...define },
                 test: {
                     name: "llm-regression",
                     setupFiles: ["./test/ai/llm-regression/setup.ts"],

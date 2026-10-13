@@ -103,6 +103,10 @@ export default defineConfig(({ mode }) => {
         define: {
             // Disable Lit dev mode warning
             "process.env.NODE_ENV": JSON.stringify(mode === "development" ? "production" : mode),
+            // The version a project file's `generator` names (src/session/runs/engine.ts).
+            __GRAPHTY_ELEMENT_VERSION__: JSON.stringify(
+                (JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as { version: string }).version,
+            ),
         },
         build: {
             lib: {

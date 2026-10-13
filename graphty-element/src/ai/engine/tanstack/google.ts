@@ -67,6 +67,25 @@ const LABEL = /^[\w-]+$/;
 const TOP_LABEL = /^[a-z]{2,}$/i;
 
 /**
+ * A word without the dots a sentence puts around it ("example.com." ends a sentence).
+ * @param word - The word.
+ * @returns It, trimmed.
+ */
+function trimDots(word: string): string {
+    let start = 0;
+    let end = word.length;
+    while (start < end && word[start] === ".") {
+        start++;
+    }
+
+    while (end > start && word[end - 1] === ".") {
+        end--;
+    }
+
+    return word.slice(start, end);
+}
+
+/**
  * Whether a word looks like a host name (`example.com`, `www.example.org`): two or more labels,
  * the last of them letters.
  * @param word - The word, without the punctuation around it.
@@ -89,7 +108,7 @@ function hostsIn(text: string): string[] {
         hosts.push(URL.canParse(url) ? new URL(url).hostname : url);
         return " ";
     });
-    const words = rest.split(NOT_HOST).map((word) => word.replaceAll(/^\.+|\.+$/g, ""));
+    const words = rest.split(NOT_HOST).map(trimDots);
     return [...hosts, ...words.filter(looksLikeHost)].map((host) => host.toLowerCase());
 }
 

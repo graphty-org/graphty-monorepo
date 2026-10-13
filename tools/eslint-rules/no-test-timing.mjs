@@ -14,7 +14,18 @@
  *   setTimeout(n)` (node:timers/promises) and a call to a sleep helper (`sleepNames`, default
  *   sleep, delay, wait, pause) with a number;
  * - a per-test timeout: a timeout argument or `{ timeout }` option on it / test / describe / the
- *   hooks, `vi.setConfig({ testTimeout | hookTimeout })`, `this.timeout(n)` and `x.setTimeout(n)`.
+ *   hooks, `vi.setConfig({ testTimeout | hookTimeout })`, `this.timeout(n)` and `x.setTimeout(n)`;
+ * - a wait counted in animation frames: more than one awaited animation frame in a row, a counted
+ *   loop that only awaits one (`for (let i = 0; i < 5; i++) await nextFrame();`), a call with a
+ *   count above one to a helper that is such a loop over its parameter (`frames(30)`, or `frames()`
+ *   when the parameter defaults above one), and nested `requestAnimationFrame` calls. A busy machine
+ *   skips or adds frames, so a count of frames is a sleep (#2398, #2446, #2466). An awaited frame is
+ *   `new Promise((r) => requestAnimationFrame(r))`, a function that returns only that, or an
+ *   imported `nextFrame()`. A single frame is a yield and is not reported, nor is a loop that does
+ *   work besides waiting (`render(); await nextFrame();`);
+ * - a timer in code handed to the page: `setTimeout(fn, n)` with a delay inside a function passed
+ *   to `evaluate`, `evaluateHandle`, `$eval`, `$$eval`, `addInitScript` or `evaluateOnNewDocument`.
+ *   The page then runs its steps on the clock instead of on the events they wait on (#2422, #2447).
  *
  * Zero-delay timers (`setTimeout(r, 0)`) yield to the event loop and are not reported, and neither
  * is a sleep inside a callback handed to the code under test, which simulates slow work.
@@ -25,6 +36,10 @@ const CLOCK_HINT =
 const SLEEP_HINT =
     "Wait on a condition instead of the clock: expect.poll(), vi.waitFor(), a Playwright locator assertion or an awaited event.";
 const TIMEOUT_HINT = "Do not set a per-test timeout; find what the test waits on and wait on that condition instead.";
+const FRAMES_HINT =
+    "Count the work the test waits for (input updates, renders, events) and wait until that count is reached; a busy machine skips or adds animation frames.";
+const PAGE_TIMER_HINT =
+    "Drive each step in the page from the event it waits on (an awaited waitForFunction, a promise the test resolves) instead of a timer.";
 
 const TEST_NAMES = new Set(["it", "test", "describe", "suite"]);
 const HOOK_NAMES = new Set(["beforeAll", "beforeEach", "afterAll", "afterEach"]);
@@ -44,6 +59,10 @@ const COMPARISON_MATCHERS = new Set([
     "isAboveOrEqual",
 ]);
 const FUNCTION_TYPES = new Set(["ArrowFunctionExpression", "FunctionExpression", "FunctionDeclaration"]);
+// An imported function by this name waits one animation frame; a local one is judged by its body.
+const ONE_FRAME_NAMES = new Set(["nextFrame", "nextAnimationFrame", "animationFrame", "waitFrame", "waitForFrame"]);
+// Calls that run a function in the page rather than in the test.
+const PAGE_CALLS = new Set(["evaluate", "evaluateHandle", "$eval", "$$eval", "addInitScript", "evaluateOnNewDocument"]);
 
 /** @type {import("eslint").Rule.RuleModule} */
 const rule = {
@@ -53,7 +72,11 @@ const rule = {
         schema: [
             {
                 type: "object",
-                properties: { sleepNames: { type: "array", items: { type: "string" } } },
+                properties: {
+                    sleepNames: { type: "array", items: { type: "string" } },
+                    // false turns the animation-frame check off, for files listed with an issue to fix them.
+                    frameWaits: { type: "boolean" },
+                },
                 additionalProperties: false,
             },
         ],
@@ -61,10 +84,13 @@ const rule = {
             clock: `Assertion on a wall-clock value. ${CLOCK_HINT}`,
             sleep: `Fixed sleep used to wait. ${SLEEP_HINT}`,
             timeout: `Per-test timeout override. ${TIMEOUT_HINT}`,
+            frames: `Animation frames counted as a wait. ${FRAMES_HINT}`,
+            pageTimer: `Timer in code handed to the page. ${PAGE_TIMER_HINT}`,
         },
     },
     create(context) {
         const sleepNames = new Set(context.options[0]?.sleepNames ?? ["sleep", "delay", "wait", "pause"]);
+        const frameWaits = context.options[0]?.frameWaits ?? true;
         const { sourceCode } = context;
         // Variables holding a wall-clock value, and whether it is a reading or an elapsed time.
         const clockVars = new Map();
@@ -231,7 +257,7 @@ const rule = {
         // A sleep inside a callback handed to the code under test (`queue.run(async () => { await
         // sleep(10); })`, `vi.fn(async () => ...)`) simulates slow work; the test is not waiting on
         // it. A sleep in a test or hook body, a helper function or `page.evaluate` is a wait.
-        const reportSleep = (node) => {
+        const reportSleep = (node, messageId = "sleep") => {
             let fn = node.parent;
             while (fn && !isFunction(fn)) {
                 fn = fn.parent;
@@ -246,7 +272,198 @@ const rule = {
                 propName(call.callee) !== "evaluate" &&
                 call.callee.name !== "Promise";
             if (!simulated) {
-                context.report({ node, messageId: "sleep" });
+                context.report({ node, messageId });
+            }
+        };
+
+        // ---- Waits counted in animation frames. Judged at Program:exit, once every local function is known.
+        const frameLoops = [];
+        const frameCalls = [];
+        const frameAwaits = [];
+        const timers = [];
+
+        // The value of a number literal, arithmetic over them, or a const initialised to one.
+        const numValue = (n) => {
+            if (n?.type === "Literal" && typeof n.value === "number") {
+                return n.value;
+            }
+            if (n?.type === "UnaryExpression" && n.operator === "-") {
+                const v = numValue(n.argument);
+                return v === undefined ? undefined : -v;
+            }
+            if (n?.type === "BinaryExpression" && ["+", "-", "*"].includes(n.operator)) {
+                const l = numValue(n.left);
+                const r = numValue(n.right);
+                if (l === undefined || r === undefined) {
+                    return undefined;
+                }
+                return n.operator === "+" ? l + r : n.operator === "-" ? l - r : l * r;
+            }
+            if (n?.type === "Identifier") {
+                const def = resolve(n)?.defs[0];
+                if (def?.type === "Variable" && def.parent.kind === "const") {
+                    return numValue(def.node.init);
+                }
+            }
+            return undefined;
+        };
+
+        // The function a callee names, when it is declared in this file.
+        const localFunction = (callee) => {
+            const def = callee?.type === "Identifier" ? resolve(callee)?.defs[0] : undefined;
+            if (def?.type === "FunctionName") {
+                return def.node;
+            }
+            return def?.type === "Variable" && isFunction(def.node.init) ? def.node.init : undefined;
+        };
+
+        // The one expression a function's body evaluates to: `() => x`, `{ return x; }`, `{ await x; }`.
+        const soleExpression = (fn) => {
+            if (fn.body.type !== "BlockStatement") {
+                return fn.body;
+            }
+            if (fn.body.body.length !== 1) {
+                return undefined;
+            }
+            const [st] = fn.body.body;
+            const e = st.type === "ReturnStatement" ? st.argument : st.expression;
+            return e?.type === "AwaitExpression" ? e.argument : e;
+        };
+
+        const isRafCall = (n) =>
+            n?.type === "CallExpression" &&
+            (n.callee.name === "requestAnimationFrame" || propName(n.callee) === "requestAnimationFrame");
+
+        // How many frames a requestAnimationFrame callback waits in all: `() => requestAnimationFrame(r)` adds one.
+        const rafDepth = (call) => {
+            const [cb] = call.arguments;
+            const inner = isFunction(cb) ? soleExpression(cb) : undefined;
+            return 1 + (isRafCall(inner) ? rafDepth(inner) : 0);
+        };
+
+        // How many animation frames an expression waits, when that is all it does; else undefined.
+        const frameCount = (n, seen = new Set()) => {
+            if (n?.type === "NewExpression" && n.callee.name === "Promise" && isFunction(n.arguments[0])) {
+                const inner = soleExpression(n.arguments[0]);
+                return isRafCall(inner) ? rafDepth(inner) : undefined;
+            }
+            if (n?.type !== "CallExpression") {
+                return undefined;
+            }
+            const fn = localFunction(n.callee);
+            if (fn) {
+                if (seen.has(fn)) {
+                    return undefined;
+                }
+                seen.add(fn);
+                return frameCount(soleExpression(fn), seen);
+            }
+            const name = n.callee.type === "Identifier" ? n.callee.name : propName(n.callee);
+            return ONE_FRAME_NAMES.has(name) && n.arguments.length === 0 ? 1 : undefined;
+        };
+
+        const awaitedFrames = (st) =>
+            st?.type === "ExpressionStatement" && st.expression.type === "AwaitExpression"
+                ? frameCount(st.expression.argument)
+                : undefined;
+
+        // A `for` loop whose only statement awaits one frame: its counter and bound, else undefined.
+        const frameLoop = (loop) => {
+            const body = loop.body.type === "BlockStatement" ? loop.body.body : [loop.body];
+            const { test, init } = loop;
+            if (body.length !== 1 || awaitedFrames(body[0]) !== 1 || test?.type !== "BinaryExpression") {
+                return undefined;
+            }
+            if (!["<", "<="].includes(test.operator) || test.left.type !== "Identifier") {
+                return undefined;
+            }
+            const decl = init?.type === "VariableDeclaration" ? init.declarations[0] : undefined;
+            const start = decl?.id.name === test.left.name ? numValue(decl.init) : undefined;
+            return { bound: test.right, start: start ?? 0, inclusive: test.operator === "<=" };
+        };
+        const iterations = ({ start, inclusive }, bound) =>
+            bound === undefined ? undefined : bound - start + (inclusive ? 1 : 0);
+
+        // A function that waits as many frames as one of its parameters says: that parameter's index and default.
+        const frameHelper = (fn) => {
+            const loop = frameLoops
+                .map((l) => ({ l, info: frameLoop(l) }))
+                .find(({ l, info }) => {
+                    let p = l.parent;
+                    while (p && !isFunction(p)) {
+                        p = p.parent;
+                    }
+                    return p === fn && info?.bound.type === "Identifier";
+                });
+            if (!loop) {
+                return undefined;
+            }
+            const index = fn.params.findIndex(
+                (p) => (p.type === "AssignmentPattern" ? p.left : p).name === loop.info.bound.name,
+            );
+            if (index === -1) {
+                return undefined;
+            }
+            const param = fn.params[index];
+            return { index, info: loop.info, fallback: param.type === "AssignmentPattern" ? param.right : undefined };
+        };
+
+        const checkFrames = () => {
+            for (const loop of frameLoops) {
+                const info = frameLoop(loop);
+                if (info && iterations(info, numValue(info.bound)) > 1) {
+                    reportSleep(loop, "frames");
+                }
+            }
+            for (const call of frameCalls) {
+                const fn = localFunction(call.callee);
+                const helper = fn && frameHelper(fn);
+                if (helper) {
+                    const arg = call.arguments[helper.index] ?? helper.fallback;
+                    if (iterations(helper.info, numValue(arg)) > 1) {
+                        reportSleep(call, "frames");
+                    }
+                }
+            }
+            for (const node of frameAwaits) {
+                const count = frameCount(node.argument);
+                const st = node.parent;
+                const list = st.type === "ExpressionStatement" ? st.parent.body : undefined;
+                const previous = Array.isArray(list) ? list[list.indexOf(st) - 1] : undefined;
+                // Nested frames where they are written (a helper's body, not each call to it), or a
+                // second awaited frame straight after another.
+                const nested = count > 1 && !localFunction(node.argument.callee);
+                if (nested || (count === 1 && awaitedFrames(previous) === 1)) {
+                    reportSleep(node, "frames");
+                }
+            }
+        };
+
+        // ---- Timers in code handed to the page.
+        const pageFunctions = new Set();
+        const checkTimers = () => {
+            for (const call of timers) {
+                // `new Promise((r) => setTimeout(r, n))` is already reported as a sleep.
+                let fn = call.parent;
+                while (fn && !isFunction(fn)) {
+                    fn = fn.parent;
+                }
+                const promise = fn?.parent;
+                if (
+                    promise?.type === "NewExpression" &&
+                    promise.callee.name === "Promise" &&
+                    promise.arguments[0] === fn &&
+                    call.arguments[0]?.type === "Identifier" &&
+                    call.arguments[0].name === fn.params[0]?.name
+                ) {
+                    continue;
+                }
+                for (let p = call.parent; p; p = p.parent) {
+                    if (pageFunctions.has(p)) {
+                        context.report({ node: call, messageId: "pageTimer" });
+                        break;
+                    }
+                }
             }
         };
 
@@ -297,6 +514,18 @@ const rule = {
         };
 
         return {
+            ForStatement(node) {
+                frameLoops.push(node);
+            },
+            AwaitExpression(node) {
+                frameAwaits.push(node);
+            },
+            "Program:exit"() {
+                if (frameWaits) {
+                    checkFrames();
+                }
+                checkTimers();
+            },
             VariableDeclarator(node) {
                 markClock(node.id, node.init);
             },
@@ -319,6 +548,20 @@ const rule = {
                 const { callee } = node;
                 const name = callee.type === "Identifier" ? callee.name : propName(callee);
                 checkClockMatcher(node, name);
+                if (callee.type === "Identifier") {
+                    frameCalls.push(node);
+                }
+                if (name === "setTimeout" && !isZero(node.arguments[1])) {
+                    timers.push(node);
+                }
+                if (PAGE_CALLS.has(name) && callee.type === "MemberExpression") {
+                    for (const arg of node.arguments) {
+                        const fn = isFunction(arg) ? arg : localFunction(arg);
+                        if (fn) {
+                            pageFunctions.add(fn);
+                        }
+                    }
+                }
                 if (isSleepCall(node, name)) {
                     reportSleep(node);
                 }

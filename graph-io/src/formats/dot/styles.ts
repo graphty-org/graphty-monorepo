@@ -45,7 +45,7 @@ import {
     styleBlockLosses,
     writeStyleBlock,
 } from "../../styles/io/block.js";
-import type { ExporterStyleInput } from "../../styles/io/writer.js";
+import { type ExporterStyleInput, sharedInExportCall } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { styleFingerprint } from "../../styles/plan/features.js";
 import { plainCell, resolveStyles } from "../../styles/plan/resolve.js";
@@ -1521,24 +1521,14 @@ export function dotStyledExport(
     if (input === undefined) {
         return null;
     }
-    // an export with styles checks before it writes, with the same graph and styles: work them out once
-    const done = STYLED_EXPORTS.get(input);
-    if (done?.snapshot === snapshot && done.onMixedDirection === onMixedDirection) {
-        return done.styled;
-    }
-    const styled = styledExport(snapshot, input, onMixedDirection);
-    STYLED_EXPORTS.set(input, { snapshot, onMixedDirection, styled });
-    return styled;
+    // the registry's check before writing and the write of one export call share the work
+    return sharedInExportCall(input, [snapshot, onMixedDirection], () =>
+        styledExport(snapshot, input, onMixedDirection),
+    );
 }
 
-/** The last styled export worked out for each styles input, with the graph and option it was for. */
-const STYLED_EXPORTS = new WeakMap<
-    ExporterStyleInput,
-    { readonly snapshot: GraphSnapshot; readonly onMixedDirection: unknown; readonly styled: DotStyledExport }
->();
-
 /**
- * Works out a DOT export with styles: dotStyledExport() without the memo.
+ * Works out a DOT export with styles: dotStyledExport() without the sharing.
  * @param snapshot - the graph handed to the exporter
  * @param input - the styles
  * @param onMixedDirection - the exporter's option

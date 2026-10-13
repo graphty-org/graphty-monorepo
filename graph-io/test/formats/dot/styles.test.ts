@@ -12,7 +12,7 @@ import { join, resolve } from "node:path";
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { DOT_STYLE_BLOCK_ATTRIBUTE } from "../../../src/formats/dot/index.js";
+import { DOT_STYLE_BLOCK_ATTRIBUTE, dotExporter, type DotExportOptions } from "../../../src/formats/dot/index.js";
 import { createRegistry } from "../../../src/registry.js";
 import {
     type ExtractedStyles,
@@ -25,6 +25,7 @@ import {
     type StyleRule,
     type StyleTarget,
 } from "../../../src/styles/internal.js";
+import type { ExporterStyleOptions } from "../../../src/styles/io/writer.js";
 import { charactersExamined } from "../../helpers/work-meter.js";
 import { editDotNodeFill, replaceDotBlock } from "../../styles/formats/dot.js";
 
@@ -913,6 +914,48 @@ describe("DOT styles: writing", () => {
         const back = await load(text);
         expect(drawn(back.styles, back.snapshot, "node", "label")).toEqual(["1", "2", "3"]);
         expect(plain(back.styles)).toEqual(plain(styles));
+    });
+
+    it("writes the styles as they are now when they are changed in place between two exports", async () => {
+        const { snapshot, styles } = await load("digraph { a -> b }");
+        const before = await registry.exportGraphToString(snapshot, "dot", { styles });
+        const fill: StyleRule = {
+            id: "node.changed",
+            target: "node",
+            role: "defaults",
+            origin: "declared",
+            where: { all: true },
+            set: { fill: "#123456", fillOpacity: 1 },
+        };
+        (styles.styles.rules as StyleRule[]).push(fill);
+        const after = await registry.exportGraphToString(snapshot, "dot", { styles });
+        expect(before).not.toContain("#123456");
+        expect(after).toContain('fillcolor="#123456"');
+        const back = await load(after);
+        expect(drawn(back.styles, back.snapshot, "node", "fill")).toEqual(["#123456", "#123456"]);
+    });
+
+    it("works the styles out again when an exporter is handed the same styles input changed in place", async () => {
+        const { snapshot, styles } = await load("digraph { a -> b }");
+        const input = {
+            picture: (target: StyleTarget, property: StyleProperty) =>
+                resolveStyles(styles, target, property, snapshot),
+            block: "{}",
+            tags: { node: new Map(), edge: new Map() },
+            rules: styles,
+        };
+        const options: DotExportOptions & ExporterStyleOptions = { styles: input };
+        const before = await dotExporter.exportToString(snapshot, options);
+        (styles.styles.rules as StyleRule[]).push({
+            id: "node.changed",
+            target: "node",
+            role: "defaults",
+            origin: "declared",
+            where: { all: true },
+            set: { fill: "#123456", fillOpacity: 1 },
+        });
+        expect(before).not.toContain("#123456");
+        expect(await dotExporter.exportToString(snapshot, options)).toContain('fillcolor="#123456"');
     });
 
     it("reads, writes and reads back styles examining characters in proportion to the graph", async () => {

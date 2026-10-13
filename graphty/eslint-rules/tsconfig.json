@@ -5,5 +5,5 @@
         "checkJs": true,
         "types": ["node", "vite/client"]
     },
-    "include": ["*.js", "__tests__/*.ts", "../src/types/external-modules.d.ts"]
+    "include": ["*.js", "__tests__/*.ts", "../../graphty-element/src/types/modules.d.ts"]
 }

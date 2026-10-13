@@ -1,3 +1,52 @@
+## 3.25.4 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** free each test file's page under v8 coverage in browser tests ([#2247](https://github.com/graphty-org/graphty-monorepo/issues/2247))
+- **graphty-element:** build sphere and box nodes in their own graph's scene ([#2257](https://github.com/graphty-org/graphty-monorepo/issues/2257))
+- **graphty-element:** declare d3-force-3d once with callable forces, dropping the any casts ([#2255](https://github.com/graphty-org/graphty-monorepo/issues/2255))
+- **graphty-element:** cap the segments one curved edge is drawn with ([#2249](https://github.com/graphty-org/graphty-monorepo/issues/2249))
+- **graphty-element:** draw node.flat as flat shading ([#2069](https://github.com/graphty-org/graphty-monorepo/issues/2069))
+- **graphty-element:** draw the arf layout at the size the other layouts draw at ([e3ba3dd94](https://github.com/graphty-org/graphty-monorepo/commit/e3ba3dd94))
+- **graphty-element:** draw the ARF layout at the same size as every other layout ([5c69e1747](https://github.com/graphty-org/graphty-monorepo/commit/5c69e1747))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.50
+- Updated @graphty/remote-logger to 2.0.17
+- Updated graph-samples to 0.1.30
+- Updated graph-format to 1.3.15
+- Updated algorithms to 3.4.5
+- Updated graph-io to 0.3.38
+- Updated layout to 2.4.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.25.3 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** pace a CPU simulation layout by time, like every other layout ([#2204](https://github.com/graphty-org/graphty-monorepo/issues/2204))
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+- **graphty-element:** draw capsule and torus nodes at node.size ([#2070](https://github.com/graphty-org/graphty-monorepo/issues/2070))
+- **graphty-element:** use American spelling in the catalog's published plain names and descriptions ([#2105](https://github.com/graphty-org/graphty-monorepo/issues/2105))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.49
+- Updated @graphty/remote-logger to 2.0.16
+- Updated graph-samples to 0.1.29
+- Updated graph-format to 1.3.14
+- Updated algorithms to 3.4.4
+- Updated graph-io to 0.3.37
+- Updated layout to 2.4.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.25.2 (2026-10-12)
 
 ### 🩹 Fixes

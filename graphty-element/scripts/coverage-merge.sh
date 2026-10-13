@@ -11,7 +11,7 @@
 # Expected input structure (.coverage-parts/):
 #   default/lcov.info
 #   browser-1/lcov.info ... browser-5/lcov.info
-#   storybook-1/lcov.info ... storybook-4/lcov.info
+#   storybook-1/lcov.info ... storybook-5/lcov.info
 #
 # Output:
 #   coverage/lcov.info (merged)
@@ -57,7 +57,7 @@ while [[ $# -gt 0 ]]; do
             echo "Expected input structure (.coverage-parts/):"
             echo "  default/lcov.info"
             echo "  browser-1/lcov.info ... browser-5/lcov.info"
-            echo "  storybook-1/lcov.info ... storybook-4/lcov.info"
+            echo "  storybook-1/lcov.info ... storybook-5/lcov.info"
             echo ""
             echo "To generate coverage parts, run the sharded test commands:"
             echo "  pnpm run coverage:shard:default"

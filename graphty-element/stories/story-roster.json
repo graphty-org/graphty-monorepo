@@ -188,6 +188,7 @@
         "Styles/Node::AllNodeShapes",
         "Styles/Node::Color",
         "Styles/Node::Default",
+        "Styles/Node::Flat",
         "Styles/Node::Label",
         "Styles/Node::Opacity",
         "Styles/Node::Shape",

@@ -180,7 +180,7 @@ jobs:
 
             # No security audit here: a new advisory is published against code a pull request did not
             # change, so it failed every PR at once (52 PR runs in 4 waves in 5 days). The release
-            # train in release.yml audits before it opens the release pull request, and
+            # train in release.yml audits before it publishes, and
             # dependency-review.yml reviews the pull requests that change dependencies.
 
             # PR: build what the pull request affects (the lint job lints it). The base is named explicitly: the checkout

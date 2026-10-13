@@ -18,7 +18,7 @@ function getSchemeFromDOM(): "light" | "dark" | null {
         return null;
     }
 
-    const scheme = document.documentElement.getAttribute("data-mantine-color-scheme");
+    const scheme = document.documentElement.dataset.mantineColorScheme;
     if (scheme === "light" || scheme === "dark") {
         return scheme;
     }

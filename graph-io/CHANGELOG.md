@@ -1,3 +1,31 @@
+## 0.3.38 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graph-io:** never give a generated CX or CX2 edge id that a node already has ([f28603f5f](https://github.com/graphty-org/graphty-monorepo/commit/f28603f5f))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.15
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.37 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.36 (2026-10-12)
 
 ### 🧱 Updated Dependencies

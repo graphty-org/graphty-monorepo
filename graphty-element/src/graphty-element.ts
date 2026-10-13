@@ -1421,7 +1421,7 @@ export class Graphty extends LitElement {
          * hand the setter "true" and "false" as text) is right on its own.
          */
         converter: {
-            fromAttribute: (value: string | null): boolean | "auto" | undefined => {
+            fromAttribute: (value: string | null): Graphty["directed"] => {
                 if (value === null) {
                     return undefined;
                 }

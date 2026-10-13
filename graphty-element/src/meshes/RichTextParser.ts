@@ -22,7 +22,7 @@ export class RichTextParser {
      */
     parse(text: string, plainText = false): TextSegment[][] {
         const whole = (line: string): TextSegment[] =>
-            line === "" ? [] : [{ text: line, style: Object.assign({}, this.defaultStyle) }];
+            line === "" ? [] : [{ text: line, style: { ...this.defaultStyle } }];
         return text.split("\n").map((line) => (plainText ? whole(line) : this.parseLine(line)));
     }
 
@@ -30,7 +30,7 @@ export class RichTextParser {
         const segments: TextSegment[] = [];
         let currentPos = 0;
 
-        const styleStack: RichTextStyle[] = [Object.assign({}, this.defaultStyle)];
+        const styleStack: RichTextStyle[] = [{ ...this.defaultStyle }];
 
         const tagRegex = /<(\/?)(bold|italic|color|size|font|bg)(?:='([^']*)')?>/g;
         let match;
@@ -39,7 +39,7 @@ export class RichTextParser {
             if (match.index > currentPos) {
                 segments.push({
                     text: line.substring(currentPos, match.index),
-                    style: Object.assign({}, styleStack[styleStack.length - 1]),
+                    style: { ...styleStack[styleStack.length - 1] },
                 });
             }
 
@@ -52,7 +52,7 @@ export class RichTextParser {
                     styleStack.pop();
                 }
             } else {
-                const newStyle = Object.assign({}, styleStack[styleStack.length - 1]);
+                const newStyle = { ...styleStack[styleStack.length - 1] };
 
                 switch (tagName) {
                     case "bold":
@@ -86,7 +86,7 @@ export class RichTextParser {
         if (currentPos < line.length) {
             segments.push({
                 text: line.substring(currentPos),
-                style: Object.assign({}, styleStack[styleStack.length - 1]),
+                style: { ...styleStack[styleStack.length - 1] },
             });
         }
 

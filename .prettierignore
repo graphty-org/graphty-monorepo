@@ -21,7 +21,7 @@ graphty-element/test/ai/conversation/fixtures/
 **/__snapshots__/
 # Changelogs: written by `nx release` (tools/changelog-renderer.cjs) inside the release commit, so
 # nothing formats them. Prettier would also rewrite the commit subjects they quote (A* -> A\*,
-# __proto__ -> **proto**), and a release pull request must never fail CI on its own changelogs.
+# __proto__ -> **proto**), and a release commit must never fail CI on its own changelogs.
 **/CHANGELOG.md
 *.min.js
 *.bundle.js

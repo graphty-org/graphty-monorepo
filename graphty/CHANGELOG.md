@@ -1,3 +1,42 @@
+## 0.8.71 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** free each test file's page under v8 coverage in browser tests ([#2247](https://github.com/graphty-org/graphty-monorepo/issues/2247))
+- **graphty:** type-check graphty-element source with its own d3-force-3d declarations ([#2255](https://github.com/graphty-org/graphty-monorepo/issues/2255))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.50
+- Updated compact-mantine to 0.9.22
+- Updated graphty-element to 3.25.4
+- Updated graph-samples to 0.1.30
+- Updated graph-format to 1.3.15
+- Updated graph-io to 0.3.38
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.70 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.49
+- Updated compact-mantine to 0.9.21
+- Updated graphty-element to 3.25.3
+- Updated graph-samples to 0.1.29
+- Updated graph-format to 1.3.14
+- Updated graph-io to 0.3.37
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.69 (2026-10-12)
 
 ### 🧱 Updated Dependencies

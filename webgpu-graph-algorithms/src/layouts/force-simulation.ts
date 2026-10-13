@@ -168,7 +168,14 @@ const SHARED_STATE_FIELDS: readonly (readonly [string, number])[] = [
 ];
 
 /** The names of the shared buffers a BufferSpec may not reuse. */
-const SHARED_BUFFER_NAMES: readonly string[] = ["positions", "scenePositions", "fixed", "partials", "state", "trace"];
+const SHARED_BUFFER_NAMES: ReadonlySet<string> = new Set([
+    "positions",
+    "scenePositions",
+    "fixed",
+    "partials",
+    "state",
+    "trace",
+]);
 
 /** The buffers inspect() returns as Uint32Array: the mask, the trace records and the grid tier's index / count arrays (P4). */
 const U32_BUFFER_NAMES: ReadonlySet<string> = new Set([
@@ -1762,7 +1769,7 @@ export class ForceSimulation<
         bindings.set("trace", { buffer: state, offset: STATE_HEADER_BYTES, size: traceRegionBytes, window: null });
         const model = new Map<string, { readonly buffer: GPUBuffer; readonly spec: BufferSpec }>();
         for (const spec of this.model.buffers(n, this.dimValue)) {
-            if (SHARED_BUFFER_NAMES.includes(spec.name) || bindings.has(spec.name)) {
+            if (SHARED_BUFFER_NAMES.has(spec.name) || bindings.has(spec.name)) {
                 throw invalidArgument(
                     "BufferSpec.name",
                     spec.name,

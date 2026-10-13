@@ -445,7 +445,7 @@ function analyzeBooleanProperty(
     nullCount: number,
 ): BooleanPropertyResult {
     const booleanValues = values.filter((v): v is boolean => typeof v === "boolean");
-    const trueCount = booleanValues.filter((v) => v).length;
+    const trueCount = booleanValues.filter(Boolean).length;
     const falseCount = booleanValues.length - trueCount;
 
     return {

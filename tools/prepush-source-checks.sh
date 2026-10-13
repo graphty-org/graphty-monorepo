@@ -3,7 +3,7 @@
 # the config and tool checks and the SonarQube changed-lines scan. They read only the source -- no
 # build, no affected list -- and take about two minutes together, so they run before anything slow:
 #  - tools/prepush.sh runs them first (it sources this file, which also gives it run_step), and
-#  - tmp/push-queue.sh runs them before a push waits for a gate slot, so a slip fails in about a minute
+#  - tools/push-queue.sh runs them before a push waits for a gate slot, so a slip fails in about a minute
 #    instead of after the queue.
 # A pass records the checkout's fingerprint (HEAD and the content of every file git does not ignore,
 # tools/prepush-inputs.mjs) in this worktree's git directory. When the checkout still has that

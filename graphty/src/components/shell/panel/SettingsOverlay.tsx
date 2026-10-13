@@ -74,7 +74,7 @@ const NAV_ROW_HEIGHT = PANEL_GRID.DATA_PITCH;
  * attribute, the one setting 7.2's Performance branch names that the element leaves to the host
  * to remember.
  */
-const SHIPPED_SECTION_IDS: readonly string[] = ["appearance", "shortcuts", "performance", "ai"];
+const SHIPPED_SECTION_IDS: ReadonlySet<string> = new Set(["appearance", "shortcuts", "performance", "ai"]);
 
 /** The switch's label: the verb and the thing, in the reader's words. */
 const LABEL_SWITCH_LABEL = "Label the most connected nodes";
@@ -646,7 +646,7 @@ export function SettingsOverlay(props: SettingsOverlayProps): React.JSX.Element 
                             </Box>
                         )}
 
-                        {!SHIPPED_SECTION_IDS.includes(section.id) && (
+                        {!SHIPPED_SECTION_IDS.has(section.id) && (
                             <Box style={{ display: "flex", alignItems: "center", gap: PANEL_GRID.TRAIL_GAP }}>
                                 <ComingTag />
                             </Box>

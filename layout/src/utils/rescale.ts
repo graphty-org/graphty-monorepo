@@ -29,10 +29,8 @@ export function rescaleLayout(
         if (pos.length === 0) {
             return [];
         }
-    } else {
-        if (Object.keys(pos).length === 0) {
-            return {};
-        }
+    } else if (Object.keys(pos).length === 0) {
+        return {};
     }
 
     // Extract position values
@@ -142,32 +140,31 @@ export function rescaleLayout(
                 });
             }
         }
-    } else {
+    } else if (Array.isArray(pos)) {
         // All nodes at the same position - extend to target dimensionality
-        if (Array.isArray(pos)) {
-            (scaledPos as number[][]) = pos.map((p) => {
-                const result = new Array(targetDim);
-                for (let i = 0; i < targetDim; i++) {
-                    if (i < p.length) {
-                        result[i] = Number.isNaN(p[i]) ? Number.NaN : center[i];
-                    } else {
-                        result[i] = center[i];
-                    }
+        (scaledPos as number[][]) = pos.map((p) => {
+            const result = new Array(targetDim);
+            for (let i = 0; i < targetDim; i++) {
+                if (i < p.length) {
+                    result[i] = Number.isNaN(p[i]) ? Number.NaN : center[i];
+                } else {
+                    result[i] = center[i];
                 }
-                return result;
-            });
-        } else {
-            for (const [node, p] of Object.entries(pos)) {
-                const result = new Array(targetDim);
-                for (let i = 0; i < targetDim; i++) {
-                    if (i < p.length) {
-                        result[i] = Number.isNaN(p[i]) ? Number.NaN : center[i];
-                    } else {
-                        result[i] = center[i];
-                    }
-                }
-                (scaledPos as PositionMap)[node] = result;
             }
+            return result;
+        });
+    } else {
+        // All nodes at the same position, as a map - extend to target dimensionality
+        for (const [node, p] of Object.entries(pos)) {
+            const result = new Array(targetDim);
+            for (let i = 0; i < targetDim; i++) {
+                if (i < p.length) {
+                    result[i] = Number.isNaN(p[i]) ? Number.NaN : center[i];
+                } else {
+                    result[i] = center[i];
+                }
+            }
+            (scaledPos as PositionMap)[node] = result;
         }
     }
 

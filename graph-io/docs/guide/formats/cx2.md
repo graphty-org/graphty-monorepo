@@ -95,7 +95,7 @@ What does not survive:
   `graphty:originalId` attribute that graph-io turns back into the id.
 - `NaN` and the infinities are written as `null` (`W_CX2_NONFINITE_AS_NULL`), and JSON values as
   text (`W_CX2_JSON_AS_STRING`).
-- Edge ids are generated when the graph has none (`W_EDGE_IDS_GENERATED`).
+- Edge ids are generated when the graph has none (`W_EDGE_IDS_GENERATED`), and a generated id is never also a node id.
 - Nesting and time columns.
 
 <!-- generated:begin capabilities:cx2 -->

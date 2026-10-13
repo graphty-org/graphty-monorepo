@@ -1,3 +1,27 @@
+## 0.9.22 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** free each test file's page under v8 coverage in browser tests ([#2247](https://github.com/graphty-org/graphty-monorepo/issues/2247))
+- **compact-mantine:** stop the size glyphs reading as a magnifying glass ([#2101](https://github.com/graphty-org/graphty-monorepo/issues/2101))
+- **compact-mantine:** dim disabled field placeholders and disabled toggle icons ([#2102](https://github.com/graphty-org/graphty-monorepo/issues/2102))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.21 (2026-10-13)
+
+### 🩹 Fixes
+
+- **compact-mantine:** name the departure note by its severity word and its own text ([#2103](https://github.com/graphty-org/graphty-monorepo/issues/2103))
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+- **compact-mantine:** make a Tree one Tab stop, with row toggles reached by the arrow keys ([#2099](https://github.com/graphty-org/graphty-monorepo/issues/2099))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.20 (2026-10-12)
 
 ### 🩹 Fixes

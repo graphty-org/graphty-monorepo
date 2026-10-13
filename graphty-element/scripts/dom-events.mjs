@@ -59,8 +59,8 @@ function stringLiterals(node) {
  * @returns {string} The description, or an empty string when the interface carries no JSDoc.
  */
 function description(declaration) {
-    const docs = ts.getJSDocCommentsAndTags(declaration).filter((doc) => ts.isJSDoc(doc));
-    const comment = docs[0]?.comment;
+    const doc = ts.getJSDocCommentsAndTags(declaration).find((d) => ts.isJSDoc(d));
+    const comment = doc?.comment;
 
     if (typeof comment === "string") {
         return comment

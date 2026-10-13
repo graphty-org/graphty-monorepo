@@ -7,19 +7,32 @@
 //   node --test tools/push-queue.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 
 import { isolateGit } from "./isolated-git-env.mjs";
+
+// The temporary directories this file makes go inside this one, removed when the file finishes.
+const TMP = mkdtempSync(join(tmpdir(), "push-queue-"));
+after(() => rmSync(TMP, { recursive: true, force: true }));
 
 isolateGit();
 const QUEUE = new URL("./push-queue.sh", import.meta.url).pathname;
 
 // A repository to run the queue in, with one commit and a bare `origin`, plus the queue's paths.
 function setup() {
-    const root = mkdtempSync(join(tmpdir(), "push-queue-"));
+    const root = mkdtempSync(join(TMP, "push-queue-"));
     const repo = join(root, "repo");
     mkdirSync(repo);
     const git = (...args) => spawnSync("git", args, { cwd: repo, encoding: "utf8" });

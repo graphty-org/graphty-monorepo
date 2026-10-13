@@ -7,6 +7,7 @@ import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { browserCoverageCommands } from "../vitest.browser-coverage.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 
 /**
@@ -135,6 +136,7 @@ const accessibilityTree: BrowserCommand<[]> = async (ctx): Promise<AxNode[]> => 
  * browser projects load that setup file, so both register the same commands.
  */
 const browserCommands = {
+    ...browserCoverageCommands,
     figmaAvailable,
     readFigmaCapture,
     mouseAway,

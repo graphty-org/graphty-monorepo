@@ -33,6 +33,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { browserCoverageCommands } from "../vitest.browser-coverage.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
@@ -467,6 +468,7 @@ export default defineConfig({
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
+                        commands: browserCoverageCommands,
                     },
                 },
             },
@@ -495,6 +497,7 @@ export default defineConfig({
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
+                        commands: browserCoverageCommands,
                     },
                 },
             },
@@ -520,6 +523,7 @@ export default defineConfig({
                         // the steps before it made due. Its header has the numbers.
                         provider: playwright({ launchOptions: { args: ["--js-flags=--expose-gc"] } }),
                         instances: [{ browser: "chromium" }],
+                        commands: browserCoverageCommands,
                     },
                 },
             },
@@ -582,6 +586,7 @@ export default defineConfig({
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
                         instances: [browserInstance()],
+                        commands: browserCoverageCommands,
                     },
                 },
             },
@@ -605,6 +610,7 @@ export default defineConfig({
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
+                        commands: browserCoverageCommands,
                     },
                 },
             },
@@ -633,6 +639,7 @@ export default defineConfig({
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
+                        commands: browserCoverageCommands,
                     },
                     // Interaction tests load complex scenes and may need longer timeout
                     testTimeout: 30000,
@@ -678,6 +685,7 @@ export default defineConfig({
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
+                        commands: browserCoverageCommands,
                     },
                     setupFiles: [".storybook/vitest.setup.ts"],
                     // Storybook tests load complex 3D scenes and need longer timeout

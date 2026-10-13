@@ -2,6 +2,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { browserCoverageCommands } from "../vitest.browser-coverage.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 
 export default defineConfig({
@@ -49,6 +50,7 @@ export default defineConfig({
                         headless: true,
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
+                        commands: browserCoverageCommands,
                     },
                     include: ["test/browser/**/*.test.ts"],
                     testTimeout: 60000,

@@ -7,6 +7,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { browserCoverageCommands } from "../vitest.browser-coverage.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { aliases } from "./vite.aliases";
 
@@ -25,6 +26,7 @@ const chromium = () => ({
     headless: true,
     provider: playwright(),
     instances: [{ browser: "chromium" as const }],
+    commands: browserCoverageCommands,
 });
 
 export default defineConfig({

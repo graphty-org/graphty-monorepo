@@ -24,6 +24,7 @@ import { advisoryFailure, advisoryWords, utcDay } from "./advisory.mjs";
 import { balanceRefusal, classify } from "./classify.mjs";
 import { failureKey, isSummaryJob } from "./lanes.mjs";
 import { staleRevert } from "./master-fix.mjs";
+import { closingRefs } from "./merged.mjs";
 
 /**
  * @typedef {import("./config.mjs").Config} Config
@@ -367,6 +368,21 @@ export function updatePrs(saved, nodes, master, config, now = new Date().toISOSt
 }
 
 /**
+ * The issues an open pull request closes. GitHub's closing references cover only a pull request
+ * based on the default branch; for one stacked on another branch they are empty, so its title and
+ * description are read for closing keywords as GitHub would read them once it is based on master.
+ * @param {any} node the pullRequest node
+ * @param {string | undefined} branch the default branch
+ * @param {string | undefined} repo this repository, `owner/name`
+ * @returns {number[]} the issue numbers
+ */
+export function referencesOf(node, branch, repo) {
+    const closing = (node.closingIssuesReferences?.nodes ?? []).map((/** @type {any} */ i) => i.number);
+    if (!branch || node.baseRefName === branch) return closing;
+    return [...new Set([...closing, ...closingRefs(`${node.title ?? ""}\n${node.body ?? ""}`, repo)])];
+}
+
+/**
  * Takes the advisory checks out of a pull request's failures (advisory.mjs): a failed check run of
  * a job in its warning period leaves `failingChecks`, and a failing summary check whose failed
  * jobs are all advisory counts as passed, so none makes the pull request broken, a job, an
@@ -479,7 +495,7 @@ function foldPr(node, prev, config, now, master) {
         author: node.author?.login ?? null,
         title: node.title,
         createdAt: node.createdAt ?? null,
-        references: (node.closingIssuesReferences?.nodes ?? []).map((/** @type {any} */ i) => i.number),
+        references: referencesOf(node, master.branch, config.repo),
         labels: (node.labels?.nodes ?? []).map((/** @type {any} */ l) => l.name),
         headChangedAt: kept.headChangedAt,
         headCommittedAt: checks.committedAt,

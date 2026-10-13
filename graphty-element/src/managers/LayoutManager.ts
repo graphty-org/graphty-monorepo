@@ -5,6 +5,7 @@ import type {
     SimulationType,
     SpringElectricalOptions,
 } from "@graphty/layout";
+import { z } from "zod/v4";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
 import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../catalog/layouts";
@@ -305,6 +306,50 @@ function resolveLayoutOptions(
     }
 
     return resolveOptionValues(descriptor.options, passed as Record<string, unknown>, { kind: "layout", id: type });
+}
+
+/**
+ * The refusal for options an engine's own schema rejected while it was built: an engine that
+ * declares no descriptor validates its options with Zod in its constructor, and a missing
+ * required option (`bfs` with no `start`) used to arrive as `E_INTERNAL` whose message was Zod's
+ * issue dump. It is the same refusal `resolveLayoutOptions` gives: `E_UNKNOWN_OPTION` for a name
+ * the engine does not take, `E_OPTION_RANGE` for a value it does not accept or a required option
+ * that is missing.
+ * @param type - The layout name.
+ * @param error - What the build threw.
+ * @param passed - The options the engine was built with.
+ * @returns The error to report, or undefined when the build failed for another reason.
+ */
+function optionRefusal(type: string, error: unknown, passed: Record<string, unknown>): GraphtyError | undefined {
+    const issue = error instanceof z.ZodError ? error.issues[0] : undefined;
+    if (issue === undefined) {
+        return undefined;
+    }
+
+    const where = { kind: "layout", id: type };
+    if (issue.code === "unrecognized_keys") {
+        const option = issue.keys[0] ?? "";
+        return new GraphtyError({
+            code: "E_UNKNOWN_OPTION",
+            message: `the layout "${type}" has no option named "${option}"`,
+            source: "config",
+            details: { ...where, option },
+            cause: error,
+        });
+    }
+
+    const option = String(issue.path[0] ?? "");
+    const value = passed[option];
+    return new GraphtyError({
+        code: "E_OPTION_RANGE",
+        message:
+            value === undefined
+                ? `the layout "${type}" needs the option "${option}"`
+                : `the layout "${type}" does not accept that "${option}"`,
+        source: "config",
+        details: value === undefined ? { ...where, option } : { ...where, option, value },
+        cause: error,
+    });
 }
 
 /**
@@ -1106,7 +1151,7 @@ export class LayoutManager implements Manager {
                 throw cancelledBuild();
             }
 
-            throw this.reportLayoutFailure(type, error, "built");
+            throw this.reportLayoutFailure(type, optionRefusal(type, error, layoutOpts) ?? error, "built");
         }
 
         if (engine instanceof SnapshotLayoutEngine) {

@@ -1,3 +1,18 @@
+## 0.0.16 (2026-10-13)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** destroy each demo core once its capture picture is in place ([#2311](https://github.com/graphty-org/graphty-monorepo/issues/2311))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.51
+- Updated layout to 2.5.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.15 (2026-10-13)
 
 ### 🚀 Features

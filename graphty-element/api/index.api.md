@@ -615,6 +615,7 @@ export class DataManager implements Manager {
     nodeCache: Map<NodeIdType, Node_2>;
     get nodes(): ReadonlyMap<string | number, Node_2>;
     get positions(): ReadonlyElementPositions;
+    get positionScale(): number;
     reconcile(slice: GraphSlice, dirty: ReadonlySet<string>, cause: HistoryCause): {
         added: number;
         removed: number;

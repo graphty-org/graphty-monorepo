@@ -13,14 +13,23 @@ import type { ExtractedStyles } from "@graphty/graph-io/styles";
 
 import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, RuleTree } from "../../../catalog/types";
 import type { LoadReport } from "../../../data/report";
+import { readSeedPosition } from "../../../data/seedPosition";
 import type { DataImportCommand } from "../../commands/data";
 import type { UndoableContext } from "../../project/Dispatcher";
+import type { PositionEntry } from "../../types";
 import type { CompiledLayer } from "../Layer";
 import { quotePath } from "../predicate";
 import { FILE_STYLE_TRANSLATION_ISSUE } from "./codes";
 import { dataPaths, elementIdsOf, type ReaderColumnPath } from "./columns";
 import { fileStyleNamespace, fileStylePath } from "./path";
-import { asFileStyleStore, FILE_STYLES_VALUE, type FileStyleColumnValues, fileStyleValuesOf } from "./store";
+import {
+    asFileStyleStore,
+    FILE_STYLES_VALUE,
+    fileLengthScale,
+    type FileStyleColumnValues,
+    fileStyleValuesOf,
+    recordPositionScale,
+} from "./store";
 import { type FileStyleNote, type FileStyleOptions, translateFileStyles, type Translation } from "./translate";
 
 /** The template a file's layers are filed under: `file:<importId>`. */
@@ -75,6 +84,13 @@ export interface LoadStyleReport {
     readonly layers: readonly LayerId[];
     /** What reading and translating the file's styles met, as codes and facts. */
     readonly notes: readonly FileStyleNote[];
+    /**
+     * What the load multiplied the file's lengths by: its node sizes, edge widths, label sizes
+     * (unless `labelSizes: "file"`) and positions alike, so the drawing keeps the file's
+     * proportions. 1 when the file carries no styles. Positions are also multiplied by the
+     * element's `positionScale`.
+     */
+    readonly lengthScale: number;
 }
 
 /**
@@ -154,17 +170,17 @@ export async function applyFileStyles(
             signal: ctx.signal,
         })) ?? null;
     ctx.signal.throwIfAborted();
-    const notes: FileStyleNote[] = [];
-    const layers: LayerId[] = [];
-    if (read !== null) {
-        const applied = await applyRead(outcome, read, options, ctx, replacing);
-        layers.push(...applied.layers);
-        notes.push(...applied.notes);
-    }
-
+    const applied: LoadStyleReport =
+        read === null
+            ? { layers: [], notes: [], lengthScale: 1 }
+            : await applyRead(outcome, read, options, ctx, replacing);
     const report: LoadReport = Object.freeze({
         ...outcome.report,
-        styles: Object.freeze({ layers: Object.freeze(layers), notes: Object.freeze(notes) }),
+        styles: Object.freeze({
+            layers: Object.freeze([...applied.layers]),
+            notes: Object.freeze([...applied.notes]),
+            lengthScale: applied.lengthScale,
+        }),
     });
     ctx.services.data?.values?.({ importReport: report }, ctx.draft);
 }
@@ -185,7 +201,8 @@ async function applyRead(
     ctx: UndoableContext,
     replacing: boolean,
 ): Promise<LoadStyleReport> {
-    const held = replacing ? [] : fileStyleValuesOf(asFileStyleStore(ctx.state.graph.values.get(FILE_STYLES_VALUE)));
+    const store = asFileStyleStore(ctx.state.graph.values.get(FILE_STYLES_VALUE));
+    const held = replacing ? [] : fileStyleValuesOf(store);
     const namespace = fileStyleNamespace(read.format, new Set(held.map((load) => load.namespace)));
     const importId = namespace;
     const translation = translateFileStyles({
@@ -195,6 +212,8 @@ async function applyRead(
         format: read.format,
         importId,
         options,
+        // A merge draws at the scale the graph's files already have, so one drawing has one scale.
+        ...(held.length > 0 ? { lengthScale: fileLengthScale(store) } : {}),
         base: baseValues(ctx.state.styles),
         dataPath: dataPaths(read.path),
     });
@@ -218,8 +237,12 @@ async function applyRead(
         }
     }
 
-    const load = { importId, namespace, format: read.format, columns };
+    const { lengthScale } = translation;
+    const load = { importId, namespace, format: read.format, columns, lengthScale };
     await ctx.inline({ op: "data.setFileStyles", loads: [...held, load] });
+    if (lengthScale !== fileLengthScale(store)) {
+        await placeAtScale(ids.node, ctx);
+    }
 
     // Checked one by one, so a layer the element refuses is left out and the rest apply.
     const service = ctx.services.styles;
@@ -282,7 +305,31 @@ async function applyRead(
             });
     }
 
-    return { layers, notes };
+    return { layers, notes, lengthScale };
+}
+
+/**
+ * Put the nodes a load placed from their records where the graph's new scale puts them. The load
+ * seeded them as it wrote them, before its styles chose the scale they share with the node sizes.
+ * @param ids - The load's nodes, by the import's element index.
+ * @param ctx - The import's context.
+ */
+async function placeAtScale(ids: readonly (NodeId | null | undefined)[], ctx: UndoableContext): Promise<void> {
+    const { graph } = ctx.state;
+    const positionScale = ctx.services.config?.().data.knownFields.positionScale ?? 1;
+    const scale = recordPositionScale(positionScale, graph.values);
+    const entries: PositionEntry[] = [];
+    for (const id of ids) {
+        const record = id === null || id === undefined ? undefined : graph.nodes.get(id);
+        const seed = record === undefined ? null : readSeedPosition(record);
+        if (seed !== null && id !== null && id !== undefined) {
+            entries.push({ id, x: seed[0] * scale, y: seed[1] * scale, z: seed[2] * scale });
+        }
+    }
+
+    if (entries.length > 0) {
+        await ctx.inline({ op: "positions.set", entries });
+    }
 }
 
 /**

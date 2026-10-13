@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { defineOptions, type OptionsSchema } from "../config";
 import type { Node } from "../Node";
 import { SimpleLayoutConfig } from "./LayoutEngine";
-import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
+import { positionScaleOf, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
  * Zod-based options schema for Fixed Layout
@@ -30,7 +30,7 @@ type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
  * The fixed layout: every node goes to its `data.position`, and then stays where it is put.
  *
  * The first time an engine lays out, every node carrying a `data.position` is placed there (scaled
- * by `data.knownFields.positionScale`), whatever an earlier layout left in the element's position
+ * by `data.knownFields.positionScale` and by the scale its file's styles were drawn at), whatever an earlier layout left in the element's position
  * array -- switching to "fixed" means "put the nodes where the data says". After that the engine
  * keeps what the array holds, so a drag survives a later recompute; a node added later reaches the
  * array from its own `data.position` when the graph is frozen. A node with no coordinates at all
@@ -68,7 +68,9 @@ export class FixedLayout extends SnapshotLayoutEngine {
         const position = (n.data as Record<string, unknown>).position as
             { x?: number; y?: number; z?: number } | undefined;
         if (position) {
-            n.setMeshPosition(position.x ?? 0, position.y ?? 0, position.z ?? 0);
+            // Scaled as the array's seed is, so the mesh does not start in the file's own units.
+            const scale = positionScaleOf(n);
+            n.setMeshPosition((position.x ?? 0) * scale, (position.y ?? 0) * scale, (position.z ?? 0) * scale);
         }
     }
 

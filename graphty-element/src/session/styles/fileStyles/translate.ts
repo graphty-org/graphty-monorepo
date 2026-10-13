@@ -58,14 +58,31 @@ const LABEL_LAYERS = { default: 8, max: 16 } as const;
 /** The key `ext` carries graphty-element's own layer under, in a file graphty wrote. */
 export const LAYER_SPEC_EXT = "@graphty/graphty-element";
 
+/**
+ * The `edge.width` that is one scene unit wide: the element's world-space line renderers draw an
+ * edge `width / 40` scene units wide.
+ */
+export const EDGE_WIDTH_PER_UNIT = 40;
+/** The label size whose letters are one scene unit tall: a label is drawn `size / 48` units tall. */
+export const LABEL_SIZE_PER_UNIT = 48;
+
 /** How a file's styles are turned into layers: choices another consumer may make differently. */
 export interface FileStyleOptions {
     /**
-     * How lengths are scaled: `"median"` (the default) makes the file's median node size the
-     * element's default node size and its median edge width the default edge width; `"file"`
-     * keeps the file's numbers as they are.
+     * How the file's lengths are scaled. Node sizes, edge widths, label sizes and positions are
+     * all multiplied by one scale, so the drawing keeps the file's proportions: `"median"` (the
+     * default) picks the scale that makes the file's median node size the element's default node
+     * size (or, with no node sizes, its median edge width the default edge width); `"file"` takes
+     * one file unit as one scene unit. A load merged into a graph a file already set a scale for
+     * takes that scale. The load reports the scale as `styles.lengthScale`.
      */
     readonly lengths?: "median" | "file";
+    /**
+     * How label sizes are drawn: `"proportional"` (the default) scales them with the nodes, so a
+     * label keeps its size relative to its node as the file has it; `"file"` takes the file's
+     * label sizes as the element's label sizes, unscaled.
+     */
+    readonly labelSizes?: "proportional" | "file";
     /**
      * The element shape each 2D node shape of the file is drawn as; `FILE_STYLE_SHAPES` by default.
      * A shape the table leaves out is not drawn from the file, and the load notes it.
@@ -111,6 +128,8 @@ export interface TranslateInput {
     readonly importId: string;
     /** The load's choices. */
     readonly options: FileStyleOptions;
+    /** The scale the graph already draws files at, which the load takes; undefined to choose one. */
+    readonly lengthScale?: number;
     /** What the element's own base layers paint, per kind, for a file graphty wrote. */
     readonly base: Readonly<Record<StyleTarget, Readonly<Partial<Record<Channel, unknown>>>>>;
     /** The path a layer reads one of the file's data columns at, or null when it cannot. */
@@ -138,6 +157,8 @@ export interface Translation {
     readonly hidden: Readonly<Record<StyleTarget, { readonly key: string; readonly count: number } | null>>;
     /** The graph's background color, or null. */
     readonly background: string | null;
+    /** What every length of the file was multiplied by, its positions among them. */
+    readonly lengthScale: number;
     /** What the file's reading and its translation met. */
     readonly notes: readonly FileStyleNote[];
     /**
@@ -427,12 +448,14 @@ function closingQuote(where: string, from: number, quote: string): number {
  * @param kind - Nodes or edges.
  * @param factor - What a length of the file is multiplied by.
  * @param shapes - The 2D-to-3D shape table.
+ * @param labelSizes - Whether label sizes are scaled with the rest.
  * @returns The plans per property.
  */
 function channelPlans(
     kind: StyleTarget,
     factor: number,
     shapes: FileStyleShapeTable,
+    labelSizes: FileStyleOptions["labelSizes"],
 ): ReadonlyMap<string, readonly ChannelPlan[]> {
     const id = (channel: Channel): ChannelPlan => ({ channel, convert: (value) => value, identity: true });
     const table = (
@@ -448,6 +471,12 @@ function channelPlans(
             : { nearest: (value: StyleValue) => typeof value === "string" && nearest.has(value) }),
     });
     const label = (field: string): ChannelPlan => id(`${kind}.${field}` as Channel);
+    const scaled = (channel: Channel, by: number): ChannelPlan => ({
+        channel,
+        convert: (value) => (typeof value === "number" ? round(value * by) : null),
+        identity: by === 1,
+    });
+    const labelSize = scaled(`${kind}.labelSize` as Channel, labelSizes === "file" ? 1 : factor * LABEL_SIZE_PER_UNIT);
     if (kind === "node") {
         const shapeTable = new Map(Object.entries(shapes));
         return new Map<string, readonly ChannelPlan[]>([
@@ -457,7 +486,7 @@ function channelPlans(
             ["tooltip", [id("node.tooltip")]],
             ["shape", [table("node.shape", shapeTable, new Set(shapeTable.keys()))]],
             ["labelColor", [label("labelColor")]],
-            ["labelSize", [label("labelSize")]],
+            ["labelSize", [labelSize]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
             ["labelItalic", [label("labelItalic")]],
@@ -467,16 +496,7 @@ function channelPlans(
     return new Map<string, readonly ChannelPlan[]>([
         ["color", [id("edge.color")]],
         ["opacity", [id("edge.opacity")]],
-        [
-            "width",
-            [
-                {
-                    channel: "edge.width",
-                    convert: (value) => (typeof value === "number" ? round(value * factor) : null),
-                    identity: factor === 1,
-                },
-            ],
-        ],
+        ["width", [scaled("edge.width", factor * EDGE_WIDTH_PER_UNIT)]],
         ["lineStyle", [table("edge.style", LINE_STYLES, LINE_STYLES_NEAREST)]],
         ["targetArrow", [table("edge.arrowHead", ARROW_SHAPES)]],
         ["sourceArrow", [table("edge.arrowTail", ARROW_SHAPES)]],
@@ -488,7 +508,7 @@ function channelPlans(
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
         ["labelColor", [label("labelColor")]],
-        ["labelSize", [label("labelSize")]],
+        ["labelSize", [labelSize]],
         ["labelFont", [label("labelFont")]],
         ["labelWeight", [label("labelWeight")]],
         ["labelItalic", [label("labelItalic")]],
@@ -550,9 +570,9 @@ export function translateFileStyles(input: TranslateInput): Translation {
     const hidden: Record<StyleTarget, { key: string; count: number } | null> = { node: null, edge: null };
     const byKind: Record<StyleTarget, TranslatedLayer[]> = { node: [], edge: [] };
     const predicted: Record<StyleTarget, ReadonlyMap<Channel, readonly unknown[]> | null> = { node: null, edge: null };
-    const factors = lengthFactors(input);
+    const lengthScale = input.lengthScale ?? lengthScaleOf(input);
     for (const kind of ["node", "edge"] as const) {
-        const translation = new KindTranslation(input, kind, factors[kind], notes, columns[kind]);
+        const translation = new KindTranslation(input, kind, lengthScale, notes, columns[kind]);
         byKind[kind].push(...translation.run());
         hidden[kind] = translation.hidden;
         predicted[kind] = translation.predicted;
@@ -566,6 +586,7 @@ export function translateFileStyles(input: TranslateInput): Translation {
         columns,
         hidden,
         background: typeof background === "string" ? background : null,
+        lengthScale,
         notes: notes.list(),
         predicted,
     };
@@ -609,14 +630,15 @@ function inRuleOrder(
 }
 
 /**
- * What a length of the file is multiplied by, per kind.
+ * What every length of the file is multiplied by: one scale for node sizes, edge widths, label
+ * sizes and positions, so the drawing keeps the file's proportions.
  * @param input - The translation's input.
- * @returns The factors: 1 when lengths are kept as the file has them.
+ * @returns The scale: 1 when a file unit is kept as a scene unit.
  */
-function lengthFactors(input: TranslateInput): Record<StyleTarget, number> {
+function lengthScaleOf(input: TranslateInput): number {
     // A file graphty wrote is in graphty's own units already.
     if (input.options.lengths === "file" || input.extracted.styles.source.tool === "graphty") {
-        return { node: 1, edge: 1 };
+        return 1;
     }
 
     const { extracted, snapshot, base } = input;
@@ -631,13 +653,16 @@ function lengthFactors(input: TranslateInput): Record<StyleTarget, number> {
     const edgeMedian = median(resolved("edge", "width"));
     const nodeBase = typeof base.node["node.size"] === "number" ? base.node["node.size"] : 1;
     const edgeBase = typeof base.edge["edge.width"] === "number" ? base.edge["edge.width"] : 1;
-    const factor = (target: number, middle: number | null): number => {
-        const value = middle === null ? 1 : target / middle;
-        // A degenerate median (1e-320, 1e308) keeps the file's units.
-        return Number.isFinite(value) && value > 0 ? value : 1;
-    };
+    // The node sizes decide; a file with none decides by its edge widths.
+    let value = 1;
+    if (nodeMedian !== null) {
+        value = nodeBase / nodeMedian;
+    } else if (edgeMedian !== null) {
+        value = edgeBase / (edgeMedian * EDGE_WIDTH_PER_UNIT);
+    }
 
-    return { node: factor(nodeBase, nodeMedian), edge: factor(edgeBase, edgeMedian) };
+    // A degenerate median (1e-320, 1e308) keeps the file's units.
+    return Number.isFinite(value) && value > 0 ? value : 1;
 }
 
 /** The translation of one kind's rules. */
@@ -692,7 +717,7 @@ class KindTranslation {
         this.#notes = notes;
         this.#columns = columns;
         this.#n = kind === "node" ? input.snapshot.nodeCount : input.snapshot.edgeCount;
-        this.#plans = channelPlans(kind, factor, input.options.shapes ?? FILE_STYLE_SHAPES);
+        this.#plans = channelPlans(kind, factor, input.options.shapes ?? FILE_STYLE_SHAPES, input.options.labelSizes);
         this.#keys = new Set(input.extracted.columns[kind].keys());
         this.#rules = input.extracted.styles.rules.filter(
             (rule) => rule.target === kind && (input.options.toolDefaults !== false || rule.origin !== "tool"),

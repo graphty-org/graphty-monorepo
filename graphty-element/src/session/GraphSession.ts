@@ -137,7 +137,13 @@ import {
 } from "./styles";
 import { atStylePath, channelsFor } from "./styles/channels";
 import { computedOf, isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
-import { asFileStyleStore, FILE_STYLES_VALUE, fileStyleColumn, type FileStyleStore } from "./styles/fileStyles/store";
+import {
+    asFileStyleStore,
+    FILE_STYLES_VALUE,
+    fileStyleColumn,
+    type FileStyleStore,
+    recordPositionScale,
+} from "./styles/fileStyles/store";
 import type { CompiledLayer } from "./styles/Layer";
 import { createLayerRepaint, type ElementPaint, type ElementRemaps, type RepaintEngine } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
@@ -1263,12 +1269,14 @@ interface FreezeFollower {
  * what delivers a remap to everything it holds, this session's selection included.
  * @param given - the store a caller handed in, if any
  * @param readData - reads the data configuration a store built here runs under
+ * @param positionScale - reads how far one unit of a record's position is in the scene
  * @param follow - where a freeze of a store built here is delivered
  * @returns the store, and the same object again when this call allocated it
  */
 function resolveStore(
     given: LaneStore | undefined,
     readData: () => SessionDataConfig,
+    positionScale: () => number,
     follow: FreezeFollower,
 ): { store: LaneStore; owned: GraphStore | null } {
     if (given !== undefined) {
@@ -1280,7 +1288,7 @@ function resolveStore(
         directed: () => readData().directed,
         // A thunk, not a value: the element mutates `data.knownFields` in place at run time, and a
         // scale captured here would be the one known field that ignored the change.
-        positionScale: () => readData().knownFields.positionScale,
+        positionScale,
         // The session's own edge counter. A headless session builds one store for its life, so
         // this only matters as the seam `DataManager` uses too: whoever builds stores owns the
         // counter, and no store rewinds it.
@@ -1893,10 +1901,15 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // source, which reads the runs, and the scope and visibility APIs are built before both.
     let query: QueryEngine | null = null;
 
-    const store = resolveStore(options.store, readData, {
-        nodes: (remap: U32, count: number) => selection?.remapNodes(remap, count),
-        edges: (remap: U32, count: number) => selection?.remapEdges(remap, count),
-    });
+    const store = resolveStore(
+        options.store,
+        readData,
+        () => recordPositionScale(readData().knownFields.positionScale, dispatcher.state.graph.values),
+        {
+            nodes: (remap: U32, count: number) => selection?.remapNodes(remap, count),
+            edges: (remap: U32, count: number) => selection?.remapEdges(remap, count),
+        },
+    );
     // The attribute revisions and the input tick (design/sets 6.2), shared with whoever writes the
     // store's records: the store owner's, so its writes, its freezes and this session's masks and
     // runs all advance one tick.

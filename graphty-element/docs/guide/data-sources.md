@@ -278,6 +278,8 @@ const element = document.querySelector("graphty-element");
 
 // A Cytoscape session, drawn where Cytoscape saved it. Cytoscape's coordinates are pixels, so
 // positionScale shrinks them to scene units (one unit per fifty pixels suits nodes of size one).
+// Loaded with { styles: "file" } instead, the load scales the positions with the file's node
+// sizes itself, and positionScale stays at 1.
 element.layout = "fixed";
 element.positionScale = 0.02;
 await element.loadFromUrl("https://example.org/sessions/galFiltered.cys");

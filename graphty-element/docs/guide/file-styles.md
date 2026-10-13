@@ -107,14 +107,33 @@ await element.loadFromUrl(url, {
 });
 ```
 
-| Option         | Default             | What it decides                                                                                                                                                                                                              |
-| -------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lengths`      | `"median"`          | `"median"` scales every size so that the file's median node size is the element's default node size, and its median edge width the default edge width; `"file"` keeps the file's numbers as they are                         |
-| `shapes`       | `FILE_STYLE_SHAPES` | The element shape each 2D shape of the file is drawn as (`ellipse` as a `sphere`, `rectangle` as a `box`, `diamond` as an `octahedron`, ...). A shape the table leaves out is not drawn from the file, and the load notes it |
-| `labelLayers`  | `8` (at most 16)    | How many layers label positions may take when the file sets them element by element. Further positions are drawn as the most common kept one, and noted                                                                      |
-| `toolDefaults` | `true`              | Whether a property the file leaves unset gets the default of the program that wrote it (below)                                                                                                                               |
+| Option         | Default             | What it decides                                                                                                                                                                                                                                              |
+| -------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lengths`      | `"median"`          | The one scale the file's node sizes, edge widths, label sizes and positions are all multiplied by (below). `"median"` picks the scale that makes the file's median node size the element's default node size; `"file"` keeps one file unit as one scene unit |
+| `labelSizes`   | `"proportional"`    | `"proportional"` scales label sizes with everything else, so a label keeps its size relative to its node; `"file"` takes the file's label sizes as the element's label sizes, unscaled, which keeps small labels readable                                    |
+| `shapes`       | `FILE_STYLE_SHAPES` | The element shape each 2D shape of the file is drawn as (`ellipse` as a `sphere`, `rectangle` as a `box`, `diamond` as an `octahedron`, ...). A shape the table leaves out is not drawn from the file, and the load notes it                                 |
+| `labelLayers`  | `8` (at most 16)    | How many layers label positions may take when the file sets them element by element. Further positions are drawn as the most common kept one, and noted                                                                                                      |
+| `toolDefaults` | `true`              | Whether a property the file leaves unset gets the default of the program that wrote it (below)                                                                                                                                                               |
 
 Copy `FILE_STYLE_SHAPES` and change the entries you want, as above.
+
+### Lengths and positions
+
+A file's node sizes, edge widths, label sizes and node positions are all multiplied by one scale,
+so the drawing keeps the file's proportions: a yEd file with 30-pixel nodes 60 pixels apart is
+drawn with nodes half as wide as the distance between them, whatever the scale. With
+`lengths: "median"` the scale is the element's default node size divided by the file's median node
+size (or, for a file that sizes no nodes, what makes its median edge width the element's default
+edge width); with `lengths: "file"` it is 1. An edge width is drawn `width / 40` scene units wide
+and a label `size / 48` units tall, so a file length L becomes a node size of L times the scale, an
+edge width of 40 L times the scale and a label size of 48 L times the scale.
+
+The load reports the scale as `lastImport().styles.lengthScale`. Positions are also multiplied by
+the element's `positionScale`, which stays yours: leave it at 1 and a file drawn at its own
+positions (the `fixed` layout) fits its node sizes. A file merged into a graph that already holds
+a file's styles takes that graph's scale, so one drawing has one scale. An export with
+`styles: true` writes positions at the drawing's scale, as it writes the node sizes; an export
+without styles divides the scale out, so the positions are the file's own again.
 
 ### The writing program's defaults
 

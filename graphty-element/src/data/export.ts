@@ -74,7 +74,7 @@ import { resolveEdgeWeight } from "../session/project/ingest";
 import type { CodedFact, CodedFactParam } from "../session/shared";
 import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
-import { asFileStyleStore, FILE_STYLES_VALUE } from "../session/styles/fileStyles/store";
+import { asFileStyleStore, FILE_STYLES_VALUE, recordPositionScale } from "../session/styles/fileStyles/store";
 import type { GraphSession } from "../session/types";
 
 export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
@@ -476,11 +476,16 @@ export function buildExportSnapshot(
     }
 
     // A node no layout has placed yet has no coordinates, not the origin. The session holds scene
-    // units; a file holds file units, which a load multiplies by positionScale, so divide here.
+    // units; a file holds file units, which a load multiplies by positionScale and by the scale its
+    // styles were drawn at, so divide here. With styles the file is written at the drawing's own
+    // scale, as its node sizes and edge widths are, so only positionScale is divided out.
     const { positions } = session;
     if (positions.placedCount > 0) {
         const column = builder.declareNodeColumn(POSITION);
-        const scale = knownFields.positionScale;
+        const scale =
+            options.styles === true
+                ? knownFields.positionScale
+                : recordPositionScale(knownFields.positionScale, dispatcherOf(session).state.graph.values);
         const at = { x: 0, y: 0, z: 0 };
         nodes.forEach((_record, row) => {
             if (positions.isPlaced(row)) {

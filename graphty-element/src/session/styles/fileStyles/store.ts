@@ -50,6 +50,11 @@ export interface FileStyleLoadValues {
     readonly format: string;
     /** Its columns. */
     readonly columns: readonly FileStyleColumnValues[];
+    /**
+     * What the load multiplied the file's lengths by: its node sizes, edge widths, label sizes and
+     * positions alike. 1 when absent.
+     */
+    readonly lengthScale?: number;
 }
 
 /** One load, held. */
@@ -171,9 +176,16 @@ function holdLoad(load: unknown, at: number): StoredFileStyleLoad {
         throw malformed("load", { load: at });
     }
 
-    const { importId, namespace, format, columns } = load;
+    const { importId, namespace, format, columns, lengthScale } = load;
     if (typeof importId !== "string" || importId === "" || typeof format !== "string") {
         throw malformed("load-id", { load: at });
+    }
+
+    if (
+        lengthScale !== undefined &&
+        (typeof lengthScale !== "number" || !Number.isFinite(lengthScale) || lengthScale <= 0)
+    ) {
+        throw malformed("load-length-scale", { load: at });
     }
 
     if (typeof namespace !== "string" || !isFileStyleNamespace(namespace)) {
@@ -197,7 +209,13 @@ function holdLoad(load: unknown, at: number): StoredFileStyleLoad {
     });
 
     return Object.freeze({
-        values: Object.freeze({ importId, namespace, format, columns: Object.freeze(kept) }),
+        values: Object.freeze({
+            importId,
+            namespace,
+            format,
+            columns: Object.freeze(kept),
+            ...(lengthScale === undefined || lengthScale === 1 ? {} : { lengthScale }),
+        }),
         columns: byKey,
     });
 }
@@ -256,6 +274,16 @@ export function fileStyleValuesOf(store: FileStyleStore): readonly FileStyleLoad
 }
 
 /**
+ * What the graph's file loads multiplied the files' lengths by, positions among them: the first
+ * load's scale, which every later merge into the graph takes too, so one drawing has one scale.
+ * @param store - The store.
+ * @returns The scale; 1 when no load holds one.
+ */
+export function fileLengthScale(store: FileStyleStore): number {
+    return store.loads[0]?.values.lengthScale ?? 1;
+}
+
+/**
  * The values one column holds, by element id.
  * @param store - The store.
  * @param namespace - The load's namespace.
@@ -270,4 +298,16 @@ export function fileStyleColumn(
     key: string,
 ): ReadonlyMap<NodeId | EdgeId, FileStyleScalar> | undefined {
     return store.byNamespace.get(namespace)?.columns.get(`${kind}:${key}`);
+}
+
+/**
+ * How far one unit of a record's own position is in the scene: the element's `positionScale`
+ * times the scale the graph's files were drawn at (`fileLengthScale`), so a file's positions keep
+ * their proportions to its node sizes. Every reader of a record's position goes through this.
+ * @param positionScale - The element's `data.knownFields.positionScale`.
+ * @param values - The graph-level values, which hold the file-style store.
+ * @returns The multiplier.
+ */
+export function recordPositionScale(positionScale: number, values: ReadonlyMap<string, unknown> | undefined): number {
+    return positionScale * fileLengthScale(asFileStyleStore(values?.get(FILE_STYLES_VALUE)));
 }

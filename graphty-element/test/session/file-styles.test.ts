@@ -372,6 +372,83 @@ async function graphtyWritten(prefix: string, where: string): Promise<string> {
     return exportGraphToString(snapshot, "gexf", { styles: { ...styles, styles: { ...styles.styles, rules } } });
 }
 
+/**
+ * A Cytoscape.js document of 30-unit nodes 60 units apart, with 12-unit labels and 3-unit edges.
+ */
+const SPACED = JSON.stringify({
+    elements: [
+        { data: { id: "a", name: "a" }, position: { x: 0, y: 0 } },
+        { data: { id: "b", name: "b" }, position: { x: 60, y: 0 } },
+        { data: { id: "c", name: "c" }, position: { x: 0, y: 60 } },
+        { data: { id: "ab", source: "a", target: "b" } },
+    ],
+    style: [
+        { selector: "node", style: { width: 30, height: 30, "font-size": 12, label: "data(name)" } },
+        { selector: "edge", style: { width: 3 } },
+    ],
+});
+
+/**
+ * Where a node is drawn.
+ * @param session - The session.
+ * @param id - The node.
+ * @returns Its coordinates.
+ */
+function placed(session: GraphSession, id: string): { x: number; y: number; z: number } {
+    const at = { x: 0, y: 0, z: 0 };
+    session.positions.read(session.snapshot().ids.indexOf(id), at);
+    return at;
+}
+
+describe("a file's lengths", () => {
+    for (const lengths of ["median", "file"] as const) {
+        it(`keep the file's proportions with lengths: "${lengths}": a 30-unit node 60 units from its neighbor`, async () => {
+            const session = createGraphSession();
+            await session.data.import(
+                { type: "json", config: { data: SPACED } },
+                { styles: "file", styleOptions: { lengths } },
+            );
+            const scale = session.data.lastImport()?.styles?.lengthScale;
+            assert.strictEqual(scale, lengths === "file" ? 1 : 1 / 30);
+
+            const size = drawn(session, { node: "a" }, "node.size") as number;
+            const distance = placed(session, "b").x - placed(session, "a").x;
+            assert.closeTo(size / distance, 0.5, 1e-6);
+            // Cytoscape.js's y points down the screen, the element's up.
+            assert.closeTo(-placed(session, "c").y, 60 * (scale ?? Number.NaN), 1e-5);
+            // A label 12 tall is drawn size / 48 units tall, an edge 3 wide width / 40 units wide.
+            const label = drawn(session, { node: "a" }, "node.labelStyle") as { sizePx: number };
+            assert.closeTo(label.sizePx / 48 / size, 12 / 30, 1e-6);
+            const width = drawn(session, { edge: "0" }, "edge.width") as number;
+            assert.closeTo(width / 40 / size, 3 / 30, 1e-6);
+            session.dispose();
+        });
+    }
+
+    it('leave label sizes as the file has them with labelSizes: "file", and multiply positions by positionScale', async () => {
+        const session = createGraphSession({ config: { data: { knownFields: { positionScale: 2 } } } });
+        await session.data.import(
+            { type: "json", config: { data: SPACED } },
+            { styles: "file", styleOptions: { labelSizes: "file" } },
+        );
+        const label = drawn(session, { node: "a" }, "node.labelStyle") as { sizePx: number };
+        assert.strictEqual(label.sizePx, 12);
+        assert.closeTo(placed(session, "b").x, 60 * (1 / 30) * 2, 1e-5);
+        session.dispose();
+    });
+
+    it("are undone with the load, and a load without styles keeps the file's own positions", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: SPACED } });
+        assert.strictEqual(placed(session, "b").x, 60);
+        await session.data.import({ type: "json", config: { data: SPACED } }, { styles: "file" });
+        assert.closeTo(placed(session, "b").x, 2, 1e-5);
+        await session.undo();
+        assert.strictEqual(placed(session, "b").x, 60);
+        session.dispose();
+    });
+});
+
 describe("a file graphty wrote", () => {
     it("rebuilds graphty's own layers in each merged file's namespace, and sets aside one over 8 terms", async () => {
         const short = await graphtyWritten("a", "data.group == 'x'");

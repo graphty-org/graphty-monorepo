@@ -69,7 +69,8 @@ export interface SnapshotLayoutInput {
     column(optionName: string): readonly unknown[] | null;
     /**
      * Where each node's own data places it: its `position` field (`{ x, y, z }` or `[x, y, z]`),
-     * scaled by the element's `positionScale`. NaN for a node whose data gives none.
+     * scaled by the element's `positionScale` and by the scale its file's styles were drawn at
+     * (`styles.lengthScale` of the load). NaN for a node whose data gives none.
      * @returns the coordinates
      */
     dataPositions(): F32;
@@ -110,6 +111,16 @@ interface SnapshotLayoutHost {
 export const snapshotLayoutInternals = {} as {
     connect(engine: SnapshotLayoutEngine, host: SnapshotLayoutHost): void;
 };
+
+/**
+ * How far one unit of a node's own `position` is in the scene: the element's `positionScale` times
+ * the scale its file's styles were drawn at.
+ * @param node - the node
+ * @returns the multiplier; 1 for a node no graph holds
+ */
+export function positionScaleOf(node: Node | undefined): number {
+    return node?.parentGraph.getDataManager().positionScale ?? 1;
+}
 
 /**
  * Resolve a dotted path in a node's data.
@@ -341,7 +352,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 nodes.forEach((node, row) => {
                     const seed = node === undefined ? null : readSeedPosition(node.data as Record<string, unknown>);
                     if (seed !== null) {
-                        const scale = node?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ?? 1;
+                        const scale = positionScaleOf(node);
                         for (let k = 0; k < dim; k++) {
                             out[dim * row + k] = seed[k] * scale;
                         }

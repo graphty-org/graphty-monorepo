@@ -118,20 +118,35 @@ async function drewFileStyles(
     );
 }
 
+/** Where a story puts the file's nodes. */
+const PLACEMENT = {
+    /** A seeded force layout. */
+    force: { layout: "ngraph", layoutConfig: { seed: 42 } },
+    /**
+     * A circle, which places every node at once: for a file of a few hundred nodes, which a force
+     * layout would still be moving when the story is captured.
+     */
+    circle: { layout: "circular" },
+    /** The file's own positions, so its node sizes, edge widths and labels keep their proportions to them. */
+    file: { layout: "fixed" },
+} as const;
+
 /**
- * A story's arguments for one file, drawn with the file's styles by a seeded force layout, or for
- * a file of a few hundred nodes, which a force layout would still be moving when the story is
- * captured, on a circle, which places every node at once.
+ * A story's arguments for one file, drawn with the file's styles.
  * @param dataSource - The data source that reads the file.
  * @param source - Where the file comes from.
- * @param placedOnce - Lay the file out on a circle rather than with a force layout.
+ * @param placement - Where the nodes go.
  * @returns The story's arguments.
  */
-function fileArgs(dataSource: string, source: { readonly url: string }, placedOnce = false): Story["args"] {
+function fileArgs(
+    dataSource: string,
+    source: { readonly url: string },
+    placement: keyof typeof PLACEMENT = "force",
+): Story["args"] {
     return {
         dataSource,
         dataSourceConfig: { ...source, styles: "file" },
-        ...(placedOnce ? { layout: "circular" } : { layout: "ngraph", layoutConfig: { seed: 42 } }),
+        ...PLACEMENT[placement],
         setup: storySetup({ preSteps: 1000 }),
     };
 }
@@ -204,10 +219,11 @@ export const Dot: Story = {
 /**
  * `voc__voctomix__schema.graphml`, the voctomix video mixer's architecture drawn in yEd 3.18 (MIT).
  * Look for: yEd's group boxes drawn as large pale nodes, and the nodes inside them in yEd's
- * yellow, cyan, light blue, green and orange fills, as boxes, rounded boxes and ellipses.
+ * yellow, cyan, light blue, green and orange fills, as boxes, rounded boxes and ellipses, at the
+ * positions yEd saved, with the sizes and spacing in yEd's proportions.
  */
 export const GraphmlYed: Story = {
-    args: fileArgs("graphml", { url: absolute(voctomixUrl) }),
+    args: fileArgs("graphml", { url: absolute(voctomixUrl) }, "file"),
     play: async ({ canvasElement }) => {
         await drewFileStyles(
             canvasElement,
@@ -230,7 +246,7 @@ export const GraphmlYed: Story = {
  * states per node, pink, light blue, silver and yellow, on yEd's ellipses.
  */
 export const GmlYed: Story = {
-    args: fileArgs("gml", { url: absolute(need4stacksUrl) }, true),
+    args: fileArgs("gml", { url: absolute(need4stacksUrl) }, "circle"),
     play: async ({ canvasElement }) => {
         await drewFileStyles(
             canvasElement,
@@ -283,10 +299,11 @@ export const Xgmml: Story = {
  * `ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx`, "Schizophrenia risk gene subnetwork with
  * AOP-Wiki" from NDEx (CC BY 4.0, owner pklemmer), its style made in Cytoscape and saved as CX.
  * Look for: nodes colored by their type (red, cyan, pink, green, purple, orange, pale blue) and
- * sized by a mapping, the largest about three times the smallest.
+ * sized by a mapping, the largest about three times the smallest, at the positions Cytoscape saved,
+ * with the sizes and spacing in Cytoscape's proportions.
  */
 export const Cx: Story = {
-    args: fileArgs("cx", { url: absolute(cxUrl) }),
+    args: fileArgs("cx", { url: absolute(cxUrl) }, "file"),
     play: async ({ canvasElement }) => {
         await drewFileStyles(
             canvasElement,
@@ -322,7 +339,7 @@ export const Cx2: Story = {
  * yellow by each gene's expression, and nodes sized by their degree, so the hubs are the largest.
  */
 export const CytoscapeSession: Story = {
-    args: fileArgs("cys", { url: absolute(annotationSessionUrl) }, true),
+    args: fileArgs("cys", { url: absolute(annotationSessionUrl) }, "circle"),
     render: (args, context) => {
         const element = renderFn(args, context) as Awaited<ReturnType<typeof renderedElement>>;
         // TEMPORARY, graphty-element defect #2249: 359 curved edges take over 15 s to settle, so a

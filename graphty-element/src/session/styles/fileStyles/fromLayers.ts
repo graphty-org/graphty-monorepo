@@ -47,7 +47,7 @@ import type { CompiledLayer } from "../Layer";
 import { computedOf, parseFileStylePath } from "./path";
 import { ARROW_SHAPES, FILE_STYLE_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
 import { fileStyleColumn, type FileStyleStore } from "./store";
-import { LAYER_SPEC_EXT } from "./translate";
+import { EDGE_WIDTH_PER_UNIT, LABEL_SIZE_PER_UNIT, LAYER_SPEC_EXT } from "./translate";
 
 /** What turning the stack into neutral styles needs. */
 export interface LayersToStylesInput {
@@ -155,6 +155,16 @@ const color: PropertyPlan["toNeutral"] = (value) => {
 };
 const number: PropertyPlan["toNeutral"] = (value) =>
     typeof value === "number" && Number.isFinite(value) ? value : null;
+/**
+ * A length in scene units, from a channel drawn `per` channel units to a scene unit: the inverse
+ * of what a load does with a file's length, so it reads back the same.
+ * @param per - The channel units per scene unit.
+ * @returns The plan's conversion.
+ */
+const length =
+    (per: number): PropertyPlan["toNeutral"] =>
+    (value) =>
+        typeof value === "number" && Number.isFinite(value) ? Number((value / per).toPrecision(12)) : null;
 const text: PropertyPlan["toNeutral"] = (value) => (typeof value === "string" ? value : null);
 const flag: PropertyPlan["toNeutral"] = (value) => (typeof value === "boolean" ? value : null);
 const opacity: PropertyPlan["toNeutral"] = (value) =>
@@ -181,7 +191,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.label", plan(text, "label")],
         ["node.tooltip", plan(text, "tooltip")],
         ["node.labelColor", plan(color, "labelColor")],
-        ["node.labelSize", plan(number, "labelSize")],
+        ["node.labelSize", plan(length(LABEL_SIZE_PER_UNIT), "labelSize")],
         ["node.labelFont", plan(text, "labelFont")],
         ["node.labelWeight", plan(weight, "labelWeight")],
         ["node.labelItalic", plan(flag, "labelItalic")],
@@ -192,7 +202,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
     edge: new Map([
         ["edge.color", plan(color, "color")],
         ["edge.opacity", plan(opacity, "opacity")],
-        ["edge.width", plan(number, "width")],
+        ["edge.width", plan(length(EDGE_WIDTH_PER_UNIT), "width")],
         ["edge.style", plan(table(LINE_OF), "lineStyle")],
         ["edge.arrowHead", plan(table(ARROW_OF), "targetArrow")],
         ["edge.arrowTail", plan(table(ARROW_OF), "sourceArrow")],
@@ -202,7 +212,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.arrowHeadText", plan(text, "targetLabel")],
         ["edge.arrowTailText", plan(text, "sourceLabel")],
         ["edge.labelColor", plan(color, "labelColor")],
-        ["edge.labelSize", plan(number, "labelSize")],
+        ["edge.labelSize", plan(length(LABEL_SIZE_PER_UNIT), "labelSize")],
         ["edge.labelFont", plan(text, "labelFont")],
         ["edge.labelWeight", plan(weight, "labelWeight")],
         ["edge.labelItalic", plan(flag, "labelItalic")],

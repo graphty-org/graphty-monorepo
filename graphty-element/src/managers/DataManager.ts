@@ -42,6 +42,7 @@ import {
 import type { GraphSlice } from "../session/project/state";
 import { readonlyMapView } from "../session/sealed";
 import type { ImportOutcome } from "../session/styles/fileStyles/apply";
+import { recordPositionScale } from "../session/styles/fileStyles/store";
 import type { DirectionProvenance, HistoryCause, ReadonlyElementPositions } from "../session/types";
 import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
@@ -1077,6 +1078,18 @@ export class DataManager implements Manager {
     }
 
     /**
+     * How far one unit of a record's own position is in the scene: the element's `positionScale`
+     * times the scale the graph's files were drawn at.
+     * @returns The multiplier.
+     */
+    get positionScale(): number {
+        return recordPositionScale(
+            this.styles.config.data.knownFields.positionScale,
+            this.dispatcher?.state.graph.values,
+        );
+    }
+
+    /**
      * Build the store, wiring its three freeze callbacks back into this manager.
      *
      * `positionScale` is passed as a thunk rather than a value because the element mutates
@@ -1088,7 +1101,7 @@ export class DataManager implements Manager {
         return new GraphStore({
             // Read again when the graph is emptied, so a clear takes the setting in force then.
             directed: () => this.styles.config.data.directed,
-            positionScale: () => this.styles.config.data.knownFields.positionScale,
+            positionScale: () => this.positionScale,
             edgeCounter: this.edgeCounter,
             inputs: this.inputs,
             onNodeRemap: (remap) => {

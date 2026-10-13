@@ -95,9 +95,16 @@ export class NodeEffects {
         // Create new highlight layer
         const highlightLayer = new HighlightLayer(this.HIGHLIGHT_LAYER_NAME, scene, {
             isStroke: true,
+            mainTextureRatio: 1,
             blurHorizontalSize: 0.5,
             blurVerticalSize: 0.5,
         });
+        // Around the node, never over it: the inner glow blends the outline color over the
+        // node's own surface from its rim inwards, a fixed number of pixels deep, which filled a
+        // node drawn a few dozen pixels across with the outline color. At the full render
+        // resolution (`mainTextureRatio: 1`) the stroke outside is about four device pixels, a
+        // line rather than a band that swallowed a small node at half resolution.
+        highlightLayer.innerGlow = false;
 
         // Store on scene metadata
         scene.metadata = scene.metadata ?? {};

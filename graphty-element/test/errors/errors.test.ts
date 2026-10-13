@@ -59,6 +59,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_CAP_EXCEEDED",
     "E_SCOPE_EMPTY",
     "E_NOT_CONVERGED",
+    "E_NOT_PLANAR",
+    "E_NOT_CONNECTED",
     "E_NO_ACCELERATOR",
     "E_NO_WEBGPU",
     "E_NO_ADAPTER",
@@ -141,6 +143,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_MISSING_PACKAGE":
             return "hardware";
         case "E_UNSUPPORTED":
+        case "E_NOT_PLANAR":
+        case "E_NOT_CONNECTED":
         case "E_INTERNAL":
             return "refused";
         case "E_EXTENSION_FAILED":

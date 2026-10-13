@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,6 +19,7 @@ import {
     watchWanted,
 } from "../lib/watchdog.mjs";
 import { fakeWorkers, sleep, typed } from "./helpers/fake-worker.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const T0 = new Date("2026-10-04T12:00:00Z");
 const MIN = 60 * 1000;
@@ -185,7 +185,7 @@ describe("progress counters", () => {
     /** @type {string} */
     let dir;
     beforeEach(() => {
-        dir = mkdtempSync(join(tmpdir(), "githerd-watchdog-"));
+        dir = tempDir("githerd-watchdog-");
     });
     afterEach(() => rmSync(dir, { recursive: true, force: true }));
 

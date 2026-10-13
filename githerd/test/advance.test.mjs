@@ -1,11 +1,11 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { checkFaults, confirmClosedWaits, settleWaits, tickJobs } from "../lib/advance.mjs";
 import { move, newJob, startPhase } from "../lib/board.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const T0 = new Date("2026-10-04T12:00:00Z");
 const MIN = 60_000;
@@ -299,7 +299,7 @@ describe("a checks wait on a pull request the poll has not seen", () => {
 
 describe("a wait on a local task", () => {
     it("settles once the task's output file records its exit, and not before", () => {
-        const output = join(mkdtempSync(join(tmpdir(), "githerd-task-")), "b1.output");
+        const output = join(tempDir("githerd-task-"), "b1.output");
         const job = working("local");
         move(job, "waiting", T0, { waitingFor: { local: "b1", output } });
         const state = stateOf(job);
@@ -313,7 +313,7 @@ describe("a wait on a local task", () => {
     });
 
     it("settles when the session that ran the task is gone, with no exit recorded", () => {
-        const output = join(mkdtempSync(join(tmpdir(), "githerd-task-")), "b2.output");
+        const output = join(tempDir("githerd-task-"), "b2.output");
         writeFileSync(output, "still running\n");
         const job = working("local");
         move(job, "waiting", T0, { waitingFor: { local: "b2", output } });

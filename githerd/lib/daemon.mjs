@@ -121,7 +121,7 @@ import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, ta
 import { doneIo, pollVerifying, recheckRefused } from "./done.mjs";
 import { labelMasterFixes, linkMasterFix } from "./master-fix.mjs";
 import { balanceRefusal, classify, isNoLog, refusedOnly } from "./classify.mjs";
-import { flakePoll, gitBlobs, masterFlakeStep, noteMasterLog, readWorkspace } from "./flakes.mjs";
+import { flakePoll, gitBlobs, masterFlakeStep, noteMasterLog, pruneSettledFlakes, readWorkspace } from "./flakes.mjs";
 import { markShared } from "./shared.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { releaseFailedSummary, releaseHold } from "./release.mjs";
@@ -739,6 +739,8 @@ export async function startDaemon({
     state.master.lanes ??= {};
     state.incidents ??= {};
     state.issues ??= { since: null, byNumber: {} };
+    // Settled flaky tests first, so their closed issues go in the same pass; ledgered below.
+    const settledAtLoad = pruneSettledFlakes(state);
     pruneClosedIssues(state);
     state.merged ??= { lastScanAt: null, pending: [], closed: [] };
     await backfillFromLedger(state, stateDir, say);
@@ -850,6 +852,7 @@ export async function startDaemon({
         void write.finally(() => writes.delete(write));
         return write;
     };
+    for (const line of settledAtLoad) void ledger(line);
 
     /** @type {Record<string, Map<string, string>>} the recorded collections as last put in the ledger */
     const recorded = {};
@@ -2879,6 +2882,7 @@ export async function startDaemon({
 
         const issues = await pollIssues(gh, config.repo, state.issues);
         state.issues = { since: issues.since, byNumber: issues.byNumber };
+        for (const line of pruneSettledFlakes(state)) void ledger(line);
         pruneClosedIssues(state);
         await checkOverrides();
     }

@@ -6,6 +6,7 @@ import { fireEvent, render, screen, within } from "../../../../test/test-utils";
 import type { ChatMessage } from "../../../ai/AiMessageBubble";
 import { keyChipFor } from "../../bindings";
 import { ShellProvider } from "../../ShellContext";
+import { ActivityPanel } from "../ActivityPanel";
 import { AiPanel, type AiPanelProps } from "../AiPanel";
 
 const message: ChatMessage = {
@@ -19,6 +20,17 @@ function renderPanel(props: Partial<AiPanelProps> = {}) {
     return render(
         <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
             <AiPanel {...props} />
+        </ShellProvider>,
+    );
+}
+
+/** The panel inside its chrome, whose header holds New conversation. */
+function renderInChrome(props: Partial<AiPanelProps> = {}) {
+    return render(
+        <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
+            <ActivityPanel activity="ai" width={280} presentation="docked" title="Assistant">
+                <AiPanel {...props} />
+            </ActivityPanel>
         </ShellProvider>,
     );
 }
@@ -47,7 +59,7 @@ describe("AiPanel", () => {
         });
 
         it("is gone once a provider is configured", () => {
-            renderPanel({ providerConfigured: true, providerLabel: "claude-sonnet-5" });
+            renderPanel({ providerConfigured: true });
 
             expect(
                 screen.queryByText("No provider is configured. Open Settings to connect one."),
@@ -65,20 +77,13 @@ describe("AiPanel", () => {
         });
     });
 
-    describe("the provider row", () => {
-        it("names the provider once one is configured", () => {
-            renderPanel({ providerConfigured: true, providerLabel: "claude-sonnet-5" });
+    describe("the chrome around the chat", () => {
+        it("draws no provider row and no placeholder for features that are not there", () => {
+            renderPanel({ providerConfigured: true });
 
-            expect(screen.getByTestId("ai-provider")).toHaveTextContent("claude-sonnet-5");
-        });
-    });
-
-    describe("the console", () => {
-        it("is drawn with its status tag", () => {
-            renderPanel();
-
-            expect(screen.getByTestId("control-section-name")).toHaveTextContent("Console");
-            expect(screen.getByTestId("coming-tag")).toBeInTheDocument();
+            expect(screen.queryByTestId("ai-provider")).not.toBeInTheDocument();
+            expect(screen.queryByTestId("coming-tag")).not.toBeInTheDocument();
+            expect(screen.queryByText("Console")).not.toBeInTheDocument();
         });
     });
 
@@ -90,38 +95,67 @@ describe("AiPanel", () => {
             expect(input.closest("[title]")?.getAttribute("title")).toContain("Ask the assistant");
         });
 
-        it("sends on the Send control", () => {
+        it("sends on the Send control", async () => {
             const onSend = vi.fn();
 
             renderPanel({ onSend });
 
-            fireEvent.change(screen.getByRole("textbox", { name: "Ask the assistant" }), {
-                target: { value: "which cats connect the groups?" },
-            });
-            fireEvent.click(screen.getByRole("button", { name: "Send" }));
+            await userEvent.type(
+                screen.getByRole("textbox", { name: "Ask the assistant" }),
+                "which cats connect the groups?",
+            );
+            await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
             expect(onSend).toHaveBeenCalledWith("which cats connect the groups?");
         });
 
-        it("sends on the platform key plus Enter, and never on Enter alone", () => {
+        it("sends on Enter, and Shift+Enter starts a new line instead", async () => {
             const onSend = vi.fn();
 
             renderPanel({ onSend });
 
             const input = screen.getByRole("textbox", { name: "Ask the assistant" });
 
-            fireEvent.change(input, { target: { value: "hello" } });
-
-            // Bare Enter opens a new line, so the composer can be typed into; the
-            // send gesture is the one the inspector's note input established.
-            fireEvent.keyDown(input, { key: "Enter" });
+            await userEvent.type(input, "hello{Shift>}{Enter}{/Shift}there");
             expect(onSend).not.toHaveBeenCalled();
+            expect(input).toHaveValue("hello\nthere");
 
-            fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+            await userEvent.keyboard("{Enter}");
+            expect(onSend).toHaveBeenCalledExactlyOnceWith("hello\nthere");
+            expect(input).toHaveValue("");
+        });
+
+        it("does not send on the Enter that ends an input method's composition", async () => {
+            const onSend = vi.fn();
+
+            renderPanel({ onSend });
+
+            const input = screen.getByRole("textbox", { name: "Ask the assistant" });
+            await userEvent.type(input, "nihon");
+            // An input method's Enter: the browser marks it composing. No keyboard API can start a
+            // composition, so the event is the one a browser sends.
+            input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", isComposing: true, bubbles: true }));
             expect(onSend).not.toHaveBeenCalled();
+        });
 
-            fireEvent.keyDown(input, { key: "Enter", metaKey: true });
-            expect(onSend).toHaveBeenCalledWith("hello");
+        it("holds Send while the box is empty or a turn is running", async () => {
+            const onSend = vi.fn();
+
+            const { rerender } = renderPanel({ onSend });
+            const send = screen.getByRole("button", { name: "Send" });
+            expect(send).toBeDisabled();
+
+            await userEvent.type(screen.getByRole("textbox", { name: "Ask the assistant" }), "hi");
+            expect(send).toBeEnabled();
+
+            rerender(
+                <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
+                    <AiPanel onSend={onSend} isProcessing />
+                </ShellProvider>,
+            );
+            expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+            await userEvent.keyboard("{Enter}");
+            expect(onSend).not.toHaveBeenCalled();
         });
 
         it("takes the Send chip from the one binding table rather than a literal", () => {
@@ -147,12 +181,12 @@ describe("AiPanel", () => {
             expect(computed.paddingLeft).toBe("8px");
         });
 
-        it("sends nothing on an empty draft", () => {
+        it("sends nothing on an empty draft", async () => {
             const onSend = vi.fn();
 
             renderPanel({ onSend });
 
-            fireEvent.click(screen.getByRole("button", { name: "Send" }));
+            await userEvent.type(screen.getByRole("textbox", { name: "Ask the assistant" }), "   {Enter}");
 
             expect(onSend).not.toHaveBeenCalled();
         });
@@ -393,23 +427,45 @@ describe("AiPanel", () => {
         });
     });
 
-    describe("the conversation row", () => {
-        it("starts a new conversation and clears history", async () => {
+    describe("New conversation", () => {
+        it("is a compact control in the panel's header, named by its tooltip", async () => {
             const onNewConversation = vi.fn();
-            const onClearHistory = vi.fn();
-            renderPanel({ onNewConversation, onClearHistory });
+            renderInChrome({ onNewConversation });
 
-            await userEvent.click(screen.getByRole("button", { name: "New conversation" }));
+            const button = screen.getByRole("button", { name: "New conversation" });
+            expect(button.closest("[data-testid='activity-panel-content']")).toBeNull();
+            await userEvent.hover(button);
+            // The theme opens a tooltip after a one-second rest; the wait covers it.
+            expect(await screen.findByRole("tooltip", {}, { timeout: 5000 })).toHaveTextContent("New conversation");
+
+            await userEvent.click(button);
             expect(onNewConversation).toHaveBeenCalledTimes(1);
-
-            await userEvent.click(screen.getByRole("button", { name: "Clear history" }));
-            expect(onClearHistory).toHaveBeenCalledTimes(1);
         });
 
-        it("is not drawn without its actions", () => {
-            renderPanel();
+        it("is not drawn without its action", () => {
+            renderInChrome();
 
             expect(screen.queryByRole("button", { name: "New conversation" })).not.toBeInTheDocument();
+        });
+    });
+
+    describe("a reply as it streams", () => {
+        it("draws the text so far as the assistant's last message, and the step in the busy row", () => {
+            renderPanel({
+                messages: [{ id: "u", role: "user", content: "find the servers" }],
+                isProcessing: true,
+                streamingText: "Looking for serv",
+                activity: 'Running find_nodes {"selector":"server"}',
+            });
+
+            expect(screen.getByTestId("ai-streaming-reply")).toHaveTextContent("Looking for serv");
+            expect(screen.getByText('Running find_nodes {"selector":"server"}')).toBeInTheDocument();
+        });
+
+        it("draws no streaming message once the turn is over", () => {
+            renderPanel({ streamingText: "Done." });
+
+            expect(screen.queryByTestId("ai-streaming-reply")).not.toBeInTheDocument();
         });
     });
 });

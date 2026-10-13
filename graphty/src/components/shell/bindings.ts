@@ -976,18 +976,17 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
     },
     {
         id: "assistantSend",
-        chords: ["Mod+Enter"],
+        chords: ["Enter"],
         action: "Send the message",
         scope: "ai-console",
         owner: "widget",
         shipped: true,
         preventDefault: false,
         note:
-            "Enter opens a new line; the platform key plus Enter sends, exactly as the " +
-            "inspector's note input saves (noteSave). Asked for directly by the product " +
-            "owner on 2026-09-12, reversing the AI artboards' `Send (Enter)` tooltip: a " +
-            "multi-line composer whose Enter sends cannot be typed into. The chip in the " +
-            "Send control's tooltip comes from this row, never from a literal.",
+            "Enter sends and Shift+Enter opens a new line, as chat apps do; an Enter that " +
+            "ends an input method's composition does not send. Asked for by the product " +
+            "owner on 2026-10-12, reversing the 2026-09-12 platform-key-plus-Enter rule. " +
+            "The chip in the Send control's tooltip comes from this row, never from a literal.",
     },
 ];
 

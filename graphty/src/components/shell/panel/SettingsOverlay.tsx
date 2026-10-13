@@ -22,6 +22,7 @@ import {
     resolveLabelSettings,
     writePersistedLabelSettings,
 } from "../defaults/loadDefaults";
+import { PanelOutlineButton } from "./panelButtons";
 import { ComingTag } from "./PanelSection";
 import { SETTINGS_SECTIONS } from "./settingsSections";
 
@@ -317,6 +318,8 @@ export interface SettingsOverlayProps {
      * that quietly dropped what was typed into it.
      */
     readonly aiProviders: AiProviderSettingsProps;
+    /** Deletes every saved conversation of the assistant; the button draws only with it. */
+    readonly onClearAiHistory?: () => void;
     /**
      * The reader's acceleration policy, owned by the shell so a change reaches the canvas
      * at once; the shell writes storage.
@@ -356,6 +359,7 @@ export function SettingsOverlay(props: SettingsOverlayProps): React.JSX.Element 
         onClose,
         section: requestedSection,
         aiProviders,
+        onClearAiHistory,
         accelerationPolicy,
         onAccelerationPolicyChange,
         labelShortfall = null,
@@ -587,7 +591,21 @@ export function SettingsOverlay(props: SettingsOverlayProps): React.JSX.Element 
                             and 5.3 AI tier 3 opens from the assistant's setup prompt. The pane
                             is the same component the AI settings dialog draws, so the app has
                             one key-entry surface rather than two. */}
-                        {section.id === "ai" && <AiProviderSettings {...aiProviders} />}
+                        {section.id === "ai" && (
+                            <>
+                                <AiProviderSettings {...aiProviders} />
+                                {onClearAiHistory !== undefined && (
+                                    <Box>
+                                        <PanelOutlineButton
+                                            data-testid="settings-ai-clear-history"
+                                            onClick={onClearAiHistory}
+                                        >
+                                            Delete saved conversations
+                                        </PanelOutlineButton>
+                                    </Box>
+                                )}
+                            </>
+                        )}
 
                         {section.id === "shortcuts" && (
                             <Box

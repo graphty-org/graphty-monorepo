@@ -7,16 +7,23 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React, { useEffect, useRef, useState } from "react";
 import { userEvent, waitFor, within } from "storybook/test";
 
-import { aiTranscript } from "../components/ai/aiResultText";
+import { AiProviderSettings } from "../components/ai/AiProviderSettings";
+import { aiActivityText, aiTranscript } from "../components/ai/aiResultText";
+import { ActivityPanel } from "../components/shell/panel/ActivityPanel";
 import { AiPanel } from "../components/shell/panel/AiPanel";
 import { ShellProvider } from "../components/shell/ShellContext";
 import { useAiManager } from "../hooks/useAiManager";
+import type { ProviderType } from "../types/ai";
+import type { AiModelChoices } from "../workspace/settings/preferences";
 
 /** The element itself, by its own published type; the import above registers it. */
 type ElementUnderTest = import("@graphty/graphty-element").Graphty;
 
 /** What the reader asks; the mock provider answers it by clearing the graph, which the gate holds. */
 const ASK = "clear the graph";
+
+/** What the reader asks in the streaming story; the mock answers with text and a read of the graph. */
+const ASK_COUNT = "count the nodes";
 
 /** The element's id, which scopes the conversations it saves in the browser. */
 const ELEMENT_ID = "ai-assistant-story";
@@ -41,41 +48,37 @@ function Assistant({ element }: { readonly element: ElementUnderTest }): React.J
     const ai = useAiManager({ element, defaultProvider: "mock" });
 
     return (
-        <AiPanel
-            messages={aiTranscript(ai)}
-            providerConfigured
-            providerLabel="mock"
-            isProcessing={ai.isProcessing}
-            onSend={(text) => {
-                void ai.execute(text);
-            }}
-            approvals={ai.approvals}
-            onApprove={(id) => {
-                void ai.resolveApproval(id, true);
-            }}
-            onDeny={(id) => {
-                void ai.resolveApproval(id, false);
-            }}
-            questions={ai.questions}
-            onAnswer={(id, answer) => {
-                void ai.answerQuestion(id, answer);
-            }}
-            // Offered once the assistant is on: before that there is no conversation to act on.
-            onNewConversation={
-                ai.isReady
-                    ? () => {
-                          void ai.newConversation();
-                      }
-                    : undefined
-            }
-            onClearHistory={
-                ai.isReady
-                    ? () => {
-                          void ai.clearHistory();
-                      }
-                    : undefined
-            }
-        />
+        <ActivityPanel activity="ai" width={400} presentation="docked" title="Assistant">
+            <AiPanel
+                messages={aiTranscript(ai)}
+                providerConfigured
+                isProcessing={ai.isProcessing}
+                streamingText={ai.status?.streamedText}
+                activity={aiActivityText(ai.status)}
+                onSend={(text) => {
+                    void ai.execute(text);
+                }}
+                approvals={ai.approvals}
+                onApprove={(id) => {
+                    void ai.resolveApproval(id, true);
+                }}
+                onDeny={(id) => {
+                    void ai.resolveApproval(id, false);
+                }}
+                questions={ai.questions}
+                onAnswer={(id, answer) => {
+                    void ai.answerQuestion(id, answer);
+                }}
+                // Offered once the assistant is on: before that there is no conversation to act on.
+                onNewConversation={
+                    ai.isReady
+                        ? () => {
+                              void ai.newConversation();
+                          }
+                        : undefined
+                }
+            />
+        </ActivityPanel>
     );
 }
 
@@ -184,7 +187,8 @@ export const RememberedApproval: Story = {
         const canvas = within(canvasElement);
         await assistantReady(canvasElement);
         // Start from nothing saved, whatever an earlier visit left in this browser.
-        await userEvent.click(await canvas.findByRole("button", { name: "Clear history" }, { timeout: 60_000 }));
+        await canvas.findByRole("button", { name: "New conversation" }, { timeout: 60_000 });
+        await canvasElement.querySelector("graphty-element")?.clearAiHistory();
 
         await userEvent.type(canvas.getByRole("textbox", { name: "Ask the assistant" }), ASK);
         await userEvent.click(canvas.getByRole("button", { name: "Send" }));
@@ -199,5 +203,88 @@ export const RememberedApproval: Story = {
         }
 
         await element.waitForStableFrame();
+    },
+};
+
+/**
+ * The reader asks with Enter; the model's first turn says what it is doing and reads the graph, and
+ * its second turn is held, so the reply so far is on screen with the busy row saying the assistant
+ * is thinking. (The held turn never answers: the story shows the moment between two turns.)
+ */
+export const StreamingReply: Story = {
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const element = await assistantReady(canvasElement);
+        await canvas.findByRole("button", { name: "New conversation" }, { timeout: 60_000 });
+        await element.clearAiHistory();
+        const provider = element.getAiManager()?.getProvider() as MockLlmProvider;
+        provider.setResponse(ASK_COUNT, {
+            text: "Counting the nodes in the graph.",
+            toolCalls: [{ id: "q1", name: "query", arguments: { action: "overview" } }],
+        });
+        const generate = provider.generate.bind(provider);
+        let turns = 0;
+        provider.generate = async (...args) => {
+            turns++;
+            if (turns === 2) {
+                // Held for good: the story is the moment between the two turns.
+                await new Promise<never>(() => undefined);
+            }
+
+            return generate(...args);
+        };
+
+        await userEvent.type(canvas.getByRole("textbox", { name: "Ask the assistant" }), `${ASK_COUNT}{Enter}`);
+        await canvas.findByTestId("ai-streaming-reply", {}, { timeout: 60_000 });
+        await canvas.findByText("Thinking...", {}, { timeout: 60_000 });
+        await element.waitForStableFrame();
+    },
+};
+
+/**
+ * Settings > AI providers with Google open: the model from graphty-element's catalog, its
+ * reasoning levels and its temperature, each empty for the provider's own default.
+ * @returns The pane.
+ */
+function ModelSettingsPane(): React.JSX.Element {
+    const [choices, setChoices] = useState<AiModelChoices>({ google: { reasoningEffort: "medium" } });
+    const has = (provider: ProviderType): boolean => provider === "google";
+
+    return (
+        <ShellProvider initialShellWidth={1200} measureViewport={false} persist={false}>
+            <Box style={{ padding: 16, width: 700 }}>
+                <AiProviderSettings
+                    getKey={(provider) => (has(provider) ? "AIza-story-key-0123456789" : undefined)}
+                    setKey={() => undefined}
+                    removeKey={() => undefined}
+                    hasKey={has}
+                    configuredProviders={["google"]}
+                    defaultProvider="google"
+                    onDefaultProviderChange={() => undefined}
+                    isPersistenceEnabled={false}
+                    onEnablePersistence={() => undefined}
+                    onDisablePersistence={() => undefined}
+                    modelChoices={choices}
+                    onModelChoiceChange={(provider, choice) => {
+                        setChoices((current) => ({ ...current, [provider]: choice }));
+                    }}
+                />
+            </Box>
+        </ShellProvider>
+    );
+}
+
+/** The model, reasoning and temperature fields under a provider's key, from the catalog's facts. */
+export const ModelSettings: StoryObj<typeof ModelSettingsPane> = {
+    render: () => <ModelSettingsPane />,
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await userEvent.selectOptions(canvas.getByLabelText("Model"), "gemini-3.1-pro-preview");
+        await waitFor(() => {
+            if ((canvas.getByLabelText("Reasoning") as HTMLSelectElement).value !== "") {
+                throw new Error("a level the new model does not take is dropped");
+            }
+        });
+        await userEvent.selectOptions(canvas.getByLabelText("Reasoning"), "high");
     },
 };

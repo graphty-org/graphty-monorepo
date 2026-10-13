@@ -30,7 +30,11 @@ import {
     AI_VOICE_MODE,
     AI_WEB_FETCH,
     AI_WEB_SEARCH,
+    type AiModelChoice,
+    type AiModelChoices,
+    readAiModelChoices,
     readPreference,
+    writeAiModelChoices,
     writePreference,
 } from "../workspace/settings/preferences";
 
@@ -219,6 +223,10 @@ interface UseAiManagerResult {
     setVoiceSetting: <K extends keyof AiVoiceSettings>(name: K, value: AiVoiceSettings[K]) => void;
     /** How speech would be carried, as the element reports it (and reports again when it changes); null until the assistant is on. */
     voiceSupport: AiVoiceSupport | null;
+    /** The model and its options the reader chose for each provider; saved in this browser. */
+    modelChoices: AiModelChoices;
+    /** Change one provider's model choice; the assistant is switched on again with it. */
+    setModelChoice: (provider: ProviderType, choice: AiModelChoice) => void;
     /** Whether the element is listening to the reader. */
     listening: boolean;
     /** Hold talk (true) or let go (false): the element's `aiTalk`. */
@@ -254,6 +262,9 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
     const [capabilities, setCapabilities] = useState<AiCapabilities | null>(null);
     const [capabilityNotices, setCapabilityNotices] = useState<readonly AiHistoryNotice[]>([]);
     const [voiceSettings, setVoiceSettings] = useState<AiVoiceSettings>(readVoiceSettings);
+    const [modelChoices, setModelChoices] = useState<AiModelChoices>(readAiModelChoices);
+    // Only the current provider's choice switches the assistant on again.
+    const modelChoice = currentProvider === null ? undefined : modelChoices[currentProvider];
     const [voiceSupport, setVoiceSupport] = useState<AiVoiceSupport | null>(null);
     const [listening, setListening] = useState(false);
     const [voiceNotice, setVoiceNotice] = useState<AiHistoryNotice | null>(null);
@@ -348,6 +359,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
                     questions: true,
                     tools,
                     ...voice,
+                    ...modelChoice,
                 });
             } catch (err) {
                 console.error("[useAiManager] Failed to enable the assistant:", err);
@@ -410,11 +422,19 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
             setListening(false);
             setVoiceMode(null);
         };
-    }, [element, currentProvider, getKey, toolSwitches, voiceSettings]);
+    }, [element, currentProvider, getKey, toolSwitches, voiceSettings, modelChoice]);
 
     const setVoiceSetting = useCallback(<K extends keyof AiVoiceSettings>(name: K, value: AiVoiceSettings[K]): void => {
         writePreference<string>(VOICE_PREFERENCES[name], value);
         setVoiceSettings((current) => ({ ...current, [name]: value }));
+    }, []);
+
+    const setModelChoice = useCallback((provider: ProviderType, choice: AiModelChoice): void => {
+        setModelChoices((current) => {
+            const next = { ...current, [provider]: choice };
+            writeAiModelChoices(next);
+            return next;
+        });
     }, []);
 
     const talk = useCallback(
@@ -516,6 +536,8 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
         voiceSettings,
         setVoiceSetting,
         voiceSupport,
+        modelChoices,
+        setModelChoice,
         listening,
         talk,
         voiceNotice,

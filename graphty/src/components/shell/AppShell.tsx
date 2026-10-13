@@ -115,7 +115,7 @@ import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../data/sampleGr
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data/sampleManifest";
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
-import { aiTranscript, speechDestinationText } from "../ai/aiResultText";
+import { aiActivityText, aiTranscript, speechDestinationText } from "../ai/aiResultText";
 import { FeedbackModal } from "../FeedbackModal";
 import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
 import type { LoadDataRequest } from "../LoadDataModal";
@@ -1505,8 +1505,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             voice: aiManager.voiceSettings,
             onVoiceChange: aiManager.setVoiceSetting,
             voiceSupport: aiManager.voiceSupport,
+            modelChoices: aiManager.modelChoices,
+            onModelChoiceChange: aiManager.setModelChoice,
         }),
         [
+            aiManager.modelChoices,
+            aiManager.setModelChoice,
             aiManager.voiceSupport,
             aiManager.capabilities,
             aiManager.setVoiceSetting,
@@ -3904,8 +3908,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     <AiPanel
                         messages={aiMessages}
                         providerConfigured={aiKeyStorage.hasAnyProvider}
-                        providerLabel={aiManager.currentProvider ?? undefined}
                         isProcessing={aiManager.isProcessing}
+                        streamingText={aiManager.status?.streamedText}
+                        activity={aiActivityText(aiManager.status)}
                         speechAvailable={
                             aiManager.voiceSupport !== null && aiManager.voiceSupport.input.status !== "unavailable"
                         }
@@ -3936,13 +3941,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                             aiManager.isReady
                                 ? () => {
                                       void aiManager.newConversation();
-                                  }
-                                : undefined
-                        }
-                        onClearHistory={
-                            aiManager.isReady
-                                ? () => {
-                                      void aiManager.clearHistory();
                                   }
                                 : undefined
                         }
@@ -5486,6 +5484,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                 opened={settingsOpen}
                                 section={settingsSection}
                                 aiProviders={aiProviderSettings}
+                                onClearAiHistory={
+                                    aiManager.isReady
+                                        ? () => {
+                                              void aiManager.clearHistory();
+                                          }
+                                        : undefined
+                                }
                                 accelerationPolicy={accelerationPolicy}
                                 onAccelerationPolicyChange={changeAccelerationPolicy}
                                 labelShortfall={labelShortfall}

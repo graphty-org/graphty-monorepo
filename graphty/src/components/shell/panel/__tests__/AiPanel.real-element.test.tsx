@@ -23,8 +23,9 @@ import { cdp, userEvent } from "vitest/browser";
 import { useAiManager } from "../../../../hooks/useAiManager";
 import { render, screen, waitFor, within } from "../../../../test/test-utils";
 import { AiToolSettings, AiVoiceSettingsBlock } from "../../../ai/AiProviderSettings";
-import { aiTranscript } from "../../../ai/aiResultText";
+import { aiActivityText, aiTranscript } from "../../../ai/aiResultText";
 import { ShellProvider } from "../../ShellContext";
+import { ActivityPanel } from "../ActivityPanel";
 import { AiPanel } from "../AiPanel";
 
 /** The element itself, by its own published type; the import above registers it. */
@@ -108,44 +109,41 @@ function Assistant({ element }: { readonly element: ElementUnderTest }): React.J
                 provider="mock"
                 support={ai.voiceSupport}
             />
-            <AiPanel
-                messages={aiTranscript(ai)}
-                providerConfigured
-                isProcessing={ai.isProcessing}
-                speechAvailable={ai.voiceSupport !== null && ai.voiceSupport.input.status !== "unavailable"}
-                listening={ai.listening}
-                voiceMode={ai.voiceMode}
-                onListeningChange={ai.talk}
-                onSend={(text) => {
-                    void ai.execute(text);
-                }}
-                approvals={ai.approvals}
-                onApprove={(id) => {
-                    void ai.resolveApproval(id, true);
-                }}
-                onDeny={(id) => {
-                    void ai.resolveApproval(id, false);
-                }}
-                questions={ai.questions}
-                onAnswer={(id, answer) => {
-                    void ai.answerQuestion(id, answer);
-                }}
-                // Offered once the assistant is on: before that there is no conversation to act on.
-                onNewConversation={
-                    ai.isReady
-                        ? () => {
-                              void ai.newConversation();
-                          }
-                        : undefined
-                }
-                onClearHistory={
-                    ai.isReady
-                        ? () => {
-                              void ai.clearHistory();
-                          }
-                        : undefined
-                }
-            />
+            <ActivityPanel activity="ai" width={280} presentation="docked" title="Assistant">
+                <AiPanel
+                    messages={aiTranscript(ai)}
+                    providerConfigured
+                    isProcessing={ai.isProcessing}
+                    streamingText={ai.status?.streamedText}
+                    activity={aiActivityText(ai.status)}
+                    speechAvailable={ai.voiceSupport !== null && ai.voiceSupport.input.status !== "unavailable"}
+                    listening={ai.listening}
+                    voiceMode={ai.voiceMode}
+                    onListeningChange={ai.talk}
+                    onSend={(text) => {
+                        void ai.execute(text);
+                    }}
+                    approvals={ai.approvals}
+                    onApprove={(id) => {
+                        void ai.resolveApproval(id, true);
+                    }}
+                    onDeny={(id) => {
+                        void ai.resolveApproval(id, false);
+                    }}
+                    questions={ai.questions}
+                    onAnswer={(id, answer) => {
+                        void ai.answerQuestion(id, answer);
+                    }}
+                    // Offered once the assistant is on: before that there is no conversation to act on.
+                    onNewConversation={
+                        ai.isReady
+                            ? () => {
+                                  void ai.newConversation();
+                              }
+                            : undefined
+                    }
+                />
+            </ActivityPanel>
         </div>
     );
 }
@@ -195,8 +193,8 @@ async function renderAssistant(element: ElementUnderTest): Promise<() => void> {
         text: "",
         toolCalls: [{ id: "q", name: "ask_reader", arguments: { question: QUESTION, choices: ["Sales", "Ops"] } }],
     });
-    // The panel offers its conversation actions once the assistant is on.
-    await screen.findByRole("button", { name: "Clear history" }, { timeout: TIMEOUT_MS });
+    // The panel offers New conversation once the assistant is on.
+    await screen.findByRole("button", { name: "New conversation" }, { timeout: TIMEOUT_MS });
     return unmount;
 }
 

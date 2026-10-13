@@ -2,6 +2,7 @@ import type {
     AiApprovalRequest,
     AiCallRecord,
     AiConversationSnapshot,
+    AiStatus,
     AiVoiceSupport,
     ExecutionResult,
 } from "@graphty/graphty-element/ai";
@@ -357,4 +358,23 @@ export function aiTranscript(source: AiTranscriptSource): ChatMessage[] {
     }
 
     return messages;
+}
+
+/**
+ * What the assistant is doing now, in the app's words, from graphty-element's status: the call it
+ * is running, or that the model is answering or thinking.
+ * @param status - The assistant's status.
+ * @returns e.g. `Running find_nodes {"selector":"server"}`; empty when nothing runs.
+ */
+export function aiActivityText(status: AiStatus | null): string {
+    if (status === null || !(["submitted", "streaming", "executing"] as const).some((s) => s === status.state)) {
+        return "";
+    }
+
+    const running = [...(status.toolCalls ?? [])].reverse().find((call) => call.status === "executing");
+    if (running !== undefined) {
+        return `Running ${callText(running.name, running.arguments ?? {})}`;
+    }
+
+    return status.state === "streaming" && (status.streamedText ?? "") !== "" ? "Answering..." : "Thinking...";
 }

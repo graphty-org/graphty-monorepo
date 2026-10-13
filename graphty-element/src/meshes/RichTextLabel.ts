@@ -3,6 +3,7 @@ import {
     Color3,
     DynamicTexture,
     Engine,
+    Matrix,
     Mesh,
     MeshBuilder,
     Scene,
@@ -169,6 +170,7 @@ export class RichTextLabel {
     private readonly animator: RichTextAnimator | null = null;
     private readonly pointerRenderer: PointerRenderer;
     private depthFadeCallback: (() => void) | null = null;
+    private centerInFrontCallback: (() => void) | null = null;
     private animationStarted = false;
 
     /**
@@ -906,6 +908,13 @@ export class RichTextLabel {
         }
 
         this.material.specularColor = new Color3(0, 0, 0);
+        // A LABEL LEAVES THE STENCIL ALONE. A node's outline is a highlight layer, which paints its
+        // blurred silhouette everywhere the stencil does not hold the outlined node's mark. A label
+        // drawn over its node wrote the ordinary mark in its place, so the outline was painted over
+        // the words in the outline's color: a centered label on an outlined node was a black disc
+        // (issue #2323). With writes masked off, the node's mark stays under the label.
+        this.material.stencil.enabled = true;
+        this.material.stencil.mask = 0x00;
         // Only set emissiveColor if we're not using glow animation
         if (this.options.animation !== "glow") {
             this.material.emissiveColor = new Color3(1, 1, 1);
@@ -1050,10 +1059,57 @@ export class RichTextLabel {
 
         this.mesh.position = newPos;
         this.originalPosition ??= newPos.clone();
+        this._keepCenterInFront(position === "center" && target instanceof AbstractMesh ? target : null);
 
         if (this.animator) {
             this.animator.updateOriginalPosition(newPos);
         }
+    }
+
+    /**
+     * Keep a label at the center of its mesh in front of that mesh, from wherever the camera is.
+     *
+     * A label sorts by depth with the scene, so a plane at the mesh's own center is INSIDE the
+     * mesh and its near surface covers every word (issue #2323). Center is the default label
+     * position of Graphviz, Cytoscape and yEd, so every file from them showed no labels. Each
+     * frame the plane is moved from the center toward the camera by the mesh's bounding radius,
+     * so it lies on the near side of the mesh and still covers its middle on screen.
+     * @param target - The mesh the label is centered on, or null when it is not centered on one.
+     */
+    private _keepCenterInFront(target: AbstractMesh | null): void {
+        if (this.centerInFrontCallback) {
+            this.scene.unregisterBeforeRender(this.centerInFrontCallback);
+            this.centerInFrontCallback = null;
+        }
+
+        if (target === null) {
+            return;
+        }
+
+        const cameraAt = new Vector3();
+        const toLocal = new Matrix();
+        this.centerInFrontCallback = () => {
+            const camera = this.scene.activeCamera;
+            if (!camera || !this.mesh) {
+                return;
+            }
+
+            // The plane is parented to the mesh, so its position is in the mesh's local space:
+            // bring the camera there too, where the bounding radius is measured.
+            camera.getWorldMatrix().getTranslationToRef(cameraAt);
+            target.getWorldMatrix().invertToRef(toLocal);
+            Vector3.TransformCoordinatesToRef(cameraAt, toLocal, cameraAt);
+            const { center, radius } = target.getBoundingInfo().boundingSphere;
+            const toward = cameraAt.subtractInPlace(center);
+            const length = toward.length();
+            if (length === 0) {
+                return;
+            }
+
+            // A little past the surface, so the plane does not fight the surface for depth.
+            this.mesh.position.copyFrom(center).addInPlace(toward.scaleInPlace((radius * 1.01) / length));
+        };
+        this.scene.registerBeforeRender(this.centerInFrontCallback);
     }
 
     private _setupDepthFading(): void {
@@ -1192,6 +1248,8 @@ export class RichTextLabel {
             this.scene.unregisterBeforeRender(this.depthFadeCallback);
             this.depthFadeCallback = null;
         }
+
+        this._keepCenterInFront(null);
 
         if (this.animator) {
             this.animator.dispose();

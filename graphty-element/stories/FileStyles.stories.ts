@@ -91,6 +91,7 @@ type Story = StoryObj<StoryArgs>;
  * @param counts.edges - The edges.
  * @param colors - Some node ids and the color the file gives each.
  * @param larger - Pairs of node ids, the first of which the file draws larger than the second.
+ * @param labels - Some node ids and the label the file gives each, drawn on a label plane with ink.
  */
 async function drewFileStyles(
     canvasElement: HTMLElement,
@@ -98,6 +99,7 @@ async function drewFileStyles(
     counts: { readonly nodes: number; readonly edges: number },
     colors: Readonly<Record<string, string>>,
     larger: readonly (readonly [string, string])[] = [],
+    labels: Readonly<Record<string, string>> = {},
 ): Promise<void> {
     await waitForGraphSettled(canvasElement);
     const element = await renderedElement(canvasElement, `${story}: no <graphty-element> rendered`);
@@ -115,6 +117,20 @@ async function drewFileStyles(
     await holds(
         smaller.length === 0,
         `${story}: the file draws the first node of each pair larger, the element does not -- ${smaller.join(", ")}`,
+    );
+
+    const unlabeled = Object.entries(labels)
+        .filter(([id, text]) => {
+            const painted = (element.session.styles.explain({ node: id }).merged as Record<string, unknown>)[
+                "node.label"
+            ];
+            const node = scene.nodes.find((entry) => entry.id === id);
+            return painted !== text || node?.hasLabelMesh !== true || node.labelInk < 1;
+        })
+        .map(([id, text]) => `${id} (${JSON.stringify(text)})`);
+    await holds(
+        unlabeled.length === 0,
+        `${story}: the file labels these nodes and the element draws no such label -- ${unlabeled.join(", ")}`,
     );
 }
 
@@ -197,6 +213,8 @@ export const Dot: Story = {
             "Dot",
             { nodes: 13, edges: 21 },
             { red: "#ff0000", blue: "#0000ff", green: "#00ff00", yellow: "#ffff00" },
+            [],
+            { red: "red", blue: "blue" },
         );
     },
 };
@@ -220,6 +238,8 @@ export const GraphmlYed: Story = {
                 "n2::n5": "#99cc00",
                 "n2::n9": "#ff6600",
             },
+            [],
+            { "n0::n0": "Source\nView", "n2::n1": "Recording\nCompositor" },
         );
     },
 };
@@ -258,6 +278,7 @@ export const Pajek: Story = {
                 ["3", "1"],
                 ["1", "2"],
             ],
+            { "1": "Doc1", "3": "Doc3" },
         );
     },
 };
@@ -275,6 +296,8 @@ export const Xgmml: Story = {
             "Xgmml",
             { nodes: 45, edges: 62 },
             { "1": "#f3f60e", "3": "#6ac94b", "5": "#0234bf", "7": "#a95d32" },
+            [],
+            { "1": "05-4424.TP(1)", "2": "05-4424.NB(2)" },
         );
     },
 };

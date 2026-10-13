@@ -179,8 +179,14 @@ export type {
     SavedProject,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
-// What autosave reports: its status and its codes.
-export type { AutosaveCode, AutosaveStatus } from "./src/autosave/types";
+// What autosave reports: its status, its codes, its entries and what a restore found.
+export type {
+    AutosaveAvailable,
+    AutosaveCode,
+    AutosaveEntry,
+    AutosaveRestored,
+    AutosaveStatus,
+} from "./src/autosave/types";
 
 // Color palettes for visualizations
 export * from "./src/config/palettes/index";

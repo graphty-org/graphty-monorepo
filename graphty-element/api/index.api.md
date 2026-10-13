@@ -252,7 +252,42 @@ export interface AnimationResult {
 }
 
 // @public
+export interface AutosaveAvailable {
+    readonly entry: AutosaveEntry;
+    readonly problem: CodedFact | null;
+    readonly reason: "page-data-changed" | "held-by-other-tab" | "restore-failed" | "manual";
+}
+
+// @public
 export type AutosaveCode = "E_AUTOSAVE_UNAVAILABLE" | "E_AUTOSAVE_KEY_AMBIGUOUS" | "E_AUTOSAVE_QUOTA" | "E_AUTOSAVE_STALLED" | "E_AUTOSAVE_CONNECTION_LOST" | "E_AUTOSAVE_TOO_LARGE" | "E_AUTOSAVE_FAILED" | "E_AUTOSAVE_ENTRY_TAKEN" | "E_AUTOSAVE_UNKNOWN_ENTRY" | "E_AUTOSAVE_FORMAT_NEWER" | "E_AUTOSAVE_RESTORE_CRASHED" | "W_AUTOSAVE_ORIGIN_EPHEMERAL";
+
+// @public
+export interface AutosaveEntry {
+    readonly createdAt: string;
+    readonly dirty: boolean;
+    readonly edges: number;
+    readonly ended?: "replaced";
+    readonly id: string;
+    readonly key: string;
+    readonly live: boolean;
+    readonly name: string;
+    readonly nodes: number;
+    readonly revision: number;
+    readonly savedAt: string;
+}
+
+// @public
+export interface AutosaveRestored {
+    readonly copiedFrom: string | null;
+    readonly entry: AutosaveEntry;
+    readonly navigationType: string | null;
+    readonly others: number;
+    readonly pageOverrides: readonly string[];
+    readonly report: ProjectOpenReport;
+    readonly revision: number;
+    readonly savedAt: string;
+    readonly wasDiscarded: boolean | null;
+}
 
 // @public
 export interface AutosaveStatus {

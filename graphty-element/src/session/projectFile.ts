@@ -1413,6 +1413,18 @@ function nameOfFile(fileName: string | undefined): string | null {
 // The API
 // ---------------------------------------------------------------------------------------------
 
+/** Each session's way to mark its project unsaved; see {@link markProjectUnsaved}. */
+const UNSAVED = new WeakMap<object, () => void>();
+
+/**
+ * Mark a session's project as holding work never saved to a file, whatever its history says: an
+ * autosave restore puts back the `dirty` flag the work had, after `open()` made it clean. Internal.
+ * @param session - The session.
+ */
+export function markProjectUnsaved(session: GraphSession): void {
+    UNSAVED.get(session)?.();
+}
+
 /**
  * Build a session's project API.
  * @param session - The session.
@@ -1463,6 +1475,11 @@ export function projectOf(
 
         tell();
     };
+
+    UNSAVED.set(session, () => {
+        point.lost = true;
+        tell();
+    });
 
     session.on("history:changed", ({ reason }) => {
         for (const each of [point, ...waiting.values()]) {

@@ -7,6 +7,7 @@
  * @module autosave
  */
 
+import type { ProjectOpenReport } from "../session/projectFile";
 import type { CodedFact } from "../session/shared";
 
 /**
@@ -182,4 +183,67 @@ export interface AutosaveStatus {
     readonly ephemeral: "likely" | "unknown";
     /** Why the state is `"failing"` (or `"off"`), or null. */
     readonly problem: CodedFact<AutosaveCode> | null;
+}
+
+/** One autosaved entry, as a list describes it without reading its parts. */
+export interface AutosaveEntry {
+    /** The entry's id. */
+    readonly id: string;
+    /** The autosave key it belongs to. */
+    readonly key: string;
+    /** The project's name when it was written; empty when it had none. */
+    readonly name: string;
+    /** When the entry was started (ISO 8601 UTC). */
+    readonly createdAt: string;
+    /** When it was last written (ISO 8601 UTC). */
+    readonly savedAt: string;
+    /** The number of committed changes it contains. */
+    readonly revision: number;
+    /** Its node count. */
+    readonly nodes: number;
+    /** Its edge count. */
+    readonly edges: number;
+    /** Whether it holds work that was never saved to a file. */
+    readonly dirty: boolean;
+    /** Whether a live tab or element is writing it now. */
+    readonly live: boolean;
+    /** `"replaced"` once its tab moved on to another project; such an entry is never restored automatically. */
+    readonly ended?: "replaced";
+}
+
+/** What an automatic restore brought back. */
+export interface AutosaveRestored {
+    /** The entry restored (a copy, when `copiedFrom` is set). */
+    readonly entry: AutosaveEntry;
+    /** When the work was last written (ISO 8601 UTC). */
+    readonly savedAt: string;
+    /** The number of committed changes it contains. */
+    readonly revision: number;
+    /** The project-open report of the restore: runs that were computing come back as `W_RUN_PENDING`. */
+    readonly report: ProjectOpenReport;
+    /** `document.wasDiscarded`, or null where the browser does not say. */
+    readonly wasDiscarded: boolean | null;
+    /** The navigation's type (`"reload"`, `"navigate"`, `"back_forward"`), or null where unknown. */
+    readonly navigationType: string | null;
+    /** Other entries of this key holding unsaved work that no tab is writing. */
+    readonly others: number;
+    /** The entry this one was copied from, when another tab was writing this tab's own entry. */
+    readonly copiedFrom: string | null;
+    /** The page settings that changed since the entry was written, and so were applied over it. */
+    readonly pageOverrides: readonly string[];
+}
+
+/** An entry that was not restored automatically, and why. */
+export interface AutosaveAvailable {
+    /** The entry. */
+    readonly entry: AutosaveEntry;
+    /**
+     * `"page-data-changed"`: the page loaded different data, which replaced the restored work.
+     * `"held-by-other-tab"`: another tab is writing it. `"restore-failed"`: it could not be read,
+     * was written by newer code, or its restore did not finish twice (`problem` says which).
+     * `"manual"`: automatic restore is off.
+     */
+    readonly reason: "page-data-changed" | "held-by-other-tab" | "restore-failed" | "manual";
+    /** Why the restore failed, for `"restore-failed"`; otherwise null. */
+    readonly problem: CodedFact | null;
 }

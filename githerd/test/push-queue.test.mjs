@@ -134,6 +134,19 @@ function alive(pid) {
 }
 
 /**
+ * A file's contents, or "" while it does not exist.
+ * @param {string} path the file
+ * @returns {string} its text
+ */
+function readText(path) {
+    try {
+        return readFileSync(path, "utf8");
+    } catch {
+        return "";
+    }
+}
+
+/**
  * Kills a process, ignoring one that is gone.
  * @param {number} pid the process
  */
@@ -463,31 +476,46 @@ describe("gate failures", () => {
 
     it("kills a push that runs past twice the gate's duration, gate included", async () => {
         gate("hang");
-        // The bound (twice the gate) runs from git's start, so it must outlast git reaching the hook
-        // on a loaded machine; at 100 ms git was sometimes killed before the hook wrote its pid.
-        queue = makeQueue({ defaultGateMs: 1000 });
         state.pushQueue.gateRuns = [10];
         const a = workingJob("a");
-        await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+        // The bound (twice the default gate, an hour) runs on a fake clock, moved past it once the
+        // hook runs: a real bound short enough for a test killed git before it reached the hook on
+        // a loaded machine, and a long enough one slept seconds.
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+            await until(() => /\d/.test(readText(join(repo.tmp, "gate-pid"))));
+            vi.runOnlyPendingTimers();
+        } finally {
+            vi.useRealTimers();
+        }
         await queue.drain();
-        expect(a.job.news.at(-1).text).toMatch(/^push failed \(outside: timed out after 0 minutes\)/);
-        expect(alive(Number(readFileSync(join(repo.tmp, "gate-pid"), "utf8")))).toBe(false);
+        expect(a.job.news.at(-1).text).toMatch(/^push failed \(outside: timed out after 60 minutes\)/);
+        // SIGKILL to the group is delivered, not done, when git's pipes close: the hook's shell has
+        // closed its files and may not yet have exited. It must exit; one never killed sleeps on.
+        const gatePid = Number(readFileSync(join(repo.tmp, "gate-pid"), "utf8"));
+        await until(() => !alive(gatePid));
     });
 });
 
 describe("the machine's push queue", () => {
     /**
      * A fake `tools/push-queue.sh`: logs the priority and the command, waits behind other sessions'
-     * gates for 300 ms, prints the gate's banner, then runs the command.
+     * gates until the test calls `letThrough`, prints the gate's banner, then runs the command.
      * @returns {string} the script's path
      */
     function fakeQueue() {
         const script = join(repo.tmp, "push-queue.sh");
         put(
             script,
-            `echo "\${PUSH_QUEUE_PRIORITY:-normal} $*" >> "${repo.tmp}/queue-log"\nsleep 0.3\necho "Pre-push validation"\nexec "$@"\n`,
+            `echo "\${PUSH_QUEUE_PRIORITY:-normal} $*" >> "${repo.tmp}/queue-log"\nwhile [ ! -e "${repo.tmp}/release" ]; do sleep 0.02; done\necho "Pre-push validation"\nexec "$@"\n`,
         );
         return script;
+    }
+
+    /** Lets every push the fake queue holds, and every later one, through. */
+    function letThrough() {
+        writeFileSync(join(repo.tmp, "release"), "");
     }
 
     it("pushes through it like every session, an incident's fix as critical", async () => {
@@ -496,6 +524,7 @@ describe("the machine's push queue", () => {
         const other = workingJob("other");
         await queue.request({ job: "fix", branch: "githerd/fix", expectHead: fix.head }, "s-fix");
         await queue.request({ job: "other", branch: "githerd/other", expectHead: other.head }, "s-other");
+        letThrough();
         await queue.drain();
         expect(remoteHead("githerd/fix")).toBe(fix.head);
         expect(remoteHead("githerd/other")).toBe(other.head);
@@ -517,6 +546,7 @@ describe("the machine's push queue", () => {
         const asked = await queue.request({ job: "fix", branch: "githerd/fix", expectHead: fix.head }, "s-fix");
         // Behind only the push already running, ahead of the one queued before it.
         expect(asked).toEqual({ queued: true, position: 2 });
+        letThrough();
         await queue.drain();
         const log = readFileSync(join(repo.tmp, "queue-log"), "utf8").trim().split("\n");
         expect(log.map((l) => `${l.split(" ")[0]} ${l.split(" ").at(-1)}`)).toEqual([

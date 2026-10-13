@@ -9,20 +9,20 @@ I read this file at the start of every session and update it as I decide and lea
 
 - 2026-10-13 Tier 3 build paused for the owner's review after iteration 3 (`tier3/iterations/3/review.md`,
   plan for iteration 4 there). Words decided, with reasons:
-  - Unsetting vs covering are two acts with two controls and two wordings. Unset: the minus on a
-    set field, tooltip names what comes back over this layer's own elements ("back to 1, the
-    default"); emptying + Enter does the same; Undo names the restored value. Cover: "Hide label
-    from Key people" in the Text/Effects "+" menu adds an ordinary entry set to nothing. Reason:
-    the owner asked how to stop a field overriding; "empty means not set here" alone does not
-    answer it, a named result does.
-  - No "split parent" word or layer kind. Louvain's groups are entries of an ordinary color
-    binding; "New layer for Group 3" makes an ordinary layer. Two row nouns only: layer, folder.
-    Reason: owner asked that layer kinds be reusable; one noun per concept.
-  - Figma's words where Figma has the concept: "Node settings"/"Edge settings" (as "Type
-    settings"), "Mixed" only for a multi-selection, "Varies" for a binding, "None" for nothing.
-    Kept graphty's own: the painted-over value (dimmed, tooltip names the layer above and count).
-  - A property's name is never cut; the vary picker gives each name its own line, groups headed by
-    the run row's name; edge ends worded "the source's Connections".
+    - Unsetting vs covering are two acts with two controls and two wordings. Unset: the minus on a
+      set field, tooltip names what comes back over this layer's own elements ("back to 1, the
+      default"); emptying + Enter does the same; Undo names the restored value. Cover: "Hide label
+      from Key people" in the Text/Effects "+" menu adds an ordinary entry set to nothing. Reason:
+      the owner asked how to stop a field overriding; "empty means not set here" alone does not
+      answer it, a named result does.
+    - No "split parent" word or layer kind. Louvain's groups are entries of an ordinary color
+      binding; "New layer for Group 3" makes an ordinary layer. Two row nouns only: layer, folder.
+      Reason: owner asked that layer kinds be reusable; one noun per concept.
+    - Figma's words where Figma has the concept: "Node settings"/"Edge settings" (as "Type
+      settings"), "Mixed" only for a multi-selection, "Varies" for a binding, "None" for nothing.
+      Kept graphty's own: the painted-over value (dimmed, tooltip names the layer above and count).
+    - A property's name is never cut; the vary picker gives each name its own line, groups headed by
+      the run row's name; edge ends worded "the source's Connections".
 - 2026-10-13 Watch at the owner's review and in the study: whether "Hide label from Key people" is
   where a reader looks to cover something beneath (if not, the cover verb needs a better home, not
   more words); whether a dimmed painted-over value reads as "not what is drawn" without its

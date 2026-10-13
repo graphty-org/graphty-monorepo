@@ -110,7 +110,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 - (2026-10-13) **Tree glyphs and menus, the key card, Graph settings and folders** (graphty app;
   tests `graph-place/__tests__/StyleTreeRows.real-element.test.tsx`, `canvas/__tests__/
-  LegendCard.real-element.test.tsx`, `legendWords.test.ts`; pictures `tier3/build/tree-key-settings/`).
+LegendCard.real-element.test.tsx`, `legendWords.test.ts`; pictures `tier3/build/tree-key-settings/`).
   One kind glyph per row, `graph-place/KindGlyph.tsx` (node CircleDot, edge Spline, both
   GitCommitHorizontal, folder), all 14 px, drawn by the tree, the inspector header and a folder's
   child list: the old both-kinds mark was two 8 px icons, which is why it read dimmer. Painted-over
@@ -356,8 +356,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   script in scratch and re-check `git diff` right before committing.
 
 - (2026-10-12) **Iteration 2 screenshot audit done** (`tier3/iterations/2/engineer.md`, frozen build
-  tier3-i2-2faecd941b, 1366 x 768 and 1920 x 1080; pictures `tier3/build/audit-i2/`). No severity
-  4. Worst, all the app's: effect entries' color fields are 34 px and show two hex digits ("FF",
+  tier3-i2-2faecd941b, 1366 x 768 and 1920 x 1080; pictures `tier3/build/audit-i2/`). No severity 4. Worst, all the app's: effect entries' color fields are 34 px and show two hex digits ("FF",
   "11"), so Selected's look is unreadable at rest (`Effects.tsx` slot); a label and a tooltip
   entry look identical (the kind is only in the accessible name); the route's Which elements is
   raw JMESPath because `whichRule.ts` `formOf` never calls the element's `selectorRule`; Values
@@ -510,7 +509,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Alt+ArrowDown/Up onto a folder goes in (first child going down, last going up), Alt+ArrowLeft
   goes out to just after the folder; the folder opens, focus stays, and a live region says where
   it went (`labels.treeMoved`). `rowMenu(node, actions)` now passes `actions.moveTo(parentId,
-  index?)`, so the app's row menu offers "Move to folder" without moving data itself first; it
+index?)`, so the app's row menu offers "Move to folder" without moving data itself first; it
   is checked like a drop. The pure rules are `keyboardMove`, `isValidMove`, `movePlace` in
   `treeModel.ts` (not exported from the package; the component uses them). Row toggles lost their
   4 px overlap: three 24 x 24 targets, so tree stories with toggles shift 4 px per extra toggle --

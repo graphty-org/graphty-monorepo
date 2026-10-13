@@ -261,4 +261,15 @@ export default tseslint.config(
             "no-restricted-globals": "off",
         },
     },
+    // ---- strict type rules this package has no violation of, back on so none creeps in (#2345). The
+    // root lists them per package for packages without their own config; its globs are relative to
+    // the repo root and do not reach this config, so this package lists its own. Benchmarks and
+    // configs have no type information and are not under src/ or test/.
+    {
+        files: ["src/**/*.ts", "test/**/*.ts"],
+        rules: {
+            "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+        },
+    },
 );

@@ -134,7 +134,7 @@ class EnumTracker {
         const allValuesShort = unique.every((v) => v.length <= this.options.enumMaxStringLength);
 
         if (passesCardinalityCheck && allValuesShort) {
-            unique.sort();
+            unique.sort((a, b) => (a < b ? -1 : Number(a > b)));
             return { isEnum: true, values: unique };
         }
 

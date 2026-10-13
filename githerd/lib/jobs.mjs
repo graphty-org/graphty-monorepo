@@ -737,7 +737,7 @@ function issueJobs(state, config, now, add, cancel) {
 
 /**
  * How many issue jobs to keep queued: the sum, over the sessions githerd may invite
- * (`workers.sessions`; every session that reported room when it names none, at least one), of the
+ * (the deprecated `workers.sessions` allowlist; otherwise every session that reported room, at least one), of the
  * room each last reported in its capacity answer (`state.capacity`, less the jobs it claimed
  * since), at least one and at most twice `workers.maxActive` per session. A session that never
  * answered counts one. Queued jobs are never cancelled when the demand falls.

@@ -610,9 +610,9 @@ export function checkShapeContract(
  * @returns True when at least one graph field is the algorithm's own rather than the shape's.
  */
 function hasHeadlineScalar(contract: ResultShapeContract, fields: readonly FieldDescriptor[]): boolean {
-    const fixed: readonly string[] = [...contract.graphFields, ...contract.optionalGraphFields];
+    const fixed: ReadonlySet<string> = new Set([...contract.graphFields, ...contract.optionalGraphFields]);
 
-    return fields.some((field) => field.kind === "graph" && !fixed.includes(field.name));
+    return fields.some((field) => field.kind === "graph" && !fixed.has(field.name));
 }
 
 // ---------------------------------------------------------------------------------------------

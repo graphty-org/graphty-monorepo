@@ -54,7 +54,7 @@ export class SelectionManager implements Manager {
      * Creates a new selection manager
      * @param eventManager - Event manager for emitting selection events
      */
-    constructor(private eventManager: EventManager) {}
+    constructor(private readonly eventManager: EventManager) {}
 
     /**
      * Initialize the selection manager

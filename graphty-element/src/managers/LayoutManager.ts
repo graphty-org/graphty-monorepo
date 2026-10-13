@@ -575,7 +575,7 @@ export class LayoutManager implements Manager {
      */
     private driverOptions: object = {};
 
-    private logger: Logger = GraphtyLogger.getLogger(["graphty", "layout"]);
+    private readonly logger: Logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
     /** Told when the layout comes to rest: it settled, was paused, or finished placing. */
     onRest: (() => void) | null = null;
@@ -739,8 +739,8 @@ export class LayoutManager implements Manager {
      * @param styles - Styles instance for layout configuration
      */
     constructor(
-        private eventManager: EventManager,
-        private dataManager: DataManager,
+        private readonly eventManager: EventManager,
+        private readonly dataManager: DataManager,
         private styles: Styles,
     ) {
         // A FREEZE IS A NEW GRAPH FOR THE SIMULATION. A simulation layout runs over the snapshot

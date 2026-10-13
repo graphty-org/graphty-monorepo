@@ -157,7 +157,7 @@ export class Graphty extends LitElement {
     }
 
     #builtGraph: Graph | undefined;
-    #element: Element;
+    readonly #element: Element;
     #resizeObserver: ResizeObserver | null = null;
     #capabilitiesMirrored = false;
     #unwatchRuns: (() => void) | null = null;
@@ -168,7 +168,7 @@ export class Graphty extends LitElement {
     #unwatchNotes: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
     readonly #progressAt = new Map<string, number>();
-    #runProgressAt = new Map<string, number>();
+    readonly #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
 
     /**
@@ -1533,7 +1533,7 @@ export class Graphty extends LitElement {
          * hand the setter "true" and "false" as text) is right on its own.
          */
         converter: {
-            fromAttribute: (value: string | null): boolean | "auto" | undefined => {
+            fromAttribute: (value: string | null): Graphty["directed"] => {
                 if (value === null) {
                     return undefined;
                 }

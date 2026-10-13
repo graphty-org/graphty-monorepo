@@ -32,7 +32,7 @@ export class OrbitCameraController {
     public cameraDistance: number;
     public config: OrbitConfig;
 
-    private pivotController: PivotController;
+    private readonly pivotController: PivotController;
 
     /**
      * Margins of the canvas something else covers, in CSS pixels. Every fit keeps the graph out

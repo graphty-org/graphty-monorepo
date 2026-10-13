@@ -100,13 +100,13 @@ number look like equal steps in the colour, which a rainbow ramp does not.
 
 ### Categorical -- groups with no order
 
-| Id            | Plain name              | Capacity | Safe for                             |
-| ------------- | ----------------------- | -------- | ------------------------------------ |
-| `okabe-ito`   | Eight Distinct Colours  | 8        | deuteranopia, protanopia, tritanopia |
-| `tol-vibrant` | Seven Bright Colours    | 7        | deuteranopia, protanopia, tritanopia |
-| `tol-muted`   | Nine Soft Colours       | 9        | deuteranopia, protanopia, tritanopia |
-| `pastel`      | Eight Pale Colours      | 8        | deuteranopia, protanopia, tritanopia |
-| `carbon`      | Five Enterprise Colours | 5        | not checked safe                     |
+| Id            | Plain name             | Capacity | Safe for                             |
+| ------------- | ---------------------- | -------- | ------------------------------------ |
+| `okabe-ito`   | Eight Distinct Colors  | 8        | deuteranopia, protanopia, tritanopia |
+| `tol-vibrant` | Seven Bright Colors    | 7        | deuteranopia, protanopia, tritanopia |
+| `tol-muted`   | Nine Soft Colors       | 9        | deuteranopia, protanopia, tritanopia |
+| `pastel`      | Eight Pale Colors      | 8        | deuteranopia, protanopia, tritanopia |
+| `carbon`      | Five Enterprise Colors | 5        | not checked safe                     |
 
 `okabe-ito` is the default for groups: the eight colours Okabe and Ito published in 2008, black
 included, with yellow in the last slot because it barely shows on a light background. Capacity is a real limit: a community detection that finds
@@ -143,7 +143,7 @@ A scale decides how a number travels from the data's extent to the channel's ran
 | `neglog10`    | By Significance        | p-values and similar                          |
 | `quantile`    | Equal Counts           | equal numbers of elements per band            |
 | `bins`        | Equal Ranges           | explicit thresholds                           |
-| `ordinal`     | One Colour per Value   | groups, which have no distance between them   |
+| `ordinal`     | One Color per Value    | groups, which have no distance between them   |
 | `passthrough` | Use the Value As It Is | values already in the channel's own units     |
 
 ```typescript

@@ -541,7 +541,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             plainName: "Rings from a Node",
             technicalName: "Radial layout",
             description:
-                "Puts one node at the centre and every other node on a ring by how many steps away " +
+                "Puts one node at the center and every other node on a ring by how many steps away " +
                 "it is, so the rings read outward as distance from that node.",
             family: "geometric",
             kind: "batch",
@@ -570,7 +570,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             id: "shell",
             plainName: "Concentric Rings",
             technicalName: "Shell layout",
-            description: "Places each group of nodes on its own ring, around a shared centre.",
+            description: "Places each group of nodes on its own ring, around a shared center.",
             family: "geometric",
             kind: "batch",
             maxDimensions: 2,
@@ -584,7 +584,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             id: "spiral",
             plainName: "Spiral",
             technicalName: "Archimedean spiral layout",
-            description: "Places nodes one after another along a spiral winding out from the centre.",
+            description: "Places nodes one after another along a spiral winding out from the center.",
             family: "geometric",
             kind: "batch",
             maxDimensions: 2,

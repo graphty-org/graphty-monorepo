@@ -483,7 +483,7 @@ export class DataManager implements Manager {
      * @param styles - Styles instance for applying styles to data
      */
     constructor(
-        private eventManager: EventManager,
+        private readonly eventManager: EventManager,
         private styles: Styles,
     ) {
         this.meshCache = new MeshCache();

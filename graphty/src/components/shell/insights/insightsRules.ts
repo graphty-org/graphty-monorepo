@@ -176,13 +176,13 @@ export const INSIGHT_ACTION_LABEL = "Try it";
  * unconditional in 7.3, and a card promising a run that cannot happen is worse than a short
  * strip.
  */
-const ABOVE_THRESHOLD_DETERMINISTIC_SET: readonly InsightCapability[] = [
+const ABOVE_THRESHOLD_DETERMINISTIC_SET: ReadonlySet<InsightCapability> = new Set([
     "data-validation",
     "narrow-the-view",
     "component-analysis",
     "centrality-degree",
     "search",
-];
+]);
 
 /**
  * Builds one card. Every string a caller sees passes through here, so the frozen copy
@@ -423,7 +423,7 @@ function mayBeOffered(shape: InsightsGraphShape, capability: InsightCapability, 
     const listed = elementListing(shape, capability);
 
     if (listed === undefined) {
-        return !aboveThreshold || ABOVE_THRESHOLD_DETERMINISTIC_SET.includes(capability);
+        return !aboveThreshold || ABOVE_THRESHOLD_DETERMINISTIC_SET.has(capability);
     }
 
     if (!listed.available) {

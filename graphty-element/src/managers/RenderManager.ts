@@ -355,7 +355,7 @@ export class RenderManager implements Manager {
             this.drawOwed = true;
         }
     };
-    private resizeHandler: () => void;
+    private readonly resizeHandler: () => void;
     /** The one skybox dome, and the image it shows; null while the background is a colour. */
     private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
 
@@ -378,9 +378,9 @@ export class RenderManager implements Manager {
      * @param config - Optional render configuration
      */
     constructor(
-        private canvas: HTMLCanvasElement,
-        private eventManager: EventManager,
-        private config: RenderManagerConfig = {},
+        private readonly canvas: HTMLCanvasElement,
+        private readonly eventManager: EventManager,
+        private readonly config: RenderManagerConfig = {},
     ) {
         // Set Babylon.js log level
         Logger.LogLevels = Logger.ErrorLogLevel;

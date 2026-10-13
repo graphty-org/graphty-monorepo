@@ -51,10 +51,10 @@ export class ScreenshotCapture {
      * @param graph - The graph instance for accessing layout and camera state
      */
     constructor(
-        private engine: Engine | WebGPUEngine,
-        private scene: Scene,
-        private canvas: HTMLCanvasElement,
-        private graph: Graph,
+        private readonly engine: Engine | WebGPUEngine,
+        private readonly scene: Scene,
+        private readonly canvas: HTMLCanvasElement,
+        private readonly graph: Graph,
     ) {}
 
     /**

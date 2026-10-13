@@ -96,7 +96,7 @@ interface GradientColor {
 export class NodeMesh {
     // Shared with every other copy of graphty-element on the page, so a shape registered through
     // one reaches them all; each copy still builds its own built-ins with its own Babylon.js.
-    private static shapeCreators = new SharedImplementationMap<ShapeCreator>("shape");
+    private static readonly shapeCreators = new SharedImplementationMap<ShapeCreator>("shape");
 
     static {
         NodeMesh.registerShapeCreator("box", (size) => NodeMesh.createBox(size));

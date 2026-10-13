@@ -18,8 +18,8 @@ class ScopedBreakingChangelogRenderer extends DefaultChangelogRenderer {
             if (!change.isBreaking || !change.scope) {
                 return change;
             }
-            const scopes = change.scope.split(",").map((s) => s.trim());
-            return scopes.includes(project) || scopes.includes(short) ? change : { ...change, isBreaking: false };
+            const scopes = new Set(change.scope.split(",").map((s) => s.trim()));
+            return scopes.has(project) || scopes.has(short) ? change : { ...change, isBreaking: false };
         });
     }
 }

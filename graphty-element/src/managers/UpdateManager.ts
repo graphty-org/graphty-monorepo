@@ -237,9 +237,9 @@ export class UpdateManager implements Manager {
     private forceZoomToFit = false;
     /** Whether the outstanding request came from a consumer's `zoomToFit()`, not the element. */
     private explicitZoomToFit = false;
-    private config: Required<UpdateManagerConfig>;
+    private readonly config: Required<UpdateManagerConfig>;
     private layoutStepCount = 0;
-    private minLayoutStepsBeforeZoom = 10;
+    private readonly minLayoutStepsBeforeZoom = 10;
     private lastZoomStep = 0;
     private wasSettled = false;
 
@@ -296,12 +296,12 @@ export class UpdateManager implements Manager {
      * @param config - Optional configuration
      */
     constructor(
-        private eventManager: EventManager,
-        private statsManager: StatsManager,
-        private layoutManager: LayoutManager,
-        private dataManager: DataManager,
+        private readonly eventManager: EventManager,
+        private readonly statsManager: StatsManager,
+        private readonly layoutManager: LayoutManager,
+        private readonly dataManager: DataManager,
         private camera: CameraManager,
-        private graphContext: GraphContext,
+        private readonly graphContext: GraphContext,
         config: UpdateManagerConfig = {},
     ) {
         this.config = {
@@ -1088,7 +1088,7 @@ export class UpdateManager implements Manager {
      *
      * Bounded twice, so a frame that is slow BECAUSE of stepping cannot feed itself: never more
      * than {@link MAX_CATCH_UP_ROUNDS} rounds, and no extra round once stepping has used half of
-     * `frameMs`. A simulation layout keeps its one batch a frame (see below).
+     * `frameMs`. An accelerated simulation layout keeps its one batch a frame (see below).
      * @param frameMs - How long the previous frame took; 0 takes one round.
      */
     private updateLayout(frameMs: number): void {
@@ -1097,39 +1097,41 @@ export class UpdateManager implements Manager {
 
         const { stepMultiplier, minDelta } = this.graphContext.getStyles().config.behavior.layout;
 
-        if (this.layoutManager.layoutEngine instanceof SimulationLayoutEngine) {
-            // ONE batch per frame. The simulation computes `iterationsPerStep` iterations inside
-            // it, so this is the same amount of work the loop below does on the CPU -- and on an
-            // accelerator it is the one shape that lets the device coalesce rather than queue.
-            const before = minDelta > 0 ? this.enginePositions() : null;
-            this.layoutManager.stepBatch();
-            this.layoutStepCount++;
+        // A simulation computes a whole round's `iterationsPerStep` iterations in ONE batch, so a
+        // round is one call. On an accelerator it keeps ONE batch per frame, the one shape that
+        // lets the device coalesce rather than queue; on the CPU a batch is synchronous and catches
+        // up like any other engine, or a 100-iteration ForceAtlas2 drawn at six frames a second
+        // took 17 s to settle.
+        const { layoutEngine } = this.layoutManager;
+        const simulation = layoutEngine instanceof SimulationLayoutEngine;
+        const accelerated = simulation && layoutEngine.isAccelerated;
+        const rounds = accelerated
+            ? 1
+            : Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
+        const started = rounds > 1 ? performance.now() : 0;
 
-            if (before !== null && this.largestMove(before) < minDelta) {
-                this.layoutManager.running = false;
+        for (let round = 0; round < rounds; round++) {
+            // A settled engine has nothing left to catch up on.
+            const engine = this.layoutManager.layoutEngine;
+            if (round > 0 && (!engine || engine.isSettled || performance.now() - started > frameMs / 2)) {
+                break;
             }
-        } else {
-            const rounds = Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
-            const started = rounds > 1 ? performance.now() : 0;
 
-            for (let round = 0; round < rounds; round++) {
-                // A settled engine has nothing left to catch up on.
-                const engine = this.layoutManager.layoutEngine;
-                if (round > 0 && (!engine || engine.isSettled || performance.now() - started > frameMs / 2)) {
-                    break;
-                }
+            const before = minDelta > 0 ? this.enginePositions() : null;
 
-                const before = minDelta > 0 ? this.enginePositions() : null;
-
+            if (simulation) {
+                this.layoutManager.stepBatch();
+                this.layoutStepCount++;
+            } else {
                 for (let i = 0; i < stepMultiplier; i++) {
                     this.layoutManager.step();
                     this.layoutStepCount++;
                 }
+            }
 
-                if (before !== null && this.largestMove(before) < minDelta) {
-                    this.layoutManager.running = false;
-                    break;
-                }
+            if (before !== null && this.largestMove(before) < minDelta) {
+                this.layoutManager.running = false;
+                break;
             }
         }
 

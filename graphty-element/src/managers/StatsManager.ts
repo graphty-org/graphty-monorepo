@@ -180,9 +180,9 @@ export class StatsManager implements Manager {
 
     // Profiling fields
     private enabled = false;
-    private measurements = new Map<string, MeasurementStats>();
+    private readonly measurements = new Map<string, MeasurementStats>();
     private activeStack: { label: string; startTime: number }[] = [];
-    private counters = new Map<string, CounterStats>();
+    private readonly counters = new Map<string, CounterStats>();
 
     // Layout session tracking
     private layoutSessionStartTime: number | null = null;
@@ -199,7 +199,7 @@ export class StatsManager implements Manager {
      * Creates a new stats manager for performance tracking
      * @param eventManager - Event manager for emitting stats events
      */
-    constructor(private eventManager: EventManager) {}
+    constructor(private readonly eventManager: EventManager) {}
 
     /**
      * Initialize the stats manager

@@ -139,13 +139,13 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
  * Rich text label with support for formatting, badges, animations, and speech bubble pointers
  */
 export class RichTextLabel {
-    private scene: Scene;
-    private options: ResolvedRichTextLabelOptions;
+    private readonly scene: Scene;
+    private readonly options: ResolvedRichTextLabelOptions;
     private mesh: Mesh | null = null;
     private texture: DynamicTexture | null = null;
     private material: StandardMaterial | null = null;
     private parsedContent: TextSegment[][] = [];
-    private actualDimensions: ActualDimensions = { width: 0, height: 0 };
+    private readonly actualDimensions: ActualDimensions = { width: 0, height: 0 };
     private contentArea: ContentArea = { x: 0, y: 0, width: 0, height: 0 };
     /** The size of the words alone, in the same units as `actualDimensions`. */
     private textSize = { width: 0, height: 0 };
@@ -157,13 +157,13 @@ export class RichTextLabel {
     private totalBorderWidth = 0;
     private pointerInfo: PointerInfo | null = null;
     private _progressValue = 0;
-    private id: string;
+    private readonly id: string;
     private originalPosition: Vector3 | null = null;
 
-    private parser: RichTextParser;
-    private renderer: RichTextRenderer;
-    private animator: RichTextAnimator | null = null;
-    private pointerRenderer: PointerRenderer;
+    private readonly parser: RichTextParser;
+    private readonly renderer: RichTextRenderer;
+    private readonly animator: RichTextAnimator | null = null;
+    private readonly pointerRenderer: PointerRenderer;
     private depthFadeCallback: (() => void) | null = null;
     private animationStarted = false;
 

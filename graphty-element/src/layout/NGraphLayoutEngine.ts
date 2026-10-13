@@ -162,7 +162,7 @@ export class NGraphEngine extends LayoutEngine {
     private movable = new Uint8Array(0);
     private readonly cells = new Map<number, number[]>();
     /** Places each new node when `seed` is set; null leaves placement to ngraph. */
-    private seededPlacement: { rng: ReturnType<typeof random>; dim: number } | null = null;
+    private readonly seededPlacement: { rng: ReturnType<typeof random>; dim: number } | null = null;
 
     /**
      * Create an NGraph layout engine

@@ -9,8 +9,8 @@ import { OrbitCameraController, OrbitConfig } from "./OrbitCameraController";
  * Processes mouse, touch, and keyboard input for camera manipulation.
  */
 export class OrbitInputController {
-    private canvas: HTMLCanvasElement;
-    private controller: OrbitCameraController;
+    private readonly canvas: HTMLCanvasElement;
+    private readonly controller: OrbitCameraController;
     private isPointerDown = false;
     private lastX = 0;
     private lastY = 0;
@@ -18,12 +18,12 @@ export class OrbitInputController {
     private rotationVelocityX = 0;
     private rotationVelocityY = 0;
     private keysDown: Record<string, boolean> = {};
-    private config: OrbitConfig;
+    private readonly config: OrbitConfig;
     private hammer: HammerManager | null = null;
     private enabled = false;
 
     // Store handlers for attach/detach
-    private pointerDownHandler = (evt: PointerEvent): void => {
+    private readonly pointerDownHandler = (evt: PointerEvent): void => {
         if (evt.button === 0 && !this.isMultiTouch) {
             this.isPointerDown = true;
             this.lastX = evt.clientX;
@@ -33,11 +33,11 @@ export class OrbitInputController {
         }
     };
 
-    private pointerUpHandler = (): void => {
+    private readonly pointerUpHandler = (): void => {
         this.isPointerDown = false;
     };
 
-    private pointerMoveHandler = (evt: PointerEvent): void => {
+    private readonly pointerMoveHandler = (evt: PointerEvent): void => {
         if (!this.isPointerDown || this.isMultiTouch) {
             return;
         }
@@ -49,7 +49,7 @@ export class OrbitInputController {
         this.controller.rotate(dx, dy);
     };
 
-    private keyDownHandler = (evt: KeyboardEvent): void => {
+    private readonly keyDownHandler = (evt: KeyboardEvent): void => {
         // A modified key is a shortcut (Shift+A, Mod+S), not a camera move: the shortcut
         // usually moves focus away, so its keyup never reaches the canvas and the key stays held
         if (hasModifier(evt)) {
@@ -59,7 +59,7 @@ export class OrbitInputController {
         this.keysDown[evt.key.toLowerCase()] = true;
     };
 
-    private keyUpHandler = (evt: KeyboardEvent): void => {
+    private readonly keyUpHandler = (evt: KeyboardEvent): void => {
         this.keysDown[evt.key.toLowerCase()] = false;
     };
 

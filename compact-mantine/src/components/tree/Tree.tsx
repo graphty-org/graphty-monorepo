@@ -51,6 +51,8 @@ function scrollerOf(from: HTMLElement): HTMLElement | null {
     }
     return null;
 }
+/** The controls in a row's trailing slot that take focus. */
+const ACTION_CONTROLS = ".cm-tree-actions :is(button, a[href], input, select, textarea, [tabindex]):not(:disabled)";
 
 /**
  * Props for the TreeItem component: one row of a layer tree.
@@ -78,7 +80,10 @@ export interface TreeItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>
     dimmed?: boolean;
     /** Weight 600 and a primary glyph. Defaults to true for a top-level row with children. */
     strong?: boolean;
-    /** The trailing toggles, revealed on hover or focus. */
+    /**
+     * The trailing toggles, revealed on hover or focus. Inside a Tree they are out of the Tab
+     * order and reached with ArrowRight (see Tree).
+     */
     actions?: React.ReactNode;
     /** 1-based position among its siblings, for assistive technology. */
     posInSet?: number;
@@ -344,6 +349,10 @@ export interface TreeProps {
  * opens every sibling; F2 renames; Alt+L closes everything; with `onMove`, Alt+ArrowUp /
  * Alt+ArrowDown move the focused item one place among its siblings. `onRowKeyDown` sees every
  * key first and can claim one with `preventDefault()`.
+ * Row toggles (`actions`) are out of the Tab order: ArrowRight on a row without children, or
+ * Alt+ArrowRight on any row, focuses the row's first toggle; there ArrowLeft / ArrowRight walk the
+ * toggles, Enter / Space press one, ArrowLeft on the first or Escape returns to the row, and
+ * ArrowUp / ArrowDown go to the row above or below.
  * Pointer: click selects (Shift range, Control / Command toggle); the caret opens one row;
  * double-click renames; drag a row to move it (a mouse or pen after 4px of movement, a finger
  * after holding the row half a second; a quicker swipe scrolls). Escape cancels a drag, and the
@@ -474,6 +483,15 @@ export function Tree({
         rows[0]?.node.id ??
         null;
 
+    // A row's toggles are reached with ArrowRight, never with Tab: keep them out of the Tab order
+    // so the whole tree is one Tab stop. Runs after every render, since a caller's toggle can
+    // re-render its own button.
+    useLayoutEffect(() => {
+        rootRef.current?.querySelectorAll<HTMLElement>(ACTION_CONTROLS).forEach((el) => {
+            el.tabIndex = -1;
+        });
+    });
+
     useLayoutEffect(() => {
         if (!pendingFocus.current || tabId === null) {
             return;
@@ -552,8 +570,40 @@ export function Tree({
         return event.metaKey || event.ctrlKey ? "toggle" : "replace";
     };
 
+    const actionsOf = (rowEl: Element | null): HTMLElement[] =>
+        rowEl === null ? [] : [...rowEl.querySelectorAll<HTMLElement>(ACTION_CONTROLS)];
+
+    // Keys on a row's toggle: ArrowLeft / ArrowRight walk the toggles, ArrowLeft on the first or
+    // Escape returns to the row, ArrowUp / ArrowDown go to the row above or below. Enter and
+    // Space stay the toggle's own.
+    const handleActionKeyDown = (event: React.KeyboardEvent<HTMLDivElement>, rowEl: HTMLElement): void => {
+        const actions = actionsOf(rowEl);
+        const at = actions.indexOf(event.target as HTMLElement);
+        const i = indexOf.get(rowEl.dataset.id ?? "");
+        if (at === -1 || i === undefined || event.defaultPrevented || event.altKey) {
+            return;
+        }
+        if (event.key === "ArrowRight") {
+            actions[at + 1]?.focus();
+        } else if ((event.key === "ArrowLeft" && at === 0) || event.key === "Escape") {
+            rowEl.focus();
+        } else if (event.key === "ArrowLeft") {
+            actions[at - 1].focus();
+        } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            moveFocus(rows[i + (event.key === "ArrowDown" ? 1 : -1)]?.node.id ?? rows[i].node.id);
+        } else {
+            return;
+        }
+        event.preventDefault();
+    };
+
     const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
         const target = event.target as HTMLElement;
+        const rowEl = target.closest<HTMLElement>("[role='treeitem']");
+        if (rowEl !== null && rowEl !== target && target.closest(".cm-tree-actions") !== null) {
+            handleActionKeyDown(event, rowEl);
+            return;
+        }
         if (target.getAttribute("role") !== "treeitem" || tabId === null) {
             return;
         }
@@ -561,6 +611,13 @@ export function Tree({
         const row = rows[i];
         onRowKeyDown?.(row.node.id, event);
         if (event.defaultPrevented) {
+            return;
+        }
+        // ArrowRight on a row with nothing to open, or Alt+ArrowRight on any row: into its toggles.
+        const firstAction = actionsOf(target)[0] as HTMLElement | undefined;
+        if (event.key === "ArrowRight" && firstAction && (event.altKey || !row.hasChildren)) {
+            event.preventDefault();
+            firstAction.focus();
             return;
         }
         // Alt+ArrowUp / Alt+ArrowDown: move the focused item one place among its siblings. Reported

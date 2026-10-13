@@ -606,13 +606,16 @@ const RANK = { number: 0, boolean: 1, string: 2 } as const;
 /** Text in natural order: "2" before "10". */
 const NATURAL = new Intl.Collator("en", { numeric: true });
 
+/** A group key: a number, a boolean or text. */
+type GroupKey = string | number | boolean;
+
 /**
  * The readable order of two group keys.
  * @param a - One key.
  * @param b - The other.
  * @returns Negative, zero or positive.
  */
-function compareGroupKeys(a: string | number | boolean, b: string | number | boolean): number {
+function compareGroupKeys(a: GroupKey, b: GroupKey): number {
     const rankA = RANK[typeof a as keyof typeof RANK];
     const rankB = RANK[typeof b as keyof typeof RANK];
     if (rankA !== rankB) {

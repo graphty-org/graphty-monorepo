@@ -261,6 +261,65 @@ describe("the keyboard", () => {
 
         assert.notStrictEqual(camera(element), before, "the camera turned");
     });
+
+    // W and S move the camera by the same fraction of its distance every frame they are held, so
+    // the zoom is as quick far out as close in: 0.985 per frame, tenfold over the 157 frames A or
+    // D take to spin half a turn.
+    describe.each([
+        ["close in", 6],
+        ["far out", 600],
+    ])("holding W or S, %s", (_where, start) => {
+        it.each([
+            ["W", 0.985],
+            ["S", 1 / 0.985],
+        ])("%s changes the 3D camera's distance by a factor of %f per frame", async (key, perFrame) => {
+            const element = await mounted("3d");
+            await element.setCameraState({ cameraDistance: start });
+            await click(element, EMPTY);
+
+            // Count the camera input's per-frame updates between the press and the release: the
+            // controller's own key listeners were added first, so these run after it saw each key.
+            const { canvas } = element.graph;
+            const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(
+                "orbit",
+            );
+            assert.isDefined(input);
+            const update = input.update.bind(input);
+            let held = false;
+            let heldFrames = 0;
+            input.update = (): void => {
+                if (held) {
+                    heldFrames++;
+                }
+
+                update();
+            };
+            const press = (): void => {
+                held = true;
+            };
+            const release = (): void => {
+                held = false;
+            };
+            canvas.addEventListener("keydown", press);
+            canvas.addEventListener("keyup", release);
+            cleanups.push(() => {
+                input.update = update;
+                canvas.removeEventListener("keydown", press);
+                canvas.removeEventListener("keyup", release);
+            });
+            const before = element.getCameraState().cameraDistance ?? Number.NaN;
+            assert.closeTo(before, start, 1e-6, "the camera starts at the distance set");
+
+            await userEvent.keyboard(`{${key.toLowerCase()}>}`);
+            await frames(10);
+            await userEvent.keyboard(`{/${key.toLowerCase()}}`);
+            await frames();
+
+            const after = element.getCameraState().cameraDistance ?? Number.NaN;
+            assert.isAtLeast(heldFrames, 10, "the key was held for the frames waited");
+            assert.closeTo(after / before, perFrame ** heldFrames, 1e-9, "one factor per frame held");
+        });
+    });
 });
 
 describe("touch", () => {

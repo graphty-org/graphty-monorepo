@@ -50,3 +50,4 @@ session.styles.preview({ by: "data.score", stops: ["#f7fbff", "#08306b"] }, { ch
 A panel that shows an empty field as "not set here" can say what the layers beneath give instead:
 `styles.agreement(scope, channel, { below: rowId })` reads only the layers under that row, and
 answers with the shared value and the layer that paints it, or with a breakdown when they differ.
+Add `over: rowId` to read only the row's own elements; see [What Lies Beneath a Row](./beneath-a-row).

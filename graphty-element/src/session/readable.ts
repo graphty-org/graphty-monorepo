@@ -208,8 +208,10 @@ export function readableValues(input: ReadableInput): readonly ReadableValue[] {
         }
     }
 
-    // Each node value again on the edges, read at each end. Its facts are the nodes' own.
-    for (const end of ["source", "target"] as const) {
+    // Each node value again on the edges, read at each end. Its facts are the nodes' own. With no
+    // edges there is nothing to read them on, so a picker lists none.
+    const ends = input.snapshot.edgeCount > 0 ? (["source", "target"] as const) : [];
+    for (const end of ends) {
         for (const [column, from, declaration] of nodeColumns) {
             const path = `graphty.${end}.${column.path}`;
             const read = entryOf(

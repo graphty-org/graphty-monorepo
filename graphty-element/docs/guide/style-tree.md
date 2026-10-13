@@ -60,4 +60,4 @@ Each call is one undo step. `toDocument()` saves the tree with the layers, so a 
 reopens with its folders, pins, locks and hidden rows.
 
 The reader's lock is not `Layer.locked`, which marks the element's own layers (see
-[Styling](./styling.md#the-element-s-own-layers)).
+[Styling](./styling.md#layers-the-element-owns)).

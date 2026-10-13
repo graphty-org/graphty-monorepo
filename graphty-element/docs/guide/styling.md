@@ -431,7 +431,7 @@ pins, a reader's lock and hidden rows. The tree is the paint order. See
 [Previewing a Binding](./binding-preview.md), [One Color for One Value](./value-entries.md) and
 [Colors Across Rows](./colors-across-rows.md).
 
-## The element's own layers
+## Layers the element owns
 
 Every graph starts with two layers the element owns: the defaults every node and edge is drawn
 from, and the one that paints the selection. They are `locked`: removing, editing or moving one is

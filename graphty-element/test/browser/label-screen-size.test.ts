@@ -104,8 +104,9 @@ async function zoomIn(graph: Graph): Promise<void> {
     if (state.zoom !== undefined && state.cameraDistance === undefined) {
         await graph.setCameraState({ zoom: state.zoom * 2 });
     } else {
-        assert.isNumber(state.cameraDistance);
-        await graph.setCameraState({ cameraDistance: state.cameraDistance / 2 });
+        const distance = state.cameraDistance;
+        assert.isNumber(distance);
+        await graph.setCameraState({ cameraDistance: (distance ?? 0) / 2 });
     }
 
     await draw(graph);

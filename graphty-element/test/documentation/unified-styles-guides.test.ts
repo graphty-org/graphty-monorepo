@@ -97,6 +97,31 @@ const PAGES: readonly Page[] = [
             );
         },
     },
+    {
+        file: "beneath-a-row.md",
+        check: (_session, printed) => {
+            assert.deepEqual(printed, ["mixed agree row"]);
+        },
+    },
+    {
+        file: "values-as-groups-and-colors.md",
+        check: (session, printed) => {
+            assert.deepEqual(printed, ["number 2", "true", "graphty.source.data.conference"]);
+            const colorOf = (id: string): string | undefined =>
+                session.styles.explain({ node: id }).merged["node.color"]?.hex;
+            assert.strictEqual(colorOf("b"), colorOf("c"), "one color per conference");
+            assert.notStrictEqual(colorOf("a"), colorOf("b"), "and a different one for each");
+        },
+    },
+    {
+        file: "label-size-and-numbers.md",
+        check: (session, printed) => {
+            assert.deepEqual(printed, ["130", "0.0123", "1,500"]);
+            const style = session.styles.explain({ node: "a" }).merged["node.labelStyle"] as
+                { sizeUnit?: string } | undefined;
+            assert.strictEqual(style?.sizeUnit, "screen");
+        },
+    },
 ];
 
 /**

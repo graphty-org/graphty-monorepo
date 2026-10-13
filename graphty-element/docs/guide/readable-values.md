@@ -45,7 +45,10 @@ is 0.75.
 - `kind` -- `"number"`, `"category"`, `"text"` or `"yes-no"`. A community run's group is a category
   however its ids are spelled.
 - `range` -- the lowest and highest value of a number. `valueCount` -- how many distinct values a
-  category or a yes-or-no has.
+  category or a yes-or-no has, and a number too when it holds 256 or fewer.
+- `valuesAreColors` -- present when every value is a color, and `end` -- present on an edge entry
+  that reads a value of the node at one end; see
+  [Numbers as Groups, Colors as Colors, and Edge Ends](./values-as-groups-and-colors).
 - `completeness` -- the share of nodes (or edges) that carry a value, from 0 to 1.
 - `fits` -- the kinds of style channel the value can drive with no scale named (`"color"`,
   `"number"`, `"enum"`, `"text"`, `"boolean"`): exactly the channels

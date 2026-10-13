@@ -88,7 +88,7 @@ describe("gridSpecFor (spec 7.7 geometry table; P4-T8 PD-9)", () => {
             for (const dim of [2, 3] as const) {
                 const power = dim === 3 ? s * s * s : s * s;
                 for (const [n, side] of [
-                    [power - 1, s],
+                    [power - 1, s === 1 ? 0 : s],
                     [power, s],
                     [power + 1, s + 1],
                 ]) {

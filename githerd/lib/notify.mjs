@@ -17,7 +17,7 @@
  * Paging (`planPages`). An item pages once when it becomes actionable and again only when its text
  * changes. Items that come due within 10 minutes of a page wait for the window to end and go out
  * together as one page. While the owner is absent, an item pages only if it blocks every worker
- * start or the release; every other item goes into one digest a day. Nothing else pages: not an
+ * start, the release, or the sessions githerd works with (a stalled session, the usage limit); every other item goes into one digest a day. Nothing else pages: not an
  * outage, not work in progress, not anything githerd is handling. `ownerItemsPoll` runs all of it
  * once per poll.
  *
@@ -295,9 +295,10 @@ const DAYS_KEPT = 60;
 /**
  * @typedef {{choice: string, undo: string}} ItemOption one answer and what undoing it costs
  * @typedef {{id: string, kind: string, question: string, options?: ItemOption[], target?: string | null,
- *   blocks?: "workers" | "release" | null}} ItemInput what raises an owner item; `target` is
- *   `pr:<n>` or `issue:<n>`, `blocks` says it blocks every worker start or the release
- * @typedef {ItemInput & {options: ItemOption[], target: string | null, blocks: "workers" | "release" | null,
+ *   blocks?: "workers" | "release" | "sessions" | null}} ItemInput what raises an owner item; `target` is
+ *   `pr:<n>` or `issue:<n>`, `blocks` says it blocks every worker start, the release, or the
+ *   sessions githerd works with (stalls.mjs); any of them pages while the owner is absent
+ * @typedef {ItemInput & {options: ItemOption[], target: string | null, blocks: "workers" | "release" | "sessions" | null,
  *   raisedAt: string, updatedAt: string, endedAt?: string, endedBy?: string, answer?: string,
  *   deferredAt?: string, paged?: {text: string, at: string, via: "page" | "digest" | "deferred"},
  *   github?: {text: string, performed: boolean, at: string, labeled?: boolean, unlabeled?: boolean},

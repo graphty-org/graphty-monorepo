@@ -1,5 +1,7 @@
 import type { z } from "zod";
 
+import type { AiReasoningEffort } from "../../catalog/ai";
+
 /**
  * Represents a message in a conversation with an LLM.
  */
@@ -83,6 +85,17 @@ export interface ProviderOptions {
     maxTokens?: number;
     /** Temperature for response generation (0-1) */
     temperature?: number;
+    /**
+     * How hard the model reasons before it answers: Gemini 3's `thinkingLevel`, OpenAI's reasoning
+     * effort. Absent, the provider's own default. Ignored by Anthropic (see `thinkingBudgetTokens`).
+     */
+    reasoningEffort?: AiReasoningEffort;
+    /**
+     * The tokens Anthropic's extended thinking may spend (at least 1,024). Absent, no extended
+     * thinking, the provider's own default; while it is on, `temperature` is not sent (Anthropic
+     * refuses one beside thinking). Ignored by the other providers.
+     */
+    thinkingBudgetTokens?: number;
 }
 
 /**

@@ -114,13 +114,19 @@ export const anthropic: ProviderModule = {
                 : webFetchTool(limits(request)),
         ),
     pausesTurns: true,
-    modelOptions: (request, settings) => ({
-        ...(request.tools.length > 0 && { tool_choice: { type: request.toolMode } }),
-        max_tokens: request.maxOutputTokens ?? settings.maxTokens ?? maxOutputTokens(settings.model),
-        ...(request.temperature !== undefined || settings.temperature !== undefined
-            ? { temperature: request.temperature ?? settings.temperature }
-            : {}),
-    }),
+    roundTripsThinking: true,
+    modelOptions: (request, settings) => {
+        const budget = settings.thinkingBudgetTokens;
+        const temperature = request.temperature ?? settings.temperature;
+        return {
+            ...(request.tools.length > 0 && { tool_choice: { type: request.toolMode } }),
+            max_tokens: request.maxOutputTokens ?? settings.maxTokens ?? maxOutputTokens(settings.model),
+            // Extended thinking refuses a temperature beside it, so none is sent while it is on.
+            ...(budget === undefined
+                ? temperature !== undefined && { temperature }
+                : { thinking: { type: "enabled", budget_tokens: budget } }),
+        };
+    },
     // A call carries back the metadata it came with, and only that.
     callStates: (own) => own.map((data) => data as Record<string, unknown> | undefined),
 };

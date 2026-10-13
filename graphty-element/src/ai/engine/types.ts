@@ -11,7 +11,14 @@
 
 import type { z } from "zod";
 
-import type { AiHostedToolId, AiPageRetrieval, AiProviderId, AiResultCode, AiResultParams } from "../../catalog/ai";
+import type {
+    AiHostedToolId,
+    AiPageRetrieval,
+    AiProviderId,
+    AiReasoningEffort,
+    AiResultCode,
+    AiResultParams,
+} from "../../catalog/ai";
 import type { ProviderState, SavedMessage, SavedPart } from "../conversation/formats/v1";
 
 // One definition of a saved message: the saved conversation format's (formats/v1.ts).
@@ -272,6 +279,10 @@ export interface ProviderApiSettings {
     readonly baseUrl?: string;
     readonly maxTokens?: number;
     readonly temperature?: number;
+    /** Gemini 3's thinking level, OpenAI's reasoning effort; absent, the provider's default. */
+    readonly reasoningEffort?: AiReasoningEffort;
+    /** Anthropic's extended thinking budget; absent, no extended thinking. */
+    readonly thinkingBudgetTokens?: number;
 }
 
 /**

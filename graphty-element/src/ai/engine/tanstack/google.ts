@@ -161,6 +161,10 @@ export const google: ProviderModule = {
         ...(request.temperature !== undefined || settings.temperature !== undefined
             ? { temperature: request.temperature ?? settings.temperature }
             : {}),
+        // Gemini 3's thinking level, under the API's own enum names.
+        ...(settings.reasoningEffort !== undefined && {
+            thinkingConfig: { thinkingLevel: settings.reasoningEffort.toUpperCase() },
+        }),
     }),
     // A call keeps its own signature. Gemini signs only the first call of a parallel batch, so
     // the calls before the first signed one, when the model checks signatures and they carry

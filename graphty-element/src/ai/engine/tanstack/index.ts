@@ -66,6 +66,12 @@ export interface ProviderModule {
      * back (Anthropic's `pause_turn`): its provider-run calls are kept, and sent back.
      */
     readonly pausesTurns?: boolean;
+    /**
+     * The adapter sends a turn's signed reasoning back with its tool calls (`ModelMessage.thinking`),
+     * which the provider needs to continue a tool turn it reasoned in: Anthropic's extended
+     * thinking, OpenAI's reasoning items. Gemini's thought signatures ride on the calls instead.
+     */
+    readonly roundTripsThinking?: boolean;
     /** The turn's tool mode, output limit and temperature, under this provider's own option names. */
     modelOptions(request: TurnRequest, settings: ProviderApiSettings): Record<string, unknown>;
     /**
@@ -165,6 +171,31 @@ function ownState(state: ProviderState | undefined, settings: ProviderApiSetting
         : undefined;
 }
 
+/** One reasoning block of a turn, as TanStack sends it back (`ModelMessage.thinking`). */
+interface ThinkingBlock {
+    readonly content: string;
+    readonly signature: string;
+    readonly redacted?: true;
+}
+
+/** TanStack's id prefix for the reasoning message of a redacted block (Anthropic `redacted_thinking`). */
+const REDACTED_THINKING = "redacted_thinking-";
+
+/**
+ * A tool call's own saved state, split into its reasoning blocks (kept on a turn's first call) and
+ * the rest, which the provider's module reads.
+ * @param own - The state, or undefined.
+ * @returns The blocks and the rest.
+ */
+function splitThinking(own: unknown): { thinking?: ThinkingBlock[]; rest: unknown } {
+    if (!isObject(own) || !Array.isArray(own.thinking)) {
+        return { rest: own };
+    }
+
+    const { thinking, ...rest } = own;
+    return { thinking: thinking as ThinkingBlock[], rest: Object.keys(rest).length > 0 ? rest : undefined };
+}
+
 /** A provider-run call as this engine keeps it: what TanStack's adapter sends back. */
 interface HostedCallState {
     readonly id: string;
@@ -218,8 +249,11 @@ function toModelMessages(
 
         if (message.role === "assistant") {
             const calls = message.parts.flatMap((part) => (part.type === "tool-call" ? [part] : []));
+            const own = calls.map((call) => splitThinking(ownState(call.providerState, settings)));
+            const thinking =
+                module.roundTripsThinking === true ? own.find((entry) => entry.thinking)?.thinking : undefined;
             const states = module.callStates(
-                calls.map((call) => ownState(call.providerState, settings)),
+                own.map((entry) => entry.rest),
                 settings.model,
             );
             const toolCalls = [
@@ -236,6 +270,7 @@ function toModelMessages(
                     role: "assistant",
                     content: text === "" ? null : text,
                     ...(toolCalls.length > 0 && { toolCalls }),
+                    ...(thinking !== undefined && { thinking }),
                 },
             ];
         }
@@ -500,6 +535,8 @@ class ChunkReader {
     private calls = 0;
     private hosted = 0;
     private wrote = false;
+    /** The turn's reasoning, by its message id: the text and the provider's signature. */
+    private readonly reasoning = new Map<string, { content: string; signature?: string }>();
 
     /**
      * A reader for one turn.
@@ -539,6 +576,16 @@ class ChunkReader {
             case EventType.TEXT_MESSAGE_CONTENT:
                 this.wrote ||= chunk.delta !== "";
                 return [{ type: "text", delta: chunk.delta }];
+            case EventType.REASONING_MESSAGE_CONTENT: {
+                const block = this.reasoning.get(chunk.messageId);
+                this.reasoning.set(chunk.messageId, { ...block, content: (block?.content ?? "") + chunk.delta });
+                return [];
+            }
+            case EventType.REASONING_ENCRYPTED_VALUE: {
+                const block = this.reasoning.get(chunk.entityId);
+                this.reasoning.set(chunk.entityId, { content: block?.content ?? "", signature: chunk.encryptedValue });
+                return [];
+            }
             case EventType.TOOL_CALL_START: {
                 const { tanstack: _tanstack, ...metadata } = (chunk.metadata ?? {}) as Record<string, unknown>;
                 // A call the provider ran itself, its result already in: never one for the loop to run.
@@ -631,9 +678,12 @@ class ChunkReader {
         }
 
         this.pending.delete(id);
+        // The turn's signed reasoning rides on its first call, which is how it goes back with the calls.
+        const thinking = this.calls === 0 ? this.signedThinking() : [];
         this.calls++;
         const { provider, model } = this.settings;
         const args = cutOff ? undefined : callArguments(input, call.args);
+        const data = thinking.length > 0 ? { ...call.metadata, thinking } : call.metadata;
         return [
             {
                 type: "tool-call",
@@ -641,11 +691,21 @@ class ChunkReader {
                 name: call.name,
                 arguments: args ?? {},
                 ...(args === undefined && { invalidArguments: true as const }),
-                ...(call.metadata && {
-                    providerState: { engine: ENGINE, provider, model, data: call.metadata },
-                }),
+                ...(data && { providerState: { engine: ENGINE, provider, model, data } }),
             },
         ];
+    }
+
+    /**
+     * The turn's reasoning blocks the provider signed so far: only a signed block may be sent back.
+     * @returns The blocks, in the order they came.
+     */
+    private signedThinking(): ThinkingBlock[] {
+        return [...this.reasoning].flatMap(([id, { content, signature }]) =>
+            signature === undefined
+                ? []
+                : [{ content, signature, ...(id.startsWith(REDACTED_THINKING) && { redacted: true as const }) }],
+        );
     }
 
     /**

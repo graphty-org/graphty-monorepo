@@ -50,6 +50,7 @@ export const openai: ProviderModule = {
                   ]
                 : [],
         ),
+    roundTripsThinking: true,
     modelOptions: (request, settings) => ({
         ...(request.tools.length > 0 && { tool_choice: request.toolMode }),
         // A search's own result list, not only the pages the answer cites.
@@ -62,6 +63,7 @@ export const openai: ProviderModule = {
         ...(request.temperature !== undefined || settings.temperature !== undefined
             ? { temperature: request.temperature ?? settings.temperature }
             : {}),
+        ...(settings.reasoningEffort !== undefined && { reasoning: { effort: settings.reasoningEffort } }),
     }),
     // A call carries back the metadata it came with (the Responses API item id, say), and only that.
     callStates: (own) => own.map((data) => data as Record<string, unknown> | undefined),

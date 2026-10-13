@@ -1,4 +1,4 @@
-import { aiProviderDescriptor, type AiProviderId } from "../../catalog/ai";
+import { aiProviderDescriptor, type AiProviderId, type AiReasoningEffort } from "../../catalog/ai";
 import { toolJsonSchema } from "../engine/jsonSchema";
 import { providerFailure } from "../engine/LlmProviderEngine";
 import { registerProviderApiEngine } from "../engine/load";
@@ -108,6 +108,8 @@ export class VercelAiProvider implements LlmProvider {
     private baseUrl?: string;
     private maxTokens?: number;
     private temperature?: number;
+    private reasoningEffort?: AiReasoningEffort;
+    private thinkingBudgetTokens?: number;
     private readonly providerType: VercelProviderType;
     /** Reads this provider's configuration at every turn. */
     private readonly engine: ProviderApiEngine;
@@ -126,6 +128,8 @@ export class VercelAiProvider implements LlmProvider {
             baseUrl: this.baseUrl,
             maxTokens: this.maxTokens,
             temperature: this.temperature,
+            reasoningEffort: this.reasoningEffort,
+            thinkingBudgetTokens: this.thinkingBudgetTokens,
         }));
         // The assistant runs this provider on that engine, unless a subclass replaced `generate`,
         // whose override then answers every turn.
@@ -146,6 +150,8 @@ export class VercelAiProvider implements LlmProvider {
         this.baseUrl = options.baseUrl;
         this.maxTokens = options.maxTokens;
         this.temperature = options.temperature;
+        this.reasoningEffort = options.reasoningEffort;
+        this.thinkingBudgetTokens = options.thinkingBudgetTokens;
     }
 
     /**

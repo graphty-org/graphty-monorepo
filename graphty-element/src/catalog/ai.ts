@@ -37,6 +37,22 @@ export interface AiKeyShape {
     readonly minLength: number;
 }
 
+/**
+ * How hard a model reasons before it answers (`AiManagerConfig.reasoningEffort`): Gemini 3's
+ * thinking level, OpenAI's reasoning effort. OPEN UNION: values may be added in a minor release.
+ */
+export const AI_REASONING_EFFORTS = Object.freeze(["minimal", "low", "medium", "high"] as const);
+
+/** One reasoning effort; see {@link AI_REASONING_EFFORTS}. OPEN UNION. */
+export type AiReasoningEffort = (typeof AI_REASONING_EFFORTS)[number];
+
+/**
+ * How a model's reasoning is set: the efforts it takes (`AiManagerConfig.reasoningEffort`), or a
+ * token budget for its thinking (`AiManagerConfig.thinkingBudgetTokens`, at least `min`).
+ */
+export type AiModelReasoning =
+    { readonly efforts: readonly AiReasoningEffort[] } | { readonly budgetTokens: { readonly min: number } };
+
 /** One model a provider offers. */
 export interface AiModelDescriptor {
     /** The model id passed as `ProviderOptions.model`. */
@@ -47,7 +63,16 @@ export interface AiModelDescriptor {
     readonly supportsTools: boolean;
     /** Approximate download size in megabytes, for a model that runs in the browser. */
     readonly downloadMB?: number;
+    /** How its reasoning is set; absent, it takes no reasoning setting. */
+    readonly reasoning?: AiModelReasoning;
+    /** The sampling temperatures it honors (`AiManagerConfig.temperature`); absent, it ignores one. */
+    readonly temperature?: { readonly min: number; readonly max: number };
 }
+
+/** Gemini 3 Flash's thinking levels. */
+const GEMINI_FLASH_EFFORTS: readonly AiReasoningEffort[] = ["minimal", "low", "medium", "high"];
+/** Anthropic's extended thinking: a budget of at least 1,024 tokens. */
+const ANTHROPIC_THINKING: AiModelReasoning = { budgetTokens: { min: 1024 } };
 
 /** One AI provider. */
 export interface AiProviderDescriptor {
@@ -87,7 +112,11 @@ export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[] = Object.f
         runsLocally: false,
         testOnly: false,
         defaultModel: "gpt-4o",
-        models: [{ id: "gpt-4o", plainName: "GPT-4o", supportsTools: true }],
+        models: [
+            { id: "gpt-4o", plainName: "GPT-4o", supportsTools: true, temperature: { min: 0, max: 2 } },
+            { id: "gpt-4.1", plainName: "GPT-4.1", supportsTools: true, temperature: { min: 0, max: 2 } },
+            { id: "gpt-4.1-mini", plainName: "GPT-4.1 mini", supportsTools: true, temperature: { min: 0, max: 2 } },
+        ],
     },
     {
         id: "anthropic",
@@ -97,7 +126,29 @@ export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[] = Object.f
         runsLocally: false,
         testOnly: false,
         defaultModel: "claude-haiku-4-5-20251001",
-        models: [{ id: "claude-haiku-4-5-20251001", plainName: "Claude Haiku 4.5", supportsTools: true }],
+        models: [
+            {
+                id: "claude-haiku-4-5-20251001",
+                plainName: "Claude Haiku 4.5",
+                supportsTools: true,
+                reasoning: ANTHROPIC_THINKING,
+                temperature: { min: 0, max: 1 },
+            },
+            {
+                id: "claude-sonnet-4-5",
+                plainName: "Claude Sonnet 4.5",
+                supportsTools: true,
+                reasoning: ANTHROPIC_THINKING,
+                temperature: { min: 0, max: 1 },
+            },
+            {
+                id: "claude-opus-4-5",
+                plainName: "Claude Opus 4.5",
+                supportsTools: true,
+                reasoning: ANTHROPIC_THINKING,
+                temperature: { min: 0, max: 1 },
+            },
+        ],
     },
     {
         id: "google",
@@ -107,7 +158,29 @@ export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[] = Object.f
         runsLocally: false,
         testOnly: false,
         defaultModel: "gemini-3.8-flash",
-        models: [{ id: "gemini-3.8-flash", plainName: "Gemini 3.8 Flash", supportsTools: true }],
+        models: [
+            {
+                id: "gemini-3.8-flash",
+                plainName: "Gemini 3.8 Flash",
+                supportsTools: true,
+                reasoning: { efforts: GEMINI_FLASH_EFFORTS },
+                temperature: { min: 0, max: 2 },
+            },
+            {
+                id: "gemini-3.5-flash-lite",
+                plainName: "Gemini 3.5 Flash-Lite",
+                supportsTools: true,
+                reasoning: { efforts: GEMINI_FLASH_EFFORTS },
+                temperature: { min: 0, max: 2 },
+            },
+            {
+                id: "gemini-3.1-pro-preview",
+                plainName: "Gemini 3.1 Pro (preview)",
+                supportsTools: true,
+                reasoning: { efforts: ["low", "high"] },
+                temperature: { min: 0, max: 2 },
+            },
+        ],
     },
     {
         id: "webllm",

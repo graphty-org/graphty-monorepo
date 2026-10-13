@@ -13,6 +13,7 @@ import {
     type AiCapabilities,
     aiProviderDescriptor,
     type AiProviderId,
+    type AiReasoningEffort,
     type AiResultCode,
     type AiResultParams,
     type AiVoiceDestination,
@@ -43,7 +44,7 @@ import { engineFor } from "./engine/load";
 import type { AiEngine } from "./engine/types";
 import { ApiKeyManager } from "./keys";
 import { createProvider, type ProviderType } from "./providers";
-import type { LlmProvider } from "./providers/types";
+import type { LlmProvider, ProviderOptions } from "./providers/types";
 import { checkAgents } from "./roles";
 import { SchemaManager } from "./schema";
 import { installAssistantTools } from "./tools/install";
@@ -241,6 +242,22 @@ export interface AiManagerConfig {
     /** Optional model name override */
     model?: string;
     /**
+     * The sampling temperature, where the model honors one (`AiModelDescriptor.temperature`).
+     * Absent, the provider's own default.
+     */
+    temperature?: number;
+    /**
+     * How hard the model reasons before it answers: Gemini 3's thinking level, OpenAI's reasoning
+     * effort (`AiModelDescriptor.reasoning.efforts`). Absent, the provider's own default.
+     */
+    reasoningEffort?: AiReasoningEffort;
+    /**
+     * Anthropic's extended thinking: the tokens it may spend, at least
+     * `AiModelDescriptor.reasoning.budgetTokens.min`. Absent, no extended thinking (the provider's
+     * default). While it is on, no `temperature` is sent.
+     */
+    thinkingBudgetTokens?: number;
+    /**
      * Whether to register the assistant's own tools (default: true). They are generated from the
      * element's catalog, so an algorithm, layout, format, palette or camera a plugin registers
      * reaches the model with no further code.
@@ -374,6 +391,8 @@ export class AiManager {
     private graph: Graph | null = null;
     private controller: AiController | null = null;
     private provider: LlmProvider | null = null;
+    /** The model and its options from `AiManagerConfig`, sent again with every key change. */
+    private providerOptions: ProviderOptions = {};
     private readonly commandRegistry: CommandRegistry;
     private readonly apiKeyManager: ApiKeyManager;
     /** Every API key the page has given, kept out of saved and exported conversations. */
@@ -458,15 +477,20 @@ export class AiManager {
             // Create the provider
             this.provider = createProvider(config.provider);
 
+            // The model and its options, kept for a key set later (`setApiKey`).
+            this.providerOptions = {
+                model: config.model,
+                temperature: config.temperature,
+                reasoningEffort: config.reasoningEffort,
+                thinkingBudgetTokens: config.thinkingBudgetTokens,
+            };
             // Configure the provider with API key if provided (will be persisted if persistence enabled)
             if (config.apiKey) {
                 this.keysSeen.add(config.apiKey);
                 this.apiKeyManager.setKey(config.provider, config.apiKey);
-                this.provider.configure({
-                    apiKey: config.apiKey,
-                    model: config.model,
-                });
             }
+
+            this.provider.configure({ ...this.providerOptions, apiKey: config.apiKey || undefined });
         }
 
         // Register built-in commands unless disabled
@@ -1095,7 +1119,7 @@ export class AiManager {
 
         // If this is the current provider, update it
         if (this.provider?.name === provider) {
-            this.provider.configure({ apiKey: key });
+            this.provider.configure({ ...this.providerOptions, apiKey: key });
         }
 
         // A key can make provider transcription or speech usable.

@@ -65,7 +65,7 @@ describe("a run's layer from the style tree", () => {
         // paints nodes only, so no Nodes / Edges picker is drawn.
         const tab = await screen.findByTestId("style-tab");
         await waitFor(() => {
-            assert.isNotNull(within(tab).getByRole("button", { name: /Detach node color/ }));
+            assert.isNotNull(within(tab).getByRole("button", { name: /Stop varying node color by data/ }));
         });
         assert.isNull(within(tab).queryByRole("radiogroup", { name: "Paints" }));
     });

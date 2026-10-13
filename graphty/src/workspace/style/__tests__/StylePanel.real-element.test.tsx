@@ -397,7 +397,7 @@ describe("the Style tab's rows on the real element", () => {
             assert.isTrue(proposal.ok);
             assert.deepEqual(mine[0].encode?.["node.color"], proposal.ok ? proposal.binding : undefined);
         });
-        assert.isNotNull(within(styleTab()).getByRole("button", { name: /Detach node color/ }));
+        assert.isNotNull(within(styleTab()).getByRole("button", { name: /Stop varying node color by data/ }));
     });
 
     it("a declared code column colors one color per group, and a group column cannot size", async () => {
@@ -438,7 +438,7 @@ describe("the Style tab's rows on the real element", () => {
         await pickStyleTab();
         await waitFor(
             () => {
-                assert.isNotNull(within(styleTab()).getByRole("button", { name: /Detach node color/ }));
+                assert.isNotNull(within(styleTab()).getByRole("button", { name: /Stop varying node color by data/ }));
             },
             { timeout: TIMEOUT_MS },
         );
@@ -449,7 +449,7 @@ describe("the Style tab's rows on the real element", () => {
 
         await userEvent.click(await varyGlyph("Node size"));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: "Influence" }));
+        await userEvent.click(within(list).getByRole("option", { name: "PageRank" }));
         await waitFor(() => {
             const size = session.styles.get(measure.id)?.encode?.["node.size"];
             assert.equal(size !== undefined && "by" in size ? size.by : undefined, session.results.path(runId));
@@ -458,7 +458,7 @@ describe("the Style tab's rows on the real element", () => {
         assert.lengthOf(readerLayers(session), 1, "the bind edited the PageRank row; no new row");
     });
 
-    it("sizes Everything by a run's result on a layer scoped to what it measured, and Detach fixes it again", async () => {
+    it("sizes Everything by a run's result on a layer scoped to what it measured, and Stop varying fixes it again", async () => {
         await page.viewport(1366, 768);
         const { session, element } = await openEverything();
         await session.data.addEdges([{ source: "1", target: "3" }]);
@@ -467,7 +467,7 @@ describe("the Style tab's rows on the real element", () => {
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(await varyGlyph("Node size"));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: "Connections" }));
+        await userEvent.click(within(list).getByRole("option", { name: "Degree" }));
         const path = session.results.path(runId);
         await waitFor(
             () => {
@@ -478,7 +478,7 @@ describe("the Style tab's rows on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        await userEvent.click(within(styleTab()).getByRole("button", { name: /Detach node size/ }));
+        await userEvent.click(within(styleTab()).getByRole("button", { name: /Stop varying node size by data/ }));
         await waitFor(() => {
             const mine = readerLayers(session).filter((l) => l.userData?.graphtyEverything === true);
             assert.lengthOf(mine, 1);
@@ -487,11 +487,19 @@ describe("the Style tab's rows on the real element", () => {
         });
     });
 
-    it("Palette and Reverse write the binding; Use one color puts one value back", async () => {
+    it("Palette and Reverse write the binding; the field's Stop varying puts one value back", async () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await varyBy("Node color", "code");
+        // The way back to one color is the field's own button, and its tooltip says so.
+        await userEvent.hover(within(styleTab()).getByRole("button", { name: "Stop varying node color by data" }));
+        await waitFor(() => {
+            assert.include(
+                screen.queryAllByRole("tooltip", { hidden: true }).map((t) => t.textContent),
+                "Stop varying by data: use one color for all",
+            );
+        });
         await userEvent.click(await within(styleTab()).findByRole("button", { name: /^Node color: code,/ }));
         const popover = await screen.findByRole("group", { name: "Color binding" });
         const binding = (): Record<string, unknown> => readerLayers(session)[0]?.encode?.["node.color"] ?? {};
@@ -504,7 +512,9 @@ describe("the Style tab's rows on the real element", () => {
         await waitFor(() => {
             assert.equal(binding().reverse, true);
         });
-        await userEvent.click(within(popover).getByRole("button", { name: /^Use one color: / }));
+        assert.isNull(within(popover).queryByRole("button", { name: /^Use one color/ }), "not in the popover");
+        await userEvent.keyboard("{Escape}");
+        await userEvent.click(within(styleTab()).getByRole("button", { name: "Stop varying node color by data" }));
         await waitFor(() => {
             assert.isUndefined(readerLayers(session)[0]?.encode?.["node.color"]);
             assert.isDefined(readerLayers(session)[0]?.set?.["node.color"], "a fixed value again");

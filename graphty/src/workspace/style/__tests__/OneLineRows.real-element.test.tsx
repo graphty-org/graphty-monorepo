@@ -4,7 +4,7 @@
  * 900 x 700 and 1366 x 768; Undo right after Clear takes the Clear back and leaves focus in the
  * field; what lies beneath is read over the row's own elements ("Varies" and "Mixed" only where
  * they are true, never "Node defaults"); a field a layer above paints over says so; a bound pill
- * keeps its width and Detach keeps focus on the field; several rows show every kind they paint.
+ * keeps its width and Stop varying keeps focus on the field; several rows show every kind they paint.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -307,7 +307,7 @@ describe("one line per property", () => {
         assert.isNull(field(tab, "node.shape").querySelector('[role="img"]'), "a field it does not set has no mark");
     });
 
-    it("keeps a bound pill's width with its popover open, shows its colors, and Detach keeps focus", async () => {
+    it("keeps a bound pill's width with its popover open, shows its colors, and Stop varying keeps focus", async () => {
         const { store, rows } = await openScene();
         const tab = await openStyle(rows.degree);
         const line = field(tab, "node.color");
@@ -321,7 +321,7 @@ describe("one line per property", () => {
         assert.equal(pill?.getBoundingClientRect().width, before, "open, the pill keeps its width");
         await userEvent.keyboard("{Escape}");
 
-        await userEvent.click(within(line).getByRole("button", { name: "Detach node color" }));
+        await userEvent.click(within(line).getByRole("button", { name: "Stop varying node color by data" }));
         await waitFor(() => {
             const fixed = field(screen.getByTestId("style-tab"), "node.color");
             assert.isFalse(fixed.hasAttribute("data-bound"), "one value now");
@@ -331,7 +331,7 @@ describe("one line per property", () => {
             );
         });
         const said = store.get().announcement ?? "";
-        assert.match(said, /^Node color detached, now [a-z ]+$/, said);
+        assert.match(said, /^Node color no longer varies by data, now [a-z ]+$/, said);
     });
 
     it("shows Edges, Text and Effects for several rows when one of them paints edges", async () => {

@@ -401,20 +401,22 @@ export function Field({ ctx, descriptor, named = true, lead, word }: Readonly<Fi
     const overWords = over === undefined ? undefined : paintedOverWords(channel, over);
     let varySlot: React.ReactNode = null;
     if (own?.binding !== undefined) {
-        // A bound field's Detach sits where its vary glyph sat (Figma's variable field), so the
-        // pill keeps one width whether its popover is open or not.
+        // A bound field's Stop varying sits where its vary glyph sat (Figma's detach on a variable
+        // field), so the pill keeps one width whether its popover is open or not. It is the one way
+        // back to a single value, so its words say what it does rather than "Detach".
+        const one = descriptor.accepts === "color" ? "one color" : "one value";
         varySlot = (
-            <Tooltip label="Detach: use one value">
+            <Tooltip label={`Stop varying by data: use ${one} for all`}>
                 <ActionIcon
                     variant="subtle"
                     size="sm"
-                    aria-label={`Detach ${fieldName(channel).toLowerCase()}`}
+                    aria-label={`Stop varying ${fieldName(channel).toLowerCase()} by data`}
                     onClick={() => {
                         const value = startingValue(descriptor, session, own.layer.selector);
                         // Focus stays on the property: its field, now holding the one value.
                         focusLineNext(channel, "fixed");
                         store.set({
-                            announcement: `${fieldName(channel)} detached, now ${valueWords(descriptor, value)}`,
+                            announcement: `${fieldName(channel)} no longer varies by data, now ${valueWords(descriptor, value)}`,
                         });
                         write({ value });
                     }}
@@ -733,10 +735,6 @@ function BoundValue({
                             write({ binding: next });
                         }}
                         onSource={bind}
-                        onFix={(value) => {
-                            setOpen(false);
-                            write({ value });
-                        }}
                     />
                 </Popout.Content>
             </Popout.Panel>

@@ -21,7 +21,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataBinding, type DataChoice, startingValue } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
-import { channelWord, colorName, enumWords, paletteWord } from "./words";
+import { channelWord, enumWords, paletteWord } from "./words";
 
 /** What `toColorValue` reads. */
 type ColorInput = Parameters<typeof toColorValue>[0];
@@ -102,19 +102,6 @@ function valueWords(value: unknown): string {
 }
 
 /**
- * The quiet last action that turns a varied field back into one value, naming the value it keeps:
- * "Use one color: orange", "Use one value: 2".
- * @param value - the value it keeps.
- * @returns the words.
- */
-function oneValueWords(value: ChannelValue): string {
-    const hex = cssOf(value);
-    return typeof value === "string" && hex !== undefined
-        ? `Use one color: ${colorName(hex.toUpperCase())}`
-        : `Use one value: ${valueWords(value)}`;
-}
-
-/**
  * What the element knows about the value a binding reads: its kind, how many distinct values it
  * holds, whether they are colors.
  * @param session - the element's session.
@@ -166,8 +153,6 @@ interface BindingPopoverProps {
     onChange: (binding: DataBinding) => void;
     /** Reads another attribute or result instead. */
     onSource: (choice: DataChoice) => void;
-    /** Replaces the binding with one value. */
-    onFix: (value: ChannelValue) => void;
 }
 
 /**
@@ -175,7 +160,8 @@ interface BindingPopoverProps {
  * preview of the binding, Range for sizes and widths, a clamp, the steps of a stepped ramp with
  * their counts and "New layer for <step>". For categories: the scheme, one row per value (chit,
  * name, count, eye) whose chit writes a value-table entry, "New layer for <value>", the overflow
- * choice. Both: no value, combine, and "Fix at <value>". Every change is written at once.
+ * choice. Both: no value and combine. Stopping varying by data is the field's own Stop varying
+ * button beside the pill, not a choice in here. Every change is written at once.
  * @param props - Component props
  * @param props.descriptor - the bound property
  * @param props.layerId - the layer that holds the binding
@@ -183,7 +169,6 @@ interface BindingPopoverProps {
  * @param props.source - what it reads, in words
  * @param props.onChange - writes a changed binding
  * @param props.onSource - reads another attribute instead
- * @param props.onFix - replaces the binding with one value
  * @returns The popover's body
  */
 export function BindingPopover({
@@ -193,7 +178,6 @@ export function BindingPopover({
     source,
     onChange,
     onSource,
-    onFix,
 }: Readonly<BindingPopoverProps>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const [choosing, setChoosing] = useState(false);
@@ -209,10 +193,6 @@ export function BindingPopover({
     const preview = previewOf(session, binding, channel);
     const categorical = preview?.domain === null;
     const name = channelWord(channel);
-    // The one value "Fix at" keeps: what the binding paints at the middle of its scale, or for its
-    // largest group -- the element's own answer, from a one-bin preview.
-    const middle = categorical ? preview.bins[0]?.paints : previewOf(session, binding, channel, 1)?.bins[0]?.paints;
-    const fixed = literalOf(middle);
 
     return (
         <Stack gap={8} role="group" aria-label={`${name} binding`}>
@@ -286,15 +266,6 @@ export function BindingPopover({
                     }}
                 />
             ) : null}
-            {fixed === undefined ? null : (
-                <QuietButton
-                    onClick={() => {
-                        onFix(fixed);
-                    }}
-                >
-                    {oneValueWords(fixed)}
-                </QuietButton>
-            )}
         </Stack>
     );
 }

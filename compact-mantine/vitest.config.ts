@@ -181,7 +181,8 @@ export default defineConfig({
                 test: {
                     name: "browser",
                     globals: true,
-                    setupFiles: ["./tests/setup.browser.ts"],
+                    // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.browser.test.{ts,tsx}"],
                     exclude: ["**/node_modules/**", "**/dist/**"],
                     // Disable file parallelism to prevent race conditions
@@ -202,7 +203,8 @@ export default defineConfig({
                 optimizeDeps: { include: ["react/jsx-dev-runtime"] },
                 test: {
                     name: "storybook",
-                    setupFiles: ["./tests/setup.browser.ts"],
+                    // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.storybook.test.{ts,tsx}"],
                     fileParallelism: false,
                     browser: {

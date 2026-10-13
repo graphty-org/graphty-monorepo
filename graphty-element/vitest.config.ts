@@ -348,6 +348,8 @@ export default defineConfig({
                         "test/examples/**/*.test.ts",
                         // LLM regression tests run via dedicated project
                         "test/ai/llm-regression/**/*.test.ts",
+                        // Lifecycle tests launch their own browsers: see the "lifecycle" project
+                        "test/lifecycle/**",
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",
                         "**/*~",
@@ -781,6 +783,25 @@ export default defineConfig({
                     setupFiles: [BROWSER_COVERAGE_SETUP, ".storybook/vitest.setup.ts"],
                     // Storybook tests load complex 3D scenes and need longer timeout
                     testTimeout: 30000,
+                },
+            },
+            // Autosave lifecycle tests (design/work-protection/plan.md, step 6): every test that reloads,
+            // closes or kills a page or a browser, which an in-page test cannot do to its own page. Node,
+            // no Vite in the page: each test launches its own Chromium, Firefox or WebKit through
+            // Playwright's library API, or Chrome for Testing over the raw DevTools protocol
+            // (test/lifecycle/cdp-harness.ts), and serves the fixture page from the built ./bundle, so
+            // run `npm run build` first. One file at a time: the kill tests find their browser's
+            // processes by profile, and two files' browsers would compete for the CPU they measure
+            // nothing about. CI runs it as the graphty-element-lifecycle shard; GRAPHTY_LIFECYCLE_FULL=1
+            // (the release train) adds the 50,000- and 100,000-node runs.
+            {
+                test: {
+                    name: "lifecycle",
+                    environment: "node",
+                    include: ["test/lifecycle/**/*.test.ts"],
+                    fileParallelism: false,
+                    testTimeout: 120_000,
+                    hookTimeout: 60_000,
                 },
             },
             // LLM Regression Tests - Tests real LLM API calls for tool calling verification.

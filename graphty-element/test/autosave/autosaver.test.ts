@@ -425,6 +425,23 @@ describe("fencing", () => {
     });
 });
 
+describe("the back/forward cache", () => {
+    it("releases the lock at once on entering it, and resume and pageshow together take it back once", async () => {
+        const { saver, locks } = await written();
+        const id = saver.status.entry ?? "";
+        const name = lockName(KEY, id);
+        assert.isTrue((await locks.held()).has(name), "a writing page holds its entry's lock");
+
+        saver.releaseLockNow();
+        assert.isFalse((await locks.held()).has(name), "the lock is released before the page is frozen");
+
+        // Chrome sends `resume` and `pageshow` back to back; both reclaim.
+        await Promise.all([saver.reclaim(), saver.reclaim()]);
+        assert.strictEqual(saver.status.entry, id, "the page keeps its own entry");
+        assert.isTrue((await locks.held()).has(name), "and holds its lock again");
+    });
+});
+
 describe("failures", () => {
     it("an aborted write carrying the data leaves its parts unwritten; the next write carries them", async () => {
         const { session, store, clock, saver } = await written();
@@ -486,6 +503,50 @@ describe("failures", () => {
         store.heal();
         await session.config.set({ name: "unstuck" });
         clock.advance(500);
+        await saver.settled();
+        assert.strictEqual(saver.status.state, "saved");
+        assert.deepStrictEqual((await entryOf(store, saver.status.entry)).document, await saveOf(session));
+    });
+
+    it("a slow write that keeps making progress is never called stalled", async () => {
+        const inner = memoryAutosaveStore();
+        let slow = false;
+        let progress: (() => void) | undefined;
+        let release = (): void => undefined;
+        let reached = (): void => undefined;
+        const arrived = new Promise<void>((resolve) => {
+            reached = resolve;
+        });
+        const store: AutosaveStore = {
+            list: (key) => inner.list(key),
+            read: (id) => inner.read(id),
+            remove: (id) => inner.remove(id),
+            commit: async (writes, options) => {
+                if (slow) {
+                    // A page whose main thread is busy: every step of the write waits a long frame.
+                    progress = options?.onProgress;
+                    reached();
+                    await new Promise<void>((resolve) => {
+                        release = resolve;
+                    });
+                }
+
+                return inner.commit(writes, options);
+            },
+        };
+        const { session, clock, saver } = await written({ store });
+        slow = true;
+        await session.styles.add(STYLE);
+        clock.advance(500);
+        await arrived;
+        assert.isDefined(progress, "the writer asks the store to report progress");
+        for (let step = 0; step < 4; step++) {
+            clock.advance(9_000);
+            progress?.();
+        }
+
+        assert.isNull(saver.status.problem, "36 s in all, never 10 s without progress: not stalled");
+        release();
         await saver.settled();
         assert.strictEqual(saver.status.state, "saved");
         assert.deepStrictEqual((await entryOf(store, saver.status.entry)).document, await saveOf(session));

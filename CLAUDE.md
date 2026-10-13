@@ -501,6 +501,7 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 - `storybook` - Component tests (5 CI shards)
 - `interactions` - Interaction tests
 - `xr` - WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI; runs in pre-push and in the CI browser shards
+- `lifecycle` - autosave across reloads, closes, discards, freezes, crashes and kills: Node tests that launch Chromium, Firefox and WebKit (Playwright's library API) and Chrome for Testing over the raw DevTools protocol, on the built `./bundle`; its own CI shard, `graphty-element-lifecycle`, with `autosave-engines`
 - `llm-regression` - LLM regression tests: real, paid calls to the provider `VITE_LLM_REGRESSION_PROVIDER` names (`google` by default, model `gemini-3.8-flash`; `openai`, `anthropic`), with its key in `VITE_GOOGLE_API_KEY` (or `VITE_OPENAI_API_KEY`, `VITE_ANTHROPIC_API_KEY`). Runs in the release train (release.yml) on Google with the `GOOGLE_API_KEY` repository secret, never on a pull request or in the merge queue
 
 ### Running Specific Test Projects
@@ -564,7 +565,7 @@ CI, and Mergify queues only ready pull requests.
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build (the packages, then the Storybooks, Lint, Checks and Docs jobs beside the tests), sharded tests (17 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. The test jobs start as soon as the `Build` job has built and uploaded the packages. On a push to master only the build jobs (Build, Storybooks, Lint, Checks, Docs) run; the summaries pass when they do |
+| `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build (the packages, then the Storybooks, Lint, Checks and Docs jobs beside the tests), sharded tests (18 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. The test jobs start as soon as the `Build` job has built and uploaded the packages. On a push to master only the build jobs (Build, Storybooks, Lint, Checks, Docs) run; the summaries pass when they do |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
 | `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts, audit and LLM regression on the candidate; when all pass, in the same run, versions it, pushes the version merge and the tags to master with the release deploy key, and publishes with npm trusted publishing. Anything red before the push holds the release and opens one "Release held: <what> failed on <sha>" issue |
 | `release-watch.yml` | After every Release run (`workflow_run`, completed) | The backstop for the release announcements: a Release run that ended badly (failure, cancelled, timed out, startup failure) with no failure comment for that run attempt on the `Release status` issue gets one there (`tools/release-status.mjs run-ended`). Silent on success and skipped runs, on a pending run the release-train concurrency group replaced, and on a first attempt that only lost its T4 spot runner |
@@ -701,10 +702,10 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 28 test shards on a merge-queue run, a manual dispatch or the release train (a push
+The CI runs 29 test shards on a merge-queue run, a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
-full run is 17 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
+full run is 18 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
 layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
 graphty, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
@@ -725,6 +726,8 @@ shard. The shards:
 - `graphty-element-default`
 - `graphty-element-browser-1` through `graphty-element-browser-5`
 - `graphty-element-storybook-1` through `graphty-element-storybook-5`
+- `graphty-element-lifecycle` (autosave across reloads, closes, discards, crashes and kills in Chromium,
+  Firefox and WebKit; never in the pre-push gate)
 
 A pull request runs only the shards of the packages nx calls affected; the
 shard list and the filter live in `tools/ci-test-matrix.mjs`. A change to a file in nx.json's

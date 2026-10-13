@@ -528,8 +528,15 @@ export class ElementAutosave {
             }
         }
 
-        // ponytail: a quota under 1 GiB is sized from memory (Chrome Incognito), not from a disk.
-        if (storage !== null && storage.quota > 0 && storage.quota < 2 ** 30) {
+        // ponytail: Chrome sizes an Incognito origin's quota from memory and a normal one from the
+        // disk (60% of it). A quota under twice the JavaScript heap limit is the memory kind: the
+        // test private-window detectors use. A fixed 1 GiB missed Incognito on any machine with
+        // more than about 16 GB of memory (6.5 GB on a 94 GB one, found by the lifecycle tests).
+        // 1 GiB where the engine reports no heap limit.
+        const heapLimit = (globalThis.performance as { memory?: { jsHeapSizeLimit?: number } } | undefined)?.memory
+            ?.jsHeapSizeLimit;
+        const memorySized = typeof heapLimit === "number" && heapLimit > 0 ? heapLimit * 2 : 2 ** 30;
+        if (storage !== null && storage.quota > 0 && storage.quota < memorySized) {
             ephemeral = "likely";
         }
 
@@ -723,11 +730,18 @@ export class ElementAutosave {
                 void saver.flush(true);
             }
         });
-        on(window, "pagehide", () => {
-            void saver
-                .flush(true)
-                .then(() => saver.releaseLock())
-                .then(close);
+        on(window, "pagehide", (event) => {
+            const flushed = saver.flush(true);
+            if ((event as PageTransitionEvent).persisted) {
+                // Into the back/forward cache, which a held Web Lock keeps the page out of. Released
+                // now, not after the write: the write finishes only once the page is shown again,
+                // when the lock it would release is the one `pageshow` took back.
+                saver.releaseLockNow();
+                void flushed.then(close);
+                return;
+            }
+
+            void flushed.then(() => saver.releaseLock()).then(close);
         });
         on(document, "freeze", () => {
             void saver.flush(true).then(close);

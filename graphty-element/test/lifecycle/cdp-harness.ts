@@ -1,0 +1,406 @@
+/**
+ * The Chromium lifecycle harness: Chrome for Testing driven over the raw DevTools protocol.
+ *
+ * Playwright's Chromium launch adds `--disable-back-forward-cache`,
+ * `--disable-background-timer-throttling`, `--disable-backgrounding-occluded-windows` and
+ * `--disable-renderer-backgrounding`, so a back/forward-cache or background test run under it
+ * passes without testing anything. This harness starts the same Chrome for Testing build Playwright
+ * installed, without those flags, and talks to it over the browser's WebSocket with Node's own
+ * `WebSocket`. It runs in Chrome's headless mode, which since Chrome 112 is the full browser without
+ * a window system: tab discarding, freezing, the back/forward cache and session restore all work in
+ * it (each test proves its trigger happened), and it runs the same on a developer's machine, this
+ * repository's workstation and a CI runner, none of which needs an X server. With `DISPLAY` set it
+ * runs headed on that display instead, for watching a test.
+ *
+ * It loads the test extension in `discard-extension/`, whose service worker the tests drive to call
+ * `chrome.tabs.discard` the way Memory Saver and tab-suspender extensions do.
+ */
+
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { chromium } from "playwright";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+/** The test extension that discards tabs. */
+export const DISCARD_EXTENSION = path.join(here, "discard-extension");
+
+/** A DevTools protocol message from the browser. */
+interface Message {
+    readonly id?: number;
+    readonly method?: string;
+    readonly params?: Record<string, unknown>;
+    readonly result?: Record<string, unknown>;
+    readonly error?: { message: string };
+    readonly sessionId?: string;
+}
+
+/** A process on this machine. */
+export interface Proc {
+    readonly pid: number;
+    readonly ppid: number;
+    readonly cmdline: string;
+}
+
+/**
+ * Every process on this machine, read from /proc.
+ * @returns The processes.
+ */
+export function processes(): Proc[] {
+    const found: Proc[] = [];
+    for (const name of readdirSync("/proc")) {
+        if (!/^\d+$/.test(name)) {
+            continue;
+        }
+
+        try {
+            const stat = readFileSync(`/proc/${name}/stat`, "utf8");
+            // The command name is in parentheses and may hold spaces; the parent pid follows it.
+            const ppid = Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[1]);
+            const cmdline = readFileSync(`/proc/${name}/cmdline`, "utf8").replaceAll("\0", " ");
+            found.push({ pid: Number(name), ppid, cmdline });
+        } catch {
+            // It exited while being read.
+        }
+    }
+
+    return found;
+}
+
+/**
+ * A process and everything under it.
+ * @param root - The root pid.
+ * @returns The processes of the tree, root first.
+ */
+export function processTree(root: number): Proc[] {
+    const all = processes();
+    const tree = all.filter((proc) => proc.pid === root);
+    for (let i = 0; i < tree.length; i++) {
+        tree.push(...all.filter((proc) => proc.ppid === tree[i].pid));
+    }
+
+    return tree;
+}
+
+/** A tab attached over a flattened DevTools session. */
+export interface Tab {
+    readonly targetId: string;
+    readonly sessionId: string;
+    /** Send a command to the tab. */
+    send(method: string, params?: Record<string, unknown>): Promise<Record<string, unknown>>;
+    /** Evaluate an expression in the page, awaiting a promise, and return its value. */
+    evaluate<T>(expression: string): Promise<T>;
+    /** Every event the tab has received, in order. */
+    readonly events: Message[];
+    /** Wait for an event of the tab, at index `from` of `events` or later (one already received counts). */
+    waitEvent(
+        method: string,
+        predicate?: (params: Record<string, unknown>) => boolean,
+        from?: number,
+    ): Promise<Record<string, unknown>>;
+}
+
+/** A running Chrome for Testing. */
+export interface Chrome {
+    /** `headless`, or `headed` on the display `DISPLAY` names. */
+    readonly mode: "headed" | "headless";
+    readonly pid: number;
+    readonly userDataDir: string;
+    /** Send a browser-level command. */
+    send(method: string, params?: Record<string, unknown>, sessionId?: string): Promise<Record<string, unknown>>;
+    /** Every browser-level event, in order. */
+    readonly events: Message[];
+    /** Wait for a browser-level event (one already received counts). */
+    waitEvent(
+        method: string,
+        predicate?: (params: Record<string, unknown>) => boolean,
+    ): Promise<Record<string, unknown>>;
+    /** Open a tab and attach to it. */
+    open(url: string, options?: { background?: boolean; browserContextId?: string }): Promise<Tab>;
+    /** Attach to an existing page target. */
+    attach(targetId: string): Promise<Tab>;
+    /** The page targets whose URL contains `fragment`. */
+    pages(fragment?: string): Promise<{ targetId: string; url: string }[]>;
+    /** Wait until a page target whose URL contains `fragment` exists, and attach to it. */
+    waitPage(fragment: string): Promise<Tab>;
+    /** The renderer processes of this browser, extension renderers left out. */
+    renderers(): Proc[];
+    /** Evaluate an expression in the test extension's service worker. */
+    extension<T>(expression: string): Promise<T>;
+    /** Resolves when the browser process has exited. */
+    readonly exited: Promise<void>;
+    /** Close the browser (SIGTERM, then wait). */
+    close(): Promise<void>;
+}
+
+/**
+ * Launch Chrome for Testing on a profile, with the discard extension and no Playwright flags.
+ * @param userDataDir - The profile directory; a relaunch on the same one keeps its storage.
+ * @param args - More command-line switches (`--restore-last-session`).
+ * @returns The browser.
+ */
+export async function launchChrome(userDataDir: string, args: readonly string[] = []): Promise<Chrome> {
+    const screen = process.env.DISPLAY ?? null;
+    // chrome://discards is one of the internal debugging pages Chrome keeps switched off until this
+    // Local State preference is set (chrome://chrome-urls has the button that sets it).
+    const localState = path.join(userDataDir, "Local State");
+    if (!existsSync(localState)) {
+        mkdirSync(userDataDir, { recursive: true });
+        writeFileSync(localState, '{ "internal_only_uis_enabled": true }');
+    }
+
+    // Through a shell that turns core dumps off: Page.crash kills the renderer with a signal that
+    // would leave a core file of about 900 MB in the working directory.
+    const child = spawn(
+        "/bin/sh",
+        [
+            "-c",
+            'ulimit -c 0 && exec "$0" "$@"',
+            chromium.executablePath(),
+            `--user-data-dir=${userDataDir}`,
+            "--remote-debugging-port=0",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--password-store=basic",
+            "--use-mock-keychain",
+            // GitHub's Ubuntu runners refuse the unprivileged user namespaces Chrome's sandbox needs.
+            "--no-sandbox",
+            "--enable-unsafe-swiftshader",
+            `--disable-extensions-except=${DISCARD_EXTENSION}`,
+            `--load-extension=${DISCARD_EXTENSION}`,
+            ...(screen === null ? ["--headless"] : []),
+            ...args,
+            // A URL on the command line takes the place of the restored session.
+            ...(args.includes("--restore-last-session") ? [] : ["about:blank"]),
+        ],
+        {
+            stdio: ["ignore", "ignore", "pipe"],
+            env: screen === null ? process.env : { ...process.env, DISPLAY: screen },
+        },
+    );
+    // A test run that ends, however it ends, takes its browser with it.
+    const reap = (): void => {
+        child.kill("SIGKILL");
+    };
+    process.on("exit", reap);
+    const exited = new Promise<void>((resolve) =>
+        child.on("exit", () => {
+            process.off("exit", reap);
+            resolve();
+        }),
+    );
+    let stderr = (): string => "";
+    const endpoint = await new Promise<string>((resolve, reject) => {
+        let text = "";
+        const read = (chunk: Buffer): void => {
+            text += chunk.toString();
+            const match = /DevTools listening on (ws:\S+)/.exec(text);
+            if (match) {
+                resolve(match[1]);
+            }
+
+            // Keep the end of the log, for a failure report.
+            text = text.slice(-20_000);
+        };
+        child.stderr?.on("data", read);
+        void exited.then(() => reject(new Error(`Chrome exited before listening: ${text.slice(-2000)}`)));
+        stderr = () => text;
+    });
+
+    const socket = new WebSocket(endpoint);
+    await new Promise<void>((resolve, reject) => {
+        socket.addEventListener("open", () => resolve(), { once: true });
+        socket.addEventListener("error", () => reject(new Error("could not connect to Chrome")), { once: true });
+    });
+
+    let nextId = 1;
+    const pending = new Map<number, { resolve: (r: Record<string, unknown>) => void; reject: (e: Error) => void }>();
+    const browserEvents: Message[] = [];
+    const tabEvents = new Map<string, Message[]>();
+    const waiters = new Set<() => void>();
+    socket.addEventListener("message", (event: MessageEvent) => {
+        const message = JSON.parse(String(event.data)) as Message;
+        if (message.id !== undefined) {
+            const call = pending.get(message.id);
+            pending.delete(message.id);
+            if (message.error) {
+                call?.reject(new Error(message.error.message));
+            } else {
+                call?.resolve(message.result ?? {});
+            }
+
+            return;
+        }
+
+        const list = message.sessionId === undefined ? browserEvents : tabEvents.get(message.sessionId);
+        list?.push(message);
+        waiters.forEach((wake) => wake());
+    });
+    socket.addEventListener("close", () => {
+        pending.forEach((call) => call.reject(new Error(`the browser connection closed: ${stderr().slice(-3000)}`)));
+        pending.clear();
+    });
+
+    const send = (
+        method: string,
+        params: Record<string, unknown> = {},
+        sessionId?: string,
+    ): Promise<Record<string, unknown>> =>
+        new Promise((resolve, reject) => {
+            if (socket.readyState !== WebSocket.OPEN) {
+                reject(new Error(`the browser connection is closed (${method}): ${stderr().slice(-3000)}`));
+                return;
+            }
+
+            const id = nextId++;
+            pending.set(id, { resolve, reject });
+            socket.send(JSON.stringify({ id, method, params, sessionId }));
+        });
+
+    const waitIn = (
+        list: Message[],
+        method: string,
+        predicate: (params: Record<string, unknown>) => boolean = () => true,
+        from = 0,
+    ): Promise<Record<string, unknown>> =>
+        new Promise((resolve) => {
+            const check = (): void => {
+                const found = list.find((m, i) => i >= from && m.method === method && predicate(m.params ?? {}));
+                if (found !== undefined) {
+                    waiters.delete(check);
+                    resolve(found.params ?? {});
+                }
+            };
+            waiters.add(check);
+            check();
+        });
+
+    const attach = async (targetId: string): Promise<Tab> => {
+        const { sessionId } = (await send("Target.attachToTarget", { targetId, flatten: true })) as {
+            sessionId: string;
+        };
+        const events: Message[] = [];
+        tabEvents.set(sessionId, events);
+        const tabSend = (method: string, params?: Record<string, unknown>): Promise<Record<string, unknown>> =>
+            send(method, params, sessionId);
+        await tabSend("Page.enable");
+        await tabSend("Inspector.enable");
+        return {
+            targetId,
+            sessionId,
+            send: tabSend,
+            events,
+            waitEvent: (method, predicate, from) => waitIn(events, method, predicate, from),
+            evaluate: async <T>(expression: string): Promise<T> => {
+                const reply = (await tabSend("Runtime.evaluate", {
+                    expression,
+                    awaitPromise: true,
+                    returnByValue: true,
+                })) as {
+                    result: { value: T };
+                    exceptionDetails?: { exception?: { description?: string }; text: string };
+                };
+                if (reply.exceptionDetails) {
+                    throw new Error(reply.exceptionDetails.exception?.description ?? reply.exceptionDetails.text);
+                }
+
+                return reply.result.value;
+            },
+        };
+    };
+
+    const pages = async (fragment = ""): Promise<{ targetId: string; url: string }[]> => {
+        const { targetInfos } = (await send("Target.getTargets")) as {
+            targetInfos: { targetId: string; type: string; url: string }[];
+        };
+        return targetInfos.filter((t) => t.type === "page" && t.url.includes(fragment));
+    };
+
+    await send("Target.setDiscoverTargets", { discover: true });
+    let workerSession: Promise<string> | undefined;
+
+    const chrome: Chrome = {
+        mode: screen === null ? "headless" : "headed",
+        pid: child.pid ?? 0,
+        userDataDir,
+        send,
+        events: browserEvents,
+        waitEvent: (method, predicate) => waitIn(browserEvents, method, predicate),
+        attach,
+        pages,
+        async open(url, options = {}) {
+            const { targetId } = (await send("Target.createTarget", {
+                url: "about:blank",
+                background: options.background ?? false,
+                ...(options.browserContextId === undefined ? {} : { browserContextId: options.browserContextId }),
+            })) as { targetId: string };
+            const tab = await attach(targetId);
+            await tab.send("Page.navigate", { url });
+            return tab;
+        },
+        async waitPage(fragment) {
+            const isIt = (p: Record<string, unknown>): boolean => {
+                const info = p.targetInfo as { type: string; url: string };
+                return info.type === "page" && info.url.includes(fragment);
+            };
+            const existing = (await pages(fragment))[0]?.targetId;
+            if (existing !== undefined) {
+                return attach(existing);
+            }
+
+            const found = (await Promise.race([
+                waitIn(browserEvents, "Target.targetCreated", isIt),
+                waitIn(browserEvents, "Target.targetInfoChanged", isIt),
+            ])) as { targetInfo: { targetId: string } };
+            return attach(found.targetInfo.targetId);
+        },
+        renderers: () =>
+            processTree(child.pid ?? 0).filter(
+                (proc) => proc.cmdline.includes("--type=renderer") && !proc.cmdline.includes("--extension-process"),
+            ),
+        async extension<T>(expression: string): Promise<T> {
+            // Attached once and kept attached: a worker DevTools is attached to is not stopped as idle.
+            workerSession ??= (async () => {
+                const worker = (await waitIn(browserEvents, "Target.targetCreated", (p) => {
+                    // Chrome ships component extensions with workers of their own; ours is worker.js.
+                    const info = p.targetInfo as { type: string; url: string };
+                    return info.type === "service_worker" && info.url.endsWith("/worker.js");
+                })) as { targetInfo: { targetId: string } };
+                const reply = (await send("Target.attachToTarget", {
+                    targetId: worker.targetInfo.targetId,
+                    flatten: true,
+                })) as { sessionId: string };
+                return reply.sessionId;
+            })();
+            const reply = (await send(
+                "Runtime.evaluate",
+                { expression, awaitPromise: true, returnByValue: true },
+                await workerSession,
+            )) as { result: { value: T }; exceptionDetails?: { exception?: { description?: string }; text: string } };
+            if (reply.exceptionDetails) {
+                throw new Error(reply.exceptionDetails.exception?.description ?? reply.exceptionDetails.text);
+            }
+
+            return reply.result.value;
+        },
+        exited,
+        async close() {
+            const tree = processTree(child.pid ?? 0);
+            socket.close();
+            child.kill("SIGTERM");
+            await exited;
+            // Helpers that outlive the browser would keep writing into the profile.
+            for (const proc of tree) {
+                try {
+                    process.kill(proc.pid, "SIGKILL");
+                } catch {
+                    // Gone with the browser.
+                }
+            }
+        },
+    };
+    return chrome;
+}

@@ -416,10 +416,13 @@ fires `graphty-autosave-available` with reason `"manual"` when entries exist, an
   Moving the same element instance in the DOM disconnects it for good (4); that is an existing
   element limitation, tracked separately, and autosave still keeps the work for a new element.
 - **The back/forward cache.**
-    - On `pagehide`, the tab releases its lock once its in-flight write commits, because a held lock
-      keeps the page out of the back/forward cache. If the write cannot finish, the lock is kept: a
-      cache miss is better than a corrupted entry.
-    - On `pageshow` with `persisted`, and on `resume`, it takes the lock back with `ifAvailable`.
+    - On `pagehide` with `persisted` (the page is entering the cache), the tab releases its lock at
+      once, because a held lock keeps the page out of the back/forward cache, and Chrome freezes the
+      page right after `pagehide`, before a write started there can commit. Releasing it cannot mix
+      an entry: every commit is fenced by the entry's generation, so of two writers the later is
+      refused. On a real unload (`persisted` false) the lock is released once the write commits.
+    - On `pageshow` with `persisted`, and on `resume`, it takes the lock back with `ifAvailable`;
+      the two events arrive back to back, and they make one claim between them, not two.
     - If another tab claimed the entry meanwhile, this tab moves to a new entry and writes every part
       there. The two copies are duplicates; nothing is lost.
     - The element never adds an `unload` listener.
@@ -481,13 +484,15 @@ example, keeps note text that is still being typed in React state.
     - There is no age limit; Safari's 7-day rule already expires idle storage. The consumer can remove
       entries with `remove()` and `discard()`.
 - **On `QuotaExceededError`** (read from both `transaction.error` on abort and the request's error,
-  since engines report it in different places): apply retention, then retry once. If that fails, the
+  since engines report it in different places): close that connection (Firefox refuses the next
+  transaction on it with `InvalidStateError`), apply retention, then retry once. If that fails, the
   state becomes `failing` with `E_AUTOSAVE_QUOTA`; the last committed entry and the in-memory work
   are kept, the unload guard stays armed, and the next change retries.
 - **Too large.** If building a part throws (V8's string length limit), the state becomes `failing`
   with `E_AUTOSAVE_TOO_LARGE`; the guard stays armed.
-- **Watchdog.** A shipping Safari bug can wedge a database. If a write gets no `complete` or `error`
-  within 10 s, the state becomes `failing` with `E_AUTOSAVE_STALLED`; the element aborts the stuck
+- **Watchdog.** A shipping Safari bug can wedge a database. If a write makes no progress (no request
+  inside it completes) for 10 s, the state becomes `failing` with `E_AUTOSAVE_STALLED`; a write that
+  is merely slow, on a page whose main thread is busy drawing a large graph, is never aborted; the element aborts the stuck
   transaction (overlapping transactions run in creation order, so a retry behind it would stall
   too), reopens the connection and retries once.
 - **Lost connection.** After WebKit's storage process dies, every request fails with
@@ -496,7 +501,8 @@ example, keeps note text that is still being typed in React state.
   tell the reader to save a file or reload.
 - **Private windows and partitioned storage.** No API reports a private window, so
   `status.ephemeral` is a hint: `"likely"` when OPFS `getDirectory` throws (Safari private), when
-  the quota is sized from RAM (Chrome Incognito), or when the element runs in a third-party iframe
+  the quota is sized from RAM (Chrome Incognito: under twice the JavaScript heap limit, since a
+  fixed 1 GiB missed Incognito on machines with more than about 16 GB of memory), or when the element runs in a third-party iframe
   (`window.top !== window` and storage is partitioned, which Safari also clears); `"unknown"`
   otherwise.
 - **Whole-origin deletion cannot be detected or prevented** from inside the origin: eviction under
@@ -760,7 +766,10 @@ counted work, never elapsed time or millisecond offsets.
   `--disable-background-timer-throttling`, `--disable-backgrounding-occluded-windows` and
   `--disable-renderer-backgrounding`, so a back/forward-cache or background test under it passes
   without testing anything. The harness launches Chrome for Testing itself without those flags
-  (branded Chrome no longer loads extensions from the command line), headed under xvfb. It covers
+  (branded Chrome no longer loads extensions from the command line), in Chrome's headless mode,
+  which is the full browser without a window system: discarding, freezing, the back/forward cache
+  and session restore all work there, each test proves its trigger happened, and the same run works
+  on a workstation and a runner with no X server. With `DISPLAY` set it runs headed. It covers
   freezing, background targets, the discard extension and `chrome://discards`, renderer and browser
   `SIGKILL`, quota, clearing data and the memory purge. **Back/forward cache test:** navigate away,
   listen for `Page.backForwardCacheNotUsed`, go back, assert the event did not fire and

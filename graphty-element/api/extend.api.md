@@ -267,6 +267,7 @@ export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" |
 // @public
 export interface AutosaveCommitOptions {
     readonly durability?: "relaxed" | "strict";
+    readonly onProgress?: () => void;
     readonly signal?: AbortSignal;
 }
 

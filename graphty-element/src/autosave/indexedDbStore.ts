@@ -186,12 +186,17 @@ async function prepare(writes: readonly AutosaveWrite[]): Promise<Map<string, Pr
  * Deletes each blob no part refers to any more. Runs after the transaction's part changes.
  * @param tx - the commit's transaction
  * @param hashes - blobs whose references the transaction removed
+ * @param step - awaits one request of the transaction, reporting progress
  */
-async function dropUnreferencedBlobs(tx: IDBTransaction, hashes: Iterable<string>): Promise<void> {
+async function dropUnreferencedBlobs(
+    tx: IDBTransaction,
+    hashes: Iterable<string>,
+    step: <T>(req: IDBRequest<T>) => Promise<T> = request,
+): Promise<void> {
     const byBlob = tx.objectStore(PARTS).index("blob");
     const blobs = tx.objectStore(BLOBS);
     for (const hash of new Set(hashes)) {
-        if ((await request(byBlob.count(hash))) === 0) {
+        if ((await step(byBlob.count(hash))) === 0) {
             blobs.delete(hash);
         }
     }
@@ -300,18 +305,20 @@ export function indexedDbAutosaveStore(options: IndexedDbAutosaveStoreOptions = 
      * @param tx - the commit's transaction
      * @param writes - the commit's writes
      * @param prepared - their parts, from prepare()
+     * @param step - awaits one request of the transaction, reporting progress
      */
     async function writeAll(
         tx: IDBTransaction,
         writes: readonly AutosaveWrite[],
         prepared: Map<string, PreparedPart>[],
+        step: <T>(req: IDBRequest<T>) => Promise<T>,
     ): Promise<void> {
         const entries = tx.objectStore(ENTRIES);
         const parts = tx.objectStore(PARTS);
         const blobs = tx.objectStore(BLOBS);
 
         for (const write of writes) {
-            const stored = (await request(entries.get(write.id))) as AutosaveEntryMeta | undefined;
+            const stored = (await step(entries.get(write.id))) as AutosaveEntryMeta | undefined;
             const storedGen = stored?.gen ?? 0;
             if (storedGen !== write.expectedGen) {
                 throw new AutosaveConflict(write.id, write.expectedGen, storedGen);
@@ -324,15 +331,21 @@ export function indexedDbAutosaveStore(options: IndexedDbAutosaveStoreOptions = 
             const { key } = write.meta;
             let seq = nextSeq.get(key);
             if (seq === undefined) {
-                const newest = await request(entries.index("keySeq").openKeyCursor(seqsOf(key), "prev"));
+                const newest = await step(entries.index("keySeq").openKeyCursor(seqsOf(key), "prev"));
                 seq = newest === null ? 0 : ((newest.key as [string, number])[1] ?? 0);
             }
             seq += 1;
             nextSeq.set(key, seq);
             entries.put({ ...write.meta, id: write.id, gen: write.expectedGen + 1, seq });
 
-            for (const [part, value] of prepared[i] ?? []) {
-                const old = (await request(parts.get([write.id, part]))) as PartRecord | undefined;
+            // The parts' old records requested together, not one after another: each answer waits
+            // for a turn of the page's event loop, which a busy page takes a long frame to give.
+            const written = [...(prepared[i] ?? [])];
+            const olds = (await Promise.all(written.map(([part]) => step(parts.get([write.id, part]))))) as (
+                PartRecord | undefined
+            )[];
+            for (const [j, [part, value]] of written.entries()) {
+                const old = olds[j];
                 if (old?.blob !== undefined) {
                     released.push(old.blob);
                 }
@@ -341,14 +354,14 @@ export function indexedDbAutosaveStore(options: IndexedDbAutosaveStoreOptions = 
                 } else if ("inline" in value) {
                     parts.put({ entryId: write.id, part, value: value.inline } satisfies PartRecord);
                 } else {
-                    if ((await request(blobs.count(value.blob))) === 0) {
+                    if ((await step(blobs.count(value.blob))) === 0) {
                         blobs.put({ hash: value.blob, value: value.value } satisfies BlobRecord);
                     }
                     parts.put({ entryId: write.id, part, blob: value.blob } satisfies PartRecord);
                 }
             }
         }
-        await dropUnreferencedBlobs(tx, released);
+        await dropUnreferencedBlobs(tx, released, step);
     }
 
     async function commit(writes: readonly AutosaveWrite[], commitOptions?: AutosaveCommitOptions): Promise<void> {
@@ -358,7 +371,8 @@ export function indexedDbAutosaveStore(options: IndexedDbAutosaveStoreOptions = 
             throw autosaveAbortError();
         }
         const prepared = await prepare(writes);
-        const db = await open();
+        const opened = open();
+        const db = await opened;
         if (aborted()) {
             throw autosaveAbortError();
         }
@@ -376,7 +390,12 @@ export function indexedDbAutosaveStore(options: IndexedDbAutosaveStoreOptions = 
 
         let failure: unknown = undefined;
         try {
-            await writeAll(tx, writes, prepared);
+            const progress = commitOptions?.onProgress;
+            await writeAll(tx, writes, prepared, async (req) => {
+                const result = await request(req);
+                progress?.();
+                return result;
+            });
             options.beforeCommitEnds?.(tx);
         } catch (error) {
             failure = error;
@@ -386,6 +405,17 @@ export function indexedDbAutosaveStore(options: IndexedDbAutosaveStoreOptions = 
         try {
             await done;
         } catch (error) {
+            if ([failure, error].some((e) => e instanceof DOMException && e.name === "QuotaExceededError")) {
+                // Firefox refuses the next transaction on a connection whose transaction ran out of
+                // quota ("InvalidStateError: A mutation operation was attempted on a database that did
+                // not allow mutations"), so the retry after retention, and the deletes retention makes,
+                // would fail for that reason instead of the real one. A fresh connection makes a real
+                // attempt; it opens on the next call.
+                if (connection === opened) {
+                    connection = null;
+                }
+                db.close();
+            }
             if (failure !== undefined && (isAutosaveConflict(failure) || failure instanceof DOMException)) {
                 throw failure;
             }

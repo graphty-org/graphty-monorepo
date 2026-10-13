@@ -54,6 +54,13 @@ export interface AutosaveCommitOptions {
     readonly durability?: "relaxed" | "strict";
     /** Aborting it abandons the commit: nothing is written, and the promise rejects with an `AbortError`. */
     readonly signal?: AbortSignal;
+    /**
+     * Called each time the commit makes progress, such as a request inside it completing. The writer
+     * treats a commit as stalled only after 10 s with no progress, so a store that calls it is not
+     * aborted on a page whose main thread is busy; a store that never calls it is given 10 s for
+     * the whole commit.
+     */
+    readonly onProgress?: () => void;
 }
 
 /** A backend for autosave: the built-in IndexedDB store, `memoryAutosaveStore()`, or a custom one. */

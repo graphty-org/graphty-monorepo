@@ -319,6 +319,8 @@ export class Autosaver {
     #problem: CodedFact<AutosaveCode> | null = null;
     /** What the write in flight carries, so a boundary rewrites it too. */
     #carrying: { entry: EntryState; tags: ReadonlySet<PartTag> } | null = null;
+    /** The lock claim in progress after the page came back, if any. */
+    #reclaiming: Promise<void> | null = null;
     #pump: Promise<void> | null = null;
     #again = false;
     #stopped = false;
@@ -780,10 +782,38 @@ export class Autosaver {
     }
 
     /**
+     * The page is entering the back/forward cache now: release the entry's lock at once, whatever
+     * is outstanding. Chrome freezes the page right after `pagehide`, before a write started there
+     * can commit, and a lock still held then keeps the page out of the cache. The entry stays
+     * whole without it: every commit is fenced by the entry's generation, so if another tab claims
+     * the entry meanwhile, the later of the two commits is refused, and on `pageshow` this page
+     * takes the lock back or moves its work to a new entry (`reclaim`).
+     */
+    releaseLockNow(): void {
+        const entry = this.#entry;
+        entry.release?.();
+        entry.release = null;
+    }
+
+    /**
      * The page came back from the back/forward cache or was resumed: take the entry's lock again.
      * When another tab claimed the entry meanwhile, move to a new entry holding all of the work.
+     * @returns Settles once the lock is held again, or the work has moved.
      */
-    async reclaim(): Promise<void> {
+    reclaim(): Promise<void> {
+        // `resume` and `pageshow` both arrive when a cached page comes back: one claim, not two
+        // racing for the same lock, where the loser would take the winner for another tab.
+        this.#reclaiming ??= this.#reclaimOnce().finally(() => {
+            this.#reclaiming = null;
+        });
+        return this.#reclaiming;
+    }
+
+    /**
+     * The claim `reclaim` makes.
+     * @returns Settles once the lock is held again, or the work has moved.
+     */
+    async #reclaimOnce(): Promise<void> {
         const entry = this.#entry;
         if (this.#stopped || entry.release !== null || entry.gen === 0) {
             return;
@@ -1480,10 +1510,22 @@ export class Autosaver {
 
             const controller = new AbortController();
             let stalled = false;
-            const cancelWatchdog = this.#clock.setTimer(() => {
-                stalled = true;
-                controller.abort();
-            }, WATCHDOG_MS);
+            // A write is stalled after WATCHDOG_MS with no progress, not after WATCHDOG_MS in all: on
+            // a page whose main thread is busy (a large graph drawn in software), each step of a
+            // write waits behind a long frame, and a deadline on the whole write aborted every write
+            // there, for ever (found by the lifecycle tests at 1,000 nodes).
+            let cancelTimer = (): void => undefined;
+            const cancelWatchdog = (): void => {
+                cancelTimer();
+            };
+            const arm = (): void => {
+                cancelTimer();
+                cancelTimer = this.#clock.setTimer(() => {
+                    stalled = true;
+                    controller.abort();
+                }, WATCHDOG_MS);
+            };
+            arm();
             try {
                 for (const entry of job.claim) {
                     entry.release = await this.#locks.claim(lockName(this.#key, entry.id));
@@ -1492,6 +1534,7 @@ export class Autosaver {
 
                 await this.#store.commit(job.writes, {
                     signal: controller.signal,
+                    onProgress: arm,
                     ...(job.strict ? { durability: "strict" as const } : {}),
                 });
             } catch (error) {

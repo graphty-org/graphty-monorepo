@@ -1,0 +1,304 @@
+/**
+ * The lifecycle tests' page and its server.
+ *
+ * The page loads graphty-element from the built `./bundle` (dist/graphty.bundle.js) the way a page
+ * with a `<script>` tag does, turns autosave on, and reports everything that matters to a kill test
+ * to this server as it happens: every lifecycle event, every `saved` revision, the restore. A report
+ * posted before the page was killed survives the kill, which a log kept in the page would not.
+ *
+ * Edit number i sets the node attribute `probe` to i on every node, so after a restore every node's
+ * `probe` must equal the restored revision (design/work-protection/design.md, section 8).
+ */
+
+import { readFileSync } from "node:fs";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const BUNDLE = path.resolve(here, "../../dist/graphty.bundle.js");
+
+/** One report from a page. */
+export interface LogEvent {
+    /** The tab label the page was opened with. */
+    readonly tab: string;
+    /** What happened. */
+    readonly type: string;
+    /** The order the server received it in. */
+    readonly seq: number;
+    /** Anything else the page sent. */
+    readonly [field: string]: unknown;
+}
+
+/** What `fixture.check()` returns from a page. */
+export interface PageCheck {
+    readonly status: { state: string; revision: number; entry: string | null; problem: { code: string } | null };
+    readonly restored: {
+        revision: number;
+        entry: string;
+        wasDiscarded: boolean | null;
+        copiedFrom: string | null;
+    } | null;
+    readonly nodes: number;
+    /** Every distinct `probe` value, with null for a node that has none. */
+    readonly probes: readonly (number | null)[];
+    readonly entries: readonly { id: string; revision: number; live: boolean; ended?: string; dirty: boolean }[];
+    readonly guard: boolean;
+}
+
+/** The running fixture server. */
+export interface Fixture {
+    /** The origin, `http://127.0.0.1:<port>`. */
+    readonly origin: string;
+    /** Every report received so far, in arrival order. */
+    readonly log: LogEvent[];
+    /**
+     * The fixture page's URL.
+     * @param params - `key`, `tab`, `n` (nodes, 30 by default), `rows` (`early`, the default, or `late`)
+     *   and `delay` (the debounce in ms; a large one leaves a write to the lifecycle events).
+     */
+    url(params: Record<string, string | number>): string;
+    /** The reports of one tab. */
+    events(tab: string, type?: string): LogEvent[];
+    /** The highest revision a tab logged as `saved`, or 0. */
+    lastSaved(tab: string): number;
+    /** Wait until a report matching `predicate` has arrived. */
+    waitFor(predicate: (event: LogEvent) => boolean): Promise<LogEvent>;
+    close(): Promise<void>;
+}
+
+/**
+ * The page. It reads its settings from the query string and exposes `window.fixture` for the test.
+ */
+const PAGE = String.raw`<!doctype html>
+<html><head><meta charset="utf-8"><title>autosave lifecycle fixture</title>
+<style>html,body{margin:0;height:100%} graphty-element{display:block;width:100%;height:100%}</style>
+</head><body>
+<script>
+// Before the bundle: count the timers that fire while the page is hidden, for the hidden-run test.
+window.__timers = { firedHidden: 0 };
+const nativeSetTimeout = window.setTimeout.bind(window);
+window.setTimeout = (fn, ms, ...rest) => nativeSetTimeout((...a) => {
+    if (document.visibilityState === "hidden" && (ms === 500 || ms === 2000)) window.__timers.firedHidden++;
+    return typeof fn === "function" ? fn(...a) : undefined;
+}, ms, ...rest);
+// With delay=<ms>, a page that never goes idle (a graph drawn without pause, or Safari, which has no
+// idle callback): writes that carry the data wait for their maximum wait like every other write.
+if (new URLSearchParams(location.search).has("delay")) {
+    window.requestIdleCallback = (fn, options) => nativeSetTimeout(() => fn({ didTimeout: true, timeRemaining: () => 0 }), options?.timeout ?? 2 ** 31 - 1);
+    window.cancelIdleCallback = (handle) => clearTimeout(handle);
+}
+// Track the page's beforeunload listeners, so a test reads whether the unload guard is armed
+// without firing it (firing it starts a write).
+window.__unloadListeners = new Set();
+const nativeAdd = window.addEventListener.bind(window), nativeRemove = window.removeEventListener.bind(window);
+window.addEventListener = (type, fn, ...rest) => { if (type === "beforeunload") window.__unloadListeners.add(fn); return nativeAdd(type, fn, ...rest); };
+window.removeEventListener = (type, fn, ...rest) => { if (type === "beforeunload") window.__unloadListeners.delete(fn); return nativeRemove(type, fn, ...rest); };
+</script>
+<script type="module">
+import "/bundle.js";
+const params = new URLSearchParams(location.search);
+const tab = params.get("tab") ?? "t";
+const n = Number(params.get("n") ?? 30);
+const report = (type, fields = {}) => {
+    const body = JSON.stringify({ tab, type, ...fields });
+    try { fetch("/log", { method: "POST", body, keepalive: body.length < 60000 }); } catch {}
+};
+const nav = performance.getEntriesByType("navigation")[0];
+report("boot", { navigationType: nav?.type ?? null, wasDiscarded: document.wasDiscarded ?? null, visibility: document.visibilityState });
+document.addEventListener("visibilitychange", () => report("visibility", { state: document.visibilityState }));
+document.addEventListener("freeze", () => report("freeze"));
+document.addEventListener("resume", () => report("resume"));
+window.addEventListener("pagehide", (e) => report("pagehide", { persisted: e.persisted }));
+window.addEventListener("pageshow", (e) => report("pageshow", { persisted: e.persisted }));
+
+const ids = Array.from({ length: n }, (_, i) => "n" + i);
+const nodes = ids.map((id) => ({ id }));
+const edges = ids.map((id, i) => ({ source: id, target: ids[(i + 1) % n] }));
+const el = document.createElement("graphty-element");
+el.setAttribute("autosave", params.get("key"));
+el.layout = "fixed";
+// A page that renders without pause rarely goes idle, so a write that carries the data waits for
+// dataMaxWaitMs (10 s by default); 1 s keeps a test short without changing what is written.
+// delay=<ms> holds every write back, so only a lifecycle event writes an edit.
+const delay = params.has("delay") ? Number(params.get("delay")) : undefined;
+el.autosaveOptions = delay === undefined ? { dataMaxWaitMs: 1000 } : { delayMs: delay, maxWaitMs: delay, dataMaxWaitMs: delay };
+let lastSaved = 0;
+el.addEventListener("graphty-autosave-status", (e) => {
+    const s = e.detail;
+    report("status", { state: s.state, revision: s.revision, entry: s.entry, problem: s.problem?.code ?? null, params: s.problem?.params ?? null });
+    if (s.state === "saved" && s.revision > lastSaved) {
+        lastSaved = s.revision;
+        report("saved", { revision: s.revision, entry: s.entry });
+    }
+});
+el.addEventListener("graphty-autosave-at-risk", (e) => report("at-risk", { params: e.detail.params }));
+el.addEventListener("graphty-autosave-available", (e) => report("available", { reason: e.detail.reason, id: e.detail.entry.id }));
+const rows = () => { el.nodeData = nodes; el.edgeData = edges; };
+if (params.get("rows") !== "late") rows();
+document.body.appendChild(el);
+const summary = (r) => r && { revision: r.revision, entry: r.entry.id, wasDiscarded: r.wasDiscarded, copiedFrom: r.copiedFrom, others: r.others };
+const ready = el.autosaver.ready.then(async (restored) => {
+    if (params.get("rows") === "late") rows();
+    for (let f = 0; f < 6000 && el.session.data.snapshot().nodeCount < n; f++) await new Promise((r) => setTimeout(r, 10));
+    const s = el.autosaver.status;
+    report("ready", { restored: summary(restored), state: s.state, revision: s.revision, ephemeral: s.ephemeral, persisted: s.persisted, quota: s.storage?.quota ?? null, problem: s.problem?.code ?? null });
+    return restored;
+});
+let edits = 0;
+window.fixture = {
+    el,
+    ready: () => ready.then(summary),
+    async edit(i) {
+        await ready;
+        await el.session.data.updateNodes(ids.map((id) => ({ id, values: { probe: i } })));
+        return i;
+    },
+    // The next probe edit: the restored revision plus the edits made in this page, plus one.
+    async next() {
+        const restored = await ready;
+        return this.edit((restored?.revision ?? 0) + ++edits);
+    },
+    // An edit that makes the saved work bigger by about 'kb' KiB of text no engine can compress.
+    async grow(kb) {
+        await ready;
+        const bytes = new Uint8Array(kb * 768);
+        for (let o = 0; o < bytes.length; o += 65536) crypto.getRandomValues(bytes.subarray(o, Math.min(bytes.length, o + 65536)));
+        let text = "";
+        for (let o = 0; o < bytes.length; o += 8192) text += String.fromCharCode(...bytes.subarray(o, o + 8192));
+        const pad = btoa(text);
+        await el.session.data.updateNodes([{ id: ids[0], values: { pad } }]);
+    },
+    async run() {
+        await ready;
+        await el.session.runs.start("degree", undefined, { as: "hidden-run", style: false });
+    },
+    status: () => el.autosaver.status,
+    async check() {
+        await ready;
+        const probes = new Set();
+        for (const node of el.session.data.nodes()) probes.add(node.probe ?? null);
+        const entries = (await el.autosaver.list()).map((e) => ({ id: e.id, revision: e.revision, live: e.live, ended: e.ended, dirty: e.dirty }));
+        return { status: el.autosaver.status, restored: summary(el.autosaver.restored), nodes: el.session.data.snapshot().nodeCount, probes: [...probes], entries, guard: window.__unloadListeners.size > 0 };
+    },
+    flush: () => el.autosaver.flush(),
+    loseContext() {
+        const canvas = el.shadowRoot?.querySelector("canvas") ?? el.querySelector("canvas");
+        const gl = canvas?.getContext("webgl2") ?? canvas?.getContext("webgl");
+        const ext = gl?.getExtension("WEBGL_lose_context");
+        if (!ext) return false;
+        ext.loseContext();
+        return gl.isContextLost();
+    },
+    // Fill the origin's quota with a filler database until a write is refused even at 1 KiB. Random
+    // bytes, since Firefox compresses what it stores.
+    async fill() {
+        const db = await new Promise((res, rej) => { const r = indexedDB.open("filler", 1); r.onupgradeneeded = () => r.result.createObjectStore("b"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+        let size = 8 * 1024 * 1024, written = 0, i = 0;
+        while (size >= 1024) {
+            const ok = await new Promise((res) => { try { const t = db.transaction("b", "readwrite"); const v = new Uint8Array(size); for (let o = 0; o < size; o += 65536) crypto.getRandomValues(v.subarray(o, Math.min(size, o + 65536))); t.objectStore("b").put(v, i); t.oncomplete = () => res(true); t.onabort = () => res(false); t.onerror = () => res(false); } catch { res(false); } });
+            if (ok) { written += size; i++; } else { size = Math.floor(size / 2); }
+        }
+        db.close();
+        return written;
+    },
+    unfill: () => new Promise((res) => { const r = indexedDB.deleteDatabase("filler"); r.onsuccess = r.onerror = () => res(true); }),
+};
+report("loaded");
+</script></body></html>`;
+
+/**
+ * Read a request's body.
+ * @param request - The request.
+ * @returns The body text.
+ */
+function bodyOf(request: IncomingMessage): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        request.on("data", (chunk: Buffer) => chunks.push(chunk));
+        request.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+        request.on("error", reject);
+    });
+}
+
+/**
+ * Start the fixture server on a free loopback port.
+ * @returns The fixture.
+ */
+export async function startFixture(): Promise<Fixture> {
+    const bundle = readFileSync(BUNDLE);
+    const log: LogEvent[] = [];
+    const waiters = new Set<() => void>();
+    const server = createServer((request: IncomingMessage, response: ServerResponse) => {
+        const url = new URL(request.url ?? "/", "http://x");
+        if (url.pathname === "/log" && request.method === "POST") {
+            void bodyOf(request).then((text) => {
+                try {
+                    log.push({
+                        ...(JSON.parse(text) as { tab: string; type: string }),
+                        seq: log.length,
+                        at: Date.now(),
+                    });
+                } catch {
+                    // A report cut off by a kill: nothing to record.
+                }
+
+                waiters.forEach((wake) => wake());
+                response.writeHead(204).end();
+            });
+            return;
+        }
+
+        if (url.pathname === "/bundle.js") {
+            response.writeHead(200, { "content-type": "text/javascript", "cache-control": "max-age=3600" }).end(bundle);
+            return;
+        }
+
+        if (url.pathname === "/fixture.html") {
+            response
+                .writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" })
+                .end(PAGE);
+            return;
+        }
+
+        if (url.pathname === "/away.html") {
+            // A second page of the same origin, for leaving and coming back.
+            response
+                .writeHead(200, { "content-type": "text/html" })
+                .end("<!doctype html><title>away</title><p>away</p>");
+            return;
+        }
+
+        response.writeHead(404).end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+    const fixture: Fixture = {
+        origin,
+        log,
+        url: (params) =>
+            `${origin}/fixture.html?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()}`,
+        events: (tab, type) => log.filter((event) => event.tab === tab && (type === undefined || event.type === type)),
+        lastSaved: (tab) => Math.max(0, ...fixture.events(tab, "saved").map((event) => event.revision as number)),
+        waitFor: (predicate) =>
+            new Promise((resolve) => {
+                const check = (): void => {
+                    const found = log.find(predicate);
+                    if (found !== undefined) {
+                        waiters.delete(check);
+                        resolve(found);
+                    }
+                };
+                waiters.add(check);
+                check();
+            }),
+        close: () =>
+            new Promise((resolve) => {
+                server.closeAllConnections();
+                server.close(() => resolve());
+            }),
+    };
+    return fixture;
+}

@@ -235,6 +235,24 @@ export const SHARDS = [
         // The helpers the browser and interaction tests import, which vitest does not list.
         "local-paths": ["graphty-element/test/helpers/", "graphty-element/test/interactions/"],
     })),
+    // graphty-element's autosave lifecycle (design/work-protection/plan.md, step 6): the "lifecycle" project
+    // launches Chromium, Firefox and WebKit itself through Playwright's library API, and Chrome for Testing
+    // over the raw DevTools protocol, and reloads, closes, discards, freezes, crashes and kills pages and
+    // browsers; "autosave-engines" runs the in-page autosave tests in Firefox and WebKit. No coverage: the
+    // pages run the built ./bundle. A few minutes, beside the other shards. GRAPHTY_LIFECYCLE_FULL=1
+    // (the release train) adds the 50,000- and 100,000-node runs. "browsers" asks ci.yml for Firefox and
+    // WebKit and their system packages.
+    {
+        shard: "graphty-element-lifecycle",
+        package: "graphty-element",
+        "test-command":
+            "cd graphty-element && pnpm exec vitest run --project=lifecycle --project=autosave-engines --reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs}",
+        "needs-browser": true,
+        browsers: "chromium firefox webkit",
+        // Never in the pre-push gate: it launches three engines for minutes, and WebKit needs system
+        // packages a workstation may lack. Run it by hand with tools/run-tests.sh graphty-element-lifecycle.
+        local: "never",
+    },
     // graphty-element storybook tests (5 shards). Under v8 coverage a storybook browser session slows
     // down as it runs more stories (after about 100 to 120, each takes ten times as long and they
     // hit the 30 s timeout), so each shard is kept well under 100 stories.

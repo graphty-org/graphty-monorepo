@@ -143,10 +143,19 @@ jobs:
             - name: Install Playwright system packages
               if: matrix.needs-browser
               uses: ./.github/actions/playwright-system-deps
+              with:
+                  browsers: ${{ matrix.browsers || 'chromium' }}
 
             - name: Install Playwright browsers
               if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true'
               run: pnpm exec playwright install chromium
+
+            # The graphty-element lifecycle shard launches Firefox and WebKit too (matrix.browsers). A
+            # cache hit may hold only Chromium, so this runs on every such job; a browser already
+            # installed is skipped.
+            - name: Install Playwright's other browsers
+              if: matrix.browsers
+              run: pnpm exec playwright install ${{ matrix.browsers }}
 
             - name: Install Mesa lavapipe
               if: matrix.needs-lavapipe

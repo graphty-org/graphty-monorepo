@@ -66,11 +66,11 @@ const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 17 jobs", () => {
+    it("runs every shard exactly once on a full run, in 18 jobs", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 17);
+        assert.equal(include.length, 18);
     });
 
     it("puts only the affected members into a group's job", () => {
@@ -222,7 +222,10 @@ describe("the pre-push gate matches CI", () => {
         });
 
         it("runs every shard but a never one when there is nothing to compare with (PREPUSH_ALL=1)", () => {
-            assert.deepEqual(gateShards(element, null, null), element);
+            assert.deepEqual(
+                gateShards(element, null, null),
+                element.filter((s) => s.local !== "never"),
+            );
             const never = { ...element[0], local: "never" };
             assert.deepEqual(gateShards([never, element[1]], null, null), [element[1]]);
         });
@@ -326,7 +329,8 @@ describe("the pre-push gate matches CI", () => {
     });
 
     it("warms each package's caches one family at a time before the rest of the package starts", () => {
-        const shards = localShards(["graphty-element", "layout"]);
+        // What the gate schedules: the shards it runs, never the ones it leaves to CI.
+        const shards = gateShards(localShards(["graphty-element", "layout"]), null, null);
         const pick = (n) => shards.find((s) => s.shard === n);
         const canStart = startRule(shards);
         const startable = (running, warmed) =>
@@ -743,7 +747,7 @@ describe("ci.yml", () => {
         // light is set only on a push; every other event takes the affected (pull request) or full path
         assert.equal(build.match(/echo "light=true"/g).length, 1);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 17, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, 18, "a full run is every shard");
         // no test-type job is limited to pushes or to master
         for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);

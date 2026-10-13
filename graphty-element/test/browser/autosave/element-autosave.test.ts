@@ -215,7 +215,26 @@ describe("keys", () => {
 describe("the unload guard", () => {
     it("pending: a beforeunload listener exists only while a write is outstanding or failing", async () => {
         assert.isFalse(guardArmed(), "no listener before any element");
-        const element = mount(keyFor("guard"));
+        // A store whose commits wait until the test opens it: the first write carries the data,
+        // which is written when the page goes idle, and an idle page (Firefox) would otherwise
+        // commit it before the test looks.
+        const memory = memoryAutosaveStore();
+        let open = (): void => undefined;
+        const opened = new Promise<void>((resolve) => {
+            open = resolve;
+        });
+        const held: AutosaveStore = {
+            list: (key) => memory.list(key),
+            read: (id) => memory.read(id),
+            remove: (id) => memory.remove(id),
+            commit: async (writes, options) => {
+                await opened;
+                return memory.commit(writes, options);
+            },
+        };
+        const element = mount(keyFor("guard"), (each) => {
+            each.autosaveOptions = { store: held };
+        });
         await loaded(element);
         assert.isFalse(guardArmed(), "nothing to write: no listener");
 
@@ -223,6 +242,7 @@ describe("the unload guard", () => {
         assert.strictEqual(element.autosaver.status.state, "pending");
         assert.isTrue(guardArmed(), "a write is outstanding");
 
+        open();
         await element.autosaver.flush();
         assert.strictEqual(element.autosaver.status.state, "saved");
         assert.isFalse(guardArmed(), "committed: the listener is gone");

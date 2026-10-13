@@ -121,7 +121,7 @@ const CARET_STYLE: React.CSSProperties = {
  * @param props.pick - The quick pick the cell belongs to.
  * @returns The trailing cell, or null when the pick carries neither.
  */
-function QuickPickTrailing({ pick }: { pick: LayoutQuickPick }): React.JSX.Element | null {
+function QuickPickTrailing({ pick }: Readonly<{ pick: LayoutQuickPick }>): React.JSX.Element | null {
     const showComing = pick.coming === true;
 
     if (pick.estimate === undefined && !showComing) {

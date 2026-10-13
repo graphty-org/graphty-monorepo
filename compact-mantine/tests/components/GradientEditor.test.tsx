@@ -35,7 +35,7 @@ describe("GradientEditor", () => {
 
     it("renders color inputs for each stop", () => {
         renderGradientEditor(<GradientEditor stops={defaultStops} onChange={vi.fn()} />);
-        expect(screen.getAllByRole("textbox", { name: /color hex/i })).toHaveLength(2);
+        expect(screen.getAllByRole("textbox", { name: /^stop \d+ color$/i })).toHaveLength(2);
     });
 
     it("renders remove buttons for each stop", () => {
@@ -113,7 +113,7 @@ describe("GradientEditor", () => {
         const onChange = vi.fn();
         renderGradientEditor(<GradientEditor stops={defaultStops} onChange={onChange} />);
 
-        const colorInputs = screen.getAllByRole("textbox", { name: /color hex/i });
+        const colorInputs = screen.getAllByRole("textbox", { name: /^stop \d+ color$/i });
         await user.clear(colorInputs[0]);
         await user.type(colorInputs[0], "00FF00");
         await user.tab();
@@ -137,14 +137,14 @@ describe("GradientEditor", () => {
         renderGradientEditor(<GradientEditor defaultStops={defaultStops} />);
 
         expect(screen.getByText("Color Stops")).toBeInTheDocument();
-        expect(screen.getAllByRole("textbox", { name: /color hex/i })).toHaveLength(2);
+        expect(screen.getAllByRole("textbox", { name: /^stop \d+ color$/i })).toHaveLength(2);
     });
 
     it("uses default stops when neither stops nor defaultStops provided", () => {
         renderGradientEditor(<GradientEditor onChange={vi.fn()} />);
 
         expect(screen.getByText("Color Stops")).toBeInTheDocument();
-        expect(screen.getAllByRole("textbox", { name: /color hex/i }).length).toBeGreaterThanOrEqual(2);
+        expect(screen.getAllByRole("textbox", { name: /^stop \d+ color$/i }).length).toBeGreaterThanOrEqual(2);
     });
 
     it("renders the direction field in controlled mode", () => {
@@ -498,7 +498,7 @@ describe("GradientEditor", () => {
             const user = userEvent.setup();
             renderGradientEditor(<GradientEditor defaultStops={defaultStops} />);
 
-            const chits = screen.getAllByRole("button", { name: "Color swatch" });
+            const chits = screen.getAllByRole("button", { name: /^edit stop \d+ color$/i });
             expect(chits[0]).toHaveAttribute("aria-pressed", "true");
             expect(chits[1]).toHaveAttribute("aria-pressed", "false");
 
@@ -525,7 +525,7 @@ describe("GradientEditor", () => {
                 />,
             );
 
-            await user.click(screen.getAllByRole("button", { name: "Color swatch" })[1]);
+            await user.click(screen.getAllByRole("button", { name: /^edit stop \d+ color$/i })[1]);
             const value = screen.getByRole("textbox", { name: "Color value" });
             await user.clear(value);
             await user.type(value, "00FF00{Enter}");
@@ -571,7 +571,7 @@ describe("GradientEditor", () => {
                 />,
             );
 
-            const hex = screen.getAllByRole("textbox", { name: /color hex/i })[1];
+            const hex = screen.getAllByRole("textbox", { name: /^stop \d+ color$/i })[1];
             await user.clear(hex);
             await user.type(hex, "0f0{Enter}");
 
@@ -585,7 +585,7 @@ describe("GradientEditor", () => {
             const onChange = vi.fn();
             renderGradientEditor(<GradientEditor defaultStops={defaultStops} onChange={onChange} />);
 
-            const hex = screen.getAllByRole("textbox", { name: /color hex/i })[0];
+            const hex = screen.getAllByRole("textbox", { name: /^stop \d+ color$/i })[0];
             await user.clear(hex);
             await user.type(hex, "nope");
             await user.tab();
@@ -603,7 +603,7 @@ describe("GradientEditor", () => {
             const onChange = vi.fn();
             renderGradientEditor(<GradientEditor defaultStops={defaultStops} onChange={onChange} />);
 
-            const hex = screen.getAllByRole("textbox", { name: /color hex/i })[0];
+            const hex = screen.getAllByRole("textbox", { name: /^stop \d+ color$/i })[0];
             await user.clear(hex);
             await user.type(hex, "00FF00{Escape}");
 
@@ -614,7 +614,7 @@ describe("GradientEditor", () => {
         it("focus entering a row selects its stop for the picker", () => {
             renderGradientEditor(<GradientEditor defaultStops={defaultStops} />);
 
-            fireEvent.focus(screen.getAllByRole("textbox", { name: /color hex/i })[1]);
+            fireEvent.focus(screen.getAllByRole("textbox", { name: /^stop \d+ color$/i })[1]);
 
             expect(screen.getAllByTestId("gradient-editor-stop")[1]).toHaveAttribute("data-selected");
             expect(screen.getByRole("textbox", { name: "Color value" })).toHaveValue("0000FF");

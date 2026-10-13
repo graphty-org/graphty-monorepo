@@ -1,3 +1,18 @@
+## 3.4.4 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.29
+- Updated graph-format to 1.3.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.4.3 (2026-10-12)
 
 ### 🧱 Updated Dependencies

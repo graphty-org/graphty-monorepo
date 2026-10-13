@@ -183,12 +183,12 @@ export class DefaultGraphContext implements GraphContext {
      */
     constructor(
         private readonly styles: () => Styles,
-        private dataManager: DataManager,
-        private layoutManager: LayoutManager,
-        private meshCache: MeshCache,
-        private scene: Scene,
-        private statsManager: StatsManager,
-        private config: GraphContextConfig,
+        private readonly dataManager: DataManager,
+        private readonly layoutManager: LayoutManager,
+        private readonly meshCache: MeshCache,
+        private readonly scene: Scene,
+        private readonly statsManager: StatsManager,
+        private readonly config: GraphContextConfig,
         private readonly stylePainter?: StylePainter,
     ) {}
 

@@ -19,3 +19,26 @@ export function processTable(): string;
 export function descendants(root: number): number[];
 /** A short digest of one Node diagnostic report: the main thread's stack and the handles holding the loop open. */
 export function digestReport(file: string): string;
+/** What one run did, as the verdict reads it. */
+export interface ShardRun {
+    readonly status: number;
+    readonly killed?: boolean;
+    readonly silenceMs: number;
+    readonly output: string;
+    readonly outputFile?: string;
+    readonly outputWritten?: boolean;
+}
+/**
+ * The wrapper's exit code and cause: a run the watcher killed fails as hung; otherwise tools/shard-verdict.mjs decides
+ * (exit 0, the vitest summary, the named --outputFile written whole), a failure keeping vitest's non-zero code.
+ * Snapshots taken along the way do not change it.
+ */
+export function verdict(run: ShardRun): { exitCode: number; cause: string };
+/**
+ * Runs vitest (or `options.command`) with `argv` and returns the exit code; `silenceMs` sets the hang threshold and
+ * `reportDir` where the diagnostic reports go.
+ */
+export function main(
+    argv: readonly string[],
+    options?: { command?: readonly string[]; silenceMs?: number; reportDir?: string },
+): Promise<number>;

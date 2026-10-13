@@ -143,10 +143,21 @@ export async function importElements(
     return { elements, directed: r.snapshot.directed, format: r.format, report };
 }
 
+/** The loss notes about something graphtyImport always gives back (see lostForCytoscape). */
+const CYTOSCAPE_KEEPS: ReadonlySet<string> = new Set([
+    "W_ID_TEXT_TYPE",
+    "W_ID_RENUMBERED",
+    "W_CSV_NODE_ORDER",
+    "W_STORAGE_CLASS_CHANGED",
+]);
+
 /**
  * Whether a graph-io loss note is a loss for a Cytoscape graph. graph-io's notes describe its own snapshot read back
  * by itself; graphtyImport restores some of what they report:
  * - W_ID_TEXT_TYPE: every id is turned back into a string;
+ * - W_ID_RENUMBERED (Pajek) and W_CSV_NODE_ORDER: graphtyImport gives the nodes their original ids back, and a
+ *   Cytoscape node is known by its id, not by its place in the file;
+ * - W_STORAGE_CLASS_CHANGED: text stored as a dictionary or as plain strings reads back as the same strings;
  * - W_COLUMN_NAME_CHANGED on the edge `id`, the `parent` or the `position` (DOT reads them back as "key",
  *   "graphty.parent" and "pos"): they are read back by their role, as the edge id, `data.parent` and the position;
  * - W_ROLE_DROPPED on `label`: the values read back as `data.label`, and Cytoscape has no label role to lose.
@@ -154,53 +165,13 @@ export async function importElements(
  * @returns false for a note about something graphtyImport gives back
  */
 function lostForCytoscape(n: LossNote): boolean {
-    if (n.code === "W_ID_TEXT_TYPE") {
+    if (CYTOSCAPE_KEEPS.has(n.code)) {
         return false;
     }
     if (n.code === "W_COLUMN_NAME_CHANGED" && (n.column === "id" || n.column === "parent" || n.column === "position")) {
         return false;
     }
     return !(n.code === "W_ROLE_DROPPED" && n.column === "label");
-}
-
-/**
- * A CSS color as RGBA channels in 0..1: `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`, `hsl()` and
- * `hsla()` with comma-separated arguments. A named color ("red") is not read.
- * @param text - the color
- * @returns the channels, or undefined when the text is not one of those forms
- */
-function parseCssColor(text: string): [number, number, number, number] | undefined {
-    const s = text.trim().toLowerCase();
-    const hex = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(s)?.[1];
-    if (hex !== undefined) {
-        const pairs = hex.length <= 4 ? Array.from(hex, (h) => h + h) : (hex.match(/../g) ?? []);
-        const [r, g, b, a = 255] = pairs.map((h) => Number.parseInt(h, 16) / 255);
-        return [r, g, b, a === 255 ? 1 : a];
-    }
-    const fn = /^(rgba?|hsla?)\(([^)]*)\)$/.exec(s);
-    const args = fn?.[2].split(",").map((a) => a.trim());
-    if (fn === undefined || fn === null || args === undefined || (args.length !== 3 && args.length !== 4)) {
-        return undefined;
-    }
-    // each argument: a number, or a percentage of `full`
-    const num = (a: string, full: number): number =>
-        a.endsWith("%") ? (Number(a.slice(0, -1)) / 100) * full : Number(a);
-    const alpha = args.length === 4 ? num(args[3], 1) : 1;
-    let rgb: number[];
-    if (fn[1].startsWith("rgb")) {
-        rgb = args.slice(0, 3).map((a) => num(a, 255) / 255);
-    } else {
-        const h = Number(args[0].replace(/deg$/, ""));
-        const sat = num(args[1], 1);
-        const l = num(args[2], 1);
-        const k = (n: number): number => (n + h / 30) % 12;
-        const c = sat * Math.min(l, 1 - l);
-        rgb = [0, 8, 4].map((n) => l - c * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)));
-    }
-    const out = [...rgb, alpha];
-    return out.every((v) => Number.isFinite(v) && v >= 0 && v <= 1)
-        ? (out as [number, number, number, number])
-        : undefined;
 }
 
 /** The formats that hold only integer node ids: a graph whose ids are all integers is written with them as they are. */
@@ -229,8 +200,6 @@ export async function exportElements(
     const snapshot = elementsToSnapshot(eles, {
         directed,
         integerIds: INTEGER_ID_FORMATS.has(format),
-        // GEXF owns the name "color" for viz:color: a plain "color" field would read back renamed
-        colors: format === "gexf" ? parseCssColor : undefined,
     });
     const graphOptions = {
         sanitizeIds: "mangle" as const,

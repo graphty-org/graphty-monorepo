@@ -110,13 +110,13 @@ function useThrottledValue<T>(value: T, intervalMs: number): T {
             return undefined;
         }
 
-        const timer = window.setTimeout(() => {
+        const timer = globalThis.setTimeout(() => {
             lastRef.current = Date.now();
             setHeld(value);
         }, intervalMs - elapsed);
 
         return () => {
-            window.clearTimeout(timer);
+            globalThis.clearTimeout(timer);
         };
     }, [intervalMs, value]);
 

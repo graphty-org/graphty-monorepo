@@ -115,23 +115,28 @@ describe("style fidelity: graphty-element's drawing of each sample", () => {
         mounted = element;
         await element.updateComplete;
 
-        // loadFromUrl always passes the element's nodeIdPath ("id" by default) to the JSON reader,
-        // which then skips its Cytoscape.js dialect and loads nothing (E_EMPTY_LOAD): a
-        // graphty-element defect. JSON goes through session.data.import, which passes no paths.
-        const route =
-            sample.format === "json"
-                ? `session.data.import({ type: "json", config: { url } }, { styles: "file" })`
-                : `loadFromUrl(url, { format: "${sample.format}", styles: "file" })`;
-        await (sample.format === "json"
-            ? element.session.data.import({ type: "json", config: { url: blobUrl } }, { styles: "file" })
-            : element.loadFromUrl(blobUrl, { format: sample.format, styles: "file" }));
+        // session.data.import rather than loadFromUrl, for two reasons. loadFromUrl has no layout
+        // option, so a file's own coordinates were thrown away for the seeded force layout and
+        // every position scored 0 against references that keep them; `layout: "recommended"` is
+        // the public way to keep them (graphty-element picks "fixed" when every node carries a
+        // coordinate, else a computed layout). And loadFromUrl always passes the element's
+        // nodeIdPath ("id" by default) to the JSON reader, which then skips its Cytoscape.js
+        // dialect and loads nothing (E_EMPTY_LOAD): a graphty-element defect.
+        const route = `session.data.import({ type: "${sample.format}", config: { url } }, { styles: "file", layout: "recommended" })`;
+        await element.session.data.import(
+            { type: sample.format, config: { url: blobUrl } },
+            { styles: "file", layout: "recommended" },
+        );
         await element.waitForSettled();
         await element.session.styles.settled();
         await element.waitForStableFrame();
 
+        // Which layout drew it, and how many nodes the file placed: a position score is only
+        // meaningful when the layout is "fixed" (every node carried a coordinate).
+        const placement = `layout ${String(element.layout)}, ${String(element.session.seededNodeCount)} of ${String(element.session.status.counts.nodes)} nodes placed by the file`;
         const scene = extractScene(element, {
             version: `${packageJson.version} (source)`,
-            command: `${route}, url = ${sample.file}${sample.file.endsWith(".gz") ? " gunzipped" : ""}; 2D, ${String(WIDTH)}x${String(HEIGHT)}, layoutConfig.seed ${String(SEED)}, layout preSteps ${String(PRE_STEPS)}, GRAPHTY_BROWSER_GPU=${GPU}`,
+            command: `${route}; ${placement}, url = ${sample.file}${sample.file.endsWith(".gz") ? " gunzipped" : ""}; 2D, ${String(WIDTH)}x${String(HEIGHT)}, layoutConfig.seed ${String(SEED)}, layout preSteps ${String(PRE_STEPS)}, GRAPHTY_BROWSER_GPU=${GPU}`,
             sourceSha256: sha256,
         });
         await commands.writeFile(`${OUT}/${id}.graphty.json`, `${JSON.stringify(scene, null, 1)}\n`);

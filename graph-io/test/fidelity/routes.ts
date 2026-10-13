@@ -65,6 +65,12 @@ const ROUTES: Record<RouteId, RouteLedger> = {
             edgePath: altered("Gephi's preview draws curved edges by default"),
             edgeWidth: altered("viz:thickness is rescaled by the preview's edge thickness setting"),
             fontSize: altered("the font family depends on the machine, so label metrics vary"),
+            // GEXF has no node border: the outline in Gephi's drawing is the preview's own default
+            // (a darker shade of the fill), so it says nothing about the file.
+            borderColor: altered(
+                "Gephi's preview draws its default outline, a darker shade of the fill; GEXF has no border",
+            ),
+            borderWidth: altered("Gephi's preview draws its default outline width; GEXF has no border"),
         },
     },
     sigma: {

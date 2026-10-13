@@ -317,7 +317,7 @@ describe("scene comparison", () => {
     });
 
     it("takes each property from the best route that carries it, and checks the routes against each other", () => {
-        // gephi's ledger cannot carry shape; sigma's cannot carry border
+        // gephi's ledger cannot carry shape and alters font size and border; sigma's cannot carry border
         const gephi = {
             ...ref,
             provenance: { ...ref.provenance, route: "gephi-noscale" as const },
@@ -333,7 +333,8 @@ describe("scene comparison", () => {
         expect(r.properties.fill.judgedAgainst).toBe("gephi-noscale");
         expect(r.properties.shape).toMatchObject({ judgedAgainst: null, status: "unjudged" });
         expect(r.properties.edgeOpacity.judgedAgainst).toBe("sigma");
-        expect(r.properties.borderWidth).toMatchObject({ judgedAgainst: "gephi-noscale" });
+        expect(r.properties.fontSize.judgedAgainst).toBe("sigma");
+        expect(r.properties.borderWidth).toMatchObject({ judgedAgainst: null, status: "unjudged" });
         expect(r.routeChecks.sigma?.against).toBe("gephi-noscale");
         expect(r.routeChecks.sigma?.ledger.shape).toBe("no");
         expect(r.routeChecks.sigma?.properties.position.status).toBe("pass");

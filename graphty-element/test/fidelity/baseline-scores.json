@@ -25,11 +25,9 @@
         "background": 0
     },
     "gexf-miserables": {
-        "position": 0,
+        "position": 1,
         "size": 0,
         "fill": 1,
-        "borderColor": 0,
-        "borderWidth": 0,
         "borderStyle": 1,
         "labelText": 0,
         "labelColor": 0,
@@ -115,7 +113,7 @@
         "groups": 0
     },
     "xgmml-basicdataviz": {
-        "position": 0.0030211480362537764,
+        "position": 1,
         "size": 0,
         "shape": 0.9939577039274925,
         "fill": 1,
@@ -138,7 +136,7 @@
         "background": 0
     },
     "cx-ndex-90f78bcd": {
-        "position": 0,
+        "position": 1,
         "size": 0,
         "shape": 0,
         "fill": 1,
@@ -163,21 +161,21 @@
         "background": 0
     },
     "cx2-ndex-90f78bcd": {
-        "position": 0,
+        "position": 1,
         "size": 0,
         "shape": 0,
-        "fill": 0,
+        "fill": 1,
         "fillOpacity": 1,
         "borderColor": 1,
         "borderWidth": 0,
         "borderStyle": 1,
-        "labelText": 0,
+        "labelText": 1,
         "labelColor": 0,
         "fontSize": 0,
         "labelPosition": 0,
         "visible": 1,
         "zOrder": 0,
-        "edgeColor": 0,
+        "edgeColor": 1,
         "edgeOpacity": 1,
         "edgeWidth": 0,
         "lineStyle": 1,
@@ -188,7 +186,7 @@
         "background": 0
     },
     "cys-annotation-example": {
-        "position": 0,
+        "position": 1,
         "size": 0,
         "shape": 1,
         "fill": 1,
@@ -214,7 +212,7 @@
         "background": 0
     },
     "cyjs-scsweb": {
-        "position": 0,
+        "position": 1,
         "size": 0,
         "shape": 1,
         "fill": 1,

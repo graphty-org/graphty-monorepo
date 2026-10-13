@@ -25,8 +25,10 @@
 import { PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
 import type { AiVoiceSupport } from "@graphty/graphty-element/ai";
 import {
+    AI_HOSTED_TOOL_CAPABILITIES,
+    AI_PROVIDER_DESCRIPTORS,
     type AiCapabilities,
-    type AiCapabilityStatus,
+    type AiHostedToolId,
     aiProviderDescriptor,
     checkApiKeyShape,
 } from "@graphty/graphty-element/catalog";
@@ -42,7 +44,9 @@ import {
     offersLiveChoice,
 } from "../../hooks/useAiManager";
 import { getCreateProvider, type ProviderType } from "../../types/ai";
+import type { AiModelChoice, AiModelChoices } from "../../workspace/settings/preferences";
 import { PanelOutlineButton } from "../shell/panel/panelButtons";
+import { AiModelSettings } from "./AiModelSettings";
 import { speechDestinationText } from "./aiResultText";
 
 /**
@@ -194,6 +198,10 @@ export interface AiProviderSettingsProps {
     readonly onToolChange?: (name: AiToolSwitch, on: boolean) => void;
     /** What the current provider can use, as graphty-element reports it; null until the assistant is on. */
     readonly toolCapabilities?: AiCapabilities | null;
+    /** The model and options the reader chose for each provider. The model fields draw only with `onModelChoiceChange`. */
+    readonly modelChoices?: AiModelChoices;
+    /** Changes one provider's model choice. */
+    readonly onModelChoiceChange?: (provider: ProviderType, choice: AiModelChoice) => void;
     /** The reader's voice settings. The voice block draws only with `onVoiceChange`. */
     readonly voice?: AiVoiceSettings;
     /** Changes one voice setting. */
@@ -335,26 +343,81 @@ const TOOL_WORDS: Readonly<Record<AiToolSwitch, { readonly label: string; readon
     },
 };
 
-/** Why a switch is off-limits, by what graphty-element reported about the tool. */
-const UNAVAILABLE_WORDS: Readonly<Partial<Record<string, string>>> = {
-    unsupported: "Not available with your current provider.",
-    "results-not-returned": "Your current provider does not share what this finds, so it cannot be used.",
+/** What each tool lets the assistant do, as the end of "<provider> cannot ...", and what is lost without it. */
+const TOOL_ABILITY: Readonly<Record<AiToolSwitch, { readonly can: string; readonly lost: string }>> = {
+    webSearch: { can: "search the web", lost: "look up anything beyond what the model already knows" },
+    webFetch: { can: "read web pages", lost: "open an address you give it" },
+    inPageCode: { can: "run code", lost: "compute answers with a program" },
 };
 
-/** Why a switch is off-limits when it is not known whether the provider offers the tool. */
-const UNKNOWN_WORDS = "It is not known whether your current provider offers this, so it cannot be used.";
+/**
+ * Names as a reader lists them: "A", "A and B", "A, B and C".
+ * @param names - The names.
+ * @returns The list.
+ */
+function listed(names: readonly string[]): string {
+    return names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
 
 /**
- * Why a tool cannot be switched on, in the app's words.
- * @param status - What graphty-element reported, or undefined before the assistant is on.
+ * A provider's name, as graphty-element's catalog gives it; a provider of the host's own by its id.
+ * @param id - The provider.
+ * @returns Its name.
+ */
+function providerName(id: string): string {
+    return AI_PROVIDER_DESCRIPTORS.find((entry) => entry.id === id)?.plainName ?? id;
+}
+
+/**
+ * Why a tool cannot be switched on, in the app's words: which provider or model cannot use it, what
+ * the reader goes without, and which providers can.
+ * @param name - The switch.
+ * @param tool - The tool behind it.
+ * @param capabilities - What graphty-element reported, or undefined before the assistant is on.
  * @returns The reason, or undefined when the switch is usable.
  */
-function unavailableReason(status: AiCapabilityStatus | undefined): string | undefined {
-    if (status === undefined || status === "available") {
+function unavailableReason(
+    name: AiToolSwitch,
+    tool: AiHostedToolId,
+    capabilities: AiCapabilities | null | undefined,
+): string | undefined {
+    const status = capabilities?.tools[tool];
+    if (capabilities === null || capabilities === undefined || status === undefined || status === "available") {
         return undefined;
     }
 
-    return UNAVAILABLE_WORDS[status] ?? UNKNOWN_WORDS;
+    const { can, lost } = TOOL_ABILITY[name];
+    const provider = providerName(capabilities.provider);
+    const others = AI_PROVIDER_DESCRIPTORS.filter(
+        (entry) =>
+            !entry.testOnly &&
+            entry.id !== capabilities.provider &&
+            AI_HOSTED_TOOL_CAPABILITIES[entry.id][tool] === "available",
+    ).map((entry) => entry.plainName);
+    const elsewhere = others.length === 0 ? "No other provider can either." : `${listed(others)} can.`;
+    // In-page code runs in the page, whatever the provider: only the page can rule it out.
+    if (tool === "in-page-code") {
+        return `This page does not allow programs to run (its security settings, or this build of the app), so the assistant cannot ${lost}, with any provider.`;
+    }
+
+    const known = AI_PROVIDER_DESCRIPTORS.find((entry) => entry.id === capabilities.provider);
+    if (
+        known !== undefined &&
+        AI_HOSTED_TOOL_CAPABILITIES[known.id][tool] === "available" &&
+        status === "unsupported"
+    ) {
+        return `The model ${capabilities.model} cannot ${can}, so the assistant cannot ${lost}. Other ${provider} models can${others.length === 0 ? "" : `, and so can ${listed(others)}`}.`;
+    }
+
+    if (status === "unsupported") {
+        return `${provider} cannot ${can}, so the assistant cannot ${lost}. ${elsewhere}`;
+    }
+
+    if (status === "results-not-returned") {
+        return `${provider} can ${can} but does not share what it finds, so the assistant cannot show where an answer came from. ${elsewhere}`;
+    }
+
+    return `It is not known whether ${provider} can ${can}, so this stays off and the assistant cannot ${lost}. ${elsewhere}`;
 }
 
 /**
@@ -393,7 +456,7 @@ export function AiToolSettings({
             </Box>
             <Box style={{ display: "flex", flexDirection: "column", gap: PANEL_GRID.TRAIL_GAP }}>
                 {AI_TOOL_SWITCHES.map(({ name, tool }) => {
-                    const reason = unavailableReason(capabilities?.tools[tool]);
+                    const reason = unavailableReason(name, tool, capabilities);
                     return (
                         <Box key={name}>
                             <Switch
@@ -503,6 +566,8 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
         voice,
         onVoiceChange,
         voiceSupport,
+        modelChoices,
+        onModelChoiceChange,
     } = props;
 
     /* The row that is open. One at a time, like the nav it sits inside: the form is
@@ -936,6 +1001,16 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
                                             </Button>
                                         )}
                                     </Box>
+
+                                    {onModelChoiceChange !== undefined && (
+                                        <AiModelSettings
+                                            provider={entry.type}
+                                            choice={modelChoices?.[entry.type] ?? {}}
+                                            onChange={(choice) => {
+                                                onModelChoiceChange(entry.type, choice);
+                                            }}
+                                        />
+                                    )}
                                 </Box>
                             )}
                         </Box>

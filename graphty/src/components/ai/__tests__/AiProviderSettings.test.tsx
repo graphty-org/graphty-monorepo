@@ -327,18 +327,18 @@ describe("AiProviderSettings", () => {
             expect(onToolChange).toHaveBeenCalledWith("inPageCode", true);
         });
 
-        it("draws a tool the provider cannot use disabled and off, with the reason", () => {
+        it("draws a tool the provider cannot use disabled and off, naming the provider, the loss and who can", () => {
             render(
                 <AiProviderSettings
                     {...keyStore({
-                        tools: { ...OFF, webSearch: true },
+                        tools: { ...OFF, webFetch: true },
                         onToolChange: vi.fn(),
                         toolCapabilities: {
-                            provider: "google",
-                            model: "gemini-3.8-flash",
+                            provider: "openai",
+                            model: "gpt-4o",
                             tools: {
-                                "web-search": "unsupported",
-                                "web-fetch": "results-not-returned",
+                                "web-search": "available",
+                                "web-fetch": "unsupported",
                                 "in-page-code": "available",
                             },
                         },
@@ -346,15 +346,68 @@ describe("AiProviderSettings", () => {
                 />,
             );
 
-            const search = screen.getByRole("switch", { name: /^Search the web/ });
-            expect(search).toBeDisabled();
-            expect(search).not.toBeChecked();
-            expect(screen.getByTestId("ai-tool-webSearch-reason")).toHaveTextContent(
-                "Not available with your current provider.",
+            const fetch = screen.getByRole("switch", { name: /^Read web pages/ });
+            expect(fetch).toBeDisabled();
+            expect(fetch).not.toBeChecked();
+            expect(screen.getByTestId("ai-tool-webFetch-reason")).toHaveTextContent(
+                "OpenAI cannot read web pages, so the assistant cannot open an address you give it. Anthropic and Google can.",
             );
-            expect(screen.getByRole("switch", { name: /^Read web pages/ })).toBeDisabled();
-            expect(screen.getByTestId("ai-tool-webFetch-reason")).toHaveTextContent("does not share what this finds");
+            expect(screen.getByRole("switch", { name: /^Search the web/ })).toBeEnabled();
             expect(screen.getByRole("switch", { name: /^Run code/ })).toBeEnabled();
+        });
+
+        it("names the model when only the model lacks a tool, and the page when code cannot run", () => {
+            render(
+                <AiProviderSettings
+                    {...keyStore({
+                        tools: OFF,
+                        onToolChange: vi.fn(),
+                        toolCapabilities: {
+                            provider: "openai",
+                            model: "gpt-4o-audio-preview",
+                            tools: {
+                                "web-search": "unsupported",
+                                "web-fetch": "unsupported",
+                                "in-page-code": "unsupported",
+                            },
+                        },
+                    })}
+                />,
+            );
+
+            expect(screen.getByTestId("ai-tool-webSearch-reason")).toHaveTextContent(
+                "The model gpt-4o-audio-preview cannot search the web, so the assistant cannot look up anything beyond what the model already knows. Other OpenAI models can, and so can Anthropic and Google.",
+            );
+            expect(screen.getByTestId("ai-tool-inPageCode-reason")).toHaveTextContent(
+                "This page does not allow programs to run",
+            );
+        });
+
+        it("says what a provider that keeps its results loses, and an unknown status as unknown", () => {
+            render(
+                <AiProviderSettings
+                    {...keyStore({
+                        tools: OFF,
+                        onToolChange: vi.fn(),
+                        toolCapabilities: {
+                            provider: "my-gateway",
+                            model: "",
+                            tools: {
+                                "web-search": "results-not-returned",
+                                "web-fetch": "unknown",
+                                "in-page-code": "available",
+                            },
+                        },
+                    })}
+                />,
+            );
+
+            expect(screen.getByTestId("ai-tool-webSearch-reason")).toHaveTextContent(
+                "my-gateway can search the web but does not share what it finds, so the assistant cannot show where an answer came from. OpenAI, Anthropic and Google can.",
+            );
+            expect(screen.getByTestId("ai-tool-webFetch-reason")).toHaveTextContent(
+                "It is not known whether my-gateway can read web pages, so this stays off and the assistant cannot open an address you give it. Anthropic and Google can.",
+            );
         });
     });
 

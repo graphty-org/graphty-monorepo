@@ -143,10 +143,21 @@ export async function importElements(
     return { elements, directed: r.snapshot.directed, format: r.format, report };
 }
 
+/** The loss notes about something graphtyImport always gives back (see lostForCytoscape). */
+const CYTOSCAPE_KEEPS: ReadonlySet<string> = new Set([
+    "W_ID_TEXT_TYPE",
+    "W_ID_RENUMBERED",
+    "W_CSV_NODE_ORDER",
+    "W_STORAGE_CLASS_CHANGED",
+]);
+
 /**
  * Whether a graph-io loss note is a loss for a Cytoscape graph. graph-io's notes describe its own snapshot read back
  * by itself; graphtyImport restores some of what they report:
  * - W_ID_TEXT_TYPE: every id is turned back into a string;
+ * - W_ID_RENUMBERED (Pajek) and W_CSV_NODE_ORDER: graphtyImport gives the nodes their original ids back, and a
+ *   Cytoscape node is known by its id, not by its place in the file;
+ * - W_STORAGE_CLASS_CHANGED: text stored as a dictionary or as plain strings reads back as the same strings;
  * - W_COLUMN_NAME_CHANGED on the edge `id`, the `parent` or the `position` (DOT reads them back as "key",
  *   "graphty.parent" and "pos"): they are read back by their role, as the edge id, `data.parent` and the position;
  * - W_ROLE_DROPPED on `label`: the values read back as `data.label`, and Cytoscape has no label role to lose.
@@ -154,7 +165,7 @@ export async function importElements(
  * @returns false for a note about something graphtyImport gives back
  */
 function lostForCytoscape(n: LossNote): boolean {
-    if (n.code === "W_ID_TEXT_TYPE") {
+    if (CYTOSCAPE_KEEPS.has(n.code)) {
         return false;
     }
     if (n.code === "W_COLUMN_NAME_CHANGED" && (n.column === "id" || n.column === "parent" || n.column === "position")) {

@@ -2,7 +2,6 @@ import {
     createTheme,
     DEFAULT_THEME,
     type MantineTheme,
-    type MantineThemeComponent,
     type MantineThemeComponents,
     type MantineThemeOverride,
     mergeMantineTheme,
@@ -56,17 +55,32 @@ function withStyleInjection(
 ): MantineThemeComponents {
     const wrapped: MantineThemeComponents = {};
     for (const [name, extension] of Object.entries(components)) {
-        const { vars } = extension;
+        const resolver: unknown = extension.vars;
         wrapped[name] = {
             ...extension,
-            vars: (...args: Parameters<NonNullable<MantineThemeComponent["vars"]>>) => {
+            vars: (...args: Parameters<VarsResolver>) => {
                 ensureCompactStyles(options);
-                followPrimaryColor((args[0] as MantineTheme).primaryColor);
-                return vars ? vars(...args) : {};
+                followPrimaryColor(args[0].primaryColor);
+                return isVarsResolver(resolver) ? resolver(...args) : {};
             },
         };
     }
     return wrapped;
+}
+
+/**
+ * A component's `vars` resolver, as Mantine calls it. Mantine types the field `any`
+ * (`MantineThemeComponent["vars"]`), so this names the shape the wrapper relies on.
+ */
+type VarsResolver = (theme: MantineTheme, props: unknown, ctx: unknown) => unknown;
+
+/**
+ * Whether a component extension's `vars` is a resolver to call.
+ * @param vars - the extension's `vars`
+ * @returns true when it is a function
+ */
+function isVarsResolver(vars: unknown): vars is VarsResolver {
+    return typeof vars === "function";
 }
 
 /**

@@ -139,6 +139,95 @@ describe("IndexedDB autosave store on a real database", () => {
         await deleteDatabase(name);
     });
 
+    it("a commit queued behind another connection's transaction rejects as soon as its signal aborts", async () => {
+        // WebKit delivers the abort of a queued transaction only once the one ahead of it ends, so
+        // a stuck database held the commit, and every write after it, for as long as it was stuck.
+        const name = databaseName();
+        let queued: () => void = () => undefined;
+        const transactionMade = new Promise<void>((resolve) => {
+            queued = resolve;
+        });
+        const factory = {
+            open(dbName: string, version?: number): IDBOpenDBRequest {
+                const req = indexedDB.open(dbName, version);
+                req.addEventListener("success", () => {
+                    const db = req.result;
+                    const make = db.transaction.bind(db);
+                    db.transaction = ((...args: Parameters<IDBDatabase["transaction"]>) => {
+                        const tx = make(...args);
+                        if (args[1] === "readwrite") {
+                            queued();
+                        }
+                        return tx;
+                    }) as IDBDatabase["transaction"];
+                });
+                return req;
+            },
+        } as unknown as IDBFactory;
+        const creator = storeFor(name);
+        await creator.list("k"); // creates the database
+        await creator.close();
+        const blocker = await new Promise<IDBDatabase>((resolve, reject) => {
+            const req = indexedDB.open(name);
+            req.onsuccess = (): void => {
+                resolve(req.result);
+            };
+            req.onerror = (): void => {
+                reject(req.error ?? new Error("open failed"));
+            };
+        });
+        const held = blocker.transaction(["entries", "parts", "blobs"], "readwrite");
+        let holding = true;
+        const spin = (): void => {
+            if (holding) {
+                held.objectStore("entries").count().onsuccess = spin;
+            }
+        };
+        spin();
+
+        const store = storeFor(name, { factory });
+        const controller = new AbortController();
+        const committing = rejection(store.commit([write("a", "k", 0, { rest: "r" })], { signal: controller.signal }));
+        await transactionMade;
+        controller.abort();
+        const error = await committing;
+        assert.strictEqual(error.name, "AbortError");
+        assert.isTrue(holding, "the commit settled while the other transaction still held the database");
+
+        holding = false;
+        await new Promise<void>((resolve) => {
+            held.oncomplete = (): void => {
+                resolve();
+            };
+        });
+        blocker.close();
+        assert.isUndefined(await store.read("a"), "the aborted commit wrote nothing");
+        await store.commit([write("a", "k", 0, { rest: "r" })]);
+        assert.strictEqual((await store.read("a"))?.parts.rest, "r");
+        await store.close();
+        await deleteDatabase(name);
+    });
+
+    it("a commit whose database never opens rejects when its signal aborts, and close does not wait for the open", async () => {
+        let opening: () => void = () => undefined;
+        const opened = new Promise<void>((resolve) => {
+            opening = resolve;
+        });
+        const factory = {
+            open: (): IDBOpenDBRequest => {
+                opening();
+                return {} as IDBOpenDBRequest; // never answers, as Safari's stuck IndexedDB does
+            },
+        } as unknown as IDBFactory;
+        const store = storeFor(databaseName(), { factory });
+        const controller = new AbortController();
+        const committing = rejection(store.commit([write("a", "k", 0, { rest: "r" })], { signal: controller.signal }));
+        await opened;
+        controller.abort();
+        assert.strictEqual((await committing).name, "AbortError");
+        await store.close();
+    });
+
     it("close waits for an in-flight commit to complete", async () => {
         const name = databaseName();
         const store = storeFor(name);

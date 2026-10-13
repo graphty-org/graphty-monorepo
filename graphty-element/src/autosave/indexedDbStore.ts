@@ -406,36 +406,82 @@ export function indexedDbAutosaveStore(options: IndexedDbAutosaveStoreOptions = 
 
     async function commit(writes: readonly AutosaveWrite[], commitOptions?: AutosaveCommitOptions): Promise<void> {
         const signal = commitOptions?.signal;
-        const aborted = (): boolean => signal?.aborted === true;
-        if (aborted()) {
-            throw autosaveAbortError();
-        }
-        const prepared = await prepare(writes);
-        const opened = open();
-        const db = await opened;
-        if (aborted()) {
+        if (signal?.aborted === true) {
             throw autosaveAbortError();
         }
 
-        const tx = db.transaction(STORES, "readwrite", { durability: commitOptions?.durability ?? "relaxed" });
-        const done = transactionDone(tx);
+        // Settles the commit as aborted as soon as the caller aborts it, without waiting for the
+        // browser: WebKit delivers the abort of a transaction still queued behind another one only
+        // once that one ends, and an open that never answers has nothing to deliver at all, so a
+        // stuck database would otherwise hold the commit (and every write after it) for ever.
+        let abandon: (reason: unknown) => void = () => undefined;
+        const abandoned = new Promise<never>((_, reject) => {
+            abandon = reject;
+        });
+        abandoned.catch(() => undefined);
+        let tx: IDBTransaction | null = null;
         const abort = (): void => {
-            try {
-                tx.abort();
-            } catch {
-                // Already finished or aborted: done has settled, or will.
+            if (tx !== null) {
+                try {
+                    tx.abort();
+                } catch {
+                    // Already finished or aborted: done has settled, or will.
+                    return;
+                }
             }
+            // A transaction that abort() accepted can no longer commit, so the commit has failed.
+            abandon(autosaveAbortError());
         };
         signal?.addEventListener("abort", abort, { once: true });
+        try {
+            await commitUntil(
+                writes,
+                commitOptions,
+                abandoned,
+                (started) => {
+                    tx = started;
+                },
+                abort,
+            );
+        } finally {
+            signal?.removeEventListener("abort", abort);
+        }
+    }
+
+    /**
+     * The body of commit(), each wait raced against the caller's abort.
+     * @param writes - the commit's writes
+     * @param commitOptions - its options
+     * @param abandoned - rejects when the caller aborts
+     * @param started - receives the transaction once it exists
+     * @param abort - aborts the transaction
+     */
+    async function commitUntil(
+        writes: readonly AutosaveWrite[],
+        commitOptions: AutosaveCommitOptions | undefined,
+        abandoned: Promise<never>,
+        started: (tx: IDBTransaction) => void,
+        abort: () => void,
+    ): Promise<void> {
+        const prepared = await Promise.race([prepare(writes), abandoned]);
+        const opened = open();
+        const db = await Promise.race([opened, abandoned]);
+        const tx = db.transaction(STORES, "readwrite", { durability: commitOptions?.durability ?? "relaxed" });
+        started(tx);
+        const done = transactionDone(tx);
+        // Awaited below, or abandoned with the commit; either way never an unhandled rejection.
+        done.catch(() => undefined);
 
         let failure: unknown = undefined;
         try {
             const progress = commitOptions?.onProgress;
-            await writeAll(tx, writes, prepared, async (req) => {
+            const writing = writeAll(tx, writes, prepared, async (req) => {
                 const result = await request(req);
                 progress?.();
                 return result;
             });
+            writing.catch(() => undefined);
+            await Promise.race([writing, abandoned]);
             options.beforeCommitEnds?.(tx);
         } catch (error) {
             failure = error;
@@ -443,7 +489,7 @@ export function indexedDbAutosaveStore(options: IndexedDbAutosaveStoreOptions = 
         }
 
         try {
-            await done;
+            await Promise.race([done, abandoned]);
         } catch (error) {
             if ([failure, error].some((e) => e instanceof DOMException && e.name === "QuotaExceededError")) {
                 // Firefox refuses the next transaction on a connection whose transaction ran out of
@@ -459,9 +505,7 @@ export function indexedDbAutosaveStore(options: IndexedDbAutosaveStoreOptions = 
             if (failure !== undefined && (isAutosaveConflict(failure) || failure instanceof DOMException)) {
                 throw failure;
             }
-            throw aborted() ? autosaveAbortError() : error;
-        } finally {
-            signal?.removeEventListener("abort", abort);
+            throw commitOptions?.signal?.aborted === true ? autosaveAbortError() : error;
         }
     }
 
@@ -499,13 +543,14 @@ export function indexedDbAutosaveStore(options: IndexedDbAutosaveStoreOptions = 
             }
             const closing = connection;
             connection = null;
-            if (closing !== null) {
-                try {
-                    (await closing).close();
-                } catch {
-                    // It never opened; there is nothing to close.
-                }
-            }
+            // Closed once it opens: an open the browser never answers must not hold the caller,
+            // which closes to get a fresh connection.
+            closing?.then(
+                (db) => {
+                    db.close();
+                },
+                () => undefined,
+            );
         },
     };
 }

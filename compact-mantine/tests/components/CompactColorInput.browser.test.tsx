@@ -120,3 +120,36 @@ describe("GradientEditor stop names", () => {
         await expect.element(chit).toHaveAttribute("aria-pressed", "true");
     });
 });
+
+describe("CompactColorInput picker focus", () => {
+    it("opens its picker, from the swatch or the chip, with focus in the value box so a typed hex sets it", async () => {
+        for (const variant of ["field", "chip"] as const) {
+            let picked: string | undefined;
+            const { unmount } = render(
+                <MantineProvider theme={compactTheme}>
+                    <PopoutManager>
+                        <CompactColorInput
+                            aria-label="Glow"
+                            variant={variant}
+                            defaultColor="#000000"
+                            showOpacity={false}
+                            onChangeEnd={(color) => {
+                                picked = color;
+                            }}
+                        />
+                    </PopoutManager>
+                </MantineProvider>,
+            );
+            const opener =
+                variant === "chip"
+                    ? page.getByTestId("compact-color-input-chip")
+                    : page.getByTestId("compact-color-input-swatch");
+            await userEvent.click(opener);
+            const value = page.getByTestId("color-picker-value");
+            await expect.poll(() => document.activeElement === value.element()).toBe(true);
+            await userEvent.keyboard("FF00FF{Enter}");
+            await expect.poll(() => picked).toBe("#FF00FF");
+            unmount();
+        }
+    });
+});

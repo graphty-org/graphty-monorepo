@@ -529,6 +529,8 @@ export function ColorPickerPanel({
                                     spellCheck={false}
                                     aria-label={labels.value}
                                     data-testid="color-picker-value"
+                                    // A pop-out opened on the picker starts in its value box, so typing a hex sets it.
+                                    data-autofocus
                                     value={draft}
                                     onChange={(event) => {
                                         setDraft(event.currentTarget.value);

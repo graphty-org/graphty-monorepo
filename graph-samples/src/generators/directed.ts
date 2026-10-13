@@ -40,11 +40,11 @@ interface RecursiveOptions extends WeightOptions {
 /**
  * Throw unless `value` is undefined or a duplicate policy.
  * @param name - the option name
- * @param value - the value
+ * @param value - the value, checked, since a JavaScript caller may pass any string
  */
-function checkPolicy(name: string, value: EdgePolicy | undefined): void {
+function checkPolicy(name: string, value: string | undefined): void {
     if (value !== undefined && value !== "keep" && value !== "erase") {
-        throw new RangeError(`${name} must be "keep" or "erase", got ${String(value)}`);
+        throw new RangeError(`${name} must be "keep" or "erase", got ${value}`);
     }
 }
 

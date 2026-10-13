@@ -2,7 +2,7 @@ import { type F64, type GraphSnapshot, type NodeRef, resolveNode } from "@grapht
 
 import type { LayoutResult } from "../positions.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
+import { type CommonLayoutOptions, planar, refusal, resolve, result } from "./common.js";
 import { type ShellRotate, shellRows } from "./shell.js";
 
 /** Options of the index-based radial layout. */
@@ -83,7 +83,10 @@ function radialRings(g: GraphSnapshot, root: number | null): { rings: number[][]
         }
         root = best;
     } else if (!Number.isInteger(root) || root < 0 || root >= n) {
-        throw new Error(`root node ${String(root)} is not in the graph`);
+        throw refusal(new Error(`root node ${String(root)} is not in the graph`), "E_BAD_NODE", {
+            option: "root",
+            index: root,
+        });
     }
     const visited = new Uint8Array(n);
     visited[root] = 1;
@@ -212,16 +215,33 @@ function sectorRows(
  * @param options - `scale` is the radius of the outermost ring; `root` the centre node; `rotate` the turn of each ring
  * past the one inside it; `arrangement` how a ring's nodes are spread
  * @returns the layout
+ * @throws an Error with `code` `E_BAD_NODE` and `params` `{ option: "root", index }` when `root` is an index that is
+ * not a node (a `{ id }` the graph does not hold is graph-format's `E_UNKNOWN_NODE`), and `E_BAD_OPTION` with
+ * `{ option, value }` for an unknown `arrangement` or a `rotate` with `arrangement: "sectors"`
  */
 export function radial(s: GraphSnapshot, options: RadialLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);
     const root = options.root ?? null;
     const { arrangement = "rings", rotate } = options;
     if (arrangement !== "rings" && arrangement !== "sectors") {
-        throw new Error(`arrangement must be "rings" or "sectors", not ${String(arrangement)}`);
+        throw refusal(
+            new Error(`arrangement must be "rings" or "sectors", not ${String(arrangement)}`),
+            "E_BAD_OPTION",
+            {
+                option: "arrangement",
+                value: arrangement,
+            },
+        );
     }
     if (arrangement === "sectors" && rotate !== undefined && rotate !== 0) {
-        throw new Error('rotate turns each ring separately, which only arrangement: "rings" allows');
+        throw refusal(
+            new Error('rotate turns each ring separately, which only arrangement: "rings" allows'),
+            "E_BAD_OPTION",
+            {
+                option: "rotate",
+                value: rotate,
+            },
+        );
     }
     const { rings, parent } = radialRings(toLayoutSnapshot(s), root === null ? null : resolveNode(s, root));
     if (arrangement === "sectors") {

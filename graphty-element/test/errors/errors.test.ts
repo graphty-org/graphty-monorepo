@@ -61,6 +61,14 @@ const CODES_FROM_THE_DESIGN = [
     "E_NOT_CONVERGED",
     "E_NOT_PLANAR",
     "E_NOT_CONNECTED",
+    "E_NOT_BIPARTITE",
+    "E_EMPTY_GRAPH",
+    "E_NEEDS_UNDIRECTED",
+    "E_NEEDS_DIRECTED",
+    "E_BAD_WEIGHT",
+    "E_ATTRIBUTE_TYPE",
+    "E_BAD_PATH",
+    "E_PATH_COUNT_OVERFLOW",
     "E_NO_ACCELERATOR",
     "E_NO_WEBGPU",
     "E_NO_ADAPTER",
@@ -145,6 +153,14 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNSUPPORTED":
         case "E_NOT_PLANAR":
         case "E_NOT_CONNECTED":
+        case "E_NOT_BIPARTITE":
+        case "E_EMPTY_GRAPH":
+        case "E_NEEDS_UNDIRECTED":
+        case "E_NEEDS_DIRECTED":
+        case "E_BAD_WEIGHT":
+        case "E_ATTRIBUTE_TYPE":
+        case "E_BAD_PATH":
+        case "E_PATH_COUNT_OVERFLOW":
         case "E_INTERNAL":
             return "refused";
         case "E_EXTENSION_FAILED":
@@ -415,6 +431,51 @@ describe("GraphtyError.wrap", () => {
 
         assert.strictEqual(wrapped.code, "E_TOO_LARGE");
         assert.deepStrictEqual(wrapped.details, { nodeCount: 9, maxNodes: 8, bytes: 648, runId: "r1" });
+    });
+
+    it("reads a sibling's other spelling of an element code in place of E_INTERNAL, keeping the original", () => {
+        const sibling = Object.assign(new Error("numClusters must be a positive integer"), {
+            code: "E_BAD_OPTION",
+            params: { option: "numClusters", value: 0 },
+        });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_INTERNAL", source: "run" });
+
+        assert.strictEqual(wrapped.code, "E_OPTION_RANGE");
+        assert.deepStrictEqual(wrapped.details, { option: "numClusters", value: 0, sourceCode: "E_BAD_OPTION" });
+
+        const node = GraphtyError.wrap(Object.assign(new Error("no node 9"), { code: "E_BAD_NODE" }), {
+            code: "E_INTERNAL",
+            source: "run",
+        });
+        assert.strictEqual(node.code, "E_UNKNOWN_ELEMENT");
+        assert.strictEqual(node.details.kind, "node");
+    });
+
+    it("keeps the caller's own code over a sibling's other spelling", () => {
+        const sibling = Object.assign(new Error("no column"), { code: "E_UNKNOWN_COLUMN" });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_PARSE_FAILED", source: "data" });
+
+        assert.strictEqual(wrapped.code, "E_PARSE_FAILED");
+        assert.strictEqual(wrapped.details.sourceCode, "E_UNKNOWN_COLUMN");
+    });
+
+    it("does not read an inherited property name as a sibling spelling", () => {
+        const sibling = Object.assign(new Error("odd"), { code: "constructor" });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_INTERNAL", source: "run" });
+
+        assert.strictEqual(wrapped.code, "E_INTERNAL");
+        assert.strictEqual(wrapped.details.sourceCode, "constructor");
+    });
+
+    it("reads a sibling's details as its facts when it carries no params", () => {
+        const sibling = Object.assign(new Error("unknown node id nope"), {
+            code: "E_UNKNOWN_NODE",
+            details: { id: "nope" },
+        });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_INTERNAL", source: "layout" });
+
+        assert.strictEqual(wrapped.code, "E_UNKNOWN_ELEMENT");
+        assert.deepStrictEqual(wrapped.details, { kind: "node", id: "nope", sourceCode: "E_UNKNOWN_NODE" });
     });
 
     it("uses the caller's message when one is given", () => {

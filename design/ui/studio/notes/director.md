@@ -5,9 +5,31 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-12 (tier 3 iteration 2 reviewed; iteration 3 units set).
+Last updated: 2026-10-13 (tier 3 iteration 3 reviewed; iteration 4 units set).
 
 ## Top of mind
+
+- 2026-10-13: ITERATION 3 REVIEWED (`tier3/iterations/3/review.md`): 107 findings (0 sev 4, 9 sev
+  3, 45 sev 2), about 55 distinct. Not ready for approval: six distinct sev 3s (names cut to two
+  letters, kind change discards settings, ramp handle locked after one step, focus to the page
+  after Clear/Remove/Undo, numeric "one color per value" in oranges, Values histogram 0 to 0).
+  The panel now fits 900 x 700 (owner item 5, accordions, is moot).
+- 2026-10-13: Lesson, again: the fix that shortened the panel (one line per property) caused the
+  top finding (gear and painted-over mark squeezed into the name column). Count what each column
+  holds, not just how many columns, before building a row grammar in 240 px.
+- 2026-10-13: Decided one settings button per kind SECTION (Figma's Type settings), not per
+  property, so the name column holds only the name and no tail column is added. Painted-over mark
+  moves into the field and the value dims. If anyone puts a gear back into the name column, stop it.
+- 2026-10-13: Decided a layer lists only its OWN entries; covering a lower layer's label is
+  "Hide label from Key people" in the "+" menu, which adds an ordinary entry set to nothing. This is
+  also the clean answer to the owner's unset question: unset (minus) and cover (an entry) are two
+  acts with two controls.
+- 2026-10-13: A kind change keeps both parts in the element (a part the kind does not draw waits);
+  passing Edges on the way to Both loses nothing, so the radios keep standard select-on-arrow.
+- 2026-10-13: New owner item: the element's default label font is bare "Verdana" (released), so
+  Linux draws serif. Adding a fallback is a default change. App picks its own font meanwhile.
+  NOT an owner item: the ordinal scale's sequential default (ordered categories; Vega-Lite does the
+  same); the app's "One color per value" passes a categorical palette as its choice.
 
 - 2026-10-12: ITERATION 2 REVIEWED (`tier3/iterations/2/review.md`): 116 findings (1 sev 4, 11 sev
   3, 58 sev 2), about 55 distinct. Not ready for approval. The one blocker is a kind change that
@@ -241,6 +263,16 @@ Last updated: 2026-10-12 (tier 3 iteration 2 reviewed; iteration 3 units set).
   came from the app mixing plainName and technicalName; every "beneath" defect traced to one
   unscoped call (the ponytail note in `row.ts` said so). Yes-or-no properties get no vary by (a
   rule plus a fixed value is their home); opacity varies through the color row's settings.
+- 2026-10-13 -- Iteration 3 review. Units for iteration 4: element (nothing hidden is lost: kind
+  change keeps parts and carries shared channels, effect off keeps its color; previews over the
+  data's full extent, ordinal key as swatches, enum fit for few-valued numbers; label screen
+  default, undirected head beneath, Selected ring on a hub), compact-mantine (swatch border, no
+  swatch for Varies, 240 px icon grid; pop-out Tab order and drag, tree roving, names), app
+  (whole names via section settings; own entries and focus; pickers, find and rules; popovers and
+  Values; panels, frame and key), then stories. Reasons in the review. Held with reasons: numeric
+  id comparisons and parity, canvas marks for a draft, the eight unchanneled label fields,
+  case-duplicate layer names, toggles for three-state yes/no, one swatch size, a Data page home
+  for "this number names groups".
 - 2026-10-12 -- Held as second doors until a study shows need: "Vary color by this" from a table
   column, "Show by" in the Values tab, saved label looks, a per-property pause eye.
 
@@ -333,6 +365,11 @@ Last updated: 2026-10-12 (tier 3 iteration 2 reviewed; iteration 3 units set).
   the columns before building. Also: every `ponytail:` note in the app that says "the element has
   no X" was a finding three experts later reported; read those notes at review time.
 
+- **2026-10-13, iteration 3:** the owner's three questions now have clean answers in the build
+  (unset = minus, cover = an entry; no third row kind; Figma's patterns named one by one). What is
+  left is mostly truth at rest (dimmed painted-over values, Varies without a swatch, the font and
+  arrow head beneath) and loss (kind change, effect eye, focus). Truth and loss outrank polish.
+
 ## Sources
 
 - Tier 2 round 3 (2026-10-10): `tier2/rounds/round-3/{plan,scores,insights,decisions}.md`;
@@ -360,6 +397,8 @@ Last updated: 2026-10-12 (tier 3 iteration 2 reviewed; iteration 3 units set).
   reports and review in `tier3/iterations/1/{figma,visual,a11y,engineer,ia,review}.md`.
 - Tier 3 iteration 2 (2026-10-12): build `tier3-i2-2faecd941b` at https://dev.ato.ms:9373/?next;
   reports and review in `tier3/iterations/2/{figma,visual,a11y,engineer,ia,review}.md`.
+- Tier 3 iteration 3 (2026-10-13): build `tier3-i3-617b43b270` at https://dev.ato.ms:9373/?next;
+  reports and review in `tier3/iterations/3/{figma,visual,a11y,engineer,ia,review}.md`.
 - Tier 3 (2026-10-12): `tier3/design.md` (decisions, panel, coverage table, element additions,
   owner items, units, change log); owner review 1 `tier3/owner-feedback-1.md` and proposals
   `tier3/decide/feedback-1-{figma,interaction,ia}.md`; proposals `tier3/decide/{ia,interaction,figma,visual,content,a11y,user,engineer}.md`;

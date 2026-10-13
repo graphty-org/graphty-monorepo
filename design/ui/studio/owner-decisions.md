@@ -4,6 +4,21 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-13 -- For the owner: the default label font names no fallback
+
+**What.** Not built; a question. graphty-element's default label font is the bare string
+`"Verdana"` (`RichTextStyle.font` in `src/config/RichTextStyle.ts` and the renderer's own default in
+`src/meshes/RichTextLabel.ts`), while its named label looks use `"Verdana, sans-serif"`. On a
+machine without Verdana (most Linux desktops) the browser falls back to its default face, usually a
+serif, so labels draw in a serif face while every editor, `LABEL_STYLE_DEFAULTS` included, says
+Verdana. Adding a generic fallback to the default (`"Verdana, sans-serif"`) is a one-line fix, but
+it changes what every label with no font set draws on those machines, which is a default change.
+
+**Built instead.** Nothing in graphty-element. The graphty app picks a font with a generic fallback
+for the labels it adds, as its own choice, so its editors name the face that is drawn.
+
+**Why.** An editor that names one face while the canvas draws another misstates the drawing.
+
 ## 2026-10-13 -- Decided by the team: one Clear glyph, one-line value lists, and a ramp that fits 240 px (compact-mantine)
 
 Additive API in compact-mantine:

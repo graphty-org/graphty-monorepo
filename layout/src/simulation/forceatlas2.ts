@@ -32,6 +32,7 @@
 
 import { type F32, type GraphSnapshot, maskTest, type NodeId, type NodeMask } from "@graphty/graph-format";
 
+import { detCos, detLog, detSin } from "../utils/det-math.js";
 import {
     FA2_COINCIDENT_SQ,
     FA2_DEFAULTS,
@@ -387,11 +388,11 @@ export function kickDir(i: number, j: number, dim: 2 | 3): readonly [number, num
     const phi = 6.283185307179586 * hashUnit(h);
     let d: [number, number, number];
     if (dim === 2) {
-        d = [Math.cos(phi), Math.sin(phi), 0];
+        d = [detCos(phi), detSin(phi), 0];
     } else {
         const z = 2 * hashUnit(lowbias32((h ^ 0x5bd1e995) >>> 0)) - 1;
         const rr = Math.sqrt(Math.max(0, 1 - z * z));
-        d = [rr * Math.cos(phi), rr * Math.sin(phi), z];
+        d = [rr * detCos(phi), rr * detSin(phi), z];
     }
     return i > j ? [-d[0], -d[1], -d[2]] : d;
 }
@@ -836,7 +837,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
                 let mag = w;
                 if (linlog) {
                     const len = Math.max(len3(dx, dy, dz), FA2_DISTANCE_FLOOR);
-                    mag = (w * Math.log(1 + len)) / len; // |F| = w log(1 + d) (7.2 row "Attraction (linlog)")
+                    mag = (w * detLog(1 + len)) / len; // |F| = w log(1 + d) (7.2 row "Attraction (linlog)")
                 }
                 fx = fx + dx * mag;
                 fy = fy + dy * mag;

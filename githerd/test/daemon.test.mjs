@@ -1,15 +1,5 @@
 import { spawn } from "node:child_process";
-import {
-    chmodSync,
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readdirSync,
-    readFileSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -27,6 +17,7 @@ import { readHistory } from "../lib/stats.mjs";
 import { readLedger, repoIdentity, spoolEvent } from "../lib/store.mjs";
 import { statusData, statusText } from "../lib/tools.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
 const DAEMON_BIN = fileURLToPath(new URL("../bin/githerd-daemon.mjs", import.meta.url));
@@ -363,7 +354,7 @@ function sleeper() {
 beforeAll(() => isolateGit());
 
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-daemon-"));
+    dir = tempDir("githerd-daemon-");
     configFile = join(dir, "githerd.config.json");
     notifyLog = join(dir, "notify.log");
     clock = new Date("2026-10-02T12:00:00Z");

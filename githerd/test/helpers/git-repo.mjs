@@ -4,11 +4,11 @@
  * keyring. Call `isolateGit()` from visual-review's helpers first.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { git } from "../../../visual-review/test/helpers.mjs";
+import { tempDir } from "./temp-dir.mjs";
 
 /**
  * Writes a file, creating its directory.
@@ -39,7 +39,7 @@ export function commitAll(cwd, message, { sign = true } = {}) {
  * @returns {{tmp: string, root: string, remote: string}} the paths
  */
 export function makeRepo() {
-    const tmp = mkdtempSync(join(tmpdir(), "githerd-git-"));
+    const tmp = tempDir("githerd-git-");
     const remote = join(tmp, "remote.git");
     const root = join(tmp, "root");
     const key = join(tmp, "key");

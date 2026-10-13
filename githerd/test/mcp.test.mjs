@@ -1,6 +1,5 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -20,6 +19,7 @@ import {
 } from "../lib/mcp.mjs";
 import { identify } from "../lib/proc.mjs";
 import { assertSupported, validate } from "../lib/schema.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const SERVER_INFO = { name: "githerd", version: "0.1.0" };
 
@@ -558,7 +558,7 @@ describe("identifySession", () => {
      * @returns {{home: string, stateDir: string}} the directories
      */
     function setup({ hook, registry }) {
-        const home = mkdtempSync(join(tmpdir(), "githerd-mcp-"));
+        const home = tempDir("githerd-mcp-");
         dirs.push(home);
         const stateDir = join(home, "state");
         mkdirSync(join(stateDir, "sessions"), { recursive: true });

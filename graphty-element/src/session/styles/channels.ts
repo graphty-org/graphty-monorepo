@@ -493,7 +493,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
         },
         {
             ...id("Color"),
-            plainName: `Arrow ${end} Colour`,
+            plainName: `Arrow ${end} Color`,
             shortName: `${end} color`,
             group: "arrows",
             default: EDGE_LINE_DEFAULT_COLOR,
@@ -548,7 +548,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     "node.color": {
         channel: "node.color",
         target: "node",
-        plainName: "Node Colour",
+        plainName: "Node Color",
         shortName: "Color",
         group: "color",
         accepts: "color",
@@ -703,7 +703,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     "edge.color": {
         channel: "edge.color",
         target: "edge",
-        plainName: "Edge Colour",
+        plainName: "Edge Color",
         shortName: "Color",
         group: "line",
         accepts: "color",

@@ -21,7 +21,6 @@ import {
     create3DStatusPanel,
     create3DStoryContainer,
     render3DGraph,
-    startAnimationLoop,
     update3DInfoPanel,
     update3DPositions,
     update3DStatus,
@@ -66,9 +65,6 @@ function createSpring3DStory(args: Spring3DArgs): HTMLElement {
 
     // Render graph with random initial positions
     render3DGraph(scene3D, generatedGraph, randomPositions, 8, 200);
-
-    // Start animation loop for interactive controls
-    startAnimationLoop(scene3D);
 
     // Create info panel
     const infoPanel = create3DInfoPanel("Spring 3D Layout (Fruchterman-Reingold)");

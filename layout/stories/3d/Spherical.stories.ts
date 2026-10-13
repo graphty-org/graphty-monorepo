@@ -23,7 +23,6 @@ import {
     create3DStatusPanel,
     create3DStoryContainer,
     render3DGraph,
-    startAnimationLoop,
     update3DInfoPanel,
     update3DPositions,
     update3DStatus,
@@ -68,9 +67,6 @@ function createSphericalStory(args: SphericalArgs): HTMLElement {
 
     // Render graph with random initial positions
     render3DGraph(scene3D, generatedGraph, randomPositions, 8, 200);
-
-    // Start animation loop for interactive controls
-    startAnimationLoop(scene3D);
 
     // Create info panel
     const infoPanel = create3DInfoPanel("Spherical 3D Layout");

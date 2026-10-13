@@ -121,7 +121,7 @@ export class AttributeTable implements AttributeTableContract {
     private mutations = 0;
 
     /** Set by sealTable(): set / remove / rename throw E_FROZEN from then on. */
-    private sealed = false;
+    private readonly sealed = false;
 
     /**
      * Create a table from wrapped columns (the constructor the freeze pipeline, fromCsr and the wire
@@ -203,7 +203,7 @@ export class AttributeTable implements AttributeTableContract {
      */
     typed<D extends Dtype>(name: string, dtype: D): ColumnOf<D> | null {
         const column = this.columns.get(name);
-        if (column === undefined || column.dtype !== dtype) {
+        if (column?.dtype !== dtype) {
             return null;
         }
         return column as ColumnOf<D>;

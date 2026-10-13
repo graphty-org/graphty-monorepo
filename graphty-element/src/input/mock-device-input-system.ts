@@ -18,11 +18,11 @@ export class MockDeviceInputSystem {
     public onKeyDown = new Observable<KeyboardInfo>();
     public onKeyUp = new Observable<KeyboardInfo>();
 
-    private pointerPosition = new Vector2(0, 0);
-    private pointerStates = new Map<MouseButton, boolean>();
-    private activeTouches = new Map<number, TouchPoint>();
-    private activeKeys = new Set<string>();
-    private _nextPointerId = 1;
+    private readonly pointerPosition = new Vector2(0, 0);
+    private readonly pointerStates = new Map<MouseButton, boolean>();
+    private readonly activeTouches = new Map<number, TouchPoint>();
+    private readonly activeKeys = new Set<string>();
+    private readonly _nextPointerId = 1;
     private attached = false;
 
     // Device simulation
@@ -314,7 +314,7 @@ export class MockDeviceInputSystem {
      */
     public isPointerDown(button?: MouseButton): boolean {
         if (button === undefined) {
-            return Array.from(this.pointerStates.values()).some((state) => state);
+            return Array.from(this.pointerStates.values()).some(Boolean);
         }
 
         return this.pointerStates.get(button) ?? false;

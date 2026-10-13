@@ -21,7 +21,7 @@ import type { PaletteDescriptor, PaletteRegistration } from "../catalog/types";
 import { badDefinition, checkDefinition, describeValue, displayName } from "./definition";
 import type { PaletteDefinition } from "./types";
 
-const KINDS: readonly string[] = ["sequential", "diverging", "categorical"];
+const KINDS: ReadonlySet<string> = new Set(["sequential", "diverging", "categorical"]);
 
 /** How to turn a design token into a colour, for the two refusals that need it. */
 const READ_THE_TOKEN =
@@ -40,7 +40,7 @@ export function definePalette(definition: PaletteDefinition, options?: RegisterO
     const checked = checkDefinition("definePalette", definition);
     const { id } = checked;
 
-    if (!KINDS.includes(checked.kind as string)) {
+    if (!KINDS.has(checked.kind as string)) {
         throw badDefinition(
             "definePalette",
             id,

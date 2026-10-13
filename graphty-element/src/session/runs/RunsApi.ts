@@ -543,8 +543,8 @@ function randomHex(): string {
     if (typeof globalThis.crypto?.getRandomValues === "function") {
         globalThis.crypto.getRandomValues(words);
     } else {
-        words[0] = Math.floor(Math.random() * 0x1_0000_0000);
-        words[1] = Math.floor(Math.random() * 0x1_0000_0000);
+        words[0] = Math.floor(Math.random() * 0x1_00_00_00_00);
+        words[1] = Math.floor(Math.random() * 0x1_00_00_00_00);
     }
 
     return [...words].map((word) => word.toString(16).padStart(8, "0")).join("");
@@ -1559,7 +1559,7 @@ class Runs implements SessionRunsApi {
         const { layerIds } = removal;
         const run = this.runs.get(id);
 
-        if (run !== undefined && run.cancellable) {
+        if (run?.cancellable) {
             this.dropped.add(id);
             run.cancel(`Run "${id}" was removed.`);
         }

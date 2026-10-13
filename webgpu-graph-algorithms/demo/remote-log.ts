@@ -73,8 +73,8 @@ export function installRemoteLog(): string {
         original.error(...a);
         push("ERROR", a);
     };
-    window.addEventListener("error", (e) => push("ERROR", [`uncaught: ${e.message} (${e.filename}:${e.lineno})`]));
-    window.addEventListener("unhandledrejection", (e) => push("ERROR", ["unhandled rejection:", e.reason]));
+    globalThis.addEventListener("error", (e) => push("ERROR", [`uncaught: ${e.message} (${e.filename}:${e.lineno})`]));
+    globalThis.addEventListener("unhandledrejection", (e) => push("ERROR", ["unhandled rejection:", e.reason]));
     window.addEventListener("pagehide", flush);
     push("INFO", [`page ${location.pathname} loaded; ${navigator.userAgent}`]);
     return SESSION;

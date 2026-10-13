@@ -54,8 +54,8 @@ const DEFAULT_OPTIONS: Required<SchemaExtractorOptions> = {
  * Tracks string values for enum detection using Capital One's algorithm.
  */
 class EnumTracker {
-    private values = new Map<string, string[]>();
-    private options: Required<SchemaExtractorOptions>;
+    private readonly values = new Map<string, string[]>();
+    private readonly options: Required<SchemaExtractorOptions>;
 
     constructor(options: Required<SchemaExtractorOptions>) {
         this.options = options;
@@ -148,8 +148,8 @@ class EnumTracker {
  * Capital One's enum detection algorithm.
  */
 export class SchemaExtractor {
-    private graph: Graph;
-    private options: Required<SchemaExtractorOptions>;
+    private readonly graph: Graph;
+    private readonly options: Required<SchemaExtractorOptions>;
 
     /**
      * Creates a new SchemaExtractor instance.

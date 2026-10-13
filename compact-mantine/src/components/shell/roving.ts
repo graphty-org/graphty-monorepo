@@ -48,7 +48,7 @@ export function useRovingFocus<T extends HTMLElement>(orientation: "horizontal" 
         const selected = all.find(
             (el) =>
                 el.getAttribute("aria-pressed") === "true" ||
-                el.hasAttribute("data-active") ||
+                el.dataset.active !== undefined ||
                 (el as HTMLInputElement).checked,
         );
         setCurrent(all, kept ?? selected ?? all[0]);

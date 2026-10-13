@@ -1,3 +1,50 @@
+## 0.6.49 (2026-10-13)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** pass a node shard that finishes after a hang snapshot ([#2181](https://github.com/graphty-org/graphty-monorepo/issues/2181))
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.14
+- Updated algorithms to 3.4.4
+- Updated layout to 2.4.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.48 (2026-10-12)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** keep long GPU-lane tests talking and the advance grid case in budget ([#2158](https://github.com/graphty-org/graphty-monorepo/issues/2158), [#2132](https://github.com/graphty-org/graphty-monorepo/issues/2132))
+- **webgpu-graph-algorithms:** fail a browser run that exits 0 without its JSON report ([#2111](https://github.com/graphty-org/graphty-monorepo/issues/2111))
+- **webgpu-graph-algorithms:** fail a hung node shard instead of passing it ([#2111](https://github.com/graphty-org/graphty-monorepo/issues/2111))
+
+### 🧱 Updated Dependencies
+
+- Updated layout to 2.4.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.47 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated layout to 2.4.2
+
+## 0.6.46 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.13
+- Updated algorithms to 3.4.3
+- Updated layout to 2.4.1
+
 ## 0.6.45 (2026-10-11)
 
 ### 🚀 Features

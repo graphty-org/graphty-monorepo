@@ -162,6 +162,7 @@
         "Styles/Layered::ArrowHeadStyles",
         "Styles/Layered::ArrowSizeVariations",
         "Styles/Layered::AxisAlignedColoredSpheres",
+        "Styles/Layered::ColorAlpha",
         "Styles/Layered::ComplexMultiProperty",
         "Styles/Layered::EdgeColorVariations",
         "Styles/Layered::EdgeWidthLayers",

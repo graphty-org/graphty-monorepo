@@ -50,6 +50,7 @@ import {
 import { expectBitwiseEqual, fieldRelError } from "../helpers/matchers.js";
 import { layoutMetrics, spread } from "../helpers/metrics.js";
 import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
+import { progressLine } from "../helpers/progress.js";
 import { assertCheckPasses, type CheckReport, ratioOf } from "../helpers/sabotage.js";
 import { acquire, gpuScale, isSoftware, requireGpu } from "../setup/gpu.js";
 
@@ -144,6 +145,7 @@ interface Trajectory {
  * @param start - the scene start
  * @param options - the FA2 options
  * @param tuning - the tier
+ * @param label - the run's name in its progress lines
  * @returns the trajectory
  */
 async function trajectory(
@@ -152,6 +154,7 @@ async function trajectory(
     start: F32,
     options: ForceAtlas2Options,
     tuning: GpuLayoutTuning,
+    label: string,
 ): Promise<Trajectory> {
     return await withSim(ctx, options, tuning, async (sim) => {
         const positions = Float32Array.from(start);
@@ -159,7 +162,12 @@ async function trajectory(
         sim.load(s, positions);
         await sim.run({ maxIter: EXPANSION_HORIZONS[0], batch: 10 });
         const spread50 = spread(positions, s.nodeCount, dim);
-        await sim.run({ maxIter: EXPANSION_HORIZONS[1], batch: 10 });
+        // A progress line every 50 iterations (test/helpers/progress.ts; run()'s maxIter is a total, so the steps
+        // are the same): case (4, 5) of random20k ran 86-87 s without a line on the Tesla T4 (issue #2158).
+        for (let done = EXPANSION_HORIZONS[0]; done < EXPANSION_HORIZONS[1]; done += EXPANSION_HORIZONS[0]) {
+            await progressLine(`[grid-exact] trajectory/${label}: ${done} of ${EXPANSION_HORIZONS[1]} iterations`);
+            await sim.run({ maxIter: done + EXPANSION_HORIZONS[0], batch: 10 });
+        }
         return { spread50, spread200: spread(positions, s.nodeCount, dim), positions };
     });
 }
@@ -313,8 +321,8 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
                     const { snapshot: s, start } = gridFixture(name, scale, GRID_BASE_OPTIONS);
                     try {
                         const label = `${name}/n=${s.nodeCount}`;
-                        const g = await trajectory(ctx, s, start, GRID_BASE_OPTIONS, GRID_TUNING);
-                        const e = await trajectory(ctx, s, start, GRID_BASE_OPTIONS, EXACT_TUNING);
+                        const g = await trajectory(ctx, s, start, GRID_BASE_OPTIONS, GRID_TUNING, `grid/${label}`);
+                        const e = await trajectory(ctx, s, start, GRID_BASE_OPTIONS, EXACT_TUNING, `exact/${label}`);
                         const err50 = relDiff(g.spread50, e.spread50);
                         const err200 = relDiff(g.spread200, e.spread200);
                         console.warn(
@@ -332,7 +340,10 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
                             });
                         }
                         if (name === "random20k" && k === 0) {
+                            // each layoutMetrics is O(n^2) synchronous work, about 30 s at 20k on the dev box
+                            await progressLine(`[grid-exact] distributional/${label}: the grid layout's metrics`);
                             const gm = layoutMetrics(s, g.positions, 2);
+                            await progressLine(`[grid-exact] distributional/${label}: the exact layout's metrics`);
                             const em = layoutMetrics(s, e.positions, 2);
                             const err = distributionalError(gm, em);
                             console.warn(
@@ -401,8 +412,8 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
             console.warn(`[grid-exact] noise/random20k: rms ${a.rms.toExponential(3)}, p99 ${a.p99.toExponential(3)}`);
             write("exactRms", sampleNodes(a.grid, n), sampleNodes(a.exact, n));
             write("exactP99", sampleNodes(a.grid, n), sampleNodes(a.exact, n));
-            const g = await trajectory(ctx, s, start, GRID_BASE_OPTIONS, GRID_TUNING);
-            const e = await trajectory(ctx, s, start, GRID_BASE_OPTIONS, EXACT_TUNING);
+            const g = await trajectory(ctx, s, start, GRID_BASE_OPTIONS, GRID_TUNING, "grid/noise/random20k");
+            const e = await trajectory(ctx, s, start, GRID_BASE_OPTIONS, EXACT_TUNING, "exact/noise/random20k");
             console.warn(
                 `[grid-exact] noise/random20k: spread 50 grid ${g.spread50.toFixed(4)} exact ${e.spread50.toFixed(4)}, spread 200 grid ${g.spread200.toFixed(4)} exact ${e.spread200.toFixed(4)}`,
             );

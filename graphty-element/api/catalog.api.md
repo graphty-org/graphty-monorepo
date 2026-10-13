@@ -950,6 +950,9 @@ export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
 export const LABEL_LOOKS: readonly LabelLookDescriptor[];
 
 // @public
+export const LABEL_STYLE_DEFAULTS: Readonly<LabelStyle>;
+
+// @public
 export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[];
 
 // @public

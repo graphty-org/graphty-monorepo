@@ -75,7 +75,7 @@ describe("label looks", () => {
 
     it("does not count where a label sits or how it behaves as a change from its look", () => {
         assert.deepStrictEqual(
-            labelLookChanges({ look: "card", location: "bottom", onTop: true, pickable: true }),
+            labelLookChanges({ look: "card", location: "bottom", sizeUnit: "screen", onTop: true, pickable: true }),
             [],
             "placement and behavior sit beside the look, not in it",
         );

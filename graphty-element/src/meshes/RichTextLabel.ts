@@ -14,6 +14,7 @@ import {
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
+import { DEFAULT_LABEL_GRADIENT_COLORS } from "../config/RichTextStyle";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser } from "./RichTextParser";
@@ -210,7 +211,7 @@ export class RichTextLabel {
             lineHeight: DEFAULT_LINE_HEIGHT,
             backgroundColor: "transparent",
             backgroundGradient: false,
-            backgroundGradientColors: ["rgba(0, 0, 0, 0.8)", "rgba(50, 50, 50, 0.8)"],
+            backgroundGradientColors: [...DEFAULT_LABEL_GRADIENT_COLORS],
             backgroundGradientType: "linear",
             backgroundGradientDirection: "vertical",
             backgroundPadding: 0,
@@ -260,12 +261,24 @@ export class RichTextLabel {
             _progressBar: undefined,
         };
 
-        let finalOptions: ResolvedRichTextLabelOptions = { ...defaultOptions, ...userOptions };
+        let finalOptions: ResolvedRichTextLabelOptions = {
+            ...defaultOptions,
+            ...userOptions,
+            // A painted label passes the key with no colors; a gradient switched on then runs
+            // through the default colors rather than none (which threw in the render loop).
+            backgroundGradientColors: userOptions.backgroundGradientColors ?? defaultOptions.backgroundGradientColors,
+        };
 
         if (finalOptions.badge) {
             const badgeDefaults = BadgeStyleManager.getBadgeStyle(finalOptions.badge);
             if (badgeDefaults) {
-                finalOptions = { ...finalOptions, ...badgeDefaults, ...userOptions };
+                finalOptions = {
+                    ...finalOptions,
+                    ...badgeDefaults,
+                    ...userOptions,
+                    backgroundGradientColors:
+                        userOptions.backgroundGradientColors ?? finalOptions.backgroundGradientColors,
+                };
             }
         }
 

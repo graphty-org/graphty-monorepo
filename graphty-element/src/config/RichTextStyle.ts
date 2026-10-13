@@ -2,6 +2,15 @@ import { z } from "zod/v4";
 
 import { AdvancedColorStyle, ColorStyle, TextLocation } from "./common";
 
+/**
+ * The colors a label's background gradient runs through when it is switched on and names none.
+ * @internal
+ */
+export const DEFAULT_LABEL_GRADIENT_COLORS: readonly string[] = Object.freeze([
+    "rgba(0, 0, 0, 0.8)",
+    "rgba(50, 50, 50, 0.8)",
+]);
+
 // Position types
 const Position3D = z.strictObject({
     x: z.number(),

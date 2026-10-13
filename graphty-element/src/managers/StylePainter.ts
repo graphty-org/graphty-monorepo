@@ -3,7 +3,7 @@ import defaultsDeep from "lodash/defaultsDeep.js";
 import get from "lodash/get.js";
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
-import type { LabelBadge } from "../catalog/label-style";
+import { type LabelBadge, RICH_TEXT_KEYS } from "../catalog/label-style";
 import type { Channel, LabelStyle, Rgba } from "../catalog/types";
 import {
     defaultEdgeStyle,
@@ -118,66 +118,6 @@ function setAtPath(bag: Record<string, unknown>, path: string, value: unknown): 
 function blockOf(path: string): string {
     return path.split(".").slice(0, -1).join(".");
 }
-
-/**
- * Which rich-text key each label field is written to, where the only difference is the name.
- *
- * A TABLE RATHER THAN A LADDER OF IFS, because the ladder is what rotted. Each `if` had to be
- * written by hand, so the seven that existed when channels were introduced stayed seven while
- * `RichTextLabel` went on drawing margins, pointers, badges, shadows and depth fade that no
- * layer could ask for -- and seventeen stories were deleted rather than migrated because of it.
- * The fields that are NOT a plain rename are handled beneath this, and every one of them is
- * covered by a case in `test/session/styles/label-style.test.ts`.
- */
-const RICH_TEXT_KEYS = {
-    enabled: "enabled",
-    font: "font",
-    sizePx: "fontSize",
-    sizeUnit: "fontSizeUnit",
-    color: "textColor",
-    lineHeight: "lineHeight",
-    textAlign: "textAlign",
-    background: "backgroundColor",
-    padding: "backgroundPadding",
-    cornerRadius: "cornerRadius",
-    borderWidth: "borderWidth",
-    borderColor: "borderColor",
-    gradient: "backgroundGradient",
-    gradientType: "backgroundGradientType",
-    gradientDirection: "backgroundGradientDirection",
-    location: "location",
-    attachOffset: "attachOffset",
-    marginTop: "marginTop",
-    marginBottom: "marginBottom",
-    marginLeft: "marginLeft",
-    marginRight: "marginRight",
-    pointer: "pointer",
-    pointerDirection: "pointerDirection",
-    pointerWidth: "pointerWidth",
-    pointerHeight: "pointerHeight",
-    pointerOffset: "pointerOffset",
-    pointerCurve: "pointerCurve",
-    outlineWidth: "textOutlineWidth",
-    shadow: "textShadow",
-    shadowColor: "textShadowColor",
-    shadowBlur: "textShadowBlur",
-    shadowOffsetX: "textShadowOffsetX",
-    shadowOffsetY: "textShadowOffsetY",
-    animation: "animation",
-    animationSpeed: "animationSpeed",
-    depthFade: "depthFadeEnabled",
-    depthFadeNear: "depthFadeNear",
-    depthFadeFar: "depthFadeFar",
-    onTop: "onTop",
-    pickable: "pickable",
-    badge: "badge",
-    icon: "icon",
-    iconPosition: "iconPosition",
-    progress: "progress",
-    smartOverflow: "smartOverflow",
-    maxNumber: "maxNumber",
-    overflowSuffix: "overflowSuffix",
-} as const satisfies Partial<Record<keyof LabelStyle, string>>;
 
 /** Every key the renderer's own label schema holds, which is what may be written into it. */
 const RICH_TEXT_FIELDS: ReadonlySet<string> = new Set(Object.keys(RichTextStyle.shape));

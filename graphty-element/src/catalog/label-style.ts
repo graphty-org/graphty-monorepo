@@ -19,6 +19,7 @@
  * was a sentence in a channel caveat. They are gone rather than kept as a promise nothing keeps.
  */
 
+import { DEFAULT_LABEL_GRADIENT_COLORS, defaultRichTextLabelStyle } from "../config/RichTextStyle";
 import type { LabelLookId } from "./label-looks";
 
 /** Where a label sits relative to the node or edge it belongs to. */
@@ -290,3 +291,94 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     maxNumber: 0,
     overflowSuffix: 0,
 } satisfies Record<keyof LabelStyle, 0>) as (keyof LabelStyle)[];
+
+/**
+ * Which rich-text key each label field is written to, where the only difference is the name.
+ *
+ * A TABLE RATHER THAN A LADDER OF IFS, because the ladder is what rotted. Each `if` had to be
+ * written by hand, so the seven that existed when channels were introduced stayed seven while
+ * `RichTextLabel` went on drawing margins, pointers, badges, shadows and depth fade that no
+ * layer could ask for -- and seventeen stories were deleted rather than migrated because of it.
+ * The fields that are NOT a plain rename are handled beneath this, and every one of them is
+ * covered by a case in `test/session/styles/label-style.test.ts`.
+ * @internal
+ */
+export const RICH_TEXT_KEYS = {
+    enabled: "enabled",
+    font: "font",
+    sizePx: "fontSize",
+    sizeUnit: "fontSizeUnit",
+    color: "textColor",
+    lineHeight: "lineHeight",
+    textAlign: "textAlign",
+    background: "backgroundColor",
+    padding: "backgroundPadding",
+    cornerRadius: "cornerRadius",
+    borderWidth: "borderWidth",
+    borderColor: "borderColor",
+    gradient: "backgroundGradient",
+    gradientType: "backgroundGradientType",
+    gradientDirection: "backgroundGradientDirection",
+    location: "location",
+    attachOffset: "attachOffset",
+    marginTop: "marginTop",
+    marginBottom: "marginBottom",
+    marginLeft: "marginLeft",
+    marginRight: "marginRight",
+    pointer: "pointer",
+    pointerDirection: "pointerDirection",
+    pointerWidth: "pointerWidth",
+    pointerHeight: "pointerHeight",
+    pointerOffset: "pointerOffset",
+    pointerCurve: "pointerCurve",
+    outlineWidth: "textOutlineWidth",
+    shadow: "textShadow",
+    shadowColor: "textShadowColor",
+    shadowBlur: "textShadowBlur",
+    shadowOffsetX: "textShadowOffsetX",
+    shadowOffsetY: "textShadowOffsetY",
+    animation: "animation",
+    animationSpeed: "animationSpeed",
+    depthFade: "depthFadeEnabled",
+    depthFadeNear: "depthFadeNear",
+    depthFadeFar: "depthFadeFar",
+    onTop: "onTop",
+    pickable: "pickable",
+    badge: "badge",
+    icon: "icon",
+    iconPosition: "iconPosition",
+    progress: "progress",
+    smartOverflow: "smartOverflow",
+    maxNumber: "maxNumber",
+    overflowSuffix: "overflowSuffix",
+} as const satisfies Partial<Record<keyof LabelStyle, string>>;
+
+/**
+ * What a label draws for each field no layer and no look sets: the element's own defaults, in the
+ * label vocabulary. `enabled` is left out (a label with words is drawn whatever its default), and
+ * so are the fields whose absence draws nothing (`background`, `outline`, `badge`, `icon`,
+ * `progress`).
+ *
+ * An application shows these where a field is not set, so the reader sees the value that is
+ * drawn rather than the word "Default".
+ * @since 3.26.0
+ * @example
+ * ```ts
+ * import { LABEL_STYLE_DEFAULTS } from "@graphty/graphty-element/catalog";
+ * LABEL_STYLE_DEFAULTS.font; // "Verdana"
+ * LABEL_STYLE_DEFAULTS.marginTop; // 5
+ * ```
+ */
+export const LABEL_STYLE_DEFAULTS: Readonly<LabelStyle> = Object.freeze({
+    ...(Object.fromEntries(
+        Object.entries(RICH_TEXT_KEYS).flatMap(([field, key]) => {
+            const value: unknown = (defaultRichTextLabelStyle as Record<string, unknown>)[key];
+            return field === "enabled" || value === undefined ? [] : [[field, value]];
+        }),
+    ) as LabelStyle),
+    weight: defaultRichTextLabelStyle.fontWeight === "bold" ? "bold" : "normal",
+    sizeUnit: defaultRichTextLabelStyle.fontSizeUnit ?? "world",
+    onTop: defaultRichTextLabelStyle.onTop ?? false,
+    pickable: defaultRichTextLabelStyle.pickable ?? false,
+    gradientColors: DEFAULT_LABEL_GRADIENT_COLORS,
+});

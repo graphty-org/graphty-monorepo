@@ -30,9 +30,17 @@
  * JavaScript's 32-bit operators on HASH WORDS and node indices below 2^32.
  */
 
-import { type F32, type GraphSnapshot, maskTest, type NodeId, type NodeMask } from "@graphty/graph-format";
+import {
+    detCos,
+    detLog,
+    detSin,
+    type F32,
+    type GraphSnapshot,
+    maskTest,
+    type NodeId,
+    type NodeMask,
+} from "@graphty/graph-format";
 
-import { detCos, detLog, detSin } from "../utils/det-math.js";
 import {
     FA2_COINCIDENT_SQ,
     FA2_DEFAULTS,

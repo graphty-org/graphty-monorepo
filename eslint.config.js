@@ -228,6 +228,7 @@ export default tseslint.config(
             "@typescript-eslint/no-unsafe-return": "error",
         },
         "graph-samples": {
+            "@typescript-eslint/no-unnecessary-condition": "error",
             "@typescript-eslint/no-unsafe-argument": "error",
             "@typescript-eslint/no-unsafe-assignment": "error",
             "@typescript-eslint/no-unsafe-call": "error",

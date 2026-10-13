@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "pr": 2098,
+  "subject": {
+    "builtMerge": "9044af96879dd2ba90222c4106385b1eb4e4d9fe",
+    "head": "b3af26c425a190c703383ea3d6bd4ff28579bf65",
+    "runId": null,
+    "runAttempt": null,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "Intel(R) Core(TM) i9-14900KF",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "9044af96879dd2ba90222c4106385b1eb4e4d9fe"
+    },
+    "scale": 2,
+    "local": [
+      {
+        "project": "graphty",
+        "merge": "9044af96879dd2ba90222c4106385b1eb4e4d9fe",
+        "host": "dev.ato.ms",
+        "tool": "9044af96879dd2ba90222c4106385b1eb4e4d9fe"
+      }
+    ]
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty/mocks-style-panel--style-panel.dark.png",
+      "from": null,
+      "to": "0153cb34102146c9646f0a95d95824ded832acac3261b74b52400648b3984d0f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/mocks-style-panel--style-panel.light.png",
+      "from": null,
+      "to": "9f226df1b9c97cda28978d5bca77aae6eb7f03143b61567b385a23b86c3f0a33",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-13T02:52:53.856Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiaGcwWmVhWW92Wk9weHJxaGxzdlk0SHZpRTVBUk9reVU0OVJTbkNMdTdrQSIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEYCIQD7OmODauWW_uxoY1ftPoh2QKFWinmLwxvqWlIfR-HgiwIhALW9Ae_oqWHD1_v6-VcJqIa7JguHeZR8rzzLXtgXVemj"
+  }
+}

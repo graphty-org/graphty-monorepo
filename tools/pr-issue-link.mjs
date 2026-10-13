@@ -9,11 +9,10 @@
  * githerd/lib/merged.mjs), so the check and githerd agree on what a link is. A bare `#12` in prose
  * names an issue without claiming any work on it, and does not pass.
  *
- * Pull requests githerd already handles pass without a link: the release train's (branch
- * `release/train-*`, opened by github-actions[bot] in this repository) and Dependabot's. Mergify's
+ * Dependabot's pull requests pass without a link: githerd already handles them. Mergify's
  * merge-queue drafts never reach the script: the workflow skips that job, as pr-title.yml does.
  *
- * Usage: PR_BODY=... HEAD_REF=... PR_AUTHOR=... SAME_REPO=true|false node tools/pr-issue-link.mjs
+ * Usage: PR_BODY=... PR_AUTHOR=... node tools/pr-issue-link.mjs
  * (exit 1 with what to add)
  */
 import { fileURLToPath } from "node:url";
@@ -52,22 +51,17 @@ export function linksIssue(body = "") {
 /**
  * Why a pull request needs no issue link, when it does not.
  * @param pr - the pull request
- * @param pr.headRef - its head branch
  * @param pr.author - its author's login
- * @param pr.sameRepo - whether its head branch is in this repository
  * @returns the reason it is skipped; null when it must name its issue
  */
-export function skipReason({ headRef, author, sameRepo }) {
+export function skipReason({ author }) {
     if (author === "dependabot[bot]") return "a Dependabot pull request";
-    if (sameRepo && author === "github-actions[bot]" && headRef?.startsWith("release/train-")) {
-        return "the release train's pull request";
-    }
     return null;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const env = process.env;
-    const skip = skipReason({ headRef: env.HEAD_REF, author: env.PR_AUTHOR, sameRepo: env.SAME_REPO === "true" });
+    const skip = skipReason({ author: env.PR_AUTHOR });
     if (skip) {
         console.log(`Skipped: ${skip} needs no issue link.`);
         process.exit(0);

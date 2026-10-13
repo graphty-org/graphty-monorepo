@@ -21,6 +21,7 @@ import { createFruchtermanReingold } from "../../src/layouts/fruchterman-reingol
 import type { FruchtermanReingoldStats, GpuLayoutTuning } from "../../src/types/layout.js";
 import type { FruchtermanReingoldOptions } from "../../src/types/options.js";
 import { type FrOracleOptions, FruchtermanReingoldOracle } from "../oracle/fruchterman-reingold.js";
+import { type CheckReport, ratioOf } from "./check-report.js";
 import {
     asF32,
     assertUnitStart,
@@ -33,7 +34,6 @@ import {
     yieldToEventLoop,
 } from "./fa2-parity.js";
 import { noiseFloorFor } from "./noise-floor.js";
-import { type CheckReport, ratioOf } from "./sabotage.js";
 
 // ---------------------------------------------------------------- options and simulations
 
@@ -51,8 +51,9 @@ export const FR_BASE_OPTIONS: FruchtermanReingoldOptions = Object.freeze({
 });
 /** The tuning every FR parity case uses: the exact tier (the only one, DEP-P5-D). */
 export const FR_TUNING: GpuLayoutTuning = Object.freeze({ repulsion: "exact" });
+// `process` is absent in the browser project, which bundles this module for the browser noise-fixture writers
 /** True in a recording run: every FR parity test is then held to the spec cap, not to the derived value (the P3 rule of fa2-parity.ts toleranceOf). */
-const WRITE = process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
+const WRITE = typeof process !== "undefined" && process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
 
 /** The simulation createFruchtermanReingold builds, with its @internal members visible. */
 type FrSim = ForceSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>;

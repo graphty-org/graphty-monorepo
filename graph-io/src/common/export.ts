@@ -810,7 +810,7 @@ export function countMixedEdges(snapshot: GraphSnapshot): number {
         return 0;
     }
     const directed = snapshot.edges.byRole("directed");
-    if (directed === null || directed.dtype !== "bool") {
+    if (directed?.dtype !== "bool") {
         return 0;
     }
     const pair = snapshot.edges.byRole("pair");

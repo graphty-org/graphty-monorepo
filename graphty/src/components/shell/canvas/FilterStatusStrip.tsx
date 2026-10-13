@@ -22,7 +22,7 @@ import { OVERLAY_INSET } from "../constants";
 import { CANVAS_LEADING, CANVAS_METRICS, CANVAS_SPACE, CANVAS_TYPE } from "./canvasLayout";
 import { collapseFilterChips, type FilterStatusChip } from "./filterChips";
 
-export type { FilterStatusChip };
+export type { FilterStatusChip } from "./filterChips";
 
 /**
  * The criterion-and-override line the strip carries above the render ceiling.

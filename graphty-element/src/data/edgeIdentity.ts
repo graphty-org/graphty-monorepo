@@ -524,7 +524,7 @@ export function stableEdgeMember(snapshot: GraphSnapshot, edge: number, fileId?:
     }
 
     const counter = snapshot.edges.typed(EDGE_ID_COLUMN, "u32");
-    if (counter === null || !counter.isSet(edge)) {
+    if (!counter?.isSet(edge)) {
         throw new Error(`edge ${edge} has neither an ordinal nor a counter to mint an id from`);
     }
 

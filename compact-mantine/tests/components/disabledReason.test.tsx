@@ -116,7 +116,7 @@ const CASES: ReasonCase[] = [
         label: "Fill",
         reason: "Load data first",
         render: (props) => <CompactColorInput label="Fill" defaultColor="#FF0000" {...props} />,
-        described: () => screen.getByRole("button", { name: /swatch/i }),
+        described: () => screen.getByRole("button", { name: "Pick Fill color" }),
     },
     {
         name: "ToggleRow",

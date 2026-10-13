@@ -1,7 +1,7 @@
 // Tests of tools/test-slots.mjs, the machine-wide limit on concurrent test runs: a slot is taken and
 // given back, waiters start in arrival order, a dead holder's slot is reclaimed, a nested run takes
 // no second slot, the GPU browser runner queues before its time limit starts, and every package's
-// vitest config takes a slot.
+// vitest config takes a slot and caps its Node workers at its share of the cores.
 //
 //   node --test tools/test-slots.test.mjs
 import assert from "node:assert/strict";
@@ -12,7 +12,7 @@ import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { acquire, HELD, liveTickets, slotCount } from "./test-slots.mjs";
+import { acquire, HELD, liveTickets, slotCount, workerShare } from "./test-slots.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = join(ROOT, "tools/test-slots.mjs");
@@ -111,6 +111,15 @@ describe("test-slots", () => {
         assert.deepEqual(readdirSync(dir), []);
     });
 
+    it("gives a Node run at most its share of the cores as workers, and no cap where slots are off", () => {
+        assert.equal(workerShare({}, 32), 8);
+        assert.equal(workerShare({}, 4), 2);
+        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "6" }, 32), 5);
+        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "64" }, 32), 1);
+        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "0" }, 32), undefined);
+        assert.equal(workerShare({ GITHUB_ACTIONS: "true" }, 32), undefined);
+    });
+
     it("wraps a command: holds a slot while it runs, marks its environment, passes its exit code", () => {
         const dir = fresh();
         const r = spawnSync(
@@ -129,7 +138,15 @@ describe("test-slots", () => {
         const releaseHolder = await acquire({ ...quiet, dir, slots: 1, pid: holder.pid, label: "holder" });
         // The timed command takes a slot the way vitest does: if the runner did not hold one, it would queue
         // behind the holder inside the 1 s limit and be killed.
-        const command = [process.execPath, SCRIPT, process.execPath, "-e", "console.log('timed command ran')"];
+        // The command stands in for vitest, so it writes the JSON report vitest would; without it an exit of 0 fails.
+        const report = JSON.stringify({ numTotalTests: 1, numPassedTests: 1, numFailedTests: 0 });
+        const command = [
+            process.execPath,
+            SCRIPT,
+            process.execPath,
+            "-e",
+            `require("fs").writeFileSync("browser-results.json", ${JSON.stringify(report)}); console.log("timed command ran")`,
+        ];
         const runner = spawn(
             process.execPath,
             [
@@ -167,7 +184,7 @@ describe("test-slots", () => {
         assert.deepEqual(readdirSync(dir), [], "the runner gave its slot back");
     });
 
-    it("is listed as a globalSetup by every package's vitest config", () => {
+    it("is listed as a globalSetup, and caps the Node workers, in every package's vitest config", () => {
         const configs = readdirSync(ROOT, { withFileTypes: true })
             .filter((d) => d.isDirectory() && !d.name.startsWith("."))
             .flatMap((d) =>
@@ -178,5 +195,9 @@ describe("test-slots", () => {
         assert.ok(configs.length >= 12, `found ${configs.length} configs`);
         const missing = configs.filter((f) => !readFileSync(join(ROOT, f), "utf8").includes("../tools/test-slots.mjs"));
         assert.deepEqual(missing, [], "these vitest configs do not take a test slot");
+        const uncapped = configs.filter(
+            (f) => !/maxWorkers: workerShare\(\)|workerShare\(\) \?\?/.test(readFileSync(join(ROOT, f), "utf8")),
+        );
+        assert.deepEqual(uncapped, [], "these vitest configs do not cap their Node workers at workerShare()");
     });
 });

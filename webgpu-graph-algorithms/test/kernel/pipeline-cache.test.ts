@@ -2,7 +2,8 @@
  * PipelineCache (spec 5.1; contract 3.9; 5.5 row pipeline-cache.test.ts): key format and stability (JSON key order
  * independent), get twice -> one pipeline, a WGSL error -> E_SHADER_COMPILE { stage: "compile", messages } with
  * body-relative lines, warm compiles every spec once, keys(), plus a pipeline error that is not a compilation message
- * (-> E_VALIDATION), the Kernel cache and dispose(). Needs a device (acquire()).
+ * (-> E_VALIDATION), the Kernel cache and dispose(). Nothing is read back, so every case runs on Dawn's null backend
+ * (acquireNullBackend()): its compile and pipeline errors carry the same codes as a real device's (issue #275).
  */
 
 import { isWebGpuGraphError, type WebGpuGraphError } from "../../src/errors.js";
@@ -11,7 +12,7 @@ import { UniformBlock } from "../../src/kernel/struct-block.js";
 import { type WgslModuleSpec } from "../../src/kernel/wgsl.js";
 import { type PlanCaps } from "../../src/types/context.js";
 import { CAPS_SPEC_DEFAULT } from "../helpers/caps-tables.js";
-import { acquire, requireGpu } from "../setup/gpu.js";
+import { acquireNullBackend, requireGpu } from "../setup/gpu.js";
 
 async function catchRejection(promise: Promise<unknown>): Promise<WebGpuGraphError> {
     try {
@@ -75,7 +76,7 @@ describe("pipelineKey / PipelineCache.key", () => {
 
     it("the cache's key() agrees with pipelineKey on the context's caps", async (t) => {
         requireGpu(t);
-        const ctx = await acquire();
+        const ctx = await acquireNullBackend();
         expect(ctx.pipelines.key(ADD)).toBe(pipelineKey(ADD, ctx.caps));
     });
 });
@@ -83,7 +84,7 @@ describe("pipelineKey / PipelineCache.key", () => {
 describe("PipelineCache", () => {
     it("get twice -> one pipeline; concurrent gets share one compile; kernel() is cached with it", async (t) => {
         requireGpu(t);
-        const ctx = await acquire();
+        const ctx = await acquireNullBackend();
         const cache = new PipelineCache(ctx.device, ctx.caps);
         expect(cache.size).toBe(0);
         const first = await cache.get(ADD);
@@ -111,7 +112,7 @@ describe("PipelineCache", () => {
 
     it("a body with a WGSL error -> E_SHADER_COMPILE { id, stage: 'compile', messages } with body-relative lines", async (t) => {
         requireGpu(t);
-        const ctx = await acquire();
+        const ctx = await acquireNullBackend();
         const cache = new PipelineCache(ctx.device, ctx.caps);
         // body line 3 is wrong: a u32 initialised from an abstract float
         const broken: WgslModuleSpec = {
@@ -135,7 +136,7 @@ describe("PipelineCache", () => {
 
     it("a compose error rejects get() with stage 'compose' before any device work", async (t) => {
         requireGpu(t);
-        const ctx = await acquire();
+        const ctx = await acquireNullBackend();
         const cache = new PipelineCache(ctx.device, ctx.caps);
         const err = await catchRejection(cache.get({ ...ADD, overrides: { BOGUS: 1 } }));
         expect(err.code).toBe("E_SHADER_COMPILE");
@@ -145,7 +146,7 @@ describe("PipelineCache", () => {
 
     it("a pipeline error that is not a compilation message (an oversized WG) -> E_VALIDATION", async (t) => {
         requireGpu(t);
-        const ctx = await acquire();
+        const ctx = await acquireNullBackend();
         const cache = new PipelineCache(ctx.device, ctx.caps);
         const err = await catchRejection(cache.get({ ...ADD, overrides: { WG: 65536 } }));
         expect(err.code).toBe("E_VALIDATION");
@@ -156,7 +157,7 @@ describe("PipelineCache", () => {
 
     it("warm compiles every spec once and keys() lists them in creation order", async (t) => {
         requireGpu(t);
-        const ctx = await acquire();
+        const ctx = await acquireNullBackend();
         const cache = new PipelineCache(ctx.device, ctx.caps);
         const variant: WgslModuleSpec = { ...ADD, overrides: { DOUBLE: true } };
         const other: WgslModuleSpec = { ...ADD, id: "test-other" };
@@ -172,7 +173,7 @@ describe("PipelineCache", () => {
 
     it("dispose() forgets the pipelines and refuses further compiles with E_DISPOSED", async (t) => {
         requireGpu(t);
-        const ctx = await acquire();
+        const ctx = await acquireNullBackend();
         const cache = new PipelineCache(ctx.device, ctx.caps);
         await cache.get(ADD);
         expect(cache.size).toBe(1);

@@ -761,7 +761,7 @@ export function fromCsr(input: CsrInput, options: FromCsrOptions = {}): GraphSna
 }
 
 /** The flags that describe which arrays are PRESENT; they are never taken from a claim (I9 at every level). */
-const PRESENCE_FLAGS: readonly (keyof SnapshotFlags)[] = ["weighted", "arcToEdgeIsIdentity"];
+const PRESENCE_FLAGS: ReadonlySet<keyof SnapshotFlags> = new Set(["weighted", "arcToEdgeIsIdentity"]);
 
 /**
  * The trusted flags of a "structure" or "none" level construction: every claimed predicate flag as
@@ -782,7 +782,7 @@ function applyClaims(computed: SnapshotFlags, claims: FlagClaims | undefined): S
         if (value === undefined) {
             continue;
         }
-        if (PRESENCE_FLAGS.includes(name)) {
+        if (PRESENCE_FLAGS.has(name)) {
             if (value !== computed[name]) {
                 throw invariantViolation(
                     "I9",

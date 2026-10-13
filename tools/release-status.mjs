@@ -1,23 +1,19 @@
 #!/usr/bin/env node
 // Announces each release OUTCOME (release.yml) as a comment on one long-lived issue, "Release status"
 // (label `release-status`), that @-mentions the people in the repository variable RELEASE_NOTIFY (e.g.
-// "@apowers313"). Release runs are started by a GitHub App, a dispatch or a merge, never by the owner, so
+// "@apowers313"). Release runs are started by a GitHub App, a dispatch or a master push, never by the owner, so
 // GitHub's own Actions notifications never reach them; an @-mention notifies whatever the watch settings.
 //
 // Outcomes, one comment each:
-//   opened          the train passed and opened the release pull request (publishes when it merges)
 //   held            a train attempt failed and the release is held (a restart that fails again too)
-//   published       the publish job tagged every package and every version is on npm
+//   published       the train landed the release on master and every version is on npm
 //   publish-failed  the publish job failed (a re-run of it reports again, success or failure)
 //   run-ended       a backstop (release-watch.yml): a release run ended badly (--what is its conclusion) and no
 //                   failure comment here names that run and attempt -- it never reached its own announce step
-//   dequeued        the release pull request (--pr URL, head --sha) left the merge queue without merging
-//                   (release-dequeued.yml): the reason, the failing checks and the queue run come from the
-//                   "Mergify Merge Queue" check run on its head, once per dequeue
 // Attempts that do nothing (nothing releasable, a release pending, a hold open) are not outcomes and
 // never call this.
 //
-// Each outcome the issue gets (and only when it gets it, so a run-ended or dequeued already reported is not sent
+// Each outcome the issue gets (and only when it gets it, so a run-ended already reported is not sent
 // twice) is also pushed to the owner's phone through Pushover, as is one notice the issue does not get:
 //   started         a train attempt began testing a releasable candidate; "Release RETRYING" when it is a restart
 //                   after a fix (--restart), or a re-run (--attempt > 1, --what says which and why)
@@ -25,8 +21,8 @@
 // sends nothing. A Pushover failure is logged, never fatal.
 //
 // Usage: node tools/release-status.mjs <outcome> [--sha S] [--run URL] [--attempt N] [--issue N|URL]
-//            [--pr URL] [--what TEXT] [--tags a@1,b@2] [--restart] [--fix TEXT] [--since ISO-TIME]
-// Needs GITHUB_TOKEN (issues: write; run-ended also actions: read, dequeued also checks: read) and
+//            [--what TEXT] [--tags a@1,b@2] [--restart] [--fix TEXT] [--since ISO-TIME]
+// Needs GITHUB_TOKEN (issues: write; run-ended also actions: read) and
 // GITHUB_REPOSITORY (started needs neither); RELEASE_NOTIFY is optional. run-ended reads only the comments made
 // since --since (the attempt's start).
 import { parseArgs } from "node:util";
@@ -39,8 +35,8 @@ const list = (tags) => (tags ?? "").split(",").filter(Boolean).join(", ");
 
 /**
  * The comment for one release outcome.
- * @param outcome - opened, held, published, publish-failed or run-ended
- * @param f - sha, run (URL), attempt, issue, pr, what, tags (comma separated name@version), restart
+ * @param outcome - held, published, publish-failed or run-ended
+ * @param f - sha, run (URL), attempt, issue, what, tags (comma separated name@version), restart
  * @param notify - who to mention, e.g. "@apowers313" (empty: no mention)
  * @returns the comment's Markdown
  */
@@ -50,9 +46,6 @@ export function statusComment(outcome, f, notify = "") {
     const restart = f.restart ? " after a restart following a fix" : "";
     let text;
     switch (outcome) {
-        case "opened":
-            text = `**Release train passed** on ${sha}${restart}${rerun}: release pull request ${f.pr} is open for ${list(f.tags) || "the versioned packages"}. It publishes when Mergify merges it; a second comment here says whether that worked.`;
-            break;
         case "held":
             text = `**Release held**: ${f.what || "the release train"} failed on ${sha}${restart}${rerun}. Nothing was published. Details: ${ref(f.issue)}.`;
             break;
@@ -65,21 +58,16 @@ export function statusComment(outcome, f, notify = "") {
         case "run-ended":
             text = `**Release run ended ${f.what || "badly"}**${rerun} on ${sha}, and no comment here reported a failure for it: it stopped before announcing its outcome. Read the run; re-running its failed jobs retries it.`;
             break;
-        case "dequeued":
-            text = `**Release pull request dequeued**: ${dequeueKey(f.pr, f.left)} without merging (${f.what || "no reason given"}), on ${sha}. Nothing was published. Failing checks: ${f.checks || "none named"}. Queue run: ${f.queue || "see the pull request's Mergify Merge Queue check"}. The next train attempt closes it and cuts a new one from master's newest commit.`;
-            break;
         default:
-            throw new Error(
-                `unknown outcome "${outcome}" (opened, held, published, publish-failed, run-ended, dequeued)`,
-            );
+            throw new Error(`unknown outcome "${outcome}" (held, published, publish-failed, run-ended)`);
     }
     const mention = notify.trim() ? notify.trim() + " " : "";
     return `${mention}${text}\n\nRun: ${f.run}`;
 }
 
 /**
- * Does this comment report a failure of that run attempt? A held, publish-failed or run-ended comment does; an
- * opened or published one does not, as the run can still fail after it (the advisory Coverage job, a later step).
+ * Does this comment report a failure of that run attempt? A held, publish-failed or run-ended comment does; a
+ * published one does not, as the run can still fail after it (the advisory Coverage job, a later step).
  * @param body - a comment on the Release status issue
  * @param run - the run's URL
  * @param attempt - the run attempt
@@ -92,37 +80,6 @@ export function reportsFailure(body, run, attempt) {
         n === String(attempt || 1) &&
         /\*\*(Release held|Publish failed|Release run ended)\b/.test(body)
     );
-}
-
-/**
- * The words that identify one dequeue of one pull request in its comment, so a re-run never posts it twice.
- * @param pr - the pull request's URL
- * @param left - when it left the queue (the check run's completed_at)
- * @returns the key
- */
-export const dequeueKey = (pr, left) => `${pr} left the merge queue at ${left || "an unknown time"}`;
-
-/**
- * The facts of a dequeue, from the "Mergify Merge Queue" check run on the pull request's head. Its title is the
- * reason ("Dequeued -- checks failed"); its summary lists the failing checks (`- X [`Name`](url)`) and the draft
- * the queue checked the batch on ("on draft #1841"). Mergify posts no pull request comments here.
- * @param run - the check run (REST shape: title or output.title, output.summary, completed_at, details_url)
- * @param repo - owner/name
- * @returns what (the reason), checks, queue (a link) and left (a time)
- */
-export function dequeueFacts(run, repo) {
-    const summary = run?.output?.summary ?? "";
-    const failing = summary.split(/\nFailing checks:\n/)[1] ?? "";
-    const checks = [...failing.matchAll(/^- \S+ \[`([^`]+)`\]\(([^)]+)\)/gm)].map(
-        ([, name, url]) => `${name} (${url})`,
-    );
-    const draft = /on draft #(\d+)/.exec(summary)?.[1];
-    return {
-        what: (run?.output?.title ?? "").replaceAll("\u2014", "--"),
-        checks: checks.join(", "),
-        queue: draft ? `https://github.com/${repo}/pull/${draft}` : (run?.details_url ?? ""),
-        left: run?.completed_at ?? "",
-    };
 }
 
 /**
@@ -185,7 +142,7 @@ export const PUSHOVER_URL = "https://api.pushover.net/1/messages.json";
 /**
  * The phone notification for one release outcome: a lock-screen title that starts with the state word, one or two
  * short lines, a link, and a priority and sound by kind (failures loud, a release cheerful, progress silent).
- * @param outcome - started, opened, held, published, publish-failed, run-ended or dequeued
+ * @param outcome - started, held, published, publish-failed or run-ended
  * @param f - the same fields as statusComment, plus fix (the subject of the commit a restart tests)
  * @returns Pushover's title, message, url, url_title, priority and sound
  */
@@ -201,22 +158,12 @@ export function pushMessage(outcome, f) {
         retry = `Re-run ${attempt}`;
     }
     const tags = list(f.tags);
-    const pr = `PR #${(f.pr ?? "").split("/").pop()}`;
     const fail = { priority: 1, sound: "siren" };
     const quiet = { priority: -1, sound: "none" };
     const kinds = {
         started: {
             title: retry ? "Release RETRYING" : "Release STARTED",
             lines: [`${tags || "Release"} on ${sha}`, f.what || retry || "Full suite, T4, Hosts and audit running"],
-            ...quiet,
-        },
-        opened: {
-            title: "Release PR OPENED",
-            lines: [
-                `${pr}: ${tags || "versioned packages"}`,
-                ["Publishes when it merges", retry].filter(Boolean).join("; "),
-            ],
-            link: "pr",
             ...quiet,
         },
         held: {
@@ -243,15 +190,6 @@ export function pushMessage(outcome, f) {
             lines: [`Run ${f.what || "failed"} on ${sha} before announcing`, retry],
             ...fail,
         },
-        dequeued: {
-            title: "Release DROPPED FROM QUEUE",
-            lines: [
-                `${pr}: ${f.what || "no reason given"}`,
-                f.checks ? `Failing: ${f.checks.replaceAll(/ \([^)]*\)/g, "")}` : "",
-            ],
-            link: "pr",
-            ...fail,
-        },
     };
     const k = kinds[outcome];
     if (!k) {
@@ -260,8 +198,8 @@ export function pushMessage(outcome, f) {
     return {
         title: k.title,
         message: k.lines.filter(Boolean).join("\n").slice(0, 1024),
-        url: k.link === "pr" ? f.pr : f.run,
-        url_title: k.link === "pr" ? "Open PR" : "Open run",
+        url: f.run,
+        url_title: "Open run",
         priority: String(k.priority),
         sound: k.sound,
     };
@@ -301,7 +239,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const { values, positionals } = parseArgs({
         allowPositionals: true,
         options: Object.fromEntries(
-            ["sha", "run", "attempt", "issue", "pr", "what", "tags", "since", "fix"]
+            ["sha", "run", "attempt", "issue", "what", "tags", "since", "fix"]
                 .map((k) => [k, { type: "string" }])
                 .concat([["restart", { type: "boolean" }]]),
         ),
@@ -345,21 +283,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
             since: values.since,
             reported: (b) => reportsFailure(b, values.run, values.attempt),
         };
-    }
-    if (positionals[0] === "dequeued") {
-        // Mergify labels the pull request as it finishes the check run; wait up to 2 minutes for the final state
-        const path = `/repos/${repo}/commits/${values.sha}/check-runs?check_name=${encodeURIComponent("Mergify Merge Queue")}&filter=latest`;
-        let run;
-        for (let i = 0; i < 12; i++) {
-            [run] = (await request("GET", path)).check_runs;
-            if (run?.status === "completed" && /^Dequeued/.test(run.output?.title ?? "")) {
-                break;
-            }
-            await new Promise((r) => setTimeout(r, 10_000));
-        }
-        Object.assign(values, dequeueFacts(run, repo));
-        const key = dequeueKey(values.pr, values.left);
-        unlessReported = { since: run?.started_at, reported: (b) => b.includes(key) };
     }
     const body = statusComment(positionals[0], values, process.env.RELEASE_NOTIFY ?? "");
     const number = await announce({ request, repo, body, unlessReported });

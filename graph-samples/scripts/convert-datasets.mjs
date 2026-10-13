@@ -291,7 +291,7 @@ const CONVERTERS = {
     "davis-southern-women"(social) {
         const body = pythonFunction(social, "davis_southern_women_graph");
         const list = (name) =>
-            [...body.match(new RegExp(`${name} = \\[([^\\]]*)\\]`))[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+            [...body.match(new RegExp(String.raw`${name} = \[([^\]]*)\]`))[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
         const women = list("women");
         const events = list("events");
         const ids = [...women, ...events];
@@ -548,7 +548,7 @@ const CONVERTERS = {
         const used = [...new Set([...pairs.keys()].flatMap((key) => key.split(",")))].sort((a, b) => a - b);
         const rows = used.map((id) => airports.get(id));
         const index = new Map(used.map((id, i) => [id, i]));
-        const code = (value) => (value === "\\N" || value === "" ? null : value);
+        const code = (value) => (value === String.raw`\N` || value === "" ? null : value);
         const ids = rows.map(([id, , , , iata, icao]) => code(iata) ?? code(icao) ?? `openflights-${id}`);
         if (new Set(ids).size !== ids.length) {
             throw new Error("openflights: airport codes are not unique");

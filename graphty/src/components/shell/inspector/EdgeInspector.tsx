@@ -183,6 +183,7 @@ export function EdgeInspector(props: EdgeInspectorProps): React.JSX.Element {
                 sectionId={INSPECTOR_SECTION_IDS.edgeNotes}
                 defaultOpen={false}
                 inputTestId="edge-note-input"
+                draftKey={`edge:${edgeId}`}
                 notes={notes}
                 onAddNote={onAddNote}
                 onDeleteNote={onDeleteNote}

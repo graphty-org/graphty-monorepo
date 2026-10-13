@@ -95,11 +95,26 @@ export interface StatusBarAccelerationMode {
 }
 
 /**
- * The issues slot, widened with the acceleration chip.
+ * Whether the reader's work is kept in this browser: graphty-element's autosave state, in the
+ * app's words (`formatAutosave.ts`).
+ */
+export interface StatusBarAutosaveMode {
+    /** e.g. "Autosave: saved". */
+    readonly label: string;
+    /** What the state means, or why nothing is kept. */
+    readonly title: string;
+    /** Which ink the dot takes. */
+    readonly tone: "ok" | "busy" | "problem";
+}
+
+/**
+ * The issues slot, widened with the acceleration and autosave chips.
  */
 export interface StatusBarIssuesModel extends StatusBarIssues {
-    /** Drawn last, so the two chips a dataset produced come before the two a machine produced. */
+    /** Drawn after the dataset's chips, so the two chips a dataset produced come before the two a machine produced. */
     readonly acceleration?: StatusBarAccelerationMode;
+    /** Drawn last. */
+    readonly autosave?: StatusBarAutosaveMode;
 }
 
 /**

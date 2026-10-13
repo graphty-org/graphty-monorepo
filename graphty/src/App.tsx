@@ -38,7 +38,7 @@ export function App(): React.JSX.Element {
 
     return (
         <ErrorBoundary>
-            <AppShell />
+            <AppShell autosave />
         </ErrorBoundary>
     );
 }

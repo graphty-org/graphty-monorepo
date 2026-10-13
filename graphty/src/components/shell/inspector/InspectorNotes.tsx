@@ -19,9 +19,10 @@ import {
 } from "@graphty/compact-mantine";
 import type { Note } from "@graphty/graphty-element/session";
 import { ActionIcon, Box, Checkbox, Textarea, UnstyledButton } from "@mantine/core";
-import React, { useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 
 import { keyChipFor } from "../bindings";
+import { NoteDraftContext } from "./noteDraft";
 import { useInspectorSection } from "./sections";
 
 /** One note, as the inspector draws it: the fields of graphty-element's own record it reads. */
@@ -58,6 +59,11 @@ function relativeTimeOf(iso: string): string {
 interface NoteRowsProps {
     /** The input's test id. */
     readonly inputTestId: string;
+    /**
+     * Which input this is (`graph`, `node:<id>`, `edge:<id>`), so a half-typed note is kept
+     * with the work and comes back to the same input. Absent, the text is not kept.
+     */
+    readonly draftKey?: string;
     /** The notes, newest first. */
     readonly notes: readonly InspectorNote[];
     /** Saves a new note's text, already trimmed and never blank. */
@@ -83,8 +89,22 @@ interface InspectorNotesProps extends NoteRowsProps {
  * @returns the rows.
  */
 export function NoteRows(props: NoteRowsProps): React.JSX.Element {
-    const { inputTestId, notes, onAddNote, onDeleteNote, onSetNoteDone } = props;
-    const [draft, setDraft] = useState("");
+    const { inputTestId, draftKey, notes, onAddNote, onDeleteNote, onSetNoteDone } = props;
+    const keeper = useContext(NoteDraftContext);
+    const restored = draftKey !== undefined && keeper?.restored?.where === draftKey ? keeper.restored.text : null;
+    const [draft, setDraftText] = useState(restored ?? "");
+    // The draft comes back once the element has restored the work, which can be after mount.
+    useEffect(() => {
+        if (restored !== null) {
+            setDraftText((typed) => (typed === "" ? restored : typed));
+        }
+    }, [restored]);
+    const setDraft = (text: string): void => {
+        setDraftText(text);
+        if (draftKey !== undefined) {
+            keeper?.keep({ where: draftKey, text });
+        }
+    };
     const [showDone, setShowDone] = useState(false);
     const formatter = useNumberFormatter();
     const addNoteChip = keyChipFor("addNote");

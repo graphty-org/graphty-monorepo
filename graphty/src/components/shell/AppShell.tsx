@@ -86,7 +86,7 @@ import {
     PopoutRegion,
     usePopoutManager,
 } from "@graphty/compact-mantine";
-import type { FindHit, FindOptions, ScreenshotOptions } from "@graphty/graphty-element";
+import type { AutosaveStatus, FindHit, FindOptions, ScreenshotOptions } from "@graphty/graphty-element";
 import type { MetricAvailability } from "@graphty/graphty-element/catalog";
 import {
     type AccelerationPolicy,
@@ -108,7 +108,7 @@ import {
     type TransactionScope,
 } from "@graphty/graphty-element/session";
 import { Box, Button, Group, Modal, Text } from "@mantine/core";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { getLayoutMetadata, LAYOUT_METADATA } from "../../data/layoutMetadata";
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../data/sampleGraphs";
@@ -211,6 +211,13 @@ import {
     MOST_CONNECTED_TOP_N,
 } from "./inspector/inspectorConstants";
 import type { NeighborRow } from "./inspector/NodeInspector";
+import {
+    asNoteDraft,
+    NOTE_DRAFT_STASH,
+    type NoteDraft,
+    NoteDraftContext,
+    type NoteDraftKeeper,
+} from "./inspector/noteDraft";
 import type { ResultBodyRow, ResultInspectorProps } from "./inspector/ResultInspector";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import { ActivityPanel } from "./panel/ActivityPanel";
@@ -232,6 +239,13 @@ import { formatCount, pluralise } from "./readings/readingFormat";
 import { caveatsLine, runRecordLine } from "./readings/runRecord";
 import { ShellProvider } from "./ShellContext";
 import { formatAcceleration } from "./statusbar/formatAcceleration";
+import {
+    atRiskSentence,
+    autosaveProblemSentence,
+    availableSentence,
+    formatAutosaveChip,
+    restoredSentence,
+} from "./statusbar/formatAutosave";
 import { formatCountPair, formatCountsTitle } from "./statusbar/formatCounts";
 import { StatusBar } from "./statusbar/StatusBar";
 import type {
@@ -346,6 +360,28 @@ const OPEN_SETTINGS_ACTION = "Open Settings";
 
 /** The link on a toast that reports a refused edit: there is nowhere further to go. */
 const DISMISS_ACTION = "Dismiss";
+
+/**
+ * The Loaded data summary for what graphty-element says the graph was loaded from.
+ * @param source - the element's `session.data.source()`.
+ * @param source.type - the format it detected.
+ * @param source.size - the size it read, in bytes.
+ * @returns the summary, or undefined when the element named no format.
+ */
+function loadedSummaryOf(source: { readonly type?: string; readonly size?: number }): LoadedDataSummary | undefined {
+    return source.type === undefined
+        ? undefined
+        : { format: source.type, size: source.size === undefined ? undefined : fileSizeLabel(source.size) };
+}
+
+/** The action that saves the work to a project file, where the browser alone may not keep it. */
+const SAVE_COPY_ACTION = "Save a copy";
+
+/**
+ * The key graphty-element keeps this shell's work under. The shell holds one graph per tab, and
+ * the element keeps each tab's work apart by itself.
+ */
+const SHELL_AUTOSAVE_KEY = "app.graphty.shell";
 
 /** The colour a new style layer paints until the reader changes it; any valid colour would do. */
 const NEW_LAYER_COLOR = "#F59E0B";
@@ -962,6 +998,12 @@ export interface AppShellProps {
     readonly persist?: boolean;
     /** Whether the store measures the window and follows resizes. Tests turn it off. */
     readonly measureViewport?: boolean;
+    /**
+     * Whether graphty-element keeps the reader's work in the browser and brings it back on the
+     * next load. The application turns it on; stories and tests leave it off, so one never
+     * reopens another's work.
+     */
+    readonly autosave?: boolean;
 }
 
 /**
@@ -971,10 +1013,11 @@ export interface AppShellProps {
  * `useShell` only works below `ShellProvider`.
  * @param props - the frame's props.
  * @param props.persist - whether the remembered canvas layout is read and written.
+ * @param props.autosave - whether graphty-element autosaves the work.
  * @returns the whole shell.
  */
-function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
-    const { persist } = props;
+function ShellFrame(props: { readonly persist: boolean; readonly autosave: boolean }): React.JSX.Element {
+    const { persist, autosave } = props;
     const shell = useShell();
     const {
         activeActivity,
@@ -1727,6 +1770,124 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         };
     }, []);
 
+    /* ---------------------------------------------------------------------- */
+    /* Autosave. graphty-element keeps the work in the browser and brings it   */
+    /* back on the next load; the shell only words what it reports and keeps   */
+    /* the note being typed with it (design/work-protection/design.md 7).      */
+    /* ---------------------------------------------------------------------- */
+
+    /* Where autosave stands, as graphty-element last published it; null while it is off. */
+    const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus | null>(null);
+    /* The one autosave notice: work came back, work was set aside, or the browser may drop it. */
+    const [autosaveNotice, setAutosaveNotice] = useState<{
+        readonly message: string;
+        readonly offerCopy: boolean;
+    } | null>(null);
+    /* The note the reader was typing on the last visit, until an input takes it back. */
+    const [restoredDraft, setRestoredDraft] = useState<NoteDraft | null>(null);
+    /* The restore is followed once per element, however often the effect below re-runs. */
+    const restoreFollowed = useRef(false);
+
+    /* The element fires these from the task after it connects, so the listeners go on the frame
+       before any timer can run. */
+    useLayoutEffect(() => {
+        const frame = frameRef.current;
+        if (!autosave || frame === null) {
+            return undefined;
+        }
+
+        const onStatus = (event: HTMLElementEventMap["graphty-autosave-status"]): void => {
+            setAutosaveStatus(event.detail);
+        };
+        const onAvailable = (event: HTMLElementEventMap["graphty-autosave-available"]): void => {
+            setAutosaveNotice({ message: availableSentence(event.detail), offerCopy: false });
+        };
+        const onAtRisk = (event: HTMLElementEventMap["graphty-autosave-at-risk"]): void => {
+            setAutosaveNotice({ message: atRiskSentence(event.detail), offerCopy: true });
+        };
+
+        frame.addEventListener("graphty-autosave-status", onStatus);
+        frame.addEventListener("graphty-autosave-available", onAvailable);
+        frame.addEventListener("graphty-autosave-at-risk", onAtRisk);
+
+        return () => {
+            frame.removeEventListener("graphty-autosave-status", onStatus);
+            frame.removeEventListener("graphty-autosave-available", onAvailable);
+            frame.removeEventListener("graphty-autosave-at-risk", onAtRisk);
+        };
+    }, [autosave]);
+
+    /* Once the element has decided its restore: the status it starts from (the status event
+       does not fire at start), the note draft, and, when work came back, the shell's own copies
+       of what is loaded and the "restored" notice. */
+    useEffect(() => {
+        const element = graphtyRef.current?.element ?? null;
+        if (!autosave || !graphReady || element === null) {
+            return undefined;
+        }
+
+        let live = true;
+        const { autosaver } = element;
+        setAutosaveStatus(autosaver.status);
+        void autosaver.ready.then(async (restored) => {
+            if (!live || restoreFollowed.current) {
+                return;
+            }
+
+            restoreFollowed.current = true;
+
+            setRestoredDraft(asNoteDraft(autosaver.stashed(NOTE_DRAFT_STASH)));
+            setAutosaveStatus(autosaver.status);
+            if (restored === null) {
+                return;
+            }
+
+            const { session: restoredSession } = element;
+            const source = restoredSession.data.source();
+            const loaded = source !== null || restoredSession.data.statistics().nodeCount > 0;
+            setDataLoaded(loaded);
+            setDatasetName(source?.name ?? (restored.entry.name === "" ? null : restored.entry.name));
+            setLoadedSummary(source === null ? undefined : loadedSummaryOf(source));
+            setPins({ pinned: restoredSession.positions.pinned });
+            refreshGraphData();
+            if (loaded && !firstLoadDone.current) {
+                firstLoadDone.current = true;
+                openActivity("explore");
+            }
+
+            const entries = await autosaver.list().catch(() => []);
+            if (live) {
+                setAutosaveNotice({ message: restoredSentence(restored, entries), offerCopy: false });
+            }
+        });
+
+        return () => {
+            live = false;
+        };
+    }, [autosave, graphReady, openActivity, refreshGraphData]);
+
+    const noteDraftKeeper = useMemo<NoteDraftKeeper | null>(
+        () =>
+            autosave
+                ? {
+                      restored: restoredDraft,
+                      keep: (draft) => {
+                          graphtyRef.current?.element?.autosaver.stash(NOTE_DRAFT_STASH, draft);
+                          // Taken back by the reader's own typing: an input mounted later starts empty.
+                          setRestoredDraft(null);
+                      },
+                  }
+                : null,
+        [autosave, restoredDraft],
+    );
+
+    /* Saves the work to a project file: the copy that survives whatever the browser deletes. */
+    const saveCopy = useCallback(() => {
+        graphtyRef.current?.element?.downloadProject().catch((error: unknown) => {
+            console.error("[shell] the project file could not be saved:", error);
+        });
+    }, []);
+
     /*
      * Keeps the Pinned badge honest for a pin the READER made with the pointer.
      *
@@ -1999,14 +2160,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             if (source !== null) {
                 setDataLoaded(true);
                 setDatasetName(source.name ?? null);
-                setLoadedSummary(
-                    source.type === undefined
-                        ? undefined
-                        : {
-                              format: source.type,
-                              size: source.size === undefined ? undefined : fileSizeLabel(source.size),
-                          },
-                );
+                setLoadedSummary(loadedSummaryOf(source));
             } else if (session.data.statistics().nodeCount === 0) {
                 setDataLoaded(false);
                 setDatasetName(null);
@@ -2272,17 +2426,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     const sampleLoaded = useRef(false);
 
-    useEffect(() => {
-        if (!graphReady || sampleLoaded.current) {
-            return;
-        }
-
-        if (!new URLSearchParams(globalThis.location.search).has("test")) {
-            return;
-        }
-
-        sampleLoaded.current = true;
-
+    /** Loads the `?test` fixture. */
+    const loadTestFixture = useCallback(() => {
         // Through the ordinary load path, not around it: the counts are read from the
         // graph's own data events, the top bar gets the fixture's name rather than
         // `pasted-data`, and the first-load switch to Explore fires the way it does for
@@ -2300,7 +2445,27 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             console.error("[shell] failed to load the test fixture:", error);
             reportLoadFailureRef.current(loadFailureReason(error));
         });
-    }, [finishLoad, graphReady, loadDataset]);
+    }, [finishLoad, loadDataset]);
+
+    useEffect(() => {
+        if (!graphReady || sampleLoaded.current) {
+            return;
+        }
+
+        if (!new URLSearchParams(globalThis.location.search).has("test")) {
+            return;
+        }
+
+        sampleLoaded.current = true;
+
+        // Restored work wins: the fixture loads only into a tab with nothing to bring back.
+        const restoring = autosave ? (graphtyRef.current?.element?.autosaver.ready ?? null) : null;
+        void (restoring ?? Promise.resolve(null)).then((restored) => {
+            if (restored === null) {
+                loadTestFixture();
+            }
+        });
+    }, [autosave, graphReady, loadTestFixture]);
 
     /**
      * Loads what the dialog, a drop or a URL asked for, and says so either way.
@@ -4567,20 +4732,28 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        probing (or has not spoken): a chip that says off for 30 ms and then on reads as a fault. */
     const accelerationIssues = useMemo<StatusBarIssuesModel | undefined>(() => {
         const text = acceleration === null ? null : formatAcceleration(acceleration);
+        /* Whether the work is kept in this browser: like the GPU, a fact about the machine and
+           not the dataset, so it draws with no dataset too. */
+        const kept = autosaveStatus === null ? null : formatAutosaveChip(autosaveStatus);
 
-        if (text === null) {
+        if (text === null && kept === null) {
             return undefined;
         }
 
         return {
-            acceleration: {
-                ...text,
-                onClick: () => {
-                    openFullPanelOverlay("settings", "performance");
-                },
-            },
+            ...(text === null
+                ? {}
+                : {
+                      acceleration: {
+                          ...text,
+                          onClick: () => {
+                              openFullPanelOverlay("settings", "performance");
+                          },
+                      },
+                  }),
+            ...(kept === null ? {} : { autosave: kept }),
         };
-    }, [acceleration, openFullPanelOverlay]);
+    }, [acceleration, autosaveStatus, openFullPanelOverlay]);
 
     const slots = useMemo<StatusBarSlotsModel>(() => {
         if (!dataLoaded) {
@@ -4679,6 +4852,34 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
+        /* Work the browser is not keeping stays on screen until a write succeeds again. */
+        if (autosaveStatus?.state === "failing" && autosaveStatus.problem !== null) {
+            return {
+                message: autosaveProblemSentence(autosaveStatus.problem),
+                severity: "error",
+                actionLabel: SAVE_COPY_ACTION,
+                onDetails: saveCopy,
+            };
+        }
+
+        if (autosaveNotice !== null) {
+            const dismiss = (): void => {
+                setAutosaveNotice(null);
+            };
+
+            return {
+                message: autosaveNotice.message,
+                actionLabel: autosaveNotice.offerCopy ? SAVE_COPY_ACTION : DISMISS_ACTION,
+                onDetails: autosaveNotice.offerCopy
+                    ? () => {
+                          dismiss();
+                          saveCopy();
+                      }
+                    : dismiss,
+                onDismiss: dismiss,
+            };
+        }
+
         if (acceleration?.state !== "error") {
             return undefined;
         }
@@ -4691,7 +4892,16 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 openFullPanelOverlay("settings", "performance");
             },
         };
-    }, [acceleration, loadFailure, openFullPanelOverlay, openPanelAt, styleRefusal]);
+    }, [
+        acceleration,
+        autosaveNotice,
+        autosaveStatus,
+        loadFailure,
+        openFullPanelOverlay,
+        openPanelAt,
+        saveCopy,
+        styleRefusal,
+    ]);
 
     /* ---------------------------------------------------------------------- */
     /* The command palette's rows: the full-text twin of every icon control    */
@@ -5064,6 +5274,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             onSelectionChange: handleSelectionChange,
             onStylesChange: handleStylesChange,
             onSession: setSession,
+            ...(autosave ? { autosave: SHELL_AUTOSAVE_KEY } : {}),
         },
         drawer: {
             tab: drawerTab,
@@ -5259,7 +5470,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     );
 
     return (
-        <>
+        <NoteDraftContext.Provider value={noteDraftKeeper}>
             {screenTooSmall ? screenTooSmallOverlay : null}
             <Box
                 ref={frameRef}
@@ -5525,7 +5736,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     }}
                 />
             </Box>
-        </>
+        </NoteDraftContext.Provider>
     );
 }
 
@@ -5535,7 +5746,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
  * @returns the shell.
  */
 export function AppShell(props: AppShellProps = {}): React.JSX.Element {
-    const { initialShellWidth, measureViewport, persist = true } = props;
+    const { initialShellWidth, measureViewport, persist = true, autosave = false } = props;
 
     return (
         <ShellProvider
@@ -5545,7 +5756,7 @@ export function AppShell(props: AppShellProps = {}): React.JSX.Element {
             initialStateAxis="empty"
         >
             <PopoutManager>
-                <ShellFrame persist={persist} />
+                <ShellFrame persist={persist} autosave={autosave} />
             </PopoutManager>
         </ShellProvider>
     );

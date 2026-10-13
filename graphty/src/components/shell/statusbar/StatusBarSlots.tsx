@@ -54,6 +54,13 @@ const AI_DOT_INK: Record<StatusBarAi["state"], string> = {
     ready: PANEL_INK.SUCCESS,
 };
 
+/** The autosave chip's dot: kept, being kept, not kept. */
+const AUTOSAVE_DOT_INK: Record<"ok" | "busy" | "problem", string> = {
+    ok: PANEL_INK.SUCCESS,
+    busy: PANEL_INK.ACCENT,
+    problem: PANEL_INK.DANGER,
+};
+
 /** A control that reads as the bar's own text rather than as a button. */
 const BARE_BUTTON: React.CSSProperties = {
     display: "inline-flex",
@@ -338,7 +345,7 @@ export function StatusBarViewingSlot({ viewing }: Readonly<{ viewing: StatusBarV
  * @returns The issues slot.
  */
 export function StatusBarIssuesSlot({ issues }: Readonly<{ issues: StatusBarIssuesModel }>): React.JSX.Element {
-    const { validation, notes, performance, acceleration } = issues;
+    const { validation, notes, performance, acceleration, autosave } = issues;
 
     return (
         <span style={SLOT_STYLE}>
@@ -376,6 +383,14 @@ export function StatusBarIssuesSlot({ issues }: Readonly<{ issues: StatusBarIssu
                     title={acceleration.title}
                 >
                     {acceleration.label}
+                </StatusBarChip>
+            )}
+            {autosave === undefined ? null : (
+                <StatusBarChip
+                    leading={<StatusDot color={AUTOSAVE_DOT_INK[autosave.tone]} size={STATUS_BAR_GEOMETRY.AI_DOT} />}
+                    title={autosave.title}
+                >
+                    <span data-testid="autosave-chip">{autosave.label}</span>
                 </StatusBarChip>
             )}
         </span>

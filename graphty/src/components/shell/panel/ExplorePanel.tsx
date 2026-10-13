@@ -558,6 +558,7 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
                 {onAddCaseNote !== undefined && (
                     <NoteRows
                         inputTestId="explore-note-input"
+                        draftKey="graph"
                         notes={caseNotes}
                         onAddNote={onAddCaseNote}
                         onDeleteNote={(noteId) => {

@@ -135,12 +135,19 @@ function visibleIssues(
         issues.validation === undefined &&
         notes === undefined &&
         issues.performance === undefined &&
-        issues.acceleration === undefined
+        issues.acceleration === undefined &&
+        issues.autosave === undefined
     ) {
         return undefined;
     }
 
-    return { validation: issues.validation, notes, performance: issues.performance, acceleration: issues.acceleration };
+    return {
+        validation: issues.validation,
+        notes,
+        performance: issues.performance,
+        acceleration: issues.acceleration,
+        autosave: issues.autosave,
+    };
 }
 
 /**

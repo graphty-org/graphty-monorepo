@@ -93,6 +93,8 @@ export interface CanvasGraphConfig {
     readonly onStylesChange?: (detail: StylesChangedDetail) => void;
     /** The element's session, handed over once as soon as the element has come up. */
     readonly onSession?: (session: GraphSession) => void;
+    /** The autosave key, or absent for no autosave. */
+    readonly autosave?: string;
 }
 
 /**
@@ -388,6 +390,7 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                         onSelectionChange={graph?.onSelectionChange}
                         onStylesChange={graph?.onStylesChange}
                         onSession={graph?.onSession}
+                        autosave={graph?.autosave}
                     />
                 </div>
 

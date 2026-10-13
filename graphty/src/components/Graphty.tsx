@@ -46,7 +46,15 @@ interface GraphtyProps {
     onStylesChange?: (detail: StylesChangedDetail) => void;
     /** Called once with the element's session, as soon as the element has come up */
     onSession?: (session: GraphSession) => void;
+    /**
+     * The autosave key: the element keeps the reader's work in the browser under it and brings
+     * it back on the next load. Absent, autosave is off.
+     */
+    autosave?: string;
 }
+
+/** The app's autosave options: ask the browser to keep the site's storage (design 5.8). */
+const APP_AUTOSAVE_OPTIONS = { persist: true } as const;
 
 export interface GraphtyHandle {
     /** Captures the canvas as an image, forwarded to the element's own verb. */
@@ -62,7 +70,7 @@ export interface GraphtyHandle {
 }
 
 export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
-    { layers: _layers, acceleration, onSelectionChange, onStylesChange, onSession },
+    { layers: _layers, acceleration, onSelectionChange, onStylesChange, onSession, autosave },
     ref,
 ): React.JSX.Element {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -187,7 +195,12 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
                 overflow: "hidden",
             }}
         >
-            <graphty-element ref={graphtyRef} acceleration={acceleration} layoutBehavior={APP_LAYOUT_BEHAVIOR} />
+            <graphty-element
+                ref={graphtyRef}
+                acceleration={acceleration}
+                layoutBehavior={APP_LAYOUT_BEHAVIOR}
+                {...(autosave === undefined ? {} : { autosave, autosaveOptions: APP_AUTOSAVE_OPTIONS })}
+            />
         </Box>
     );
 });

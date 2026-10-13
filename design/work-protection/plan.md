@@ -256,6 +256,13 @@ Tests:
   edit and the draft are back and the "restored" notice shows.
 - Storybook play functions for the chip states and the notice, driven by the element's real events.
 
+As built: autosave is on in the app shell at the default address (`AppShell autosave`, key
+`app.graphty.shell`), because that is the shell readers use and the one with notes. It has no project
+list, and the element keeps each tab's work apart by itself, so one key serves it. The tier 1 workspace
+(`?next`), which has the Recent list, does not autosave yet: it opens on its start screen after a reload
+with no element mounted, so turning autosave on there also needs it to reopen the tab's project on load.
+That belongs with its switch-over.
+
 ## Verification matrix
 
 "This server" means the `lifecycle` shard (step 6) or the in-page browser tests (steps 2 and 5), in

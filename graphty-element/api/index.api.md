@@ -1532,6 +1532,19 @@ export interface FindHitBase {
 export type FindKind = "node" | "edge";
 
 // @public
+export interface FindNamedRow {
+    readonly atLeast?: {
+        readonly value: number;
+        readonly count: number;
+        readonly target: SelectionTarget;
+    };
+    readonly kind: FindKind;
+    readonly path: Path;
+    readonly plainName: string;
+    readonly technicalName: string;
+}
+
+// @public
 export interface FindOptions {
     readonly edgeNameJoiner?: string;
     readonly kinds?: readonly FindKind[];
@@ -1544,6 +1557,7 @@ export interface FindOptions {
 export interface FindResult {
     readonly atLeast?: readonly FindAtLeastRow[];
     readonly contains?: readonly FindContainsRow[];
+    readonly named?: readonly FindNamedRow[];
     readonly notSearchable?: "regex" | "expression";
     readonly offset: number;
     readonly records: readonly FindHit[];

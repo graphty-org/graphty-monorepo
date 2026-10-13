@@ -152,7 +152,7 @@ import {
 } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
 import { selectorScope } from "./styles/selector";
-import { createSelectorSource, edgeEndpointOf, type SessionSelectorSource } from "./styles/sources";
+import { createSelectorSource, edgeEndPathOf, edgeEndpointOf, type SessionSelectorSource } from "./styles/sources";
 import type {
     AccelerationControllerLike,
     CommandOutcome,
@@ -1464,7 +1464,8 @@ function valueSourceOf(
 ): FilterValueSource {
     const keyOf = (path: Path): string =>
         path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
-    const isResult = (path: Path): boolean => path.startsWith("results.");
+    // A run's value and a node's value read at an edge's end are the style source's to read.
+    const isResult = (path: Path): boolean => path.startsWith("results.") || edgeEndPathOf(path) !== undefined;
 
     return {
         nodeValue: (index: number, path: Path): unknown =>
@@ -1487,7 +1488,7 @@ function valueSourceOf(
 /**
  * Which halves carry a value path: a run field's declared kinds, or the kinds of the data
  * attribute at that path.
- * @param path - `results.<run>.<field>` or `data.<field>`.
+ * @param path - `results.<run>.<field>`, `data.<field>`, or either read at an edge's end.
  * @param data - The session's data surface.
  * @param fieldsOf - A run's published fields, or undefined when it has no result.
  * @returns The kinds, `"node"`, `"edge"` or both.
@@ -1497,6 +1498,12 @@ function fieldKindsOf(
     data: SessionDataApi,
     fieldsOf: (run: RunId) => readonly { readonly name: string; readonly kind: string }[] | undefined,
 ): readonly string[] {
+    // Only edges have ends: an end path is on the edges when its node path is on the nodes.
+    const end = edgeEndPathOf(path);
+    if (end !== undefined) {
+        return fieldKindsOf(end.node, data, fieldsOf).includes("node") ? ["edge"] : [];
+    }
+
     if (path.startsWith("results.")) {
         const rest = path.slice("results.".length);
         const dot = rest.indexOf(".");
@@ -1678,10 +1685,30 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
 function pathDirectoryOf(data: SessionDataApi, runs: RunsApi): PathDirectory {
     return {
         // A note value is always answerable: it reads nothing until a note names the element.
-        answers: (path: Path, target: "node" | "edge"): boolean =>
-            noteFieldOf(path) !== undefined || answerablePaths(data, runs, target).includes(path),
+        answers: (path: Path, target: "node" | "edge"): boolean => {
+            const end = edgeEndPathOf(path);
+            if (end !== undefined) {
+                return target === "edge" && answerablePaths(data, runs, "node").includes(end.node);
+            }
+
+            return noteFieldOf(path) !== undefined || answerablePaths(data, runs, target).includes(path);
+        },
         candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => answerablePaths(data, runs, target),
     };
+}
+
+/**
+ * The paths a find reads on one kind of element: every readable value it carries, run results
+ * included, but the node id and the node values read at an edge's ends.
+ * @param data - The session's data surface.
+ * @param kind - Nodes or edges.
+ * @returns The paths, in `data.readableValues()` order.
+ */
+function searchedPaths(data: SessionDataApi, kind: "node" | "edge"): readonly Path[] {
+    return data
+        .readableValues()
+        .filter((value) => value.on === kind && value.from !== "element" && value.end === undefined)
+        .map((value) => value.path);
 }
 
 /**
@@ -2558,16 +2585,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         revision: () => inputs.tick.value,
         elements,
         answers: (path, target) => paths.answers(path, target),
-        searchPaths: () =>
-            data
-                .attributes()
-                .filter((attribute) => attribute.kind === "node")
-                .map((attribute) => attribute.path),
-        edgeSearchPaths: () =>
-            data
-                .attributes()
-                .filter((attribute) => attribute.kind === "edge")
-                .map((attribute) => attribute.path),
+        // Every readable value but the id (read once, as "id") and the node values read at an
+        // edge's ends (an edge is found by its ends' names through `edgeNameJoiner`).
+        searchPaths: () => searchedPaths(data, "node"),
+        edgeSearchPaths: () => searchedPaths(data, "edge"),
+        wordsOf: fieldWordsOf(data, runs),
         labelPath: () => {
             const key = readData().knownFields.nodeLabelPath;
             return key === null ? null : `data.${key}`;

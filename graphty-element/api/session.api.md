@@ -102,6 +102,7 @@ export interface AttributeDescriptor {
     // (undocumented)
     uniqueCount?: number;
     usedBy?: readonly AttributeUse[];
+    valuesAreColors?: true;
 }
 
 // @public
@@ -818,6 +819,19 @@ export interface FindHitBase {
 export type FindKind = "node" | "edge";
 
 // @public
+export interface FindNamedRow {
+    readonly atLeast?: {
+        readonly value: number;
+        readonly count: number;
+        readonly target: SelectionTarget;
+    };
+    readonly kind: FindKind;
+    readonly path: Path;
+    readonly plainName: string;
+    readonly technicalName: string;
+}
+
+// @public
 export interface FindOptions {
     readonly edgeNameJoiner?: string;
     readonly kinds?: readonly FindKind[];
@@ -830,6 +844,7 @@ export interface FindOptions {
 export interface FindResult {
     readonly atLeast?: readonly FindAtLeastRow[];
     readonly contains?: readonly FindContainsRow[];
+    readonly named?: readonly FindNamedRow[];
     readonly notSearchable?: "regex" | "expression";
     readonly offset: number;
     readonly records: readonly FindHit[];
@@ -2406,6 +2421,7 @@ export type ReadableChannelKind = "color" | "number" | "enum" | "text" | "boolea
 // @public
 export interface ReadableValue {
     readonly completeness: number;
+    readonly end?: "source" | "target";
     readonly fits: readonly ReadableChannelKind[];
     readonly from: "element" | "data" | "run";
     readonly kind: ReadableValueKind;
@@ -2420,6 +2436,7 @@ export interface ReadableValue {
     readonly technicalName: string;
     readonly usedBy?: readonly AttributeUse[];
     readonly valueCount?: number;
+    readonly valuesAreColors?: true;
 }
 
 // @public

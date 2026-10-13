@@ -10,7 +10,7 @@ import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { assert, describe, it } from "vitest";
 
 import { algorithmByKey } from "../../src/catalog/algorithms";
-import type { ReadableValue } from "../../src/catalog/types";
+import type { ReadableValue, RuleTree } from "../../src/catalog/types";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
@@ -97,7 +97,7 @@ async function lesMisAfterRuns(): Promise<GraphSession> {
  * @returns The entry.
  */
 function entry(values: readonly ReadableValue[], suffix: string): ReadableValue {
-    const found = values.filter((value) => value.path.endsWith(suffix));
+    const found = values.filter((value) => value.end === undefined && value.path.endsWith(suffix));
     assert.lengthOf(found, 1, `one entry ending ${suffix}: ${values.map((value) => value.path).join(", ")}`);
 
     return found[0];
@@ -221,5 +221,124 @@ describe("session.data.readableValues()", () => {
         });
         await session.styles.settled();
         assert.strictEqual(session.styles.counts(eleven.id).matched, 11);
+    });
+
+    it("counts a number column's distinct values: College football's conference has 12", async () => {
+        const session = createGraphSession();
+        const gml = readFileSync(join(__dirname, "..", "helpers", "corpus", "gml", "football.gml"), "utf8");
+        await session.data.import({ type: "gml", config: { data: gml } });
+
+        const conference = entry(session.data.readableValues(), "data.value");
+        assert.strictEqual(conference.kind, "number");
+        assert.deepEqual(conference.range, { min: 0, max: 11 });
+        assert.strictEqual(conference.valueCount, 12);
+    });
+
+    it("says a column of colors holds colors, and a column of names does not", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", fill: "#ff0000", name: "Bob" },
+            { id: "b", fill: "#00f", name: "Valjean" },
+            { id: "c", fill: "rebeccapurple", name: "Red" },
+        ]);
+        const values = session.data.readableValues();
+
+        assert.isTrue(entry(values, "data.fill").valuesAreColors);
+        assert.isUndefined(entry(values, "data.name").valuesAreColors, "one name that is a color is not enough");
+        assert.isTrue(session.data.attributes().find((column) => column.path === "data.fill")?.valuesAreColors);
+    });
+
+    it("lists each node value at an edge's source and target, and a rule reads it", async () => {
+        const session = await lesMisAfterRuns();
+        const values = session.data.readableValues();
+
+        const sourceName = values.find((value) => value.path === "graphty.source.data.name");
+        assert.isDefined(sourceName);
+        assert.strictEqual(sourceName.on, "edge");
+        assert.strictEqual(sourceName.end, "source");
+        assert.strictEqual(sourceName.plainName, "name", "the node value's own name");
+        const targetDegree = values.find((value) => value.end === "target" && value.path.endsWith(".value"));
+        assert.isDefined(targetDegree);
+        assert.strictEqual(targetDegree.plainName, "Connections");
+        assert.deepEqual(targetDegree.range, { min: 1, max: 36 });
+
+        const ends: RuleTree = {
+            kind: "any",
+            of: ["Valjean", "Myriel"].map((text) => ({
+                kind: "text" as const,
+                reads: "graphty.source.data.name",
+                mode: "exact" as const,
+                text,
+            })),
+        };
+        const spec = {
+            name: "From Valjean or Myriel",
+            target: "edge" as const,
+            selector: { match: "rule" as const, where: ends },
+            set: { "edge.color": "#d62728" },
+        };
+        assert.deepEqual([...session.styles.validate(spec).unresolvedPaths], [], "an end path is answered");
+        const layer = await session.styles.add(spec);
+        await session.styles.settled();
+
+        const snapshot = session.data.snapshot();
+        let expected = 0;
+        for (let edge = 0; edge < snapshot.edgeCount; edge++) {
+            const source = snapshot.ids.idOf(snapshot.edgeSource(edge));
+            expected += source === "Valjean" || source === "Myriel" ? 1 : 0;
+        }
+
+        assert.isAbove(expected, 0);
+        assert.strictEqual(session.styles.counts(layer.id).matched, expected);
+    });
+});
+
+describe("session.find over every readable value", () => {
+    it("offers Connections by name after Degree has run, with the elements at its top quarter", async () => {
+        const session = await lesMisAfterRuns();
+        const degree = entry(session.data.readableValues(), ".value");
+
+        const found = session.find("degree");
+        const named = found.named?.find((row) => row.path === degree.path);
+        assert.isDefined(named, JSON.stringify(found.named));
+        assert.strictEqual(named.plainName, "Connections");
+        assert.isDefined(named.atLeast);
+        const snapshot = session.data.snapshot();
+        const result = session.results.get(degree.runId ?? "");
+        const counts = Array.from({ length: snapshot.nodeCount }, (_, at) =>
+            Number(result?.node(snapshot.ids.idOf(at))?.value),
+        );
+        const { value, count } = named.atLeast;
+        assert.strictEqual(count, counts.filter((each) => each >= value).length);
+        assert.isAtLeast(count * 4, snapshot.nodeCount, "a quarter or more");
+        assert.isBelow(counts.filter((each) => each > value).length * 4, snapshot.nodeCount, "the largest such value");
+    });
+
+    it("reads a run's values: typing 10 offers Connections is 10 or more", async () => {
+        const session = await lesMisAfterRuns();
+        const degree = entry(session.data.readableValues(), ".value");
+
+        const found = session.find("10");
+        const row = found.values.find((value) => value.path === degree.path);
+        assert.isDefined(row, JSON.stringify(found.values.map((value) => value.path)));
+        assert.strictEqual(row.value, 10);
+        assert.isDefined(row.atLeast);
+        assert.isAbove(row.atLeast.count, row.count);
+    });
+
+    it("offers one rule per distinct set of matches: Mme on Les Miserables", async () => {
+        const session = await lesMisAfterRuns();
+
+        const contains = session.find("Mme").contains ?? [];
+        assert.isAbove(contains.length, 0);
+        const sets = contains.map((row) =>
+            JSON.stringify([row.kind, "nodes" in row.target ? [...(row.target.nodes ?? [])].sort() : []]),
+        );
+        assert.strictEqual(new Set(sets).size, sets.length, JSON.stringify(contains.map((row) => row.path)));
+        assert.notInclude(
+            contains.map((row) => row.path),
+            "id",
+            "the node id names the same nodes as the name column here, so only the name is offered",
+        );
     });
 });

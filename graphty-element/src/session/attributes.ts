@@ -19,6 +19,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import type { AttributeDescriptor, AttributeType, Measurement } from "../catalog/types";
 import type { MovedInput } from "./sets/notify";
+import { toColorValue } from "./styles/channels";
 import { ATTRIBUTE_SAMPLE_CAP, ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "./types";
 
 /** What one attribute looked like as the walk accumulated it. */
@@ -35,6 +36,8 @@ interface Accumulator {
     max: number;
     /** The first few values, for a form that shows what it is about to filter on. */
     readonly samples: unknown[];
+    /** Whether every value seen so far is text the element reads as a color. */
+    colors: boolean;
 }
 
 /**
@@ -85,6 +88,11 @@ function accumulate(accumulator: Accumulator, value: unknown): void {
 
     if (accumulator.samples.length < ATTRIBUTE_SAMPLE_CAP) {
         accumulator.samples.push(value);
+    }
+
+    // Each distinct value is read as a color once, while the set still holds them all.
+    if (accumulator.colors && (accumulator.unique === null || !accumulator.unique.has(value))) {
+        accumulator.colors = typeof value === "string" && toColorValue(value) !== null;
     }
 
     if (accumulator.unique !== null) {
@@ -186,6 +194,7 @@ function describe(name: string, kind: "node" | "edge", accumulator: Accumulator,
         ...(accumulator.unique === null ? {} : { uniqueCount: accumulator.unique.size }),
         ...(numeric ? { min: accumulator.min, max: accumulator.max } : {}),
         sampleValues: Object.freeze([...accumulator.samples]),
+        ...(accumulator.colors && accumulator.present > 0 ? { valuesAreColors: true as const } : {}),
     } satisfies AttributeDescriptor);
 }
 
@@ -201,6 +210,7 @@ function newAccumulator(): Accumulator {
         min: Number.POSITIVE_INFINITY,
         max: Number.NEGATIVE_INFINITY,
         samples: [],
+        colors: true,
     };
 }
 

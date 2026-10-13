@@ -383,6 +383,29 @@ export interface FindContainsRow {
     readonly rule: Extract<RuleTree, { kind: "text" }>;
 }
 
+/**
+ * A value whose name the text matched, such as Connections for "degree", with an offer for a
+ * number: the elements at or above the value the top quarter of them reach ("Connections is 10 or
+ * more" on Les Miserables).
+ * @since 3.26.0
+ */
+export interface FindNamedRow {
+    /** Whether nodes or edges carry it. */
+    readonly kind: FindKind;
+    /** What a rule or a binding reads, as `data.readableValues()` names it. */
+    readonly path: Path;
+    /** Its catalog name, as `data.readableValues()` gives it. */
+    readonly plainName: string;
+    /** The name a technical reader knows it by. */
+    readonly technicalName: string;
+    /**
+     * Present when every value is a number: the largest value at or above which a quarter or
+     * more of the elements carry, how many elements in scope that is, and the typed rule
+     * `<path> >= value` for `selection.apply`, as {@link FindValueRow.atLeast} gives it.
+     */
+    readonly atLeast?: { readonly value: number; readonly count: number; readonly target: SelectionTarget };
+}
+
 /** A number column the typed number falls inside, and the elements at or above it there. */
 export interface FindAtLeastRow {
     /** Whether nodes or edges carry the column. */
@@ -424,6 +447,13 @@ export interface FindResult {
      * values, which find matches only whole.
      */
     readonly contains?: readonly FindContainsRow[];
+    /**
+     * Present when the text matched the catalog name of a value the elements carry, a run's
+     * included: after Degree has run, "degree" or "connections" lists Connections. At most three,
+     * in `data.readableValues()` order, nodes first.
+     * @since 3.26.0
+     */
+    readonly named?: readonly FindNamedRow[];
     /**
      * Set when the text is a pattern to run on commit, not text to find: a `regex:` or `=`
      * query. Find does not run it and lists nothing; `selection.apply({ text })` runs it.

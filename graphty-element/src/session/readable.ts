@@ -108,9 +108,9 @@ function entryOf(
         ...(kind === "number" && column.min !== undefined && column.max !== undefined
             ? { range: Object.freeze({ min: column.min, max: column.max }) }
             : {}),
-        ...((kind === "category" || kind === "yes-no") && column.uniqueCount !== undefined
-            ? { valueCount: column.uniqueCount }
-            : {}),
+        // A number column's count is there only while it was countable (the walk stops at 256).
+        ...(kind !== "text" && column.uniqueCount !== undefined ? { valueCount: column.uniqueCount } : {}),
+        ...(column.valuesAreColors === true ? { valuesAreColors: true as const } : {}),
         completeness: column.completeness,
         fits: Object.freeze(kinds.filter((each) => columnFits(column, declaration, each))),
         ...(usedBy === undefined || usedBy.length === 0 ? {} : { usedBy: Object.freeze([...usedBy]) }),
@@ -173,7 +173,8 @@ function describeRun(run: Run, input: ReadableInput): AttributeDescriptor[] {
 /**
  * Every value a rule or a binding can read.
  * @param input - What the list is built from.
- * @returns The node id first, then the data columns, then each finished run's fields in run order.
+ * @returns The node id first, then the data columns, then each finished run's fields in run order,
+ *     then every node value read at each edge's source, then at its target.
  */
 export function readableValues(input: ReadableInput): readonly ReadableValue[] {
     const values: ReadableValue[] = [
@@ -189,13 +190,35 @@ export function readableValues(input: ReadableInput): readonly ReadableValue[] {
         }),
     ];
 
+    const nodeColumns: [AttributeDescriptor, "data" | "run", MeasurementDeclaration | undefined][] = [];
     for (const column of input.attributes) {
-        values.push(entryOf(column, "data", input.declarationOf(column), column.usedBy));
+        const declaration = input.declarationOf(column);
+        values.push(entryOf(column, "data", declaration, column.usedBy));
+        if (column.kind === "node") {
+            nodeColumns.push([column, "data", declaration]);
+        }
     }
 
     for (const run of input.runs) {
         for (const column of describeRun(run, input)) {
             values.push(entryOf(column, "run", undefined, input.layersReading?.(column.path, column.kind)));
+            if (column.kind === "node") {
+                nodeColumns.push([column, "run", undefined]);
+            }
+        }
+    }
+
+    // Each node value again on the edges, read at each end. Its facts are the nodes' own.
+    for (const end of ["source", "target"] as const) {
+        for (const [column, from, declaration] of nodeColumns) {
+            const path = `graphty.${end}.${column.path}`;
+            const read = entryOf(
+                { ...column, kind: "edge", path },
+                from,
+                declaration,
+                input.layersReading?.(path, "edge"),
+            );
+            values.push(Object.freeze({ ...read, end }));
         }
     }
 

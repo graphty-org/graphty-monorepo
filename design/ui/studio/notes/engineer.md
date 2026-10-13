@@ -11,6 +11,25 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-13) **Readable values count numbers, mark colors, read an edge's ends; find reads them
+  all** (graphty-element; tests in `test/session/readable-values.test.ts` and
+  `test/catalog/sets/parse.test.ts`). `valueCount` now on numbers (from the attribute walk's
+  distinct set, capped at 256); `valuesAreColors` comes from the walk too (`attributes.ts`, each
+  distinct value read once through `toColorValue`). An edge reads a node's value at its end through
+  `graphty.source.<node path>` / `graphty.target.<node path>`: `sources.ts` parses it as an "end"
+  path and reads the node's value through the same `valueOf`; `GraphSession.ts` routes it in the
+  filter value source, `fieldKindsOf` and the path directory; `catalog/sets/parse.ts` accepts it at
+  a door. Reason for the `graphty.` root: it is the element's reserved root, so no data column can
+  collide. Find's searched paths are now `data.readableValues()` minus the id and the end entries
+  (so run results are found), the find index carries each column's catalog names, and
+  `FindResult.named` lists name matches with an "or more" at the top quarter. Duplicate offers are
+  dropped by element set (`firstOffer` in `query.ts`). The app's pickers skip `end` entries for now
+  (`conditions.ts`, `ValuePicker.tsx`) -- wording them is the app's next step. Ceilings: an end
+  entry's range and count are the nodes', not the edges'; find calls `readableValues()` once per
+  index build (per revision). Unrelated failures seen in the default project while testing:
+  `optionsFromZod.test.ts` (label options) and `door-surface.test.ts` (`SelectionApi.layerSelector`)
+  -- both from other work in flight on the branch.
+
 - (2026-10-12) **Labels sized on screen, number formats for label text, a Selected ring that
   shows on black** (graphty-element; tests `test/browser/label-screen-size.test.ts`,
   `test/session/styles/encoding.test.ts` "a number written as label text",

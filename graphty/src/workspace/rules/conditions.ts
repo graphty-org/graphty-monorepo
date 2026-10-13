@@ -30,13 +30,17 @@ export interface Field {
  * @returns the fields, in the element's order.
  */
 export function readableFields(readable: readonly ReadableValue[], attributes: readonly Field[]): Field[] {
-    return readable.map((value) => ({
-        path: value.path,
-        kind: value.on,
-        plainName: value.plainName,
-        type: value.kind === "number" ? "number" : "string",
-        sampleValues: attributes.find((a) => a.path === value.path && a.kind === value.on)?.sampleValues ?? [],
-    }));
+    // ponytail: a node value read at an edge's end (`value.end`) is left out until the picker
+    // words it ("the source's name"); listed bare it would read as the edge's own column.
+    return readable
+        .filter((value) => value.end === undefined)
+        .map((value) => ({
+            path: value.path,
+            kind: value.on,
+            plainName: value.plainName,
+            type: value.kind === "number" ? "number" : "string",
+            sampleValues: attributes.find((a) => a.path === value.path && a.kind === value.on)?.sampleValues ?? [],
+        }));
 }
 
 /** How a condition compares its value. */

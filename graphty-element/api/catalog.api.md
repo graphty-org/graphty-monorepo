@@ -170,6 +170,7 @@ export interface AttributeDescriptor {
     // (undocumented)
     uniqueCount?: number;
     usedBy?: readonly AttributeUse[];
+    valuesAreColors?: true;
 }
 
 // @public
@@ -1404,6 +1405,7 @@ export type ReadableChannelKind = "color" | "number" | "enum" | "text" | "boolea
 // @public
 export interface ReadableValue {
     readonly completeness: number;
+    readonly end?: "source" | "target";
     readonly fits: readonly ReadableChannelKind[];
     readonly from: "element" | "data" | "run";
     readonly kind: ReadableValueKind;
@@ -1418,6 +1420,7 @@ export interface ReadableValue {
     readonly technicalName: string;
     readonly usedBy?: readonly AttributeUse[];
     readonly valueCount?: number;
+    readonly valuesAreColors?: true;
 }
 
 // @public

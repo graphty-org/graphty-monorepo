@@ -200,8 +200,27 @@ const RESULT_PREFIX = `${RESULT_ROOT}.`;
  */
 const ELEMENT_ROOT = "graphty.";
 
+/**
+ * The node path an edge reads at one end: `graphty.source.<node path>` reads the value its source
+ * node carries at `<node path>`, `graphty.target.<node path>` its target's.
+ * @param path - The path as the selector spelled it.
+ * @returns The end and the node path, or undefined when the path reads no end.
+ */
+export function edgeEndPathOf(path: Path): { readonly end: "source" | "target"; readonly node: Path } | undefined {
+    for (const end of ["source", "target"] as const) {
+        const prefix = `${ELEMENT_ROOT}${end}.`;
+        if (path.startsWith(prefix) && path.length > prefix.length) {
+            return { end, node: path.slice(prefix.length) };
+        }
+    }
+
+    return undefined;
+}
+
 /** What a path names, settled once when the path is first seen. */
 type PathKind =
+    /** A node's value read at one end of an edge, under `graphty.source.` or `graphty.target.`. */
+    | "end"
     /** A key of the record a node or an edge arrived with, or a column of the snapshot. */
     | "attribute"
     /** One of the note values, under `graphty.notes.`. */
@@ -215,11 +234,11 @@ type PathKind =
 interface PathEntry {
     /** Which reader answers it. */
     readonly kind: PathKind;
-    /** The column name and record key, for an attribute path; empty otherwise. */
+    /** The column name and record key, for an attribute path; the end, for an end path; empty otherwise. */
     readonly key: string;
     /** The run, for a result path; empty otherwise. */
     readonly runId: RunId;
-    /** The field, for a result path, or the note value, for a note path; empty otherwise. */
+    /** The field, for a result path, the note value, for a note path, or the node path, for an end path; empty otherwise. */
     readonly field: string;
 }
 
@@ -249,6 +268,11 @@ function parsePath(path: Path): PathEntry {
         }
 
         return { kind: "result", key: "", runId, field };
+    }
+
+    const end = edgeEndPathOf(path);
+    if (end !== undefined) {
+        return { kind: "end", key: end.end, runId: "", field: end.node };
     }
 
     if (path.startsWith(ELEMENT_ROOT)) {
@@ -608,6 +632,16 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
 
         const held = current();
 
+        // The node at one end of an edge: nodes have no ends, so they read nothing.
+        if (entry.kind === "end") {
+            if (target !== "edge" || index < 0 || index >= held.edgeCount) {
+                return undefined;
+            }
+
+            const node = entry.key === "source" ? held.graph.edgeSource(index) : held.graph.edgeTarget(index);
+            return valueOf("node", node, entry.field);
+        }
+
         if (entry.kind === "result") {
             return recordOf(held, target, index, entry.runId)?.[entry.field];
         }
@@ -634,6 +668,10 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
         }
 
         const held = current();
+
+        if (entry.kind === "end") {
+            return isPresent(valueOf(target, index, path));
+        }
 
         if (entry.kind === "result") {
             return isPresent(recordOf(held, target, index, entry.runId)?.[entry.field]);

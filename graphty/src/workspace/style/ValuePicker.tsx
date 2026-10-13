@@ -80,7 +80,8 @@ function factOf(value: ReadableValue): string | undefined {
 function entriesOf(session: GraphSession, target: Target, inUse: readonly string[]): Entry[] {
     const entries: Entry[] = [];
     for (const value of session.data.readableValues()) {
-        if (value.on !== target || value.from === "element") {
+        // A node value read at an edge's end waits until the picker words it as the end's.
+        if (value.on !== target || value.from === "element" || value.end !== undefined) {
             continue;
         }
         let Glyph = GLYPHS.category;

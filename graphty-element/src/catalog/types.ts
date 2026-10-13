@@ -1160,6 +1160,13 @@ export interface AttributeDescriptor {
     min?: number;
     max?: number;
     sampleValues: readonly unknown[];
+    /**
+     * Present (true) when every value is text the element reads as a color (`#rgb`, `#rrggbb`,
+     * `rgb(...)`, a CSS color name), so a channel can paint it as it is through the `passthrough`
+     * scale. Absent otherwise.
+     * @since 3.26.0
+     */
+    valuesAreColors?: true;
     /** Set when the attribute came from a run. */
     runId?: RunId;
     /**
@@ -1231,8 +1238,29 @@ export interface ReadableValue {
     readonly kind: ReadableValueKind;
     /** The lowest and highest value, for a number. */
     readonly range?: { readonly min: number; readonly max: number };
-    /** How many distinct values, for a category or a yes-or-no. */
+    /**
+     * How many distinct values, for a category or a yes-or-no, and for a number when the column
+     * holds few enough distinct values to count (256 or fewer): College football's conference
+     * column of the codes 0 to 11 has 12, so "one color per value" through the `ordinal` scale
+     * can be offered for it.
+     */
     readonly valueCount?: number;
+    /**
+     * Present (true) when every value is text the element reads as a color, so the `passthrough`
+     * scale paints it as it is. See {@link AttributeDescriptor.valuesAreColors}.
+     * @since 3.26.0
+     */
+    readonly valuesAreColors?: true;
+    /**
+     * Present on an edge entry that reads a value of the node at one end of each edge: `path` is
+     * `graphty.source.<node path>` or `graphty.target.<node path>`, and `plainName`,
+     * `technicalName`, `kind`, `range` and `valueCount` are the node value's (read over the nodes).
+     * A rule such as "edges whose source is Valjean" reads
+     * `{ kind: "text", reads: "graphty.source.data.name", mode: "exact", text: "Valjean" }`, and a
+     * binding such as "width by the source's Connections" reads `graphty.source.results.<run>.value`.
+     * @since 3.26.0
+     */
+    readonly end?: "source" | "target";
     /** The fraction of the nodes (or edges) that carry a value, from 0 to 1. */
     readonly completeness: number;
     /**

@@ -4,6 +4,39 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-13 -- Decided by the team: readable values count numbers, mark colors, read an edge's ends, and find reads them all
+
+**What.** graphty-element, additive:
+
+- `ReadableValue.valueCount` is now given for a number too, while the column has 256 distinct
+  values or fewer. College football's conference column (the codes 0 to 11) has 12.
+- `ReadableValue.valuesAreColors` and `AttributeDescriptor.valuesAreColors` (`true` or absent):
+  every value is text the element reads as a color (hex, `rgb(...)`, a CSS color name).
+- `ReadableValue.end` (`"source"` or `"target"`): `data.readableValues()` now also lists every node
+  value again on the edges, read at each end, under the paths `graphty.source.<node path>` and
+  `graphty.target.<node path>`. The entry keeps the node value's `plainName` and `technicalName`,
+  and its kind, range and count are the nodes'. Rules, filters, layer selectors and bindings read
+  these paths; a rule leaf accepts them (`graphty.source.` or `graphty.target.` in front of a
+  `data.` or `results.` path; any other `graphty.` path stays reserved).
+- `session.find` reads every readable value, run results included: after Degree has run, typing
+  `10` lists Connections = 10 with its "10 or more" offer.
+- `FindResult.named` (new type `FindNamedRow`): values whose catalog name the text matched
+  ("degree" or "connections" lists Connections), each number carrying `atLeast` at the value the
+  top quarter of the elements reach, with its count and selection target.
+- Find offers a set of elements once: two value rows, or two "contains" rows, holding the same
+  elements are one offer. Between equals, a column with a name is kept over the node id. On Les
+  Miserables "node id contains Mme" and "name contains Mme" are now one offer.
+
+**Why.** "One color per value" needs the count of a number column of codes, and "paint as it is"
+needs to know a column holds colors; both are facts about the data, so the element states them
+and the app only offers. "Edges whose source is Bob" and "width by the source's Connections" need
+a path the rule and the binding can read; reserving it under the element's own `graphty.` root
+keeps every existing column name meaning what it meant. A find that ignores run results cannot
+turn "degree" into a rule, and two offers that select the same elements are one choice shown twice.
+
+**For the app, not done here.** The app's value and rule pickers skip `end` entries until they word
+them ("the source's name"); `FindResult.named` is not shown yet.
+
 ## 2026-10-12 -- Decided by the team: what lies beneath a row, read over the row's own elements
 
 **What.** graphty-element, additive: `styles.agreement(scope, channel, { below, over })`. The new

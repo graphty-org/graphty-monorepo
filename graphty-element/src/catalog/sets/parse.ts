@@ -336,7 +336,10 @@ function checkThreshold(value: Loose, walker: Walker): void {
     }
 }
 
-/** The roots a field path may start with. Any other root is reserved for a later release. */
+/**
+ * The roots a field path may start with, beside `graphty.source.` and `graphty.target.` in front
+ * of one of them. Any other root is reserved for a later release.
+ */
 const FIELD_ROOTS = ["data", "results"];
 
 /**
@@ -348,6 +351,13 @@ const FIELD_ROOTS = ["data", "results"];
  */
 function checkRoot(path: unknown): void {
     if (typeof path !== "string" || path === "") {
+        return;
+    }
+
+    // A node's value read at an edge's end: its node path is checked as any other.
+    const end = /^graphty\.(?:source|target)\.(.+)$/.exec(path);
+    if (end !== null) {
+        checkRoot(end[1]);
         return;
     }
 

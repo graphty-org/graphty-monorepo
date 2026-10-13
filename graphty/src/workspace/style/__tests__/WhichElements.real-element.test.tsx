@@ -81,7 +81,7 @@ async function idCondition(compare: string): Promise<ReturnType<typeof within>> 
     await choose(screen.getByRole("combobox", { name: "Rule" }), "Where a value");
     await userEvent.click(screen.getByRole("button", { name: "Add condition" }));
     const row = within(screen.getByRole("group", { name: "Condition 1" }));
-    await choose(row.getByRole("combobox", { name: "Attribute" }), "Id");
+    await choose(row.getByRole("combobox", { name: "Attribute" }), "Node id");
     await choose(row.getByRole("combobox", { name: "Is" }), compare);
     return row;
 }
@@ -112,7 +112,7 @@ describe("Which elements", () => {
         assert.strictEqual(editor.getByRole("status").textContent, "50 of 100 nodes");
         await userEvent.click(editor.getByRole("button", { name: "Done" }));
         const sentence = await screen.findByRole("button", { name: /^Which elements: / });
-        assert.include(sentence.textContent, "Nodes where id matches pattern [13579]$");
+        assert.include(sentence.textContent, "Nodes where node id matches pattern [13579]$");
     });
 
     it("Escape restores the rule the editor opened on", async () => {

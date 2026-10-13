@@ -19,6 +19,40 @@ export async function orNotice(store: WorkspaceStore, what: string, work: Promis
     }
 }
 
+/** The accessible name of the style tree's "+", where focus goes back when a draft is discarded. */
+export const ADD_ROW_LABEL = "Add a layer or a folder";
+
+/**
+ * Opens a new layer's draft, its kind chosen from what is selected (nodes, edges or both) or left
+ * to the reader when nothing is, remembering what the inspector showed so discarding it goes back.
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ */
+export function openDraft(session: GraphSession, store: WorkspaceStore): void {
+    const { nodes, edges } = session.selection;
+    let paints: string | undefined;
+    if (nodes.length > 0) {
+        paints = edges.length > 0 ? "both" : "node";
+    } else if (edges.length > 0) {
+        paints = "edge";
+    }
+    const now = store.get().inspected;
+    const back = now?.kind === "draft-row" ? (now.back ?? null) : now;
+    store.set({ inspected: { kind: "draft-row", ...(paints === undefined ? {} : { id: paints }), back } });
+}
+
+/**
+ * Discards the draft: the inspector shows again what it showed before the draft opened, the
+ * status line says so, and focus goes back to the tree's "+".
+ * @param store - the chrome store.
+ */
+export function discardDraft(store: WorkspaceStore): void {
+    store.set({ inspected: store.get().inspected?.back ?? null, announcement: "New layer discarded" });
+    requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>(`[aria-label="${ADD_ROW_LABEL}"]`)?.focus();
+    });
+}
+
 /**
  * Deletes a row of the style tree (a layer, or a folder with everything in it), with an Undo
  * notice that lasts while the delete is still the step an undo would take back.

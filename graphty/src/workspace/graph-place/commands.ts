@@ -1,7 +1,7 @@
 import type { StyleRow, StyleRowPin } from "@graphty/graphty-element/session";
 
 import { type Command, type CommandContext, defineRegistration } from "../commands/registry";
-import { deleteRow, duplicateRow, orNotice, selectWhatItPaints, ungroup } from "./actions";
+import { deleteRow, duplicateRow, openDraft, orNotice, selectWhatItPaints, ungroup } from "./actions";
 import { FIND_BOX_ID } from "./FindBox";
 import { findTreeRow } from "./rows";
 
@@ -195,6 +195,20 @@ export const registration = defineRegistration({
                 requestAnimationFrame(() => {
                     document.getElementById(FIND_BOX_ID)?.focus();
                 });
+            },
+        },
+        {
+            // The tree's "+" > Add layer, from Quick actions too: a draft on what is selected.
+            id: "row.add-layer",
+            label: "Add layer",
+            group: "Graph tree",
+            keywords: ["style", "new layer"],
+            disabled: ({ session }) => (session === null ? "Nothing is open" : null),
+            run: ({ session, workspace }) => {
+                if (session !== null) {
+                    workspace.set({ page: "panels", place: "graph" });
+                    openDraft(session, workspace);
+                }
             },
         },
         ...ROW_COMMANDS.map(onInspectedRow),

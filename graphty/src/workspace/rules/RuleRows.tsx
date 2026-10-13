@@ -4,7 +4,6 @@
  * rule it makes is a graphty-element `RuleTree` leaf, and every count is the element's.
  */
 
-import type { AttributeDescriptor } from "@graphty/graphty-element/session";
 import { ActionIcon, Autocomplete, Button, Group, NumberInput, Select, Stack, TextInput, Tooltip } from "@mantine/core";
 import React from "react";
 
@@ -15,6 +14,7 @@ import {
     type Compare,
     compareWords,
     type Condition,
+    type Field,
     isNumber,
     type ReadsGroup,
 } from "./conditions";
@@ -26,8 +26,8 @@ interface ConditionRowProps {
     /** What a condition may read. */
     readonly choices: readonly ReadsGroup[];
     /** The comparisons offered for what it reads; one alone draws no comparison select. */
-    readonly compares: (attribute: AttributeDescriptor | undefined) => readonly Compare[];
-    readonly attributes: readonly AttributeDescriptor[];
+    readonly compares: (attribute: Field | undefined) => readonly Compare[];
+    readonly attributes: readonly Field[];
     /** Draws the field names as labels above each field (a form), else only as their names (a row). */
     readonly labelled?: boolean;
     /** The row's minus, when it may be removed. */
@@ -110,6 +110,8 @@ export function ConditionRow(props: ConditionRowProps): React.JSX.Element {
                 data={choices.map((g) => ({ group: g.group, items: [...g.items] }))}
                 value={chosen ? condition.reads : null}
                 searchable
+                // Tab passes through; the list opens on a click, a typed letter or ArrowDown.
+                openOnFocus={false}
                 onChange={(value) => {
                     const next = attributeOf(value ?? "", attributes);
                     const first = value === null ? "at-least" : (compares(next)[0] ?? "is");

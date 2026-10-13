@@ -9,7 +9,7 @@ import { matchesKey } from "../keys/keys";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StylePanel } from "../style/StylePanel";
-import { orNotice } from "./actions";
+import { ADD_ROW_LABEL, openDraft, orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
 import { count, findTreeRow, isHidden, layerCount, placeOf } from "./rows";
 
@@ -130,7 +130,9 @@ function selectedIds(inspected: WorkspaceState["inspected"]): string[] {
 function openRows(store: WorkspaceStore, tree: readonly StyleRow[], ids: readonly string[]): void {
     const rows = ids.filter((id) => id !== DRAFT_ID);
     if (rows.length === 0) {
-        store.set({ inspected: ids.includes(DRAFT_ID) ? { kind: "draft-row" } : null });
+        // A click on the draft's own row keeps it as it is (its kind and where Escape goes back to).
+        const now = store.get().inspected;
+        store.set({ inspected: ids.includes(DRAFT_ID) && now?.kind === "draft-row" ? now : null });
         return;
     }
     if (rows.length > 1) {
@@ -360,8 +362,8 @@ function AddMenu({ session, store }: Readonly<{ session: GraphSession; store: Wo
     return (
         <Menu position="bottom-end">
             <Menu.Target>
-                <Tooltip label="Add a layer or a folder">
-                    <ActionIcon variant="subtle" size="sm" aria-label="Add a layer or a folder">
+                <Tooltip label={ADD_ROW_LABEL}>
+                    <ActionIcon variant="subtle" size="sm" aria-label={ADD_ROW_LABEL}>
                         <GLYPHS.add size={14} />
                     </ActionIcon>
                 </Tooltip>
@@ -370,7 +372,7 @@ function AddMenu({ session, store }: Readonly<{ session: GraphSession; store: Wo
                 <Menu.Item
                     leftSection={<GLYPHS.layer size={14} aria-hidden />}
                     onClick={() => {
-                        store.set({ inspected: { kind: "draft-row" } });
+                        openDraft(session, store);
                     }}
                 >
                     Add layer

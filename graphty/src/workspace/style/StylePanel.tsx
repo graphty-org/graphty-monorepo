@@ -1,16 +1,18 @@
 import "./style.css";
 
-import { ComboInput, CompactColorInput, ControlSection, FieldRow, SegmentedControl } from "@graphty/compact-mantine";
+import { ComboInput, CompactColorInput, ControlSection, FieldRow } from "@graphty/compact-mantine";
 import { channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
 import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
+import { discardDraft } from "../graph-place/actions";
 import { findTreeRow, isHidden, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import type { DraftPaints } from "../inspector/inspected";
 import { edgeName } from "../inspector/words";
+import { isPanelEscape } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { Effects } from "./Effects";
 import { LabelSection } from "./LabelSection";
@@ -30,7 +32,8 @@ import {
 } from "./row";
 import { useFocusLine } from "./useFocusLine";
 import { useStyleVersion } from "./useStyleVersion";
-import { WhichElements } from "./WhichElements";
+import { RuleEditor, WhichElements } from "./WhichElements";
+import { BLANK_FORM, DRAFT_NAME, fieldsOf, type Form, formOf, selectorOf, sentenceOf } from "./whichRule";
 import { CORE_ROWS, LISTS } from "./words";
 
 /**
@@ -142,7 +145,7 @@ function TreeRowPanel({ session, rowId }: Readonly<{ session: GraphSession; rowI
     }
     const row = treeRowLayers(session, rowId);
     // Every layer says which elements it paints, whoever made it: provenance never changes what a
-    // layer offers.
+    // layer offers. Keyed by the row, not its layers, so a change of kind keeps the editor open.
     return (
         <>
             {isHidden(found) && (
@@ -152,11 +155,11 @@ function TreeRowPanel({ session, rowId }: Readonly<{ session: GraphSession; rowI
             )}
             <LockedGroup locked={isLocked(found)}>
                 <RowStyle
-                    key={row.join(" ")}
+                    key={rowId}
                     session={session}
                     row={row}
                     below={rowId}
-                    head={row.length > 0 ? <WhichElements session={session} layer={row[0]} /> : undefined}
+                    head={row.length > 0 ? <WhichElements session={session} layer={rowId} /> : undefined}
                 />
             </LockedGroup>
         </>
@@ -592,22 +595,13 @@ export function GroupStyle({
     );
 }
 
-/** The kind choice's three answers. */
-const PAINTS_CHOICES = [
-    { value: "node", label: "Nodes" },
-    { value: "edge", label: "Edges" },
-    { value: "both", label: "Both" },
-];
-
-/** The name a new layer is written with. */
-const DRAFT_NAME = "New layer";
-
 /**
- * The new layer's panel before it is written (tier3 design, section 2.2): Which elements open,
- * with focus on the kind choice, and no groups until a kind is chosen; then that kind's groups.
+ * The new layer's panel before it is written (tier3 design, section 2.2): the whole Which elements
+ * editor (kind, find, rule) first, focus on the kind; then, once a kind is chosen, its groups.
  * Nothing reaches the element until a value is set, and that first write adds the layer (a row on
- * both kinds for Both) and opens it as its own row. Escape, or opening anything else, abandons
- * the draft and leaves nothing behind.
+ * both kinds for Both) painting only what the rule matches, named by its rule, and opens it as
+ * its own row. Escape discards the draft, says so, and gives focus back to the Add button;
+ * opening anything else abandons it too. Either leaves nothing behind.
  * @param props - Component props
  * @param props.paints - what it paints, once chosen
  * @returns The panel
@@ -615,15 +609,12 @@ const DRAFT_NAME = "New layer";
 export function DraftPanel({ paints }: Readonly<{ paints: DraftPaints | undefined }>): React.JSX.Element | null {
     const { session, element, store } = useWorkspace();
     useStyleVersion(session, element);
-    const box = useRef<HTMLDivElement>(null);
     const [before] = useState(() => new Set(session?.styles.list().map((layer) => layer.id)));
-    useEffect(() => {
-        (box.current?.querySelector<HTMLInputElement>("input:checked") ?? box.current?.querySelector("input"))?.focus();
-    }, []);
+    const [form, setForm] = useState<Form>(BLANK_FORM);
+    // A find offer's own selector, kept as the element built it until the rule is edited.
+    const [picked, setPicked] = useState<Layer["selector"] | null>(null);
     // The first write added the layer: from here on it is a row like any other.
-    const added = session?.styles
-        .list()
-        .find((layer) => !before.has(layer.id) && layer.source.by === "user" && layer.name === DRAFT_NAME);
+    const added = session?.styles.list().find((layer) => !before.has(layer.id) && layer.source.by === "user");
     const addedRow = added === undefined ? undefined : (added.row ?? added.id);
     useEffect(() => {
         if (addedRow !== undefined) {
@@ -633,33 +624,54 @@ export function DraftPanel({ paints }: Readonly<{ paints: DraftPaints | undefine
     if (session === null) {
         return null;
     }
+    const attributes = fieldsOf(session);
+    const selector = picked ?? selectorOf(form, attributes, paints !== "edge");
+    const name =
+        selector === null || selector.match === "everything"
+            ? DRAFT_NAME
+            : sentenceOf(
+                  session,
+                  attributes,
+                  picked === null ? form : formOf(picked, attributes, "node"),
+                  paints ?? "node",
+              );
+    const choose = (kind: DraftPaints): void => {
+        store.set((state) => ({ inspected: { ...state.inspected, kind: "draft-row", id: kind } }));
+    };
     return (
         <Stack
-            ref={box}
             gap={0}
             onKeyDown={(event) => {
-                if (event.key === "Escape" && !event.defaultPrevented) {
+                if (isPanelEscape(event.nativeEvent)) {
+                    event.preventDefault();
                     event.stopPropagation();
-                    store.set({ inspected: null });
+                    discardDraft(store);
                 }
             }}
         >
-            <Stack gap={6} p={8}>
+            <Stack gap={6} p={8} role="group" aria-label="Which elements" data-testid="which-elements">
                 <Text size="xs" fw={600}>
                     Which elements
                 </Text>
-                <SegmentedControl
-                    size="xs"
-                    aria-label="Which elements"
-                    value={paints ?? ""}
-                    data={PAINTS_CHOICES}
-                    onChange={(value) => {
-                        store.set({ inspected: { kind: "draft-row", id: value } });
+                <RuleEditor
+                    session={session}
+                    attributes={attributes}
+                    kind={paints}
+                    onKind={choose}
+                    form={form}
+                    onForm={(next) => {
+                        setPicked(null);
+                        setForm(next);
                     }}
+                    onPick={(selected, kind) => {
+                        setPicked(selected);
+                        setForm(formOf(selected, attributes, kind));
+                        if (paints === undefined) {
+                            choose(kind);
+                        }
+                    }}
+                    status="Nothing is added until a property is set"
                 />
-                <Text size="xs" c="dimmed">
-                    Nothing is added until a property is set
-                </Text>
             </Stack>
             {paints !== undefined && (
                 <RowStyle
@@ -667,7 +679,7 @@ export function DraftPanel({ paints }: Readonly<{ paints: DraftPaints | undefine
                     session={session}
                     row={[]}
                     sides={paints === "both" ? ["node", "edge"] : [paints]}
-                    fresh={{ name: DRAFT_NAME, selector: { match: "everything" }, both: paints === "both" }}
+                    fresh={{ name, selector: selector ?? { match: "everything" }, both: paints === "both" }}
                 />
             )}
         </Stack>

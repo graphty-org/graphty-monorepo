@@ -11,6 +11,38 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **A new layer chooses its elements first; Which elements reads every readable
+  value** (test `style/__tests__/WhichElementsDraft.real-element.test.tsx`, College football). The
+  draft (`DraftPanel`) shows the whole editor (kind, find, rule) before anything is written; the
+  first value adds the layer with the draft's selector (`fresh.selector`), named by the rule's
+  sentence ("Nodes where label contains State"), or "New layer" while the rule is empty. A hand-made
+  layer keeps following its rule's sentence while its name still equals the old sentence (or "New
+  layer"); a rename stops it. The pure rule code moved to `style/whichRule.ts` (form, selector,
+  sentence, `fieldsOf`); `WhichElements.tsx` keeps the components (`RuleEditor`, shared by the
+  layer and the draft). The rule editor and Top N by read `session.data.readableValues()` through
+  `readableFields` (`rules/conditions.ts`, which now takes a narrow `Field` that a data column also
+  satisfies, so Filters is unchanged): "Node id" and a column "id" are two entries, and run fields
+  (Connections, Rank, Percentile) are there. A run layer's `{ match: "has" }` reads back as
+  "<value> has a value" and `{ match: "top" }` as Top N, so run layers edit like any other. The kind
+  changes in place through `styles.writeRow(row, { target })`; `TreeRowPanel` keys `RowStyle` by
+  the row id (not its layers) so the editor stays open across the change. Add layer
+  (`openDraft`, `graph-place/actions.ts`, also the "Add layer" command) preselects the kind from the
+  selection and remembers `inspected.back`; Escape (`discardDraft`) shows `back` again, announces
+  "New layer discarded" and focuses the "+" (`ADD_ROW_LABEL`). The Inspector no longer keys
+  `DraftPanel` by kind, so a rule survives a kind change. Find: each offer's count (or, for a fixed
+  list, the column and test) is the second line of `ResultRow`, the accessible name keeps both;
+  "This node: <name>" from find's hit; "No element matches <text>" as a status. `openOnFocus={false}`
+  on the Attribute and By selects (Tab passes). Reasons: choosing elements first is the model's
+  order and the only one that does not repaint everything by surprise; one readable list is the
+  element's answer, so the two pickers cannot disagree.
+  Found, for graphty-element: Top N takes a tie group only whole, so "Top 10 by degree" on College
+  football matches 0 nodes (12 teams tie at 12 games) and the panel just says "0 of 115 nodes"
+  with no reason; the element should report the tie as a coded fact (`{ code, params }`) beside
+  the count. The acceptance asked for 10; the test uses Top 12, which holds the tie. Not done: the
+  draft shows no live count (no element API counts a selector without a layer; an additive
+  `styles.countSelector` or a `counts` on a spec would give it); kind preselection has no test of
+  its own.
+
 - (2026-10-12) **Text and Effects lists, labels that write only what was picked, a control for
   every placed style** (tests `style/__tests__/{Labels,Effects,Tooltip}.real-element.test.tsx`,
   `coverage.test.ts`). The Text list (`LabelSection.tsx`, taking a `RowContext`) draws one entry per

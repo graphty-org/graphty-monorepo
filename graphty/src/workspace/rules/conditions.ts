@@ -3,7 +3,41 @@
  * makes. Shared by Data > Filters and a layer's Which elements (tier3 design, section 3.1).
  */
 
-import type { AttributeDescriptor, RuleTree } from "@graphty/graphty-element/session";
+import type { ReadableValue, RuleTree } from "@graphty/graphty-element/session";
+
+/**
+ * What a condition can read, as much of it as a condition row needs: a data column
+ * (graphty-element's `AttributeDescriptor` is one) or an entry of `session.data.readableValues()`
+ * (the node id, a column, a run's field) read into this shape by {@link readableFields}.
+ */
+export interface Field {
+    /** The path a rule reads: `id`, `data.<name>`, `results.<run>.<field>`. */
+    readonly path: string;
+    /** Whether nodes or edges carry it. */
+    readonly kind: "node" | "edge";
+    readonly plainName: string;
+    /** `number` or `integer` for numbers; anything else reads as text. */
+    readonly type?: string;
+    /** Values to offer while typing one. */
+    readonly sampleValues?: readonly unknown[];
+}
+
+/**
+ * The fields a rule can read, from graphty-element's one list of readable values, each data
+ * column keeping its sample values.
+ * @param readable - `session.data.readableValues()`.
+ * @param attributes - `session.data.attributes()`, for the sample values.
+ * @returns the fields, in the element's order.
+ */
+export function readableFields(readable: readonly ReadableValue[], attributes: readonly Field[]): Field[] {
+    return readable.map((value) => ({
+        path: value.path,
+        kind: value.on,
+        plainName: value.plainName,
+        type: value.kind === "number" ? "number" : "string",
+        sampleValues: attributes.find((a) => a.path === value.path && a.kind === value.on)?.sampleValues ?? [],
+    }));
+}
 
 /** How a condition compares its value. */
 export type Compare =
@@ -62,7 +96,7 @@ export function compareWords(compare: Compare): string {
  * @param attribute - the attribute.
  * @returns true for a number column.
  */
-export const isNumber = (attribute: AttributeDescriptor | undefined): boolean =>
+export const isNumber = (attribute: Field | undefined): boolean =>
     attribute?.type === "number" || attribute?.type === "integer";
 
 /** The comparisons a layer's rule offers on numbers, on text, and on the element id. */
@@ -84,8 +118,8 @@ const ID_COMPARES: readonly Compare[] = ["is", "is-not", "contains", "starts-wit
  * @param attribute - the attribute, or undefined for the element id.
  * @returns the comparisons.
  */
-export function allCompares(attribute: AttributeDescriptor | undefined): readonly Compare[] {
-    if (attribute === undefined) {
+export function allCompares(attribute: Field | undefined): readonly Compare[] {
+    if (attribute === undefined || attribute.path === "id") {
         return ID_COMPARES;
     }
     return isNumber(attribute) ? NUMBER_COMPARES : TEXT_COMPARES;
@@ -96,7 +130,7 @@ export function allCompares(attribute: AttributeDescriptor | undefined): readonl
  * @param attribute - the attribute.
  * @returns the comparisons.
  */
-export function filterCompares(attribute: AttributeDescriptor | undefined): readonly Compare[] {
+export function filterCompares(attribute: Field | undefined): readonly Compare[] {
     return isNumber(attribute) ? ["at-least", "at-most", "between"] : ["one-of"];
 }
 
@@ -106,10 +140,7 @@ export function filterCompares(attribute: AttributeDescriptor | undefined): read
  * @param attributes - the session's attributes.
  * @returns the attribute.
  */
-export function attributeOf(
-    reads: string,
-    attributes: readonly AttributeDescriptor[],
-): AttributeDescriptor | undefined {
+export function attributeOf<T extends Field>(reads: string, attributes: readonly T[]): T | undefined {
     return attributes.find((a) => `${a.kind}:${a.path}` === reads);
 }
 
@@ -131,11 +162,7 @@ const listOf = (text: string): string[] =>
  * @param ends - an edge attribute's rule keeps its edges' ends too (a filter step's reading).
  * @returns the rule.
  */
-export function conditionRule(
-    condition: Condition,
-    attributes: readonly AttributeDescriptor[],
-    ends = false,
-): RuleTree | null {
+export function conditionRule(condition: Condition, attributes: readonly Field[], ends = false): RuleTree | null {
     const attribute = attributeOf(condition.reads, attributes);
     if (attribute === undefined && condition.reads !== ID_READS) {
         return null;
@@ -201,7 +228,7 @@ const MODES: Readonly<Record<string, Compare>> = {
  */
 export function conditionOf(
     rule: RuleTree,
-    attributes: readonly AttributeDescriptor[],
+    attributes: readonly Field[],
     prefer: "node" | "edge" = "node",
 ): Condition | null {
     const readsOf = (path: string, ends: boolean): string => {

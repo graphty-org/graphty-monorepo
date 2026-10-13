@@ -119,7 +119,10 @@ describe("search and selection as ways into a rule", () => {
         await userEvent.click(field);
         await userEvent.keyboard("bob");
         const live = await screen.findByRole("option", { name: "Nodes where name contains bob, 3 nodes" });
-        assert.isNotNull(screen.queryByRole("option", { name: "These 3 nodes" }), "the fixed list is offered too");
+        assert.isNotNull(
+            screen.queryByRole("option", { name: "These 3 nodes, name contains bob" }),
+            "the fixed list is offered too",
+        );
         await userEvent.click(live);
 
         await waitFor(() => {

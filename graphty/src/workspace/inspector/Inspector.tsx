@@ -529,7 +529,8 @@ function bodyOf(
         case "rows":
             return { only: <MultiRowPanel ids={resolved.rows} /> };
         case "draft-row":
-            return { only: <DraftPanel key={resolved.paints ?? ""} paints={resolved.paints} /> };
+            // Not keyed by the kind: a rule written before the kind changes is kept.
+            return { only: <DraftPanel paints={resolved.paints} /> };
         case "filter-step":
             // Keyed by the step, so opening another step starts from its own fields.
             return { only: <FilterStepEditor key={resolved.step} id={resolved.step} /> };

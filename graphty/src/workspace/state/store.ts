@@ -34,6 +34,8 @@ export interface Notice {
 interface Inspected {
     readonly kind: string;
     readonly id?: string;
+    /** A draft layer's: what was shown before it opened, which discarding it shows again. */
+    readonly back?: Inspected | null;
 }
 
 /** The chrome state. */

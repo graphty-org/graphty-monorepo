@@ -135,7 +135,7 @@ export class CrossPlatformBenchmark {
         // Force garbage collection if available
         if (this.config.platform === "node") {
             (globalThis as { gc?: () => void }).gc?.();
-        } else if (typeof window !== "undefined" && window.performance && "memory" in window.performance) {
+        } else if (globalThis.window !== undefined && globalThis.performance && "memory" in globalThis.performance) {
             // Browser memory pressure hint
             // Some browsers support gc() in development
             try {
@@ -158,7 +158,7 @@ export class CrossPlatformBenchmark {
                     rss: mem.rss,
                 };
             }
-        } else if (typeof window !== "undefined" && window.performance && "memory" in window.performance) {
+        } else if (globalThis.window !== undefined && globalThis.performance && "memory" in globalThis.performance) {
             // Browser memory information
             const mem = (
                 window.performance as Performance & {

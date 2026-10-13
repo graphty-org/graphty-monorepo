@@ -87,6 +87,23 @@ function prWait(rec) {
 }
 
 /**
+ * What one held job is only waiting on, or "branchless" when it has no branch to match a push by.
+ * @param {any} state the daemon state
+ * @param {any} job the held job
+ * @param {(match: (t: PushTicket) => boolean) => boolean} take takes the first push ticket that matches
+ * @param {(j: any) => boolean} local whether the job waits on its session's own background task
+ * @returns {"push" | "ci" | "owner" | "merge" | "branchless" | null} the wait
+ */
+function heldWait(state, job, take, local) {
+    const rec = prRecord(state, job);
+    const branch = rec?.headRef;
+    if (take((t) => (branch && t.branch === branch) || (job.worktree && t.cwd === job.worktree))) return "push";
+    if (local(job)) return job.worktree ? null : "branchless";
+    if (rec) return prWait(rec);
+    return job.worktree ? null : "branchless";
+}
+
+/**
  * What each held job in `working` or `starting`, or waiting on a local task, is only waiting on, if anything.
  * @param {any} state the daemon state
  * @returns {Map<string, "push" | "ci" | "owner" | "merge">} the waiting jobs, by id
@@ -107,18 +124,9 @@ export function jobWaits(state) {
     );
     const branchless = [];
     for (const job of held) {
-        const rec = prRecord(state, job);
-        const branch = rec?.headRef;
-        if (take((t) => (branch && t.branch === branch) || (job.worktree && t.cwd === job.worktree))) {
-            out.set(job.id, "push");
-        } else if (local(job)) {
-            if (!job.worktree) branchless.push(job);
-        } else if (rec) {
-            const wait = prWait(rec);
-            if (wait) out.set(job.id, wait);
-        } else if (!job.worktree) {
-            branchless.push(job);
-        }
+        const wait = heldWait(state, job, take, local);
+        if (wait === "branchless") branchless.push(job);
+        else if (wait) out.set(job.id, wait);
     }
     for (const job of branchless) {
         if (/push/i.test(job.status?.text ?? "") && take((t) => t.session === job.holder.session)) {

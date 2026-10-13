@@ -55,8 +55,9 @@ export interface Fixture {
     readonly log: LogEvent[];
     /**
      * The fixture page's URL.
-     * @param params - `key`, `tab`, `n` (nodes, 30 by default), `rows` (`early`, the default, or `late`)
-     *   and `delay` (the debounce in ms; a large one leaves a write to the lifecycle events).
+     * @param params - `key`, `tab`, `n` (nodes, 30 by default), `rows` (`early`, the default, or `late`),
+     *   `delay` (the debounce in ms; a large one leaves a write to the lifecycle events), and for a page
+     *   that drives itself, `auto` (edits to make and save) and `tail` (`1`: one more edit, left pending).
      */
     url(params: Record<string, string | number>): string;
     /** The reports of one tab. */
@@ -143,7 +144,8 @@ const ready = el.autosaver.ready.then(async (restored) => {
     if (params.get("rows") === "late") rows();
     for (let f = 0; f < 6000 && el.session.data.snapshot().nodeCount < n; f++) await new Promise((r) => setTimeout(r, 10));
     const s = el.autosaver.status;
-    report("ready", { restored: summary(restored), state: s.state, revision: s.revision, ephemeral: s.ephemeral, persisted: s.persisted, quota: s.storage?.quota ?? null, problem: s.problem?.code ?? null });
+    const probes = [...new Set(Array.from(el.session.data.nodes(), (node) => node.probe ?? null))];
+    report("ready", { restored: summary(restored), probes, state: s.state, revision: s.revision, ephemeral: s.ephemeral, persisted: s.persisted, quota: s.storage?.quota ?? null, problem: s.problem?.code ?? null });
     return restored;
 });
 let edits = 0;
@@ -204,8 +206,45 @@ window.fixture = {
         return written;
     },
     unfill: () => new Promise((res) => { const r = indexedDB.deleteDatabase("filler"); r.onsuccess = r.onerror = () => res(true); }),
+    // Hold a read-write transaction over the autosave database open, so the element's next write
+    // queues behind it and stays pending, as a stuck IndexedDB leaves it; release() lets it finish.
+    async hold() {
+        const db = await new Promise((res, rej) => { const r = indexedDB.open("graphty-autosave"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+        const tx = db.transaction(["entries", "parts", "blobs"], "readwrite");
+        const held = (window.__held = { on: true, spins: 0, ended: null });
+        tx.oncomplete = () => { held.ended = "complete"; db.close(); };
+        tx.onabort = () => { held.ended = "abort " + (tx.error?.name ?? ""); db.close(); };
+        // Resolves once the transaction runs, so every write the element starts later queues behind it.
+        return new Promise((started) => {
+            const spin = () => { held.spins++; started(true); if (held.on) tx.objectStore("entries").count().onsuccess = spin; };
+            tx.objectStore("entries").count().onsuccess = spin;
+        });
+    },
+    release() { if (window.__held) window.__held.on = false; return true; },
+    // For the benchmark: one change ("data", a probe edit, or "ordinary", a settings change), then
+    // a forced write; the milliseconds from the change to the commit.
+    async cost(kind) {
+        await ready;
+        const start = performance.now();
+        if (kind === "data") await this.next(); else await el.session.config.set({ name: "bench " + start });
+        await el.autosaver.flush();
+        const status = el.autosaver.status;
+        return { ms: performance.now() - start, state: status.state, problem: status.problem?.code ?? null };
+    },
 };
 report("loaded");
+// Self-driving, for a browser no test can script (the iOS Simulator): auto=<n> makes n edits, waits
+// until they are saved and reports "auto-saved"; tail=1 then makes one more edit and leaves it to the
+// write schedule or to the page being hidden.
+if (params.has("auto")) {
+    (async () => {
+        let revision = 0;
+        for (let i = 0; i < Number(params.get("auto")); i++) revision = await window.fixture.next();
+        await el.autosaver.flush();
+        report("auto-saved", { revision, state: el.autosaver.status.state });
+        if (params.get("tail") === "1") report("auto-tail", { revision: await window.fixture.next() });
+    })();
+}
 </script></body></html>`;
 
 /**

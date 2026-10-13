@@ -1,0 +1,133 @@
+# .github/workflows/work-protection-macos.yml -- graphty-element's autosave on Apple's engines, which no Linux
+# runner has: Playwright's WebKit on macOS, real Safari through safaridriver, and Safari on iOS in the iOS
+# Simulator (design/work-protection/design.md section 9, plan.md step 7). The Linux half of the same checks is
+# ci.yml's graphty-element-lifecycle shard, on every pull request that affects graphty-element.
+#
+# Where it runs: the release train calls it on the commit it is about to release, beside hosts.yml, and a red run
+# holds the release; and on demand (gh workflow run work-protection-macos.yml --ref <branch>). Never on a pull
+# request or a master push: macOS minutes cost about ten times Linux, so every job has a time limit.
+# macos-26 is pinned (macos-latest drifts), and the iOS job selects Xcode 26.
+#
+# The bundle the tests serve is built once, on Linux, and handed to the macOS jobs as an artifact.
+name: Work protection (macOS)
+on:
+    # The release train (release.yml) calls it with the commit it selected.
+    workflow_call:
+        inputs:
+            ref:
+                description: "the commit to test"
+                type: string
+                required: true
+    workflow_dispatch:
+permissions: { contents: read }
+concurrency:
+    group: work-protection-macos-${{ inputs.ref && format('release-{0}', inputs.ref) || github.ref }}
+    cancel-in-progress: false
+
+jobs:
+    bundle:
+        name: Build the bundle
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@v4
+              with: { ref: "${{ inputs.ref }}" }
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with: { node-version: 22.x, cache: pnpm }
+            - run: pnpm install --frozen-lockfile
+              env: { HUSKY: "0" }
+            - run: pnpm exec nx run graphty-element:build
+              env: { NODE_OPTIONS: "--max-old-space-size=8192" }
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: work-protection-bundle
+                  path: graphty-element/dist/graphty.bundle.js
+                  retention-days: 3
+
+    # The kill and relaunch rows: Playwright's WebKit on a persistent profile, the browser killed and relaunched,
+    # and its web content process killed. Real Safari cannot run these: each safaridriver session may start
+    # from a fresh profile (the probe in the safari job records whether it does).
+    webkit:
+        name: WebKit kill and relaunch (macOS)
+        needs: bundle
+        runs-on: macos-26
+        timeout-minutes: 25
+        env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
+        defaults: { run: { working-directory: graphty-element } }
+        steps:
+            - uses: actions/checkout@v4
+              with: { ref: "${{ inputs.ref }}" }
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with: { node-version: 22.x, cache: pnpm }
+            - run: pnpm install --frozen-lockfile
+              working-directory: .
+              env: { HUSKY: "0" }
+            - uses: actions/download-artifact@v4
+              with: { name: work-protection-bundle, path: graphty-element/dist }
+            - run: pnpm exec playwright install webkit
+            - name: Kill and relaunch (Playwright WebKit)
+              run: pnpm exec vitest run --project=lifecycle test/lifecycle/engines.test.ts -t "^webkit|WebKit web process killed"
+            # Recorded against design section 5.4, never asserted; it gates nothing.
+            - name: Benchmark (WebKit, recorded)
+              continue-on-error: true
+              timeout-minutes: 10
+              run: pnpm exec vitest run --project=bench test/lifecycle/autosave-engines.bench.test.ts -t "^webkit"
+
+    safari:
+        name: Safari (macOS)
+        needs: bundle
+        runs-on: macos-26
+        timeout-minutes: 20
+        env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
+        defaults: { run: { working-directory: graphty-element } }
+        steps:
+            - uses: actions/checkout@v4
+              with: { ref: "${{ inputs.ref }}" }
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with: { node-version: 22.x, cache: pnpm }
+            - run: pnpm install --frozen-lockfile
+              working-directory: .
+              env: { HUSKY: "0" }
+            - uses: actions/download-artifact@v4
+              with: { name: work-protection-bundle, path: graphty-element/dist }
+            - name: Allow Safari to be automated
+              run: sudo safaridriver --enable
+            - name: "Probe: does IndexedDB survive from one safaridriver session to the next?"
+              timeout-minutes: 5
+              run: pnpm exec vitest run --project=lifecycle test/lifecycle/safari.test.ts -t "probe"
+            - name: The hide transition, stall detection and persist()
+              timeout-minutes: 10
+              run: pnpm exec vitest run --project=lifecycle test/lifecycle/safari.test.ts -t "hidden|stalled|persist"
+
+    ios:
+        name: Safari on iOS (Simulator)
+        needs: bundle
+        runs-on: macos-26
+        timeout-minutes: 30
+        env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
+        defaults: { run: { working-directory: graphty-element } }
+        steps:
+            - uses: actions/checkout@v4
+              with: { ref: "${{ inputs.ref }}" }
+            - name: Xcode 26
+              run: |
+                  xcode=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+                  [ -n "$xcode" ] || { echo "::error::no Xcode 26 on this runner"; ls -d /Applications/Xcode*; exit 1; }
+                  sudo xcode-select -s "$xcode"
+                  xcodebuild -version
+                  xcrun simctl list runtimes
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with: { node-version: 22.x, cache: pnpm }
+            - run: pnpm install --frozen-lockfile
+              working-directory: .
+              env: { HUSKY: "0" }
+            - uses: actions/download-artifact@v4
+              with: { name: work-protection-bundle, path: graphty-element/dist }
+            - name: App switch, then Safari terminated
+              timeout-minutes: 20
+              # Booting a simulator and Safari's first launch take minutes: the step's limit bounds them, not vitest's.
+              run: pnpm exec vitest run --project=lifecycle --hookTimeout=900000 --testTimeout=900000 test/lifecycle/ios-simulator.test.ts

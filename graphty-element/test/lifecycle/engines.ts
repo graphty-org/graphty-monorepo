@@ -83,6 +83,14 @@ export function browserProcesses(userDataDir: string): Proc[] {
  * @returns The page processes.
  */
 export function pageProcesses(engine: Engine, userDataDir: string): Proc[] {
+    if (engine === "webkit" && process.platform === "darwin") {
+        // macOS starts WebKit's web content processes as XPC services, children of launchd rather than
+        // of the browser, so they are found by the WebKit build they run from. A test runs one browser
+        // of that build at a time.
+        const build = path.dirname(webkit.executablePath());
+        return processes().filter((proc) => proc.cmdline.includes(build) && proc.cmdline.includes("WebContent"));
+    }
+
     const isPage: Record<Engine, (cmdline: string) => boolean> = {
         webkit: (cmdline) => cmdline.includes("WebKitWebProcess"),
         chromium: (cmdline) => cmdline.includes("--type=renderer") && !cmdline.includes("--extension-process"),

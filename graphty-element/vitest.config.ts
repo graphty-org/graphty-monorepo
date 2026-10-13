@@ -295,6 +295,10 @@ export default defineConfig({
                     // A browser benchmark needs a page, which this project has not got: it runs in
                     // "browser-bench" below.
                     exclude: ["test/browser/**", "**/node_modules/**"],
+                    // test/lifecycle/autosave-engines.bench.test.ts launches three browsers per size,
+                    // up to 100,000 nodes each.
+                    testTimeout: 600_000,
+                    hookTimeout: 120_000,
                 },
             },
             {
@@ -544,7 +548,11 @@ export default defineConfig({
                         // `--expose-gc` gives the page `gc()`, which history-scale.bench.test.ts calls
                         // before each timed step so the step is not charged for a collection that
                         // the steps before it made due. Its header has the numbers.
-                        provider: playwright({ launchOptions: { args: ["--js-flags=--expose-gc"] } }),
+                        // `--enable-precise-memory-info` makes performance.memory exact rather than
+                        // bucketed, for the restore memory peak in autosave-write.bench.test.ts.
+                        provider: playwright({
+                            launchOptions: { args: ["--js-flags=--expose-gc", "--enable-precise-memory-info"] },
+                        }),
                         instances: [{ browser: "chromium" }],
                     },
                 },
@@ -799,6 +807,8 @@ export default defineConfig({
                     name: "lifecycle",
                     environment: "node",
                     include: ["test/lifecycle/**/*.test.ts"],
+                    // The benchmark beside these tests runs in "bench".
+                    exclude: ["**/*.bench.test.ts", "**/node_modules/**"],
                     fileParallelism: false,
                     testTimeout: 120_000,
                     hookTimeout: 60_000,

@@ -14,12 +14,12 @@ name: Release
 #    path.
 # 2. On that commit, in parallel: the FULL CI suite (ci.yml called on it, every shard of every package, which
 #    also makes the builds this release ships), the paid NVIDIA T4 lane (gpu.yml), the host matrix (hosts.yml,
-#    full scope), the security audit of the shipped dependencies and the LLM regression tests (graphty-element's
+#    full scope), graphty-element's autosave on Safari, iOS and macOS WebKit (work-protection-macos.yml), the security audit of the shipped dependencies and the LLM regression tests (graphty-element's
 #    llm-regression project: real, paid Google Gemini calls that check the model still picks the element's tools,
 #    with the GOOGLE_API_KEY repository secret; a missing secret fails the job, it never skips, and a key or balance
 #    the provider refuses holds the release as an owner item). Coverage is published from the same CI run
 #    (coverage.yml).
-# 3. Only when all five pass, the version job versions the tested commit with nx release (one local commit holding
+# 3. Only when all six pass, the version job versions the tested commit with nx release (one local commit holding
 #    only version fields and changelogs). Anything red before the release lands holds the WHOLE release: nothing
 #    pushed, nothing published, and the held job opens or updates the one train hold, a "Release held: <what>
 #    failed on <sha>" issue for githerd to fix. A later train that lands closes it.
@@ -264,6 +264,18 @@ jobs:
         with:
             ref: ${{ needs.pick.outputs.sha }}
 
+    # graphty-element's autosave on Apple's engines (Playwright's WebKit on macOS, real Safari, Safari on iOS in
+    # the Simulator) on exactly the candidate: data a reader loses there is a release blocker like any other.
+    autosave_macos:
+        name: Work protection (macOS)
+        needs: pick
+        if: ${{ needs.pick.outputs.release == 'true' }}
+        permissions:
+            contents: read
+        uses: ./.github/workflows/work-protection-macos.yml
+        with:
+            ref: ${{ needs.pick.outputs.sha }}
+
     # The security audit lives here, not in CI: a high or critical advisory against the candidate's shipped
     # (production) dependencies holds the release, never an unrelated pull request. Development tools are left
     # out: they are not published. To release past an advisory that does not apply, add its GHSA to package.json
@@ -377,7 +389,7 @@ jobs:
     # does not run, the publish job runs, and the land job reports that failure itself.
     held:
         name: Hold the release
-        needs: [pick, ci, t4, hosts, audit, llm, version, land]
+        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version, land]
         if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.land.outputs.pushed != 'true')) }}
         runs-on: ubuntu-24.04
         permissions:
@@ -391,6 +403,7 @@ jobs:
             CI_RESULT: ${{ needs.ci.result }}
             T4_RESULT: ${{ needs.t4.result }}
             HOSTS_RESULT: ${{ needs.hosts.result }}
+            AUTOSAVE_MACOS_RESULT: ${{ needs.autosave_macos.result }}
             AUDIT_RESULT: ${{ needs.audit.result }}
             LLM_RESULT: ${{ needs.llm.result }}
             LLM_OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
@@ -418,7 +431,7 @@ jobs:
                   [ -z "$LLM_OWNER_ITEM" ] || llm_lane="LLM regression (owner item: Google account)"
                   results=()
                   for lane in "candidate pick=$PICK_RESULT" "CI=$CI_RESULT" "T4 GPU=$T4_RESULT" "Hosts=$HOSTS_RESULT" \
-                      "security audit=$AUDIT_RESULT" "$llm_lane=$LLM_RESULT" "versioning=$VERSION_RESULT" \
+                      "work protection (macOS)=$AUTOSAVE_MACOS_RESULT" "security audit=$AUDIT_RESULT" "$llm_lane=$LLM_RESULT" "versioning=$VERSION_RESULT" \
                       "landing on master=$LAND_RESULT"; do
                       results+=("${lane%%=*} ${lane#*=}")
                       case "${lane#*=}" in success | skipped) ;; *) what+=("${lane%%=*}") ;; esac
@@ -502,13 +515,13 @@ jobs:
                   node tools/release-status.mjs held --sha "$SHA" --what "$WHAT" --issue "$ISSUE" "${restart[@]}" \
                       --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
-    # Versions the tested commit, only after the full suite, the T4, Hosts, the audit and the LLM regression tests
+    # Versions the tested commit, only after the full suite, the T4, Hosts, work protection on macOS, the audit and the LLM regression tests
     # all passed on it. Nothing leaves this job but artifacts: the land job pushes, the publish job publishes. It
     # holds no deploy key, because it runs the repository's install scripts and nx.
     version:
         name: Version the release
-        needs: [pick, ci, t4, hosts, audit, llm]
-        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' }}
+        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm]
+        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' }}
         runs-on: ubuntu-24.04
         permissions:
             actions: read

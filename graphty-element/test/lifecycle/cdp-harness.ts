@@ -16,7 +16,7 @@
  * `chrome.tabs.discard` the way Memory Saver and tab-suspender extensions do.
  */
 
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,10 +46,18 @@ export interface Proc {
 }
 
 /**
- * Every process on this machine, read from /proc.
+ * Every process on this machine, read from /proc, or from `ps` where there is none (macOS).
  * @returns The processes.
  */
 export function processes(): Proc[] {
+    if (!existsSync("/proc/self")) {
+        return execFileSync("ps", ["-axww", "-o", "pid=,ppid=,command="], { encoding: "utf8", maxBuffer: 64 << 20 })
+            .split("\n")
+            .map((line) => /^\s*(\d+)\s+(\d+)\s(.*)$/.exec(line))
+            .filter((match) => match !== null)
+            .map((match) => ({ pid: Number(match[1]), ppid: Number(match[2]), cmdline: match[3] }));
+    }
+
     const found: Proc[] = [];
     for (const name of readdirSync("/proc")) {
         if (!/^\d+$/.test(name)) {

@@ -321,7 +321,24 @@ a write after a data change is about 0.7 s and 14 MB, at idle; between writes, n
 (not a timing test) holds these budgets, including three algorithm runs and a memory-peak line for
 restore.
 
-### 5.5 Recovery on the next load
+#**Measured (2026-10-13, i9-14900, headless Chromium, recorded by the benchmark, never asserted).**
+Main-thread build of the parts, then the whole forced write with the IndexedDB commit:
+
+| Nodes   | Write after a data change   | Ordinary write             | Restore, and its heap peak |
+| ------- | --------------------------- | -------------------------- | -------------------------- |
+| 10,000  | 20 to 47 ms build, 0.6 MB   | 0.1 ms build, 1.2 KB, 2 ms | 0.35 s, 21 MB              |
+| 50,000  | 117 to 152 ms build, 3.2 MB | 0.1 to 0.2 ms build, 3 ms  | 1.5 s, 52 MB               |
+| 100,000 | 230 to 302 ms build, 6.4 MB | 0.1 ms build, 5 ms         | 2.9 s, 128 MB              |
+
+Both writes are inside the budget. The first run found the ordinary write at 32 ms (50,000 nodes) and
+65 to 105 ms (100,000): the view-state member built a map of every edge id even with nothing
+selected. It now reads the ids only when an edge is selected (`test/autosave/parts.test.ts`). In
+Firefox, through the fixture page with rendering, a write after a data change took 0.7 to 1.3 s at
+50,000 nodes and about 2 s at 100,000. The write started on `pagehide`, with every earlier write held
+back, landed in 0 of 5 navigations and 0 of 5 closes in Chromium and 2 of 5 navigations and 0 of 5
+closes in Firefox: the guarantee rests on the writes while visible, as above, not on `pagehide`.
+
+## 5.5 Recovery on the next load
 
 When the element connects with autosave on, it does this before any data loads:
 
@@ -449,9 +466,10 @@ fires `graphty-autosave-available` with reason `"manual"` when entries exist, an
     - `"off"`.
 
     The guard has no effect on iOS, where `beforeunload` never fires; the documentation says so.
-    Whether Firefox's automatic tab unloader and tab-suspender extensions honor the veto is checked by
-    the lifecycle harness (9); until it passes, the documentation does not claim it, and nothing relies
-    on it.
+    Firefox's automatic tab unloader honors the veto: the lifecycle harness (9) shows a background tab
+    with a pending write is kept, the same tab is unloaded once saved, and with the listener removed
+    the tab with unwritten work is unloaded (checked on Firefox 158, 2026-10-13). Tab-suspender
+    extensions are not checked, and the documentation does not claim them.
 
 ### 5.7 The stash: small consumer state saved with the work
 
@@ -698,7 +716,7 @@ the member problems and `E_UNSUPPORTED_VERSION`.
 | Scenario                                                            | Browsers                                              | What protects                                                                                                   | How it is tested                                                                                                                                                                                                                                                                                                                                             |
 | ------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Tab discarded (Memory Saver, urgent, extension, Edge sleeping tabs) | Chrome, Edge; Android often                           | continuous write, write on hide, restore on load                                                                | headed Chrome for Testing under xvfb: edit, open a second tab in front, assert a write committed after `visibilitychange`, discard through the test extension's `chrome.tabs.discard`, then through `chrome://discards` urgent discard, reactivate, assert `wasDiscarded` and the restore of the tab's own entry while a newer entry from another tab exists |
-| Firefox low-memory unloader                                         | Firefox desktop                                       | continuous write; the `beforeunload` veto while a write is pending, if the harness confirms it                  | geckodriver with `-remote-allow-system-access`, Marionette chrome context: `TabUnloader.unloadLeastRecentlyUsedTab()` while pending (assert not unloaded) and after `saved` (assert unloaded and restored on reselect)                                                                                                                                       |
+| Firefox low-memory unloader                                         | Firefox desktop                                       | continuous write; the `beforeunload` veto while a write is pending, if the harness confirms it                  | Marionette (no geckodriver) on Mozilla's Firefox with `-remote-allow-system-access`, chrome context: `TabUnloader.unloadLeastRecentlyUsedTab()` while pending (assert not unloaded) and after `saved` (assert unloaded and restored on reselect)                                                                                                             |
 | Frozen, then killed                                                 | Chrome Energy Saver, Android, Safari after about 20 s | the writes on hide and on `freeze` have already committed                                                       | raw CDP `Page.setWebLifecycleState frozen`, assert the page logged `freeze`, kill the renderer                                                                                                                                                                                                                                                               |
 | Process killed (out of memory, jetsam, Android lmkd)                | iPad Safari often; Android; all                       | continuous write                                                                                                | renderer `SIGKILL` after an edit at 1,000, 50,000 and 100,000 nodes; Playwright WebKit with the web process killed by pid; iPad protocol for jetsam                                                                                                                                                                                                          |
 | Renderer or GPU-process crash                                       | all                                                   | same as above; GPU state is never the source of truth                                                           | CDP `Page.crash`                                                                                                                                                                                                                                                                                                                                             |
@@ -775,10 +793,14 @@ counted work, never elapsed time or millisecond offsets.
   listen for `Page.backForwardCacheNotUsed`, go back, assert the event did not fire and
   `pageshow.persisted` is true; once in `saved` and once right after an edit. Firefox and WebKit
   assert `pageshow.persisted` only.
-- **Firefox harness.** geckodriver (a new CI dependency) for the unloader tests in section 8. If it
-  cannot be added, the veto claim stays documented as untested.
-- **Release train and nightly, on macOS (`hosts.yml`, never on pull requests; each job has a time
-  limit, since macOS minutes cost about ten times Linux).**
+- **Firefox harness.** Marionette spoken directly over TCP (`test/lifecycle/marionette.ts`, no
+  geckodriver, no new dependency) with `-remote-allow-system-access` and the chrome context, for the
+  unloader test in section 8. It runs Mozilla's own Firefox, downloaded from archive.mozilla.org at a
+  pinned version: Playwright's Firefox build never reports a background tab as hidden, so the write
+  on hide would never run under it. It adds about 20 seconds to the lifecycle shard.
+- **Release train and on demand, on macOS (`work-protection-macos.yml`, called by `release.yml`
+  beside `hosts.yml`; never on pull requests; each job has a time limit, since macOS minutes cost
+  about ten times Linux).**
     - First, one 5-minute job checks whether IndexedDB persists across safaridriver sessions. If not,
       as expected, kill and relaunch tests run on Playwright's macOS WebKit with a persistent context.
     - **Real Safari** (Xcode 26 pinned) covers what only Safari has, each within one safaridriver
@@ -821,7 +843,7 @@ counted work, never elapsed time or millisecond offsets.
     - unit, oracle, in-page browser, lifecycle and Chromium-harness tests
 2. **Safari, Firefox harness and the app.**
     - the macOS jobs, the iOS Simulator run, the iPad protocol and the diagnostics story
-    - the geckodriver unloader tests
+    - the Firefox unloader test (Marionette)
     - the benchmark
     - the graphty app turning autosave on and stashing note drafts
 3. **Beyond the origin, and beyond state.**

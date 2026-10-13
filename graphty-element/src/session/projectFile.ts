@@ -624,18 +624,22 @@ export function notesMember(session: GraphSession): Record<string, unknown> {
 /**
  * The `graphty-view-state` member: the selection, its edges by position in the data member.
  * @param session - The session.
- * @param ids - The graph's ids.
+ * @param ids - The graph's ids, or a function that reads them (called only when an edge is selected).
  * @returns The member.
  */
-export function viewStateMember(session: GraphSession, ids: GraphIds): Record<string, unknown> {
+export function viewStateMember(session: GraphSession, ids: GraphIds | (() => GraphIds)): Record<string, unknown> {
     const { selection } = session;
-    const edgeAt = new Map(ids.edges.map((edge, at) => [edge, at]));
+    // The edge ids are read only when an edge is selected: building them costs a pass over every
+    // edge, which an autosave of a settings change would otherwise pay on every write.
+    let edgeAt: Map<EdgeId, number> | undefined;
+    const indexOf = (edge: EdgeId): number | undefined =>
+        (edgeAt ??= new Map((typeof ids === "function" ? ids() : ids).edges.map((id, at) => [id, at]))).get(edge);
     return {
         kind: "graphty-view-state",
         version: VERSION,
         selection: {
             nodes: [...selection.nodes],
-            edges: [...selection.edges].flatMap((edge) => edgeAt.get(edge) ?? []),
+            edges: [...selection.edges].flatMap((edge) => indexOf(edge) ?? []),
         },
     };
 }

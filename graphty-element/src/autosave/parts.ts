@@ -137,7 +137,7 @@ export function buildParts(
                 results: resultsMember(session, []),
                 style: styleMember(session),
                 notes: notesMember(session),
-                viewState: viewStateMember(session, idsNow()),
+                viewState: viewStateMember(session, idsNow),
             };
             return JSON.stringify(rest);
         });

@@ -35,6 +35,7 @@ export {
     kamadaKawai,
     type KamadaKawaiOptions,
     type LayerAlign,
+    type LayoutErrorCode,
     multipartite,
     type MultipartiteLayoutOptions,
     planar,

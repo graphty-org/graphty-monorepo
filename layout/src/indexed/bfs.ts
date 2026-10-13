@@ -2,7 +2,7 @@ import { type GraphSnapshot, type NodeRef, resolveNode } from "@graphty/graph-fo
 
 import type { LayoutResult } from "../positions.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
+import { type CommonLayoutOptions, planar, refusal, resolve, result } from "./common.js";
 import { type LayerAlign, layeredRows, multipartitePlace } from "./multipartite.js";
 
 /** Options of the index-based breadth-first layout. */
@@ -24,7 +24,10 @@ export interface BfsLayoutOptions extends CommonLayoutOptions {
 function bfsLayers(g: GraphSnapshot, start: number): number[][] {
     const n = g.nodeCount;
     if (!Number.isInteger(start) || start < 0 || start >= n) {
-        throw new Error(`start node ${String(start)} is not in the graph`);
+        throw refusal(new Error(`start node ${String(start)} is not in the graph`), "E_BAD_NODE", {
+            option: "start",
+            index: start,
+        });
     }
     const visited = new Uint8Array(n);
     visited[start] = 1;
@@ -65,7 +68,9 @@ function bfsLayers(g: GraphSnapshot, start: number): number[][] {
  * @param options - `scale` is the distance of the farthest node from the centre; `start` the first layer
  * @returns the layout
  * @throws an Error when the graph is not connected, with `code` `E_NOT_CONNECTED` and `params`
- * `{ nodeCount, reached }` (the nodes the search from `start` reached)
+ * `{ nodeCount, reached }` (the nodes the search from `start` reached); with `code` `E_BAD_NODE` and `params`
+ * `{ option: "start", index }` when `start` is an index that is not a node (a `{ id }` the graph does not hold is
+ * graph-format's `E_UNKNOWN_NODE`)
  */
 export function bfs(s: GraphSnapshot, options: BfsLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);

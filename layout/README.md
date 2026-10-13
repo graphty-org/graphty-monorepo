@@ -581,7 +581,16 @@ A test runs every layout to check its entry, so the catalog changes when a layou
 
 ## Error Handling
 
-Invalid input throws an `Error` whose message names the problem:
+A layout that refuses its input throws an `Error` with a stable `code` (a `LayoutErrorCode`) and `params` holding
+the facts. Switch on the code; the message is for people and may change:
+
+- `E_BAD_OPTION`: an option is out of range or not one of its values; `params` `{ option, value }`, or
+  `{ option, length, expected }` for an array of the wrong length
+- `E_BAD_NODE`: `start`, `root`, `nlist` or `subsets` names a node index that is not a node; `{ option, index }`
+- `E_UNKNOWN_COLUMN`: `subsets`, `nlist` or `top` names a node column the snapshot does not hold; `{ option, column }`
+- `E_COLUMN_TYPE`: that column has a dtype the layout cannot read; `{ option, column, dtype, expected }`
+- `E_BAD_WEIGHT`: a `kamadaKawai` weight is negative; `{ weight }`
+- `E_NOT_PLANAR`, `E_NOT_CONNECTED`, `E_TOO_LARGE`: see `planar`, `bfs` and `kamadaKawai`
 
 <!-- doc-check -->
 
@@ -594,7 +603,9 @@ const s = fromEdgeArrays(completeGraph({ n: 5 }));
 try {
     arf(s, { a: 0.5 });
 } catch (error) {
-    console.log((error as Error).message); // "The parameter a should be larger than 1"
+    const { code, params } = error as Error & { code?: string; params?: object };
+    console.log(code); // "E_BAD_OPTION"
+    console.log(params); // {"option":"a","value":0.5}
 }
 ```
 

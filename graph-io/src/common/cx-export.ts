@@ -272,17 +272,26 @@ export function nonFinitePositions(position: Column): number {
 
 /**
  * The edge ids to write: the id role column's values when they are distinct safe integers, next
- * unused integers for edges without one (W_EDGE_IDS_GENERATED).
+ * unused integers for edges without one (W_EDGE_IDS_GENERATED). A generated id is never a
+ * written node id either: CX keeps node and edge ids apart, but Cytoscape desktop numbers both
+ * from one counter, and a reader with one id space (Cytoscape.js) would have to drop the edge's.
  * @param snapshot - the snapshot
  * @param note - records a note
+ * @param nodeIds - the written node ids, which generated edge ids avoid
  * @returns one id per edge
  * @category Plugin helpers
  */
-export function planEdgeIds(snapshot: GraphSnapshot, note: CxNoteFn): number[] {
+export function planEdgeIds(snapshot: GraphSnapshot, note: CxNoteFn, nodeIds: WrittenIds | null = null): number[] {
     const column = snapshot.edges.byRole("id");
     const used = new Set<number>();
     let generated = 0;
     const ids: (number | null)[] = keptEdgeIds(column, snapshot.edgeCount, used);
+    for (let i = 0; nodeIds !== null && i < snapshot.nodeCount; i++) {
+        const id = nodeIds.idAt(i);
+        if (typeof id === "number") {
+            used.add(id);
+        }
+    }
     let next = 0;
     const out: number[] = [];
     for (let e = 0; e < snapshot.edgeCount; e++) {

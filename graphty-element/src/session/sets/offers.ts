@@ -40,6 +40,9 @@ import type { ElementSet, Memberships, SetOffer } from "./types";
 /** Counts the offers tests read. */
 export const offerCounters = { nodeScans: 0, edgePasses: 0 };
 
+/** The value an item is keyed on. */
+type KeyValue = string | number | boolean;
+
 /** What one shape offers. */
 interface OfferedShape {
     /** The per-element field an item is keyed on. */
@@ -57,7 +60,7 @@ interface OfferedShape {
      * @param value - The key's value.
      * @returns The name.
      */
-    name(value: string | number | boolean): string;
+    name(value: KeyValue): string;
 }
 
 /**
@@ -87,7 +90,7 @@ const OFFERED: Partial<Record<ResultShape, OfferedShape>> = {
         followable: true,
         path: false,
         partition: true,
-        name: (value) => String(value),
+        name: String,
     },
     "node-set": {
         field: "in",

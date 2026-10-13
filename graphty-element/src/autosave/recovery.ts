@@ -46,6 +46,34 @@ export function sourceDigest(source: PageSource): string {
 }
 
 /**
+ * Which part of the page's data a load supplies. Rows of nodes and rows of edges arrive apart
+ * (`nodeData`, then `edgeData`), so each keeps its own digest; any other load replaces the whole
+ * graph, and so every digest before it.
+ * @param source - What the load came from.
+ * @returns `"nodes"`, `"edges"` or `"whole"`.
+ */
+export function sourceSlot(source: PageSource): "nodes" | "edges" | "whole" {
+    if (source.kind !== "rows") {
+        return "whole";
+    }
+
+    return source.nodes === undefined ? "edges" : "nodes";
+}
+
+/**
+ * The source digests a meta holds, by slot; empty for anything else.
+ * @param value - The meta's `source`.
+ * @returns The digests.
+ */
+export function sourcesOf(value: unknown): Readonly<Record<string, string>> {
+    return typeof value === "object" && value !== null && !Array.isArray(value)
+        ? Object.fromEntries(
+              Object.entries(value).filter((pair): pair is [string, string] => typeof pair[1] === "string"),
+          )
+        : {};
+}
+
+/**
  * One digest per setting the page made.
  * @param config - The settings, by name.
  * @returns Their digests, by name.

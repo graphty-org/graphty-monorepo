@@ -247,3 +247,80 @@ export interface AutosaveAvailable {
     /** Why the restore failed, for `"restore-failed"`; otherwise null. */
     readonly problem: CodedFact | null;
 }
+
+/** How `<graphty-element>` autosaves, set through its `autosaveOptions` property. Every field is optional. */
+export interface AutosaveOptions {
+    /** The autosave key; overrides the `autosave` attribute's value. Entries of one key never mix with another's. */
+    readonly key: string;
+    /** `"auto"` (the default) restores this tab's work on load; `"manual"` only reports it (`graphty-autosave-available`). */
+    readonly restore: "auto" | "manual";
+    /** The trailing debounce of a write while the page is visible, in milliseconds; 500. */
+    readonly delayMs: number;
+    /** The most a change waits for its write, in milliseconds; 2000. */
+    readonly maxWaitMs: number;
+    /** The most a change to the graph's data waits for its write (written when the page is idle), in milliseconds; 10000. */
+    readonly dataMaxWaitMs: number;
+    /** Entries kept per key beyond which clean ones are deleted, oldest first; 10. An entry holding unsaved work is never deleted. */
+    readonly keep: number;
+    /**
+     * Ask the browser for persistent storage (`navigator.storage.persist()`) once per page load,
+     * after the first write that follows a user gesture; false. Firefox shows its own prompt.
+     */
+    readonly persist: boolean;
+    /**
+     * When the element asks the reader before the page closes: `"pending"` (the default) only
+     * while a write is outstanding or failing; `"unexported"` while the work was never saved to a
+     * file; `"off"` never. Browsers on iOS never ask.
+     */
+    readonly unloadGuard: "pending" | "unexported" | "off";
+    /** Where entries are kept; the browser's IndexedDB (database `graphty-autosave`) by default. */
+    readonly store: AutosaveStore;
+}
+
+/** `element.autosaver`: the state of autosave, and what can be done with the saved entries. */
+export interface AutosaveApi {
+    /** Where autosave stands now. `graphty-autosave-status` fires on every change, never at connect. */
+    readonly status: AutosaveStatus;
+    /** Settles once the restore at load was decided: what came back, or null. */
+    readonly ready: Promise<AutosaveRestored | null>;
+    /** The last restore in this element, or null. */
+    readonly restored: AutosaveRestored | null;
+    /** Write everything now. Settles once committed, or once the write failed (read `status`). */
+    flush(): Promise<void>;
+    /** Every entry of this key, oldest first. */
+    list(): Promise<readonly AutosaveEntry[]>;
+    /**
+     * Open an entry into the graph, and keep writing to it. The work held now ends and stays listed.
+     * @param id - The entry.
+     * @param options - How to open it.
+     * @param options.discard - Open it over changes never saved to a file.
+     * @throws A `GraphtyError` (as a rejection): `E_UNSAVED_CHANGES`, `E_AUTOSAVE_UNKNOWN_ENTRY`,
+     *     `E_AUTOSAVE_ENTRY_TAKEN`, or `E_BAD_DOCUMENT` for an entry that cannot be read.
+     */
+    restore(id: string, options?: { readonly discard?: boolean }): Promise<ProjectOpenReport>;
+    /**
+     * Delete an entry no tab is writing.
+     * @param id - The entry.
+     * @throws A `GraphtyError` (as a rejection): `E_AUTOSAVE_UNKNOWN_ENTRY` or `E_AUTOSAVE_ENTRY_TAKEN`.
+     */
+    remove(id: string): Promise<void>;
+    /** Delete every entry of this key that no tab is writing. */
+    removeAll(): Promise<void>;
+    /** Delete this tab's own entry and load the page's own data again: start over. */
+    discard(): Promise<void>;
+    /**
+     * Save a small JSON value with the work, under a reverse-domain name (`org.example.draft`);
+     * `undefined` removes it. Never stash API keys or other secrets: the stash is stored unencrypted.
+     * @param name - The name.
+     * @param value - The value.
+     */
+    stash(name: string, value: unknown): void;
+    /**
+     * A value saved with `stash`, valid once `ready` settled.
+     * @param name - The name.
+     * @returns A copy of the value, or undefined.
+     */
+    stashed(name: string): unknown;
+    /** Ask the browser for persistent storage now. Resolves with `status.persisted`. */
+    requestPersistence(): Promise<boolean>;
+}

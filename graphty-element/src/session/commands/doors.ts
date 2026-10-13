@@ -321,6 +321,7 @@ const INPUT = exempt("Input handling and input preferences; the gestures it driv
 const IN_FLIGHT = exempt("Stops or pauses work in flight; work in flight is not saved.");
 const VIEW_SETTING = exempt("A rendering preference of this view, not saved in a project file.");
 const HOST_HOOK = exempt("A function the host supplies; a project file cannot save it.");
+const AUTOSAVE_SETTING = exempt("Where and how this browser keeps the work; not part of the work a project saves.");
 const ASSISTANT = exempt(
     "The assistant's connection and status, not project state; what it does to the graph goes through the doors.",
 );
@@ -704,6 +705,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             downloadProject: exempt(
                 "Hands the saved project to the reader as a file; it changes nothing a project saves.",
             ),
+            autosave: AUTOSAVE_SETTING,
+            autosaveRestore: AUTOSAVE_SETTING,
+            autosaveOptions: AUTOSAVE_SETTING,
+            autosaver: READ,
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -1372,6 +1377,31 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/managers/OperationQueueManager.ts",
         half: "renderer",
         whole: QUEUE,
+    },
+    {
+        name: "AutosaveApi",
+        file: "src/autosave/types.ts",
+        half: "renderer",
+        doors: {
+            status: READ,
+            ready: READ,
+            restored: READ,
+            list: READ,
+            flush: exempt("Writes the work to the browser's storage; it changes nothing a project saves."),
+            remove: exempt("Deletes a saved copy in the browser's storage, not the work in the graph."),
+            removeAll: exempt("Deletes saved copies in the browser's storage, not the work in the graph."),
+            stash: exempt("Keeps the host's own state beside the work; a project file does not save it."),
+            stashed: READ,
+            requestPersistence: exempt("Asks the browser to keep this site's storage; it changes no work."),
+            restore: exempt(
+                "Opens a saved copy through project.open, one transaction whose writes go through the " +
+                    "session's own doors, which have rows of their own.",
+            ),
+            discard: exempt(
+                "Deletes this tab's saved copy and opens the page's own data again through project.open " +
+                    "and the data doors, which have rows of their own.",
+            ),
+        },
     },
     {
         name: "ExportResult",

@@ -20,7 +20,7 @@
  */
 
 import type { RunId } from "../catalog/types";
-import { isGraphtyError } from "../errors/GraphtyError";
+import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { dispatcherOf } from "../session/GraphSession";
 import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved } from "../session/projectFile";
@@ -36,11 +36,14 @@ import {
     pageConfigDigests,
     type PageSource,
     sourceDigest,
+    sourceSlot,
+    sourcesOf,
     textOf,
 } from "./recovery";
 import {
     type AutosaveAvailable,
     type AutosaveCode,
+    type AutosaveEntry,
     type AutosaveEntryMeta,
     type AutosaveRestored,
     type AutosaveStatus,
@@ -159,6 +162,8 @@ interface EntryState {
     /** The run entries in the store, by id. */
     readonly runs: Map<RunId, unknown>;
     release: (() => void) | null;
+    /** The size of each part the store holds for it, as far as this writer knows. */
+    sizes: Map<string, number>;
 }
 
 /** An entry left behind at a boundary: what it had not committed, and its meta, waiting to be ended. */
@@ -170,7 +175,9 @@ interface Ending {
 
 /** One commit, and what it does to this writer's books once it completes or fails. */
 interface Job {
-    readonly writes: AutosaveWrite[];
+    writes: AutosaveWrite[];
+    /** The entries the writes are for, by id: their generation is read again when the job commits. */
+    readonly entries: Map<string, EntryState>;
     readonly claim: EntryState[];
     readonly done: (() => void)[];
     readonly undo: (() => void)[];
@@ -213,6 +220,44 @@ async function estimate(): Promise<{ usage: number | null; quota: number | null 
     } catch {
         return { usage: null, quota: null };
     }
+}
+
+/**
+ * A refusal about one entry.
+ * @param code - Why.
+ * @param id - The entry.
+ * @returns The error.
+ */
+function entryError(code: "E_AUTOSAVE_UNKNOWN_ENTRY" | "E_AUTOSAVE_ENTRY_TAKEN", id: string): GraphtyError {
+    return new GraphtyError({
+        code,
+        message: `Autosave entry ${id}: ${code}.`,
+        source: "data",
+        details: { id },
+    });
+}
+
+/**
+ * The size of each part once some parts are written.
+ * @param sizes - The sizes before.
+ * @param parts - What is written; null removes a part.
+ * @returns The sizes after, in UTF-16 code units for text.
+ */
+function sizesAfter(
+    sizes: ReadonlyMap<string, number>,
+    parts: Readonly<Record<string, string | Uint8Array | null>>,
+): Map<string, number> {
+    const after = new Map(sizes);
+    for (const [name, value] of Object.entries(parts)) {
+        if (value === null) {
+            after.delete(name);
+        } else {
+            // ponytail: text length, not encoded bytes; close enough for a storage report.
+            after.set(name, typeof value === "string" ? value.length : value.byteLength);
+        }
+    }
+
+    return after;
 }
 
 /**
@@ -289,8 +334,14 @@ export class Autosaver {
     #blocked = false;
     /** The next write rewrites an older-format entry, flushed to disk. */
     #strict = false;
-    /** The digest of the page-supplied load the work was built from. */
-    #source: string | null = null;
+    /** The digests of the page-supplied loads the work was built from, by slot (`sourceSlot`). */
+    #source: Record<string, string> = {};
+    /** What the element knows about the storage, reported in the status. */
+    #facts: Pick<AutosaveStatus, "persisted" | "storage" | "ephemeral"> = {
+        persisted: null,
+        storage: null,
+        ephemeral: "unknown",
+    };
     /** The page's settings, digested, as written with every meta. */
     #pageConfig: Record<string, string> = {};
     /** The restored entry, until the first change or the first page load after the restore. */
@@ -314,8 +365,22 @@ export class Autosaver {
         this.#entry = this.#newEntry();
 
         const { session } = this;
-        const { arrangement } = dispatcherOf(session);
+        const dispatcher = dispatcherOf(session);
+        const { arrangement } = dispatcher;
         const sealed = (): void => {
+            // Layout rest after a page load is not the reader's work: only an entry already
+            // started writes it.
+            if (!this.#entry.started || this.#stopped) {
+                return;
+            }
+
+            if (!dispatcher.idle) {
+                // A group is opening (a drag takes its before-arrangement): the positions are
+                // written with the group's own commit, at the drop, never in the middle of it.
+                this.#entry.unwritten.add("arrangement");
+                return;
+            }
+
             this.#mark(["arrangement"], false, false);
         };
         arrangement.sealed.add(sealed);
@@ -353,11 +418,48 @@ export class Autosaver {
             revision: this.#saved?.revision ?? 0,
             entry: this.#entry.gen > 0 ? this.#entry.id : null,
             unexported: this.#stopped ? false : this.#session.project.dirty,
-            persisted: null,
-            storage: null,
-            ephemeral: "unknown",
+            ...this.#facts,
             problem: this.#problem,
         };
+    }
+
+    /**
+     * The storage facts the element gathered: whether storage is persisted, its use, and whether
+     * it is probably deleted with the window.
+     * @param facts - What changed.
+     * @param quiet - Take them as the starting point, telling no listener.
+     */
+    setFacts(facts: Partial<Pick<AutosaveStatus, "persisted" | "storage" | "ephemeral">>, quiet = false): void {
+        this.#facts = { ...this.#facts, ...facts };
+        if (quiet) {
+            this.#told = JSON.stringify(this.status);
+        } else {
+            this.#tell();
+        }
+    }
+
+    /**
+     * The entry this writer writes now, written yet or not.
+     * @returns Its id.
+     */
+    get entryId(): string {
+        return this.#entry.id;
+    }
+
+    /**
+     * Whether the entry this writer writes holds work: it has been changed, or was restored.
+     * @returns True once it has.
+     */
+    get started(): boolean {
+        return this.#entry.started;
+    }
+
+    /**
+     * The autosave key this writer writes under.
+     * @returns The key.
+     */
+    get key(): string {
+        return this.#key;
     }
 
     /**
@@ -557,20 +659,24 @@ export class Autosaver {
      * an entry by itself: reloading the page reproduces it.
      * @param source - What the load came from.
      * @param load - Runs the load.
+     * @param work - The page cannot repeat the load by itself (a file, a URL the reader chose): it
+     *     starts an entry.
      * @returns `"absorbed"` when the load was skipped, `"applied"` when it ran.
      */
-    async admit(source: PageSource, load: () => Promise<void>): Promise<"absorbed" | "applied"> {
+    async admit(source: PageSource, load: () => Promise<void>, work = false): Promise<"absorbed" | "applied"> {
         const digest = sourceDigest(source);
+        const slot = sourceSlot(source);
         const restored = this.#absorb;
-        this.#absorb = null;
-        if (restored !== null && restored.source === digest) {
+        // Nodes and edges arrive as two loads: an absorbed load leaves the next one absorbable.
+        if (restored !== null && sourcesOf(restored.source)[slot] === digest) {
             return "absorbed";
         }
 
+        this.#absorb = null;
         const replaces = this.#entry.started;
         // Ended here, before the load runs, whatever the load does to the graph.
         this.#boundary();
-        this.#source = digest;
+        this.#source = slot === "whole" ? { whole: digest } : { ...this.#source, [slot]: digest };
         this.#quiet += 1;
         try {
             await load();
@@ -582,9 +688,10 @@ export class Autosaver {
             this.#available(restored, true, "page-data-changed", null);
         }
 
-        if (replaces) {
+        if (replaces || work) {
             // The replaced entry ends in the new entry's first commit, which holds the new source,
-            // so the next reload absorbs this same load instead of replacing again.
+            // so the next reload absorbs this same load instead of replacing again. A load the page
+            // cannot repeat by itself (`work`: a file, a URL the reader chose) starts an entry.
             this.#mark(EVERY_PART, false, false);
         }
 
@@ -618,6 +725,235 @@ export class Autosaver {
             }
         });
         this.#tell();
+    }
+
+    /**
+     * The element is removed: build everything unwritten now, synchronously, while the session is
+     * still alive, and commit it after any write in flight. Then stop, and release the locks once
+     * that commit settled.
+     * @returns Settles once the final write committed or failed.
+     */
+    depart(): Promise<void> {
+        if (this.#stopped) {
+            return this.settled();
+        }
+
+        const entry = this.#entry;
+        if (entry.started) {
+            entry.unwritten.add("arrangement").add("rest");
+            // What the write in flight carries may yet fail: carry it again.
+            if (this.#carrying?.entry === entry) {
+                this.#carrying.tags.forEach((tag) => entry.unwritten.add(tag));
+            }
+        }
+
+        let job: Job | null = null;
+        if (!this.#blocked) {
+            try {
+                job = this.#build();
+            } catch (error) {
+                this.#failed(error);
+            }
+        }
+
+        const prior = this.#pump ?? Promise.resolve();
+        const pump = prior.then(() =>
+            job === null ? undefined : this.#writeOnce({ stall: 1, quota: 1, lost: 1 }, job),
+        );
+        this.#pump = pump;
+        this.stop();
+        return pump;
+    }
+
+    /**
+     * The page is going into the back/forward cache: release the entry's lock once everything is
+     * committed, since a held lock keeps a page out of that cache. Kept when a write is
+     * outstanding or failing: a cache miss is better than another tab writing the entry too.
+     */
+    async releaseLock(): Promise<void> {
+        await this.settled();
+        const entry = this.#entry;
+        if (this.#state() === "saved") {
+            entry.release?.();
+            entry.release = null;
+        }
+    }
+
+    /**
+     * The page came back from the back/forward cache or was resumed: take the entry's lock again.
+     * When another tab claimed the entry meanwhile, move to a new entry holding all of the work.
+     */
+    async reclaim(): Promise<void> {
+        const entry = this.#entry;
+        if (this.#stopped || entry.release !== null || entry.gen === 0) {
+            return;
+        }
+
+        const release = await this.#locks.claim(lockName(this.#key, entry.id));
+        if (entry !== this.#entry) {
+            release?.();
+            return;
+        }
+
+        if (release !== null) {
+            entry.release = release;
+            return;
+        }
+
+        this.#conflict(entry.id);
+        this.#kick();
+    }
+
+    /**
+     * The entries this writer writes or is ending.
+     * @returns Their ids.
+     */
+    #ownIds(): Set<string> {
+        const ids = new Set(this.#endings.map((ending) => ending.entry.id));
+        if (this.#entry.gen > 0) {
+            ids.add(this.#entry.id);
+        }
+
+        return ids;
+    }
+
+    /**
+     * Every entry of this key, oldest first, described without reading its parts.
+     * @returns The entries.
+     */
+    async list(): Promise<readonly AutosaveEntry[]> {
+        const metas = await this.#store.list(this.#key);
+        const held = await this.#locks.held();
+        const own = this.#ownIds();
+        return metas.map((meta) => entryOfMeta(meta, own.has(meta.id) || held.has(lockName(this.#key, meta.id))));
+    }
+
+    /**
+     * An entry of this key no tab is writing.
+     * @param id - The entry.
+     * @returns Its meta, the listing and whether entries are held.
+     * @throws {GraphtyError} `E_AUTOSAVE_UNKNOWN_ENTRY` or `E_AUTOSAVE_ENTRY_TAKEN`.
+     */
+    async #unheld(id: string): Promise<{
+        meta: AutosaveEntryMeta;
+        metas: readonly AutosaveEntryMeta[];
+        live: (meta: AutosaveEntryMeta) => boolean;
+    }> {
+        const metas = await this.#store.list(this.#key);
+        const meta = metas.find((each) => each.id === id);
+        if (meta === undefined) {
+            throw entryError("E_AUTOSAVE_UNKNOWN_ENTRY", id);
+        }
+
+        const held = await this.#locks.held();
+        const own = this.#ownIds();
+        const live = (each: AutosaveEntryMeta): boolean => own.has(each.id) || held.has(lockName(this.#key, each.id));
+        if (live(meta)) {
+            throw entryError("E_AUTOSAVE_ENTRY_TAKEN", id);
+        }
+
+        return { meta, metas, live };
+    }
+
+    /**
+     * Delete an entry no tab is writing.
+     * @param id - The entry.
+     * @throws {GraphtyError} `E_AUTOSAVE_UNKNOWN_ENTRY` or `E_AUTOSAVE_ENTRY_TAKEN`.
+     */
+    async remove(id: string): Promise<void> {
+        await this.#unheld(id);
+        await this.#store.remove(id);
+    }
+
+    /** Delete every entry of this key no tab is writing. */
+    async removeAll(): Promise<void> {
+        const metas = await this.#store.list(this.#key);
+        const held = await this.#locks.held();
+        const own = this.#ownIds();
+        for (const meta of metas) {
+            if (!own.has(meta.id) && !held.has(lockName(this.#key, meta.id))) {
+                await this.#store.remove(meta.id);
+            }
+        }
+    }
+
+    /**
+     * Open an entry chosen by hand into the session and write to it from here on. The work this
+     * writer held ends as `replaced`, and stays listed.
+     * @param id - The entry.
+     * @param discard - Open it over changes never saved to a file.
+     * @returns The project-open report.
+     * @throws {GraphtyError} `E_UNSAVED_CHANGES`, `E_AUTOSAVE_UNKNOWN_ENTRY`,
+     *     `E_AUTOSAVE_ENTRY_TAKEN`, or the code the entry could not be opened with.
+     */
+    async restore(id: string, discard = false): Promise<AutosaveRestored["report"]> {
+        if (!discard && this.#session.project.dirty) {
+            throw new GraphtyError({
+                code: "E_UNSAVED_CHANGES",
+                message: "The project has changes that were never saved to a file.",
+                source: "data",
+            });
+        }
+
+        const { meta, metas, live } = await this.#unheld(id);
+        let problem: AutosaveAvailable["problem"] = null;
+        const hear = this.onAvailable((available) => {
+            ({ problem } = available);
+        });
+        this.#boundary();
+        let restored: Awaited<ReturnType<Autosaver["recover"]>> | "next";
+        try {
+            restored = await this.#restoreFrom(meta, false, metas, live);
+        } finally {
+            hear();
+        }
+
+        const failed = problem as AutosaveAvailable["problem"];
+        if (restored === "next" && failed === null) {
+            // Another tab claimed it between the listing and the claim.
+            throw entryError("E_AUTOSAVE_ENTRY_TAKEN", id);
+        }
+
+        if (restored === "next" || restored === null) {
+            throw new GraphtyError({
+                code: "E_BAD_DOCUMENT",
+                message: `Autosave entry ${id} could not be opened.`,
+                source: "data",
+                details: { id, problem: failed },
+            });
+        }
+
+        return restored.report;
+    }
+
+    /**
+     * Delete this writer's own entry and start over: `reload` puts the page's own data back, and
+     * nothing it does starts an entry or ends one.
+     * @param reload - Puts the page's own data back.
+     */
+    async discard(reload: () => Promise<void>): Promise<void> {
+        this.#cancelTimers();
+        await this.settled();
+        const entry = this.#entry;
+        this.#entry = this.#newEntry();
+        this.#absorb = null;
+        this.#source = {};
+        this.#saved = null;
+        this.#changes = 0;
+        this.#setProblem(null);
+        if (entry.gen > 0) {
+            await this.#store.remove(entry.id);
+        }
+
+        entry.release?.();
+        entry.release = null;
+        this.#restoring = true;
+        try {
+            await reload();
+        } finally {
+            this.#restoring = false;
+            this.#tell();
+        }
     }
 
     /**
@@ -725,6 +1061,7 @@ export class Autosaver {
         let current: AutosaveEntryMeta;
         let text: string;
         let stash: Map<string, unknown>;
+        let sizes: Map<string, number>;
         try {
             const entry = await this.#store.read(meta.id);
             if (entry === undefined) {
@@ -735,6 +1072,7 @@ export class Autosaver {
                 // Read through before anything is written: an unreadable entry stays as it is.
                 text = JSON.stringify(reassemble(entry.meta, entry.parts));
                 stash = stashOf(entry.parts);
+                sizes = sizesAfter(new Map(), entry.parts);
             } catch {
                 return giveUp({ code: "E_BAD_DOCUMENT", params: { id: meta.id } });
             }
@@ -756,9 +1094,15 @@ export class Autosaver {
                 current = { ...copied, gen: 1 };
             }
 
-            // Recorded before opening: a restore that kills the page leaves it raised.
+            // Recorded before opening: a restore that kills the page leaves it raised. An ended
+            // entry restored by hand is current again.
             const attempts = Number(current.restoreAttempts ?? 0) + 1;
-            current = { ...current, restoreAttempts: attempts };
+            current = {
+                ...(Object.fromEntries(
+                    Object.entries(current).filter(([field]) => field !== "ended"),
+                ) as AutosaveEntryMeta),
+                restoreAttempts: attempts,
+            };
             await this.#store.commit([{ id: current.id, expectedGen: current.gen, meta: current, parts: {} }]);
             current = { ...current, gen: current.gen + 1 };
         } catch (error) {
@@ -792,10 +1136,11 @@ export class Autosaver {
         this.#saved = { at: textOf(current.savedAt), revision: this.#changes };
         this.#stash.clear();
         stash.forEach((value, name) => this.#stash.set(name, value));
-        this.#source = typeof current.source === "string" ? current.source : null;
+        this.#source = { ...sourcesOf(current.source) };
         this.adopt(current);
         const entry = this.#entry;
         entry.release = release;
+        entry.sizes = sizes;
         try {
             current = { ...current, restoreAttempts: 0 };
             await this.#store.commit([{ id: entry.id, expectedGen: entry.gen, meta: current, parts: {} }]);
@@ -847,6 +1192,7 @@ export class Autosaver {
             unwritten: new Set(),
             runs: new Map(),
             release: null,
+            sizes: new Map(),
         };
     }
 
@@ -943,7 +1289,10 @@ export class Autosaver {
 
     #start(): Promise<void> {
         const pump = this.#run().finally(() => {
-            this.#pump = null;
+            if (this.#pump === pump) {
+                this.#pump = null;
+            }
+
             this.#tell();
         });
         this.#pump = pump;
@@ -973,7 +1322,7 @@ export class Autosaver {
         }
 
         entry.unwritten.clear();
-        this.#endings.push({ entry, meta: this.#metaOf(entry), parts });
+        this.#endings.push({ entry, meta: this.#metaOf(entry, sizesAfter(entry.sizes, parts)), parts });
         this.#entry = this.#newEntry();
         this.#kick();
     }
@@ -981,9 +1330,10 @@ export class Autosaver {
     /**
      * The meta of an entry as the session stands now.
      * @param entry - The entry.
+     * @param sizes - The size of each of its parts once this write commits.
      * @returns The meta; the store sets `gen` and `seq`.
      */
-    #metaOf(entry: EntryState): AutosaveEntryMeta {
+    #metaOf(entry: EntryState, sizes: ReadonlyMap<string, number>): AutosaveEntryMeta {
         const session = this.#session;
         const snapshot = session.data.snapshot();
         return {
@@ -1003,6 +1353,7 @@ export class Autosaver {
             elementVersion: ENGINE_VERSIONS.element,
             source: this.#source,
             pageConfig: this.#pageConfig,
+            bytes: [...sizes.values()].reduce((sum, size) => sum + size, 0),
         };
     }
 
@@ -1013,16 +1364,18 @@ export class Autosaver {
      * @throws {PartTooLarge} when a part cannot be built; nothing is moved.
      */
     #build(): Job | null {
-        const job: Job = { writes: [], claim: [], done: [], undo: [], strict: false };
+        const job: Job = { writes: [], entries: new Map(), claim: [], done: [], undo: [], strict: false };
         const entry = this.#entry;
         const writesEntry = entry.started && entry.unwritten.size > 0;
         if (writesEntry) {
             const carried = entry.unwritten;
             const built = buildParts(this.#session, carried, entry.runs, this.#stash);
-            const meta = this.#metaOf(entry);
+            const sizes = sizesAfter(entry.sizes, built.parts);
+            const meta = this.#metaOf(entry, sizes);
             entry.unwritten = new Set();
             this.#carrying = { entry, tags: carried };
             job.writes.push({ id: entry.id, expectedGen: entry.gen, meta, parts: built.parts });
+            job.entries.set(entry.id, entry);
             job.strict = this.#strict;
             if (entry.release === null) {
                 job.claim.push(entry);
@@ -1030,6 +1383,7 @@ export class Autosaver {
 
             job.done.push(() => {
                 entry.gen += 1;
+                entry.sizes = sizes;
                 if (job.strict) {
                     this.#strict = false;
                 }
@@ -1059,6 +1413,7 @@ export class Autosaver {
                 continue;
             }
 
+            job.entries.set(ending.entry.id, ending.entry);
             job.writes.unshift({
                 id: ending.entry.id,
                 expectedGen: ending.entry.gen,
@@ -1099,20 +1454,29 @@ export class Autosaver {
      * @param retries.stall - After the watchdog aborted a stuck write.
      * @param retries.quota - After a full quota, once old clean entries are removed.
      * @param retries.lost - After the connection to the database was lost.
+     * @param first - A job already built, written before anything else.
      */
-    async #writeOnce(retries: { stall: number; quota: number; lost: number }): Promise<void> {
+    async #writeOnce(retries: { stall: number; quota: number; lost: number }, first?: Job | null): Promise<void> {
+        let built = first;
         for (;;) {
             let job: Job | null;
             try {
-                job = this.#build();
+                job = built ?? this.#build();
             } catch (error) {
                 this.#failed(error);
                 return;
             }
 
+            built = undefined;
             if (job === null) {
                 return;
             }
+
+            // A job built while another write was in flight expects the generation that write left.
+            job.writes = job.writes.map((write) => ({
+                ...write,
+                expectedGen: job.entries.get(write.id)?.gen ?? write.expectedGen,
+            }));
 
             const controller = new AbortController();
             let stalled = false;

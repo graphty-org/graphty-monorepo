@@ -300,6 +300,29 @@ element.addEventListener("graphty-project-status", (e) => {
 
 On the session the same change is `project:status`. See [Project Files](./project-file).
 
+### Autosave events
+
+With the `autosave` attribute on, four more events report what autosave does. They live on the
+element, not the session, because autosave uses the browser's storage and page lifecycle. None
+fires at connect: read `element.autosaver.status` once, then listen.
+
+```javascript
+element.addEventListener("graphty-autosave-status", (e) => {
+    const { state, savedAt, problem } = e.detail; // state: "off" | "saved" | "pending" | "failing"
+});
+element.addEventListener("graphty-autosave-restored", (e) => {
+    const { entry, savedAt, revision, report } = e.detail; // the same as `await element.autosaver.ready`
+});
+element.addEventListener("graphty-autosave-available", (e) => {
+    const { entry, reason, problem } = e.detail; // reason: "page-data-changed" | "held-by-other-tab" | "restore-failed" | "manual"
+});
+element.addEventListener("graphty-autosave-at-risk", (e) => {
+    const { code, params } = e.detail; // "W_AUTOSAVE_ORIGIN_EPHEMERAL", once per page load
+});
+```
+
+See [Autosave](./autosave).
+
 ### graphty-note-change
 
 A note was written, edited or removed, by a call, an undo or a redo. One event per note:

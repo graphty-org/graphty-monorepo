@@ -29,6 +29,18 @@ import type { EventOfType } from "./src/events";
  */
 export interface GraphtyElementJSXProps {
     /**
+     * Turns autosave on (a key, `""` or `true`) or off (`null`, `false`).
+     */
+    autosave?: Graphty["autosave"];
+    /**
+     * Sets the restore mode; anything but `"manual"` is `"auto"`.
+     */
+    autosaveRestore?: Graphty["autosaveRestore"];
+    /**
+     * Sets the options.
+     */
+    autosaveOptions?: Graphty["autosaveOptions"];
+    /**
      * Replaces the graph's nodes with these, as one undoable step: a node the array names again
      * keeps its row, its position and its edges and takes its new record, and one it no longer
      * names goes, with its edges.
@@ -195,6 +207,10 @@ export interface GraphtyElementJSXProps {
      * this from `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
+    /**
+     * Sets the restore mode; anything but `"manual"` is `"auto"`.
+     */
+    "autosave-restore"?: string;
     /**
      * Replaces the graph's nodes with these, as one undoable step: a node the array names again
      * keeps its row, its position and its edges and takes its new record, and one it no longer
@@ -370,6 +386,10 @@ export interface GraphtyElementJSXProps {
      * Emitted once the render loop has started, after the element finished initializing.
      */
     "ongraph-started"?: (event: CustomEvent<EventOfType<"graph-started">>) => void;
+    "ongraphty-autosave-at-risk"?: (event: GraphtyElementEventMap["graphty-autosave-at-risk"]) => void;
+    "ongraphty-autosave-available"?: (event: GraphtyElementEventMap["graphty-autosave-available"]) => void;
+    "ongraphty-autosave-restored"?: (event: GraphtyElementEventMap["graphty-autosave-restored"]) => void;
+    "ongraphty-autosave-status"?: (event: GraphtyElementEventMap["graphty-autosave-status"]) => void;
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
     "ongraphty-history-change"?: (event: GraphtyElementEventMap["graphty-history-change"]) => void;
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;

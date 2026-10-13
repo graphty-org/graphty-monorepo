@@ -69,6 +69,9 @@ export const NOT_YET_COVERED_ISSUE = 1643;
  * that is both here and registered, and on one that is no longer a mutating method in the reports.
  */
 export const NOT_YET_COVERED: readonly string[] = [
+    // ProjectApi.open's cost, below, behind autosave's own reads: covered when it is.
+    "AutosaveApi.discard",
+    "AutosaveApi.restore",
     "AiController.execute",
     "AiManager.execute",
     "AiManager.retry",

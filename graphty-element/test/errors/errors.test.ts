@@ -43,6 +43,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_BAD_DOCUMENT",
     "E_UNSUPPORTED_VERSION",
     "E_UNSAVED_CHANGES",
+    "E_AUTOSAVE_ENTRY_TAKEN",
+    "E_AUTOSAVE_UNKNOWN_ENTRY",
     "E_UNSTABLE_RUN_ID",
     "E_DUPLICATE_ID",
     "E_DUPLICATE_EDGE",
@@ -113,6 +115,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_DUPLICATE_PLUGIN":
         case "E_PROTECTED":
         case "E_UNSAVED_CHANGES":
+        case "E_AUTOSAVE_ENTRY_TAKEN":
+        case "E_AUTOSAVE_UNKNOWN_ENTRY":
         case "E_READONLY":
         case "E_DISPOSED":
         case "E_TRANSACTION_CLOSED":

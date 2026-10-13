@@ -616,8 +616,29 @@ export default defineConfig({
                 // IndexedDB differs from Chromium's in exactly the places autosave depends on (where
                 // a quota error is reported, how a close treats a running transaction). Chromium
                 // runs the same files through "browser", with coverage; v8 coverage cannot
-                // instrument these two engines, so this project runs without it.
+                // instrument these two engines, so this project runs without it. The element's
+                // own dependencies are pre-bundled up front, as for "browser": discovered mid-run,
+                // Vite re-optimizes and reloads the page under the running test.
                 define: { ...define },
+                optimizeDeps: {
+                    include: [
+                        ...PREBUNDLED,
+                        "lit",
+                        "lit/decorators.js",
+                        "zod",
+                        "zod/v4",
+                        "zod/v4/core",
+                        "jmespath",
+                        "ngraph.forcelayout",
+                        "ngraph.graph",
+                        "ngraph.random",
+                        "d3-force-3d",
+                        "colorjs.io",
+                        "hammerjs",
+                        "p-queue",
+                        "toposort",
+                    ],
+                },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "autosave-engines",
@@ -628,7 +649,35 @@ export default defineConfig({
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
-                        instances: [{ browser: "firefox" }, { browser: "webkit" }],
+                        instances: [
+                            {
+                                browser: "firefox",
+                                // Headless Firefox has no WebGL on a machine whose GL is NVIDIA's
+                                // or absent, and the element's tests here need a canvas: Mesa's
+                                // software GL through EGL draws it (probed on this repository's
+                                // workstation; tmp/work-protection/step5/ffprobe2.mjs).
+                                provider: playwright({
+                                    launchOptions: {
+                                        firefoxUserPrefs: {
+                                            "webgl.force-enabled": true,
+                                            // persist() waits on a permission prompt nobody answers
+                                            // headless; Firefox's own tests answer it this way.
+                                            "dom.storageManager.prompt.testing": true,
+                                            "dom.storageManager.prompt.testing.allow": true,
+                                        },
+                                        env: {
+                                            ...process.env,
+                                            LIBGL_ALWAYS_SOFTWARE: "1",
+                                            __GLX_VENDOR_LIBRARY_NAME: "mesa",
+                                            __EGL_VENDOR_LIBRARY_FILENAMES:
+                                                "/usr/share/glvnd/egl_vendor.d/50_mesa.json",
+                                            MOZ_WEBGL_FORCE_EGL: "1",
+                                        },
+                                    },
+                                }),
+                            },
+                            { browser: "webkit" },
+                        ],
                     },
                 },
             },

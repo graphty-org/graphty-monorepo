@@ -180,10 +180,13 @@ export type {
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
 // What autosave reports: its status, its codes, its entries and what a restore found.
+export type { AutosaveAtRisk } from "./src/autosave/elementAutosave";
 export type {
+    AutosaveApi,
     AutosaveAvailable,
     AutosaveCode,
     AutosaveEntry,
+    AutosaveOptions,
     AutosaveRestored,
     AutosaveStatus,
 } from "./src/autosave/types";

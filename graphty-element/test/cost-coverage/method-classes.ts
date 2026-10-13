@@ -15,6 +15,9 @@
  */
 
 export const MUTATING: readonly string[] = [
+    // Each opens an entry into the graph through ProjectApi.open.
+    "AutosaveApi.discard",
+    "AutosaveApi.restore",
     "AiController.execute",
     "AiManager.execute",
     "AiManager.retry",
@@ -321,6 +324,13 @@ export const READ_ONLY: readonly string[] = [
     "AlgorithmStatics.hasOptions",
     "AlgorithmStatics.hasZodOptions",
     // An autosave backend stores copies of the project; it changes nothing a project saves or draws.
+    "AutosaveApi.flush",
+    "AutosaveApi.list",
+    "AutosaveApi.remove",
+    "AutosaveApi.removeAll",
+    "AutosaveApi.requestPersistence",
+    "AutosaveApi.stash",
+    "AutosaveApi.stashed",
     "AutosaveStore.close",
     "AutosaveStore.commit",
     "AutosaveStore.list",

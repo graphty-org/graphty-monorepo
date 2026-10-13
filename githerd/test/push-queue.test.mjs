@@ -491,7 +491,10 @@ describe("gate failures", () => {
         }
         await queue.drain();
         expect(a.job.news.at(-1).text).toMatch(/^push failed \(outside: timed out after 60 minutes\)/);
-        expect(alive(Number(readFileSync(join(repo.tmp, "gate-pid"), "utf8")))).toBe(false);
+        // SIGKILL to the group is delivered, not done, when git's pipes close: the hook's shell has
+        // closed its files and may not yet have exited. It must exit; one never killed sleeps on.
+        const gatePid = Number(readFileSync(join(repo.tmp, "gate-pid"), "utf8"));
+        await until(() => !alive(gatePid));
     });
 });
 

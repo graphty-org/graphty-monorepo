@@ -11,6 +11,36 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Text and Effects lists, labels that write only what was picked, a control for
+  every placed style** (tests `style/__tests__/{Labels,Effects,Tooltip}.real-element.test.tsx`,
+  `coverage.test.ts`). The Text list (`LabelSection.tsx`, taking a `RowContext`) draws one entry per
+  kind in `TEXT_KINDS` (`words.ts`): Label and Tooltip on nodes; Label and the captions at the
+  target and source ends on edges, each on its own five channels (words, style, size, color,
+  background). The separate Tooltip list (`ListSection` in StylePanel) is gone; `LISTS` now holds
+  the Text list. "+" counts what can still be added: two or more opens the menu (present kinds
+  disabled with "One X per element"), one is that kind's own button ("Add tooltip"), none is an
+  aria-disabled "+" naming why. Tooltip text equals the accessible name everywhere. The empty
+  list's title is `tabIndex=-1 aria-hidden` (pointer only), so Tab crosses one stop per list;
+  titles are never dimmed. Picking a kind writes nothing until a source is picked or words are
+  typed: the source list has "Fixed text" first, which opens a words field (`WordsInput`, tags in
+  its tooltip and `aria-description`); Escape on either leaves nothing. `writeLine` no longer adds
+  the Card look and size 72 to a bound label (`labelLookFor` stays for the attribute's "Add label
+  line" only), so a new label has no look, size or key row. Label settings: captions are `h4`
+  headings that name their group; text fields for the badge icon and the overflow suffix;
+  `gradientColors` through compact-mantine's `GradientEditor` (one evenly spaced stop per color,
+  offsets dropped); Text color and Background get the vary glyph (`VarySlot`) and, once their
+  channel is written, the channel's own `Field` in place. Effect entries are one line: settings
+  button or the effect's glyph, the name, the value (color input by `aria-label`, Motion speed a
+  `ComboInput`), vary, eye, minus, as tall as a field's control line. `coverage.ts` lists
+  `DESIGN_PLACED` and the test fails when one is "not offered"; it also counts a color's opacity
+  as drawn (OPACITY_OF), which had failed since opacity moved into the color field. Traps: an
+  explicit `onClick={undefined}` on a Menu.Target's child (inside a
+  Tooltip) swallows the menu's own click, so spread it only when defined; the Everything row's
+  first write remounts the tab, so look up later controls in `screen`, not a saved `tab`.
+  Not done: gradient colors have no Clear of their own (Gradient off covers them); edge label
+  positions still offer the node's ten locations. Seen failing, not from this: row.test "starting
+  value" (`node.labelBackground` has no element default).
+
 - (2026-10-12) **Property rows: reserved columns, one Clear, vary everywhere, Which elements on
   every layer** (test `graphty/src/workspace/style/__tests__/PropertyRows.real-element.test.tsx`;
   pictures `tier3/build/property-rows/`). Every field is control + a 24 px vary column + a 24 px

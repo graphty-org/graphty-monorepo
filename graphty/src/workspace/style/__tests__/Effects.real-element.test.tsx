@@ -148,8 +148,8 @@ describe("effects and arrow ends on the real element", () => {
         });
         assert.isUndefined(written(session, nodeLayer, "node.glow"), "Escape writes nothing");
 
-        // The empty list's title opens the same menu.
-        await userEvent.click(within(nodeEffects()).getByRole("button", { name: "Add node effect" }));
+        // The empty list's title opens the same menu, for a pointer.
+        await userEvent.click(within(nodeEffects()).getByText("Effects"));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Glow/ }));
         await within(nodeEffects()).findByRole("textbox", { name: /Glow/ });
         await userEvent.keyboard("FF00FF{Enter}");
@@ -176,6 +176,31 @@ describe("effects and arrow ends on the real element", () => {
                 assert.equal(glowOf(session), "none", "the element draws no glow");
             },
             { timeout: TIMEOUT_MS },
+        );
+    });
+
+    it("an effect entry is one line, as tall as a property row's field", async () => {
+        const { session, element } = await mountElement();
+        const [nodeLayer] = await renderRow(session, element);
+        await userEvent.click(within(nodeEffects()).getByRole("button", { name: "Add to node effects" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Glow/ }));
+        await within(nodeEffects()).findByRole("textbox", { name: /Glow/ });
+        await userEvent.keyboard("FF00FF{Enter}");
+        await waitFor(
+            () => {
+                assert.equal(written(session, nodeLayer, "node.glow"), "#FF00FF");
+                assert.isNotNull(within(nodeEffects()).queryByRole("button", { name: "Remove glow" }));
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const entry = document.querySelector<HTMLElement>('[data-effect="Glow"]');
+        const field = document.querySelector<HTMLElement>('[data-line="node.color"] .ws-field-line');
+        assert.isNotNull(entry);
+        assert.isNotNull(field);
+        assert.equal(
+            Math.round(entry?.getBoundingClientRect().height ?? 0),
+            Math.round(field?.getBoundingClientRect().height ?? -1),
+            "the glow entry is as tall as the color row's field",
         );
     });
 

@@ -36,7 +36,7 @@ describe("a tooltip from an attribute on the real element", () => {
         await page.viewport(1366, 768);
     });
 
-    it("Add Tooltip, name: hovering a node shows that node's name", async () => {
+    it("Text + Tooltip, name: hovering a node shows that node's name", async () => {
         const store = createWorkspaceStore({
             project: { name: "Line", id: 1 },
             inspected: { kind: "everything-row" },
@@ -58,18 +58,20 @@ describe("a tooltip from an attribute on the real element", () => {
         await element.session.data.addEdges(EDGES);
 
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(tab).getByRole("button", { name: "Add Tooltip" }));
-        // An empty tooltip says nothing, so a new Tooltip line asks at once what it reads.
+        const nodes = tab.querySelector<HTMLElement>('[data-group="node"]');
+        if (nodes === null) {
+            throw new Error("the Style tab draws no Nodes group");
+        }
+        await userEvent.click(within(nodes).getByRole("button", { name: "Add to node text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
+        // An empty tooltip says nothing, so a new Tooltip asks at once what it reads.
         const list = await screen.findByRole("dialog", { name: "From data" }, { timeout: TIMEOUT_MS });
         assert.isNotNull(within(list).queryByRole("option", { name: "Fixed text" }), "fixed text is still a choice");
         assert.isNotNull(within(list).queryByRole("option", { name: "id" }), "the node id can be picked");
         await userEvent.click(within(list).getByRole("option", { name: "name" }));
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("button", { name: "Node tooltip by attribute" }));
-        });
-        const line = document.querySelector<HTMLElement>('[data-line="node.tooltip"]');
-        assert.isNotNull(line, "the Tooltip line is there");
-        assert.include(line?.textContent ?? "", "name", "the line says which attribute the tooltip reads");
+        // The entry says which attribute the tooltip reads.
+        // The first write adds the Everything layer and redraws the tab, so look in the page.
+        await screen.findByRole("button", { name: "Tooltip source: name" }, { timeout: TIMEOUT_MS });
 
         const heard: NodeEventDetail[] = [];
         element.addEventListener("graphty-node-hover", (event) => {

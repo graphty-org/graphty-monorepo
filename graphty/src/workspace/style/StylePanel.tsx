@@ -1,10 +1,10 @@
 import "./style.css";
 
 import { ComboInput, CompactColorInput, ControlSection, FieldRow, SegmentedControl } from "@graphty/compact-mantine";
-import { type ChannelDescriptor, channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
+import { channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
 import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -14,27 +14,24 @@ import { edgeName } from "../inspector/words";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { Effects } from "./Effects";
 import { LabelSection } from "./LabelSection";
-import { Field, PropertyRow, type RowContext } from "./PropertyRow";
+import { PropertyRow, type RowContext } from "./PropertyRow";
 import {
     beneathOf,
     colorBlockOf,
     EVERYTHING_LAYER,
     everythingRow,
-    lineOf,
     type NewLayer,
     rowLayers,
     runColorOf,
     selectionLayer,
     selectionRow,
-    startingValue,
     type Target,
     writeGroupColor,
-    writeLine,
 } from "./row";
-import { focusLineNext, openListNext, useFocusLine } from "./useFocusLine";
+import { useFocusLine } from "./useFocusLine";
 import { useStyleVersion } from "./useStyleVersion";
 import { WhichElements } from "./WhichElements";
-import { channelWord, CORE_ROWS, LISTS, type ListSpec } from "./words";
+import { CORE_ROWS, LISTS } from "./words";
 
 /**
  * The row the Style tab edits when the caller names none, read from `inspected` as the inspector
@@ -362,16 +359,13 @@ export function RowStyle({
                                 {CORE_ROWS[side].map((spec) => (
                                     <PropertyRow key={spec.id} ctx={ctx} spec={spec} descriptors={descriptors} />
                                 ))}
-                                {/* ponytail: several rows show no label or lists yet ("Click + to replace
-                                    mixed content"); each would need its own several-row write. */}
-                                {many === undefined && (
-                                    <LabelSection target={side} row={row} layers={ctx.layers} fresh={fresh} />
-                                )}
+                                {/* ponytail: several rows show no lists yet ("Click + to replace mixed
+                                    content"); each would need its own several-row write. */}
                                 {(many === undefined ? LISTS[side] : []).map((list) =>
                                     list.id === "effects" ? (
                                         <Effects key={list.id} ctx={ctx} />
                                     ) : (
-                                        <ListSection key={list.id} ctx={ctx} list={list} descriptors={descriptors} />
+                                        <LabelSection key={list.id} ctx={ctx} />
                                     ),
                                 )}
                             </Stack>
@@ -379,148 +373,6 @@ export function RowStyle({
                     </div>
                 );
             })}
-        </Stack>
-    );
-}
-
-/** One entry of a list: a channel of its own. */
-interface Entry {
-    readonly name: string;
-    /** The channel adding it writes. */
-    readonly adds: ChannelDescriptor;
-}
-
-/**
- * A list (Tooltip; Effects has its own component): its title with "+", and an entry for each one
- * the row writes. "+" adds the one entry left, or opens a menu of the rest; clicking the title of
- * an empty list opens the same menu, as Figma's empty Fill title does.
- * @param props - Component props
- * @param props.ctx - the row
- * @param props.list - the list
- * @param props.descriptors - the element's descriptors for this side
- * @returns The list
- */
-function ListSection({
-    ctx,
-    list,
-    descriptors,
-}: Readonly<{ ctx: RowContext; list: ListSpec; descriptors: readonly ChannelDescriptor[] }>): React.JSX.Element {
-    const { store } = useWorkspace();
-    const [menuOpen, setMenuOpen] = useState(false);
-    const channels = list.channels.flatMap((c) => descriptors.filter((d) => d.channel === c));
-    const entries: Entry[] = channels.map((d) => ({ name: channelWord(d.channel), adds: d }));
-    const isSet = (e: Entry): boolean => {
-        const line = lineOf(ctx.layers, e.adds.channel);
-        return line !== undefined && !line.layer.locked;
-    };
-    const set = entries.filter(isSet);
-    const unset = entries.filter((e) => !isSet(e));
-    const add = (entry: Entry): void => {
-        setMenuOpen(false);
-        if (entry.adds.channel === "node.tooltip") {
-            // An empty tooltip says nothing, so a new Tooltip asks at once what it reads.
-            openListNext(entry.adds.channel);
-        } else {
-            focusLineNext(entry.adds.channel);
-        }
-        // The layer the entry lands on: the row's own topmost, else the one its first edit adds.
-        const selector = ([...ctx.layers].reverse().find((layer) => !layer.locked) ?? ctx.fresh)?.selector;
-        writeLine(
-            ctx.session,
-            ctx.row,
-            ctx.side,
-            entry.adds.channel,
-            { value: startingValue(entry.adds, ctx.session, selector) },
-            ctx.fresh,
-        ).catch(() => {
-            focusLineNext(null);
-            openListNext(null);
-            store.set({ notice: { message: `${entry.name} could not be added` } });
-        });
-    };
-    // Named by kind: both groups are on screen at once, and no two controls share a name.
-    const groupName = `${ctx.side === "node" ? "Node" : "Edge"} ${list.title.toLowerCase()}`;
-    const addLabel = unset.length === 1 ? `Add ${unset[0].name}` : `Add to ${groupName.toLowerCase()}`;
-    let plus: React.JSX.Element | null = null;
-    if (unset.length === 1) {
-        plus = (
-            <Tooltip label={addLabel}>
-                <ActionIcon
-                    variant="subtle"
-                    size="sm"
-                    aria-label={addLabel}
-                    disabled={!unset[0].adds.renderable}
-                    onClick={() => {
-                        add(unset[0]);
-                    }}
-                >
-                    <GLYPHS.add size={14} aria-hidden />
-                </ActionIcon>
-            </Tooltip>
-        );
-    } else if (unset.length > 1) {
-        plus = (
-            <Menu position="bottom-end" opened={menuOpen} onChange={setMenuOpen}>
-                <Menu.Target>
-                    <Tooltip label={addLabel}>
-                        <ActionIcon variant="subtle" size="sm" aria-label={addLabel}>
-                            <GLYPHS.add size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                </Menu.Target>
-                <Menu.Dropdown>
-                    {unset.map((e) => (
-                        <Menu.Item
-                            key={e.adds.channel}
-                            disabled={!e.adds.renderable}
-                            onClick={() => {
-                                add(e);
-                            }}
-                        >
-                            <div>{e.name}</div>
-                            {e.adds.renderable ? null : (
-                                <Text size="xs" c="dimmed">
-                                    Not drawn yet
-                                </Text>
-                            )}
-                        </Menu.Item>
-                    ))}
-                </Menu.Dropdown>
-            </Menu>
-        );
-    }
-    // An empty list's title does what its "+" does: adds the one entry, or opens the menu.
-    const onTitle = (): void => {
-        if (unset.length === 1) {
-            add(unset[0]);
-        } else {
-            setMenuOpen(true);
-        }
-    };
-    return (
-        <Stack gap={2} role="group" aria-label={groupName} data-section={list.id}>
-            <Group gap={4} h={24} wrap="nowrap" justify="space-between">
-                {set.length === 0 && unset.length > 0 ? (
-                    // An empty list's title does what its "+" does, for a pointer; the "+" is the one
-                    // control a keyboard or a screen reader reaches.
-                    <UnstyledButton tabIndex={-1} aria-hidden onClick={onTitle}>
-                        <Text size="xs" fw={600} pl={4} c="dimmed">
-                            {list.title}
-                        </Text>
-                    </UnstyledButton>
-                ) : (
-                    <Text size="xs" fw={600} pl={4}>
-                        {list.title}
-                    </Text>
-                )}
-                {plus}
-            </Group>
-            {set.map((e) => (
-                <div key={e.adds.channel} className="ws-property-row">
-                    <span className="ws-property-row-gap" />
-                    <Field ctx={ctx} descriptor={e.adds} />
-                </div>
-            ))}
         </Stack>
     );
 }

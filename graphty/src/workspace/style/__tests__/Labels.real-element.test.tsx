@@ -129,12 +129,18 @@ describe("label entries on the real element", () => {
         await page.viewport(1366, 768);
     });
 
-    it("the empty title opens '+'; Label picks a source; a look applies; a font edit reads edited and its reset clears it", async () => {
+    it("'+' lists Label and Tooltip; Label picks a source and writes only it; a look applies; a font edit reads edited and its reset clears it", async () => {
         const { session, element } = await openWithGraph();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const keyRows = document.querySelectorAll(".ws-legend-section").length;
 
-        // The empty list's title opens the same menu as "+".
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add node text" }));
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
+        const items = await screen.findAllByRole("menuitem");
+        assert.deepEqual(
+            items.map((item) => item.textContent),
+            ["Label", "Tooltip"],
+            "the Text menu lists both kinds of node text",
+        );
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
         // Nothing is written before a source is picked.
         assert.isUndefined(writer(session, "node.label"));
@@ -149,20 +155,29 @@ describe("label entries on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        // A new label starts on the Card look, and its size is the app's legible one.
-        await waitFor(() => {
-            assert.equal(shown("Look"), "Card");
-        });
+        // Only the source is written: the look and the size stay what lies beneath (no reset on
+        // either), and the canvas key gains no row.
+        assert.isUndefined(writer(session, "node.labelStyle"), "no look is written");
+        assert.isUndefined(writer(session, "node.labelSize"), "no size is written");
+        assert.isNull(within(textList()).queryByRole("button", { name: /^Reset Look/ }), "Look is not set");
+        assert.isNull(within(textList()).queryByRole("button", { name: /^Reset Size/ }), "Size is not set");
+        assert.equal(document.querySelectorAll(".ws-legend-section").length, keyRows, "no key row is added");
         assert.isNotNull(
             within(textList()).getByRole("button", { name: "Label source: name" }),
             "the entry names its source",
         );
-        // A second label cannot be added, and "+" says why.
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        const item = await screen.findByRole("menuitem", { name: /^Label/ });
-        assert.include(item.textContent ?? "", "One label per element");
-        assert.isTrue(item.hasAttribute("data-disabled"), "Label is disabled in the menu");
-        await userEvent.keyboard("{Escape}");
+        // A second label cannot be added: with only Tooltip left, "+" is Tooltip's own button.
+        const plus = within(textList()).getByRole("button", { name: "Add tooltip" });
+        await userEvent.hover(plus);
+        // The theme's tooltips open after a second, mounted hidden until then.
+        await waitFor(
+            () => {
+                const tips = screen.queryAllByRole("tooltip", { hidden: true }).map((tip) => tip.textContent);
+                assert.include(tips, "Add tooltip", "its tooltip is its name");
+            },
+            { timeout: 5000 },
+        );
+        await userEvent.unhover(plus);
 
         // Picking a look applies it.
         await choose("Look", "Dark", textList());
@@ -257,7 +272,7 @@ describe("label entries on the real element", () => {
         const { runId } = await session.runs.start("degree");
         await session.styles.settled();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add node text" }));
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
         await userEvent.click(
             within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "name" }),
@@ -278,5 +293,69 @@ describe("label entries on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
         assert.isNotNull(within(textList()).getByRole("button", { name: "Detach label size" }));
+    });
+
+    it("Escape on a new tooltip's source list leaves the Text list unchanged", async () => {
+        const { session } = await openWithGraph();
+        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const before = textList().innerHTML;
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
+        await screen.findByRole("dialog", { name: "From data" });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "From data" }));
+        });
+        await waitFor(() => {
+            assert.equal(textList().innerHTML, before, "the list is as it was");
+        });
+        assert.isUndefined(
+            session.styles
+                .list()
+                .filter((l) => l.source.by !== "element")
+                .find((l) => l.set?.["node.tooltip"] !== undefined || l.encode?.["node.tooltip"] !== undefined),
+            "nothing is written",
+        );
+    });
+
+    it("Tab crosses one stop per add action: Text's '+' then Effects' '+'", async () => {
+        await openWithGraph();
+        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const nodes = screen.getByTestId("style-tab").querySelector<HTMLElement>('[data-group="node"]');
+        if (nodes === null) {
+            throw new Error("the Style tab draws no Nodes group");
+        }
+        within(textList()).getByRole("button", { name: "Add to node text" }).focus();
+        await userEvent.keyboard("{Tab}");
+        assert.equal(
+            document.activeElement?.getAttribute("aria-label"),
+            "Add to node effects",
+            "the next stop is the Effects '+', not a list title",
+        );
+        await userEvent.keyboard("{Tab}");
+        assert.isFalse(nodes.contains(document.activeElement), "the Effects '+' is the Nodes group's last stop");
+    });
+
+    it("a label of fixed text: Fixed text, type Hello, and the canvas label reads Hello", async () => {
+        const { session, element } = await openWithGraph();
+        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
+        const list = await screen.findByRole("dialog", { name: "From data" });
+        await userEvent.click(within(list).getByRole("option", { name: "Fixed text" }));
+        const field = await within(textList()).findByRole("textbox", { name: "Node label text" });
+        await waitFor(() => {
+            assert.equal(document.activeElement, field, "focus lands in the words field");
+        });
+        assert.isUndefined(writer(session, "node.label"), "nothing is written before the words are typed");
+        await userEvent.keyboard("Hello{Enter}");
+        await waitFor(
+            () => {
+                assert.equal(writer(session, "node.label")?.set?.["node.label"], "Hello");
+                assert.equal(element.labelOf("1")?.text, "Hello", "the canvas label reads Hello");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.isUndefined(writer(session, "node.labelStyle"), "only the words are written");
     });
 });

@@ -619,7 +619,11 @@ describe("the Style tab's rows on the real element", () => {
         const { session } = await openEverything();
         await session.selection.apply({ nodes: ["2", "3", "4"] });
         await pickStyleTab();
-        await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add Tooltip" }));
+        await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add to node text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
+        await userEvent.click(
+            within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "id" }),
+        );
         await waitFor(() => {
             assert.deepEqual(
                 idLayers(session).map((l) => l.name),
@@ -637,13 +641,14 @@ describe("the Style tab's rows on the real element", () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(styleTab()).getByRole("button", { name: "Add Tooltip" }));
+        await userEvent.click(within(styleTab()).getByRole("button", { name: "Add to node text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
         await userEvent.click(
             within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", {
                 name: "Fixed text",
             }),
         );
-        const field = await within(styleTab()).findByRole("textbox", { name: /^Node tooltip, set here/ });
+        const field = await within(styleTab()).findByRole("textbox", { name: "Node tooltip text" });
         await userEvent.type(field, "hello{Enter}");
         await waitFor(() => {
             assert.equal(readerLayers(session)[0]?.set?.["node.tooltip"], "hello");
@@ -651,10 +656,9 @@ describe("the Style tab's rows on the real element", () => {
         await session.undo();
         await waitFor(() => {
             assert.equal(
-                within(styleTab())
-                    .getByRole("textbox", { name: /^Node tooltip/ })
-                    .getAttribute("value"),
-                "",
+                within(styleTab()).queryByRole("textbox", { name: "Node tooltip text" }),
+                null,
+                "Undo takes the typed tooltip away",
             );
         });
     });

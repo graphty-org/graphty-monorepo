@@ -42,7 +42,7 @@ describe("a label line the app adds", () => {
         return session;
     }
 
-    it("starts on the Card look at a legible size, on top and picking its node, in the same step as the binding", async () => {
+    it("a label line bound from the Style tab writes only its words, in one step", async () => {
         const on = await twoNodes();
         const proposal = propose(on, { kind: "column", column: { kind: "node", name: "name" } }, "node.label");
         if (!proposal.ok) {
@@ -51,8 +51,9 @@ describe("a label line the app adds", () => {
         const before = on.history.steps.length;
         const id = await writeLine(on, [], "node", "node.label", { binding: proposal.binding }, EVERYTHING_LAYER);
         const layer = on.styles.list().find((l) => l.id === id);
-        assert.deepEqual(layer?.set?.["node.labelStyle"], { look: "card", onTop: true, pickable: true });
-        assert.equal(layer?.set?.["node.labelSize"], LABEL_SIZE_PX);
+        assert.isDefined(layer?.encode?.["node.label"]);
+        assert.isUndefined(layer?.set?.["node.labelStyle"]);
+        assert.isUndefined(layer?.set?.["node.labelSize"]);
         assert.equal(on.history.steps.length, before + 1);
     });
 

@@ -80,10 +80,67 @@ export interface ListSpec {
     readonly channels: readonly Channel[];
 }
 
-/** The lists under each group's core rows (labels are their own section for now). */
+/**
+ * One kind of text a Text list entry draws: its words, its look, and the look's three channels a
+ * value can vary (size, text color, background). A label, a node's tooltip and an edge's two end
+ * captions are the same entry, each on its own channels (tier3 design, section 2.3).
+ */
+export interface TextKindSpec {
+    /** Stable id. */
+    readonly id: string;
+    /** Its name in the "+" menu and on its entry's controls ("Label", "Tooltip"). */
+    readonly name: string;
+    readonly words: Channel;
+    readonly style: Channel;
+    readonly size: Channel;
+    readonly color: Channel;
+    readonly background: Channel;
+}
+
+/**
+ * A text kind on its channels, named the element's way: `<base>`, `<base>Style`, `<base>Size`,
+ * `<base>Color`, `<base>Background`.
+ * @param id - stable id.
+ * @param name - its name.
+ * @param base - its words channel.
+ * @returns the kind.
+ */
+function textKind(id: string, name: string, base: Channel): TextKindSpec {
+    const at = (suffix: string): Channel => `${base}${suffix}` as Channel;
+    return {
+        id,
+        name,
+        words: base,
+        style: at("Style"),
+        size: at("Size"),
+        color: at("Color"),
+        background: at("Background"),
+    };
+}
+
+/** The kinds of text each group's Text list adds, in its "+" menu's order. */
+export const TEXT_KINDS: Readonly<Record<Kind, readonly TextKindSpec[]>> = {
+    node: [textKind("label", "Label", "node.label"), textKind("tooltip", "Tooltip", "node.tooltip")],
+    edge: [
+        textKind("label", "Label", "edge.label"),
+        textKind("head", "Caption at the target end", "edge.arrowHeadText"),
+        textKind("tail", "Caption at the source end", "edge.arrowTailText"),
+    ],
+};
+
+/**
+ * Every channel of a group's text kinds.
+ * @param kind - nodes or edges.
+ * @returns the channels.
+ */
+function textChannels(kind: Kind): Channel[] {
+    return TEXT_KINDS[kind].flatMap((t) => [t.words, t.style, t.size, t.color, t.background]);
+}
+
+/** The lists under each group's core rows: Text, then Effects. */
 export const LISTS: Readonly<Record<Kind, readonly ListSpec[]>> = {
     node: [
-        { id: "tooltip", title: "Tooltip", channels: ["node.tooltip"] },
+        { id: "text", title: "Text", channels: textChannels("node") },
         {
             id: "effects",
             title: "Effects",
@@ -98,6 +155,7 @@ export const LISTS: Readonly<Record<Kind, readonly ListSpec[]>> = {
         },
     ],
     edge: [
+        { id: "text", title: "Text", channels: textChannels("edge") },
         {
             id: "effects",
             title: "Effects",

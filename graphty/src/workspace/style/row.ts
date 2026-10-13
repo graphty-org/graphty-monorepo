@@ -165,8 +165,8 @@ function appLabelLook(): LabelStyle {
 }
 
 /**
- * The app's starting look and size for a label line being bound, unless the layer already styles
- * its labels.
+ * The app's starting look and size for an attribute's "Add label line", unless the layer already
+ * styles its labels. A label added from the Style tab's Text list writes only its words.
  * @param channel - the channel being written.
  * @param set - what the layer already sets.
  * @returns the style and size channels' entries to add, or nothing.
@@ -353,8 +353,6 @@ export async function writeLine(
     } else if (combined) {
         encode = { [channel]: { value: write.value, combine: write.combine } };
     }
-    // A label line being bound brings the app's label look with it, in the same step.
-    const look = "binding" in write ? labelLookFor(channel, own?.set) : {};
     // On the Everything row, the other layers that write this channel, so the new line is its only one.
     const others = everything
         ? layers.filter(
@@ -384,7 +382,7 @@ export async function writeLine(
             const spec = {
                 name: fresh.name,
                 selector: home ?? fresh.selector,
-                ...(set === undefined && Object.keys(look).length === 0 ? {} : { set: { ...look, ...set } }),
+                ...(set === undefined ? {} : { set }),
                 ...(encode === undefined ? {} : { encode }),
                 ...(fresh.userData === undefined ? {} : { userData: fresh.userData }),
             };
@@ -399,7 +397,7 @@ export async function writeLine(
             throw new Error(`The row has no ${target} layer to write ${channel} to`);
         }
         await styles.update(own.id, {
-            set: set === undefined ? without({ ...own.set, ...look }, channel) : { ...own.set, ...set },
+            set: set === undefined ? without(own.set, channel) : { ...own.set, ...set },
             encode: encode === undefined ? without(own.encode, channel) : { ...own.encode, ...encode },
         });
         await strip(styles);

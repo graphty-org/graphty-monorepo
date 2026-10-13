@@ -1,8 +1,14 @@
-import { CompactColorInput, StyleNumberInput, StyleSelect } from "@graphty/compact-mantine";
+import {
+    type ColorStop,
+    CompactColorInput,
+    GradientEditor,
+    StyleNumberInput,
+    StyleSelect,
+} from "@graphty/compact-mantine";
 import { channelsFor, labelLook } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
-import { Stack, Text } from "@mantine/core";
-import React from "react";
+import { Group, Stack, Text, TextInput } from "@mantine/core";
+import React, { useId } from "react";
 
 /** A field of the label style as the popover draws it. */
 type Field =
@@ -14,7 +20,9 @@ type Field =
           readonly kind: "select";
           readonly options: readonly (readonly [string, string])[];
       }
-    | { readonly key: keyof LabelStyle; readonly word: string; readonly kind: "switch" };
+    | { readonly key: keyof LabelStyle; readonly word: string; readonly kind: "switch" }
+    | { readonly key: keyof LabelStyle; readonly word: string; readonly kind: "text" }
+    | { readonly key: keyof LabelStyle; readonly word: string; readonly kind: "colors" };
 
 /** A captioned group of fields; the first group has no caption. */
 interface FieldGroup {
@@ -31,6 +39,8 @@ const choice = (key: keyof LabelStyle, word: string, options: readonly (readonly
     options,
 });
 const toggle = (key: keyof LabelStyle, word: string): Field => ({ key, word, kind: "switch" });
+const words = (key: keyof LabelStyle, word: string): Field => ({ key, word, kind: "text" });
+const colors = (key: keyof LabelStyle, word: string): Field => ({ key, word, kind: "colors" });
 
 /** The font families offered: the browser's generic families, which every platform has. */
 const FONTS = [
@@ -62,8 +72,7 @@ const BADGES = [
 /**
  * Every field the popover shows, in its groups (design 2.3): text color and background first,
  * then Type, Box, Letters, Placement, Motion and distance, Badge. The size and the position are on
- * the entry itself. ponytail: the gradient's colors, the icon glyph and the overflow suffix have no
- * field yet (a list of colors and two free texts); add them with a gradient editor and a text row.
+ * the entry itself.
  */
 const LABEL_SETTINGS: readonly FieldGroup[] = [
     { fields: [color("color", "Text color"), color("background", "Background")] },
@@ -104,6 +113,7 @@ const LABEL_SETTINGS: readonly FieldGroup[] = [
                 ["horizontal", "Horizontal"],
                 ["diagonal", "Diagonal"],
             ]),
+            colors("gradientColors", "Gradient colors"),
         ],
     },
     {
@@ -153,6 +163,7 @@ const LABEL_SETTINGS: readonly FieldGroup[] = [
         caption: "Badge",
         fields: [
             choice("badge", "Badge", BADGES),
+            words("icon", "Icon"),
             choice("iconPosition", "Icon side", [
                 ["left", "Left"],
                 ["right", "Right"],
@@ -160,6 +171,7 @@ const LABEL_SETTINGS: readonly FieldGroup[] = [
             number("progress", "Progress", 0.05),
             toggle("smartOverflow", "Shorten large numbers"),
             number("maxNumber", "Largest number shown"),
+            words("overflowSuffix", "After a shortened number"),
         ],
     },
 ];
@@ -201,6 +213,18 @@ interface LabelSettingsProps {
     style: LabelStyle;
     /** Called with the fields to change; a field given as undefined is cleared back to the look. */
     onChange: (patch: Partial<LabelStyle>) => void;
+    /**
+     * A field that can also vary by a value through a channel of its own (the text color, the
+     * background): the channel's own field in its place while the channel is written, else the
+     * vary glyph beside the style's field.
+     */
+    vary?: (key: keyof LabelStyle) => VaryField | undefined;
+}
+
+/** How a field varies: the channel's field in place of the style's, or the vary glyph beside it. */
+export interface VaryField {
+    readonly field?: React.ReactNode;
+    readonly slot?: React.ReactNode;
 }
 
 /**
@@ -212,32 +236,72 @@ interface LabelSettingsProps {
  * @param props - Component props
  * @param props.style - the label style the layer writes
  * @param props.onChange - called with the fields to change
+ * @param props.vary - how the text color and background vary by a value
  * @returns The groups
  */
-export function LabelSettings({ style, onChange }: Readonly<LabelSettingsProps>): React.JSX.Element {
+export function LabelSettings({ style, onChange, vary }: Readonly<LabelSettingsProps>): React.JSX.Element {
     const look: Readonly<Partial<Record<keyof LabelStyle, unknown>>> = labelLook(style.look ?? "default")?.style ?? {};
     return (
         <Stack gap={12} data-testid="label-settings">
             {LABEL_SETTINGS.map((group) => (
-                <Stack key={group.caption ?? "colors"} gap={4} role="group" aria-label={group.caption ?? "Colors"}>
-                    {group.caption === undefined ? null : (
-                        <Text size="xs" fw={600}>
-                            {group.caption}
-                        </Text>
-                    )}
-                    {group.fields.map((field) => (
-                        <FieldControl
-                            key={field.key}
-                            field={field}
-                            value={style[field.key]}
-                            look={look[field.key]}
-                            onChange={(value) => {
-                                onChange({ [field.key]: value });
-                            }}
-                        />
-                    ))}
-                </Stack>
+                <FieldGroupView key={group.caption ?? "colors"} caption={group.caption}>
+                    {group.fields.map((field) => {
+                        const varied = vary?.(field.key);
+                        if (varied?.field !== undefined) {
+                            return <React.Fragment key={field.key}>{varied.field}</React.Fragment>;
+                        }
+                        const control = (
+                            <FieldControl
+                                key={field.key}
+                                field={field}
+                                value={style[field.key]}
+                                look={look[field.key]}
+                                onChange={(value) => {
+                                    onChange({ [field.key]: value });
+                                }}
+                            />
+                        );
+                        return varied?.slot === undefined ? (
+                            control
+                        ) : (
+                            <Group key={field.key} gap={0} wrap="nowrap" align="flex-end">
+                                <div style={{ flex: 1, minWidth: 0 }}>{control}</div>
+                                {varied.slot}
+                            </Group>
+                        );
+                    })}
+                </FieldGroupView>
             ))}
+        </Stack>
+    );
+}
+
+/**
+ * A group of fields under its caption, a heading the group is named by; the first group (the two
+ * colors) has no caption and is named "Colors".
+ * @param props - Component props
+ * @param props.caption - the caption, if any
+ * @param props.children - the fields
+ * @returns The group
+ */
+function FieldGroupView({
+    caption,
+    children,
+}: Readonly<{ caption: string | undefined; children: React.ReactNode }>): React.JSX.Element {
+    const id = useId();
+    return (
+        <Stack
+            gap={4}
+            role="group"
+            aria-label={caption === undefined ? "Colors" : undefined}
+            aria-labelledby={caption === undefined ? undefined : id}
+        >
+            {caption === undefined ? null : (
+                <Text id={id} component="h4" size="xs" fw={600} m={0}>
+                    {caption}
+                </Text>
+            )}
+            {children}
         </Stack>
     );
 }
@@ -258,6 +322,30 @@ function FieldControl({
     onChange,
 }: Readonly<{ field: Field; value: unknown; look: unknown; onChange: (value: unknown) => void }>): React.JSX.Element {
     switch (field.kind) {
+        case "text":
+            return (
+                <TextInput
+                    // Keyed by the value, so Undo, Redo or another edit shows the new text.
+                    key={typeof value === "string" ? value : ""}
+                    size="xs"
+                    label={field.word}
+                    placeholder={typeof look === "string" ? look : "Default"}
+                    defaultValue={typeof value === "string" ? value : ""}
+                    onBlur={(event) => {
+                        const next = event.currentTarget.value;
+                        if (next !== (typeof value === "string" ? value : "")) {
+                            onChange(next === "" ? undefined : next);
+                        }
+                    }}
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                            event.currentTarget.blur();
+                        }
+                    }}
+                />
+            );
+        case "colors":
+            return <ColorsField word={field.word} value={value} look={look} onChange={onChange} />;
         case "color":
             return (
                 <CompactColorInput
@@ -321,4 +409,53 @@ function FieldControl({
             );
         }
     }
+}
+
+/** The gradient a label draws while neither the layer nor its look names colors. */
+const UNSET_GRADIENT = ["#FFFFFF", "#000000"];
+
+/**
+ * A list of colors (a label's gradient) as the shared gradient editor: one stop per color,
+ * evenly spaced, since the label's gradient has no positions. A change writes the colors in stop
+ * order; a change of position alone writes nothing.
+ * @param props - Component props
+ * @param props.word - the field's name
+ * @param props.value - the colors the layer writes, if any
+ * @param props.look - the look's colors, if it names any
+ * @param props.onChange - called with the new colors
+ * @returns The field
+ */
+function ColorsField({
+    word,
+    value,
+    look,
+    onChange,
+}: Readonly<{ word: string; value: unknown; look: unknown; onChange: (value: unknown) => void }>): React.JSX.Element {
+    const list = (v: unknown): string[] | undefined =>
+        Array.isArray(v) && v.every((c) => typeof c === "string") ? v : undefined;
+    const shown = list(value) ?? list(look) ?? UNSET_GRADIENT;
+    const stops: ColorStop[] = shown.map((color, i) => ({
+        id: `stop-${String(i)}`,
+        offset: shown.length === 1 ? 0 : i / (shown.length - 1),
+        color,
+    }));
+    return (
+        <div role="group" aria-label={word} data-set={list(value) === undefined ? undefined : ""}>
+            <Text size="xs" component="div" aria-hidden>
+                {word}
+            </Text>
+            <GradientEditor
+                // Keyed by the colors, so Undo or another edit redraws the stops.
+                key={shown.join(",")}
+                defaultStops={stops}
+                showDirection={false}
+                onChange={(next) => {
+                    const ordered = [...next].sort((a, b) => a.offset - b.offset).map((stop) => stop.color);
+                    if (ordered.join(",") !== shown.join(",")) {
+                        onChange(ordered);
+                    }
+                }}
+            />
+        </div>
+    );
 }

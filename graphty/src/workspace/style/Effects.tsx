@@ -1,4 +1,4 @@
-import { CompactColorInput, Popout, PopoutButton, StyleNumberInput, ToggleIconButton } from "@graphty/compact-mantine";
+import { ComboInput, CompactColorInput, Popout, PopoutButton, ToggleIconButton } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
@@ -105,66 +105,93 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
     const shown = kinds.filter((kind) => present(kind) || adding === kind.channel);
     const empty = shown.length === 0;
     const groupName = `${target === "node" ? "Node" : "Edge"} effects`;
+    // The kinds "+" can still add: drawn, and not already here.
+    const addable = kinds.filter(
+        (kind) => descriptorOf(kind.channel)?.renderable === true && !present(kind) && adding !== kind.channel,
+    );
+    const onAdd = (): void => {
+        if (addable.length === 1) {
+            setAdding(addable[0].channel);
+        } else if (addable.length > 1) {
+            setMenuOpen(true);
+        }
+    };
+    // One "+" per list. A menu that would list one effect is that effect's own button.
+    let plusName = `Add to ${groupName.toLowerCase()}`;
+    if (addable.length === 0) {
+        plusName = `${groupName}: every effect already here`;
+    } else if (addable.length === 1) {
+        plusName = `Add ${addable[0].name.toLowerCase()}`;
+    }
+    const plusButton = (
+        <Tooltip label={plusName}>
+            <ActionIcon
+                variant="subtle"
+                size="sm"
+                aria-label={plusName}
+                aria-disabled={addable.length === 0 ? true : undefined}
+                data-disabled={addable.length === 0 ? true : undefined}
+                // Only the direct button handles its own click; in the menu's case the menu does.
+                {...(addable.length === 1 ? { onClick: onAdd } : {})}
+            >
+                <GLYPHS.add size={14} aria-hidden />
+            </ActionIcon>
+        </Tooltip>
+    );
     const title = (
-        <Text size="xs" fw={600} pl={4} c={empty ? "dimmed" : undefined}>
+        <Text size="xs" fw={600} pl={4}>
             Effects
         </Text>
     );
 
     return (
         <Stack gap={2} role="group" aria-label={groupName} data-section="effects">
-            <Menu opened={menuOpen} onChange={setMenuOpen} position="bottom-end">
-                <Group gap={4} h={24} wrap="nowrap" justify="space-between">
-                    {/* An empty list's title opens the "+" menu too, as Figma's empty Fill title does. */}
-                    {empty ? (
-                        <UnstyledButton
-                            aria-label={`Add ${target} effect`}
-                            onClick={() => {
-                                setMenuOpen(true);
-                            }}
-                        >
-                            {title}
-                        </UnstyledButton>
-                    ) : (
-                        title
-                    )}
-                    <Menu.Target>
-                        <Tooltip label="Add effect">
-                            <ActionIcon variant="subtle" size="sm" aria-label={`Add to ${groupName.toLowerCase()}`}>
-                                <GLYPHS.add size={14} aria-hidden />
-                            </ActionIcon>
-                        </Tooltip>
-                    </Menu.Target>
-                </Group>
-                <Menu.Dropdown>
-                    {kinds.map((kind) => {
-                        const descriptor = descriptorOf(kind.channel);
-                        let reason: string | undefined;
-                        if (descriptor?.renderable !== true) {
-                            reason = descriptor?.unsupportedReason ?? "Not drawn yet";
-                        } else if (present(kind) || adding === kind.channel) {
-                            reason = `One ${kind.name.toLowerCase()} per element`;
-                        }
-                        return (
-                            <Menu.Item
-                                key={kind.channel}
-                                leftSection={<kind.glyph size={14} aria-hidden />}
-                                disabled={reason !== undefined}
-                                onClick={() => {
-                                    setAdding(kind.channel);
-                                }}
-                            >
-                                <div>{kind.name}</div>
-                                {reason === undefined ? null : (
-                                    <Text size="xs" c="dimmed">
-                                        {reason}
-                                    </Text>
-                                )}
-                            </Menu.Item>
-                        );
-                    })}
-                </Menu.Dropdown>
-            </Menu>
+            <Group gap={4} h={24} wrap="nowrap" justify="space-between">
+                {empty ? (
+                    // For a pointer, an empty list's title does what "+" does (Figma's empty Fill
+                    // title); the "+" is the one control a keyboard or a screen reader reaches.
+                    <UnstyledButton tabIndex={-1} aria-hidden onClick={onAdd}>
+                        {title}
+                    </UnstyledButton>
+                ) : (
+                    title
+                )}
+                {addable.length > 1 ? (
+                    <Menu opened={menuOpen} onChange={setMenuOpen} position="bottom-end">
+                        <Menu.Target>{plusButton}</Menu.Target>
+                        <Menu.Dropdown>
+                            {kinds.map((kind) => {
+                                const descriptor = descriptorOf(kind.channel);
+                                let reason: string | undefined;
+                                if (descriptor?.renderable !== true) {
+                                    reason = descriptor?.unsupportedReason ?? "Not drawn yet";
+                                } else if (!addable.includes(kind)) {
+                                    reason = `One ${kind.name.toLowerCase()} per element`;
+                                }
+                                return (
+                                    <Menu.Item
+                                        key={kind.channel}
+                                        leftSection={<kind.glyph size={14} aria-hidden />}
+                                        disabled={reason !== undefined}
+                                        onClick={() => {
+                                            setAdding(kind.channel);
+                                        }}
+                                    >
+                                        <div>{kind.name}</div>
+                                        {reason === undefined ? null : (
+                                            <Text size="xs" c="dimmed">
+                                                {reason}
+                                            </Text>
+                                        )}
+                                    </Menu.Item>
+                                );
+                            })}
+                        </Menu.Dropdown>
+                    </Menu>
+                ) : (
+                    plusButton
+                )}
+            </Group>
             {shown.map((kind) => {
                 const descriptor = descriptorOf(kind.channel);
                 if (descriptor === undefined) {
@@ -309,7 +336,7 @@ function EffectEntry({
     const onValue: ChannelValue = descriptor.default ?? descriptor.min ?? 1;
     const literal = color ? (
         <CompactColorInput
-            label={kind.name}
+            aria-label={kind.name}
             width="100%"
             color={off ? undefined : (hexOf(value) ?? undefined)}
             defaultColor={hexOf(descriptor.default) ?? "#000000"}
@@ -323,15 +350,17 @@ function EffectEntry({
             }}
         />
     ) : (
-        <StyleNumberInput
-            showReset={false}
+        <ComboInput
             label={`${kind.name} speed`}
-            value={typeof value === "number" && !off ? value : undefined}
-            defaultValue={typeof onValue === "number" ? onValue : 1}
+            width="100%"
+            numeric
+            options={[]}
+            value={typeof value === "number" && !off ? value : ""}
+            placeholder={String(typeof onValue === "number" ? onValue : 1)}
             min={descriptor.min}
             step={0.1}
             onChange={(next) => {
-                if (next !== undefined) {
+                if (typeof next === "number") {
                     onWrite(next);
                 }
             }}
@@ -349,7 +378,8 @@ function EffectEntry({
             gap={4}
             pl={4}
             wrap="nowrap"
-            align="flex-end"
+            align="center"
+            data-effect={kind.name}
             data-line={descriptor.channel}
             data-hidden={off ? true : undefined}
             // Captured: the hex box handles its own Escape (a revert) and stops it there.
@@ -359,7 +389,13 @@ function EffectEntry({
                 }
             }}
         >
-            {settings.length === 0 ? null : (
+            {/* One line (Figma's effect row): the settings button, or the effect's glyph where it
+                has no settings, its name, its value, then vary, eye and minus. */}
+            {settings.length === 0 ? (
+                <span className="ws-slot" aria-hidden>
+                    <kind.glyph size={14} />
+                </span>
+            ) : (
                 <Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>
                     <Popout.Trigger>
                         <Tooltip label={`${kind.name} settings`}>
@@ -387,6 +423,9 @@ function EffectEntry({
                     </Popout.Panel>
                 </Popout>
             )}
+            <Text size="xs" w={44} truncate aria-hidden>
+                {kind.name}
+            </Text>
             <div style={{ flex: 1, minWidth: 0 }}>
                 {/* A varied effect shows its bound value, as any varied field does. */}
                 {bound ? <Field ctx={ctx} descriptor={descriptor} named={false} /> : literal}

@@ -11,10 +11,6 @@ export type Home = { readonly place: string } | { readonly notOffered: string };
 const at = (place: string): Home => ({ place });
 const no = (notOffered: string): Home => ({ notOffered });
 
-const LABEL_VARY = "the label's color is set in Label settings as one color; varying it by a value has no control yet";
-const TOOLTIP_LOOK = "a tooltip's look has no control yet; it draws in the element's default look";
-const CAPTION = "a caption at an edge's end has no control yet";
-
 /** Every channel, by where the Style tab sets it. */
 export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.color": at("Nodes, Color"),
@@ -23,16 +19,16 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.opacity": at("Nodes, Color settings"),
     "node.wireframe": at("Nodes, Shape settings"),
     "node.visible": at("Nodes, Shape settings"),
-    "node.label": at("Nodes, Label entry, source"),
+    "node.label": at("Nodes, Text, Label entry, source (a value, or Fixed text)"),
     "node.labelStyle": at("Nodes, Label entry look, position and Label settings"),
     "node.labelSize": at("Nodes, Label entry, size"),
-    "node.labelColor": no(LABEL_VARY),
-    "node.labelBackground": no(LABEL_VARY),
-    "node.tooltip": at("Nodes, Tooltip"),
-    "node.tooltipStyle": no(TOOLTIP_LOOK),
-    "node.tooltipSize": no(TOOLTIP_LOOK),
-    "node.tooltipColor": no(TOOLTIP_LOOK),
-    "node.tooltipBackground": no(TOOLTIP_LOOK),
+    "node.labelColor": at("Nodes, Label settings, Text color (varies by a value)"),
+    "node.labelBackground": at("Nodes, Label settings, Background (varies by a value)"),
+    "node.tooltip": at("Nodes, Text, Tooltip entry, source"),
+    "node.tooltipStyle": at("Nodes, Text, Tooltip entry look, position and Tooltip settings"),
+    "node.tooltipSize": at("Nodes, Text, Tooltip entry size"),
+    "node.tooltipColor": at("Nodes, Text, Tooltip entry Tooltip settings, Text color"),
+    "node.tooltipBackground": at("Nodes, Text, Tooltip entry Tooltip settings, Background"),
     "node.outline": at("Nodes, Effects, Outline"),
     "node.glow": at("Nodes, Effects, Glow"),
     "node.glowStrength": at("Nodes, Effects, Glow settings"),
@@ -56,25 +52,25 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.arrowTailSize": at("Edges, Ends settings"),
     "edge.arrowTailColor": at("Edges, Ends settings"),
     "edge.arrowTailOpacity": at("Edges, Ends settings"),
-    "edge.arrowHeadText": no(CAPTION),
-    "edge.arrowHeadTextStyle": no(CAPTION),
-    "edge.arrowHeadTextSize": no(CAPTION),
-    "edge.arrowHeadTextColor": no(CAPTION),
-    "edge.arrowHeadTextBackground": no(CAPTION),
-    "edge.arrowTailText": no(CAPTION),
-    "edge.arrowTailTextStyle": no(CAPTION),
-    "edge.arrowTailTextSize": no(CAPTION),
-    "edge.arrowTailTextColor": no(CAPTION),
-    "edge.arrowTailTextBackground": no(CAPTION),
+    "edge.arrowHeadText": at("Edges, Text, Caption at the target end, source"),
+    "edge.arrowHeadTextStyle": at("Edges, Text, Caption at the target end look, position and settings"),
+    "edge.arrowHeadTextSize": at("Edges, Text, Caption at the target end size"),
+    "edge.arrowHeadTextColor": at("Edges, Text, Caption at the target end settings, Text color"),
+    "edge.arrowHeadTextBackground": at("Edges, Text, Caption at the target end settings, Background"),
+    "edge.arrowTailText": at("Edges, Text, Caption at the source end, source"),
+    "edge.arrowTailTextStyle": at("Edges, Text, Caption at the source end look, position and settings"),
+    "edge.arrowTailTextSize": at("Edges, Text, Caption at the source end size"),
+    "edge.arrowTailTextColor": at("Edges, Text, Caption at the source end settings, Text color"),
+    "edge.arrowTailTextBackground": at("Edges, Text, Caption at the source end settings, Background"),
     "edge.bandColor": at("Edges, Effects, Band"),
     "edge.bandWidth": at("Edges, Effects, Band settings"),
     "edge.bandOpacity": at("Edges, Effects, Band settings"),
     "edge.animationSpeed": at("Edges, Effects, Motion"),
-    "edge.label": at("Edges, Label entry, source"),
+    "edge.label": at("Edges, Text, Label entry, source (a value, or Fixed text)"),
     "edge.labelStyle": at("Edges, Label entry look, position and Label settings"),
     "edge.labelSize": at("Edges, Label entry, size"),
-    "edge.labelColor": no(LABEL_VARY),
-    "edge.labelBackground": no(LABEL_VARY),
+    "edge.labelColor": at("Edges, Label settings, Text color (varies by a value)"),
+    "edge.labelBackground": at("Edges, Label settings, Background (varies by a value)"),
 };
 
 const TYPE = at("Label settings, Type");
@@ -107,7 +103,7 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
     gradient: BOX,
     gradientType: BOX,
     gradientDirection: BOX,
-    gradientColors: no("a list of colors has no field yet; the gradient uses the element's colors"),
+    gradientColors: BOX,
     outline: LETTERS,
     outlineWidth: LETTERS,
     shadow: LETTERS,
@@ -134,8 +130,41 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
     progress: BADGE,
     smartOverflow: BADGE,
     maxNumber: BADGE,
-    icon: no("the badge's icon glyph has no field yet"),
-    overflowSuffix: no("the text after a shortened number has no field yet"),
+    icon: BADGE,
+    overflowSuffix: BADGE,
+};
+
+/**
+ * The styles the design places in the panel (tier3 design, section 6) that are easy to leave
+ * without a control: the coverage test fails when one of them is marked "not offered".
+ */
+export const DESIGN_PLACED: {
+    readonly channels: readonly Channel[];
+    readonly labelFields: readonly (keyof LabelStyle)[];
+} = {
+    channels: [
+        "node.label",
+        "node.labelColor",
+        "node.labelBackground",
+        "node.tooltipStyle",
+        "node.tooltipSize",
+        "node.tooltipColor",
+        "node.tooltipBackground",
+        "edge.label",
+        "edge.labelColor",
+        "edge.labelBackground",
+        "edge.arrowHeadText",
+        "edge.arrowHeadTextStyle",
+        "edge.arrowHeadTextSize",
+        "edge.arrowHeadTextColor",
+        "edge.arrowHeadTextBackground",
+        "edge.arrowTailText",
+        "edge.arrowTailTextStyle",
+        "edge.arrowTailTextSize",
+        "edge.arrowTailTextColor",
+        "edge.arrowTailTextBackground",
+    ],
+    labelFields: ["gradientColors", "icon", "overflowSuffix"],
 };
 
 /**

@@ -546,6 +546,8 @@ class ChunkReader {
      * @param pausesTurns - The provider pauses its own tools' turns (`ProviderModule.pausesTurns`).
      * @param offered - The provider's own tools the turn offered; a result for any other is dropped
      *   (Gemini reports URL context's grounding as a Google Search).
+     * @param roundTripsThinking - The turn's signed reasoning goes back with its calls
+     *   (`ProviderModule.roundTripsThinking`); otherwise it is not kept.
      */
     constructor(
         private readonly settings: ProviderApiSettings,
@@ -553,6 +555,7 @@ class ChunkReader {
         private readonly signal: AbortSignal,
         private readonly pausesTurns = false,
         private readonly offered?: ReadonlySet<EngineHostedTool>,
+        private readonly roundTripsThinking = false,
     ) {}
 
     /**
@@ -577,11 +580,19 @@ class ChunkReader {
                 this.wrote ||= chunk.delta !== "";
                 return [{ type: "text", delta: chunk.delta }];
             case EventType.REASONING_MESSAGE_CONTENT: {
+                if (!this.roundTripsThinking) {
+                    return [];
+                }
+
                 const block = this.reasoning.get(chunk.messageId);
                 this.reasoning.set(chunk.messageId, { ...block, content: (block?.content ?? "") + chunk.delta });
                 return [];
             }
             case EventType.REASONING_ENCRYPTED_VALUE: {
+                if (!this.roundTripsThinking) {
+                    return [];
+                }
+
                 const block = this.reasoning.get(chunk.entityId);
                 this.reasoning.set(chunk.entityId, { content: block?.content ?? "", signature: chunk.encryptedValue });
                 return [];
@@ -809,6 +820,7 @@ export async function* providerApiTurn(
             signal,
             module.pausesTurns === true,
             new Set((request.hostedTools ?? []).map(({ tool }) => tool)),
+            module.roundTripsThinking === true,
         );
         const stream = chat({
             adapter: module.createAdapter(settings, recordingFetch(response), turn),

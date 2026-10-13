@@ -453,7 +453,9 @@ export class D3GraphEngine extends LayoutEngine {
         d3node.fx = undefined;
         d3node.fy = undefined;
         d3node.fz = undefined;
-        this.reheat = true; // TODO: is this necessary?
+        // Reheat so the released node moves: a settled simulation would otherwise leave it where
+        // the pin held it.
+        this.reheat = true;
     }
 
     /**

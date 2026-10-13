@@ -1072,8 +1072,9 @@ export class RichTextLabel {
      * A label sorts by depth with the scene, so a plane at the mesh's own center is INSIDE the
      * mesh and its near surface covers every word (issue #2323). Center is the default label
      * position of Graphviz, Cytoscape and yEd, so every file from them showed no labels. Each
-     * frame the plane is moved from the center toward the camera by the mesh's bounding radius,
-     * so it lies on the near side of the mesh and still covers its middle on screen.
+     * frame the plane is moved from the center back along the camera's view axis by the mesh's
+     * bounding radius, so it lies on the near side of the mesh and still covers its middle on
+     * screen.
      * @param target - The mesh the label is centered on, or null when it is not centered on one.
      */
     private _keepCenterInFront(target: AbstractMesh | null): void {

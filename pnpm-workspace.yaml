@@ -71,3 +71,11 @@ overrides:
     "undici@<6.28.0": ^6.28.0
     # vitepress 1.x depends on vite 5, which the Vite 6.4.3 advisories do not patch.
     "vite@<6.4.3": ^6.4.3
+    # One Playwright for the whole workspace: the version CI installs browsers for (ci.yml's
+    # browser cache). graphty-element's @playwright/test ^1.54.1 otherwise resolved 1.63.0, and any
+    # lockfile re-resolution moved @vitest/browser-playwright's playwright peer to it, so every
+    # browser shard failed with "Executable doesn't exist ... chromium_headless_shell-1243". Move
+    # all three together, with the browser cache key. tools/ci-workflows.test.mjs checks the lock.
+    playwright: 1.57.0
+    playwright-core: 1.57.0
+    "@playwright/test": 1.57.0

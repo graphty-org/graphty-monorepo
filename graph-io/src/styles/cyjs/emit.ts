@@ -121,10 +121,13 @@ const ARROWS_TO_CYJS: ReadonlyMap<string, string> = new Map([
     ["circle", "circle"],
     ["square", "square"],
 ]);
-const ARROWS_NEAREST: ReadonlyMap<string, string> = new Map([
+/** The open arrows: their shape, drawn hollow. */
+const ARROWS_OPEN: ReadonlyMap<string, string> = new Map([
     ["triangle-open", "triangle"],
     ["diamond-open", "diamond"],
     ["circle-open", "circle"],
+]);
+const ARROWS_NEAREST: ReadonlyMap<string, string> = new Map([
     ["half", "triangle"],
     ["inverted", "triangle"],
     ["crow", "vee"],
@@ -220,19 +223,23 @@ function enumToCyjs(
 }
 
 /**
- * An arrow, or the nearest arrow Cytoscape.js has.
- * @param name - the Cytoscape.js property
+ * An arrow, or the nearest arrow Cytoscape.js has, with its fill: an open arrow is its shape drawn hollow, and every
+ * other arrow is written filled, so a hollow fill an earlier rule set does not carry over to it.
+ * @param name - the Cytoscape.js shape property
  * @param value - the neutral arrow
  * @param specs - the target's properties
  * @returns the written value, or null when Cytoscape.js has none near
  */
 function arrowToCyjs(name: string, value: string, specs: ReadonlyMap<string, CyjsPropertySpec>): Written | null {
-    const own = enumToCyjs(name, value, ARROWS_TO_CYJS, specs);
-    if (own !== null) {
-        return own;
+    const fill = name.replace("-shape", "-fill");
+    const open = ARROWS_OPEN.get(value);
+    if (open !== undefined) {
+        return exact({ [name]: open, [fill]: "hollow" });
     }
+    const own = enumToCyjs(name, value, ARROWS_TO_CYJS, specs);
     const nearest = ARROWS_NEAREST.get(value);
-    return nearest === undefined ? null : near({ [name]: nearest });
+    const w = own ?? (nearest === undefined ? null : near({ [name]: nearest }));
+    return w === null || value === "none" ? w : { ...w, props: { ...w.props, [fill]: "filled" } };
 }
 
 /**

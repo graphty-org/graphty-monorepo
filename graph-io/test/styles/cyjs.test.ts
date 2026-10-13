@@ -413,6 +413,75 @@ describe("the cascade", () => {
     });
 });
 
+const HOLLOW = {
+    elements: [
+        { data: { id: "a" } },
+        { data: { id: "b" } },
+        { data: { id: "ab", source: "a", target: "b" }, classes: "hollow" },
+        { data: { id: "ba", source: "b", target: "a" }, classes: "hollow solid" },
+        { data: { id: "aa2", source: "a", target: "b" }, classes: "hollow vee" },
+        { data: { id: "bb2", source: "b", target: "a" } },
+    ],
+    style: [
+        { selector: "edge", style: { "target-arrow-shape": "circle", "source-arrow-shape": "diamond" } },
+        { selector: ".hollow", style: { "target-arrow-fill": "hollow", "source-arrow-fill": "hollow" } },
+        { selector: ".solid", style: { "target-arrow-fill": "filled", "target-arrow-shape": "triangle" } },
+        { selector: ".vee", style: { "target-arrow-shape": "vee" } },
+    ],
+};
+
+describe("hollow arrows", () => {
+    it("reads a hollow arrow as the open shape, where the fill and the shape come from different rules", async () => {
+        const notes = new StyleNotes();
+        const r = evaluateCytoscapeJs({ ...HOLLOW, notes });
+        expect(r.edge.values.targetArrow).toEqual(["circle-open", "triangle", "vee", "circle"]);
+        expect(r.edge.values.sourceArrow).toEqual(["diamond-open", "diamond-open", "diamond-open", "diamond"]);
+        // a hollow arrow with no open shape in the vocabulary is drawn filled and noted for that element only
+        const noted = notes.list().filter((x) => x.code === "W_STYLE_NOT_CARRIED");
+        expect(noted.map((x) => [x.params.property, x.elements])).toEqual([["target-arrow-fill", [2]]]);
+        const s = await snapshotOf(HOLLOW);
+        const ex = extract(HOLLOW, s);
+        expect(resolveStyles(ex, "edge", "targetArrow", s)).toEqual(["circle-open", "triangle", "vee", "circle"]);
+    });
+
+    it("reads the catalysis edges of the glycolysis map as hollow circles", () => {
+        const doc = JSON.parse(
+            readFileSync(resolve(CORPUS, "../json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json"), "utf8"),
+        ) as { elements: unknown; style: unknown };
+        const r = evaluateCytoscapeJs(doc);
+        const arrows = new Map<string, Set<StyleValue | null>>();
+        r.edge.elements.forEach((el, i) => {
+            const kind = String(el?.data.class);
+            const set = arrows.get(kind) ?? new Set();
+            set.add(r.edge.values.targetArrow?.[i] ?? null);
+            arrows.set(kind, set);
+        });
+        expect(arrows.get("catalysis")).toEqual(new Set(["circle-open"]));
+        expect(arrows.get("production")).toEqual(new Set(["triangle"]));
+        // the rule that sets the shape and the fill together sets the open arrow itself, not per-element exceptions
+        expect(r.edge.rules.some((x) => x.set?.targetArrow === "circle-open")).toBe(true);
+    });
+
+    it("writes an open arrow as its shape with a hollow fill, and reads it back the same", async () => {
+        const s = await snapshotOf(HOLLOW);
+        const ex = extract(HOLLOW, s);
+        const em = toCytoscapeStylesheet(ex);
+        // written exactly: no arrow is noted as approximated
+        expect(em.notes.filter((x) => x.params.property?.endsWith("Arrow") === true)).toEqual([]);
+        expect(em.bypass.edge[0]).toMatchObject({ "target-arrow-shape": "circle", "target-arrow-fill": "hollow" });
+        // a filled arrow is written filled, so a hollow fill beneath it does not carry over
+        expect(
+            em.stylesheet.some(
+                (r) => r.style["target-arrow-shape"] === "triangle" && r.style["target-arrow-fill"] === "filled",
+            ),
+        ).toBe(true);
+        const back = readCytoscapeStyles({ elements: coreElements(s, em), style: em.stylesheet, snapshot: s });
+        for (const p of ["targetArrow", "sourceArrow"] as const) {
+            expect(resolveStyles(back, "edge", p, s)).toEqual(resolveStyles(ex, "edge", p, s));
+        }
+    });
+});
+
 describe("linear work", () => {
     it("matches a selector of 100,000 class tests in one counted pass", () => {
         const n = 2000;

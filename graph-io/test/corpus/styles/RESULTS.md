@@ -241,7 +241,7 @@ Tool values are elements drawn with the writing program's default.
 | json/cyjs-colajs (data and stylesheet) | ok | 21 | 593 | 3 | 3 | 965 | 0% | 0% | 0 | 6098 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/cyjs-colajs-data.json | ok | 21 | 593 | 1 | 2 | 0 | - | - | 0 | 8003 | 0 |  |
 | json/cyjs-cose-bilkent-compound.json | ok | 28 | 35 | 2 | 3 | 0 | - | - | 0 | 826 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs-edge-arrows (data and stylesheet) | ok | 24 | 12 | 4 | 3 | 9 | 0% | 0% | 0 | 396 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_UNKNOWN_VALUE |
+| json/cyjs-edge-arrows (data and stylesheet) | ok | 24 | 12 | 4 | 3 | 9 | 0% | 0% | 0 | 396 | 0 | W_STYLE_UNKNOWN_VALUE |
 | json/cyjs-edge-arrows-data.json | ok | 24 | 12 | 1 | 2 | 0 | - | - | 0 | 492 | 0 |  |
 | json/cyjs-enrichment-map-desktop-style (data and stylesheet) | ok | 525 | 6421 | 4 | 2 | 0 | - | - | 0 | 27784 | 0 | W_STYLE_NOT_CARRIED |
 | json/cyjs-enrichment-map.networks.json.gz | ok | 525 | 6421 | 1 | 2 | 0 | - | - | 0 | 90823 | 0 |  |

@@ -1661,6 +1661,8 @@ const CYJS_EDGE_ONLY: ReadonlySet<string> = new Set([
     "source-arrow-shape",
     "target-arrow-color",
     "source-arrow-color",
+    "target-arrow-fill",
+    "source-arrow-fill",
     "curve-style",
     "arrow-scale",
     "source-label",
@@ -1825,6 +1827,69 @@ function combineParts(
         }
         values.visible = col;
     }
+    if (kind === "edge") {
+        hollowArrows("target", words.get("_targetArrowFill"), values, notes);
+        hollowArrows("source", words.get("_sourceArrowFill"), values, notes);
+    }
+}
+
+/**
+ * An entry's arrows drawn open where the same entry sets them hollow. A fill set by another entry is left to the
+ * per-element values the rules are checked against.
+ * @param setting - the entry's constants; changed in place
+ * @param parts - every property of the entry
+ */
+function openArrows(setting: Map<string, StyleValue>, parts: readonly EntryProperty[]): void {
+    for (const end of ["target", "source"]) {
+        const fill = parts.filter((p) => p.spec.property === `_${end}ArrowFill`).at(-1)?.parsed;
+        const shape = setting.get(`${end}Arrow`);
+        const open = shape === undefined ? undefined : OPEN_ARROWS.get(shape);
+        if (fill?.kind === "word" && fill.value === "hollow" && open !== undefined) {
+            setting.set(`${end}Arrow`, open);
+        }
+    }
+}
+
+/** The arrows the vocabulary has an open shape for, by their filled shape. */
+const OPEN_ARROWS: ReadonlyMap<StyleValue, StyleValue> = new Map([
+    ["triangle", "triangle-open"],
+    ["circle", "circle-open"],
+    ["diamond", "diamond-open"],
+]);
+
+/**
+ * Combines an end's arrow shape with its fill: a hollow arrow is the open shape. A hollow arrow the vocabulary has no
+ * open shape for keeps its filled shape and is noted.
+ * @param end - the edge end
+ * @param fill - the fill per element, or undefined when no rule sets it
+ * @param values - the values; changed in place
+ * @param notes - where problems are noted
+ */
+function hollowArrows(
+    end: "source" | "target",
+    fill: readonly (string | null)[] | undefined,
+    values: Record<string, (StyleValue | null)[]>,
+    notes: StyleNotes,
+): void {
+    const shapes = values[`${end}Arrow`] as (StyleValue | null)[] | undefined;
+    if (fill === undefined || shapes === undefined) {
+        return;
+    }
+    for (let i = 0; i < shapes.length; i++) {
+        const shape = shapes[i];
+        if (fill[i] !== "hollow" || shape === null || shape === "none") {
+            continue;
+        }
+        const open = OPEN_ARROWS.get(shape);
+        if (open === undefined) {
+            notes.add(STYLE_ISSUE.NOT_CARRIED, "edge", `${end}-arrow-fill`, {
+                sample: `hollow ${String(shape)}`,
+                element: i,
+            });
+        } else {
+            shapes[i] = open;
+        }
+    }
 }
 
 /**
@@ -1901,7 +1966,7 @@ function buildRules(
         if (props.length === 0 || a.list.length === 0) {
             continue;
         }
-        drafts.push(draftOf(ctx, a.entry, a.list, props));
+        drafts.push(draftOf(ctx, a.entry, a.list, props, a.props));
     }
     const rules = collapse(ctx, drafts);
     return { rules, columns, rawColumns: [...raw] };
@@ -1948,9 +2013,16 @@ interface Draft {
  * @param entry - the entry
  * @param list - the matched core elements
  * @param props - the carried properties
+ * @param parts - every property of the entry, the combined parts too: a hollow fill makes the entry's own arrow open
  * @returns the draft
  */
-function draftOf(ctx: RuleContext, entry: Entry, list: readonly number[], props: readonly EntryProperty[]): Draft {
+function draftOf(
+    ctx: RuleContext,
+    entry: Entry,
+    list: readonly number[],
+    props: readonly EntryProperty[],
+    parts: readonly EntryProperty[],
+): Draft {
     const setting = new Map<string, StyleValue>();
     const mapping = new Map<string, Mapping>();
     let flattened = false;
@@ -1981,6 +2053,7 @@ function draftOf(ctx: RuleContext, entry: Entry, list: readonly number[], props:
             mapping.set(p.spec.property, mapperMapping(ctx, entry, list, p));
         }
     }
+    openArrows(setting, parts);
     const set = Object.fromEntries(setting);
     const map = Object.fromEntries(mapping);
     const hasMap = mapping.size > 0;

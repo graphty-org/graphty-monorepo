@@ -28,7 +28,10 @@ export type CyjsValueType =
 
 /** One property graph-io carries: the neutral property it sets (or a part it combines) and how it is parsed. */
 export interface CyjsPropertySpec {
-    /** The neutral property, or `_valign`, `_halign`, `_visibility`, `_display` for the parts combined afterward. */
+    /**
+     * The neutral property, or `_valign`, `_halign`, `_visibility`, `_display`, `_sourceArrowFill`, `_targetArrowFill`
+     * for the parts combined afterward.
+     */
     readonly property: string;
     /** The value type. */
     readonly type: CyjsValueType;
@@ -161,6 +164,8 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["source-arrow-shape", { property: "sourceArrow", type: "enum", enums: ARROWS }],
     ["target-arrow-color", { property: "targetArrowColor", type: "color" }],
     ["source-arrow-color", { property: "sourceArrowColor", type: "color" }],
+    ["target-arrow-fill", { property: "_targetArrowFill", type: "enum", enums: ["filled", "hollow"] }],
+    ["source-arrow-fill", { property: "_sourceArrowFill", type: "enum", enums: ["filled", "hollow"] }],
     ["curve-style", { property: "curved", type: "enum", enums: CURVES }],
     ["arrow-scale", { property: "arrowSize", type: "positive" }],
     ["source-label", { property: "sourceLabel", type: "text" }],

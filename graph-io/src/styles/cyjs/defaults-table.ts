@@ -36,6 +36,8 @@ export const CYJS_PROPERTY_DEFAULTS: ReadonlyMap<string, string> = new Map([
     ["line-style", "solid"],
     ["target-arrow-shape", "none"],
     ["source-arrow-shape", "none"],
+    ["target-arrow-fill", "filled"],
+    ["source-arrow-fill", "filled"],
     ["target-arrow-color", "rgb(153,153,153)"],
     ["source-arrow-color", "rgb(153,153,153)"],
     ["curve-style", "haystack"],

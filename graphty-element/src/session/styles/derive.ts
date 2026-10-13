@@ -161,7 +161,7 @@ function halvesCarrying(fields: readonly FieldDescriptor[], name: string): reado
  * the same field for a node measurement, or an edge width for an edge measurement, and everything else -- `true`, `false`, left off --
  * suggests the colour alone. Whether to paint at all is the auto-apply policy's question.
  * @param run - The run, read for its shape and the fields it published.
- * @param style - The run's style option, read only for `size`.
+ * @param style - The run's style option, read for `size` and `name`.
  * @returns What to draw, empty when the run's result is read rather than painted.
  */
 export function suggestStyles(run: EncodingRun, style: RunStyle = true): readonly StyleSuggestion[] {
@@ -184,7 +184,12 @@ export function suggestStyles(run: EncodingRun, style: RunStyle = true): readonl
     const grouping = groupingOf(run, primaryField, primary);
     const size = sizeOf(run, primaryField, halves, style);
 
-    return Object.freeze([...primary, ...(grouping === null ? [] : [grouping]), ...(size === null ? [] : [size])]);
+    const all = [...primary, ...(grouping === null ? [] : [grouping]), ...(size === null ? [] : [size])];
+    const name = typeof style === "object" ? style.name : undefined;
+
+    return Object.freeze(
+        name === undefined ? all : all.map((each) => ({ ...each, spec: { ...each.spec, name } }) as StyleSuggestion),
+    );
 }
 
 /**

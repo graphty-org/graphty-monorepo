@@ -3099,6 +3099,7 @@ export type RunStatus = (typeof RUN_STATUSES)[number];
 // @public
 export type RunStyle = boolean | {
     readonly size?: boolean | readonly [min: number, max: number];
+    readonly name?: string;
 };
 
 // @public

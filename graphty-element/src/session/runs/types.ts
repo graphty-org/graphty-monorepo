@@ -478,11 +478,15 @@ export interface StartOptions extends RunOptions {
  *   channel's own units. `size: false` or left off adds no size. For any other result shape the
  *   size is ignored, without an error, exactly as the colour suggestion itself depends on the
  *   shape.
+ * - `{ name }`: what to call the layers it adds, in place of the run's label. An application that
+ *   names algorithms in its own words passes the name its reader picked the algorithm by. Combines
+ *   with `size`.
  *
  * Every layer this adds is scoped to the elements carrying the run's value, and is removed with
  * the run.
  */
-export type RunStyle = boolean | { readonly size?: boolean | readonly [min: number, max: number] };
+export type RunStyle =
+    boolean | { readonly size?: boolean | readonly [min: number, max: number]; readonly name?: string };
 
 /** One member of a batch: the same thing `start` takes, as data. */
 export interface RunSpec {

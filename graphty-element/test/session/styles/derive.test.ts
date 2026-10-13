@@ -456,3 +456,24 @@ describe("sizing by the run's measurement, asked for with style: { size }", () =
         assert.deepStrictEqual(layer?.selector, { match: "has", path: "results.betweenness.value" });
     });
 });
+
+describe("naming the layers a run adds, asked for with style: { name }", () => {
+    it("names every suggestion, the colour and the size alike, and leaves them unnamed otherwise", () => {
+        const named = suggestStyles(BETWEENNESS, { size: true, name: "Closeness" });
+
+        assert.lengthOf(named, 2);
+        assert.deepStrictEqual(
+            named.map((each) => each.spec.name),
+            ["Closeness", "Closeness"],
+        );
+        assert.isUndefined(suggestStyles(BETWEENNESS, { size: true })[0].spec.name);
+        assert.strictEqual(suggestStyles(ROUTE, { name: "Shortest path" })[0].spec.name, "Shortest path");
+    });
+
+    it("gives the planned layer that name instead of the run's label", () => {
+        const [colour] = suggestStyles(BETWEENNESS, { name: "Closeness" });
+        const layer = colour.as === "encoding" ? planEncoding(colour.spec, RUN_SOURCE) : undefined;
+
+        assert.strictEqual(layer?.name, "Closeness");
+    });
+});

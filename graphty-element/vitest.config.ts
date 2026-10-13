@@ -320,6 +320,7 @@ export default defineConfig({
                         "test/integration/Edge.integration.test.ts",
                         // Browser-only tests
                         "test/browser/**/*.test.ts",
+                        "test/fidelity/fidelity.test.ts",
                         // Interaction tests require browser environment
                         "test/interactions/**/*.test.ts",
                         // Performance tests need DOM and should run in browser
@@ -575,6 +576,32 @@ export default defineConfig({
                     ],
                     // Disable file parallelism to prevent route.fulfill errors
                     // when browser contexts are garbage collected during parallel execution
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [browserInstance()],
+                    },
+                },
+            },
+            {
+                // The style fidelity harness's graphty side (graph-io/test/fidelity/): loads every
+                // fidelity sample with its file styles and writes what was drawn to
+                // test/fidelity/out/. It records and never gates, a sample's layout can take longer
+                // than the browser project's budget to settle, and so it is in no CI shard and not in
+                // the pre-push gate. Run with: npm run test:fidelity, and on this workstation with
+                // GRAPHTY_BROWSER_GPU=nvidia (and GRAPHTY_EGL_LIB_DIR): under SwiftShader the
+                // annotation session draws about one frame a second and does not settle.
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                optimizeDeps: { include: PREBUNDLED },
+                resolve: { alias: OWN_ENTRY_POINTS },
+                test: {
+                    name: "fidelity",
+                    setupFiles: ["./test/setup.ts"],
+                    include: ["test/fidelity/fidelity.test.ts"],
+                    testTimeout: 0,
                     fileParallelism: false,
                     browser: {
                         enabled: true,

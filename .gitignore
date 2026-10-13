@@ -173,6 +173,7 @@ __pycache__/
 # graphty-element's bench-browser rows, appended on every run by vitest.config.ts: a log of one
 # machine's runs, not a result. The design records the numbers it cites.
 graphty-element/benchmarks/results/browser-*.jsonl
+graphty-element/test/fidelity/out/
 browser-results.json
 gpu-report.json
 

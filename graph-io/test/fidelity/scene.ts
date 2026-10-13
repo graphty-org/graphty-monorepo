@@ -14,7 +14,7 @@ export type { RouteId } from "./routes.js";
 /** `#rrggbb`, lowercase. */
 export type Color = string;
 
-type ShapeClass =
+export type ShapeClass =
     | "ellipse"
     | "rect"
     | "roundrect"
@@ -27,9 +27,9 @@ type ShapeClass =
     | "image"
     | "other";
 
-type ArrowClass = "filled-triangle" | "open-triangle" | "diamond" | "circle" | "tee" | "other";
+export type ArrowClass = "filled-triangle" | "open-triangle" | "diamond" | "circle" | "tee" | "other";
 
-type LineStyle = "solid" | "dashed" | "dotted" | "other";
+export type LineStyle = "solid" | "dashed" | "dotted" | "other";
 
 /** Every property the comparer scores, and the ones a route's ledger says it can or cannot carry. */
 export const PROPERTIES = [

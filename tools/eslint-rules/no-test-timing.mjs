@@ -62,6 +62,7 @@ const FUNCTION_TYPES = new Set(["ArrowFunctionExpression", "FunctionExpression",
 // An imported function by this name waits one animation frame; a local one is judged by its body.
 const ONE_FRAME_NAMES = new Set(["nextFrame", "nextAnimationFrame", "animationFrame", "waitFrame", "waitForFrame"]);
 // Calls that run a function in the page rather than in the test.
+const NUMBER_OPS = { "+": (a, b) => a + b, "-": (a, b) => a - b, "*": (a, b) => a * b };
 const PAGE_CALLS = new Set(["evaluate", "evaluateHandle", "$eval", "$$eval", "addInitScript", "evaluateOnNewDocument"]);
 
 /** @type {import("eslint").Rule.RuleModule} */
@@ -291,21 +292,16 @@ const rule = {
                 const v = numValue(n.argument);
                 return v === undefined ? undefined : -v;
             }
-            if (n?.type === "BinaryExpression" && ["+", "-", "*"].includes(n.operator)) {
+            if (n?.type === "BinaryExpression" && NUMBER_OPS[n.operator]) {
                 const l = numValue(n.left);
                 const r = numValue(n.right);
-                if (l === undefined || r === undefined) {
-                    return undefined;
-                }
-                return n.operator === "+" ? l + r : n.operator === "-" ? l - r : l * r;
+                return l === undefined || r === undefined ? undefined : NUMBER_OPS[n.operator](l, r);
             }
-            if (n?.type === "Identifier") {
-                const def = resolve(n)?.defs[0];
-                if (def?.type === "Variable" && def.parent.kind === "const") {
-                    return numValue(def.node.init);
-                }
-            }
-            return undefined;
+            return n?.type === "Identifier" ? constValue(n) : undefined;
+        };
+        const constValue = (id) => {
+            const def = resolve(id)?.defs[0];
+            return def?.type === "Variable" && def.parent.kind === "const" ? numValue(def.node.init) : undefined;
         };
 
         // The function a callee names, when it is declared in this file.
@@ -381,8 +377,12 @@ const rule = {
             const start = decl?.id.name === test.left.name ? numValue(decl.init) : undefined;
             return { bound: test.right, start: start ?? 0, inclusive: test.operator === "<=" };
         };
-        const iterations = ({ start, inclusive }, bound) =>
-            bound === undefined ? undefined : bound - start + (inclusive ? 1 : 0);
+        const iterations = ({ start, inclusive }, bound) => {
+            if (bound === undefined) {
+                return undefined;
+            }
+            return inclusive ? bound - start + 1 : bound - start;
+        };
 
         // A function that waits as many frames as one of its parameters says: that parameter's index and default.
         const frameHelper = (fn) => {
@@ -408,62 +408,81 @@ const rule = {
             return { index, info: loop.info, fallback: param.type === "AssignmentPattern" ? param.right : undefined };
         };
 
+        const loopWaitsFrames = (loop) => {
+            const info = frameLoop(loop);
+            return Boolean(info) && iterations(info, numValue(info.bound)) > 1;
+        };
+        const callWaitsFrames = (call) => {
+            const fn = localFunction(call.callee);
+            const helper = fn && frameHelper(fn);
+            return (
+                Boolean(helper) &&
+                iterations(helper.info, numValue(call.arguments[helper.index] ?? helper.fallback)) > 1
+            );
+        };
+        // Nested frames where they are written (a helper's body, not each call to it), or a second
+        // awaited frame straight after another.
+        const awaitWaitsFrames = (node) => {
+            const count = frameCount(node.argument);
+            if (count > 1) {
+                return !localFunction(node.argument.callee);
+            }
+            const st = node.parent;
+            const list = st.type === "ExpressionStatement" ? st.parent.body : undefined;
+            const previous = Array.isArray(list) ? list[list.indexOf(st) - 1] : undefined;
+            return count === 1 && awaitedFrames(previous) === 1;
+        };
         const checkFrames = () => {
-            for (const loop of frameLoops) {
-                const info = frameLoop(loop);
-                if (info && iterations(info, numValue(info.bound)) > 1) {
-                    reportSleep(loop, "frames");
-                }
-            }
-            for (const call of frameCalls) {
-                const fn = localFunction(call.callee);
-                const helper = fn && frameHelper(fn);
-                if (helper) {
-                    const arg = call.arguments[helper.index] ?? helper.fallback;
-                    if (iterations(helper.info, numValue(arg)) > 1) {
-                        reportSleep(call, "frames");
-                    }
-                }
-            }
-            for (const node of frameAwaits) {
-                const count = frameCount(node.argument);
-                const st = node.parent;
-                const list = st.type === "ExpressionStatement" ? st.parent.body : undefined;
-                const previous = Array.isArray(list) ? list[list.indexOf(st) - 1] : undefined;
-                // Nested frames where they are written (a helper's body, not each call to it), or a
-                // second awaited frame straight after another.
-                const nested = count > 1 && !localFunction(node.argument.callee);
-                if (nested || (count === 1 && awaitedFrames(previous) === 1)) {
-                    reportSleep(node, "frames");
-                }
-            }
+            [
+                ...frameLoops.filter(loopWaitsFrames),
+                ...frameCalls.filter(callWaitsFrames),
+                ...frameAwaits.filter(awaitWaitsFrames),
+            ].forEach((node) => reportSleep(node, "frames"));
         };
 
         // ---- Timers in code handed to the page.
         const pageFunctions = new Set();
+        // `new Promise((r) => setTimeout(r, n))`, which is already reported as a sleep.
+        const isPromiseSleep = (call) => {
+            let fn = call.parent;
+            while (fn && !isFunction(fn)) {
+                fn = fn.parent;
+            }
+            const promise = fn?.parent;
+            return (
+                promise?.type === "NewExpression" &&
+                promise.callee.name === "Promise" &&
+                promise.arguments[0] === fn &&
+                call.arguments[0]?.type === "Identifier" &&
+                call.arguments[0].name === fn.params[0]?.name
+            );
+        };
+        const inPageCode = (call) => {
+            for (let p = call.parent; p; p = p.parent) {
+                if (pageFunctions.has(p)) {
+                    return true;
+                }
+            }
+            return false;
+        };
         const checkTimers = () => {
-            for (const call of timers) {
-                // `new Promise((r) => setTimeout(r, n))` is already reported as a sleep.
-                let fn = call.parent;
-                while (fn && !isFunction(fn)) {
-                    fn = fn.parent;
-                }
-                const promise = fn?.parent;
-                if (
-                    promise?.type === "NewExpression" &&
-                    promise.callee.name === "Promise" &&
-                    promise.arguments[0] === fn &&
-                    call.arguments[0]?.type === "Identifier" &&
-                    call.arguments[0].name === fn.params[0]?.name
-                ) {
-                    continue;
-                }
-                for (let p = call.parent; p; p = p.parent) {
-                    if (pageFunctions.has(p)) {
-                        context.report({ node: call, messageId: "pageTimer" });
-                        break;
-                    }
-                }
+            timers
+                .filter((call) => !isPromiseSleep(call) && inPageCode(call))
+                .forEach((node) => context.report({ node, messageId: "pageTimer" }));
+        };
+        // Calls the frame and page-timer checks judge at the end of the file.
+        const collectCall = (node, name) => {
+            if (node.callee.type === "Identifier") {
+                frameCalls.push(node);
+            }
+            if (name === "setTimeout" && !isZero(node.arguments[1])) {
+                timers.push(node);
+            }
+            if (PAGE_CALLS.has(name) && node.callee.type === "MemberExpression") {
+                node.arguments
+                    .map((arg) => (isFunction(arg) ? arg : localFunction(arg)))
+                    .filter(Boolean)
+                    .forEach((fn) => pageFunctions.add(fn));
             }
         };
 
@@ -548,20 +567,7 @@ const rule = {
                 const { callee } = node;
                 const name = callee.type === "Identifier" ? callee.name : propName(callee);
                 checkClockMatcher(node, name);
-                if (callee.type === "Identifier") {
-                    frameCalls.push(node);
-                }
-                if (name === "setTimeout" && !isZero(node.arguments[1])) {
-                    timers.push(node);
-                }
-                if (PAGE_CALLS.has(name) && callee.type === "MemberExpression") {
-                    for (const arg of node.arguments) {
-                        const fn = isFunction(arg) ? arg : localFunction(arg);
-                        if (fn) {
-                            pageFunctions.add(fn);
-                        }
-                    }
-                }
+                collectCall(node, name);
                 if (isSleepCall(node, name)) {
                     reportSleep(node);
                 }

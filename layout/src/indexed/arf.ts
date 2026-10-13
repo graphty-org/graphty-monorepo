@@ -3,6 +3,7 @@ import type { F32, GraphSnapshot } from "@graphty/graph-format";
 import { type LayoutResult, rescaleInPlace } from "../positions.js";
 import { seedPositions } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import { refusal } from "./common.js";
 import { layoutDim, startColumn } from "./start.js";
 
 /** Options of indexed.arf. */
@@ -39,7 +40,7 @@ export interface ArfOptions {
 export function arf(g: GraphSnapshot, options: ArfOptions = {}): LayoutResult {
     const { scaling = 1, a = 1.1, maxIter = 1000 } = options;
     if (a <= 1) {
-        throw new Error("The parameter a should be larger than 1");
+        throw refusal(new Error("The parameter a should be larger than 1"), "E_BAD_OPTION", { option: "a", value: a });
     }
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);

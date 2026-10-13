@@ -94,8 +94,8 @@ import { effectiveMode, MODELS } from "./config.mjs";
 import { updateMainCheckout } from "./main-checkout.mjs";
 import { createGitHub, GitHubError, notSent } from "./github.mjs";
 import { answerHook, hookPointer, publishHook, staleSpooled, writeNews } from "./hook.mjs";
-import { pollIssues } from "./issues.mjs";
-import { backfillTriaged, syncJobs } from "./jobs.mjs";
+import { pollIssues, pruneClosedIssues } from "./issues.mjs";
+import { backfillTriaged, finishedJobsToPrune, syncJobs, tombstoneOf } from "./jobs.mjs";
 import { checkFaults, confirmClosedWaits, settleWaits, tickJobs, waitNews } from "./advance.mjs";
 import {
     endIdleSessions,
@@ -121,7 +121,7 @@ import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, ta
 import { doneIo, pollVerifying, recheckRefused } from "./done.mjs";
 import { labelMasterFixes, linkMasterFix } from "./master-fix.mjs";
 import { balanceRefusal, classify, isNoLog, refusedOnly } from "./classify.mjs";
-import { flakePoll, gitBlobs, masterFlakeStep, noteMasterLog, readWorkspace } from "./flakes.mjs";
+import { flakePoll, gitBlobs, masterFlakeStep, noteMasterLog, pruneSettledFlakes, readWorkspace } from "./flakes.mjs";
 import { markShared } from "./shared.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { releaseFailedSummary, releaseHold } from "./release.mjs";
@@ -739,6 +739,9 @@ export async function startDaemon({
     state.master.lanes ??= {};
     state.incidents ??= {};
     state.issues ??= { since: null, byNumber: {} };
+    // Settled flaky tests first, so their closed issues go in the same pass; ledgered below.
+    const settledAtLoad = pruneSettledFlakes(state);
+    pruneClosedIssues(state);
     state.merged ??= { lastScanAt: null, pending: [], closed: [] };
     await backfillFromLedger(state, stateDir, say);
     // References kept under an earlier rule (a stacked merge, a bare `#n` in prose): read them again.
@@ -849,6 +852,7 @@ export async function startDaemon({
         void write.finally(() => writes.delete(write));
         return write;
     };
+    for (const line of settledAtLoad) void ledger(line);
 
     /** @type {Record<string, Map<string, string>>} the recorded collections as last put in the ledger */
     const recorded = {};
@@ -868,6 +872,30 @@ export async function startDaemon({
             const file = join(stateDir, "etags.json");
             writeFileSync(`${file}.tmp`, JSON.stringify(client.etags));
             renameSync(`${file}.tmp`, file);
+        }
+    }
+
+    /**
+     * Drops the finished jobs nothing reads any more and makes tombstones of those only a rule
+     * that makes jobs still reads (`finishedJobsToPrune`, issue #2366), each only once its whole
+     * record is in the ledger (a `job-dropped` line, which githerd why reads), so the state holds
+     * what is open and the ledger the history. A job whose line could not be written stays whole.
+     * @returns {Promise<void>}
+     */
+    async function pruneFinishedJobs() {
+        if (!mayWrite()) return;
+        const { tombstone, drop } = finishedJobsToPrune(state, (id) => tasks.has(id));
+        const dropping = new Set(drop);
+        for (const id of [...tombstone, ...drop]) {
+            const job = state.jobs[id];
+            try {
+                if (!job.tombstone)
+                    await appendLedger(stateDir, { kind: "job-dropped", job: id, record: job }, { now });
+                if (dropping.has(id)) delete state.jobs[id];
+                else state.jobs[id] = tombstoneOf(job);
+            } catch (err) {
+                say("error", `ledger: ${/** @type {Error} */ (err).message}; job ${id} kept`);
+            }
         }
     }
 
@@ -2878,6 +2906,9 @@ export async function startDaemon({
 
         const issues = await pollIssues(gh, config.repo, state.issues);
         state.issues = { since: issues.since, byNumber: issues.byNumber };
+        for (const line of pruneSettledFlakes(state)) void ledger(line);
+        pruneClosedIssues(state);
+        await pruneFinishedJobs();
         await checkOverrides();
     }
 
@@ -4128,6 +4159,7 @@ export async function startDaemon({
     }
 
     reportStart();
+    await pruneFinishedJobs();
     await save();
     if (containerRestarted) {
         ledger({ kind: "event", event: "container-restart", from: previous.alive.pid1Start, to: pid1Start });

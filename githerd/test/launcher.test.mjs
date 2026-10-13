@@ -772,6 +772,29 @@ describe("restarts and upgrades", () => {
         expect(calls()).toEqual([]);
     });
 
+    it("starts the daemon when its process exits while a restarter waits for it to answer", async () => {
+        // The restart rule is judged while the old daemon's process still lives (killed, not yet
+        // reaped); it is gone by the time /health fails. Its alive file is stale, so it is down now.
+        const dying = spawn("sleep", ["300"], { stdio: "ignore" });
+        const exited = new Promise((r) => dying.once("exit", r));
+        const server = createServer(async (req) => {
+            dying.kill("SIGKILL");
+            await exited;
+            req.socket.destroy();
+        });
+        servers.push(server);
+        await new Promise((r) => server.listen(0, "127.0.0.1", () => r(undefined)));
+        const port = /** @type {any} */ (server.address()).port;
+        pretendAlive();
+        writeFileSync(join(stateDir(), "lock"), JSON.stringify(identify(/** @type {number} */ (dying.pid))));
+        writeFileSync(join(stateDir(), "daemon.json"), JSON.stringify({ port, pid: dying.pid }));
+        const later = () => new Date(Date.now() + 61_000);
+
+        expect((await ensureDaemon(context({ now: later }))).action).toBe("started");
+        expect(starts()).toHaveLength(1);
+        expect(daemonPids()).toHaveLength(1);
+    });
+
     it("never restarts a daemon in fatal mode, however old its loop tick, and reports why it is down", async () => {
         const hash = git(root, "rev-parse", "origin/master:githerd");
         const server = createServer((req, res) => {

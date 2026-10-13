@@ -194,6 +194,17 @@ const STYLE: StylesheetJson = [
     },
     { selector: "edge.proposed[color]", style: { "line-color": "data(color)" } },
     { selector: "edge.proposed[label]", style: { label: "data(label)", "font-size": sized(9, 9), color: "#1f2937" } },
+    // a short label on an edge, such as its weight in a hand-built example ("tag", as for nodes)
+    {
+        selector: "edge[tag]",
+        style: {
+            label: "data(tag)",
+            "font-size": sized(9, 9),
+            color: "#1f2937",
+            "text-background-color": "#ffffff",
+            "text-background-opacity": 0.8,
+        },
+    },
 ];
 
 /**
@@ -439,13 +450,17 @@ export function markDone(root: HTMLElement, done: () => Promise<void>): void {
  * through its image decode cache, and with several browsers capturing at once it now and then drew a row of these
  * pictures blurred (issue #2051). A canvas holds the pixels themselves, so it is composited as they are.
  * willReadFrequently keeps the canvas in memory rather than on the GPU, so its pixels are the picture's exactly.
+ *
+ * Each core is then destroyed, so only its picture is left. A live core under its picture still redrew every element
+ * on the window resizes a full-page screenshot makes: 37,000 edges of openflights and the other tiles held the main
+ * thread for seconds, and with four capture browsers on a CI runner the screenshot waited out its 30 s (issue #2311).
  * @returns when the pictures are in place
  */
 async function freeze(): Promise<void> {
     if (!CAPTURE) {
         return;
     }
-    await Promise.all(
+    const pictures = await Promise.all(
         live.map(async (cy) => {
             const img = new Image();
             img.src = cy.png({ full: false, scale: window.devicePixelRatio, bg: "#ffffff" });
@@ -455,9 +470,14 @@ async function freeze(): Promise<void> {
             pic.height = img.naturalHeight;
             pic.getContext("2d", { willReadFrequently: true })?.drawImage(img, 0, 0);
             pic.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:10;";
-            cy.container()?.append(pic);
+            return { box: cy.container(), pic };
         }),
     );
+    // destroying a core empties its container, so the pictures go in after
+    retireAll();
+    for (const { box, pic } of pictures) {
+        box?.append(pic);
+    }
 }
 
 /**

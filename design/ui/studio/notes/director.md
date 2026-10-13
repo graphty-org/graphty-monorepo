@@ -5,10 +5,23 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-12 (tier 3 iteration 1 reviewed; iteration 2 units set).
+Last updated: 2026-10-12 (tier 3 iteration 2 reviewed; iteration 3 units set).
 
 ## Top of mind
 
+- 2026-10-12: ITERATION 2 REVIEWED (`tier3/iterations/2/review.md`): 116 findings (1 sev 4, 11 sev
+  3, 58 sev 2), about 55 distinct. Not ready for approval. The one blocker is a kind change that
+  destroys the layer (`retargetRow` mints a new id for a one-part row switching kind and copies a
+  node rule onto edges). Lesson: the iteration's own new capability (kind change in place) was the
+  only sev 4; walk every NEW capability by keyboard in the build before calling a unit done.
+- 2026-10-12: The owner's unset question is now about TRUST, not mechanism: "what comes back" was
+  read over the whole graph, named invisible "Node defaults", and Undo after Clear did nothing.
+  Next build: element `agreement` scoped to a row's matches; "the default" for base layers;
+  "Varies" for several beneath; "Mixed" only for multi-row selection.
+- 2026-10-12: Decided one ~28 px row per property, label left, pairs no longer share a row;
+  accordions stay owner item 5 and are NOT built. Effect and category rows use a chip, not hex.
+  One name per value = catalog plainName everywhere (pills used technicalName). Label size in
+  screen pixels as an ADDITIVE element option, so the owner's label-size item loses its urgency.
 - 2026-10-12: ITERATION 1 REVIEWED (`tier3/iterations/1/review.md`): 122 findings, about 60
   distinct, 2 at severity 4 (Label settings pop-out unscrollable; no keyboard move into a folder).
   Not ready for the owner's approval. The model held; the doors around it did not. Biggest lesson:
@@ -218,6 +231,16 @@ Last updated: 2026-10-12 (tier 3 iteration 1 reviewed; iteration 2 units set).
   Text holds Label and Tooltip; draft picks elements before any value; locked layer uses
   aria-disabled, not a native disabled fieldset; inspector stays 240 px; key shows only readable
   blocks and is capped in height. No new owner item.
+- 2026-10-12 -- Iteration 2 review. Units for iteration 3: element (kind change keeps the layer;
+  scoped beneath; readable values incl. number value counts, color fact, edge source/target, find
+  over runs; label screen size, number format, Selected ring on black), compact-mantine (field
+  states and a chip-only color; tree one Tab stop, right-click selects, popout placement, menu
+  shortcuts, ramp Home/End), app (one-line rows and undo; effects and labels; popovers and
+  pickers; tree, key and settings; then Which elements, names and Values tab), then stories.
+  Reasons: two lines per property made the panel longer than iteration 1; four names per value
+  came from the app mixing plainName and technicalName; every "beneath" defect traced to one
+  unscoped call (the ponytail note in `row.ts` said so). Yes-or-no properties get no vary by (a
+  rule plus a fixed value is their home); opacity varies through the color row's settings.
 - 2026-10-12 -- Held as second doors until a study shows need: "Vary color by this" from a table
   column, "Show by" in the Values tab, saved label looks, a per-property pause eye.
 
@@ -305,6 +328,11 @@ Last updated: 2026-10-12 (tier 3 iteration 1 reviewed; iteration 2 units set).
   lenses land on one defect, the cause is usually one gate in one file (`source.by === "user"`, a
   missing `width`, a pop-out with no height cap). Look for the one line before planning a unit.
 
+- **2026-10-12, iteration 2:** fixes that reserve space (vary column, Clear column) pushed rows
+  into two lines; a fix for jumping made the panel long. When a fix adds a column in 240 px, count
+  the columns before building. Also: every `ponytail:` note in the app that says "the element has
+  no X" was a finding three experts later reported; read those notes at review time.
+
 ## Sources
 
 - Tier 2 round 3 (2026-10-10): `tier2/rounds/round-3/{plan,scores,insights,decisions}.md`;
@@ -330,6 +358,8 @@ Last updated: 2026-10-12 (tier 3 iteration 1 reviewed; iteration 2 units set).
   git) and the main checkout's `tmp/studio-resume/workflow-tier2-continue.js` (the stale fork).
 - Tier 3 iteration 1 (2026-10-12): build `tier3-i1-68a2140049` at https://dev.ato.ms:9373/?next;
   reports and review in `tier3/iterations/1/{figma,visual,a11y,engineer,ia,review}.md`.
+- Tier 3 iteration 2 (2026-10-12): build `tier3-i2-2faecd941b` at https://dev.ato.ms:9373/?next;
+  reports and review in `tier3/iterations/2/{figma,visual,a11y,engineer,ia,review}.md`.
 - Tier 3 (2026-10-12): `tier3/design.md` (decisions, panel, coverage table, element additions,
   owner items, units, change log); owner review 1 `tier3/owner-feedback-1.md` and proposals
   `tier3/decide/feedback-1-{figma,interaction,ia}.md`; proposals `tier3/decide/{ia,interaction,figma,visual,content,a11y,user,engineer}.md`;

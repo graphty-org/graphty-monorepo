@@ -5,7 +5,11 @@
  * for the comparer to score against the committed reference scenes in
  * `graph-io/test/fidelity/scenes/`.
  *
- * It records only; the scores and their no-regression floor come with the comparer.
+ * Each sample's scene is then scored against its reference scenes by the comparer
+ * (`graph-io/test/fidelity/compare.ts`) into `out/<sample>.result.json`, and the test fails when a
+ * property's pass rate drops below the one recorded in `baseline-scores.json`. After the run,
+ * `out/report.html` shows every sample with a result. Record new floors (after a fix lands) with
+ * GRAPHTY_FIDELITY_RECORD=1.
  *
  *     GRAPHTY_BROWSER_GPU=nvidia GRAPHTY_EGL_LIB_DIR=<libEGL dir> npm run test:fidelity
  *
@@ -16,13 +20,16 @@
  */
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterAll, afterEach, assert, describe, it } from "vitest";
 import { commands, page } from "vitest/browser";
 
+import { compareSample, type SampleResult } from "../../../graph-io/test/fidelity/compare";
 import { SAMPLES } from "../../../graph-io/test/fidelity/samples";
+import type { Scene } from "../../../graph-io/test/fidelity/scene";
 import type { Graphty } from "../../index.js";
 import packageJson from "../../package.json";
 import { extractScene } from "./extract-scene";
+import { renderReport, type ReportSample } from "./report";
 
 const OUT = "test/fidelity/out";
 const WIDTH = 800;
@@ -30,6 +37,26 @@ const HEIGHT = 600;
 const SEED = 42;
 const PRE_STEPS = 2000;
 const GPU = (import.meta.env.GRAPHTY_BROWSER_GPU as string | undefined) || "none";
+const RECORD = (import.meta.env.GRAPHTY_FIDELITY_RECORD as string | undefined) === "1";
+const BASELINE = "test/fidelity/baseline-scores.json";
+
+/** Per sample, per property: the pass rate a run may not drop below. */
+type Baseline = Record<string, Record<string, number>>;
+
+/**
+ * Reads a JSON file relative to graphty-element, or null when it does not exist.
+ * @param path - the path
+ * @returns the parsed value
+ */
+async function readJson<T>(path: string): Promise<T | null> {
+    try {
+        return JSON.parse(await commands.readFile(path)) as T;
+    } catch {
+        return null;
+    }
+}
+
+const baseline: Baseline = (await readJson<Baseline>(BASELINE)) ?? {};
 
 let mounted: Graphty | null = null;
 let blobUrl: string | null = null;
@@ -115,9 +142,66 @@ describe("style fidelity: graphty-element's drawing of each sample", () => {
         const png = await page.screenshot({ save: false });
         await commands.writeFile(`${OUT}/${id}.graphty.png`, png, { encoding: "base64" });
 
+        // Routes that name nodes by a column (Cytoscape's `name`, the GML label) are matched through
+        // the same column of graphty-element's records.
+        const name = new Map<string, string>();
+        const label = new Map<string, string>();
+        for (const record of element.session.data.nodes()) {
+            if (typeof record.name === "string" || typeof record.name === "number") {
+                name.set(String(record.id), String(record.name));
+            }
+            if (typeof record.label === "string" || typeof record.label === "number") {
+                label.set(String(record.id), String(record.label));
+            }
+        }
+        const refs = await Promise.all(
+            sample.routes.map(async (r) => {
+                const ref = await readJson<Scene>(`../graph-io/test/fidelity/scenes/${id}/${r}.ref.json`);
+                assert.isNotNull(ref, `${id}: no committed reference scene for ${r}`);
+                return ref;
+            }),
+        );
+        const result = compareSample(id, refs, scene, { name, label });
+        await commands.writeFile(`${OUT}/${id}.result.json`, `${JSON.stringify(result, null, 1)}\n`);
+
         const { counts } = element.session.status;
         assert.isAbove(scene.nodes.length, 0, `${id}: nothing was drawn`);
         assert.strictEqual(scene.nodes.length, counts.nodes);
         assert.strictEqual(scene.edges.length, counts.edges);
+
+        const floors = baseline[id] ?? {};
+        if (RECORD) {
+            baseline[id] = Object.fromEntries(
+                Object.entries(result.properties).flatMap(([p, r]) => (r.passRate === null ? [] : [[p, r.passRate]])),
+            );
+            return;
+        }
+        const dropped = Object.entries(floors).filter(([p, floor]) => {
+            const rate = result.properties[p as keyof SampleResult["properties"]].passRate;
+            return rate === null || rate < floor - 1e-9;
+        });
+        assert.deepEqual(
+            dropped.map(
+                ([p, floor]) =>
+                    `${p}: ${String(result.properties[p as keyof SampleResult["properties"]].passRate)} < ${String(floor)}`,
+            ),
+            [],
+            `${id}: pass rates fell below baseline-scores.json`,
+        );
+    });
+
+    afterAll(async () => {
+        if (RECORD) {
+            await commands.writeFile(BASELINE, `${JSON.stringify(baseline, null, 4)}\n`);
+        }
+        const samples: ReportSample[] = [];
+        for (const s of SAMPLES) {
+            const result = await readJson<SampleResult>(`${OUT}/${s.id}.result.json`);
+            const reference = await readJson<Scene>(`../graph-io/test/fidelity/scenes/${s.id}/${s.routes[0]}.ref.json`);
+            if (result && reference) {
+                samples.push({ result, reference, png: `${s.id}.graphty.png`, file: s.file });
+            }
+        }
+        await commands.writeFile(`${OUT}/report.html`, renderReport(samples, new Date().toISOString()));
     });
 });

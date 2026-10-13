@@ -594,7 +594,7 @@ export default defineConfig({
                 // the pre-push gate. Run with: npm run test:fidelity, and on this workstation with
                 // GRAPHTY_BROWSER_GPU=nvidia (and GRAPHTY_EGL_LIB_DIR): under SwiftShader the
                 // annotation session draws about one frame a second and does not settle.
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FIDELITY_RECORD"],
                 optimizeDeps: { include: PREBUNDLED },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {

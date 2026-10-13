@@ -681,6 +681,23 @@ function combined(tally: MessageTally, llmText?: string): ExecutionResult {
 }
 
 /**
+ * Stream one piece of a turn's text out: to the status (a later turn's text on a new line, as
+ * `accumulated` joins them) and as an `ai-stream-chunk`.
+ * @param sink - Where the host hears of it.
+ * @param text - The turn's text so far.
+ * @param delta - The new piece.
+ * @param earlier - The text of the message's earlier turns.
+ * @returns The turn's text with the piece.
+ */
+function streamText(sink: ConversationRun["sink"], text: string, delta: string, earlier: readonly string[]): string {
+    const later = text === "" && delta !== "" && (sink.status.current.streamedText ?? "") !== "";
+    const next = text + delta;
+    sink.status.appendStreamedText(later ? `\n${delta}` : delta);
+    sink.emit({ type: "ai-stream-chunk", text: delta, accumulated: [...earlier, next].join("\n") });
+    return next;
+}
+
+/**
  * A tool the provider ran, as the message keeps it: its sources are the reader's to see, and web
  * content. The host is told of it.
  * @param event - The turn's event.
@@ -729,11 +746,7 @@ async function modelTurn(
     const hosted: HostedPart[] = [];
     for await (const event of engine.turn(request, abort.signal)) {
         if (event.type === "text") {
-            // A later turn's text starts on a new line of the status's text, as `accumulated` joins them.
-            const later = text === "" && event.delta !== "" && (sink.status.current.streamedText ?? "") !== "";
-            text += event.delta;
-            sink.status.appendStreamedText(later ? `\n${event.delta}` : event.delta);
-            sink.emit({ type: "ai-stream-chunk", text: event.delta, accumulated: [...earlier, text].join("\n") });
+            text = streamText(sink, text, event.delta, earlier);
         } else if (event.type === "tool-call") {
             calls.push({
                 id: event.id,

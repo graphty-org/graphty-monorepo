@@ -403,7 +403,8 @@ console.log(result.n); // 10
 
 ### Planar
 
-`planar` throws `G is not planar.` when its check rejects the graph:
+`planar` throws `G is not planar.` when its check rejects the graph, an `Error` whose `code` is `E_NOT_PLANAR` and
+whose `params` are `{ nodeCount, edgeCount }`:
 
 <!-- doc-check -->
 
@@ -419,7 +420,7 @@ console.log(result.n); // 16
 try {
     planar(fromEdgeArrays(completeGraph({ n: 5 })));
 } catch (error) {
-    console.log((error as Error).message); // "G is not planar."
+    console.log((error as Error & { code?: string }).code); // "E_NOT_PLANAR"
 }
 ```
 

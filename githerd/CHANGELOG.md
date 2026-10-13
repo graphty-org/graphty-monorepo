@@ -1,3 +1,20 @@
+## 0.1.4 (2026-10-13)
+
+### 🩹 Fixes
+
+- **githerd:** offer work to idle sessions while shared resources are busy ([7de96768b](https://github.com/graphty-org/graphty-monorepo/commit/7de96768b))
+- **githerd:** drop settled tests from the flaky-test record ([#2368](https://github.com/graphty-org/graphty-monorepo/issues/2368))
+- **githerd:** drop finished jobs nothing reads from the state ([#2366](https://github.com/graphty-org/graphty-monorepo/issues/2366))
+- **githerd:** stop the push-log tests waiting on pnpm, and build no git for retargets ([#2373](https://github.com/graphty-org/graphty-monorepo/issues/2373))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.52
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.3 (2026-10-13)
 
 ### 🩹 Fixes

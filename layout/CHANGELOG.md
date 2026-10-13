@@ -1,3 +1,20 @@
+## 2.4.5 (2026-10-13)
+
+### 🩹 Fixes
+
+- **layout:** clear the SonarQube findings on the planar and spectral ports ([613462521](https://github.com/graphty-org/graphty-monorepo/commit/613462521))
+- **layout:** planar, spectral and arf draw what they promise ([7be0128bb](https://github.com/graphty-org/graphty-monorepo/commit/7be0128bb))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.30
+- Updated graph-format to 1.3.15
+- Updated algorithms to 3.4.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.4.4 (2026-10-13)
 
 ### 🩹 Fixes

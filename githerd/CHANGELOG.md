@@ -1,3 +1,21 @@
+## 0.1.2 (2026-10-13)
+
+### 🩹 Fixes
+
+- **githerd:** read the push queue's gate slots through its wrapper ([411c5e3e8](https://github.com/graphty-org/graphty-monorepo/commit/411c5e3e8))
+- **githerd:** make every live session a worker unless excluded ([#2276](https://github.com/graphty-org/graphty-monorepo/issues/2276))
+- **githerd:** let the project settings' hooks find the running daemon ([#2273](https://github.com/graphty-org/graphty-monorepo/issues/2273))
+- **githerd:** page the owner when a session stalls or the usage limit hits ([#2263](https://github.com/graphty-org/graphty-monorepo/issues/2263))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.50
+- Updated visual-review to 0.2.26
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.1 (2026-10-13)
 
 ### 🚀 Features

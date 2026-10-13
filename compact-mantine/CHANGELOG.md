@@ -1,3 +1,15 @@
+## 0.9.22 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** free each test file's page under v8 coverage in browser tests ([#2247](https://github.com/graphty-org/graphty-monorepo/issues/2247))
+- **compact-mantine:** stop the size glyphs reading as a magnifying glass ([#2101](https://github.com/graphty-org/graphty-monorepo/issues/2101))
+- **compact-mantine:** dim disabled field placeholders and disabled toggle icons ([#2102](https://github.com/graphty-org/graphty-monorepo/issues/2102))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.21 (2026-10-13)
 
 ### 🩹 Fixes

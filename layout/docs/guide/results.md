@@ -180,7 +180,7 @@ try {
 }
 ```
 
-## Graphs from Layout 1.x
+## Graphs from Older Layout Versions
 
 Layout 1.x took an object with `nodes()` and `edges()` methods. `toLayoutSnapshot` converts one, or a plain array of
 node ids, into a snapshot:

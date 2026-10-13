@@ -123,7 +123,7 @@ console.log(grid(graph).n); // 3
 
 To read a file (GraphML, GEXF, GML, CSV and more), use [`@graphty/graph-io`](https://graphty.app/docs/graph-io/), which
 returns the same snapshot. Code written against layout 1.x, which took an object with `nodes()` and `edges()` methods,
-converts it with `toLayoutSnapshot`; see [Results and Options](./results.md#graphs-from-layout-1-x).
+converts it with `toLayoutSnapshot`; see [Results and Options](./results.md#graphs-from-older-layout-versions).
 
 ## Next Steps
 

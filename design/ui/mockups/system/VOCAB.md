@@ -3012,8 +3012,8 @@ replaced.
             stroke-linecap="round"
             stroke-linejoin="round"
         >
-            <circle cx="5" cy="11" r="2.5"></circle>
-            <circle cx="10.5" cy="6.5" r="4"></circle>
+            <circle cx="3" cy="11.25" r="1.75"></circle>
+            <circle cx="10.25" cy="9.25" r="3.75"></circle>
         </svg>
     </div>
     <span
@@ -3037,7 +3037,7 @@ drawn in a field slot; a concept with no entry keeps its word.
 
 | Slot label         | 14px inner SVG                                                                                                                                        |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| size, smallest     | `<circle cx="5" cy="11" r="2.5"></circle><circle cx="10.5" cy="6.5" r="4"></circle>`                                                                  |
+| size, smallest     | `<circle cx="3" cy="11.25" r="1.75"></circle><circle cx="10.25" cy="9.25" r="3.75"></circle>`                                                         |
 | width              | `<line x1="2.5" y1="8" x2="13.5" y2="8"></line><polyline points="5,5.5 2.5,8 5,10.5"></polyline><polyline points="11,5.5 13.5,8 11,10.5"></polyline>` |
 | opacity            | `<circle cx="8" cy="8" r="5.5"></circle><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor" stroke="none"></path>`                               |
 | attribute binding  | `<path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z"></path><circle cx="5.5" cy="5.5" r="0.75"></circle>`                                       |
@@ -3077,8 +3077,8 @@ Pair, with a reset in the trailing slot:
                 stroke-linecap="round"
                 stroke-linejoin="round"
             >
-                <circle cx="5" cy="11" r="2.5"></circle>
-                <circle cx="10.5" cy="6.5" r="4"></circle>
+                <circle cx="3" cy="11.25" r="1.75"></circle>
+                <circle cx="10.25" cy="9.25" r="3.75"></circle>
             </svg>
         </div>
         <span
@@ -3103,8 +3103,8 @@ Pair, with a reset in the trailing slot:
                 stroke-linecap="round"
                 stroke-linejoin="round"
             >
-                <circle cx="4.5" cy="11.5" r="1.75"></circle>
-                <circle cx="10" cy="6" r="5"></circle>
+                <circle cx="2.5" cy="12" r="1"></circle>
+                <circle cx="9.5" cy="8.5" r="4.5"></circle>
             </svg>
         </div>
         <span
@@ -3839,8 +3839,8 @@ labelled control with the glyph kept in the field:
                 stroke-linecap="round"
                 stroke-linejoin="round"
             >
-                <circle cx="5" cy="11" r="2.5"></circle>
-                <circle cx="10.5" cy="6.5" r="4"></circle>
+                <circle cx="3" cy="11.25" r="1.75"></circle>
+                <circle cx="10.25" cy="9.25" r="3.75"></circle>
             </svg>
         </div>
         <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da;">1.0</span>

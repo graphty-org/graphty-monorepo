@@ -353,7 +353,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * @param key - the key
  * @returns the role, or null
  */
-function roleOf(domain: "node" | "edge" | "graph", key: string): ColumnRole | null {
+function roleOf(domain: GmlDomain, key: string): ColumnRole | null {
     if (key === "label" && domain !== "graph") {
         return "label";
     }

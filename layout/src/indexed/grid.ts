@@ -1,7 +1,7 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions.js";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
+import { type CommonLayoutOptions, planar, refusal, resolve, result } from "./common.js";
 
 /** Options of the index-based grid layout. */
 export interface GridLayoutOptions extends CommonLayoutOptions {
@@ -20,7 +20,10 @@ export interface GridLayoutOptions extends CommonLayoutOptions {
  */
 function gridRows(n: number, columns: number | null, scale: number, center: readonly number[]): F64 {
     if (columns !== null && (!Number.isInteger(columns) || columns < 1)) {
-        throw new Error("columns must be a positive integer");
+        throw refusal(new Error("columns must be a positive integer"), "E_BAD_OPTION", {
+            option: "columns",
+            value: columns,
+        });
     }
     const rows = new Float64Array(2 * n);
     if (n === 0) {
@@ -42,6 +45,8 @@ function gridRows(n: number, columns: number | null, scale: number, center: read
  * @param s - the snapshot; only its node count is read
  * @param options - `scale` is half the length of the lattice's longer side
  * @returns the layout
+ * @throws an Error with `code` `E_BAD_OPTION` and `params` `{ option: "columns", value }` when `columns` is not a
+ * positive integer
  */
 export function grid(s: GraphSnapshot, options: GridLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);

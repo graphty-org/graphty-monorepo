@@ -1383,6 +1383,14 @@ export class SessionData implements SessionDataApi {
             attributes: this.attributes(),
             declarationOf: (column) => declarations.get(declarationKey(column)),
             runs,
+            layersReading: (path, on) =>
+                this.writes
+                    .readers()
+                    .styles.filter(
+                        ({ layer, reads }) =>
+                            layer.target === on && reads.some((read) => read === path || read.startsWith(`${path}.`)),
+                    )
+                    .map(({ layer }) => ({ kind: "layer" as const, id: layer.id })),
         });
     }
 

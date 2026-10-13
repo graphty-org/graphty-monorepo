@@ -1411,6 +1411,7 @@ export interface ReadableValue {
     };
     readonly runId?: RunId;
     readonly technicalName: string;
+    readonly usedBy?: readonly AttributeUse[];
     readonly valueCount?: number;
 }
 

@@ -291,7 +291,7 @@ export const VaryBy: Story = sceneStory(async () => {
         throw new Error("no Node size field");
     }
     await userEvent.click(await within(box).findByRole("button", { name: "Node size by attribute" }));
-    await page().findByRole("dialog", { name: "From data" });
+    await page().findByRole("combobox", { name: "Find a value" });
 });
 
 /** Degree's color ramp. */
@@ -304,8 +304,8 @@ export const DegreeRamp: Story = sceneStory(async ({ runs }) => {
 export const LouvainCategories: Story = sceneStory(async ({ runs }) => {
     const tab = await openStyle(runs.louvain);
     const popover = await openColorBinding(tab);
-    await userEvent.click(within(popover).getByRole("button", { name: "3 menu" }));
-    await within(popover).findByRole("menuitem", { name: "New layer for 3" });
+    await userEvent.click(within(popover).getByRole("button", { name: /Group 3 actions$/ }));
+    await within(popover).findByRole("menuitem", { name: "New layer for Group 3" });
 });
 
 /** Edge betweenness: an edge layer's Style tab. */

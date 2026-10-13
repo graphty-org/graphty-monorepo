@@ -460,6 +460,7 @@ function SourcePicker({
             <Popout.Trigger>{children}</Popout.Trigger>
             <Popout.Panel width={LIST_WIDTH} placement="left" alignment="start" header={{ variant: "title", title }}>
                 <ValuePicker
+                    title={title}
                     target={target}
                     channel={channel}
                     inUse={inUse}

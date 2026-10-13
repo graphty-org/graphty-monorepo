@@ -4,6 +4,23 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-12 -- Decided by the team: what reads each value (`ReadableValue.usedBy`), and a value picker inside a pop-out
+
+**What.** Two additive changes.
+
+- graphty-element: `ReadableValue.usedBy?: readonly AttributeUse[]`, on the entries of
+  `session.data.readableValues()`. It lists each style layer that selects or paints by the value
+  now, in stack order (and, for a data column, the runs that weighed their edges by it, as
+  `AttributeDescriptor.usedBy` already says). Absent when nothing reads it. Before this, only a
+  data column said what read it; a run's field (Degree's connections) never did.
+- compact-mantine: `QuickActions` takes `role?: "dialog" | "group"` (default `"dialog"`, as
+  before). A palette placed inside a pop-out is a group named by the pop-out's title, so the page
+  no longer holds a dialog inside a dialog with two different names.
+
+**Why.** The vary picker lists "In use" first. With the facts split between `data.attributes()`
+and nothing, the app would have had to work out from the layer stack which run fields a layer
+reads, a second answer to a question the element already answers for columns.
+
 ## 2026-10-12 -- Decided by the team: a bound value's own accessible name, and its whole name on hover
 
 **What.** compact-mantine's `VariablePill`, additive.

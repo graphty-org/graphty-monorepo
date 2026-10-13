@@ -14,7 +14,7 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { findValuePicker, queryValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -144,7 +144,7 @@ describe("label entries on the real element", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
         // Nothing is written before a source is picked.
         assert.isUndefined(writer(session, "node.label"));
-        const list = await screen.findByRole("dialog", { name: "From data" });
+        const list = await findValuePicker();
         await userEvent.click(within(list).getByRole("option", { name: "name" }));
 
         await waitFor(
@@ -210,9 +210,7 @@ describe("label entries on the real element", () => {
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
-        await userEvent.click(
-            within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "name" }),
-        );
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "name" }));
         await waitFor(
             () => {
                 assert.equal(element.labelOf("2")?.text, "Beta");
@@ -274,16 +272,14 @@ describe("label entries on the real element", () => {
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
-        await userEvent.click(
-            within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "name" }),
-        );
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "name" }));
         await waitFor(() => {
             assert.isDefined(writer(session, "node.label"));
         });
 
         await userEvent.click(within(textList()).getByRole("button", { name: "Label size by attribute" }));
-        const list = await screen.findByRole("dialog", { name: "From data" });
-        await userEvent.click(within(within(list).getByRole("group", { name: "Degree" })).getAllByRole("option")[0]);
+        const list = await findValuePicker();
+        await userEvent.click(within(list).getByRole("option", { name: "Degree" }));
         const path = session.results.path(runId);
         await waitFor(
             () => {
@@ -301,10 +297,10 @@ describe("label entries on the real element", () => {
         const before = textList().innerHTML;
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
-        await screen.findByRole("dialog", { name: "From data" });
+        await findValuePicker();
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("dialog", { name: "From data" }));
+            assert.isNull(queryValuePicker());
         });
         await waitFor(() => {
             assert.equal(textList().innerHTML, before, "the list is as it was");
@@ -341,7 +337,7 @@ describe("label entries on the real element", () => {
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
-        const list = await screen.findByRole("dialog", { name: "From data" });
+        const list = await findValuePicker();
         await userEvent.click(within(list).getByRole("option", { name: "Fixed text" }));
         const field = await within(textList()).findByRole("textbox", { name: "Node label text" });
         await waitFor(() => {

@@ -90,6 +90,12 @@ export interface QuickActionsProps {
     listId?: string;
     /** Accessible name of the dialog. Defaults to the "Quick actions" label. */
     "aria-label"?: string;
+    /**
+     * The panel's role. `"dialog"` (the default) for a palette that stands alone; `"group"` for one
+     * placed inside a pop-out, which is already the dialog and names it by its title.
+     * @default "dialog"
+     */
+    role?: "dialog" | "group";
     /** Placeholder of the search field. Defaults to the "Search actions" label. */
     placeholder?: string;
     /**
@@ -154,6 +160,7 @@ function defaultFilter(action: QuickAction, query: string): boolean {
  * @param props.height - Panel height
  * @param props.className - Extra class on the panel
  * @param props.style - Extra style on the panel
+ * @param props.role - The panel's role: a dialog alone, a group inside a pop-out
  * @returns The palette
  */
 export function QuickActions({
@@ -172,6 +179,7 @@ export function QuickActions({
     height = 354,
     className,
     style,
+    role = "dialog",
     ...others
 }: QuickActionsProps): React.JSX.Element {
     useShellStyles();
@@ -240,7 +248,7 @@ export function QuickActions({
     const name = others["aria-label"] ?? labels.quickActions;
     return (
         <div
-            role="dialog"
+            role={role}
             aria-label={name}
             className={className ? `cm-quick-actions ${className}` : "cm-quick-actions"}
             style={{ width, height, ...style }}

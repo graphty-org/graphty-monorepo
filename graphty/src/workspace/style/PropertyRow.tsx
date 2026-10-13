@@ -602,6 +602,7 @@ function VaryButton({
                 header={{ variant: "title", title: label }}
             >
                 <ValuePicker
+                    title={label}
                     target={ctx.side}
                     channel={channel}
                     fixedLabel={FIXED_LABELS[channel]}
@@ -691,11 +692,20 @@ function BoundValue({
         setOpen(false);
         write({ value: startingValue(descriptor, session, layer.selector) });
     };
+    // The pill opens the popover itself (no Popout.Trigger), so it takes focus back itself: on
+    // Escape or Done, while focus is still in the popover, never after a click elsewhere took it.
+    const openChange = (next: boolean): void => {
+        const inside = document.activeElement?.closest("[role=dialog]") !== null;
+        setOpen(next);
+        if (!next && inside) {
+            pill.current?.querySelector<HTMLElement>("button")?.focus();
+        }
+    };
 
     return (
         // No Popout.Trigger: its click would also fire for the pill's detach button inside it, so
         // the pill opens the panel itself and the panel docks to it.
-        <Popout opened={open} onOpenChange={setOpen}>
+        <Popout opened={open} onOpenChange={openChange}>
             <div ref={pill}>
                 <VariablePill
                     name={source}
@@ -714,7 +724,6 @@ function BoundValue({
                 width={POPOUT_WIDTH}
                 placement="left"
                 alignment="start"
-                anchorX={pill}
                 anchorY={pill}
                 header={{ variant: "title", title: `${name} from data` }}
             >

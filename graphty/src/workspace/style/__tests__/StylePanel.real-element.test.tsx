@@ -14,7 +14,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -340,7 +340,7 @@ async function varyGlyph(field: string): Promise<HTMLElement> {
  */
 async function varyBy(field: string, option: string): Promise<void> {
     await userEvent.click(await varyGlyph(field));
-    const list = await screen.findByRole("dialog", { name: "From data" });
+    const list = await findValuePicker();
     await userEvent.click(within(list).getByRole("option", { name: option }));
 }
 
@@ -415,7 +415,7 @@ describe("the Style tab's rows on the real element", () => {
             assert.equal(binding !== undefined && "by" in binding ? binding.scale : undefined, "ordinal");
         });
         await userEvent.click(await varyGlyph("Node size"));
-        const sizes = await screen.findByRole("dialog", { name: "From data" });
+        const sizes = await findValuePicker();
         await userEvent.click(within(sizes).getByRole("option", { name: /that do not fit size$/ }));
         const dept = await within(sizes).findByRole("option", { name: "dept" });
         assert.equal(dept.getAttribute("aria-disabled"), "true");
@@ -448,10 +448,8 @@ describe("the Style tab's rows on the real element", () => {
         assert.isNull(within(styleTab()).queryByRole("heading", { name: "Edges" }));
 
         await userEvent.click(await varyGlyph("Node size"));
-        const list = await screen.findByRole("dialog", { name: "From data" });
-        await userEvent.click(
-            within(within(list).getByRole("group", { name: "PageRank" })).getByRole("option", { name: "PageRank" }),
-        );
+        const list = await findValuePicker();
+        await userEvent.click(within(list).getByRole("option", { name: "PageRank" }));
         await waitFor(() => {
             const size = session.styles.get(measure.id)?.encode?.["node.size"];
             assert.equal(size !== undefined && "by" in size ? size.by : undefined, session.results.path(runId));
@@ -468,8 +466,8 @@ describe("the Style tab's rows on the real element", () => {
         await session.styles.settled();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(await varyGlyph("Node size"));
-        const list = await screen.findByRole("dialog", { name: "From data" });
-        await userEvent.click(within(within(list).getByRole("group", { name: "Degree" })).getAllByRole("option")[0]);
+        const list = await findValuePicker();
+        await userEvent.click(within(list).getByRole("option", { name: "Degree" }));
         const path = session.results.path(runId);
         await waitFor(
             () => {
@@ -528,7 +526,7 @@ describe("the Style tab's rows on the real element", () => {
         await userEvent.tab();
         assert.equal(document.activeElement?.getAttribute("aria-label"), "Node color by attribute");
         await userEvent.keyboard("{Enter}");
-        const list = await screen.findByRole("dialog", { name: "From data" });
+        const list = await findValuePicker();
         // Named by aria-label: a row's text also holds its fact ("4 values").
         const firstOption = within(list).getAllByRole("option")[0];
         const first = firstOption.getAttribute("aria-label") ?? firstOption.textContent;
@@ -621,9 +619,7 @@ describe("the Style tab's rows on the real element", () => {
         await pickStyleTab();
         await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
-        await userEvent.click(
-            within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "id" }),
-        );
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "id" }));
         await waitFor(() => {
             assert.deepEqual(
                 idLayers(session).map((l) => l.name),
@@ -644,7 +640,7 @@ describe("the Style tab's rows on the real element", () => {
         await userEvent.click(within(styleTab()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
         await userEvent.click(
-            within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", {
+            within(await findValuePicker()).getByRole("option", {
                 name: "Fixed text",
             }),
         );

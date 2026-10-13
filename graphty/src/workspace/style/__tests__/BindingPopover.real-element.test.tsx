@@ -122,6 +122,22 @@ function axisOf(popover: HTMLElement): string[] {
 }
 
 /**
+ * The name the canvas key gives a value of a layer's color: "Group 3" for a run's group, by its
+ * rank, else the value itself.
+ * @param session - the session.
+ * @param layerId - the layer.
+ * @param value - the value.
+ * @returns the name.
+ */
+function keyName(session: GraphSession, layerId: string, value: string): string {
+    const swatch = session.styles
+        .legendOf(layerId)
+        .find((block) => block.channel === "node.color")
+        ?.swatches.find((each) => String(each.value) === value);
+    return swatch?.rank === undefined ? value : `Group ${String(swatch.rank)}`;
+}
+
+/**
  * Edits one value's chit through its hex box, then checks the entry, its minus and its own
  * layer, on any categorical color layer.
  * @param session - the session.
@@ -140,7 +156,11 @@ async function editValue(
     const popover = await openBinding(store, layer);
     const category = session.styles.categories(layer.id, "node.color").find((c) => String(c.value) === value);
     assert.isDefined(category, `the layer paints ${value}`);
-    const row = within(popover).getByRole("listitem", { name: `${value}, ${String(category?.count)}` });
+    const name = keyName(session, layer.id, value);
+    const count = category?.count ?? 0;
+    const row = within(popover).getByRole("listitem", {
+        name: `${name}, ${String(count)} ${count === 1 ? "node" : "nodes"}`,
+    });
     const otherBefore = colorOfValue(session, layer.id, other);
 
     const hex = within(row).getByRole("textbox");
@@ -165,7 +185,9 @@ async function editValue(
     assert.equal(colorOfValue(session, layer.id, value), "#00aa00", "and leaves the entry");
 
     // The minus returns the value to the palette.
-    await userEvent.click(within(popover).getByRole("button", { name: `Back to the palette: ${value}` }));
+    await userEvent.click(
+        within(popover).getByRole("button", { name: new RegExp(`^Back to the palette: .* ${name}$`) }),
+    );
     await waitFor(() => {
         const back = session.styles.categories(layer.id, "node.color").find((c) => String(c.value) === value);
         assert.isUndefined(back?.entry);
@@ -173,8 +195,8 @@ async function editValue(
     });
 
     // "New layer for <value>": a layer directly above, its rule that value, matching as many.
-    await userEvent.click(within(popover).getByRole("button", { name: `${value} menu` }));
-    await userEvent.click(await within(popover).findByRole("menuitem", { name: `New layer for ${value}` }));
+    await userEvent.click(within(popover).getByRole("button", { name: new RegExp(` ${name} actions$`) }));
+    await userEvent.click(await within(popover).findByRole("menuitem", { name: `New layer for ${name}` }));
     const binding = layer.encode?.["node.color"];
     const by = binding !== undefined && "by" in binding ? binding.by : "";
     const added = await waitFor(() => {
@@ -192,6 +214,13 @@ async function editValue(
         const { inspected } = store.get();
         assert.deepEqual(inspected, { kind: "layer-row", id: added.id }, "and opens");
     });
+    await waitFor(() => {
+        assert.isTrue(
+            screen.getByTestId("style-tab").contains(document.activeElement),
+            "focus is in the new layer's Style tab",
+        );
+    });
+    assert.equal(store.get().announcement, `Layer ${added.name} added above`, "and it is announced");
 }
 
 describe("the binding popover on the real element", () => {
@@ -258,7 +287,7 @@ describe("the binding popover on the real element", () => {
             const steps = within(within(popover).getByRole("list", { name: "Steps" })).getAllByRole("listitem");
             assert.isAtLeast(steps.length, 2);
             const total = steps
-                .map((step) => Number((step.getAttribute("aria-label") ?? "").split(", ").pop()))
+                .map((step) => Number.parseInt((step.getAttribute("aria-label") ?? "").split(", ").pop() ?? "", 10))
                 .reduce((sum, count) => sum + count, 0);
             assert.equal(total, NODES.length, "every node is in one step");
         });
@@ -280,6 +309,59 @@ describe("the binding popover on the real element", () => {
         assert.isAtLeast(values.length, 2);
         const value = values.includes("3") ? "3" : values[values.length - 1];
         await editValue(session, store, layer, value, values.find((v) => v !== value) ?? "");
+    });
+
+    it("on Louvain: rows show name and count beside the chit, named as the key; beside the panel; Escape back", async () => {
+        await page.viewport(1440, 900);
+        const { session, store } = await open();
+        await session.runs.start("louvain");
+        await session.styles.settled();
+        const layer = session.styles
+            .list()
+            .find((l) => l.source.by === "run" && l.encode?.["node.color"] !== undefined);
+        assert.isDefined(layer, "Louvain colors the nodes");
+        if (layer === undefined) {
+            return;
+        }
+        const popover = await openBinding(store, layer);
+        const rows = within(within(popover).getByRole("list", { name: /values$/ })).getAllByRole("listitem");
+        const categories = session.styles.categories(layer.id, "node.color");
+        assert.lengthOf(rows, categories.length);
+        const keyNames = categories.map((c) => keyName(session, layer.id, String(c.value)));
+        assert.isTrue(
+            keyNames.every((name) => name.startsWith("Group ")),
+            "the key names Louvain's groups by rank",
+        );
+        rows.forEach((row, at) => {
+            const [chit, name, count] = [...row.children] as HTMLElement[];
+            assert.equal(name.textContent, keyNames[at], "the row is named as the key names it");
+            assert.equal(count.textContent, String(categories[at].count));
+            const box = (chit.firstElementChild as HTMLElement).getBoundingClientRect();
+            const words = name.getBoundingClientRect();
+            assert.isAtMost(box.right, words.left, `the color field stops before ${keyNames[at]}'s name`);
+            assert.isAbove(words.width, 0);
+            assert.isAtLeast(count.getBoundingClientRect().left, words.right, "the count follows the name");
+        });
+        assert.isDefined(
+            within(rows[0]).getByRole("button", { name: new RegExp(`^Hide .* ${keyNames[0]}$`) }),
+            "the eye names the source and the value",
+        );
+
+        const dialog = popover.closest<HTMLElement>("[role=dialog]");
+        const inspector = screen.getByRole("complementary", { name: "Inspector" });
+        assert.closeTo(
+            dialog?.getBoundingClientRect().right ?? 0,
+            inspector.getBoundingClientRect().left,
+            1,
+            "the popover opens flush with the inspector's edge",
+        );
+
+        const pill = screen.getByTestId("style-tab").querySelector<HTMLElement>(".cm-var-fill-button");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("group", { name: "Color binding" }), "Escape closes it");
+            assert.equal(document.activeElement, pill, "and gives focus back to the pill that opened it");
+        });
     });
 
     it("the same rows work on a hand layer bound to a data column", async () => {

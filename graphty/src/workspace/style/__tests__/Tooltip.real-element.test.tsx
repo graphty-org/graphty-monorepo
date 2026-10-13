@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -65,7 +65,7 @@ describe("a tooltip from an attribute on the real element", () => {
         await userEvent.click(within(nodes).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
         // An empty tooltip says nothing, so a new Tooltip asks at once what it reads.
-        const list = await screen.findByRole("dialog", { name: "From data" }, { timeout: TIMEOUT_MS });
+        const list = await findValuePicker({ timeout: TIMEOUT_MS });
         assert.isNotNull(within(list).queryByRole("option", { name: "Fixed text" }), "fixed text is still a choice");
         assert.isNotNull(within(list).queryByRole("option", { name: "id" }), "the node id can be picked");
         await userEvent.click(within(list).getByRole("option", { name: "name" }));

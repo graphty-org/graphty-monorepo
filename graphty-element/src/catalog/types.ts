@@ -1220,6 +1220,13 @@ export interface ReadableValue {
      * only a rule reads.
      */
     readonly fits: readonly ReadableChannelKind[];
+    /**
+     * What reads it now: each style layer that selects or paints by it, in stack order, then (for
+     * a data column) each run that weighed its edges by it. Absent when nothing does, so a picker
+     * can list the values already in use first.
+     * @since 3.26.0
+     */
+    readonly usedBy?: readonly AttributeUse[];
 }
 
 /**

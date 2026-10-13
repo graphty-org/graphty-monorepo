@@ -13,7 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { registration } from "../commands";
@@ -104,7 +104,7 @@ describe("labels from an attribute (task T10) on the real element", () => {
         const text = within(nodes).getByRole("group", { name: "Node text" });
         await userEvent.click(within(text).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
-        const list = await screen.findByRole("dialog", { name: "From data" });
+        const list = await findValuePicker();
         await userEvent.click(within(list).getByRole("option", { name: "name" }));
 
         await waitFor(() => {

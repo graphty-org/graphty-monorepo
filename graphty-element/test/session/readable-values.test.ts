@@ -167,6 +167,32 @@ describe("session.data.readableValues()", () => {
         assert.deepEqual(column.range, { min: 0, max: 114 });
     });
 
+    it("says which layers read a value, a run's field as well as a data column", async () => {
+        const session = await lesMisAfterRuns();
+        const before = session.data.readableValues();
+        assert.isUndefined(entry(before, ".value").usedBy, "nothing reads Degree yet");
+
+        const degree = entry(before, ".value");
+        const sized = await session.styles.add({
+            name: "Sized",
+            target: "node",
+            selector: { match: "has", path: degree.path },
+            encode: { "node.size": { by: degree.path } },
+        });
+        const named = await session.styles.add({
+            name: "Named",
+            target: "node",
+            selector: { match: "has", path: "data.name" },
+            set: { "node.color": "#d62728" },
+        });
+        await session.styles.settled();
+
+        const after = session.data.readableValues();
+        assert.deepEqual(entry(after, ".value").usedBy, [{ kind: "layer", id: sized.id }]);
+        assert.deepEqual(entry(after, "data.name").usedBy, [{ kind: "layer", id: named.id }]);
+        assert.isUndefined(entry(after, ".group").usedBy, "Louvain's groups are read by nothing");
+    });
+
     it("a top 10 rule takes any number in the list, run results included", async () => {
         const session = await lesMisAfterRuns();
         const degree = entry(session.data.readableValues(), ".value");

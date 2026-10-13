@@ -1,10 +1,9 @@
 import { type QuickAction, QuickActions } from "@graphty/compact-mantine";
-import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
+import type { ReadableValue } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useState } from "react";
 
-import { typeOf } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
@@ -15,11 +14,13 @@ import { channelWord, matchesWordStart, refusalWords, resultWord } from "./words
 
 /** Props for ValuePicker. */
 interface ValuePickerProps {
+    /** The title of the pop-out it sits in: the picker's accessible name. */
+    title: string;
     /** Whose values: nodes' or edges'. @default "node" */
     target?: Target;
     /** The property the pick goes on; what it cannot take folds into one closing row. Without one, nothing is refused. */
     channel?: Channel;
-    /** Paths in use on this row, listed under "In use" beside every column a layer already reads. */
+    /** Paths in use on this row, listed under "In use" beside every value a layer already reads. */
     inUse?: readonly string[];
     /** Called with the reader's pick. */
     onPick?: (choice: DataChoice) => void;
@@ -31,7 +32,7 @@ interface ValuePickerProps {
     onFixed?: () => void;
 }
 
-/** The key of the `fixedLabel` row; entry keys start "column:" or "result:". */
+/** The key of the `fixedLabel` row; entry keys are the values' paths. */
 const FIXED = "fixed";
 /** The key of the closing row that folds what the property cannot take. */
 const FOLD = "fold";
@@ -49,27 +50,28 @@ interface Entry {
 }
 
 /**
- * One fact about a column, from the element's descriptor (never its values): the range of an
- * amount, the count of groups, else how many elements have a value.
- * @param column - the descriptor.
+ * One fact about a value, from the element's list (never its values): the range of a number, the
+ * count of groups, else how many elements have a value.
+ * @param value - the element's entry.
  * @returns the fact, or undefined when there is nothing to say.
  */
-function factOf(column: AttributeDescriptor): string | undefined {
-    if (column.measurement === "quantitative" && column.min !== undefined && column.max !== undefined) {
-        return `${formatNumber(column.min)} to ${formatNumber(column.max)}`;
+function factOf(value: ReadableValue): string | undefined {
+    if (value.range !== undefined) {
+        return `${formatNumber(value.range.min)} to ${formatNumber(value.range.max)}`;
     }
-    if (column.measurement !== undefined && column.uniqueCount !== undefined) {
-        return column.uniqueCount === 1 ? "1 value" : `${formatNumber(column.uniqueCount)} values`;
+    if (value.valueCount !== undefined) {
+        return value.valueCount === 1 ? "1 value" : `${formatNumber(value.valueCount)} values`;
     }
-    if (column.completeness < 1) {
-        return `${String(Math.floor(column.completeness * 100))}% have a value`;
+    if (value.completeness < 1) {
+        return `${String(Math.floor(value.completeness * 100))}% have a value`;
     }
     return undefined;
 }
 
 /**
- * Everything the picker offers, in the element's order: the data's columns, then each finished
- * run's results under the run's name. A run's results are listed under the run, not again as data.
+ * Everything the picker offers, in the element's order (`data.readableValues`): the data's
+ * columns, then each finished run's fields under the run's name. The node id is left out: it
+ * drives no property.
  * @param session - the element's session.
  * @param target - nodes or edges.
  * @param inUse - paths the caller counts as in use.
@@ -77,34 +79,35 @@ function factOf(column: AttributeDescriptor): string | undefined {
  */
 function entriesOf(session: GraphSession, target: Target, inUse: readonly string[]): Entry[] {
     const entries: Entry[] = [];
-    for (const column of session.data.attributes()) {
-        if (column.kind !== target || column.origin === "result") {
+    for (const value of session.data.readableValues()) {
+        if (value.on !== target || value.from === "element") {
             continue;
         }
-        const { glyph } = typeOf(column.measurement);
-        const Glyph = glyph === "result" ? GLYPHS.measure : GLYPHS[glyph];
-        entries.push({
-            key: `column:${column.name}`,
-            name: column.name,
-            section: "Data",
-            choice: { kind: "column", column: { kind: column.kind, name: column.name } },
-            icon: <Glyph size={14} aria-hidden />,
-            fact: factOf(column),
-            inUse: column.usedBy !== undefined || inUse.includes(column.path),
-        });
-    }
-    for (const run of session.runs.list().filter((r) => r.status === "succeeded")) {
-        const primary = session.results.path(run.id);
-        const runLabel = runName(session, run);
-        for (const field of run.fields.filter((f) => f.kind === target)) {
-            const path = session.results.path(run.id, field.name);
+        let Glyph = GLYPHS.category;
+        if (value.from === "run") {
+            Glyph = GLYPHS.measure;
+        } else if (value.kind === "number") {
+            Glyph = GLYPHS.number;
+        }
+        const used = value.usedBy?.some((use) => use.kind === "layer") === true || inUse.includes(value.path);
+        const base = { key: value.path, icon: <Glyph size={14} aria-hidden />, fact: factOf(value), inUse: used };
+        const run = value.runId === undefined ? undefined : session.runs.get(value.runId);
+        if (value.from === "data") {
+            const name = value.path.slice("data.".length);
             entries.push({
-                key: `result:${run.id}:${field.name}`,
-                name: resultWord(runLabel, field.name, path === primary),
+                ...base,
+                name,
+                section: "Data",
+                choice: { kind: "column", column: { kind: target, name } },
+            });
+        } else if (run !== undefined) {
+            const field = value.path.slice(session.results.path(run.id, "").length);
+            const runLabel = runName(session, run);
+            entries.push({
+                ...base,
+                name: resultWord(runLabel, field, value.path === session.results.path(run.id)),
                 section: runLabel,
-                choice: { kind: "result", runId: run.id, field: field.name },
-                icon: <GLYPHS.measure size={14} aria-hidden />,
-                inUse: inUse.includes(path),
+                choice: { kind: "result", runId: run.id, field },
             });
         }
     }
@@ -117,8 +120,10 @@ function entriesOf(session: GraphSession, target: Target, inUse: readonly string
  * (graphty-element's `styles.proposeEncoding`, which reads only the cached column descriptors)
  * folds into one closing row; running it lists each with the element's reason. A search also finds
  * the folded ones, with their reason. The vary glyph, "=" in a number field, the label source and
- * the binding's Change source open it.
+ * the binding's Change source open it. It sits inside a pop-out, so it is a group named by that
+ * pop-out's title rather than a second dialog.
  * @param props - Component props
+ * @param props.title - the pop-out's title
  * @param props.target - nodes or edges
  * @param props.channel - the property the pick goes on
  * @param props.inUse - paths in use on this row
@@ -129,6 +134,7 @@ function entriesOf(session: GraphSession, target: Target, inUse: readonly string
  * @returns The picker, or nothing before the element has come up
  */
 export function ValuePicker({
+    title,
     target = "node",
     channel,
     inUse = [],
@@ -176,7 +182,8 @@ export function ValuePicker({
 
     return (
         <QuickActions
-            aria-label="From data"
+            role="group"
+            aria-label={title}
             placeholder="Find a value"
             width={240}
             height={320}

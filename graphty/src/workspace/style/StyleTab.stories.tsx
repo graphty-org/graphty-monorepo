@@ -162,7 +162,7 @@ export const BindingPopover: Story = styleStory(async (canvasElement) => {
     await userEvent.click(await varyGlyph(canvasElement, "Node color"));
     await userEvent.click(await body().findByRole("option", { name: "dept" }));
     await waitFor(() => {
-        expect(body().queryByRole("dialog", { name: "From data" })).toBeNull();
+        expect(body().queryByRole("combobox", { name: "Find a value" })).toBeNull();
     });
     await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^Node color: dept,/ }));
     await body().findByRole("group", { name: "Color binding" });
@@ -193,17 +193,17 @@ export const BindingUnknownPath: Story = styleStory(async (canvasElement, elemen
 export const LabelNewLine: Story = styleStory(async (canvasElement) => {
     await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to node text" }));
     await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }));
-    await body().findByRole("dialog", { name: "From data" });
+    await body().findByRole("combobox", { name: "Find a value" });
 });
 
 /** Esc on the source list: no entry is left behind (`#/inspector-group-set-path-row/label-empty`). */
 export const LabelEmpty: Story = styleStory(async (canvasElement) => {
     await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to node text" }));
     await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }));
-    await body().findByRole("dialog", { name: "From data" });
+    await body().findByRole("combobox", { name: "Find a value" });
     await userEvent.keyboard("{Escape}");
     await waitFor(() => {
-        expect(body().queryByRole("dialog", { name: "From data" })).toBeNull();
+        expect(body().queryByRole("combobox", { name: "Find a value" })).toBeNull();
     });
 });
 

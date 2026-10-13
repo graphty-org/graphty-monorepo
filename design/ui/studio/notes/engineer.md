@@ -1068,6 +1068,31 @@ conditions.ts` (a `.tsx` exporting functions trips react-refresh), the rows in `
   Bars were already painted per bin when the caller passes `paint`; the "one orange" seen in the
   study build came from a caller passing none.
 
+- (2026-10-12) WORKED: binding popovers and the vary picker. The picker reads
+  `session.data.readableValues()` (one entry per value, its range or value count, and now
+  `usedBy`); a data entry's column name is its path after `data.`, a run field's is its path after
+  `results.path(runId, "")`. Category rows take their names from the canvas key's own words
+  (`swatchText` on the layer's legend block: "Group 3" by rank), so one community has one name in
+  the key, the popover and the new layer. Every popover in the inspector anchors through one
+  `Popout.Anchor` around the `<aside>` in `Frame.tsx` (x from the panel's edge, y from the row):
+  a panel passing `anchorX` opts out, which is why the binding popover sat on the pill. The pill
+  opens its popover without `Popout.Trigger`, so it takes focus back itself on close, only while
+  focus is still in a dialog (never after a click elsewhere). "New layer for <value>" sets
+  `inspected`, then `focusLineNext(channel)`: the new layer's tab hands focus to its line.
+- (2026-10-12) Tests that find the picker use `findValuePicker()` / `queryValuePicker()` from
+  `graphty/src/test/test-utils.ts` (the "Find a value" search's `.cm-quick-actions`), since the
+  picker is now a group named by each pop-out's title. A run's value read by its own layer is under
+  "In use", not the run's group: find it by option name.
+- (2026-10-12) NOT BUILT: the picker's Facts group (is selected, is hovered). No binding can read
+  element state: Selected and Hovered are selectors (`{ match: "state" }`), not values, so a row
+  for them would be refused for every property. The Selected and Hovered rows already cover it.
+- (2026-10-12) SEEN, not fixed (graphty-element): `AttributeDescriptor.usedBy` misses a column
+  read only by a rule's `categories` leaf (a `has` selector or a binding is counted), so a column a
+  rule reads does not show under In use.
+- (2026-10-12) SEEN, not mine: `Workspace.real-element` "opens the shortcuts sheet ..." and
+  `undoWords.real-element` "says what Escape cleared ..." fail on this branch (no Selection
+  treeitem; no hidden listbox), after the starting-rows commit.
+
 ## Sources
 
 - Digests in `design/ui/studio/digests/` (`tier1.md`, `decisions.md`, `study-rounds.md`,

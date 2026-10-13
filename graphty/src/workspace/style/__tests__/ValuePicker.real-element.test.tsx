@@ -13,7 +13,8 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { findValuePicker, queryValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -70,7 +71,7 @@ async function openBySize(): Promise<HTMLElement> {
     const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
     await userEvent.click(await within(tab).findByRole("combobox", { name: /^Node size, / }));
     await userEvent.keyboard("=");
-    return screen.findByRole("dialog", { name: "From data" });
+    return findValuePicker();
 }
 
 /**
@@ -149,7 +150,47 @@ describe("the value picker on the real element", () => {
                 .find((b) => b !== undefined && "by" in b);
             assert.equal(bound !== undefined && "by" in bound ? bound.by : undefined, "data.age");
         });
-        assert.isNull(screen.queryByRole("dialog", { name: "From data" }), "picking closes it");
+        assert.isNull(queryValuePicker(), "picking closes it");
+    });
+
+    it("on Les Miserables after Degree: the element's list, its facts, In use first, Escape back to the button", async () => {
+        await page.viewport(1440, 900);
+        const session = await openEverything([]);
+        await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
+        await session.runs.start("degree");
+        await session.styles.settled();
+        assert.strictEqual(session.data.statistics().directedness, "undirected");
+
+        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const button = await within(tab).findByRole("button", { name: "Node size by attribute" });
+        await userEvent.click(button);
+        const picker = await findValuePicker();
+        assert.equal(picker.getAttribute("aria-label"), "Size by attribute", "named by its pop-out's title");
+        const dialog = picker.closest("[role=dialog]");
+        assert.equal(
+            document.getElementById(dialog?.getAttribute("aria-labelledby") ?? "")?.textContent,
+            "Size by attribute",
+            "the dialog's name is its title",
+        );
+
+        const inUse = within(picker).getByRole("group", { name: "In use" });
+        const degree = within(inUse).getAllByRole("option")[0];
+        assert.match(degree.getAttribute("aria-label") ?? "", /^Degree/, "Degree's value is in use");
+        assert.match(
+            document.getElementById(degree.getAttribute("aria-describedby") ?? "")?.textContent ?? "",
+            /^\d+ to \d+$/,
+            "a run's value shows its range",
+        );
+        assert.isFalse(
+            optionNames(picker).some((name) => /\b(in|out) ?degree|incoming|outgoing/i.test(name)),
+            `no incoming or outgoing connections on an undirected graph: ${optionNames(picker).join(", ")}`,
+        );
+
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(queryValuePicker(), "Escape closes it");
+            assert.equal(document.activeElement, button, "and gives focus back to the button that opened it");
+        });
     });
 
     it("on 200 columns it opens without reading any column's values", async () => {

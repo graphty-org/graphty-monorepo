@@ -1,6 +1,6 @@
 import "./frame.css";
 
-import { ResizeHandle } from "@graphty/compact-mantine";
+import { Popout, ResizeHandle } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { VisuallyHidden } from "@mantine/core";
@@ -141,22 +141,26 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         </section>
                     ) : null}
                 </main>
-                <aside className="ws-right" aria-label="Inspector" hidden={!panels}>
-                    <div className="ws-panel-body">
-                        <Inspector />
-                    </div>
-                    <ResizeHandle
-                        edge="start"
-                        label="Resize inspector"
-                        value={rightWidth}
-                        defaultValue={PANEL_MIN}
-                        min={PANEL_MIN}
-                        max={PANEL_MAX}
-                        onChange={(value) => {
-                            store.set({ rightWidth: value });
-                        }}
-                    />
-                </aside>
+                {/* Every pop-out opened in the inspector opens flush with its edge, level with
+                    the row that opened it (Figma's right panel). */}
+                <Popout.Anchor>
+                    <aside className="ws-right" aria-label="Inspector" hidden={!panels}>
+                        <div className="ws-panel-body">
+                            <Inspector />
+                        </div>
+                        <ResizeHandle
+                            edge="start"
+                            label="Resize inspector"
+                            value={rightWidth}
+                            defaultValue={PANEL_MIN}
+                            min={PANEL_MIN}
+                            max={PANEL_MAX}
+                            onChange={(value) => {
+                                store.set({ rightWidth: value });
+                            }}
+                        />
+                    </aside>
+                </Popout.Anchor>
                 {panels ? null : (
                     <div className="ws-page">
                         <DataPage />

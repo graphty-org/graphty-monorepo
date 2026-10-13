@@ -22,6 +22,12 @@ describe("QuickActions", () => {
         expect(screen.getByRole("group", { name: "Image editing" })).toBeInTheDocument();
     });
 
+    it("is a named group, not a second dialog, when placed inside a pop-out", () => {
+        renderShell(<QuickActions actions={ACTIONS} onRun={vi.fn()} role="group" aria-label="Size by attribute" />);
+        expect(screen.queryByRole("dialog")).toBeNull();
+        expect(screen.getByRole("group", { name: "Size by attribute" })).toBeInTheDocument();
+    });
+
     it("highlights the first row on open, exposed through aria-activedescendant", () => {
         renderShell(<QuickActions actions={ACTIONS} onRun={vi.fn()} />);
         const first = screen.getByRole("option", { name: "Ink Wireframe" });

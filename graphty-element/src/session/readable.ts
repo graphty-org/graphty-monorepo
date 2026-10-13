@@ -12,6 +12,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import type {
     AttributeDescriptor,
+    AttributeUse,
     MeasurementDeclaration,
     ReadableChannelKind,
     ReadableValue,
@@ -36,6 +37,8 @@ export interface ReadableInput {
     readonly declarationOf: (column: AttributeDescriptor) => MeasurementDeclaration | undefined;
     /** The session's runs, in order; only finished ones are read. */
     readonly runs: readonly Run[];
+    /** The layers that read a path on a half now, in stack order; a data column brings its own `usedBy`. */
+    readonly layersReading?: (path: string, on: "node" | "edge") => readonly AttributeUse[];
 }
 
 /** The channel kinds a value can be listed as fitting, in the order they are listed. */
@@ -83,12 +86,14 @@ function kindOf(column: AttributeDescriptor): ReadableValueKind {
  * @param column - The column, with its path and names already the entry's.
  * @param from - Where it comes from.
  * @param declaration - Its declaration, if any.
+ * @param usedBy - What reads it now.
  * @returns The entry.
  */
 function entryOf(
     column: AttributeDescriptor,
     from: "data" | "run",
     declaration: MeasurementDeclaration | undefined,
+    usedBy: readonly AttributeUse[] | undefined,
 ): ReadableValue {
     const kind = kindOf(column);
     const kinds = column.kind === "node" ? NODE_KINDS : EDGE_KINDS;
@@ -108,6 +113,7 @@ function entryOf(
             : {}),
         completeness: column.completeness,
         fits: Object.freeze(kinds.filter((each) => columnFits(column, declaration, each))),
+        ...(usedBy === undefined || usedBy.length === 0 ? {} : { usedBy: Object.freeze([...usedBy]) }),
     });
 }
 
@@ -184,12 +190,12 @@ export function readableValues(input: ReadableInput): readonly ReadableValue[] {
     ];
 
     for (const column of input.attributes) {
-        values.push(entryOf(column, "data", input.declarationOf(column)));
+        values.push(entryOf(column, "data", input.declarationOf(column), column.usedBy));
     }
 
     for (const run of input.runs) {
         for (const column of describeRun(run, input)) {
-            values.push(entryOf(column, "run", undefined));
+            values.push(entryOf(column, "run", undefined, input.layersReading?.(column.path, column.kind)));
         }
     }
 

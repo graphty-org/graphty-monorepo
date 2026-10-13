@@ -14,9 +14,12 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
+import { swatchText } from "../canvas/legendWords";
 import { GLYPHS } from "../glyphs";
+import { count as countOf } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataBinding, type DataChoice, startingValue } from "./row";
+import { focusLineNext } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
 import { channelWord, enumWords, paletteWord } from "./words";
 
@@ -187,7 +190,8 @@ export function BindingPopover({
                 </Text>
                 <Button
                     size="compact-xs"
-                    variant="subtle"
+                    variant="default"
+                    aria-expanded={choosing}
                     onClick={() => {
                         setChoosing(!choosing);
                     }}
@@ -197,6 +201,7 @@ export function BindingPopover({
             </Group>
             {choosing ? (
                 <ValuePicker
+                    title="Change source"
                     target={descriptor.target}
                     channel={channel}
                     inUse={[binding.by]}
@@ -311,6 +316,36 @@ async function layerFor(
 }
 
 /**
+ * Makes the layer for one value or step (`layerFor`), opens it, hands focus to its line and says
+ * so: the popover and the row it was opened from go away with the layer that is no longer shown.
+ * @param session - the element's session
+ * @param store - the workspace store
+ * @param layerId - the binding's layer
+ * @param channel - the bound channel
+ * @param name - the new layer's name
+ * @param where - its rule
+ * @param paint - what the value or the step paints now
+ */
+function openLayerFor(
+    session: GraphSession,
+    store: ReturnType<typeof useWorkspace>["store"],
+    layerId: LayerId,
+    channel: ChannelDescriptor["channel"],
+    name: string,
+    where: RuleTree,
+    paint: unknown,
+): void {
+    layerFor(session, layerId, channel, name, where, paint)
+        .then((id) => {
+            store.set({ inspected: { kind: "layer-row", id }, announcement: `Layer ${name} added above` });
+            focusLineNext(channel);
+        })
+        .catch(() => {
+            store.set({ notice: { message: "The layer could not be added" } });
+        });
+}
+
+/**
  * A numeric binding: the ramp editor, a clamp, and for a stepped scale its steps with counts.
  * @param props - Component props
  * @param props.session - the element's session
@@ -337,13 +372,6 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
         .find((block) => block.layerId === layerId && block.channel === descriptor.channel)?.palette?.name;
     const diverging = palettes.find((p) => p.id === (binding.palette ?? shownPalette))?.kind === "diverging";
     const stepped = preview.steps.length > 0;
-    const handleWords: Record<RampEditorHandle, string> = {
-        domainLow: "Ramp starts",
-        domainHigh: "Ramp ends",
-        midpoint: "Midpoint",
-        clampLow: "Clamped below",
-        clampHigh: "Clamped above",
-    };
     // Steps from the element's cut points: the first runs from below, the last to above.
     const steps = stepped
         ? preview.stepCounts.map((count, at) => ({
@@ -386,7 +414,9 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
                 }
                 steps={[...preview.steps]}
                 step={wholeNumbers(session, binding.by) ? 1 : undefined}
-                describe={(handle, value) => `${handleWords[handle]} at ${source} ${valueWords(value)}`}
+                // The handle's name is the editor's own ("Ramp start"); its value is said in the data's terms.
+                describe={(_handle: RampEditorHandle, value) => `${source} ${valueWords(value)}`}
+                labels={{ from: "Values from", to: "Values to" }}
                 scale={binding.scale}
                 defaultScale={preview.scale}
                 scales={scales}
@@ -448,32 +478,30 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
                         return (
                             <ValueRow
                                 key={words}
+                                session={session}
+                                target={descriptor.target}
+                                source={source}
                                 name={words}
                                 count={step.count}
-                                onNewLayer={() => {
-                                    // ponytail: a range rule is inclusive at both ends, the scale puts a
-                                    // value on a cut in the step above; data on a cut is in both layers.
-                                    const where: RuleTree = {
-                                        kind: "range",
-                                        attribute: binding.by,
-                                        ...(step.from === undefined ? {} : { min: step.from }),
-                                        ...(step.to === undefined ? {} : { max: step.to }),
-                                    };
-                                    layerFor(
+                                // ponytail: a range rule is inclusive at both ends, the scale puts a
+                                // value on a cut in the step above; data on a cut is in both layers.
+                                where={{
+                                    kind: "range",
+                                    attribute: binding.by,
+                                    ...(step.from === undefined ? {} : { min: step.from }),
+                                    ...(step.to === undefined ? {} : { max: step.to }),
+                                }}
+                                onNewLayer={(where) => {
+                                    openLayerFor(
                                         session,
+                                        store,
                                         layerId,
                                         descriptor.channel,
                                         `${source} ${words}`,
                                         where,
                                         // The step's paint: the first bar inside it.
                                         preview.bins.find((bin) => (bin.from ?? 0) >= (step.from ?? -Infinity))?.paints,
-                                    )
-                                        .then((id) => {
-                                            store.set({ inspected: { kind: "layer-row", id } });
-                                        })
-                                        .catch(() => {
-                                            store.set({ notice: { message: "The layer could not be added" } });
-                                        });
+                                    );
                                 }}
                             />
                         );
@@ -569,12 +597,24 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
     const isColor = descriptor.accepts === "color";
     const categories = session.styles.categories(layerId, channel);
     const palettes = session.catalog.palettes().filter((p) => p.kind === "categorical");
-    const shownPalette = session.styles.legend().find((block) => block.layerId === layerId && block.channel === channel)
-        ?.palette?.name;
+    const block = session.styles.legend().find((b) => b.layerId === layerId && b.channel === channel);
+    const shownPalette = block?.palette?.name;
     // What each value paints, from the element's preview: an entry's own value, else the palette's.
     const paints = new Map(preview.bins.map((bin) => [String(bin.value), bin.paints]));
+    // Each value by the name the canvas key gives it: a run's group as "Group 3", by its rank.
+    const names = new Map(
+        (block?.swatches ?? [])
+            .filter((swatch) => swatch.role !== "other")
+            .map((swatch) => [String(swatch.value), block === undefined ? "" : swatchText(block, swatch)]),
+    );
+    const nameOf = (value: unknown): string => names.get(String(value)) ?? String(value);
     const needle = search.trim().toLowerCase();
-    const shown = categories.filter((c) => needle === "" || String(c.value).toLowerCase().includes(needle));
+    const shown = categories.filter(
+        (c) =>
+            needle === "" ||
+            String(c.value).toLowerCase().includes(needle) ||
+            nameOf(c.value).toLowerCase().includes(needle),
+    );
     const fail = (): void => {
         store.set({ notice: { message: `${channelWord(channel)} could not be changed` } });
     };
@@ -627,12 +667,14 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
             <Stack gap={2} role="list" aria-label={`${source} values`}>
                 {shown.map((category) => {
                     const word = String(category.value);
+                    const name = nameOf(category.value);
                     const painted = paints.get(word);
                     let chit: React.ReactNode = null;
                     if (isColor) {
                         chit = (
                             <CompactColorInput
-                                aria-label={`${source} ${word} color`}
+                                aria-label={`${source} ${name} color`}
+                                width="100%"
                                 color={typeof category.entry === "string" ? category.entry : undefined}
                                 defaultColor={cssOf(painted) ?? "#999999"}
                                 showOpacity={false}
@@ -647,7 +689,7 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                     } else if (descriptor.accepts === "number") {
                         chit = (
                             <StyleNumberInput
-                                label={`${source} ${word} ${channelWord(channel).toLowerCase()}`}
+                                label={`${source} ${name} ${channelWord(channel).toLowerCase()}`}
                                 value={typeof category.entry === "number" ? category.entry : undefined}
                                 defaultValue={typeof painted === "number" ? painted : 1}
                                 min={descriptor.min}
@@ -661,7 +703,10 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                     return (
                         <ValueRow
                             key={word}
-                            name={word}
+                            session={session}
+                            target={descriptor.target}
+                            source={source}
+                            name={name}
                             count={category.count}
                             chit={chit}
                             hidden={category.hidden}
@@ -682,13 +727,9 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                                           entry(category.value, undefined);
                                       }
                             }
-                            onNewLayer={() => {
-                                const where: RuleTree = { kind: "categories", attribute: binding.by, values: [word] };
-                                layerFor(session, layerId, channel, `${source} ${word}`, where, painted)
-                                    .then((id) => {
-                                        store.set({ inspected: { kind: "layer-row", id } });
-                                    })
-                                    .catch(fail);
+                            where={{ kind: "categories", attribute: binding.by, values: [word] }}
+                            onNewLayer={(where) => {
+                                openLayerFor(session, store, layerId, channel, `${source} ${name}`, where, painted);
                             }}
                         />
                     );
@@ -710,75 +751,102 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
 }
 
 /**
- * One value or one step: its chit, name, count, eye, the minus that clears its entry, and a menu
- * with "New layer for <value>".
+ * One value or one step, in the order of Figma's paint rows: its chit, name and count, then its
+ * eye, the minus that clears its entry, and its actions -- Select these, and "New layer for
+ * <value>". Every control is named with the source and the value, so a list of them reads apart.
  * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.target - nodes or edges
+ * @param props.source - what the binding reads, in words
  * @param props.name - the value or the step in words
  * @param props.count - how many elements it paints
  * @param props.chit - the field that edits its entry
  * @param props.hidden - whether it is hidden
  * @param props.onHide - hides or shows it
  * @param props.onClear - clears its entry, when it has one
- * @param props.onNewLayer - makes a layer for it
+ * @param props.where - the rule that matches its elements
+ * @param props.onNewLayer - makes a layer of that rule
  * @returns The row
  */
 function ValueRow({
+    session,
+    target,
+    source,
     name,
     count,
     chit,
     hidden,
     onHide,
     onClear,
+    where,
     onNewLayer,
 }: Readonly<{
+    session: GraphSession;
+    target: ChannelDescriptor["target"];
+    source: string;
     name: string;
     count: number;
     chit?: React.ReactNode;
     hidden?: boolean;
     onHide?: (hide: boolean) => void;
     onClear?: () => void;
-    onNewLayer: () => void;
+    where: RuleTree;
+    onNewLayer: (where: RuleTree) => void;
 }>): React.JSX.Element {
-    const action = `New layer for ${name}`;
+    const full = `${source} ${name}`;
+    const counted = countOf(count, target);
+    const select = (): void => {
+        // An edge's value selects its edges with their end nodes, as the Values tab's rows do.
+        const rule: RuleTree =
+            target === "edge" && (where.kind === "range" || where.kind === "categories")
+                ? { ...where, nodes: "ends" }
+                : where;
+        void session.selection.apply({ scope: { define: { kind: "rule", where: rule, reading: "clipped" } } });
+    };
     return (
-        <Group role="listitem" aria-label={`${name}, ${String(count)}`} gap={4} wrap="nowrap">
+        <Group role="listitem" aria-label={`${name}, ${counted}`} gap={4} wrap="nowrap">
             {chit === undefined || chit === null ? null : <div style={{ width: 96, flex: "none" }}>{chit}</div>}
-            <Text size="xs" truncate style={{ flex: 1 }}>
+            <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }}>
                 {name}
             </Text>
-            <Text size="xs" c="dimmed">
+            <Text size="xs" c="dimmed" title={counted}>
                 {count.toLocaleString()}
             </Text>
-            {onClear === undefined ? null : (
-                <Tooltip label={`Back to the palette: ${name}`}>
-                    <ActionIcon
-                        variant="subtle"
-                        size="sm"
-                        aria-label={`Back to the palette: ${name}`}
-                        onClick={onClear}
-                    >
-                        <GLYPHS.remove size={14} aria-hidden />
-                    </ActionIcon>
-                </Tooltip>
-            )}
             {onHide === undefined ? null : (
                 <ToggleIconButton
                     variant="swap"
-                    label={`Hide ${name}`}
+                    label={`Hide ${full}`}
                     checked={hidden === true}
                     icon={<GLYPHS.show size={14} />}
                     checkedIcon={<GLYPHS.hide size={14} />}
                     onChange={onHide}
                 />
             )}
+            {onClear === undefined ? null : (
+                <Tooltip label="Back to the palette">
+                    <ActionIcon
+                        variant="subtle"
+                        size="sm"
+                        aria-label={`Back to the palette: ${full}`}
+                        onClick={onClear}
+                    >
+                        <GLYPHS.remove size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            )}
             <Menu withinPortal={false} position="bottom-end">
                 <Menu.Target>
-                    <ActionIcon variant="subtle" size="sm" aria-label={`${name} menu`}>
+                    <ActionIcon variant="subtle" size="sm" aria-label={`${full} actions`}>
                         <GLYPHS.more size={14} aria-hidden />
                     </ActionIcon>
                 </Menu.Target>
                 <Menu.Dropdown>
-                    <Menu.Item onClick={onNewLayer}>{action}</Menu.Item>
+                    <Menu.Item onClick={select}>{`Select these ${counted}`}</Menu.Item>
+                    <Menu.Item
+                        onClick={() => {
+                            onNewLayer(where);
+                        }}
+                    >{`New layer for ${name}`}</Menu.Item>
                 </Menu.Dropdown>
             </Menu>
         </Group>
@@ -818,23 +886,21 @@ function Range({
     };
     return (
         <Group grow gap={8} role="group" aria-label="Range">
-            {[`${channelWord(descriptor.channel)} from`, `${channelWord(descriptor.channel)} to`].map(
-                (label, index) => (
-                    <ComboInput
-                        key={label}
-                        label={label}
-                        numeric
-                        options={[]}
-                        placeholder="Not set"
-                        value={draft[index]}
-                        min={descriptor.min}
-                        max={descriptor.max}
-                        onChange={(value) => {
-                            set(index === 0 ? 0 : 1, value);
-                        }}
-                    />
-                ),
-            )}
+            {["Paints from", "Paints to"].map((label, index) => (
+                <ComboInput
+                    key={label}
+                    label={label}
+                    numeric
+                    options={[]}
+                    placeholder="Not set"
+                    value={draft[index]}
+                    min={descriptor.min}
+                    max={descriptor.max}
+                    onChange={(value) => {
+                        set(index === 0 ? 0 : 1, value);
+                    }}
+                />
+            ))}
         </Group>
     );
 }

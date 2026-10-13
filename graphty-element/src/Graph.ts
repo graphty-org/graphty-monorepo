@@ -1456,7 +1456,6 @@ export class Graph implements GraphContext {
         const canvas = document.createElement("canvas");
         canvas.setAttribute("id", `graphty-canvas-${Date.now()}`);
         canvas.setAttribute("touch-action", "none");
-        canvas.setAttribute("autofocus", "true");
         canvas.setAttribute("tabindex", "0");
         canvas.style.width = "100%";
         canvas.style.height = "100%";

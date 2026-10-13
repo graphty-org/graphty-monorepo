@@ -4,12 +4,16 @@
 //   node --test tools/claude-area-rules.test.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 
 import { loadRules, matchRules, respond } from "./claude-area-rules.mjs";
+
+// The temporary directories this file makes go inside this one, removed when the file finishes.
+const TMP = mkdtempSync(join(tmpdir(), "claude-area-rules-"));
+after(() => rmSync(TMP, { recursive: true, force: true }));
 
 const HOOK = new URL("./claude-area-rules.mjs", import.meta.url).pathname;
 const ROOT = new URL("..", import.meta.url).pathname;
@@ -44,7 +48,7 @@ describe("claude-area-rules", () => {
     });
 
     it("emits a rule once per session", () => {
-        const dir = mkdtempSync(join(tmpdir(), "claude-area-rules-"));
+        const dir = mkdtempSync(join(TMP, "claude-area-rules-"));
         const edit = (session, rel) => respond({ session_id: session, tool_input: { file_path: at(rel) } }, ROOT, dir);
         const first = JSON.parse(edit("a", "layout/test/x.test.ts"));
         assert.equal(first.hookSpecificOutput.hookEventName, "PostToolUse");

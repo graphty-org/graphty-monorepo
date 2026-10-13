@@ -220,13 +220,26 @@ describe("the 2D view", () => {
 });
 
 /**
- * Wait until the camera has stopped moving: two frames in a row with the same camera state.
- * @param element - The element.
+ * Wait until a count of updates reaches a number.
+ * @param count - The count.
+ * @param target - The number to wait for.
  */
-async function settled(element: Graphty): Promise<void> {
+async function updatesReach(count: () => number, target: number): Promise<void> {
+    while (count() < target) {
+        await nextFrame();
+    }
+}
+
+/**
+ * Wait until the camera has stopped moving: two input updates in a row with the same camera state.
+ * Animation frames are not that count: a skipped render tick runs no input update.
+ * @param element - The element.
+ * @param updates - The count of the camera input's updates.
+ */
+async function settled(element: Graphty, updates: () => number): Promise<void> {
     let last = camera(element);
     for (;;) {
-        await nextFrame();
+        await updatesReach(updates, updates() + 1);
         const now = camera(element);
         if (now === last) {
             return;
@@ -258,9 +271,11 @@ async function hold(element: Graphty, key: string, name: "orbit" | "2d", count: 
     const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
     const update = input.update.bind(input);
     let held = false;
+    let all = 0;
     let heldFrames = 0;
     let releaseFrames = (): void => undefined;
     input.update = (): void => {
+        all++;
         update();
         if (held && ++heldFrames === count) {
             releaseFrames = renderManager.holdFrames();
@@ -284,12 +299,9 @@ async function hold(element: Graphty, key: string, name: "orbit" | "2d", count: 
     });
 
     await userEvent.keyboard(`{${key}>}`);
-    while (heldFrames < count) {
-        await nextFrame();
-    }
-
+    await updatesReach(() => heldFrames, count);
     await userEvent.keyboard(`{/${key}}`);
-    await settled(element);
+    await settled(element, () => all);
     assert.strictEqual(heldFrames, count, "the key was held for the frames counted");
 }
 

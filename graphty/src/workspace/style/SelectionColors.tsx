@@ -51,30 +51,39 @@ export function SelectionColors({ rowIds }: Readonly<{ rowIds: readonly string[]
     return (
         <ControlSection label="Selection colors" collapsible={false} headingLevel={3}>
             {open ? (
-                <Stack gap={4} px={8} pb={8}>
+                <Stack gap={4}>
                     {colors.map((color) => (
                         <div // NOSONAR(S6819): an ARIA group naming one color's control and its layers; a fieldset would draw its own border and legend
                             key={color.color}
                             role="group"
                             aria-label={`${hex(color)}, from ${namesOf(color)}`}
                         >
-                            <CompactColorInput
-                                aria-label={`Replace ${hex(color)}`}
-                                width="100%"
-                                color={hex(color)}
-                                defaultColor={hex(color)}
-                                showOpacity={false}
-                                showReset={false}
-                                onChangeEnd={(next) => {
-                                    if (next !== undefined && next.toUpperCase() !== hex(color)) {
-                                        void orNotice(
-                                            store,
-                                            `change ${hex(color)}`,
-                                            session.styles.replaceColor(rowIds, color.color, next.toUpperCase()),
-                                        );
-                                    }
-                                }}
-                            />
+                            {/* On the panel's field column: the content edge to the vary and Clear columns. */}
+                            <div className="ws-field">
+                                <div className="ws-field-control">
+                                    <CompactColorInput
+                                        aria-label={`Replace ${hex(color)}`}
+                                        width="100%"
+                                        color={hex(color)}
+                                        defaultColor={hex(color)}
+                                        showOpacity={false}
+                                        showReset={false}
+                                        onChangeEnd={(next) => {
+                                            if (next !== undefined && next.toUpperCase() !== hex(color)) {
+                                                void orNotice(
+                                                    store,
+                                                    `change ${hex(color)}`,
+                                                    session.styles.replaceColor(
+                                                        rowIds,
+                                                        color.color,
+                                                        next.toUpperCase(),
+                                                    ),
+                                                );
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            </div>
                             <Text size="xs" c="dimmed" truncate>
                                 {namesOf(color)}
                             </Text>
@@ -85,8 +94,6 @@ export function SelectionColors({ rowIds }: Readonly<{ rowIds: readonly string[]
                 <UnstyledButton
                     className="cm-focus-inside"
                     aria-label={`Show ${String(colors.length)} selection color${colors.length === 1 ? "" : "s"}`}
-                    px={8}
-                    pb={8}
                     onClick={() => {
                         setOpen(true);
                     }}

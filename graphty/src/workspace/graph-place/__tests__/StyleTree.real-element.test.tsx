@@ -206,7 +206,7 @@ describe("the style tree on the real element", () => {
         });
 
         await userEvent.click(await row("Key people"), { button: "right" });
-        const lock = await screen.findByRole("menuitem", { name: "Lock/Unlock" });
+        const lock = await screen.findByRole("menuitem", { name: /^Lock\b/ });
         assert.equal(lock.getAttribute("aria-keyshortcuts"), "Shift+Control+L");
         assert.equal((await screen.findByRole("menuitem", { name: "Rename" })).getAttribute("aria-keyshortcuts"), "F2");
         await userEvent.click(lock);

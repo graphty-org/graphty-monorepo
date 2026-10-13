@@ -208,6 +208,8 @@ export interface NewLayer {
     readonly userData?: Record<string, unknown>;
     /** Whether the first edit adds a row painting nodes AND edges (`styles.addRow`), not one layer. */
     readonly both?: boolean;
+    /** The unpinned row the first edit puts it directly above, in that row's folder; else the top. */
+    readonly above?: string;
 }
 
 /** The reader's Everything layer, which the Everything row's first edit adds. */
@@ -303,6 +305,22 @@ function scopeFor(
 }
 
 /**
+ * The place directly above a row, in the folder that holds it (bottom-first index).
+ * @param session - the element's session.
+ * @param id - the row.
+ * @returns the place, or undefined when the row is gone.
+ */
+function placeAbove(session: GraphSession, id: string): { parent: string | null; index: number } | undefined {
+    const found = findTreeRow(session.styles.tree(), id);
+    if (found === undefined) {
+        return undefined;
+    }
+    const parent = found.folders.at(-1);
+    const siblings = parent?.children ?? session.styles.tree();
+    return { parent: parent?.id ?? null, index: siblings.findIndex((row) => row.id === id) + 1 };
+}
+
+/**
  * Whether two selectors are the same.
  * @param a - one selector.
  * @param b - the other.
@@ -373,6 +391,8 @@ export async function writeLine(
     if (own === undefined && fresh === undefined) {
         throw new Error(`The row has no ${target} layer to write ${channel} to`);
     }
+    // Where a new layer goes when it lands above a row: just above it, among that row's siblings.
+    const place = own === undefined && fresh?.above !== undefined ? placeAbove(session, fresh.above) : undefined;
     // Taken off after the write, so a layer added above one of them has it to stand on.
     const strip = async (styles: GraphSession["styles"]): Promise<void> => {
         for (const layer of others) {
@@ -398,6 +418,9 @@ export async function writeLine(
             const added = fresh.both
                 ? await styles.addRow({ ...spec, target: "both" }, at)
                 : await styles.add({ ...spec, target }, at);
+            if (place !== undefined) {
+                await styles.moveRow("row" in added ? (added.row ?? added.id) : added.id, place);
+            }
             await strip(styles);
             return added.id;
         }
@@ -411,6 +434,9 @@ export async function writeLine(
         await strip(styles);
         return own.id;
     };
+    if (place !== undefined) {
+        return session.transaction(`Add ${fresh?.name ?? "layer"}`, async (tx) => apply(tx.styles));
+    }
     return others.length === 0
         ? apply(session.styles)
         : session.transaction(`Change ${channelWord(channel)}`, async (tx) => apply(tx.styles));

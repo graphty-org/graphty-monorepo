@@ -142,7 +142,7 @@ describe("the legend card's words", () => {
         );
     });
 
-    it("keys no row that paints nothing now, and no ring, band or text size as a bare number", () => {
+    it("keys no row that paints nothing now, and no ring, band, text size or motion speed as a bare number", () => {
         const halo = block({ layerId: "halo", channel: "node.haloColor", kind: "literal" });
         const blocks = [
             block({ layerId: "selected", kind: "literal", painted: 0 }),
@@ -151,6 +151,8 @@ describe("the legend card's words", () => {
             block({ layerId: "halo", channel: "node.haloOpacity", kind: "literal" }),
             block({ layerId: "band", channel: "edge.bandWidth", kind: "literal" }),
             block({ layerId: "band", channel: "edge.bandOpacity", kind: "literal" }),
+            // A motion's speed would print "On the path 2".
+            block({ layerId: "band", channel: "edge.animationSpeed", kind: "literal" }),
             halo,
         ];
         assert.deepEqual(keyBlocks(blocks), [halo]);
@@ -263,5 +265,29 @@ describe("the legend card's words", () => {
         // A narrower run than the whole graph, with another count drawn: its own count.
         run.stale = { reason: "scope-changed", ranOn: 12, nowVisible: 15 } as unknown as Run["stale"];
         assert.equal(title(), "Size: PageRank on 12 nodes");
+    });
+
+    it("names a run by its catalog plain name, as the style tree names its row", () => {
+        const run = {
+            id: "r1",
+            algorithm: "shortest-path",
+            params: {},
+            distinguishedBy: null,
+            siblingsDifferBy: null,
+            scope: { spec: "graph" },
+            status: "succeeded",
+            stale: null,
+        };
+        const session = {
+            runs: { get: () => run },
+            styles: { get: () => undefined },
+            catalog: {
+                algorithms: () => [
+                    { key: "shortest-path", plainName: "Shortest route", technicalName: "Shortest path" },
+                ],
+            },
+        } as unknown as GraphSession;
+        const color = block({ channel: "node.color", runId: "r1" });
+        assert.equal(keySections([color], keyNames(session))[0].title, "Color: Shortest route");
     });
 });

@@ -150,7 +150,7 @@ function NumberValues({
         }),
     );
     return (
-        <ControlSection label={read.name} defaultOpened>
+        <ControlSection label={read.name} collapsible={false} headingLevel={3}>
             <HistogramRow
                 label={read.name}
                 bins={bins.map((bin) => ({
@@ -246,7 +246,7 @@ function CategoryValues({
     const swatches = session.styles.legendOf(layer.id).find((block) => block.channel === channel)?.swatches ?? [];
     const unmatched = layers.flatMap((l) => l.unmatched ?? []).filter((u) => u.params.path === read.path);
     return (
-        <ControlSection label={read.name} defaultOpened>
+        <ControlSection label={read.name} collapsible={false} headingLevel={3}>
             <DataRowHeader label="Groups, largest first" />
             <FirstRows
                 rows={session.styles.categories(layer.id, channel).map((category) => {
@@ -298,7 +298,7 @@ function TopValues({ session, layer }: Readonly<{ session: GraphSession; layer: 
         return null;
     }
     return (
-        <ControlSection label={`Top ${String(selector.n)} by ${read.name}`} defaultOpened>
+        <ControlSection label={`Top ${String(selector.n)} by ${read.name}`} collapsible={false} headingLevel={3}>
             {top.entries.map((entry) => (
                 <DataRow
                     key={nodeKey(entry.id)}
@@ -357,7 +357,7 @@ function MemberValues({
         return null;
     }
     return (
-        <ControlSection label="Members" defaultOpened>
+        <ControlSection label="Members" collapsible={false} headingLevel={3}>
             <FirstRows
                 rows={nodes.map((id) => (
                     <DataRow
@@ -387,7 +387,7 @@ function StateValues({
     if (state === "hovered") {
         const { hovered } = session.selection;
         return (
-            <ControlSection label="Now" defaultOpened>
+            <ControlSection label="Now" collapsible={false} headingLevel={3}>
                 {hovered === null ? (
                     <Text size="sm" c="dimmed">
                         Nothing hovered
@@ -400,7 +400,7 @@ function StateValues({
     }
     const { nodes, edges } = session.selection;
     return (
-        <ControlSection label="Now" defaultOpened>
+        <ControlSection label="Now" collapsible={false} headingLevel={3}>
             {nodes.length + edges.length === 0 ? (
                 <Text size="sm" c="dimmed">
                     Nothing selected
@@ -472,7 +472,7 @@ export function LayerValues({ id }: Readonly<{ id: string }>): React.JSX.Element
 
     return (
         <>
-            <ControlSection label="Summary" defaultOpened>
+            <ControlSection label="Summary" collapsible={false} headingLevel={3}>
                 {counted.map(({ layer, counts }) => (
                     <DataRow
                         key={layer.id}
@@ -484,7 +484,7 @@ export function LayerValues({ id }: Readonly<{ id: string }>): React.JSX.Element
             </ControlSection>
             {/* Its own section: a header row with no value read as the label of the row below. */}
             {reads.length + states.length > 0 && (
-                <ControlSection label="Values read" defaultOpened>
+                <ControlSection label="Values read" collapsible={false} headingLevel={3}>
                     {reads.map((read) => (
                         <DataRow key={read.path} stat name={read.name} value={stateWords(read.run)} />
                     ))}
@@ -517,7 +517,7 @@ export function LayerValues({ id }: Readonly<{ id: string }>): React.JSX.Element
                     <MemberValues session={session} layer={layer} matched={counts.matched} version={version} />
                 </React.Fragment>
             ))}
-            <ControlSection label="Painted" defaultOpened>
+            <ControlSection label="Painted" collapsible={false} headingLevel={3}>
                 {counted.flatMap(({ layer, counts }) =>
                     Object.entries(counts.painted).map(([channel, n]) => (
                         <DataRow
@@ -566,7 +566,7 @@ export function FolderValues({ id }: Readonly<{ id: string }>): React.JSX.Elemen
     };
     walk([...(found?.row.children ?? [])].reverse());
     return (
-        <ControlSection label="Values read" defaultOpened>
+        <ControlSection label="Values read" collapsible={false} headingLevel={3}>
             {byPath.size === 0 ? (
                 <Text size="sm" c="dimmed">
                     Its layers read no values

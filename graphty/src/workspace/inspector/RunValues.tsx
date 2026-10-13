@@ -194,7 +194,7 @@ function MadeWith({
         );
 
     return (
-        <ControlSection label="Made with" defaultOpened>
+        <ControlSection label="Made with" collapsible={false} headingLevel={3}>
             <DataRow
                 stat
                 name="Analysis"
@@ -276,7 +276,7 @@ function MeasureValues({
 
     return (
         <>
-            <ControlSection label="Distribution" defaultOpened>
+            <ControlSection label="Distribution" collapsible={false} headingLevel={3}>
                 {first !== undefined && last !== undefined && (
                     <HistogramRow
                         label={runName(session, run)}
@@ -295,7 +295,7 @@ function MeasureValues({
                     </Text>
                 )}
             </ControlSection>
-            <ControlSection label={`Top ${String(TOP)}`} defaultOpened>
+            <ControlSection label={`Top ${String(TOP)}`} collapsible={false} headingLevel={3}>
                 {top.entries.map((entry) => (
                     <DataRow
                         key={nodeKey(entry.id)}
@@ -330,7 +330,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
 
     return (
         <>
-            <ControlSection label="Summary" defaultOpened>
+            <ControlSection label="Summary" collapsible={false} headingLevel={3}>
                 <DataRow stat name="Groups" value={groups.length} />
                 {typeof modularity === "number" && (
                     <DataRow
@@ -344,7 +344,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
                     />
                 )}
             </ControlSection>
-            <ControlSection label="Sizes" defaultOpened>
+            <ControlSection label="Sizes" collapsible={false} headingLevel={3}>
                 <HistogramRow
                     label="Group sizes"
                     bins={groups.map((group) => ({
@@ -407,7 +407,7 @@ export function PathValues({
     const total = weight?.meaning === "distance" && typeof cost === "number" ? cost : null;
     return (
         <>
-            <ControlSection label={summaryLabel} defaultOpened>
+            <ControlSection label={summaryLabel} collapsible={false} headingLevel={3}>
                 {typeof length === "number" && typeof hops === "number" && (
                     <DataRow stat name="Path" value={routeWords(length, hops)} />
                 )}
@@ -415,7 +415,7 @@ export function PathValues({
                     <DataRow stat name={`Total ${weight?.attribute ?? ""}`} value={formatNumber(total)} />
                 )}
             </ControlSection>
-            <ControlSection label="Nodes in order" defaultOpened>
+            <ControlSection label="Nodes in order" collapsible={false} headingLevel={3}>
                 {nodes.map((entry) => (
                     <DataRow
                         key={nodeKey(entry.id)}
@@ -443,7 +443,7 @@ function SetValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null {
         return null;
     }
     return (
-        <ControlSection label="Summary" defaultOpened>
+        <ControlSection label="Summary" collapsible={false} headingLevel={3}>
             <DataRow stat name="Holds" value={count(size, measuredNoun(run))} />
         </ControlSection>
     );
@@ -556,7 +556,7 @@ export function GroupValues({
 
     return (
         <>
-            <ControlSection label="Summary" defaultOpened>
+            <ControlSection label="Summary" collapsible={false} headingLevel={3}>
                 {size !== undefined && (
                     <DataRow
                         name="Size"
@@ -569,7 +569,7 @@ export function GroupValues({
                 <DataRow stat name="Made by" value={runName(session, run)} />
             </ControlSection>
             {members !== undefined && (
-                <ControlSection label="Members" defaultOpened>
+                <ControlSection label="Members" collapsible={false} headingLevel={3}>
                     <DataRowHeader label={`First ${String(Math.min(TOP, members.nodeCount))}`} />
                     {[...members.nodes].slice(0, TOP).map((id) => (
                         <DataRow

@@ -8,7 +8,7 @@ import { Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { discardDraft } from "../graph-place/actions";
+import { discardDraft, draftAnchor } from "../graph-place/actions";
 import { findTreeRow, isHidden, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import type { DraftPaints } from "../inspector/inspected";
 import { edgeName } from "../inspector/words";
@@ -683,7 +683,12 @@ export function DraftPanel({ paints }: Readonly<{ paints: DraftPaints | undefine
                     session={session}
                     row={[]}
                     sides={paints === "both" ? ["node", "edge"] : [paints]}
-                    fresh={{ name, selector: selector ?? { match: "everything" }, both: paints === "both" }}
+                    fresh={{
+                        name,
+                        selector: selector ?? { match: "everything" },
+                        both: paints === "both",
+                        above: draftAnchor(session, store.get().inspected),
+                    }}
                 />
             )}
         </Stack>

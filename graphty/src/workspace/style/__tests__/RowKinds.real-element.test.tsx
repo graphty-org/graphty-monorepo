@@ -185,17 +185,13 @@ describe("folders, several rows and the draft on the real element", () => {
         });
     });
 
-    it("a draft shows no groups until a kind is chosen, then only that kind's group", async () => {
+    it("a draft with nothing selected opens on Nodes, showing only that kind's group", async () => {
         const { session } = await openProject();
         await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Add layer" }));
         await screen.findByText("Nothing is added until a property is set");
-        assert.isNull(screen.queryByTestId("style-tab"), "no groups before a kind is chosen");
-
-        const nodes = screen.getByRole("radio", { name: "Nodes" });
-        const label = document.querySelector<HTMLElement>(`label[for="${nodes.id}"]`);
-        assert.isNotNull(label);
-        await userEvent.click(label ?? nodes);
+        const nodes = screen.getByRole<HTMLInputElement>("radio", { name: "Nodes" });
+        assert.isTrue(nodes.checked, "Nodes is chosen for the reader");
         const tab = await screen.findByTestId("style-tab");
         assert.isNotNull(within(tab).getByRole("heading", { name: "Nodes" }));
         assert.isNull(within(tab).queryByRole("heading", { name: "Edges" }));

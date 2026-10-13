@@ -4,6 +4,7 @@ import React from "react";
 
 import { GLYPHS } from "../glyphs";
 import { orNotice } from "../graph-place/actions";
+import { KindGlyph } from "../graph-place/KindGlyph";
 import { findTreeRow } from "../graph-place/rows";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { SelectionColors } from "./SelectionColors";
@@ -36,7 +37,6 @@ export function FolderPanel({ id }: Readonly<{ id: string }>): React.JSX.Element
             ) : (
                 <Stack gap={0} py={4} role="list" aria-label={`In ${found.row.name}`}>
                     {rows.map((row) => {
-                        const Glyph = row.kind === "folder" ? GLYPHS.folder : GLYPHS.layer;
                         return (
                             <Group key={row.id} role="listitem" gap={0} wrap="nowrap" pr={8}>
                                 <UnstyledButton
@@ -51,7 +51,7 @@ export function FolderPanel({ id }: Readonly<{ id: string }>): React.JSX.Element
                                         });
                                     }}
                                 >
-                                    <Glyph size={14} aria-hidden /> {row.name}
+                                    <KindGlyph session={session} row={row} /> {row.name}
                                 </UnstyledButton>
                                 <ToggleIconButton
                                     variant="swap"

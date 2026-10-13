@@ -16,7 +16,10 @@ import { loadIndexOf, loadName, type SourceKind, sourceRowOf, sourcesWords } fro
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
-import { rowName, rowsHeading, runRowKind } from "../graph-place/rows";
+import { orNotice } from "../graph-place/actions";
+import { KindGlyph } from "../graph-place/KindGlyph";
+import { RowMenuItems } from "../graph-place/RowMenu";
+import { findTreeRow, placeOf, rowName, rowsHeading, runRowKind } from "../graph-place/rows";
 import { LayerRowPanel } from "../graph-place/StyleTree";
 import { LayoutGroup } from "../layout/LayoutForm";
 import { notesAbout } from "../notes/words";
@@ -173,6 +176,20 @@ export function Inspector(): React.JSX.Element {
     const KindIcon = KIND_GLYPHS[kindId === "neighborhood" ? "node" : kindId];
     // A style tree row's header carries Select what it paints (Figma's Select matching layers).
     const selectsPaints = kindId === "layer-row" || kindId === "folder-row";
+    // ... and draws the tree's own glyph and menu for the row.
+    const tree = selectsPaints ? session.styles.tree() : [];
+    let treeRow: ReturnType<typeof findTreeRow>;
+    if (resolved.kind === "layer-row") {
+        treeRow = findTreeRow(tree, resolved.layer);
+    } else if (resolved.kind === "folder-row") {
+        treeRow = findTreeRow(tree, resolved.row);
+    }
+    const moveTo = (row: { id: string; name: string }, folderId: string | null): void => {
+        const place = placeOf(tree, { id: row.id, parentId: folderId, index: 0 });
+        if (place !== undefined) {
+            void orNotice(store, `move ${row.name}`, session.styles.moveRow(row.id, place));
+        }
+    };
     // How many notes are about this, as a link to the Notes place; the text stays there.
     const notes = notesAbout(session, resolved);
 
@@ -218,12 +235,12 @@ export function Inspector(): React.JSX.Element {
             >
                 <Stack gap={0} px="md" py={6}>
                     <Group gap={6} wrap="nowrap">
-                        {header.source === undefined ? (
+                        {treeRow !== undefined && <KindGlyph session={session} row={treeRow.row} />}
+                        {treeRow === undefined && header.source === undefined && (
                             // A long name never squeezes the glyph.
                             <KindIcon size={14} aria-hidden style={{ flexShrink: 0 }} />
-                        ) : (
-                            <SourceGlyph kind={header.source} />
                         )}
+                        {header.source !== undefined && <SourceGlyph kind={header.source} />}
                         {header.swatch !== undefined && (
                             <ColorSwatch color={header.swatch} size={12} withShadow={false} aria-hidden />
                         )}
@@ -305,7 +322,18 @@ export function Inspector(): React.JSX.Element {
                                     </Tooltip>
                                 </Menu.Target>
                                 <Menu.Dropdown>
-                                    <Sections sections={[menu.map((command) => command.id)]} />
+                                    {treeRow === undefined ? (
+                                        <Sections sections={[menu.map((command) => command.id)]} />
+                                    ) : (
+                                        <RowMenuItems
+                                            tree={tree}
+                                            row={treeRow.row}
+                                            parent={treeRow.folders.at(-1)}
+                                            onMoveTo={(folderId) => {
+                                                moveTo(treeRow.row, folderId);
+                                            }}
+                                        />
+                                    )}
                                     <AttributeMenuItems actions={attributeActions} />
                                 </Menu.Dropdown>
                             </Menu>
@@ -465,7 +493,7 @@ function bodyOf(
                     <>
                         <GraphSettings />
                         {/* Titled, and on the panel grid's content band as the sections above it. */}
-                        <ControlSection label="Layout" defaultOpened>
+                        <ControlSection label="Layout" collapsible={false} headingLevel={3}>
                             <LayoutGroup />
                         </ControlSection>
                     </>

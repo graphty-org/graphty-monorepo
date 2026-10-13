@@ -60,7 +60,8 @@ const TEXT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
 
 /**
  * The channels whose key would be a bare number beside a name ("Key people 72", "Selected 0.4"):
- * a ring's or a band's width and opacity, and a text's size. Their row is drawn, not read.
+ * a ring's or a band's width and opacity, a text's size, and how fast an edge's motion runs. Their
+ * row is drawn, not read.
  */
 const NUMBER_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
     "node.haloSize",
@@ -72,6 +73,7 @@ const NUMBER_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
     "node.tooltipSize",
     "edge.arrowHeadTextSize",
     "edge.arrowTailTextSize",
+    "edge.animationSpeed",
 ]);
 
 /**
@@ -360,7 +362,8 @@ function rowName(session: GraphSession, block: LegendBlock): string {
     if (run === undefined) {
         return session.styles.get(block.layerId)?.name ?? block.layerId;
     }
-    const name = runName(session, run);
+    // The catalog's plain name, as the style tree names the run's row ("Shortest route").
+    const name = runName(session, run, "plain");
     if (run.status !== "succeeded" || run.stale === null) {
         return name;
     }

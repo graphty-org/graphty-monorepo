@@ -1,6 +1,6 @@
 import { CompactColorInput, ControlSection, SegmentedControl } from "@graphty/compact-mantine";
 import { type Lighting, LIGHTING_VALUES } from "@graphty/graphty-element/schema";
-import { Select, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { Input, Select, Stack, Switch, TextInput } from "@mantine/core";
 import React, { useState } from "react";
 
 import { useSizeBound } from "../frame/useSizeBound";
@@ -41,14 +41,11 @@ export function GraphSettings(): React.JSX.Element | null {
 
     return (
         <>
-            <ControlSection label="Canvas" defaultOpened>
+            <ControlSection label="Canvas" collapsible={false} headingLevel={3}>
                 <Stack gap={6}>
-                    <Stack gap={2}>
-                        <Text size="xs" id="graph-settings-background">
-                            Background
-                        </Text>
+                    {/* A field label, as Lighting's and the colors' are: one caption size in the panel. */}
+                    <Input.Wrapper size="xs" label="Background">
                         <SegmentedControl
-                            aria-labelledby="graph-settings-background"
                             fullWidth
                             value={showsImage ? "image" : "color"}
                             data={[
@@ -64,7 +61,7 @@ export function GraphSettings(): React.JSX.Element | null {
                                 }
                             }}
                         />
-                    </Stack>
+                    </Input.Wrapper>
                     {showsImage ? (
                         <BackgroundImage
                             value={background.backgroundType === "skybox" ? background.data : ""}
@@ -86,12 +83,9 @@ export function GraphSettings(): React.JSX.Element | null {
                             }}
                         />
                     )}
-                    <Stack gap={2}>
-                        <Text size="xs" id="graph-settings-view">
-                            View
-                        </Text>
+                    {/* A field label, as Lighting's and the colors' are: one caption size in the panel. */}
+                    <Input.Wrapper size="xs" label="View">
                         <SegmentedControl
-                            aria-labelledby="graph-settings-view"
                             fullWidth
                             value={dimension}
                             data={[
@@ -102,7 +96,7 @@ export function GraphSettings(): React.JSX.Element | null {
                                 void session.layout.setDimension(picked === "2d" ? "2d" : "3d");
                             }}
                         />
-                    </Stack>
+                    </Input.Wrapper>
                     <Select
                         label="Lighting"
                         size="xs"
@@ -137,7 +131,7 @@ export function GraphSettings(): React.JSX.Element | null {
                     />
                 </Stack>
             </ControlSection>
-            <ControlSection label="Labels" defaultOpened>
+            <ControlSection label="Labels" collapsible={false} headingLevel={3}>
                 <Stack gap={6}>
                     <Switch
                         size="xs"

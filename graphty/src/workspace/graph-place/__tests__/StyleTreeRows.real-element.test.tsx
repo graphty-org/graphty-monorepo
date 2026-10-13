@@ -19,6 +19,9 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { findTreeRow } from "../rows";
 
+/** Where the pictures for the owner's review go, relative to this file. */
+const SHOTS = "../../../../../design/ui/studio/tier3/build/tree-key-settings";
+
 /** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
 
@@ -93,6 +96,24 @@ async function openScene(): Promise<{ store: WorkspaceStore; session: GraphSessi
 }
 
 /**
+ * Opens Les Miserables from the start screen, as a reader does, with the starting rows on.
+ * @returns the store and the session.
+ */
+async function openSample(): Promise<{ store: WorkspaceStore; session: GraphSession }> {
+    const store = createWorkspaceStore();
+    render(<Workspace store={store} />);
+    await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
+    const session = await elementSession();
+    await waitFor(
+        () => {
+            assert.equal(session.data.statistics().nodeCount, 77);
+        },
+        { timeout: TIMEOUT_MS },
+    );
+    return { store, session };
+}
+
+/**
  * Opens a row's menu from the keyboard, as Shift+F10 does on the focused row.
  * @param name - the row's name.
  * @returns the menu.
@@ -147,6 +168,73 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         assert.isNull(within(await row("Cover")).queryByRole("img", { name: /Painted over/ }));
     });
 
+    it("never marks a row that matches nothing as painted over", async () => {
+        const { session } = await openScene();
+        // Below Cover, which paints every node, but matching no node at all.
+        const nobody = await session.styles.add({
+            name: "Nobody",
+            target: "node",
+            selector: { match: "ids", nodes: [99] },
+            set: { "node.color": "#00ff00" },
+        });
+        await session.styles.moveRow(nobody.row ?? nobody.id, { parent: null, index: 0 });
+        await session.styles.settled();
+        await within(await row("Key people")).findByRole("img", { name: "Painted over by Cover" });
+        assert.isNull(within(await row("Nobody")).queryByRole("img", { name: /Painted over/ }));
+    });
+
+    it("groups the row menu, with an icon on every item, Hide and Lock by their keys, and no Unpin on an unpinned row", async () => {
+        const { session, key } = await openScene();
+        const menu = await rowMenu("Key people");
+        const items = within(menu).getAllByRole("menuitem");
+        const names = items.map((item) => item.textContent?.replace(/\s+/g, " ").trim() ?? "");
+        for (const word of ["Hide", "Lock", "Move to folder"]) {
+            assert.isTrue(
+                names.some((name) => name.startsWith(word)),
+                `the menu offers ${word}`,
+            );
+        }
+        assert.isFalse(
+            names.some((name) => name.startsWith("Unpin")),
+            "nothing to unpin",
+        );
+        for (const item of items) {
+            assert.isNotNull(item.querySelector("svg"), `${item.textContent ?? ""} has its icon`);
+        }
+        assert.isAtLeast(menu.querySelectorAll(".mantine-Menu-divider").length, 3, "dividers between the groups");
+        const hide = within(menu).getByRole("menuitem", { name: /^Hide/ });
+        assert.equal(hide.getAttribute("aria-keyshortcuts"), "Shift+Control+H");
+        assert.equal(
+            within(menu).getByRole("menuitem", { name: /^Lock/ }).getAttribute("aria-keyshortcuts"),
+            "Shift+Control+L",
+        );
+        await userEvent.click(hide);
+        await waitFor(() => {
+            assert.isTrue(findTreeRow(session.styles.tree(), key)?.row.hidden);
+        });
+        // On a hidden row the same item says what it will do now.
+        const again = await rowMenu("Key people");
+        assert.isNotNull(within(again).queryByRole("menuitem", { name: /^Show/ }));
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("moves a row into a folder from the inspector's Layer actions, and heads the panel with the tree's glyph", async () => {
+        const { session, key } = await openScene();
+        const folder = await session.styles.addFolder("Annotations");
+        await row("Annotations");
+        await userEvent.click(await row("Key people"));
+        const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+        const treeGlyph = (await row("Key people")).querySelector(".ws-row-marks svg")?.getAttribute("class");
+        const headGlyph = within(inspector).getByRole("heading", { level: 2 }).parentElement?.querySelector("svg");
+        assert.equal(headGlyph?.getAttribute("class"), treeGlyph, "the header draws the row's own kind glyph");
+        await userEvent.click(within(inspector).getByRole("button", { name: "Layer actions" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Move to folder" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Annotations" }));
+        await waitFor(() => {
+            assert.equal(findTreeRow(session.styles.tree(), key)?.folders.at(-1)?.id, folder.id);
+        });
+    });
+
     it("selects a row on Space and never hides it", async () => {
         const { store, session, key } = await openScene();
         const keyRow = await row("Key people");
@@ -191,6 +279,103 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
             assert.sameMembers([...session.selection.nodes].map(String), ["1", "2"]);
         });
         assert.equal(session.selection.edges.length, 0);
+    });
+
+    it("lands a new layer directly above the selected row, its kind preselected from that row", async () => {
+        const { store, session } = await openSample();
+        const degree = await session.runs.start("degree");
+        await session.runs.start("louvain");
+        await session.styles.settled();
+        const degreeRow = session.styles.parts(session.runs.bindings(degree.runId)[0] ?? "");
+        assert.isDefined(degreeRow);
+        const name = degreeRow?.name ?? "";
+        assert.equal(name, "Connections");
+        await userEvent.click(await row(name));
+
+        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Add layer" }));
+        // The draft sits just above Connections in the tree, and paints nodes, as Connections does.
+        const draft = await within(tree()).findByRole("treeitem", { name: /^New layer, / });
+        const items = within(tree()).getAllByRole("treeitem");
+        assert.match(items[items.indexOf(draft) + 1]?.getAttribute("aria-label") ?? "", new RegExp(`^${name}, `));
+        const nodes = within(screen.getByRole("radiogroup", { name: "Paints" })).getByRole("radio", { name: "Nodes" });
+        assert.isTrue((nodes as HTMLInputElement).checked, "Nodes is chosen");
+
+        const tab = await screen.findByTestId("style-tab");
+        await userEvent.click(await within(tab).findByRole("combobox", { name: /^Node size, / }));
+        await userEvent.keyboard("3{Enter}");
+        await waitFor(() => {
+            assert.equal(store.get().inspected?.kind, "layer-row");
+        });
+        const rows = session.styles.tree();
+        const at = rows.findIndex((each) => each.id === degreeRow?.id);
+        assert.equal(rows[at + 1]?.id, store.get().inspected?.id, "the new layer is directly above Connections");
+        assert.equal(session.styles.parts(rows[at + 1]?.id ?? "")?.target, "node");
+        // One undo takes the whole new layer back.
+        await session.undo();
+        await waitFor(() => {
+            assert.equal(session.styles.tree().length, rows.length - 1);
+        });
+    });
+
+    it("draws the tree, its row menu, a folder's Selection colors and Graph settings at two window sizes", async () => {
+        const { session } = await openSample();
+        const ids = session.data.nodes().map((node) => String(node.id));
+        const folder = await session.styles.addFolder("Annotations");
+        const key = await session.styles.add({
+            name: "Key people",
+            target: "node",
+            selector: { match: "ids", nodes: ids.slice(0, 4) },
+            set: { "node.color": "#E8590C" },
+        });
+        await session.styles.moveRow(key.row ?? key.id, { parent: folder.id, index: 0 });
+        await session.runs.start("degree");
+        await session.runs.start("edge-betweenness");
+        await session.runs.start("shortest-path", { source: ids[0], target: ids[11] });
+        await session.styles.settled();
+        for (const [width, height] of [
+            [1366, 768],
+            [900, 700],
+        ] as const) {
+            await page.viewport(width, height);
+            const size = `${String(width)}x${String(height)}`;
+            const menu = await rowMenu("Connections");
+            await within(menu).findByRole("menuitem", { name: /^Hide/ });
+            await page.screenshot({ path: `${SHOTS}/tree-row-menu-${size}.png` });
+            await userEvent.keyboard("{Escape}");
+
+            await userEvent.click(await row("Annotations"));
+            const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+            await userEvent.click(
+                await within(inspector).findByRole("button", { name: /^Show \d+ selection colors?$/ }),
+            );
+            const group = await within(inspector).findByRole("group", { name: /^#E8590C, from Key people/ });
+            const heading = within(inspector).getByRole("heading", { name: "Selection colors" });
+            const field = group.querySelector(".ws-field");
+            assert.isNotNull(field);
+            // On the field column: the section's content edge, as every unnamed field of the panel.
+            const edge = heading.closest(".cm-section")?.querySelector(".cm-section-content");
+            assert.closeTo(
+                field?.getBoundingClientRect().left ?? 0,
+                (edge?.getBoundingClientRect().left ?? 0) +
+                    Number.parseFloat(getComputedStyle(edge ?? document.body).paddingLeft),
+                1,
+            );
+            await page.screenshot({ path: `${SHOTS}/folder-selection-colors-${size}.png` });
+
+            await userEvent.click(screen.getByRole("button", { name: "Graph settings" }));
+            const settings = await within(inspector).findByRole("tabpanel");
+            // Flat titles, as the Style tab's: headings, not buttons that fold.
+            for (const title of ["Canvas", "Labels", "Layout"]) {
+                within(settings).getByRole("heading", { name: title });
+            }
+            assert.isEmpty(settings.querySelectorAll('[data-collapsible="true"]'), "no section folds");
+            const labels = [...settings.querySelectorAll(".cm-field-label, .cm-paint-label")].map((l) => l.textContent);
+            for (const label of ["Background", "View", "Lighting", "Highlight color"]) {
+                assert.include(labels, label, `${label} is drawn as a field label`);
+            }
+            await page.screenshot({ path: `${SHOTS}/graph-settings-${size}.png` });
+        }
     });
 
     it("ends naming a new folder with focus on its row", async () => {

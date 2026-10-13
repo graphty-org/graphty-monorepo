@@ -24,6 +24,7 @@ import { useCommand, useWorkspace } from "../state/WorkspaceContext";
  * @param props.shortcut - Its first key, or undefined
  * @param props.reason - Why it cannot run now, or null
  * @param props.onRun - Runs it
+ * @param props.icon - Its icon, drawn before the label
  * @returns The row
  */
 export function CommandMenuItem({
@@ -31,14 +32,17 @@ export function CommandMenuItem({
     shortcut,
     reason,
     onRun,
+    icon,
 }: Readonly<{
     label: string;
     shortcut: string | undefined;
     reason: string | null;
     onRun: () => void;
+    icon?: React.ReactNode;
 }>): React.JSX.Element {
     return (
         <Menu.Item
+            leftSection={icon}
             onClick={reason === null ? onRun : undefined}
             closeMenuOnClick={reason === null}
             aria-disabled={reason !== null}

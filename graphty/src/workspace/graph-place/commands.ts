@@ -1,6 +1,7 @@
 import type { StyleRow, StyleRowPin } from "@graphty/graphty-element/session";
 
 import { type Command, type CommandContext, defineRegistration } from "../commands/registry";
+import type { GLYPHS } from "../glyphs";
 import { deleteRow, duplicateRow, openDraft, orNotice, selectWhatItPaints, ungroup } from "./actions";
 import { FIND_BOX_ID } from "./FindBox";
 import { findTreeRow } from "./rows";
@@ -13,6 +14,12 @@ import { findTreeRow } from "./rows";
 export interface RowCommand {
     readonly id: string;
     readonly label: string;
+    /** Its words in a row's menu, where they can follow the row's state ("Hide" or "Show"). */
+    readonly rowLabel?: (row: StyleRow) => string;
+    /** Its icon in a row's menu. */
+    readonly icon: keyof typeof GLYPHS | ((row: StyleRow) => keyof typeof GLYPHS);
+    /** Its group in a row's menu: a divider falls between two groups. */
+    readonly group: "edit" | "pin" | "view" | "remove";
     /** The keys that run it on the focused row, the first shown in menus. */
     readonly rowKeys: readonly string[];
     /** Whether the row has it at all. */
@@ -30,14 +37,18 @@ const MENU_FOCUS_RETURN_MS = 50;
  * A Pin to top, Pin to bottom or Unpin command.
  * @param pin - where it pins.
  * @param label - its words.
+ * @param icon - its icon in a row's menu.
  * @returns the command.
  */
-function pinCommand(pin: StyleRowPin, label: string): RowCommand {
+function pinCommand(pin: StyleRowPin, label: string, icon: keyof typeof GLYPHS): RowCommand {
     return {
         id: `row.pin-${pin}`,
         label,
+        icon,
+        group: "pin",
         rowKeys: [],
-        applies: () => true,
+        // Unpin only where there is a pin to take off.
+        applies: (row) => pin !== "none" || row.pin !== "none",
         disabled: (row) => {
             if (row.pin !== pin) {
                 return null;
@@ -57,6 +68,8 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
     {
         id: "row.rename",
         label: "Rename",
+        icon: "rename",
+        group: "edit",
         rowKeys: ["F2"],
         applies: () => true,
         disabled: () => null,
@@ -71,6 +84,8 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
     {
         id: "row.duplicate",
         label: "Duplicate",
+        icon: "duplicate",
+        group: "edit",
         rowKeys: ["Mod+D"],
         applies: (row) => row.kind === "layer",
         disabled: () => null,
@@ -89,12 +104,14 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
             }
         },
     },
-    pinCommand("top", "Pin to top"),
-    pinCommand("bottom", "Pin to bottom"),
-    pinCommand("none", "Unpin"),
+    pinCommand("top", "Pin to top", "pinTop"),
+    pinCommand("bottom", "Pin to bottom", "pinBottom"),
+    pinCommand("none", "Unpin", "unpin"),
     {
         id: "row.select-paints",
         label: "Select what it paints",
+        icon: "selection",
+        group: "view",
         rowKeys: [],
         applies: () => true,
         disabled: () => null,
@@ -109,6 +126,9 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
     {
         id: "row.hide",
         label: "Show/Hide",
+        rowLabel: (row) => (row.hidden ? "Show" : "Hide"),
+        icon: (row) => (row.hidden ? "show" : "hide"),
+        group: "view",
         rowKeys: ["Shift+Mod+H"],
         applies: () => true,
         disabled: () => null,
@@ -121,6 +141,9 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
     {
         id: "row.lock",
         label: "Lock/Unlock",
+        rowLabel: (row) => (row.locked ? "Unlock" : "Lock"),
+        icon: (row) => (row.locked ? "unlock" : "lock"),
+        group: "view",
         rowKeys: ["Shift+Mod+L"],
         applies: () => true,
         disabled: () => null,
@@ -133,6 +156,8 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
     {
         id: "row.ungroup",
         label: "Ungroup",
+        icon: "ungroup",
+        group: "remove",
         rowKeys: [],
         applies: (row) => row.kind === "folder",
         disabled: () => null,
@@ -146,6 +171,8 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
     {
         id: "row.delete",
         label: "Delete",
+        icon: "delete",
+        group: "remove",
         rowKeys: ["Delete", "Backspace"],
         applies: () => true,
         disabled: () => null,

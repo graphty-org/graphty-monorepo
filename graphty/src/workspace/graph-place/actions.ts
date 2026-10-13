@@ -1,6 +1,6 @@
 import type { GraphSession, LayerId, RowSpec, StyleRow } from "@graphty/graphty-element/session";
 
-import type { Notice, WorkspaceStore } from "../state/store";
+import type { Notice, WorkspaceState, WorkspaceStore } from "../state/store";
 import { findTreeRow } from "./rows";
 
 /**
@@ -23,22 +23,44 @@ export async function orNotice(store: WorkspaceStore, what: string, work: Promis
 export const ADD_ROW_LABEL = "Add a layer or a folder";
 
 /**
- * Opens a new layer's draft, its kind chosen from what is selected (nodes, edges or both) or left
- * to the reader when nothing is, remembering what the inspector showed so discarding it goes back.
+ * The row a new layer lands directly above (Figma inserts above the selection): the row the
+ * inspector showed when the draft opened, unless it is pinned, since an unpinned layer cannot
+ * sit inside a pin band. Undefined puts it at the top of the unpinned rows.
+ * @param session - the element's session.
+ * @param inspected - the store's `inspected` while the draft is open.
+ * @returns the row's id, or undefined.
+ */
+export function draftAnchor(session: GraphSession, inspected: WorkspaceState["inspected"]): string | undefined {
+    const back = inspected?.kind === "draft-row" ? inspected.back : undefined;
+    if ((back?.kind !== "layer-row" && back?.kind !== "folder-row") || back.id === undefined) {
+        return undefined;
+    }
+    const row = findTreeRow(session.styles.tree(), back.id)?.row;
+    return row?.pin === "none" ? row.id : undefined;
+}
+
+/**
+ * Opens a new layer's draft, remembering what the inspector showed so discarding it goes back.
+ * Its kind is the selected layer row's (it lands just above that row), else what is selected on
+ * the canvas (nodes, edges or both), else nodes.
  * @param session - the element's session.
  * @param store - the chrome store.
  */
 export function openDraft(session: GraphSession, store: WorkspaceStore): void {
+    const now = store.get().inspected;
+    const back = now?.kind === "draft-row" ? (now.back ?? null) : now;
     const { nodes, edges } = session.selection;
-    let paints: string | undefined;
-    if (nodes.length > 0) {
+    let paints: "node" | "edge" | "both" = "node";
+    const rowTarget =
+        back?.kind === "layer-row" && back.id !== undefined ? session.styles.parts(back.id)?.target : undefined;
+    if (rowTarget !== undefined) {
+        paints = rowTarget;
+    } else if (nodes.length > 0) {
         paints = edges.length > 0 ? "both" : "node";
     } else if (edges.length > 0) {
         paints = "edge";
     }
-    const now = store.get().inspected;
-    const back = now?.kind === "draft-row" ? (now.back ?? null) : now;
-    store.set({ inspected: { kind: "draft-row", ...(paints === undefined ? {} : { id: paints }), back } });
+    store.set({ inspected: { kind: "draft-row", id: paints, back } });
 }
 
 /**

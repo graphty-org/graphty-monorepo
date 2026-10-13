@@ -161,7 +161,7 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
 
     return (
         <>
-            <ControlSection label="Summary" defaultOpened>
+            <ControlSection label="Summary" collapsible={false} headingLevel={3}>
                 <div // NOSONAR(S6819): an ARIA group naming the rows of label and value; a fieldset is for form controls
                     ref={summary}
                     role="group"
@@ -182,7 +182,7 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
             </ControlSection>
             {/* A heading of its own, as Memberships has: a caption among the rows read as one more row. */}
             {ranked.length > 0 && (
-                <ControlSection label="Results" defaultOpened>
+                <ControlSection label="Results" collapsible={false} headingLevel={3}>
                     {ranked.map(({ run, value, rank }) => (
                         <DataRow
                             key={run.id}
@@ -194,7 +194,7 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
                 </ControlSection>
             )}
             {memberships.length > 0 && (
-                <ControlSection label="Memberships" defaultOpened>
+                <ControlSection label="Memberships" collapsible={false} headingLevel={3}>
                     {memberships.map(({ run, group, name }) => (
                         <DataRow
                             key={run.id}
@@ -484,7 +484,7 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
     });
     return (
         <>
-            <ControlSection label="Summary" defaultOpened>
+            <ControlSection label="Summary" collapsible={false} headingLevel={3}>
                 <DataRow
                     name="From"
                     value={String(edge.source)}
@@ -502,7 +502,7 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
                 <AttributeRows rows={fileAttributes(session, "edge", edge)} />
             </ControlSection>
             {results.length > 0 && (
-                <ControlSection label="Results" defaultOpened>
+                <ControlSection label="Results" collapsible={false} headingLevel={3}>
                     {results.map(({ run, value }) => (
                         <DataRow key={run.id} stat name={run.label} value={formatNumber(value)} />
                     ))}
@@ -547,7 +547,7 @@ function SelectedEdges({ session }: Readonly<{ session: GraphSession }>): React.
         .attributes()
         .filter((column) => column.kind === "edge" && testedPaths.includes(column.path));
     return (
-        <ControlSection label="Selected edges" defaultOpened>
+        <ControlSection label="Selected edges" collapsible={false} headingLevel={3}>
             {tested.length > 0 && <DataRowHeader label="Edge" unit={tested.map((c) => c.plainName).join(" / ")} />}
             {records.map((edge) => (
                 <DataRow
@@ -585,7 +585,7 @@ export function SeveralValues({ version }: Readonly<{ version: number }>): React
     }
     return (
         <>
-            <ControlSection label="Summary" defaultOpened>
+            <ControlSection label="Summary" collapsible={false} headingLevel={3}>
                 {statistics.nodes > 0 && <DataRow stat name="Nodes" value={statistics.nodes} />}
                 {statistics.edges > 0 && <DataRow stat name="Edges" value={statistics.edges} />}
                 {/* Edges that join two selected nodes, selected or not: only meaningful for two or more

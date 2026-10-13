@@ -87,18 +87,18 @@ export function Overview(): React.JSX.Element | null {
 
     if (!filtered) {
         return (
-            <ControlSection label="Overview" defaultOpened>
+            <ControlSection label="Overview" collapsible={false} headingLevel={3}>
                 {whole}
             </ControlSection>
         );
     }
     return (
         <>
-            <ControlSection label="Overview" defaultOpened>
+            <ControlSection label="Overview" collapsible={false} headingLevel={3}>
                 <DataRow stat name="Nodes showing" value={ofWords(showing.visibleNodes, showing.totalNodes)} />
                 <DataRow stat name="Edges showing" value={ofWords(showing.visibleEdges, showing.totalEdges)} />
             </ControlSection>
-            <ControlSection label="Full graph" defaultOpened>
+            <ControlSection label="Full graph" collapsible={false} headingLevel={3}>
                 {whole}
             </ControlSection>
         </>
@@ -117,7 +117,7 @@ export function EverythingValues(): React.JSX.Element | null {
     }
     const { nodes, edges } = session.status.counts;
     return (
-        <ControlSection label="Summary" defaultOpened>
+        <ControlSection label="Summary" collapsible={false} headingLevel={3}>
             <Text size="xs" px="md">
                 {`Covers every node and edge: ${count(nodes, "node")}, ${count(edges, "edge")}.`}
             </Text>
@@ -143,7 +143,7 @@ export function AttributeValues({ path }: Readonly<{ path: string }>): React.JSX
     }
     const measurement = column.measurement === undefined ? undefined : measurementWord(column.measurement);
     return (
-        <ControlSection label="Summary" defaultOpened>
+        <ControlSection label="Summary" collapsible={false} headingLevel={3}>
             <DataRow stat name="Table" value={column.kind === "node" ? "Nodes" : "Edges"} />
             {/* Facts, not controls: plain rows on the rows' own grid. The kind's word is short, so
                 what it means rides in a tooltip on the word, reachable by Tab too. */}

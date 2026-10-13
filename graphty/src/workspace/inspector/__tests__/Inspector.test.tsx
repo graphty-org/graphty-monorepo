@@ -108,7 +108,7 @@ describe("the inspector", () => {
         assert.isNull(within(overviewSection).queryByRole("group", { name: "Nodes" }));
         const fullGraph = screen.getByRole("group", { name: "Full graph" });
         assert.equal(fullGraph.getAttribute("data-testid"), "control-section");
-        assert.isNotNull(within(fullGraph).getByRole("button", { name: /Full graph/ }));
+        assert.isNotNull(within(fullGraph).getByRole("heading", { name: /Full graph/ }));
         assert.include(within(fullGraph).getByRole("group", { name: "Nodes" }).textContent, "12");
 
         // Off again: back to the plain Overview.

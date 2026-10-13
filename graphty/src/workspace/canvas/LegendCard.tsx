@@ -1,8 +1,9 @@
 import { DataRow, RampRow } from "@graphty/compact-mantine";
 import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session";
 import { ColorSwatch, Paper, Stack, Text } from "@mantine/core";
-import React, { useLayoutEffect, useRef } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { isSizeBlock, keyNames, keySections, overflowLine, paintWords, swatchName, swatchText } from "./legendWords";
 
@@ -140,6 +141,61 @@ function useReservedMargin(): React.RefObject<HTMLElement | null> {
     return ref;
 }
 
+/** What the card's scroll shows: whether it scrolls at all, and whether more lies below. */
+interface Overflow {
+    readonly scrolls: boolean;
+    readonly below: boolean;
+}
+
+/**
+ * Within this much of the card's cap, the card grows to its content rather than scrolling: a
+ * scrollbar for a few pixels of one row hides a sliver and helps no one.
+ */
+const SLACK_PX = 32;
+
+/**
+ * Watches the card's overflow as it resizes and scrolls, and lets a card that runs only a little
+ * over its cap grow to fit.
+ * @param ref - the card.
+ * @returns whether it scrolls, and whether more lies below what shows.
+ */
+function useOverflow(ref: React.RefObject<HTMLElement | null>): Overflow {
+    const [overflow, setOverflow] = useState<Overflow>({ scrolls: false, below: false });
+    useLayoutEffect(() => {
+        const card = ref.current;
+        if (!card) {
+            return undefined;
+        }
+        const measure = (): void => {
+            // Back to the stylesheet's cap first, so a card that grew re-measures against it.
+            card.style.maxHeight = "";
+            const over = card.scrollHeight - card.clientHeight;
+            const room = (card.parentElement?.clientHeight ?? 0) - card.offsetTop * 2;
+            if (over > 0 && over <= SLACK_PX && card.offsetHeight + over <= room) {
+                card.style.maxHeight = `${String(card.offsetHeight + over)}px`;
+            }
+            const scrolls = card.scrollHeight - card.clientHeight > 1;
+            const below = scrolls && card.scrollTop + card.clientHeight < card.scrollHeight - 1;
+            setOverflow((now) => (now.scrolls === scrolls && now.below === below ? now : { scrolls, below }));
+        };
+        const observer = new ResizeObserver(measure);
+        observer.observe(card);
+        if (card.parentElement) {
+            observer.observe(card.parentElement);
+        }
+        for (const child of card.children) {
+            observer.observe(child);
+        }
+        card.addEventListener("scroll", measure, { passive: true });
+        measure();
+        return () => {
+            observer.disconnect();
+            card.removeEventListener("scroll", measure);
+        };
+    }, [ref]);
+    return overflow;
+}
+
 /**
  * The legend card (tier1-design.md section 2.4): read-only, one section per channel a row paints
  * from the data, the row that wins on top. Each section is titled "<Property>: <row>"; a run's
@@ -154,6 +210,7 @@ function useReservedMargin(): React.RefObject<HTMLElement | null> {
  */
 export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): React.JSX.Element {
     const ref = useReservedMargin();
+    const { scrolls, below } = useOverflow(ref);
     // The element lists the stack bottom first; the card reads top first, the winner first.
     const sections = keySections(blocks, keyNames(session));
     return (
@@ -162,6 +219,9 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
             component="section"
             aria-label="Legend"
             className="ws-legend-card"
+            // A key that scrolls takes focus, so the keyboard can scroll it too.
+            tabIndex={scrolls ? 0 : undefined}
+            data-more-below={below ? "" : undefined}
             withBorder
             shadow="xs"
             p="xs"
@@ -190,6 +250,12 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
                     );
                 })}
             </Stack>
+            {/* More lies below: a fade over the last line and a chevron, until the end shows. */}
+            {below && (
+                <div className="ws-legend-more" aria-hidden>
+                    <GLYPHS.expand size={14} />
+                </div>
+            )}
         </Paper>
     );
 }

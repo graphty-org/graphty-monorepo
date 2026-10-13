@@ -5,9 +5,30 @@
     position: absolute;
     top: 12px;
     left: 12px;
-    width: 240px;
+    /* Never wider than the canvas, so at 200% zoom it stays clear of the panels beside it. */
+    width: min(240px, calc(100% - 24px));
     max-height: min(calc(100% - 96px), 40%);
     overflow: auto;
+}
+
+/* A key that scrolls takes focus: its ring, as every other focusable box draws it. */
+.ws-legend-card:focus-visible {
+    outline: 2px solid var(--mantine-primary-color-filled);
+    outline-offset: 1px;
+}
+
+/* More of the key lies below: a fade over the last line, and a chevron, stuck to the card's bottom. */
+.ws-legend-more {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    height: 24px;
+    margin: -24px calc(-1 * var(--mantine-spacing-xs)) 0;
+    color: var(--cm-icon-secondary);
+    pointer-events: none;
+    background: linear-gradient(to bottom, transparent, var(--mantine-color-body) 70%);
 }
 
 /* A key chit's ring, so a black chit on the dark card or a white one on the light card still

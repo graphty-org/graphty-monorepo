@@ -3,14 +3,15 @@ import type { GraphSession, StyleRow } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React from "react";
 
-import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { matchesKey } from "../keys/keys";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StylePanel } from "../style/StylePanel";
-import { ADD_ROW_LABEL, openDraft, orNotice } from "./actions";
+import { ADD_ROW_LABEL, draftAnchor, openDraft, orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
+import { KindGlyph } from "./KindGlyph";
+import { RowMenuItems } from "./RowMenu";
 import { count, findTreeRow, isHidden, layerCount, placeOf } from "./rows";
 
 /** The tree item id of the new layer "+" adds before it is written. */
@@ -43,11 +44,13 @@ function paintsOf(session: GraphSession, row: StyleRow): Paints {
     const node = read(parts?.node);
     const edge = read(parts?.edge);
     const painted = [node, edge].flatMap((c) => (c === undefined ? [] : Object.values(c.painted)));
+    // A row that matches nothing paints nothing, so nothing of it is painted over.
+    const matched = (node?.matched ?? 0) + (edge?.matched ?? 0);
     const by = [node, edge].flatMap((c) => c?.paintedBy ?? []).map((id) => session.styles.get(id)?.name ?? id);
     return {
         nodes: node?.matched,
         edges: edge?.matched,
-        paintedOver: painted.length > 0 && painted.every((n) => n === 0),
+        paintedOver: matched > 0 && painted.length > 0 && painted.every((n) => n === 0),
         paintedBy: [...new Set(by)],
     };
 }
@@ -166,6 +169,29 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
     const renamingRow = useWorkspaceState((state) => state.renamingRow);
     const tree = session.styles.tree();
     const drafting = inspected?.kind === "draft-row";
+    // The draft sits where its first write will put it: directly above the row selected when it
+    // opened, else at the top of the unpinned rows.
+    const anchor = drafting ? draftAnchor(session, inspected) : undefined;
+    const anchored = anchor === undefined ? undefined : findTreeRow(tree, anchor);
+    const draftParent = anchored?.folders.at(-1)?.id ?? null;
+    const draftAt =
+        anchored === undefined
+            ? tree.filter((row) => row.pin === "top").length
+            : [...(anchored.folders.at(-1)?.children ?? tree)].reverse().findIndex((row) => row.id === anchor);
+    const draftItem: TreeNodeData = {
+        id: DRAFT_ID,
+        name: "New layer",
+        label: "New layer, layer, not written yet",
+        dimmed: true,
+        movable: false,
+    };
+    // The rows of one list, top first, with the draft in its place when it belongs in this list.
+    const withDraft = (list: TreeNodeData[], parent: string | null): TreeNodeData[] => {
+        if (drafting && parent === draftParent) {
+            list.splice(draftAt, 0, draftItem);
+        }
+        return list;
+    };
 
     const toItem = (row: StyleRow, folders: readonly StyleRow[]): TreeNodeData => {
         const hidden = isHidden({ row, folders });
@@ -209,7 +235,10 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             </>
         );
         if (row.kind === "folder") {
-            const children = [...row.children].reverse().map((child) => toItem(child, [...folders, row]));
+            const children = withDraft(
+                [...row.children].reverse().map((child) => toItem(child, [...folders, row])),
+                row.id,
+            );
             return {
                 id: row.id,
                 name: row.name,
@@ -224,13 +253,10 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         }
         const paints = paintsOf(session, row);
         const over = paints.paintedOver && !hidden;
-        // What it paints is its glyph: a dot for nodes, a line for edges, both for both.
-        const both = paints.nodes !== undefined && paints.edges !== undefined;
-        const mark = both ? 8 : 14;
+        // What it paints is its glyph: a dot for nodes, a line for edges, a dot on a line for both.
         const marks = (
             <span className="ws-row-marks">
-                {paints.nodes === undefined ? null : <GLYPHS.node size={mark} />}
-                {paints.edges === undefined ? null : <GLYPHS.edge size={mark} />}
+                <KindGlyph session={session} row={row} />
             </span>
         );
         const overWords = paintedOverWords(paints);
@@ -247,22 +273,14 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         };
     };
 
-    const items = [...tree].reverse().map((row) => toItem(row, []));
-    // The draft sits at the top of the unpinned rows, where "+" adds a layer.
-    const draftAt = tree.filter((row) => row.pin === "top").length;
-    if (drafting) {
-        items.splice(draftAt, 0, {
-            id: DRAFT_ID,
-            name: "New layer",
-            label: "New layer, layer, not written yet",
-            dimmed: true,
-            movable: false,
-        });
-    }
+    const items = withDraft(
+        [...tree].reverse().map((row) => toItem(row, [])),
+        null,
+    );
 
-    // The tree control counts the draft among the top-level rows; the element does not.
+    // The tree control counts the draft among its list's rows; the element does not.
     const placeFor = (move: { id: string; parentId: string | null; index: number }): ReturnType<typeof placeOf> => {
-        const index = drafting && move.parentId === null && move.index > draftAt ? move.index - 1 : move.index;
+        const index = drafting && move.parentId === draftParent && move.index > draftAt ? move.index - 1 : move.index;
         return placeOf(tree, { ...move, index });
     };
 
@@ -271,26 +289,16 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         if (found === undefined) {
             return null;
         }
-        const { row } = found;
-        const items = ROW_COMMANDS.filter((command) => command.applies(row)).map((command) => (
-            <CommandMenuItem
-                key={command.id}
-                label={command.label}
-                shortcut={command.rowKeys[0]}
-                reason={command.disabled(row)}
-                onRun={() => {
-                    void command.run(workspace, row); // NOSONAR(S3735): a deliberately unawaited promise, marked as no-floating-promises asks
+        return (
+            <RowMenuItems
+                tree={tree}
+                row={found.row}
+                parent={found.folders.at(-1)}
+                onMoveTo={(folderId) => {
+                    actions.moveTo(folderId);
                 }}
             />
-        ));
-        // Move to folder sits after Duplicate, as in Figma's layer menu.
-        const at = items.findIndex((item) => item.key === "row.duplicate") + 1;
-        items.splice(
-            at,
-            0,
-            <MoveToFolder key="row.move" tree={tree} row={row} parent={found.folders.at(-1)} actions={actions} />,
         );
-        return items;
     };
 
     const onRowKeyDown = (id: string, event: React.KeyboardEvent): void => {
@@ -455,71 +463,6 @@ function openGraphSettings(store: WorkspaceStore): void {
             .querySelector<HTMLElement>('[data-inspected="graph"] [role="tabpanel"] :is(button, input, [tabindex="0"])')
             ?.focus();
     });
-}
-
-/**
- * Move to folder: a submenu of the folders the row can go into, and the top level when it is in
- * one. The tree moves it (`actions.moveTo`), checking the move as it checks a drop.
- * @param props - Component props
- * @param props.tree - the element's tree.
- * @param props.row - the row.
- * @param props.parent - the folder holding it, if any.
- * @param props.actions - the tree's moves for the row.
- * @returns The submenu
- */
-function MoveToFolder({
-    tree,
-    row,
-    parent,
-    actions,
-}: Readonly<{
-    tree: readonly StyleRow[];
-    row: StyleRow;
-    parent: StyleRow | undefined;
-    actions: TreeRowActions;
-}>): React.JSX.Element {
-    const folders: StyleRow[] = [];
-    const walk = (rows: readonly StyleRow[]): void => {
-        for (const each of [...rows].reverse()) {
-            // Never into itself or a folder inside it, nor where it already is.
-            if (each.kind === "folder" && each.id !== row.id) {
-                if (each.id !== parent?.id) {
-                    folders.push(each);
-                }
-                walk(each.children);
-            }
-        }
-    };
-    walk(tree);
-    return (
-        <Menu.Sub>
-            <Menu.Sub.Target>
-                <Menu.Sub.Item leftSection={<GLYPHS.folder size={14} aria-hidden />}>Move to folder</Menu.Sub.Item>
-            </Menu.Sub.Target>
-            <Menu.Sub.Dropdown>
-                {folders.length === 0 && parent === undefined ? <Menu.Item disabled>No folders yet</Menu.Item> : null}
-                {folders.map((folder) => (
-                    <Menu.Item
-                        key={folder.id}
-                        onClick={() => {
-                            actions.moveTo(folder.id);
-                        }}
-                    >
-                        {folder.name}
-                    </Menu.Item>
-                ))}
-                {parent === undefined ? null : (
-                    <Menu.Item
-                        onClick={() => {
-                            actions.moveTo(null);
-                        }}
-                    >
-                        Out of {parent.name}
-                    </Menu.Item>
-                )}
-            </Menu.Sub.Dropdown>
-        </Menu.Sub>
-    );
 }
 
 /**

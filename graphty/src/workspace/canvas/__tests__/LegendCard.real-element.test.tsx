@@ -10,8 +10,9 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
+import axe from "axe-core";
 import { assert, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -22,7 +23,7 @@ import { Workspace } from "../../Workspace";
 const TIMEOUT_MS = 90_000;
 
 /** Where the pictures for the owner's review go, relative to this file. */
-const SHOTS = "../../../../../design/ui/studio/tier3/build/key-values-settings";
+const SHOTS = "../../../../../design/ui/studio/tier3/build/tree-key-settings";
 
 /**
  * Renders the workspace at a window size, loads Les Miserables with the starting rows on, adds a
@@ -106,7 +107,11 @@ describe("the canvas key on the real element", () => {
     it("keys only what a reader can read, groups in rank order, with chits ringed on the dark card", async () => {
         await scene(1440, 900);
         const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        const louvain = await within(legend).findByRole("group", { name: "Color: Louvain" }, { timeout: TIMEOUT_MS });
+        const louvain = await within(legend).findByRole(
+            "group",
+            { name: "Color: Communities" },
+            { timeout: TIMEOUT_MS },
+        );
 
         const titles = within(legend)
             .getAllByRole("group")
@@ -173,5 +178,52 @@ describe("the canvas key on the real element", () => {
         const span = Math.max(...xs) - Math.min(...xs);
         assert.isAtLeast(span, (canvas?.clientWidth ?? 0) / 2, "the drawing's width on the canvas");
         await page.screenshot({ path: `${SHOTS}/key-900x700.png` });
+
+        // It scrolls, so it takes focus and marks that more lies below until its end shows.
+        assert.equal(legend.tabIndex, 0);
+        assert.isTrue(legend.hasAttribute("data-more-below"));
+        assert.isNotNull(legend.querySelector(".ws-legend-more"));
+        const result = await axe.run(legend, { runOnly: ["scrollable-region-focusable"] });
+        assert.deepEqual(
+            result.violations.map((violation) => violation.id),
+            [],
+        );
+        await userEvent.click(within(legend).getAllByRole("group")[0] ?? legend);
+        await userEvent.keyboard("{End}");
+        await waitFor(() => {
+            assert.isFalse(legend.hasAttribute("data-more-below"), "scrolled to its end, no more below");
+        });
+        assert.isNull(legend.querySelector(".ws-legend-more"));
+    });
+
+    it("with three runs on at 1366 x 768, never scrolls by a sliver, and names the route as the tree does", async () => {
+        const { session } = await scene(1366, 768);
+        const ids = session.data.nodes().map((node) => node.id);
+        await session.runs.start("degree");
+        await session.runs.start("edge-betweenness");
+        await session.runs.start("shortest-path", { source: String(ids[0]), target: String(ids[11]) });
+        await session.styles.settled();
+        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        await within(legend).findByRole("group", { name: /Shortest route/ }, { timeout: TIMEOUT_MS });
+        assert.notInclude(legend.textContent, "Shortest path");
+        await page.screenshot({ path: `${SHOTS}/key-1366x768-three-runs.png` });
+        await waitFor(() => {
+            const over = legend.scrollHeight - legend.clientHeight;
+            assert.isTrue(over <= 1 || over > 32, `scrolls by ${String(over)} px`);
+        });
+    });
+
+    it("at 200% zoom stays inside the canvas, clear of the inspector beside it", async () => {
+        await scene(683, 384);
+        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        const canvas = legend.closest<HTMLElement>(".ws-canvas") ?? legend.parentElement;
+        await waitFor(() => {
+            assert.isAtMost(
+                legend.getBoundingClientRect().right,
+                canvas?.getBoundingClientRect().right ?? 0,
+                "the key's right edge",
+            );
+        });
+        await page.screenshot({ path: `${SHOTS}/key-200-percent.png` });
     });
 });

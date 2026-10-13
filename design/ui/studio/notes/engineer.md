@@ -11,6 +11,37 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-13) **Tree glyphs and menus, the key card, Graph settings and folders** (graphty app;
+  tests `graph-place/__tests__/StyleTreeRows.real-element.test.tsx`, `canvas/__tests__/
+  LegendCard.real-element.test.tsx`, `legendWords.test.ts`; pictures `tier3/build/tree-key-settings/`).
+  One kind glyph per row, `graph-place/KindGlyph.tsx` (node CircleDot, edge Spline, both
+  GitCommitHorizontal, folder), all 14 px, drawn by the tree, the inspector header and a folder's
+  child list: the old both-kinds mark was two 8 px icons, which is why it read dimmer. Painted-over
+  is `Blend` (two overlapping paints), not `SendToBack` (read as the vary link); a row matching
+  nothing is never painted over (`paintsOf` needs matched > 0). The row menu is ONE component,
+  `graph-place/RowMenu.tsx` (`RowMenuItems`), used by the tree and by the inspector's "..." for a
+  layer or folder row, so the two cannot drift: groups edit | pin | view | remove by
+  `RowCommand.group` with `Menu.Divider` between (Mantine's divider has no separator role; tests
+  query `.mantine-Menu-divider`), an icon per command (`RowCommand.icon`, a GLYPHS key or a function
+  of the row), state words in menus (`rowLabel`: Hide/Show, Lock/Unlock; Quick actions keep
+  "Show/Hide"), Unpin only on a pinned row (`applies`). The inspector moves by `placeOf` +
+  `moveRow` (index 0, as the tree's `moveTo`). A new layer: `openDraft` preselects the kind from the
+  selected layer row (`parts.target`), else the canvas selection, else Nodes; `draftAnchor` (the
+  draft's `back`, if unpinned) puts the draft row above it in the tree, in its folder, and
+  `NewLayer.above` makes `writeLine` add then `moveRow` just above it in ONE transaction ("Add
+  <name>"), one undo. Key card: `useOverflow` in `LegendCard.tsx` sets `tabIndex=0` only while it
+  scrolls (axe `scrollable-region-focusable`), `data-more-below` and a sticky fade with a chevron
+  until the end shows, and lets a card over its cap by 32 px or less grow (a scrollbar for a sliver);
+  width `min(240px, 100% - 24px)` keeps it on the canvas at 200% zoom. Key titles name a run by
+  the catalog plainName (`runName(session, run, "plain")`, additive): "Shortest route",
+  "Connections", "Communities", as the tree does; the Analyze list keeps its own words. Motion
+  speed (`edge.animationSpeed`) joined NUMBER_CHANNELS. The white chit already had its ring
+  (`.ws-legend-chit`, tested). Graph settings and every Values tab (Layer, Graph, Run, Node values)
+  use flat titles (`collapsible={false} headingLevel={3}`), so their titles are headings; Graph
+  settings' Background and View are `Input.Wrapper` field labels, one caption size with Lighting and
+  the colors (the color input's label already matched `.cm-field-label`). Selection colors' rows
+  sit in an unnamed `.ws-field` (content edge to the vary and Clear columns), no extra padding.
+
 - (2026-10-13) **Category rows, the ramp popover, one Clear glyph, pickers that read one list**
   (graphty app plus compact-mantine; test `style/__tests__/PopoversAndPickers.real-element.test.tsx`).
   Value names: `readableName(session, value)` in `style/words.ts` is the one namer for the vary

@@ -91,7 +91,7 @@ import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
 import { effectiveMode, MODELS } from "./config.mjs";
 import { updateMainCheckout } from "./main-checkout.mjs";
 import { createGitHub, GitHubError, notSent } from "./github.mjs";
-import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
+import { answerHook, hookPointer, publishHook, staleSpooled, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
 import { backfillTriaged, syncJobs } from "./jobs.mjs";
 import { checkFaults, confirmClosedWaits, settleWaits, tickJobs, waitNews } from "./advance.mjs";
@@ -4062,6 +4062,17 @@ export async function startDaemon({
     writeFileSync(tmp, `${JSON.stringify({ ...self, port: boundPort, root, codeHash, startedAt })}\n`);
     renameSync(tmp, daemonFile);
     say("info", `githerd ${version} listening on 127.0.0.1:${boundPort} for ${root} (${mode()})`);
+    // The project settings' hooks run whatever daemon was published last; a one-poll check or a
+    // self-update's protocol test is not the repository's daemon, and publishes nothing.
+    if (autoPoll) {
+        try {
+            const home = env.HOME ?? homedir();
+            const custom = stateDir === defaultStateDir(root, home) ? null : stateDir;
+            publishHook(hookPointer(home, root, config?.repo), { dev: Boolean(env.GITHERD_DEV), stateDir: custom });
+        } catch (err) {
+            say("error", `hook pointer: ${/** @type {Error} */ (err).message}`);
+        }
+    }
 
     /**
      * The owner item for state githerd could not read whole. An empty start blocks every worker

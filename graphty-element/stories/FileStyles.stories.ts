@@ -12,7 +12,8 @@
  * shows a `mapData()` size and colors read from each edge's data, which the real file does not use.
  *
  * Each story's play function reads back, through the element's session, that the file's layers
- * exist and that a few nodes are drawn in the colors the file gives them.
+ * exist and that a few nodes are drawn in the colors the file gives them; the DOT, yEd and
+ * Cytoscape.js stories also read back the arrowheads the file draws.
  */
 import "../index.ts";
 // Registers the <graphty-element> custom element; nothing is referenced by name.
@@ -30,7 +31,7 @@ import voctomixUrl from "../../graph-io/test/corpus/styles/graphml/yed-shapenode
 import glycolysisUrl from "../../graph-io/test/corpus/styles/json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json?url";
 import catarUrl from "../../graph-io/test/corpus/styles/pajek/SamTseng_CATAR__Pajek_format.net?url";
 import ngsCheckMateUrl from "../../graph-io/test/corpus/styles/xgmml/parklab_NGSCheckMate__luad.out.xgmml?url";
-import { fileStyleOf } from "../session";
+import { type ExplainTarget, fileStyleOf } from "../session";
 import { assertDrawnColour, assertGraphLoaded, drawn, holds, renderedElement } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGraphSettled } from "./helpers";
 
@@ -119,6 +120,45 @@ async function drewFileStyles(
 }
 
 /**
+ * Check a file's arrowheads through the element's session: each named edge resolves the arrow
+ * the file gives it, no node an arrowhead points at is outlined (an outline's glow covers the
+ * arrowhead beside the node), and every edge with an arrowhead draws a cap.
+ * @param canvasElement - Where the story rendered.
+ * @param story - The story, for failure messages.
+ * @param arrows - Edges named `source->target`, and the arrow the file draws at each target.
+ */
+async function drewArrows(
+    canvasElement: HTMLElement,
+    story: string,
+    arrows: Readonly<Record<string, string>>,
+): Promise<void> {
+    const element = await renderedElement(canvasElement, `${story}: no <graphty-element> rendered`);
+    const { session } = element;
+    const merged = (target: ExplainTarget): Record<string, unknown> => session.styles.explain(target).merged;
+    const edges = session.data.edges();
+    for (const [ends, arrow] of Object.entries(arrows)) {
+        const edge = edges.find((candidate) => `${String(candidate.source)}->${String(candidate.target)}` === ends);
+        const head = edge === undefined ? undefined : merged({ edge: edge.id })["edge.arrowHead"];
+        await holds(head === arrow, `${story}: edge ${ends} draws arrow ${String(head)}, the file draws ${arrow}`);
+    }
+
+    const headed = edges.filter((edge) => {
+        const head = merged({ edge: edge.id })["edge.arrowHead"];
+        return head !== undefined && head !== "none";
+    });
+    const outlined = [...new Set(headed.map((edge) => edge.target))].filter(
+        (node) => merged({ node })["node.outline"] !== undefined,
+    );
+    await holds(outlined.length === 0, `${story}: outlines bury the arrowheads at ${outlined.join(", ")}`);
+
+    const scene = await drawn(canvasElement, `Data/File Styles ${story}`);
+    await holds(
+        scene.arrowCaps.length >= headed.length,
+        `${story}: ${String(headed.length)} edges ask for an arrowhead, ${String(scene.arrowCaps.length)} caps drawn`,
+    );
+}
+
+/**
  * A story's arguments for one file, drawn with the file's styles by a seeded force layout, or for
  * a file of a few hundred nodes, which a force layout would still be moving when the story is
  * captured, on a circle, which places every node at once.
@@ -198,6 +238,8 @@ export const Dot: Story = {
             { nodes: 13, edges: 21 },
             { red: "#ff0000", blue: "#0000ff", green: "#00ff00", yellow: "#ffff00" },
         );
+        // `edge [arrowhead=open]`: Graphviz's "open" is its vee.
+        await drewArrows(canvasElement, "Dot", { "green->white": "vee", "red->deeppink": "vee" });
     },
 };
 
@@ -221,6 +263,8 @@ export const GraphmlYed: Story = {
                 "n2::n9": "#ff6600",
             },
         );
+        // `y:Arrows target="standard"`.
+        await drewArrows(canvasElement, "GraphmlYed", { "n2::n21->n3::n0": "normal" });
     },
 };
 
@@ -363,5 +407,10 @@ export const CytoscapeJs: Story = {
             { nodes: 44, edges: 44 },
             { glyph0: "#ffffff", glyph9: "#ffffff" },
         );
+        // `.catalysis` edges end in a circle, `.production` edges in a triangle.
+        await drewArrows(canvasElement, "CytoscapeJs", {
+            "glyph9->nwtN_f72662af-67d4-4ca2-8504-4ca032ddd111": "dot",
+            "nwtN_f72662af-67d4-4ca2-8504-4ca032ddd111->glyph1": "normal",
+        });
     },
 };

@@ -59,6 +59,9 @@ export const AUTOSAVE_FORMAT_VERSION = 1;
 /** How long a write may go without completing or failing before it is aborted. */
 export const WATCHDOG_MS = 10_000;
 
+/** A deadline timer that fires this much past its time ran behind a blocked main thread. */
+const DEADLINE_LATE_MS = 1_000;
+
 /** How long the listing at the start may take before the page loads without a restore. */
 export const LIST_TIMEOUT_MS = 3000;
 
@@ -304,6 +307,8 @@ interface WriteRetries {
     quota: number;
     /** After the connection to the database was lost. */
     lost: number;
+    /** After the browser aborted the transaction, or closed the connection under it. */
+    aborted: number;
 }
 
 /**
@@ -800,7 +805,7 @@ export class Autosaver {
 
         const prior = this.#pump ?? Promise.resolve();
         const pump = prior.then(() =>
-            job === null ? undefined : this.#writeOnce({ stall: 1, quota: 1, lost: 1 }, job),
+            job === null ? undefined : this.#writeOnce({ stall: 1, quota: 1, lost: 1, aborted: 1 }, job),
         );
         this.#pump = pump;
         this.stop();
@@ -1027,6 +1032,37 @@ export class Autosaver {
     }
 
     /**
+     * A timer for a deadline on the store, which does not count time the page could not run: when
+     * it fires more than {@link DEADLINE_LATE_MS} past its time, the main thread was blocked (a frame
+     * longer than the deadline, a frozen or suspended page), so the store's callbacks, queued behind
+     * the same block, never had a turn; it waits the whole deadline again. Without this, behind
+     * frames longer than the watchdog, every healthy write was aborted as stalled and the work
+     * stayed unwritten (the lifecycle tests, 5,000 nodes drawn in software: 27 s frames), and a
+     * listing held up the same way skipped the restore.
+     * @param fn - Called once the deadline has passed with the page running.
+     * @param ms - The deadline.
+     * @returns Cancels it.
+     */
+    #deadline(fn: () => void, ms: number): () => void {
+        let cancel = (): void => undefined;
+        const arm = (): void => {
+            const due = this.#clock.now() + ms;
+            cancel = this.#clock.setTimer(() => {
+                if (this.#clock.now() - due > DEADLINE_LATE_MS) {
+                    arm();
+                    return;
+                }
+
+                fn();
+            }, ms);
+        };
+        arm();
+        return () => {
+            cancel();
+        };
+    }
+
+    /**
      * The key's entries, or null when the listing did not return in time or failed (the status
      * says why).
      * @returns The entries, oldest first, or null.
@@ -1034,7 +1070,7 @@ export class Autosaver {
     async #listWithin(): Promise<readonly AutosaveEntryMeta[] | null> {
         try {
             const metas = await new Promise<readonly AutosaveEntryMeta[] | null>((resolve, reject) => {
-                const cancel = this.#clock.setTimer(() => {
+                const cancel = this.#deadline(() => {
                     resolve(null);
                 }, LIST_TIMEOUT_MS);
                 this.#store.list(this.#key).then(
@@ -1528,7 +1564,7 @@ export class Autosaver {
             return;
         }
 
-        const retries = { stall: 1, quota: 1, lost: 1 };
+        const retries = { stall: 1, quota: 1, lost: 1, aborted: 1 };
         do {
             this.#again = false;
             await this.#writeOnce(retries);
@@ -1542,6 +1578,7 @@ export class Autosaver {
      * @param retries.stall - After the watchdog aborted a stuck write.
      * @param retries.quota - After a full quota, once old clean entries are removed.
      * @param retries.lost - After the connection to the database was lost.
+     * @param retries.aborted - After the browser aborted the transaction.
      * @param first - A job already built, written before anything else.
      */
     async #writeOnce(retries: WriteRetries, first?: Job | null): Promise<void> {
@@ -1611,7 +1648,7 @@ export class Autosaver {
         let cancelTimer = (): void => undefined;
         const arm = (): void => {
             cancelTimer();
-            cancelTimer = this.#clock.setTimer(() => {
+            cancelTimer = this.#deadline(() => {
                 stalled = true;
                 controller.abort();
             }, WATCHDOG_MS);
@@ -1638,7 +1675,7 @@ export class Autosaver {
 
     /**
      * After a failed write: report it, and say whether to write again. A conflict always writes
-     * again; a stall, a full quota and a lost connection each once per run.
+     * again; a stall, a full quota, a lost connection and an aborted transaction each once per run.
      * @param failure - What the write threw, and whether the watchdog aborted it.
      * @param failure.error - What was thrown.
      * @param failure.stalled - The watchdog aborted it.
@@ -1677,6 +1714,13 @@ export class Autosaver {
             return false;
         }
 
+        // A transaction the browser aborted with no error of its own, or a connection closed under
+        // it, says nothing about the next one. Without this retry the work waited in memory for the
+        // reader's next change while the storage worked all along (the torn-write lifecycle test).
+        if ((name === "AbortError" || name === "InvalidStateError") && (await this.#reopenOnce(retries, "aborted"))) {
+            return true;
+        }
+
         this.#setProblem({ code: "E_AUTOSAVE_FAILED", params: { name } });
         return false;
     }
@@ -1687,7 +1731,7 @@ export class Autosaver {
      * @param kind - Which retry.
      * @returns Whether to write again.
      */
-    async #reopenOnce(retries: WriteRetries, kind: "stall" | "lost"): Promise<boolean> {
+    async #reopenOnce(retries: WriteRetries, kind: "stall" | "lost" | "aborted"): Promise<boolean> {
         if (retries[kind]-- <= 0) {
             return false;
         }

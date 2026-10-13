@@ -508,6 +508,45 @@ describe("failures", () => {
         assert.deepStrictEqual((await entryOf(store, saver.status.entry)).document, await saveOf(session));
     });
 
+    it("a write held up by a blocked main thread is never called stalled", async () => {
+        const inner = memoryAutosaveStore();
+        let hold = false;
+        let release = (): void => undefined;
+        let reached = (): void => undefined;
+        const arrived = new Promise<void>((resolve) => {
+            reached = resolve;
+        });
+        const store: AutosaveStore = {
+            list: (key) => inner.list(key),
+            read: (id) => inner.read(id),
+            remove: (id) => inner.remove(id),
+            commit: async (writes, options) => {
+                if (hold) {
+                    reached();
+                    await new Promise<void>((resolve) => {
+                        release = resolve;
+                    });
+                }
+
+                return inner.commit(writes, options);
+            },
+        };
+        const { session, clock, saver } = await written({ store });
+        hold = true;
+        await session.styles.add(STYLE);
+        clock.advance(500);
+        await arrived;
+        // A 27 s frame: the watchdog's timer and the store's callbacks both wait behind it, and
+        // the timer gets its turn first, late.
+        clock.block(27_000);
+        clock.advance(0);
+        assert.isNull(saver.status.problem, "a late watchdog is not a stall");
+        release();
+        await saver.settled();
+        assert.strictEqual(saver.status.state, "saved");
+        assert.deepStrictEqual((await entryOf(store, saver.status.entry)).document, await saveOf(session));
+    });
+
     it("a slow write that keeps making progress is never called stalled", async () => {
         const inner = memoryAutosaveStore();
         let slow = false;
@@ -566,6 +605,34 @@ describe("failures", () => {
         clock.advance(500);
         await saver.settled();
         assert.strictEqual(saver.status.state, "saved");
+        assert.deepStrictEqual((await entryOf(store, saver.status.entry)).document, await saveOf(session));
+    });
+
+    it("a transaction the browser aborts is written again at once, with no change needed", async () => {
+        const inner = memoryAutosaveStore();
+        let aborts = 0;
+        let closes = 0;
+        const store: AutosaveStore = {
+            list: (key) => inner.list(key),
+            read: (id) => inner.read(id),
+            remove: (id) => inner.remove(id),
+            close: () => {
+                closes++;
+                return Promise.resolve();
+            },
+            commit: (writes, options) =>
+                aborts-- > 0
+                    ? Promise.reject(new DOMException("The transaction was aborted", "AbortError"))
+                    : inner.commit(writes, options),
+        };
+        const { session, clock, saver } = await written({ store });
+        aborts = 1;
+        await session.styles.add(STYLE);
+        clock.advance(500);
+        await saver.settled();
+        assert.strictEqual(saver.status.state, "saved", "the aborted write was retried");
+        assert.isNull(saver.status.problem);
+        assert.strictEqual(closes, 1, "the connection was reopened for the retry");
         assert.deepStrictEqual((await entryOf(store, saver.status.entry)).document, await saveOf(session));
     });
 

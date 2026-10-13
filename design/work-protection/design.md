@@ -513,6 +513,13 @@ example, keeps note text that is still being typed in React state.
   is merely slow, on a page whose main thread is busy drawing a large graph, is never aborted; the element aborts the stuck
   transaction (overlapping transactions run in creation order, so a retry behind it would stall
   too), reopens the connection and retries once.
+  The watchdog and the start's listing deadline count only time the page could run: a timer
+  that fires more than a second late ran behind a blocked main thread (a frame longer than the
+  deadline, a frozen or suspended page), where the store's callbacks were queued behind the same
+  block, so it waits the whole deadline again instead of calling the write stalled.
+- **Aborted transaction.** A transaction the browser aborts with no error of its own
+  (`AbortError`), or whose connection closes under it (`InvalidStateError`), is retried once on a
+  reopened connection; only a second failure becomes `failing` with `E_AUTOSAVE_FAILED`.
 - **Lost connection.** After WebKit's storage process dies, every request fails with
   `UnknownError: Connection to Indexed Database server lost` until a reload. The element reopens
   once; if that fails, the state is `failing` with `E_AUTOSAVE_CONNECTION_LOST`, so the consumer can

@@ -60,6 +60,15 @@ export class FakeClock implements AutosaveClock {
         this.#time = end;
     }
 
+    /**
+     * The main thread is blocked (a long frame, a frozen page): time passes and nothing fires.
+     * The next {@link advance} fires what fell due meanwhile, late.
+     * @param ms - How long.
+     */
+    block(ms: number): void {
+        this.#time += ms;
+    }
+
     /** The page goes idle: every idle callback fires now. */
     goIdle(): void {
         for (const each of this.#pending.filter((pending) => pending.idle)) {

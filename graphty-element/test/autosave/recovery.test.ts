@@ -539,4 +539,36 @@ describe("a listing that does not return", () => {
         assert.strictEqual(page.saver.status.state, "saved");
         assert.strictEqual((await memory.list(KEY)).length, 2, "the stuck entry is still there, beside the new one");
     });
+
+    it("restores the work when the listing is only held up by a blocked main thread", async () => {
+        const memory = memoryAutosaveStore();
+        await earlier(memory, (session) => session.config.set({ name: "Behind a long frame" }));
+        let answer = (): void => undefined;
+        let asked = (): void => undefined;
+        const listing = new Promise<void>((resolve) => {
+            asked = resolve;
+        });
+        const store = faultAutosaveStore(
+            Object.assign(Object.create(memory) as AutosaveStore, {
+                list: (key: string) =>
+                    new Promise<readonly AutosaveEntryMeta[]>((resolve) => {
+                        answer = () => {
+                            void memory.list(key).then(resolve);
+                        };
+                        asked();
+                    }),
+            }),
+        );
+        const page = load(store);
+
+        const ready = page.saver.recover();
+        await listing;
+        // A 5 s frame: the listing's timer and its answer both wait behind it; the timer runs first.
+        page.clock.block(5000);
+        page.clock.advance(0);
+        answer();
+        const restored = await ready;
+        assert.isNotNull(restored, "the work was restored");
+        assert.isNull(page.saver.status.problem);
+    });
 });

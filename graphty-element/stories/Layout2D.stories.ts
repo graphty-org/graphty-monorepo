@@ -423,7 +423,10 @@ const planarPanel = (
     element.style.cssText = "display:block;width:100%;height:100%;min-height:0;flex:1;";
     const caption = document.createElement("div");
     caption.dataset.planarCaption = "";
-    caption.style.cssText = "padding:4px 0;min-height:20px;color:#475569;";
+    // A fixed height, room for two lines: the caption is written after the frame is stable, and a caption that grew
+    // the panel then would resize the canvas after the picture was declared final.
+    caption.style.cssText =
+        "padding:4px 0;height:44px;line-height:18px;box-sizing:border-box;flex:none;overflow:hidden;color:#475569;";
     let refused: string | undefined;
     element.addEventListener("error", (event) => {
         const { error } = (event as CustomEvent<{ error: Error }>).detail;

@@ -1,6 +1,7 @@
 /**
  * ARF draws in the same box as every other one-pass layout: the farthest node is `scale` layout
- * units (100 scene units by default) from the center, whatever size the forces settled at.
+ * units from the center, `scale * scalingFactor` scene units (50 by default, as Kamada-Kawai),
+ * whatever size the forces settled at.
  *
  * Unscaled, ARF's result grows with the graph: the 77-node story graph came out about 14 layout
  * units across, 1,400 scene units, and once the camera fitted that the nodes (1 scene unit) were
@@ -49,13 +50,14 @@ function farthest(n: number, opts: Record<string, unknown>): number {
 }
 
 describe("ARF layout scale", () => {
-    it("puts the farthest node 100 scene units from the center, at any graph size", () => {
+    it("puts the farthest node 50 scene units from the center by default, at any graph size", () => {
         for (const n of [10, 77, 200]) {
-            assert.closeTo(farthest(n, {}), 100, 1e-3, `${String(n)} nodes`);
+            assert.closeTo(farthest(n, {}), 50, 1e-3, `${String(n)} nodes`);
         }
     });
 
     it("puts the farthest node `scale` layout units from the center", () => {
-        assert.closeTo(farthest(77, { scale: 2.5 }), 250, 1e-3);
+        assert.closeTo(farthest(77, { scale: 2.5 }), 125, 1e-3);
+        assert.closeTo(farthest(77, { scale: 2.5, scalingFactor: 100 }), 250, 1e-3);
     });
 });
